@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>CFC Maç Motoru v2 — Faz 1</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent }
+  html, body {
+    width:100%; height:100%;
+    background:#0a0a0a;
+    color:#fff;
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    overflow:hidden;
+    user-select:none;
+  }
+  #scene { width:100vw; height:100vh; display:block; cursor:default }
+  canvas { display:block }
+
+  /* Üst bar — skor + faz */
+  #topbar {
+    position:fixed; top:0; left:0; right:0;
+    background:linear-gradient(180deg, rgba(0,0,0,.85), rgba(0,0,0,0));
+    padding:12px 16px;
+    z-index:100;
+    display:flex; justify-content:space-between; align-items:center;
+    pointer-events:none;
+  }
+  .tb-title {
+    font-size:13px; font-weight:800;
+    letter-spacing:.5px; color:#ffd700;
+    text-transform:uppercase;
+  }
+  .tb-phase {
+    font-size:11px; color:#aaa;
+    background:rgba(255,255,255,.08);
+    padding:4px 10px; border-radius:12px;
+  }
+
+  /* Loglar */
+  #logBox {
+    position:fixed; bottom:10px; left:10px;
+    width:280px; max-height:140px;
+    background:rgba(0,0,0,.7);
+    border:1px solid rgba(255,255,255,.15);
+    border-radius:8px;
+    padding:8px;
+    font-family:'SF Mono', Monaco, Consolas, monospace;
+    font-size:10px;
+    overflow-y:auto;
+    z-index:100;
+    line-height:1.4;
+  }
+  #logBox .log-info  { color:#9be7ff }
+  #logBox .log-ok    { color:#00e676 }
+  #logBox .log-warn  { color:#ffb300 }
+  #logBox .log-err   { color:#ff5252 }
+  #logBox .log-dim   { color:#777 }
+
+  /* FPS */
+  #fps {
+    position:fixed; top:10px; right:10px;
+    background:rgba(0,0,0,.6);
+    padding:4px 8px; border-radius:6px;
+    font-family:monospace; font-size:12px; font-weight:700;
+    z-index:100;
+  }
+
+  /* Yükleme overlay */
+  #loadOverlay {
+    position:fixed; top:0; left:0; right:0; bottom:0;
+    background:radial-gradient(ellipse at center, #0a1820 0%, #000 100%);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    z-index:1000;
+    transition:opacity .5s;
+  }
+  #loadOverlay.hide { opacity:0; pointer-events:none }
+  .load-title {
+    font-size:28px; font-weight:900;
+    letter-spacing:2px;
+    background:linear-gradient(135deg, #ffd700, #ff6b35);
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
+    margin-bottom:8px;
+  }
+  .load-sub { font-size:12px; color:#aaa; margin-bottom:24px }
+  .load-bar {
+    width:240px; height:4px;
+    background:rgba(255,255,255,.1);
+    border-radius:2px;
+    overflow:hidden;
+  }
+  .load-fill {
+    height:100%; width:0;
+    background:linear-gradient(90deg, #ff6b35, #ffd700);
+    transition:width .3s;
+  }
+  .load-msg {
+    margin-top:12px; font-size:11px; color:#888;
+    min-height:14px;
+  }
+
+  /* Kontrol paneli */
+  #controls {
+    position:fixed; bottom:10px; right:10px;
+    background:rgba(0,0,0,.75);
+    border:1px solid rgba(255,255,255,.15);
+    border-radius:10px;
+    padding:8px;
+    display:flex; flex-direction:column; gap:6px;
+    z-index:100;
+  }
+  .ctrl-btn {
+    background:linear-gradient(135deg, #2196f3, #1976d2);
+    color:#fff; border:none;
+    padding:8px 12px; border-radius:6px;
+    font-size:11px; font-weight:700;
+    font-family:inherit;
+    cursor:pointer;
+    min-width:140px;
+    text-align:left;
+    transition:transform .1s;
+  }
+  .ctrl-btn:active { transform:scale(.95) }
+  .ctrl-btn.danger { background:linear-gradient(135deg, #ef5350, #d32f2f) }
+  .ctrl-btn.warn { background:linear-gradient(135deg, #ff9800, #f57c00) }
+  .ctrl-btn.success { background:linear-gradient(135deg, #4caf50, #388e3c) }
+  .ctrl-group {
+    border-top:1px solid rgba(255,255,255,.1);
+    padding-top:6px; margin-top:2px;
+    font-size:9px; color:#aaa; text-transform:uppercase; letter-spacing:.5px;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="scene"></canvas>
+
+<div id="topbar">
+  <div class="tb-title">⚽ CFC Maç Motoru v2</div>
+  <div class="tb-phase" id="phaseLabel">Faz 1: İskelet + Formasyon</div>
+</div>
+
+<div id="fps">— fps</div>
+
+<div id="logBox"></div>
+
+<div id="controls">
+  <div class="ctrl-group">FORMASYON (HOME)</div>
+  <button class="ctrl-btn" onclick="setFormation('home','4-3-3')">🔵 4-3-3</button>
+  <button class="ctrl-btn" onclick="setFormation('home','4-4-2')">🔵 4-4-2</button>
+  <button class="ctrl-btn" onclick="setFormation('home','3-5-2')">🔵 3-5-2</button>
+
+  <div class="ctrl-group">FORMASYON (AWAY)</div>
+  <button class="ctrl-btn danger" onclick="setFormation('away','4-3-3')">🔴 4-3-3</button>
+  <button class="ctrl-btn danger" onclick="setFormation('away','4-2-3-1')">🔴 4-2-3-1</button>
+
+  <div class="ctrl-group">TEST</div>
+  <button class="ctrl-btn warn" onclick="testAnimation('run')">🏃 Tümü Koş</button>
+  <button class="ctrl-btn warn" onclick="testAnimation('sprint')">⚡ Tümü Sprint</button>
+  <button class="ctrl-btn warn" onclick="testAnimation('kick')">⚽ Tümü Şut</button>
+  <button class="ctrl-btn warn" onclick="testAnimation('tackle')">🦶 Tümü Tackle</button>
+  <button class="ctrl-btn warn" onclick="testAnimation('idle')">⏸ Tümü Dur</button>
+  <button class="ctrl-btn success" onclick="testAnimation('AUTO')">🤖 Otomatik AI</button>
+
+  <div class="ctrl-group">KAMERA</div>
+  <button class="ctrl-btn" onclick="setCamera('broadcast')">📺 Yayın</button>
+  <button class="ctrl-btn" onclick="setCamera('side')">↔️ Yan</button>
+  <button class="ctrl-btn" onclick="setCamera('top')">⬆️ Tepeden</button>
+</div>
+
+<div id="loadOverlay">
+  <div class="load-title">⚽ CFC MATCH ENGINE V2</div>
+  <div class="load-sub">Faz 1: Sahnenin İskeleti</div>
+  <div class="load-bar"><div class="load-fill" id="loadFill"></div></div>
+  <div class="load-msg" id="loadMsg">Başlatılıyor...</div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// 🆕 CFC MAÇ MOTORU V2 — FAZ 1
+// ─────────────────────────────────────────────────────────────────
+// Hedefler:
+//   ✓ Saha + 2 kale + saha çizgileri
+//   ✓ 22 GLB karakter (11 mavi vs 11 kırmızı)
+//   ✓ 8 formasyon seçenekleri (Sim.FORMATIONS taşındı)
+//   ✓ Animasyon state machine (idle/run/sprint/kick/tackle)
+//   ✓ Otomatik AI: oyuncular formasyon noktasında durur
+//   ✓ Test butonları: animasyon tetikleyici, formasyon değiştirici
+//   ✗ Top yok (Faz 2)
+//   ✗ Maç akışı yok (Faz 2-3)
+//   ✗ CFC entegrasyon yok (Faz 6)
+// ═══════════════════════════════════════════════════════════════════
+
+const ENGINE = {
+  version: 'v2-phase1',
+  scene: null,
+  camera: null,
+  renderer: null,
+  clock: null,
+
+  // Oyun durumu
+  players: [],        // { id, team, pos, x, z, mesh, mixer, actions, currentAction, ... }
+  pitch: { length:100, width:65 },  // saha boyutu (metre)
+  formations: { home:'4-3-3', away:'4-3-3' },
+
+  // Asset cache
+  assets: {
+    character: null,
+    animations: {},   // { idle: AnimationClip, run: ..., ... }
+  },
+
+  // Animasyon modu
+  animMode: 'AUTO',   // 'AUTO' | 'run' | 'sprint' | 'idle' | 'kick' | 'tackle'
+
+  // Loglama
+  _log: null,
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// FORMASYON KOORDİNATLARI (CFC Sim.FORMATIONS'tan birebir taşındı)
+// ═══════════════════════════════════════════════════════════════════
+const FORMATIONS = {
+  '4-3-3':   [{pos:'KL',x:-48,z:0},{pos:'SB',x:-38,z:-22},{pos:'STB',x:-38,z:-8},{pos:'STB',x:-38,z:8},{pos:'SB',x:-38,z:22},{pos:'DOS',x:-22,z:0},{pos:'OS',x:-10,z:-10},{pos:'OS',x:-10,z:10},{pos:'SAK',x:0,z:-25},{pos:'FWD',x:2,z:0},{pos:'SAK',x:0,z:25}],
+  '4-4-2':   [{pos:'KL',x:-48,z:0},{pos:'SB',x:-38,z:-22},{pos:'STB',x:-38,z:-8},{pos:'STB',x:-38,z:8},{pos:'SB',x:-38,z:22},{pos:'SAK',x:-15,z:-25},{pos:'OS',x:-18,z:-8},{pos:'OS',x:-18,z:8},{pos:'SAK',x:-15,z:25},{pos:'FWD',x:2,z:-8},{pos:'FWD',x:2,z:8}],
+  '4-2-3-1': [{pos:'KL',x:-48,z:0},{pos:'SB',x:-38,z:-22},{pos:'STB',x:-38,z:-8},{pos:'STB',x:-38,z:8},{pos:'SB',x:-38,z:22},{pos:'DOS',x:-25,z:-8},{pos:'DOS',x:-25,z:8},{pos:'SAK',x:-8,z:-25},{pos:'OS',x:-8,z:0},{pos:'SAK',x:-8,z:25},{pos:'FWD',x:5,z:0}],
+  '3-5-2':   [{pos:'KL',x:-48,z:0},{pos:'STB',x:-38,z:-16},{pos:'STB',x:-40,z:0},{pos:'STB',x:-38,z:16},{pos:'SAK',x:-18,z:-28},{pos:'DOS',x:-22,z:0},{pos:'OS',x:-12,z:-10},{pos:'OS',x:-12,z:10},{pos:'SAK',x:-18,z:28},{pos:'FWD',x:2,z:-8},{pos:'FWD',x:2,z:8}],
+};
+
+// Animasyon dosya listesi (Faz 1 — minimum set)
+const ANIM_FILES = [
+  { name:'idle',    file:'animations/idle.glb' },
+  { name:'run',     file:'animations/run.glb' },
+  { name:'sprint',  file:'animations/sprint.glb' },
+  { name:'kick',    file:'animations/kick.glb' },
+  { name:'tackle',  file:'animations/tackle.glb' },
+  { name:'gk_idle', file:'animations/gk_idle.glb' },
+];
+
+// ═══════════════════════════════════════════════════════════════════
+// LOGLAMA
+// ═══════════════════════════════════════════════════════════════════
+function log(msg, level) {
+  const box = document.getElementById('logBox');
+  if (!box) return;
+  const cls = 'log-' + (level || 'info');
+  const time = new Date().toTimeString().slice(0,8);
+  const line = document.createElement('div');
+  line.className = cls;
+  line.textContent = '[' + time + '] ' + msg;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+  console.log('[ENGINE]', msg);
+}
+
+function setLoadProgress(pct, msg) {
+  document.getElementById('loadFill').style.width = pct + '%';
+  if (msg) document.getElementById('loadMsg').textContent = msg;
+}
+
+function hideLoadOverlay() {
+  document.getElementById('loadOverlay').classList.add('hide');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SCRIPT YÜKLEYİCİ
+// ═══════════════════════════════════════════════════════════════════
+function loadScript(url) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = url;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('Script yüklenemedi: ' + url));
+    document.head.appendChild(s);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// GLB YÜKLEYİCİ
+// ═══════════════════════════════════════════════════════════════════
+function loadGLB(url) {
+  return new Promise((resolve, reject) => {
+    const loader = new THREE.GLTFLoader();
+    loader.load(url,
+      gltf => resolve(gltf),
+      undefined,
+      err => reject(new Error('GLB yüklenemedi (' + url + '): ' + (err.message || 'Bilinmeyen hata')))
+    );
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SAHA KURMA
+// ═══════════════════════════════════════════════════════════════════
+function buildPitch() {
+  const { length: L, width: W } = ENGINE.pitch;
+
+  // Yeşil zemin
+  const pitchGeo = new THREE.PlaneGeometry(L + 10, W + 10);
+  const pitchMat = new THREE.MeshLambertMaterial({ color: 0x2d6a3e });
+  const pitch = new THREE.Mesh(pitchGeo, pitchMat);
+  pitch.rotation.x = -Math.PI / 2;
+  ENGINE.scene.add(pitch);
+
+  // Dış sınır (koyu yeşil çevre)
+  const surroundGeo = new THREE.PlaneGeometry(L + 30, W + 30);
+  const surroundMat = new THREE.MeshLambertMaterial({ color: 0x1a4a2a });
+  const surround = new THREE.Mesh(surroundGeo, surroundMat);
+  surround.rotation.x = -Math.PI / 2;
+  surround.position.y = -0.05;
+  ENGINE.scene.add(surround);
+
+  // Çizgiler (beyaz)
+  const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 });
+
+  function makeLine(points) {
+    const geo = new THREE.BufferGeometry().setFromPoints(
+      points.map(p => new THREE.Vector3(p[0], 0.02, p[1]))
+    );
+    return new THREE.Line(geo, lineMat);
+  }
+
+  // Sahanın dış çerçevesi
+  const halfL = L / 2, halfW = W / 2;
+  ENGINE.scene.add(makeLine([[-halfL,-halfW], [halfL,-halfW], [halfL,halfW], [-halfL,halfW], [-halfL,-halfW]]));
+
+  // Orta çizgi
+  ENGINE.scene.add(makeLine([[0,-halfW], [0,halfW]]));
+
+  // Orta daire
+  const circleGeo = new THREE.BufferGeometry();
+  const circlePts = [];
+  const r = 9.15;
+  for (let i = 0; i <= 64; i++) {
+    const a = (i / 64) * Math.PI * 2;
+    circlePts.push(new THREE.Vector3(Math.cos(a) * r, 0.02, Math.sin(a) * r));
+  }
+  circleGeo.setFromPoints(circlePts);
+  ENGINE.scene.add(new THREE.Line(circleGeo, lineMat));
+
+  // Orta nokta
+  const centerDot = new THREE.Mesh(
+    new THREE.CircleGeometry(0.3, 16),
+    new THREE.MeshBasicMaterial({ color: 0xffffff })
+  );
+  centerDot.rotation.x = -Math.PI / 2;
+  centerDot.position.y = 0.03;
+  ENGINE.scene.add(centerDot);
+
+  // Ceza sahaları (her iki tarafta)
+  [-1, 1].forEach(side => {
+    const sx = side * halfL;
+    // Büyük ceza sahası (16.5m × 40.3m)
+    ENGINE.scene.add(makeLine([
+      [sx, -20.15], [sx - side * 16.5, -20.15],
+      [sx - side * 16.5, 20.15], [sx, 20.15]
+    ]));
+    // Küçük ceza sahası (5.5m × 18.3m)
+    ENGINE.scene.add(makeLine([
+      [sx, -9.16], [sx - side * 5.5, -9.16],
+      [sx - side * 5.5, 9.16], [sx, 9.16]
+    ]));
+    // Penaltı noktası
+    const penDot = new THREE.Mesh(
+      new THREE.CircleGeometry(0.3, 16),
+      new THREE.MeshBasicMaterial({ color: 0xffffff })
+    );
+    penDot.rotation.x = -Math.PI / 2;
+    penDot.position.set(sx - side * 11, 0.03, 0);
+    ENGINE.scene.add(penDot);
+
+    // Kale (basit beyaz çerçeve)
+    const postMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+    const postR = 0.1, postH = 2.44;
+    const postZ = 3.66;
+    // 2 dikme
+    for (const z of [-postZ, postZ]) {
+      const post = new THREE.Mesh(
+        new THREE.CylinderGeometry(postR, postR, postH, 8),
+        postMat
+      );
+      post.position.set(sx, postH / 2, z);
+      ENGINE.scene.add(post);
+    }
+    // Üst direk
+    const bar = new THREE.Mesh(
+      new THREE.CylinderGeometry(postR, postR, postZ * 2, 8),
+      postMat
+    );
+    bar.rotation.x = Math.PI / 2;
+    bar.position.set(sx, postH, 0);
+    ENGINE.scene.add(bar);
+  });
+
+  log('✓ Saha hazır', 'ok');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// IŞIK
+// ═══════════════════════════════════════════════════════════════════
+function setupLights() {
+  ENGINE.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+  const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+  dir.position.set(50, 80, 30);
+  ENGINE.scene.add(dir);
+  log('✓ Işıklar hazır', 'ok');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// KAMERA
+// ═══════════════════════════════════════════════════════════════════
+function setupCamera() {
+  const aspect = window.innerWidth / window.innerHeight;
+  ENGINE.camera = new THREE.PerspectiveCamera(45, aspect, 0.5, 500);
+  setCamera('broadcast');
+}
+
+function setCamera(mode) {
+  if (!ENGINE.camera) return;
+  if (mode === 'broadcast') {
+    ENGINE.camera.position.set(0, 50, 70);
+    ENGINE.camera.lookAt(0, 0, 0);
+  } else if (mode === 'side') {
+    ENGINE.camera.position.set(0, 15, 50);
+    ENGINE.camera.lookAt(0, 5, 0);
+  } else if (mode === 'top') {
+    ENGINE.camera.position.set(0, 100, 0.1);
+    ENGINE.camera.lookAt(0, 0, 0);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// OYUNCU OLUŞTURMA — bir GLB klon + AnimationMixer
+// ═══════════════════════════════════════════════════════════════════
+function createPlayer(opts) {
+  const SkelUtils = THREE.SkeletonUtils || window.SkeletonUtils;
+  if (!SkelUtils || !SkelUtils.clone) {
+    throw new Error('SkeletonUtils mevcut değil');
+  }
+
+  // Karakter klonu
+  const clone = SkelUtils.clone(ENGINE.assets.character);
+
+  // Boyut: otomatik hesapla — hedef 2 birim yüksek
+  const tempBox = new THREE.Box3().setFromObject(clone);
+  const tempSize = new THREE.Vector3();
+  tempBox.getSize(tempSize);
+  const scale = tempSize.y > 0 ? (2.0 / tempSize.y) : 0.018;
+  clone.scale.setScalar(scale);
+
+  // Forma rengi: home mavi, away kırmızı
+  const teamColor = new THREE.Color(opts.team === 'home' ? '#00b0ff' : '#ef5350');
+  const gkColor = new THREE.Color('#ffd700');
+  const isGK = opts.pos === 'KL';
+  const finalColor = isGK ? gkColor : teamColor;
+
+  clone.traverse(child => {
+    if (child.isMesh || child.isSkinnedMesh) {
+      child.castShadow = false;
+      child.receiveShadow = false;
+      child.frustumCulled = false;
+      if (child.material) {
+        // Material'leri klonla (her oyuncuda bağımsız renk)
+        const mats = Array.isArray(child.material) ? child.material : [child.material];
+        const newMats = mats.map(m => {
+          const cm = m.clone();
+          if (cm.color) cm.color.copy(finalColor);
+          cm.transparent = false;
+          cm.opacity = 1;
+          return cm;
+        });
+        child.material = Array.isArray(child.material) ? newMats : newMats[0];
+      }
+    }
+  });
+
+  // Wrapper grup — pozisyon ve rotasyon için
+  const wrapper = new THREE.Group();
+  wrapper.add(clone);
+  wrapper.position.set(opts.x, 0, opts.z);
+
+  // Numara (sprite olarak, basit)
+  if (opts.number) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64; canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    ctx.beginPath();
+    ctx.arc(32, 32, 28, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 32px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(opts.number, 32, 34);
+    const tex = new THREE.CanvasTexture(canvas);
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, transparent:true }));
+    sprite.position.set(0, 2.8, 0);
+    sprite.scale.set(1.5, 1.5, 1);
+    wrapper.add(sprite);
+  }
+
+  // AnimationMixer + tüm action'lar
+  const mixer = new THREE.AnimationMixer(clone);
+  const actions = {};
+  Object.keys(ENGINE.assets.animations).forEach(name => {
+    const clip = ENGINE.assets.animations[name];
+    if (clip) {
+      actions[name] = mixer.clipAction(clip);
+    }
+  });
+
+  // Default: idle (GK ise gk_idle)
+  const startAnim = isGK && actions['gk_idle'] ? 'gk_idle' : 'idle';
+  let currentAction = null;
+  if (actions[startAnim]) {
+    actions[startAnim].play();
+    currentAction = startAnim;
+  }
+
+  ENGINE.scene.add(wrapper);
+
+  return {
+    id: opts.id,
+    team: opts.team,
+    pos: opts.pos,
+    number: opts.number,
+    isGK: isGK,
+    homeX: opts.x, homeZ: opts.z,  // formasyon noktası
+    wrapper: wrapper,
+    character: clone,
+    mixer: mixer,
+    actions: actions,
+    currentAction: currentAction,
+    // Hareket için (Faz 2'de top peşinde, şimdilik durur)
+    vx: 0, vz: 0,
+    targetX: opts.x, targetZ: opts.z,
+  };
+}
+
+// Oyuncuya animasyon değişimi (smooth crossfade)
+function setPlayerAnim(player, animName, fadeTime) {
+  if (!player.actions[animName]) return;
+  if (player.currentAction === animName) return;
+
+  const fade = fadeTime != null ? fadeTime : 0.2;
+  const newAction = player.actions[animName];
+
+  if (player.currentAction && player.actions[player.currentAction]) {
+    const oldAction = player.actions[player.currentAction];
+    newAction.reset().setEffectiveWeight(1).fadeIn(fade).play();
+    oldAction.fadeOut(fade);
+  } else {
+    newAction.reset().play();
+  }
+  player.currentAction = animName;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// FORMASYON UYGULAMA — 11 oyuncuyu yerleştir
+// ═══════════════════════════════════════════════════════════════════
+function spawnTeam(team, formationName) {
+  const fm = FORMATIONS[formationName];
+  if (!fm) { log('⚠ Bilinmeyen formasyon: ' + formationName, 'warn'); return; }
+
+  // Önceki oyuncuları temizle
+  ENGINE.players = ENGINE.players.filter(p => {
+    if (p.team !== team) return true;
+    ENGINE.scene.remove(p.wrapper);
+    return false;
+  });
+
+  // Yeni 11 oyuncu (formasyona göre yerleştir)
+  // Away takım için X aynalanır
+  fm.forEach((slot, i) => {
+    const x = (team === 'home') ? slot.x : -slot.x;
+    const z = (team === 'home') ? slot.z : -slot.z;
+    const player = createPlayer({
+      id: team + '_' + i,
+      team: team,
+      pos: slot.pos,
+      number: i + 1,
+      x: x,
+      z: z,
+    });
+    // Yön: home → +X yönüne bakar, away → -X yönüne bakar
+    player.character.rotation.y = (team === 'home') ? Math.PI / 2 : -Math.PI / 2;
+    ENGINE.players.push(player);
+  });
+
+  log(`✓ ${team} (${formationName}) — 11 oyuncu sahaya çıktı`, 'ok');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// API: dış komutlar
+// ═══════════════════════════════════════════════════════════════════
+window.setFormation = function(team, formationName) {
+  ENGINE.formations[team] = formationName;
+  spawnTeam(team, formationName);
+};
+
+window.testAnimation = function(animName) {
+  ENGINE.animMode = animName;
+  if (animName === 'AUTO') {
+    log('🤖 AUTO mod — AI kontrolü aktif', 'ok');
+  } else {
+    log('🎬 Manuel: tüm oyuncular → ' + animName, 'info');
+    // Hemen değiştir
+    ENGINE.players.forEach(p => {
+      const target = p.isGK && p.actions['gk_idle'] && animName === 'idle'
+        ? 'gk_idle' : animName;
+      setPlayerAnim(p, target, 0.15);
+    });
+  }
+};
+
+window.setCamera = setCamera;
+
+// ═══════════════════════════════════════════════════════════════════
+// ANA DÖNGÜ
+// ═══════════════════════════════════════════════════════════════════
+function animate() {
+  requestAnimationFrame(animate);
+
+  const dt = ENGINE.clock.getDelta();
+
+  // AI mod: her oyuncu için hız hesabı + animasyon seçimi
+  if (ENGINE.animMode === 'AUTO') {
+    ENGINE.players.forEach(p => {
+      // Şimdilik herkes idle (Faz 2'de top peşinde koşma)
+      const target = p.isGK ? 'gk_idle' : 'idle';
+      if (p.currentAction !== target && p.actions[target]) {
+        setPlayerAnim(p, target, 0.15);
+      }
+    });
+  }
+
+  // Mixer'leri ilerlet
+  ENGINE.players.forEach(p => {
+    if (p.mixer) p.mixer.update(dt);
+  });
+
+  // Render
+  ENGINE.renderer.render(ENGINE.scene, ENGINE.camera);
+
+  // FPS
+  fpsCounter.frame++;
+  const now = performance.now();
+  if (now - fpsCounter.last >= 500) {
+    const fps = Math.round((fpsCounter.frame * 1000) / (now - fpsCounter.last));
+    document.getElementById('fps').textContent = fps + ' fps';
+    document.getElementById('fps').style.color = fps >= 50 ? '#00e676' : (fps >= 25 ? '#ffb300' : '#ff5252');
+    fpsCounter.frame = 0; fpsCounter.last = now;
+  }
+}
+
+const fpsCounter = { frame: 0, last: performance.now() };
+
+// ═══════════════════════════════════════════════════════════════════
+// PENCERE BOYUTU
+// ═══════════════════════════════════════════════════════════════════
+function onResize() {
+  if (!ENGINE.camera || !ENGINE.renderer) return;
+  ENGINE.camera.aspect = window.innerWidth / window.innerHeight;
+  ENGINE.camera.updateProjectionMatrix();
+  ENGINE.renderer.setSize(window.innerWidth, window.innerHeight);
+}
+window.addEventListener('resize', onResize);
+
+// ═══════════════════════════════════════════════════════════════════
+// ANA AKIŞ — sayfa açılınca tetiklenir
+// ═══════════════════════════════════════════════════════════════════
+(async function init() {
+  try {
+    log('🚀 CFC Maç Motoru v2 başlatılıyor', 'info');
+    setLoadProgress(5, 'Three.js indiriliyor...');
+
+    // 1. Three.js
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js');
+    log('✓ Three.js yüklendi (r128)', 'ok');
+    setLoadProgress(15, 'GLTFLoader indiriliyor...');
+
+    // 2. GLTFLoader
+    await loadScript('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js');
+    log('✓ GLTFLoader yüklendi', 'ok');
+    setLoadProgress(25, 'SkeletonUtils indiriliyor...');
+
+    // 3. SkeletonUtils
+    await loadScript('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js');
+    log('✓ SkeletonUtils yüklendi', 'ok');
+    setLoadProgress(35, 'Karakter modeli yükleniyor...');
+
+    // 4. Sahne kurulumu (asset yüklemeyle paralel başlat)
+    const canvas = document.getElementById('scene');
+    ENGINE.scene = new THREE.Scene();
+    ENGINE.scene.background = new THREE.Color(0x87CEEB);  // gökyüzü mavisi
+    ENGINE.scene.fog = new THREE.Fog(0x87CEEB, 100, 300);
+    ENGINE.renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+    ENGINE.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    ENGINE.renderer.setSize(window.innerWidth, window.innerHeight);
+    ENGINE.clock = new THREE.Clock();
+    setupCamera();
+    setupLights();
+    buildPitch();
+    setLoadProgress(50, 'Karakter yükleniyor...');
+
+    // 5. Karakter modeli
+    const charGltf = await loadGLB('player.glb');
+    ENGINE.assets.character = charGltf.scene;
+    log('✓ Karakter modeli yüklendi (player.glb)', 'ok');
+    setLoadProgress(60, 'Animasyonlar yükleniyor...');
+
+    // 6. Animasyonlar — paralel
+    const results = await Promise.allSettled(
+      ANIM_FILES.map(a => loadGLB(a.file).then(gltf => ({ name:a.name, gltf })))
+    );
+
+    let loaded = 0;
+    let failed = [];
+    results.forEach((r, i) => {
+      if (r.status === 'fulfilled' && r.value.gltf.animations && r.value.gltf.animations.length > 0) {
+        ENGINE.assets.animations[r.value.name] = r.value.gltf.animations[0];
+        loaded++;
+      } else {
+        failed.push(ANIM_FILES[i].name);
+      }
+    });
+
+    log(`✓ ${loaded}/${ANIM_FILES.length} animasyon yüklendi`, 'ok');
+    if (failed.length > 0) {
+      log('⚠ Yüklenmedi: ' + failed.join(', '), 'warn');
+    }
+    setLoadProgress(80, 'Takımlar sahaya çıkıyor...');
+
+    // 7. İki takımı sahaya çıkar
+    spawnTeam('home', ENGINE.formations.home);
+    spawnTeam('away', ENGINE.formations.away);
+    setLoadProgress(95, 'Hazır!');
+
+    // 8. Render loop başlat
+    animate();
+    log('🎬 Render döngüsü aktif', 'ok');
+    setLoadProgress(100, 'Hoş geldin!');
+
+    setTimeout(hideLoadOverlay, 300);
+
+  } catch (err) {
+    log('❌ HATA: ' + err.message, 'err');
+    console.error('[ENGINE]', err);
+    document.getElementById('loadMsg').innerHTML = '❌ ' + err.message;
+    document.getElementById('loadMsg').style.color = '#ff5252';
+  }
+})();
+</script>
+</body>
+</html>
