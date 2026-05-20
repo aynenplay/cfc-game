@@ -37599,18 +37599,10 @@ async function userTeamLoadFromServer() {
     const { data: { user } } = await window.sb.auth.getUser();
     if (!user) { _userTeam = null; return; }
     const { data, error } = await window.sb.from('players')
-      .select('team_name,country_code,pos,num,role,joined_at')
+      .select('user_team_data')
       .eq('user_id', user.id).maybeSingle();
     if (error) { console.warn('[userTeam] load hata:', error.message); _userTeam = null; return; }
-    if (!data || !data.team_name) { _userTeam = null; return; }
-    _userTeam = {
-      countryCode: data.country_code,
-      teamName: data.team_name,
-      role: data.role || 'member',
-      num: data.num || null,
-      pos: data.pos || null,
-      joinedAt: data.joined_at || Date.now()
-    };
+    _userTeam = (data && data.user_team_data) ? data.user_team_data : null;
   } catch(e) { console.warn('[userTeam] load hata:', e); _userTeam = null; }
 }
 
@@ -37621,15 +37613,16 @@ async function _userTeamSaveImpl() {
     if (!window.sb) return;
     const { data: { user } } = await window.sb.auth.getUser();
     if (!user) return;
+    // Tüm _userTeam objesi JSONB olarak yazılır
+    // + denormalize: team_name, country_code, role online listede gösterilsin diye ayrı tutulur
     const patch = _userTeam ? {
+      user_team_data: _userTeam,
       team_name: _userTeam.teamName || null,
       country_code: _userTeam.countryCode || null,
-      pos: _userTeam.pos || null,
-      num: _userTeam.num || null,
-      role: _userTeam.role || null,
-      joined_at: _userTeam.joinedAt || null
+      role: _userTeam.role || null
     } : {
-      team_name: null, country_code: null, pos: null, num: null, role: null, joined_at: null
+      user_team_data: null,
+      team_name: null, country_code: null, role: null
     };
     await window.sb.from('players').update(patch).eq('user_id', user.id);
   } catch(e) { console.warn('[userTeam] save hata:', e); }
