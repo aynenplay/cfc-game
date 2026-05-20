@@ -35319,7 +35319,7 @@ async function _matchResultsLoadFromServer() {
     let all = [];
     for (let from = 0; from < 100000; from += PAGE) {
       const { data, error } = await window.sb.from('match_results')
-        .select('season,day_in_season,country_code,tier,home_team,away_team,home_score,away_score,created_at')
+        .select('season,day_in_season,country_code,tier,home_team,away_team,home_score,away_score,tournament_key,tournament_phase,created_at')
         .order('created_at', { ascending: false })
         .range(from, from + PAGE - 1);
       if (error) { console.warn('[match_results] load hata:', error.message); break; }
@@ -35338,6 +35338,8 @@ async function _matchResultsLoadFromServer() {
         as: r.away_score,
         countryCode: r.country_code,
         tier: r.tier,
+        tournament_key: r.tournament_key || null,
+        tournament_phase: r.tournament_phase || null,
         playedAt: r.created_at ? new Date(r.created_at).getTime() : 0,
         _hasDetail: false  // data jsonb henüz çekilmedi
       };
@@ -59933,8 +59935,34 @@ function trn2BuildPlayoff(teams, season, trnKey) {
     }
   }
 
+  // 🆕 ÖNCE Supabase match_results'tan oku — server tek doğruluk kaynağı
+  // Lokal cache her açılışta farklı skor üretiyordu; artık match_results sabit.
+  const _trnNameForKey = { champ: 'EURO Championship League', elite: 'EURO Elite League', conv: 'EURO Convergence League' };
+  const _trnName = _trnNameForKey[trnKey];
+  const _mrCache = (typeof _matchResultsLoad === 'function') ? _matchResultsLoad() : {};
+  
+  // match_results'tan playoff maçlarını lookup için index'le (home+away → maç)
+  const _playoffFromServer = {};
+  for (const k in _mrCache) {
+    const m = _mrCache[k];
+    if (!m || m.season !== season) continue;
+    if (m.tournament_key !== trnKey || m.tournament_phase !== 'playoff') continue;
+    _playoffFromServer[`${m.home}|${m.away}`] = m;
+  }
+
   // 🆕 GERÇEK MOTOR: generateMatchScore ile skor + berabereyse motor uzatma+penaltı
   const _results = matches.map((m, idx) => {
+    // 1) Önce match_results'tan ara
+    const _srvKey = `${m.home.name}|${m.away.name}`;
+    const _srvMatch = _playoffFromServer[_srvKey];
+    if (_srvMatch) {
+      const hs = _srvMatch.hs ?? 0;
+      const as = _srvMatch.as ?? 0;
+      const winner = hs > as ? m.home : hs < as ? m.away : (idx % 2 === 0 ? m.home : m.away);
+      return { ...m, hs, as, winner, fromServer: true };
+    }
+    
+    // 2) Server'da yoksa lokal üret (geçici fallback)
     const seedStr = `${trnKey}_s${season}_PO_${idx}_${m.home.countryKey}-${m.home.name}_${m.away.countryKey}-${m.away.name}`;
     const seedNum = (m.home.countryKey.charCodeAt(0)*100 + m.away.countryKey.charCodeAt(0)*7 + idx*13 + season*23) & 0xff;
 
@@ -60100,6 +60128,16 @@ function trn2BuildGroups(teams32, season, trnKey) {
 
   const letters = ['A','B','C','D','E','F','G','H'];
 
+  // 🆕 match_results'tan turnuva grup maçlarını al (server tek doğruluk kaynağı)
+  const _grpMrCache = (typeof _matchResultsLoad === 'function') ? _matchResultsLoad() : {};
+  const _groupFromServer = {};
+  for (const k in _grpMrCache) {
+    const m = _grpMrCache[k];
+    if (!m || m.season !== season) continue;
+    if (m.tournament_key !== trnKey || m.tournament_phase !== 'group') continue;
+    _groupFromServer[`${m.home}|${m.away}`] = m;
+  }
+
   const result = groups.map((grp, gi) => {
     // Her takıma boş stat objesi
     const stats = grp.map(t => ({
@@ -60147,8 +60185,16 @@ function trn2BuildGroups(teams32, season, trnKey) {
 
       // 🆕 Maç oynandıysa simüle et, yoksa skor null kalır
       if (isPlayed) {
-        // Motor ile simüle (deterministik seed)
-        if (homeFull && awayFull && typeof simulateBotMatch === 'function') {
+        // 🆕 ÖNCE Supabase match_results'tan ara — her açılışta aynı skor
+        const _srvKey = `${home.name}|${away.name}`;
+        const _srvMatch = _groupFromServer[_srvKey];
+        if (_srvMatch) {
+          hs = _srvMatch.hs ?? 0;
+          as = _srvMatch.as ?? 0;
+          simEvents = _srvMatch.events || null;
+          simStats = _srvMatch.stats || null;
+        } else if (homeFull && awayFull && typeof simulateBotMatch === 'function') {
+          // Server'da yok → lokal motorla üret (geçici fallback)
           try {
             const sim = simulateBotMatch(homeFull, awayFull, seedStr);
             if (sim) {
