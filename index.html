@@ -58824,108 +58824,10 @@ function lg2RenderStat(statType) {
 function _statsHash(s){let h=2166136261;for(let i=0;i<s.length;i++){h=(h^s.charCodeAt(i))*16777619>>>0;}return h>>>0;}
 
 
-// 🆕 Migration: eski playerStats'sız maçlar için stats üret + cache'e yaz (bir kerelik)
+// 🆕 Eski migration — artık gerek yok, server playerStats üretiyor.
+// JSON.stringify(4500 maç) çok yavaştı, no-op yapıldı.
 function _migrateMatchPlayerStats() {
-  if (localStorage.getItem('cft_player_stats_migration_v1') === 'done') return;
-  try {
-    const raw = JSON.stringify(_matchResultsLoad());
-    const cache = JSON.parse(raw);
-    if (!cache || typeof cache !== 'object') {
-      localStorage.setItem('cft_player_stats_migration_v1', 'done');
-      return;
-    }
-
-    // Takım adından ülke + rank lookup
-    const teamLookup = {};
-    if (typeof CFT_DB !== 'undefined') {
-      for (const cc in CFT_DB) {
-        const country = CFT_DB[cc];
-        (country.leagues || []).forEach((lg, ti) => {
-          (lg.teams || []).forEach(t => {
-            teamLookup[t.name] = { cc, tierIdx: ti, rank: t.rank || 1 };
-          });
-        });
-      }
-    }
-
-    let updated = 0;
-    Object.entries(cache).forEach(([key, m]) => {
-      if (!m || m.hs === undefined || m.hs === null) return;
-      if (m.playerStats && typeof m.playerStats === 'object') return; // zaten var
-
-      const homeInfo = teamLookup[m.home];
-      const awayInfo = teamLookup[m.away];
-      if (!homeInfo || !awayInfo) return;
-      if (typeof guestGenerateRoster !== 'function') return;
-      if (typeof _distributeMatchStats !== 'function') return;
-
-      let homePlayers, awayPlayers;
-      try {
-        homePlayers = guestGenerateRoster(homeInfo.cc, m.home, homeInfo.rank);
-        awayPlayers = guestGenerateRoster(awayInfo.cc, m.away, awayInfo.rank);
-      } catch(e) { return; }
-
-      const homeStats = _distributeMatchStats(homePlayers, m.hs, m.as, key + '_h');
-      const awayStats = _distributeMatchStats(awayPlayers, m.as, m.hs, key + '_a');
-
-      // Events üret (gol + asist)
-      const events = [];
-      let evSeed = 2166136261;
-      const seedStr = key + '_ev';
-      for (let i = 0; i < seedStr.length; i++) {
-        evSeed ^= seedStr.charCodeAt(i);
-        evSeed = Math.imul(evSeed, 16777619);
-      }
-      const rng = () => {
-        evSeed = (evSeed + 0x6D2B79F5) | 0;
-        let t = evSeed;
-        t = Math.imul(t ^ (t >>> 15), t | 1);
-        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-      };
-
-      function _addEvents(side, stats) {
-        const goals = [];
-        stats.forEach(p => { for (let g = 0; g < p.goals; g++) goals.push(p.name); });
-        const assists = [];
-        stats.forEach(p => { for (let a = 0; a < p.assists; a++) assists.push(p.name); });
-        goals.forEach(scorer => {
-          const min = Math.floor(rng() * 89) + 1;
-          const ev = { type:'goal', team: side, min, player: scorer };
-          if (assists.length > 0) ev.assist = assists.shift();
-          events.push(ev);
-        });
-      }
-      _addEvents('home', homeStats);
-      _addEvents('away', awayStats);
-      events.sort((a, b) => a.min - b.min);
-
-      m.playerStats = {
-        [m.home]: homeStats,
-        [m.away]: awayStats
-      };
-      if (!m.events || !m.events.length) {
-        m.events = events;
-      }
-      updated++;
-    });
-
-    if (updated > 0) {
-      _matchResultsSave(cache);
-      // In-memory cache'leri sıfırla — yeni veriler okunsun
-      if (typeof _psCachedStats !== 'undefined') _psCachedStats = null;
-      if (typeof _psCachedKey !== 'undefined') _psCachedKey = null;
-      if (typeof _rkPlayerListCache !== 'undefined') _rkPlayerListCache = null;
-    }
-    // 🆕 Güvenli yazma (quota dolarsa cleanup yapar)
-    if (typeof _cftSafeSetLS === 'function') _cftSafeSetLS('cft_player_stats_migration_v1', 'done');
-    else { try { localStorage.setItem('cft_player_stats_migration_v1', 'done'); } catch(e){} }
-  } catch(e) {
-    // QuotaExceededError sessizce geç — auto-cleanup zaten devrede
-    if (!e || (e.name !== 'QuotaExceededError' && e.code !== 22)) {
-      console.warn('Player stats migration hatası:', e);
-    }
-  }
+  // Boş bırakıldı; server-side playerStats üretildiğinde frontend okur.
 }
 
 function computePlayerStats(countryCode, tierIdx) {
@@ -58936,8 +58838,10 @@ function computePlayerStats(countryCode, tierIdx) {
   const teams = country.leagues[tierIdx].teams || [];
 
   // Tüm cached maçlardan oyuncu bazlı stats topla (events / playerStats okur, fallback eski dağıtım)
+  // 🆕 Performance: Sadece bu ligin takımlarının maçlarını tara (tüm 4500 maçı değil)
+  const teamNames = teams.map(t => t.name);
   let allStats = {};
-  try { allStats = (typeof _calcPlayerStatsFromCache === 'function') ? _calcPlayerStatsFromCache() : {}; } catch(e) {}
+  try { allStats = (typeof _calcPlayerStatsFromCache === 'function') ? _calcPlayerStatsFromCache(teamNames) : {}; } catch(e) {}
 
   // Kullanıcı oyuncusu için cft_user_match_log
   let userMatchLog = [];
@@ -69310,14 +69214,24 @@ let _psCachedKey = null;
 
 // Tüm cached maçları gezerek oyuncu istatistiklerini topla
 // Döner: { "TeamName_PlayerName": { goals, assists, ratingSum, matches } }
-function _calcPlayerStatsFromCache() {
-  const raw = JSON.stringify(_matchResultsLoad());
-  const cacheKey = raw.length + '_' + raw.slice(0, 200) + raw.slice(-200);
+function _calcPlayerStatsFromCache(teamFilter) {
+  // 🆕 teamFilter: takım adı (string) veya takım adı dizisi (array). Verilirse
+  //    sadece o takımların maçları taranır → çok daha hızlı. Verilmezse hepsi.
+  const cache = _matchResultsLoad() || {};
+  
+  // Filter aktif ise hangi takımları arayacağımızı belirle
+  let filterSet = null;
+  if (teamFilter) {
+    filterSet = new Set(Array.isArray(teamFilter) ? teamFilter : [teamFilter]);
+  }
+  
+  // Cache key — filter dahil
+  const keys = Object.keys(cache);
+  const filterKey = filterSet ? Array.from(filterSet).sort().join(',') : 'ALL';
+  const cacheKey = keys.length + '|' + filterKey + '|' + (keys[0] || '') + '|' + (keys[keys.length-1] || '');
   if (_psCachedStats && _psCachedKey === cacheKey) return _psCachedStats;
 
   const stats = {};
-  let cache = {};
-  try { cache = JSON.parse(raw || '{}'); } catch(e) { return stats; }
 
   // Roster üretimi pahalı — takım bazlı cache
   const rosterCache = {};
@@ -69333,13 +69247,14 @@ function _calcPlayerStatsFromCache() {
     return rosterCache[k];
   }
 
-  // Takım adından ülke + rank bul (CFT_DB üzerinde)
+  // Takım adından ülke + rank bul (CFT_DB üzerinde) — filter aktifse sadece o takımlar için
   const teamLookup = {};
   if (typeof CFT_DB !== 'undefined') {
     for (const cc in CFT_DB) {
       const country = CFT_DB[cc];
       (country.leagues || []).forEach((lg, ti) => {
         (lg.teams || []).forEach(t => {
+          if (filterSet && !filterSet.has(t.name)) return;
           teamLookup[t.name] = { cc, tierIdx: ti, rank: t.rank || 1 };
         });
       });
@@ -69348,10 +69263,14 @@ function _calcPlayerStatsFromCache() {
 
   Object.entries(cache).forEach(([key, m]) => {
     if (!m || m.hs === undefined || m.hs === null) return;
+    
+    // 🆕 Filter aktif — sadece ev veya deplasman filter set'inde varsa işle
+    if (filterSet && !filterSet.has(m.home) && !filterSet.has(m.away)) return;
 
     // 🆕 ÖNCELİK: Cache'teki gerçek playerStats varsa onu kullan
     if (m.playerStats && typeof m.playerStats === 'object') {
       Object.entries(m.playerStats).forEach(([teamName, players]) => {
+        if (filterSet && !filterSet.has(teamName)) return;
         if (!Array.isArray(players)) return;
         players.forEach(d => {
           const sk = `${teamName}_${d.name}`;
@@ -69379,22 +69298,26 @@ function _calcPlayerStatsFromCache() {
     const homeDist = _distributeMatchStats(homePlayers, m.hs, m.as, seedH);
     const awayDist = _distributeMatchStats(awayPlayers, m.as, m.hs, seedA);
 
-    homeDist.forEach(d => {
-      const sk = `${m.home}_${d.name}`;
-      if (!stats[sk]) stats[sk] = { goals:0, assists:0, ratingSum:0, matches:0 };
-      stats[sk].goals += d.goals;
-      stats[sk].assists += d.assists;
-      stats[sk].ratingSum += d.rating;
-      stats[sk].matches += 1;
-    });
-    awayDist.forEach(d => {
-      const sk = `${m.away}_${d.name}`;
-      if (!stats[sk]) stats[sk] = { goals:0, assists:0, ratingSum:0, matches:0 };
-      stats[sk].goals += d.goals;
-      stats[sk].assists += d.assists;
-      stats[sk].ratingSum += d.rating;
-      stats[sk].matches += 1;
-    });
+    if (!filterSet || filterSet.has(m.home)) {
+      homeDist.forEach(d => {
+        const sk = `${m.home}_${d.name}`;
+        if (!stats[sk]) stats[sk] = { goals:0, assists:0, ratingSum:0, matches:0 };
+        stats[sk].goals += d.goals;
+        stats[sk].assists += d.assists;
+        stats[sk].ratingSum += d.rating;
+        stats[sk].matches += 1;
+      });
+    }
+    if (!filterSet || filterSet.has(m.away)) {
+      awayDist.forEach(d => {
+        const sk = `${m.away}_${d.name}`;
+        if (!stats[sk]) stats[sk] = { goals:0, assists:0, ratingSum:0, matches:0 };
+        stats[sk].goals += d.goals;
+        stats[sk].assists += d.assists;
+        stats[sk].ratingSum += d.rating;
+        stats[sk].matches += 1;
+      });
+    }
   });
 
   _psCachedStats = stats;
@@ -69409,9 +69332,10 @@ function _invalidatePlayerStatsCache() {
 }
 
 function buildRkPlayerList() {
-  // 🆕 Cache key: match_results değiştiyse cache invalidate (yeni maçlar geldiyse stats yenile)
-  const _matchData = JSON.stringify(_matchResultsLoad());
-  const _matchKey = _matchData.length + '_' + _matchData.slice(0, 100) + _matchData.slice(-100);
+  // 🆕 Cache key: match_results sayısı + ilk/son key (büyük stringify yapma)
+  const _matchCache = _matchResultsLoad() || {};
+  const _matchKeys = Object.keys(_matchCache);
+  const _matchKey = _matchKeys.length + '|' + (_matchKeys[0] || '') + '|' + (_matchKeys[_matchKeys.length-1] || '');
   if (_rkPlayerListCache && _rkPlayerListCacheKey === _matchKey) return _rkPlayerListCache;
   _rkPlayerListCacheKey = _matchKey;
   const all = [];
@@ -69607,8 +69531,8 @@ function _rkTeamCoef(countryCode, teamName, teamRank) {
   // 🆕 Hiç maç oynanmadıysa coefficient = 0
   // (Takım puanı = Avrupa kupası performansından gelir; sezon başında henüz maç yok)
   try {
-    const _matchData = JSON.stringify(_matchResultsLoad());
-    if (_matchData.length < 50) return 0; // 50 byte'tan az = pratikte hiç maç yok
+    const _cache = _matchResultsLoad();
+    if (!_cache || Object.keys(_cache).length === 0) return 0; // hiç maç yok
   } catch(e) {}
 
   // Üst sıra takımlar daha sık Avrupa'ya katılır → daha yüksek katsayı
@@ -69744,8 +69668,8 @@ function _rkSeed(s) {
 function _rkCountrySeasonPoint(cc, season) {
   // 🆕 Hiç maç oynanmadıysa 0 (Avrupa kupası performansından gelir)
   try {
-    const _matchData = JSON.stringify(_matchResultsLoad());
-    if (_matchData.length < 50) return 0;
+    const _cache = _matchResultsLoad();
+    if (!_cache || Object.keys(_cache).length === 0) return 0;
   } catch(e) {}
 
   const base = RK_COEF_BASE[cc];
