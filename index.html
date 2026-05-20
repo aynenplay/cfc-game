@@ -35313,12 +35313,13 @@ function _mrKey(m) {
 async function _matchResultsLoadFromServer() {
   try {
     if (!window.sb) { _matchResultsCache = {}; return; }
-    // Sayfalama ile tüm satırları çek (Supabase 1000 satır limiti)
+    // 🆕 Performance: data JSONB hariç sadece skor + key alanları çek (her maç ~50 byte)
+    // 4500 maç × 50 byte = ~225 KB, hızlı yüklenir. data alanı maç detayına tıklayınca lazy çekilir.
     const PAGE = 1000;
     let all = [];
     for (let from = 0; from < 100000; from += PAGE) {
       const { data, error } = await window.sb.from('match_results')
-        .select('season,day_in_season,country_code,tier,home_team,away_team,home_score,away_score,data,created_at')
+        .select('season,day_in_season,country_code,tier,home_team,away_team,home_score,away_score,created_at')
         .order('created_at', { ascending: false })
         .range(from, from + PAGE - 1);
       if (error) { console.warn('[match_results] load hata:', error.message); break; }
@@ -35337,13 +35338,45 @@ async function _matchResultsLoadFromServer() {
         as: r.away_score,
         countryCode: r.country_code,
         tier: r.tier,
-        ...(r.data || {})
+        playedAt: r.created_at ? new Date(r.created_at).getTime() : 0,
+        _hasDetail: false  // data jsonb henüz çekilmedi
       };
       cache[_mrKey(m)] = m;
     }
     _matchResultsCache = cache;
-    console.info('[match_results] yüklendi:', all.length, 'maç');
+    console.info('[match_results] yüklendi (özet):', all.length, 'maç');
   } catch(e) { console.warn('[match_results] load hata:', e); _matchResultsCache = {}; }
+}
+
+// 🆕 Tek maçın detayını (data jsonb: events, stats, playerStats, comp) lazy çek
+async function _matchResultsLoadDetail(matchKey) {
+  if (!matchKey || !window.sb) return null;
+  const existing = _matchResultsCache[matchKey];
+  if (existing && existing._hasDetail) return existing;
+  // Key'i parse et: "season_day_home_away"
+  const parts = String(matchKey).split('_');
+  if (parts.length < 4) return null;
+  const season = parseInt(parts[0], 10);
+  const day = parseInt(parts[1], 10);
+  const home = parts[2];
+  const away = parts.slice(3).join('_');  // takım adında _ olabilir
+  try {
+    const { data, error } = await window.sb.from('match_results')
+      .select('data')
+      .eq('season', season).eq('day_in_season', day)
+      .eq('home_team', home).eq('away_team', away)
+      .maybeSingle();
+    if (error || !data) return existing || null;
+    const merged = {
+      ...(existing || {}),
+      ...(data.data || {}),
+      _hasDetail: true
+    };
+    _matchResultsCache[matchKey] = merged;
+    return merged;
+  } catch(e) {
+    return existing || null;
+  }
 }
 
 // Sync API — RAM cache döner
@@ -55162,7 +55195,30 @@ function _simExtraTime(state) {
 //     Tek maç play-off için aggDiff=0 (default)
 function simulateBotMatch(homeTeam, awayTeam, seed, options) {
   // Maç motoru Supabase Edge Function'a taşındı. Bu fonksiyon artık üretim yapmaz.
-  // Geriye dönük uyumluluk için boş bir sonuç döner — çağıran kodlar null hatası vermez.
+  // Server'ın yazdığı sonuçları match_results cache'inden okumaya çalış.
+  try {
+    const home = (homeTeam && homeTeam.name) || '';
+    const away = (awayTeam && awayTeam.name) || '';
+    if (home && away && typeof _matchResultsLoad === 'function') {
+      const cache = _matchResultsLoad();
+      // Sadece seed direkt match_results key formatındaysa kullan
+      // (Format: "season_day_home_away" — lig maçları için geçerli)
+      // Turnuva maçları farklı seed kullanır → match yok, 0-0 döner
+      if (seed && cache[seed]) {
+        const m = cache[seed];
+        return {
+          hs: m.hs || 0,
+          as: m.as || 0,
+          events: m.events || [],
+          stats: m.stats || null,
+          playerStats: m.playerStats || null,
+          byBot: true,
+          fromCache: true
+        };
+      }
+    }
+  } catch(e) {}
+  // Cache'te yok → boş sonuç
   return { hs: 0, as: 0, events: [], stats: null, playerStats: null, byBot: true, _empty: true };
 }
 
