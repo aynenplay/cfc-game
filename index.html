@@ -36171,9 +36171,7 @@ function applyPromotionRelegation(userRankInfo) {
   if (newTierIdx !== tierIdx) {
     _userTeam.tierIdx = newTierIdx;
     // Persist
-    try {
-      localStorage.setItem('cft_userTeam', JSON.stringify(_userTeam));
-    } catch(e) {}
+    try { userTeamSave(); } catch(e) {}
   }
 
   return { action, newTierIdx, oldTierIdx: tierIdx, rank };
@@ -36243,7 +36241,7 @@ function processSeasonEnd(seasonNum) {
   }
   if (typeof _userTeam !== 'undefined' && _userTeam) {
     _userTeam.europeanCup = cupType;
-    try { localStorage.setItem('cft_userTeam', JSON.stringify(_userTeam)); } catch(e) {}
+    try { userTeamSave(); } catch(e) {}
   }
 
   // 🆕 KRITIK: Tier veya Avrupa kupası değiştiyse fikstür cache'i sıfırla
@@ -37217,7 +37215,8 @@ let lgFilter_cur = 'all';
 let lgCurrentTeam = null;
 let lgUserTeam = null;
 
-try{ const s=localStorage.getItem('cft_userTeam'); if(s) lgUserTeam=JSON.parse(s); }catch(e){}
+// 🆕 lgUserTeam artık _userTeam RAM cache'inden alınır (Supabase tek kaynak)
+try{ if (typeof _userTeam !== 'undefined' && _userTeam) lgUserTeam = _userTeam; }catch(e){}
 
 function lgRatColor(r){ return r>=85?'#ffd600':r>=75?'#00e676':r>=65?'#00b0ff':r>=55?'#ff6d00':'#7a8099'; }
 function lgPopStr(p){ if(!p)return '?'; if(p>=1000000)return (p/1000000).toFixed(1)+'M'; if(p>=1000)return Math.round(p/1000)+'B'; return p; }
@@ -37379,7 +37378,7 @@ function lgJoinTeam(){
   if(!lgCurrentTeam) return;
   const {code,tier,t,lg,d}=lgCurrentTeam;
   lgUserTeam={code,tier,city:t.city,name:t.name};
-  try{ localStorage.setItem('cft_userTeam',JSON.stringify(lgUserTeam)); }catch(e){}
+  // RAM cache (localStorage YOK; gerçek takım kayıt akışı _userTeam üzerinden Supabase'e yazar)
   const btn=document.getElementById('lgJoinBtn');
   btn.textContent='✅ Katıldın!'; btn.className='lg-join-btn taken';
   setTimeout(()=>{
@@ -37590,20 +37589,61 @@ let authUser = null;
 // ── KULLANICI TAKIMI ──
 // _userTeam = null → takımsız (default)
 // _userTeam = { countryCode, teamName, role:'user'|'captain'|'vice'|'member' }
+// 🆕 Tek doğruluk kaynağı: Supabase players tablosu (kullanıcının kendi satırı)
 let _userTeam = null;
 
-function userTeamLoad() {
+// Server'dan _userTeam'i yükle (login sonrası çağrılır)
+async function userTeamLoadFromServer() {
   try {
-    const raw = localStorage.getItem('cft_userTeam');
-    _userTeam = raw ? JSON.parse(raw) : null;
-  } catch(e) { _userTeam = null; }
+    if (!window.sb) { _userTeam = null; return; }
+    const { data: { user } } = await window.sb.auth.getUser();
+    if (!user) { _userTeam = null; return; }
+    const { data, error } = await window.sb.from('players')
+      .select('team_name,country_code,pos,num,role,joined_at')
+      .eq('user_id', user.id).maybeSingle();
+    if (error) { console.warn('[userTeam] load hata:', error.message); _userTeam = null; return; }
+    if (!data || !data.team_name) { _userTeam = null; return; }
+    _userTeam = {
+      countryCode: data.country_code,
+      teamName: data.team_name,
+      role: data.role || 'member',
+      num: data.num || null,
+      pos: data.pos || null,
+      joinedAt: data.joined_at || Date.now()
+    };
+  } catch(e) { console.warn('[userTeam] load hata:', e); _userTeam = null; }
+}
+
+// _userTeam'i server'a yaz (debounced)
+let _userTeamSaveTimer = null;
+async function _userTeamSaveImpl() {
+  try {
+    if (!window.sb) return;
+    const { data: { user } } = await window.sb.auth.getUser();
+    if (!user) return;
+    const patch = _userTeam ? {
+      team_name: _userTeam.teamName || null,
+      country_code: _userTeam.countryCode || null,
+      pos: _userTeam.pos || null,
+      num: _userTeam.num || null,
+      role: _userTeam.role || null,
+      joined_at: _userTeam.joinedAt || null
+    } : {
+      team_name: null, country_code: null, pos: null, num: null, role: null, joined_at: null
+    };
+    await window.sb.from('players').update(patch).eq('user_id', user.id);
+  } catch(e) { console.warn('[userTeam] save hata:', e); }
+}
+
+function userTeamLoad() {
+  // Geriye uyumluluk: bazı yerler sync çağırıyor. RAM cache'i okur, hiçbir şey yapmaz.
+  // Gerçek yükleme login sonrası userTeamLoadFromServer() ile yapılır.
 }
 
 function userTeamSave() {
-  try {
-    if(_userTeam) localStorage.setItem('cft_userTeam', JSON.stringify(_userTeam));
-    else localStorage.removeItem('cft_userTeam');
-  } catch(e) {}
+  // Debounced server save
+  if (_userTeamSaveTimer) clearTimeout(_userTeamSaveTimer);
+  _userTeamSaveTimer = setTimeout(_userTeamSaveImpl, 500);
 }
 
 function userHasTeam() { return !!_userTeam; }
@@ -37716,11 +37756,9 @@ function authInit(){
 
       // _userTeam.europeanCup temizle (varsa)
       try {
-        const ut = JSON.parse(localStorage.getItem('cft_userTeam') || 'null');
-        if (ut && ut.europeanCup) {
-          delete ut.europeanCup;
-          if (typeof _cftSafeSetLS === 'function') _cftSafeSetLS('cft_userTeam', JSON.stringify(ut));
-          else { try { localStorage.setItem('cft_userTeam', JSON.stringify(ut)); } catch(e){} }
+        if (_userTeam && _userTeam.europeanCup) {
+          delete _userTeam.europeanCup;
+          userTeamSave();
         }
       } catch(e) {}
 
@@ -38304,9 +38342,10 @@ function doLogin(){
       try{ localStorage.setItem('cft_auth', JSON.stringify(authUser)); }catch(e){}
 
       authShowMsg('success', 'Hoşgeldin ' + authUser.username + '!');
-      // 🆕 Wallet + Energy ön-yükle (RAM cache)
+      // 🆕 Wallet + Energy + Team ön-yükle (RAM cache)
       try { if (typeof wlLoadFromServer === 'function') wlLoadFromServer().catch(()=>{}); } catch(e){}
       try { if (typeof _energyLoadFromServer === 'function') _energyLoadFromServer().catch(()=>{}); } catch(e){}
+      try { await userTeamLoadFromServer(); } catch(e){}
 
       setTimeout(() => {
         hideAuthScreen();
@@ -38365,6 +38404,27 @@ function doRegister(){
         position: selectedPos, avatarId: _regSelectedAvatar
       };
       try{ localStorage.setItem('cft_auth', JSON.stringify(authUser)); }catch(e){}
+
+      // 🆕 players tablosuna kullanıcı satırı ekle (takımsız, online izleme için)
+      try {
+        const POS_GRP = (typeof POS_GROUP !== 'undefined') ? POS_GROUP : {};
+        const posGroup = POS_GRP[selectedPos] || selectedPos || 'MID';
+        const flag = (typeof ccToFlag === 'function') ? ccToFlag(nationality) : '🏳️';
+        await window.sb.from('players').insert({
+          user_id: data.user.id,
+          name: name,
+          nationality: nationality,
+          nation: flag,
+          pos: selectedPos,
+          pos_group: posGroup,
+          is_bot: false,
+          level: 0, xp: 0, overall: 10, rating: 10,
+          abilities: { GK:{diving:10,reflexes:10,handling:10,kicking:10,positioning:10}, DEF:{tackling:10,marking:10,heading:10,strength:10,positioning:10}, MID:{passing:10,vision:10,dribbling:10,stamina:10,technique:10}, FWD:{shooting:10,finishing:10,pace:10,dribbling:10,positioning:10} },
+          role: 'user',
+          avatar: '👤',
+          last_seen: new Date().toISOString()
+        });
+      } catch(e) { console.warn('[register] players insert hata:', e); }
 
       _userTeam = null;
       if(typeof userTeamSave === 'function') userTeamSave();
@@ -72138,6 +72198,7 @@ setTimeout(async ()=>{
   // 🔧 ÖNCE auth ekranını hazırla (görünür yap), SONRA splash'ı fade'le
   // Aksi halde splash gizlendiğinde 500ms boyunca ana menü görünür
   try { await bootstrapWorld(); } catch(e) { console.warn('bootstrapWorld hata:', e); }
+  try { await userTeamLoadFromServer(); } catch(e) { console.warn('userTeamLoadFromServer hata:', e); }
   try { authInit(); } catch(e) { console.warn('authInit hata:', e); }
   document.getElementById('splash').classList.add('hide');
 }, 4200);
