@@ -37850,28 +37850,13 @@ function authInit(){
           }
           try{ localStorage.setItem('cft_auth', JSON.stringify(authUser)); }catch(e){}
 
-          // user_player → cft_userProgress lokal cache
+          // user_player → RAM cache (Supabase tek doğru kaynak)
           if (uplayer) {
-            try {
-              const progress = {
-                level: uplayer.level || 1,
-                xp: uplayer.xp || 0,
-                overall: uplayer.overall || 50,
-                rating: uplayer.rating || 50,
-                position: uplayer.position || authUser.position,
-                posGroup: uplayer.position_group || 'MID',
-                nationality: uplayer.country_code || authUser.nationality,
-                nation: uplayer.nation_flag || '🏳️',
-                abilities: uplayer.abilities || {},
-                careerStats: uplayer.career_stats || {},
-                injuries: uplayer.injuries || [],
-                suspensions: uplayer.suspensions || [],
-                energy: uplayer.energy || 450,
-                form: uplayer.form || 70,
-                morale: uplayer.morale || 70
-              };
-              localStorage.setItem('cft_userProgress', JSON.stringify(progress));
-            } catch(e) {}
+            window._userProgressCache = {
+              level: (typeof uplayer.level === 'number') ? uplayer.level : 0,
+              xp: (typeof uplayer.xp === 'number') ? uplayer.xp : 0,
+              overall: (typeof uplayer.overall === 'number') ? uplayer.overall : 10
+            };
           }
 
           // Wallet RAM cache ön-doldur
@@ -37939,13 +37924,14 @@ function authInit(){
           // İlk açılışsa auth ekranını kapat
           hideAuthScreen();
 
-          // UI refresh
-          if (typeof updateTopbarFromUser === 'function') updateTopbarFromUser();
+          // UI refresh — önce roster + restore, sonra topbar
           if (typeof syncUserToRoster === 'function') syncUserToRoster();
           if (typeof rosterRestoreUserProgress === 'function') rosterRestoreUserProgress();
           if (typeof userHasTeam === 'function' && userHasTeam() && _userTeam && _userTeam.countryCode) {
             try { rosterBuildTeam(_userTeam.countryCode); } catch(e){}
           }
+          if (typeof rosterRestoreUserProgress === 'function') rosterRestoreUserProgress();
+          if (typeof updateTopbarFromUser === 'function') updateTopbarFromUser();
           if (typeof renderRoster === 'function') renderRoster('all');
           if (typeof wlSyncHeader === 'function') wlSyncHeader();
           if (typeof syncEnergyDisplay === 'function') syncEnergyDisplay();
@@ -38266,28 +38252,13 @@ function doLogin(){
         avatarId: profile?.avatar_id || randomAvatar
       };
 
-      // 🆕 user_player verilerini cft_userProgress lokal cache'e yaz (oyun bunu okur)
+      // user_player → RAM cache (Supabase tek doğru kaynak)
       if (uplayer) {
-        try {
-          const progress = {
-            level: uplayer.level || 1,
-            xp: uplayer.xp || 0,
-            overall: uplayer.overall || 50,
-            rating: uplayer.rating || 50,
-            position: uplayer.position || authUser.position,
-            posGroup: uplayer.position_group || 'MID',
-            nationality: uplayer.country_code || authUser.nationality,
-            nation: uplayer.nation_flag || '🏳️',
-            abilities: uplayer.abilities || {},
-            careerStats: uplayer.career_stats || {},
-            injuries: uplayer.injuries || [],
-            suspensions: uplayer.suspensions || [],
-            energy: uplayer.energy || 450,
-            form: uplayer.form || 70,
-            morale: uplayer.morale || 70
-          };
-          localStorage.setItem('cft_userProgress', JSON.stringify(progress));
-        } catch(e) { console.warn('[user_player] lokal cache hatası:', e); }
+        window._userProgressCache = {
+          level: (typeof uplayer.level === 'number') ? uplayer.level : 0,
+          xp: (typeof uplayer.xp === 'number') ? uplayer.xp : 0,
+          overall: (typeof uplayer.overall === 'number') ? uplayer.overall : 10
+        };
       }
 
       try{ localStorage.setItem('cft_auth', JSON.stringify(authUser)); }catch(e){}
@@ -38299,8 +38270,9 @@ function doLogin(){
 
       setTimeout(() => {
         hideAuthScreen();
-        updateTopbarFromUser();
         if(typeof syncUserToRoster === 'function') syncUserToRoster();
+        if(typeof rosterRestoreUserProgress === 'function') rosterRestoreUserProgress();
+        updateTopbarFromUser();
         if(typeof trsSyncHeader === 'function') trsSyncHeader();
         if(typeof syncEnergyDisplay === 'function') syncEnergyDisplay();
         if(typeof renderRoster === 'function') renderRoster('all');
@@ -40355,47 +40327,43 @@ function rosterAwardXp(playerNum, xpAmount) {
 }
 
 // Kullanıcının kendi seviyesini/XP'sini localStorage'a yaz (oturum sonrası kaybolmasın)
-function rosterPersistUserProgress() {
-  try {
-    const me = ROSTER_DATA.find(p => p.role === 'user' && !p.isBot);
-    if(me) {
-      localStorage.setItem('cft_userProgress', JSON.stringify({
-        level: me.level || 0,
-        xp: me.xp || 0,
-        overall: me.overall || 10,
-      }));
+// 🆕 User progress RAM cache — Supabase tek doğru kaynak
+window._userProgressCache = null;
 
-      // 🆕 SUPABASE — user_player güncelle (debounced 2 sn)
-      if (window.sb && authUser && authUser.id) {
-        clearTimeout(window._upUserPlayerSaveTimer);
-        window._upUserPlayerSaveTimer = setTimeout(async () => {
-          try {
-            await window.sb.from('user_player').update({
-              level: me.level || 0,
-              xp: me.xp || 0,
-              overall: me.overall || 10,
-              rating: me.overall || me.rating || 10
-            }).eq('user_id', authUser.id);
-          } catch(e) { console.warn('[user_player] save hata:', e); }
-        }, 2000);
-      }
-    }
-  } catch(e) {}
+function rosterPersistUserProgress() {
+  const me = ROSTER_DATA.find(p => p.role === 'user' && !p.isBot);
+  if(!me) return;
+  // RAM cache güncelle
+  window._userProgressCache = {
+    level: me.level || 0,
+    xp: me.xp || 0,
+    overall: me.overall || 10
+  };
+  // Supabase update (debounced 2 sn)
+  if (window.sb && authUser && authUser.id) {
+    clearTimeout(window._upUserPlayerSaveTimer);
+    window._upUserPlayerSaveTimer = setTimeout(async () => {
+      try {
+        await window.sb.from('user_player').update({
+          level: me.level || 0,
+          xp: me.xp || 0,
+          overall: me.overall || 10,
+          rating: me.overall || me.rating || 10
+        }).eq('user_id', authUser.id);
+      } catch(e) { console.warn('[user_player] save hata:', e); }
+    }, 2000);
+  }
 }
 
-// Oturum yenilendiğinde kullanıcının seviyesini geri yükle
+// Oturum yenilendiğinde kullanıcının seviyesini geri yükle (Supabase RAM cache'inden)
 function rosterRestoreUserProgress() {
-  try {
-    const raw = localStorage.getItem('cft_userProgress');
-    if(!raw) return;
-    const saved = JSON.parse(raw);
-    const me = ROSTER_DATA.find(p => p.role === 'user' && !p.isBot);
-    if(me) {
-      if(typeof saved.level === 'number') me.level = saved.level;
-      if(typeof saved.xp === 'number') me.xp = saved.xp;
-      if(typeof saved.overall === 'number') me.overall = saved.overall;
-    }
-  } catch(e) {}
+  if (!window._userProgressCache) return;
+  const me = ROSTER_DATA.find(p => p.role === 'user' && !p.isBot);
+  if(me) {
+    if(typeof window._userProgressCache.level === 'number') me.level = window._userProgressCache.level;
+    if(typeof window._userProgressCache.xp === 'number') me.xp = window._userProgressCache.xp;
+    if(typeof window._userProgressCache.overall === 'number') me.overall = window._userProgressCache.overall;
+  }
 }
 
 let rosterCurrentFilter = 'all';
