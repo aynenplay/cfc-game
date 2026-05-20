@@ -24057,18 +24057,7 @@ function _cftStorageCleanup(aggressive) {
     } catch(e){}
   });
 
-  // 2. cft_match_results — son 200 maçı tut
-  try {
-    const raw = localStorage.getItem('cft_match_results');
-    if (raw) {
-      const arr = JSON.parse(raw);
-      if (Array.isArray(arr) && arr.length > 200) {
-        const newRaw = JSON.stringify(arr.slice(-200));
-        freed += (raw.length - newRaw.length);
-        localStorage.setItem('cft_match_results', newRaw);
-      }
-    }
-  } catch(e){}
+  // 2. cft_match_results — Supabase'e taşındı, localStorage YOK
 
   // 3. cft_match_xp_log — son 100 girdi
   try {
@@ -25669,123 +25658,13 @@ function _trimMatchEntry(entry) {
 }
 
 function _safeSetItem(key, value) {
-  // 🛡️ ÖN KORUMA 1: cft_match_results için yazılan veri 50 KB'tan büyükse otomatik kırp
-  // (Eskiden 80KB / 30 kayıttı — kullanıcılar quota sınırına dayandı, daha agresif)
-  if (key === 'cft_match_results' && typeof value === 'string' && value.length > 50000) {
-    try {
-      const obj = JSON.parse(value);
-      let entries = Object.entries(obj);
-      // Tek tek maç içeriklerini de kırp (events/playerStats çıkar)
-      entries = entries.map(([k, v]) => [k, _trimMatchEntry(v)]);
-      // En yeni 15 kayıt yeter
-      if (entries.length > 15) {
-        entries.sort((a, b) => (b[1].playedAt || 0) - (a[1].playedAt || 0));
-        entries = entries.slice(0, 15);
-      }
-      const trimmed = {};
-      entries.forEach(([k, v]) => { trimmed[k] = v; });
-      const newValue = JSON.stringify(trimmed);
-      if (newValue.length < value.length) {
-        console.info(`[Storage] cft_match_results upfront kırpma: ${value.length} → ${newValue.length} byte (${entries.length} kayıt)`);
-        value = newValue;
-      }
-    } catch(_) {}
-  }
-
   try {
     localStorage.setItem(key, value);
     return true;
   } catch(e) {
     if (!e || !(e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014)) {
       console.warn('[Storage] setItem hatası:', e);
-      return false;
     }
-
-    // ── AŞAMA 1: cft_match_results trim + son 10 kayıt ──
-    try {
-      const cache = JSON.parse(localStorage.getItem('cft_match_results') || '{}');
-      let entries = Object.entries(cache);
-      entries = entries.map(([k, v]) => [k, _trimMatchEntry(v)]);
-      if (entries.length > 5) {
-        entries.sort((a, b) => (b[1].playedAt || 0) - (a[1].playedAt || 0));
-        entries = entries.slice(0, 10);
-      }
-      const trimmed = {};
-      entries.forEach(([k, v]) => { trimmed[k] = v; });
-      localStorage.setItem('cft_match_results', JSON.stringify(trimmed));
-      console.info(`[Storage] Aşama 1: cft_match_results trim + son 10 kayıt`);
-      try { localStorage.setItem(key, value); return true; } catch(_) {}
-    } catch(_) {}
-
-    // ── AŞAMA 2: cft_match_results tamamen sil ──
-    try {
-      localStorage.removeItem('cft_match_results');
-      console.info('[Storage] Aşama 2: cft_match_results silindi');
-      try { localStorage.setItem(key, value); return true; } catch(_) {}
-    } catch(_) {}
-
-    // ── AŞAMA 3: Tüm cft_r3_* (bot takım roster cache'leri) sil ──
-    try {
-      const toRemove = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith('cft_r3_')) toRemove.push(k);
-      }
-      toRemove.forEach(k => localStorage.removeItem(k));
-      console.info(`[Storage] Aşama 3: ${toRemove.length} adet cft_r3_* silindi`);
-      try { localStorage.setItem(key, value); return true; } catch(_) {}
-    } catch(_) {}
-
-    // ── AŞAMA 4: cft_user_match_log'u son 10 maça düşür ──
-    try {
-      const log = JSON.parse(localStorage.getItem('cft_user_match_log') || '[]');
-      if (log.length > 10) {
-        const trimmed = log.slice(-10);
-        localStorage.setItem('cft_user_match_log', JSON.stringify(trimmed));
-        console.info(`[Storage] Aşama 4: cft_user_match_log ${log.length} → 10`);
-        try { localStorage.setItem(key, value); return true; } catch(_) {}
-      }
-    } catch(_) {}
-
-    // ── AŞAMA 5: Yazılan veri çok büyük ise içini agresif trim et (5 kayıt) ──
-    if (key === 'cft_match_results' && typeof value === 'string' && value.length > 10000) {
-      try {
-        const obj = JSON.parse(value);
-        let entries = Object.entries(obj);
-        // Önce tek maçları trim et
-        entries = entries.map(([k, v]) => [k, _trimMatchEntry(v)]);
-        // Sonra en yeni 5 kayda düşür
-        entries.sort((a, b) => (b[1].playedAt || 0) - (a[1].playedAt || 0));
-        entries = entries.slice(0, 5);
-        const trimmed = {};
-        entries.forEach(([k, v]) => { trimmed[k] = v; });
-        const newValue = JSON.stringify(trimmed);
-        localStorage.setItem(key, newValue);
-        console.info(`[Storage] Aşama 5: cft_match_results agresif trim → 5 kayıt (${value.length} → ${newValue.length} byte)`);
-        return true;
-      } catch(_) {}
-    }
-
-    // ── AŞAMA 6: cft_match_results yazımını sessizce atla (sayfa açılır, hata yok) ──
-    // Bu garantili son çıkış — removeItem fail etse bile yazımı atlıyoruz
-    if (key === 'cft_match_results') {
-      try { localStorage.removeItem('cft_match_results'); } catch(_) {}
-      console.info('[Storage] Aşama 6: cft_match_results yazımı atlandı (Lig sayfası açık kalır, veriler UI\'da yeniden simüle edilir)');
-      return false; // yazım atlandı ama sayfa açılır
-    }
-
-    // Tüm aşamalar başarısız
-    console.warn('[Storage] Quota tüm aşamalarda başarısız — yazım atlandı:', key, '(boyut:', value.length, ')');
-    try {
-      const sizes = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        const v = localStorage.getItem(k);
-        sizes.push({ key: k, kb: Math.round((v || '').length / 1024) });
-      }
-      sizes.sort((a, b) => b.kb - a.kb);
-      console.info('[Storage] En büyük 5 kayıt:', sizes.slice(0, 5));
-    } catch(_) {}
     return false;
   }
 }
@@ -25893,95 +25772,12 @@ function _cftStorageUsageKB() {
 }
 
 function _cftStartupStorageCleanup() {
-  // 🆕 Önce genel doluluğu ölç — eşiği aşıyorsa diğer cache'leri proaktif temizle
-  // (Sohbetlere DOKUNMUYOR — sadece bot roster + içerik cache'leri)
-  // Threshold: 4 MB (browser limiti ~5-10 MB, güvenli marj). Önceki 2.5 MB'lık
-  // değer her açılışta tetikleniyordu, log spam'e yol açıyordu.
-  const usageKB = _cftStorageUsageKB();
-  if (usageKB > 4000) {  // 4MB üstü = quota'ya yaklaşıyor
-    _cftCleanupOtherCaches(false); // ← false: sohbetlere dokunma
-    // Log basmıyoruz — kullanıcı için gereksiz spam.
-  }
-
-  // cft_match_results özel trim
+  // cft_match_results Supabase'e taşındı — localStorage trim YOK.
+  // Sadece genel cache temizliği (sohbetlere dokunmaz).
   try {
-    const raw = localStorage.getItem('cft_match_results');
-    if (!raw) return;
-    if (raw.length < 50000) return; // 50KB'tan küçükse dokunma
-
-    // 🆕 AŞAMALI TRİM: boyuta göre saklanacak kayıt sayısını agresifleştir
-    let keepCount = 15;
-    if (raw.length > 100000) keepCount = 10;
-    if (raw.length > 200000) keepCount = 7;
-    if (raw.length > 400000) keepCount = 4;
-    if (raw.length > 800000) keepCount = 2;
-
-    const obj = JSON.parse(raw);
-    let entries = Object.entries(obj);
-    entries = entries.map(([k, v]) => [k, _trimMatchEntry(v)]);
-
-    if (entries.length > keepCount) {
-      entries.sort((a, b) => (b[1].playedAt || 0) - (a[1].playedAt || 0));
-      entries = entries.slice(0, keepCount);
-    }
-
-    const trimmed = {};
-    entries.forEach(([k, v]) => { trimmed[k] = v; });
-    const newValue = JSON.stringify(trimmed);
-
-    if (newValue.length < raw.length) {
-      try {
-        localStorage.setItem('cft_match_results', newValue);
-        console.info(`[Storage] Startup trim: ${Math.round(raw.length/1024)}KB → ${Math.round(newValue.length/1024)}KB (${entries.length} kayıt)`);
-      } catch(e) {
-        // 🆕 setItem hata verdi — diğer cache'leri agresif temizle (yine sohbete dokunma)
-        try {
-          const cleanup = _cftCleanupOtherCaches(false); // ← false: sohbete dokunma
-          if (cleanup.removed.length > 0) {
-            console.info(`[Storage] Acil temizlik: ${cleanup.removed.length} cache silindi (${Math.round(cleanup.freed/1024)}KB)`);
-          }
-          // Tekrar dene — diğer cache'ler temizlendiyse şimdi yer var
-          localStorage.setItem('cft_match_results', newValue);
-          console.info(`[Storage] Startup trim (acil sonrası): ${Math.round(newValue.length/1024)}KB`);
-        } catch(e2) {
-          // Yine hata — son 3 kayıtla ULTRA-TRİM
-          try {
-            const sortedAgain = entries.slice(0, 3);
-            const ultra = {};
-            sortedAgain.forEach(([k, v]) => { ultra[k] = v; });
-            localStorage.setItem('cft_match_results', JSON.stringify(ultra));
-            console.info('[Storage] Startup ultra-trim: son 3 kayıt korundu');
-          } catch(e3) {
-            // 🆕 Hâlâ olmuyor — ŞİMDİ 30 GÜN+ eski sohbetleri temizle (en son çare)
-            try {
-              const cleanup2 = _cftCleanupOtherCaches(true); // true: 30+ gün eski sohbetler
-              if (cleanup2.removed.length > 0) {
-                console.info(`[Storage] Son çare: ${cleanup2.removed.length} eski cache (${Math.round(cleanup2.freed/1024)}KB)`);
-              }
-              const sortedAgain2 = entries.slice(0, 3);
-              const ultra2 = {};
-              sortedAgain2.forEach(([k, v]) => { ultra2[k] = v; });
-              localStorage.setItem('cft_match_results', JSON.stringify(ultra2));
-              console.info('[Storage] Son çare sonrası başarılı: son 3 maç');
-            } catch(_) {
-              // Bu da olmazsa son 1 kayıt
-              try {
-                const last1 = entries.slice(0, 1);
-                const single = {};
-                last1.forEach(([k, v]) => { single[k] = v; });
-                localStorage.setItem('cft_match_results', JSON.stringify(single));
-                console.info('[Storage] Tek-kayıt: son 1 maç korundu');
-              } catch(_) {
-                try { localStorage.removeItem('cft_match_results'); } catch(_) {}
-              }
-            }
-          }
-        }
-      }
-    }
-  } catch(_) {
-    try { localStorage.removeItem('cft_match_results'); } catch(_) {}
-  }
+    const usageKB = _cftStorageUsageKB();
+    if (usageKB > 4000) _cftCleanupOtherCaches(false);
+  } catch(_) {}
 }
 // Sayfa yüklenince hemen çalıştır
 _cftStartupStorageCleanup();
@@ -26500,7 +26296,7 @@ const MatchAuthority = (function() {
 
     // cft_match_results cache'ine yaz (mevcut UI bunu okur)
     try {
-      const cache = JSON.parse(localStorage.getItem('cft_match_results') || '{}');
+      const cache = _matchResultsLoad();
       // Tek bir key dene — season+day varsa onunla, yoksa fallback
       const homeName = m.homeTeam && m.homeTeam.name;
       const awayName = m.awayTeam && m.awayTeam.name;
@@ -26520,9 +26316,9 @@ const MatchAuthority = (function() {
         playerStats: null                            // Aşama 6'da eklenecek
       };
       if (typeof _safeSetItem === 'function') {
-        _safeSetItem('cft_match_results', JSON.stringify(cache));
+        _matchResultsSave(cache);
       } else {
-        localStorage.setItem('cft_match_results', JSON.stringify(cache));
+        _matchResultsSave(cache);
       }
     } catch(e) { console.warn('[MatchAuthority] finalize cache hatası:', e); }
   }
@@ -30201,7 +29997,7 @@ function showHistoricalMatchResult(m, fixtureIdx) {
   let cacheData = null;
   let cacheKey = null;
   try {
-    const cache = JSON.parse(localStorage.getItem('cft_match_results') || '{}');
+    const cache = _matchResultsLoad();
     cacheKey = `${m.season || 1}_${m.day || 0}_${m.home.name}_${m.away.name}`;
     cacheData = cache[cacheKey] || null;
     // 🆕 Fallback: tam key bulunamadıysa takım çiftine göre tara
@@ -30231,7 +30027,7 @@ function showHistoricalMatchResult(m, fixtureIdx) {
         };
         // Cache'i upgrade et
         cache[cacheKey] = cacheData;
-        _safeSetItem('cft_match_results', JSON.stringify(cache));
+        _matchResultsSave(cache);
       } catch(e) { /* simulate başarısız — quick skor ile devam */ }
     }
   } catch(e) {}
@@ -30598,7 +30394,7 @@ function _resLiveUpdate() {
     window._resLiveCacheWritten = true;
     try {
       const cacheKey = window._resLiveMatchKey || `${m.season || 1}_${m.day || 0}_${m.home}_${m.away}`;
-      let cache = JSON.parse(localStorage.getItem('cft_match_results') || '{}');
+      let cache = _matchResultsLoad();
       if (!cache[cacheKey]) {
         cache[cacheKey] = {
           season: m.season || 1, day: m.day || 0,
@@ -30612,9 +30408,9 @@ function _resLiveUpdate() {
           playerStats: sim.playerStats
         };
         if (typeof _safeSetItem === 'function') {
-          _safeSetItem('cft_match_results', JSON.stringify(cache));
+          _matchResultsSave(cache);
         } else {
-          localStorage.setItem('cft_match_results', JSON.stringify(cache));
+          _matchResultsSave(cache);
         }
       }
     } catch(e) {}
@@ -30726,7 +30522,7 @@ function openMatchFromFixture(idx) {
   // 🆕 Cache'ten istatistik ve olayları çek (varsa) — cache hit'te detay gösterimi için
   let _matchCacheData = null;
   try {
-    const _cache = JSON.parse(localStorage.getItem('cft_match_results') || '{}');
+    const _cache = _matchResultsLoad();
     _matchCacheData = _cache[`${m.season}_${m.day}_${m.home.name}_${m.away.name}`] || null;
   } catch(e) {}
 
@@ -30896,7 +30692,7 @@ function getTeamLast5Matches(team) {
   const teamName = team.name || team.teamName || 'Team';
 
   let cache = {};
-  try { cache = JSON.parse(localStorage.getItem('cft_match_results') || '{}'); } catch(e) {}
+  try { cache = _matchResultsLoad(); } catch(e) {}
 
   // Bu takımın tüm oynanmış maçlarını topla
   const matches = [];
@@ -33783,7 +33579,7 @@ async function startMatch(){
 
         // Cache lookup (bot maçı sonuçlarındaki gibi)
         try {
-          const cache = JSON.parse(localStorage.getItem('cft_match_results') || '{}');
+          const cache = _matchResultsLoad();
           // Birden fazla key formatını dene (kullanıcı vs bot maçı uyumluluğu)
           const candidates = [];
           if (MS.season && MS.day) {
@@ -35344,7 +35140,7 @@ function computeLeagueStandings(countryCode, tierIdx, seasonNum) {
 
   // cft_match_results'tan oynanan maçları al
   let results = {};
-  try { results = JSON.parse(localStorage.getItem('cft_match_results') || '{}'); } catch(e) {}
+  try { results = _matchResultsLoad(); } catch(e) {}
 
   Object.values(results).forEach(r => {
     if (r.season !== seasonNum) return;
@@ -35442,25 +35238,38 @@ function markSeasonEndProcessed(seasonNum) {
 const _WORLD_STATE_KEY = 'cft_world_state';
 const _WORLD_STATE_SCHEMA_VERSION = 1;
 
-// Merkezi state'i oku. Yoksa boş bir state döner.
-// İleride: GET /api/world/state çağrısı olur.
-function loadWorldState() {
+// 🆕 Supabase tek kaynak. RAM cache sync API'yi korur (loadWorldState yüzlerce yerden sync çağrılıyor).
+// Bootstrap'te bir kere Supabase'ten çekilir → cache dolar. Her save sonrası debounced UPDATE.
+let _worldStateCache = null;
+let _worldStateSaveTimer = null;
+
+async function _worldStateLoadFromServer() {
   try {
-    const raw = localStorage.getItem(_WORLD_STATE_KEY);
-    if (!raw) return _emptyWorldState();
-    const state = JSON.parse(raw);
-    if (!state || typeof state !== 'object') return _emptyWorldState();
-    // Eksik alanları doldur (geriye dönük uyumluluk)
-    if (!state.bot_promrel) state.bot_promrel = {};
-    if (!state.final_standings) state.final_standings = {};
-    if (!state.team_jerseys) state.team_jerseys = {};
-    if (!state.season_fixtures) state.season_fixtures = {};  // 🆕
-    if (!state.schemaVersion) state.schemaVersion = _WORLD_STATE_SCHEMA_VERSION;
-    return state;
-  } catch(e) {
-    console.warn('[WorldState] Load hatası:', e);
-    return _emptyWorldState();
-  }
+    if (!window.sb) { _worldStateCache = _emptyWorldState(); return; }
+    const { data, error } = await window.sb.from('world_state')
+      .select('data').eq('id', 1).maybeSingle();
+    if (error) { console.warn('[WorldState] load hata:', error.message); _worldStateCache = _emptyWorldState(); return; }
+    const obj = (data && data.data && typeof data.data === 'object') ? data.data : {};
+    if (!obj.bot_promrel) obj.bot_promrel = {};
+    if (!obj.final_standings) obj.final_standings = {};
+    if (!obj.team_jerseys) obj.team_jerseys = {};
+    if (!obj.season_fixtures) obj.season_fixtures = {};
+    if (!obj.schemaVersion) obj.schemaVersion = _WORLD_STATE_SCHEMA_VERSION;
+    _worldStateCache = obj;
+  } catch(e) { console.warn('[WorldState] load hata:', e); _worldStateCache = _emptyWorldState(); }
+}
+
+async function _worldStateSaveImpl() {
+  try {
+    if (!window.sb || !_worldStateCache) return;
+    await window.sb.from('world_state').update({ data: _worldStateCache, updated_at: new Date().toISOString() }).eq('id', 1);
+  } catch(e) { console.warn('[WorldState] save hata:', e); }
+}
+
+// Sync API — RAM cache döner. Bootstrap çağrılmadan önce çağrılırsa boş state döner.
+function loadWorldState() {
+  if (!_worldStateCache) _worldStateCache = _emptyWorldState();
+  return _worldStateCache;
 }
 
 function _emptyWorldState() {
@@ -35473,6 +35282,117 @@ function _emptyWorldState() {
     season_fixtures: {}   // 🆕 { [seasonNum]: { drawnAt, dayMap: { dayInSeason: [matches] } } } — kalıcı fikstür
   };
 }
+
+// ═══════════════════════════════════════════════════════════════════
+//  🆕 MATCH RESULTS — Supabase tek kaynak (localStorage YOK)
+// ═══════════════════════════════════════════════════════════════════
+// Frontend her yerde { [key]: matchObj } cache obje formatıyla çalışır.
+// key formatı: "season_day_homeTeam_awayTeam"
+// matchObj: { season, day, home, away, hs, as, comp, playedAt, kickoffMs, events, stats, playerStats, byAuthority }
+//
+// _matchResultsLoad()  → cache (sync, RAM)
+// _matchResultsSave(cache) → RAM güncelle + Supabase'e debounced upsert
+// _matchResultsLoadFromServer() → bootstrap'te bir kere çağrılır
+// ═══════════════════════════════════════════════════════════════════
+
+let _matchResultsCache = {};
+let _matchResultsDirty = new Set();   // Yazılması gereken key'ler
+let _matchResultsSaveTimer = null;
+
+function _mrKey(m) {
+  return `${m.season || 1}_${m.day || 0}_${m.home}_${m.away}`;
+}
+
+async function _matchResultsLoadFromServer() {
+  try {
+    if (!window.sb) { _matchResultsCache = {}; return; }
+    // Sayfalama ile tüm satırları çek (Supabase 1000 satır limiti)
+    const PAGE = 1000;
+    let all = [];
+    for (let from = 0; from < 100000; from += PAGE) {
+      const { data, error } = await window.sb.from('match_results')
+        .select('season,day_in_season,country_code,tier,home_team,away_team,home_score,away_score,data,created_at')
+        .order('created_at', { ascending: false })
+        .range(from, from + PAGE - 1);
+      if (error) { console.warn('[match_results] load hata:', error.message); break; }
+      if (!Array.isArray(data) || data.length === 0) break;
+      all = all.concat(data);
+      if (data.length < PAGE) break;
+    }
+    const cache = {};
+    for (const r of all) {
+      const m = {
+        season: r.season,
+        day: r.day_in_season,
+        home: r.home_team,
+        away: r.away_team,
+        hs: r.home_score,
+        as: r.away_score,
+        countryCode: r.country_code,
+        tier: r.tier,
+        ...(r.data || {})
+      };
+      cache[_mrKey(m)] = m;
+    }
+    _matchResultsCache = cache;
+    console.info('[match_results] yüklendi:', all.length, 'maç');
+  } catch(e) { console.warn('[match_results] load hata:', e); _matchResultsCache = {}; }
+}
+
+// Sync API — RAM cache döner
+function _matchResultsLoad() {
+  return _matchResultsCache || {};
+}
+
+// Cache obje'sini set et + Supabase'e debounced yaz
+// newCache: ya tüm cache (obj), ya da değişen key'leri içerebilir
+function _matchResultsSave(newCache) {
+  if (!newCache || typeof newCache !== 'object') return;
+  // Diff hesapla: hangi key'ler değişmiş?
+  for (const k of Object.keys(newCache)) {
+    const oldVal = _matchResultsCache[k];
+    const newVal = newCache[k];
+    if (!oldVal || JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+      _matchResultsDirty.add(k);
+    }
+  }
+  _matchResultsCache = newCache;
+  // Debounce 1sn
+  if (_matchResultsSaveTimer) clearTimeout(_matchResultsSaveTimer);
+  _matchResultsSaveTimer = setTimeout(_matchResultsFlush, 1000);
+}
+
+async function _matchResultsFlush() {
+  if (!window.sb || _matchResultsDirty.size === 0) return;
+  const dirtyKeys = Array.from(_matchResultsDirty);
+  _matchResultsDirty.clear();
+  const rows = dirtyKeys.map(k => {
+    const m = _matchResultsCache[k];
+    if (!m) return null;
+    return {
+      season: m.season || 1,
+      day_in_season: m.day || 0,
+      home_team: m.home,
+      away_team: m.away,
+      home_score: m.hs ?? 0,
+      away_score: m.as ?? 0,
+      country_code: m.countryCode || null,
+      tier: (typeof m.tier === 'number') ? m.tier : null,
+      data: {
+        comp: m.comp, playedAt: m.playedAt, kickoffMs: m.kickoffMs,
+        events: m.events, stats: m.stats, playerStats: m.playerStats,
+        byAuthority: m.byAuthority
+      }
+    };
+  }).filter(Boolean);
+  if (rows.length === 0) return;
+  try {
+    const { error } = await window.sb.from('match_results')
+      .upsert(rows, { onConflict: 'season,day_in_season,home_team,away_team' });
+    if (error) console.warn('[match_results] flush hata:', error.message);
+  } catch(e) { console.warn('[match_results] flush hata:', e); }
+}
+
 
 // ═══════════════════════════════════════════════════════════════════
 //  🆕 FORMA RENK SİSTEMİ
@@ -35775,7 +35695,11 @@ function _hslToHex(h, s, l) {
 function saveWorldState(state) {
   try {
     if (!state) return false;
-    localStorage.setItem(_WORLD_STATE_KEY, JSON.stringify(state));
+    // RAM cache'i güncelle (loadWorldState sync olarak bunu döndürecek)
+    _worldStateCache = state;
+    // Debounced Supabase write (1sn — sezon ilerletme sırasında 5+ kez çağrılırsa tek istek)
+    if (_worldStateSaveTimer) clearTimeout(_worldStateSaveTimer);
+    _worldStateSaveTimer = setTimeout(_worldStateSaveImpl, 1000);
     return true;
   } catch(e) {
     console.warn('[WorldState] Save hatası:', e);
@@ -36477,30 +36401,22 @@ function _cftCleanupOldSeasonData(currentSeason) {
   let totalDeleted = 0;
   let bytesFreed   = 0;
 
-  // ── 1) cft_match_results: tek büyük JSON, içindeki anahtarları filtrele ──
+  // ── 1) match_results: eski sezonları sil ──
   try {
-    const raw = localStorage.getItem('cft_match_results');
-    if (raw) {
-      const before = raw.length;
-      const cache = JSON.parse(raw);
-      let deleted = 0;
-      for (const k in cache) {
-        // Key formatı: "{season}_{day}_{home}_{away}"
-        const m = String(k).match(/^(\d+)_/);
-        if (m) {
-          const s = parseInt(m[1], 10);
-          if (!isNaN(s) && s < cutoff) {
-            delete cache[k];
-            deleted++;
-          }
-        }
+    const cache = _matchResultsLoad();
+    let deleted = 0;
+    const newCache = {};
+    for (const k in cache) {
+      const m = String(k).match(/^(\d+)_/);
+      if (m) {
+        const s = parseInt(m[1], 10);
+        if (!isNaN(s) && s < cutoff) { deleted++; continue; }
       }
-      if (deleted > 0) {
-        const newRaw = JSON.stringify(cache);
-        localStorage.setItem('cft_match_results', newRaw);
-        totalDeleted += deleted;
-        bytesFreed   += (before - newRaw.length);
-      }
+      newCache[k] = cache[k];
+    }
+    if (deleted > 0) {
+      _matchResultsSave(newCache);
+      totalDeleted += deleted;
     }
   } catch(e) { console.warn('[Cleanup] match_results temizleme hatası:', e); }
 
@@ -36864,7 +36780,7 @@ function _finalizeMatch(script) {
 
       // Anahtar: sezon-gün-ev-deplasman (unique)
       const key = `${fr.season || 1}_${fr.day || 0}_${curHome.name}_${curAway.name}`;
-      const results = JSON.parse(localStorage.getItem('cft_match_results') || '{}');
+      const results = _matchResultsLoad();
 
       // 🆕 Maç motorundan gerçek istatistik + olayları kaydet (yeniden açıldığında görünsün)
       let _stats = null;
@@ -36941,7 +36857,7 @@ function _finalizeMatch(script) {
         stats: _stats,
         playerStats: _playerStats
       };
-      _safeSetItem('cft_match_results', JSON.stringify(results));
+      _matchResultsSave(results);
 
       // KADRO sekmesini reyting ile yeniden çiz
       try { if (typeof renderLineup === 'function') renderLineup(); } catch(e) {}
@@ -48445,7 +48361,7 @@ function frmEnsurePlayed() {
 
   // 🆕 cft_match_results cache'i de güncelleyeceğiz
   let matchResults = {};
-  try { matchResults = JSON.parse(localStorage.getItem('cft_match_results') || '{}'); } catch(e) {}
+  try { matchResults = _matchResultsLoad(); } catch(e) {}
   let cacheUpdated = false;
 
   all.forEach(fm => {
@@ -48644,7 +48560,7 @@ function frmEnsurePlayed() {
 
   if (dirty) frmSaveMatches(all);
   if (cacheUpdated) {
-    try { _safeSetItem('cft_match_results', JSON.stringify(matchResults)); } catch(e) {}
+    try { _matchResultsSave(matchResults); } catch(e) {}
   }
 }
 
@@ -50926,7 +50842,7 @@ function hmOpenNextMatch() {
 
   // 🆕 1. Cache kontrolü — maç **gerçekten bitmiş** mi? Sadece o zaman geçmiş gösterimi
   let cache = {};
-  try { cache = JSON.parse(localStorage.getItem('cft_match_results') || '{}'); } catch(e) {}
+  try { cache = _matchResultsLoad(); } catch(e) {}
   const cacheKey = `${m.season}_${m.day}_${m.home.name}_${m.away.name}`;
   const cachedMatch = cache[cacheKey];
 
@@ -50960,7 +50876,7 @@ function hmOpenNextMatch() {
           playerStats: sim.playerStats || null
         };
         cache[cacheKey] = updated;
-        try { _safeSetItem('cft_match_results', JSON.stringify(cache)); } catch(e) {}
+        try { _matchResultsSave(cache); } catch(e) {}
 
         m.hs = sim.hs;
         m.as = sim.as;
@@ -50991,7 +50907,7 @@ function hmOpenNextMatch() {
     // Cache'i sil — maç motoru canlı oynayacak, sonunda yeniden yazacak
     try {
       delete cache[cacheKey];
-      _safeSetItem('cft_match_results', JSON.stringify(cache));
+      _matchResultsSave(cache);
     } catch(e) {}
   }
 
@@ -51458,7 +51374,7 @@ function _resGetMatchesForDate(targetDate) {
 
   // Cache'ten skorları okuyup birleştir
   let resultsCache = {};
-  try { resultsCache = JSON.parse(localStorage.getItem('cft_match_results') || '{}'); } catch(e) {}
+  try { resultsCache = _matchResultsLoad(); } catch(e) {}
 
   // 🆕 Saati geçmiş bot maçları için HIZLI skor üretimi (kullanıcı maçı hariç)
   // Önceden simulateBotMatch çağrıldığında 256+ maç için tam simülasyon yapılıyordu → sayfa donuyordu.
@@ -51586,7 +51502,7 @@ function _resGetMatchesForDate(targetDate) {
 
   // Cache'i kaydet (yeni simüle edilmişler)
   if (cacheUpdated) {
-    try { _safeSetItem('cft_match_results', JSON.stringify(resultsCache)); } catch(e) {}
+    try { _matchResultsSave(resultsCache); } catch(e) {}
   }
 
   const merged = allMatches.map(m => {
@@ -52902,7 +52818,7 @@ function generateTickerMatches(seed, count) {
         try {
           const cacheKey = `${season}_${dayInSeason}_${homeTeam.name}_${awayTeam.name}`;
           let cache = {};
-          try { cache = JSON.parse(localStorage.getItem('cft_match_results') || '{}'); } catch(e) {}
+          try { cache = _matchResultsLoad(); } catch(e) {}
           let finalScore = cache[cacheKey];
           if (!finalScore && typeof simulateBotMatch === 'function') {
             finalScore = simulateBotMatch(homeTeam, awayTeam, cacheKey);
@@ -53211,7 +53127,7 @@ function _lgTickerTickUpdate() {
 
   // Cache'i bir kez oku — biten maçları yakalamak için
   let resultsCache = {};
-  try { resultsCache = JSON.parse(localStorage.getItem('cft_match_results') || '{}'); } catch(e) {}
+  try { resultsCache = _matchResultsLoad(); } catch(e) {}
 
   const nowMs = Date.now();
   const userLiveOn = !!(typeof MS !== 'undefined' && MS && MS.running && !MS.finished);
@@ -53373,7 +53289,7 @@ function renderHomeMatches() {
 
   // Cache'i bir kez oku
   let resultsCache = {};
-  try { resultsCache = JSON.parse(localStorage.getItem('cft_match_results') || '{}'); } catch(e) {}
+  try { resultsCache = _matchResultsLoad(); } catch(e) {}
 
   // 🆕 Cache'ten takım çiftine göre lookup map oluştur (key formatı ne olursa olsun bulur)
   // Aynı takım çifti birden fazla maç olabilir (önceki sezonlardan) — listede tut
@@ -53529,7 +53445,7 @@ function renderHomeMatches() {
   });
 
   if (cacheUpdated) {
-    try { _safeSetItem('cft_match_results', JSON.stringify(resultsCache)); } catch(e) {}
+    try { _matchResultsSave(resultsCache); } catch(e) {}
   }
 
   // Sıralama:
@@ -53653,7 +53569,7 @@ function hmOpenMatchCard(idx) {
   // 🆕 m.cacheKey ve m.day fixture'tan geldi (renderHomeMatches'te set edildi)
   const day = (typeof m.day === 'number') ? m.day : (info.dayInSeason || 1);
   let cache = {};
-  try { cache = JSON.parse(localStorage.getItem('cft_match_results') || '{}'); } catch(e) {}
+  try { cache = _matchResultsLoad(); } catch(e) {}
   const cacheKey = m.cacheKey || `${season}_${day}_${m.home.name}_${m.away.name}`;
 
   // 🆕 Garanti bulma: takım çiftine göre cache'i tara (eski format key'leri için)
@@ -53709,7 +53625,7 @@ function hmOpenMatchCard(idx) {
         playerStats: sim.playerStats || null,
         stats: sim.stats || null
       };
-      _safeSetItem('cft_match_results', JSON.stringify(cache));
+      _matchResultsSave(cache);
     } catch(e) {}
   }
 
@@ -54841,7 +54757,7 @@ function buildFixtureData(filter) {
   // 🆕 Maç sonuçları cache (localStorage'dan)
   let _matchResultsCache = {};
   try {
-    _matchResultsCache = JSON.parse(localStorage.getItem('cft_match_results') || '{}');
+    _matchResultsCache = _matchResultsLoad();
   } catch(e) {}
 
   // 🆕 Fault-tolerant cache lookup — suffix farkı / format dalgalanmaları için
@@ -55536,7 +55452,7 @@ function ensureBotMatchResults() {
   if (!_fixtureData) return;
   let updated = false;
   let cache = {};
-  try { cache = JSON.parse(localStorage.getItem('cft_match_results') || '{}'); } catch(e) {}
+  try { cache = _matchResultsLoad(); } catch(e) {}
 
   _fixtureData.forEach(m => {
     if (m.type !== 'lig') return;
@@ -55566,7 +55482,7 @@ function ensureBotMatchResults() {
   });
 
   if (updated) {
-    try { _safeSetItem('cft_match_results', JSON.stringify(cache)); } catch(e) {}
+    try { _matchResultsSave(cache); } catch(e) {}
   }
 }
 
@@ -59170,7 +59086,7 @@ function _statsHash(s){let h=2166136261;for(let i=0;i<s.length;i++){h=(h^s.charC
 function _migrateMatchPlayerStats() {
   if (localStorage.getItem('cft_player_stats_migration_v1') === 'done') return;
   try {
-    const raw = localStorage.getItem('cft_match_results') || '{}';
+    const raw = JSON.stringify(_matchResultsLoad());
     const cache = JSON.parse(raw);
     if (!cache || typeof cache !== 'object') {
       localStorage.setItem('cft_player_stats_migration_v1', 'done');
@@ -59253,7 +59169,7 @@ function _migrateMatchPlayerStats() {
     });
 
     if (updated > 0) {
-      _safeSetItem('cft_match_results', JSON.stringify(cache));
+      _matchResultsSave(cache);
       // In-memory cache'leri sıfırla — yeni veriler okunsun
       if (typeof _psCachedStats !== 'undefined') _psCachedStats = null;
       if (typeof _psCachedKey !== 'undefined') _psCachedKey = null;
@@ -59530,7 +59446,7 @@ function calcLeagueStandings(countryCode, tierIdx, opts) {
 
   // Cache'i bir kez oku
   let cache = {};
-  try { cache = JSON.parse(localStorage.getItem('cft_match_results') || '{}'); } catch(e) {}
+  try { cache = _matchResultsLoad(); } catch(e) {}
 
   let cacheUpdated = false;
   const halfWeeks = league.teams.length - 1; // her yarı bu kadar hafta
@@ -59610,7 +59526,7 @@ function calcLeagueStandings(countryCode, tierIdx, opts) {
 
   // Cache'i kaydet (yeni simüle edilenler varsa)
   if (cacheUpdated) {
-    try { _safeSetItem('cft_match_results', JSON.stringify(cache)); } catch(e) {}
+    try { _matchResultsSave(cache); } catch(e) {}
   }
 
   // Sırala: puan → averaj → atılan gol
@@ -59922,7 +59838,7 @@ function lg2RenderFixture() {
 
   // 🆕 cft_match_results cache'inden skor okuma (kullanıcı oynadığı maçlar dahil)
   let _cache = {};
-  try { _cache = JSON.parse(localStorage.getItem('cft_match_results') || '{}'); } catch(e) {}
+  try { _cache = _matchResultsLoad(); } catch(e) {}
   let _cacheUpdated = false;
 
   // Bugünün sezonunu hesapla (cache key için)
@@ -59986,7 +59902,7 @@ function lg2RenderFixture() {
 
   // Cache'i kaydet (yeni üretilen bot maçları varsa)
   if (_cacheUpdated) {
-    try { _safeSetItem('cft_match_results', JSON.stringify(_cache)); } catch(e) {}
+    try { _matchResultsSave(_cache); } catch(e) {}
   }
 
   // Her maç için ev sahibi ülke saatine göre saat üret + dayInSeason hesapla
@@ -65879,7 +65795,7 @@ function totoGenMatches(leagueKey, couponPart) {
   // Maç gerçekten oynandığında (saat geçtikten 15dk sonra) cft_match_results'a
   // simulateBotMatch / _quickScore yazar. Toto da aynı kaynaktan okur → tutarlı.
   let resultsCache = {};
-  try { resultsCache = JSON.parse(localStorage.getItem('cft_match_results') || '{}'); } catch(e) {}
+  try { resultsCache = _matchResultsLoad(); } catch(e) {}
   const matches = [];
   slice.forEach((f, i) => {
     const home = f.homeTeam;
@@ -69653,7 +69569,7 @@ let _psCachedKey = null;
 // Tüm cached maçları gezerek oyuncu istatistiklerini topla
 // Döner: { "TeamName_PlayerName": { goals, assists, ratingSum, matches } }
 function _calcPlayerStatsFromCache() {
-  const raw = localStorage.getItem('cft_match_results') || '';
+  const raw = JSON.stringify(_matchResultsLoad());
   const cacheKey = raw.length + '_' + raw.slice(0, 200) + raw.slice(-200);
   if (_psCachedStats && _psCachedKey === cacheKey) return _psCachedStats;
 
@@ -69752,7 +69668,7 @@ function _invalidatePlayerStatsCache() {
 
 function buildRkPlayerList() {
   // 🆕 Cache key: match_results değiştiyse cache invalidate (yeni maçlar geldiyse stats yenile)
-  const _matchData = localStorage.getItem('cft_match_results') || '';
+  const _matchData = JSON.stringify(_matchResultsLoad());
   const _matchKey = _matchData.length + '_' + _matchData.slice(0, 100) + _matchData.slice(-100);
   if (_rkPlayerListCache && _rkPlayerListCacheKey === _matchKey) return _rkPlayerListCache;
   _rkPlayerListCacheKey = _matchKey;
@@ -69949,7 +69865,7 @@ function _rkTeamCoef(countryCode, teamName, teamRank) {
   // 🆕 Hiç maç oynanmadıysa coefficient = 0
   // (Takım puanı = Avrupa kupası performansından gelir; sezon başında henüz maç yok)
   try {
-    const _matchData = localStorage.getItem('cft_match_results') || '';
+    const _matchData = JSON.stringify(_matchResultsLoad());
     if (_matchData.length < 50) return 0; // 50 byte'tan az = pratikte hiç maç yok
   } catch(e) {}
 
@@ -70086,7 +70002,7 @@ function _rkSeed(s) {
 function _rkCountrySeasonPoint(cc, season) {
   // 🆕 Hiç maç oynanmadıysa 0 (Avrupa kupası performansından gelir)
   try {
-    const _matchData = localStorage.getItem('cft_match_results') || '';
+    const _matchData = JSON.stringify(_matchResultsLoad());
     if (_matchData.length < 50) return 0;
   } catch(e) {}
 
@@ -72191,6 +72107,8 @@ setTimeout(async ()=>{
   // 🔧 ÖNCE auth ekranını hazırla (görünür yap), SONRA splash'ı fade'le
   // Aksi halde splash gizlendiğinde 500ms boyunca ana menü görünür
   try { await bootstrapWorld(); } catch(e) { console.warn('bootstrapWorld hata:', e); }
+  try { await _worldStateLoadFromServer(); } catch(e) { console.warn('worldState load hata:', e); }
+  try { await _matchResultsLoadFromServer(); } catch(e) { console.warn('matchResults load hata:', e); }
   try { await userTeamLoadFromServer(); } catch(e) { console.warn('userTeamLoadFromServer hata:', e); }
   try { authInit(); } catch(e) { console.warn('authInit hata:', e); }
   document.getElementById('splash').classList.add('hide');
