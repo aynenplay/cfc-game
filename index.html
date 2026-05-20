@@ -35331,7 +35331,21 @@ async function _matchResultsLoadFromServer() {
       if (data.length < PAGE) break;
     }
     const cache = {};
+    // SEASON_EPOCH (gerçek dünya başlangıcı) + (season-1)*SEASON_LEN + (day-1) gün → maç tarihi
+    const _epoch = (typeof SEASON_EPOCH !== 'undefined') ? SEASON_EPOCH : null;
+    const _slen = (typeof SEASON_LEN !== 'undefined') ? SEASON_LEN : 40;
     for (const r of all) {
+      // Gerçek maç tarihi: season+day'den hesapla, created_at değil
+      let realPlayedAt = 0;
+      if (_epoch && r.season && r.day_in_season) {
+        const matchDate = new Date(_epoch.getFullYear(), _epoch.getMonth(), _epoch.getDate());
+        matchDate.setDate(matchDate.getDate() + (r.season - 1) * _slen + (r.day_in_season - 1));
+        // Saat 18:00 (turnuva) veya öğleden sonra (lig) - basit, sadece tarih için
+        matchDate.setHours(18, 0, 0, 0);
+        realPlayedAt = matchDate.getTime();
+      } else if (r.created_at) {
+        realPlayedAt = new Date(r.created_at).getTime();
+      }
       const m = {
         season: r.season,
         day: r.day_in_season,
@@ -35343,7 +35357,7 @@ async function _matchResultsLoadFromServer() {
         tier: r.tier,
         tournament_key: r.tournament_key || null,
         tournament_phase: r.tournament_phase || null,
-        playedAt: r.created_at ? new Date(r.created_at).getTime() : 0,
+        playedAt: realPlayedAt,
         _hasDetail: false  // data jsonb henüz çekilmedi
       };
       cache[_mrKey(m)] = m;
