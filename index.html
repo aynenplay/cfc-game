@@ -69311,13 +69311,14 @@ let _psCachedKey = null;
 // Tüm cached maçları gezerek oyuncu istatistiklerini topla
 // Döner: { "TeamName_PlayerName": { goals, assists, ratingSum, matches } }
 function _calcPlayerStatsFromCache() {
-  const raw = JSON.stringify(_matchResultsLoad());
-  const cacheKey = raw.length + '_' + raw.slice(0, 200) + raw.slice(-200);
+  // 🆕 ESKİ: JSON.stringify ile devasa string oluşturuyordu (4500+ maç = 100MB+ JSON, donma sebebi)
+  // YENİ: Cache key olarak sadece maç sayısı + son maç key (yeni eklemeyi tespit yeter)
+  const cache = _matchResultsLoad() || {};
+  const keys = Object.keys(cache);
+  const cacheKey = keys.length + '|' + (keys[0] || '') + '|' + (keys[keys.length-1] || '');
   if (_psCachedStats && _psCachedKey === cacheKey) return _psCachedStats;
 
   const stats = {};
-  let cache = {};
-  try { cache = JSON.parse(raw || '{}'); } catch(e) { return stats; }
 
   // Roster üretimi pahalı — takım bazlı cache
   const rosterCache = {};
