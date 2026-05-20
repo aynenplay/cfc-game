@@ -15934,6 +15934,7 @@ body.drawer-open .hb-btn span:nth-child(3){transform:translateY(-6px) rotate(-45
   color:#69f0ae;
   line-height:1;
   letter-spacing:.2px;
+  cursor:pointer;
 }
 .hm-online-dot{
   display:inline-block;
@@ -49181,44 +49182,107 @@ function _enforceTransferWindow(actionLabel) {
 // ──────── Ana sayfa oyuncu sayacı (gerçek sayım) ────────
 // Toplam: CFT_DB'deki tüm takımlar × 15 oyuncu/takım (her takım 15 bot ile doldurulur)
 // Çevrimiçi: yalnızca gerçek kullanıcı (kullanıcının kendisi). Botlar online sayılmaz.
+// 🆕 Heartbeat: kullanıcının last_seen'ini Supabase'te güncelle
+async function pingLastSeen() {
+  try {
+    if (!window.sb || !window.sb.auth) return;
+    const { data: { user } } = await window.sb.auth.getUser();
+    if (!user) return;
+    await window.sb.from('players')
+      .update({ last_seen: new Date().toISOString() })
+      .eq('user_id', user.id);
+  } catch(e) {}
+}
+
+// RAM cache (Supabase çağrısı periyodik, her render'da yeniden çağırma)
+let _onlineCache = { total: 0, online: 0, list: [], ts: 0 };
+
+async function fetchOnlineStats() {
+  if (!window.sb) return;
+  try {
+    // Toplam (tek SELECT count)
+    const { count: total } = await window.sb.from('players')
+      .select('id', { count: 'exact', head: true });
+    // Online kullanıcılar (son 5 dakika, sadece gerçek kullanıcılar)
+    const fiveMinAgo = new Date(Date.now() - 5*60*1000).toISOString();
+    const { data: list, error } = await window.sb.from('players')
+      .select('id,name,team_name,country_code,nation,last_seen')
+      .not('user_id', 'is', null)
+      .gte('last_seen', fiveMinAgo)
+      .order('last_seen', { ascending: false })
+      .limit(200);
+    if (error) { console.warn('[online] hata:', error.message); return; }
+    _onlineCache = {
+      total: total || 0,
+      online: (list || []).length,
+      list: list || [],
+      ts: Date.now()
+    };
+    // UI'ı güncelle
+    if (typeof updateHomePlayersCounter === 'function') updateHomePlayersCounter();
+  } catch(e) { console.warn('[online] hata:', e); }
+}
+
 function updateHomePlayersCounter() {
   const totalEl = document.getElementById('hmPlayersTotal');
   const onlineEl = document.getElementById('hmPlayersOnlineNum');
   if(!totalEl && !onlineEl) return;
 
-  // Toplam takım sayısını CFT_DB'den hesapla
-  let teamCount = 0;
-  try {
-    if(typeof CFT_DB !== 'undefined' && CFT_DB) {
-      Object.keys(CFT_DB).forEach(cc => {
-        const country = CFT_DB[cc];
-        if(country && Array.isArray(country.leagues)) {
-          country.leagues.forEach(lg => {
-            if(lg && Array.isArray(lg.teams)) teamCount += lg.teams.length;
-          });
-        }
-      });
-    }
-  } catch(e) {}
-
-  const ROSTER_SIZE = 15; // guestGenerateRoster sabit 15 oyuncu üretir
-  const total = teamCount * ROSTER_SIZE;
-
-  // Çevrimiçi = gerçek kullanıcı sayısı (single-player: 0 veya 1)
-  let online = 0;
-  try {
-    const hasTeam = (typeof userHasTeam === 'function') ? userHasTeam()
-                  : !!(typeof _userTeam !== 'undefined' && _userTeam);
-    if(hasTeam) online = 1;
-  } catch(e) {}
-
   function fmt(n) {
     if(n >= 1000) return n.toLocaleString('tr-TR');
     return String(n);
   }
-  if(totalEl) totalEl.textContent = fmt(total);
-  if(onlineEl) onlineEl.textContent = fmt(online);
+  if(totalEl) totalEl.textContent = fmt(_onlineCache.total);
+  if(onlineEl) onlineEl.textContent = fmt(_onlineCache.online);
 }
+
+// Online liste modal'ı
+function showOnlinePlayersModal() {
+  // Mevcut modal varsa kaldır
+  const existing = document.getElementById('onlinePlayersModal');
+  if (existing) existing.remove();
+
+  const list = _onlineCache.list || [];
+  const rowsHtml = list.length === 0
+    ? '<div style="text-align:center;padding:24px;color:#888">Şu anda çevrimiçi kullanıcı yok</div>'
+    : list.map(p => {
+        const flag = p.nation || '';
+        const team = p.team_name || '—';
+        return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid #2a2a2a">
+          <span style="font-size:20px">${flag}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name || 'Oyuncu'}</div>
+            <div style="font-size:12px;color:#999;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${team}</div>
+          </div>
+          <span style="width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0"></span>
+        </div>`;
+      }).join('');
+
+  const modal = document.createElement('div');
+  modal.id = 'onlinePlayersModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML = `
+    <div style="background:#1a1a1a;border-radius:14px;max-width:420px;width:100%;max-height:80vh;display:flex;flex-direction:column;border:1px solid #333">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #333">
+        <div style="font-weight:700;color:#fff;font-size:16px">Çevrimiçi Kullanıcılar (${list.length})</div>
+        <button id="onlineModalClose" style="background:none;border:none;color:#999;font-size:24px;cursor:pointer;padding:0 6px">×</button>
+      </div>
+      <div style="overflow-y:auto;flex:1">${rowsHtml}</div>
+    </div>`;
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+  modal.querySelector('#onlineModalClose').addEventListener('click', () => modal.remove());
+  document.body.appendChild(modal);
+}
+
+// Sayfa açılışında ilk fetch + 60sn'de bir tekrar (heartbeat + sayaç tazeleme)
+setTimeout(() => { fetchOnlineStats(); pingLastSeen(); }, 5000);
+setInterval(() => { fetchOnlineStats(); pingLastSeen(); }, 60000);
+
+// Online sayım pill'ine tıklanınca modal aç
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('#hmPlayersOnline');
+  if (el) { e.preventDefault(); showOnlinePlayersModal(); }
+});
 // Sayım statik (oyuncu giriş/çıkış bot olmadığı için sabit) — periyodik refresh gerekmez
 // ama updateHero() her çağrıldığında çağrılıyor; o yeterli.
 
