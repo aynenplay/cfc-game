@@ -37652,15 +37652,23 @@ function syncUserToRoster() {
 async function bootstrapWorld(){
   try {
     if (!window.sb) return;
-    const { data, error } = await window.sb
-      .from('teams')
-      .select('country_code,country_name,country_flag,tier,tier_name,tier_color,rank,name,city,population,market_value,rating,bg,tc,short')
-      .order('country_code').order('tier').order('rank')
-      .range(0, 9999);
-    if (error) { console.warn('[bootstrap] teams hata:', error.message); return; }
-    if (!Array.isArray(data) || data.length === 0) return;
+    // 🆕 Supabase'in 1000 satır limitini aşmak için sayfalama
+    const PAGE = 1000;
+    let all = [];
+    for (let from = 0; from < 10000; from += PAGE) {
+      const { data, error } = await window.sb
+        .from('teams')
+        .select('country_code,country_name,country_flag,tier,tier_name,tier_color,rank,name,city,population,market_value,rating,bg,tc,short')
+        .order('country_code').order('tier').order('rank')
+        .range(from, from + PAGE - 1);
+      if (error) { console.warn('[bootstrap] teams hata:', error.message); return; }
+      if (!Array.isArray(data) || data.length === 0) break;
+      all = all.concat(data);
+      if (data.length < PAGE) break;
+    }
+    if (all.length === 0) return;
     const db = {};
-    for (const t of data) {
+    for (const t of all) {
       const cc = t.country_code;
       if (!db[cc]) db[cc] = { name: t.country_name, flag: t.country_flag, code: cc, total: 0, leagues: [] };
       let lg = db[cc].leagues.find(x => x.tier === t.tier);
@@ -37669,7 +37677,7 @@ async function bootstrapWorld(){
       db[cc].total++;
     }
     CFT_DB = db;
-    console.info('[bootstrap] CFT_DB Supabase\'ten yüklendi:', Object.keys(db).length, 'ülke');
+    console.info('[bootstrap] CFT_DB yüklendi:', Object.keys(db).length, 'ülke /', all.length, 'takım');
   } catch(e) { console.warn('[bootstrap] hata:', e); }
 }
 
