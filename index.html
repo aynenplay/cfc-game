@@ -51509,48 +51509,31 @@ function _resGetMatchesForDate(targetDate) {
     const seasonCache = _resBuildSeasonFixtures(season);
     allMatches = (seasonCache.dayMap[dayInSeason] || []).slice();
 
-    _resFixtureDayCache[dayKey] = allMatches;
-  }
-
-  // Cache'ten skorları okuyup birleştir
-  let resultsCache = {};
-  try { resultsCache = _matchResultsLoad(); } catch(e) {}
-
-  // 🆕 Bu güne ait TURNUVA maçlarını ekle (match_results'tan, tournament_key dolu olanlar)
-  // Hangi gün ve sezon olduğunu yukarıda hesapladık (diffDays üzerinden)
-  try {
-    const SEASON_LEN_LOCAL = (typeof SEASON_LEN !== 'undefined') ? SEASON_LEN : 40;
-    const _seasonStart = (typeof SEASON_EPOCH !== 'undefined') ? SEASON_EPOCH : new Date();
-    const _diff = Math.floor((targetDay - new Date(_seasonStart.getFullYear(), _seasonStart.getMonth(), _seasonStart.getDate())) / 86400000);
-    if (_diff >= 0) {
-      const _seasonNum = Math.floor(_diff / SEASON_LEN_LOCAL) + 1;
-      const _dayInSeason = (_diff % SEASON_LEN_LOCAL) + 1;
-      // Cache'te tournament_key dolu maçları o güne göre filtrele
+    // 🆕 Bu güne ait TURNUVA maçlarını ekle (cache'e tek sefer)
+    try {
+      const _resCache = (typeof _matchResultsLoad === 'function') ? _matchResultsLoad() : {};
       const _trnNameMap = {
-        champ: { name: 'EURO Championship League', flag: '🏆', code: 'CHM' },
-        elite: { name: 'EURO Elite League', flag: '🥈', code: 'ELI' },
-        conv: { name: 'EURO Convergence League', flag: '🥉', code: 'CON' }
+        champ: { name: 'EURO Championship League', flag: '🏆' },
+        elite: { name: 'EURO Elite League', flag: '🥈' },
+        conv: { name: 'EURO Convergence League', flag: '🥉' }
       };
-      for (const k in resultsCache) {
-        const m = resultsCache[k];
-        if (!m || !m.tournament_key) continue;
-        if (m.season !== _seasonNum) continue;
-        if (m.day !== _dayInSeason) continue;
-        const info = _trnNameMap[m.tournament_key] || { name: m.tournament_key, flag: '🏆', code: m.tournament_key };
-      // Filter UI için tournamentType: 'championship' | 'elite' | 'convergence'
       const _typeMap = { champ: 'championship', elite: 'elite', conv: 'convergence' };
-      const _trnType = _typeMap[m.tournament_key] || 'championship';
-        // Saat: ana lig'den farklı olarak gece (19:00-21:00) - basit deterministik
-        const hourSeed = ((m.home.charCodeAt(0) + m.away.charCodeAt(0)) * 7) % 4;
+      for (const k in _resCache) {
+        const tm = _resCache[k];
+        if (!tm || !tm.tournament_key) continue;
+        if (tm.season !== season) continue;
+        if (tm.day !== dayInSeason) continue;
+        const info = _trnNameMap[tm.tournament_key] || { name: tm.tournament_key, flag: '🏆' };
+        const hourSeed = ((tm.home.charCodeAt(0) + tm.away.charCodeAt(0)) * 7) % 4;
         const hours = [19, 19, 20, 21];
         const minutes = ['00', '45', '00', '00'];
         const scheduledTime = hours[hourSeed] + ':' + minutes[hourSeed];
         allMatches.push({
-          home: m.home,
-          away: m.away,
-          homeShort: m.home.slice(0,3).toUpperCase(),
-          awayShort: m.away.slice(0,3).toUpperCase(),
-          matchKey: `T-${m.tournament_key}-${m.season}-${m.day}-${m.home}-${m.away}`,
+          home: tm.home,
+          away: tm.away,
+          homeShort: tm.home.slice(0,3).toUpperCase(),
+          awayShort: tm.away.slice(0,3).toUpperCase(),
+          matchKey: `T-${tm.tournament_key}-${tm.season}-${tm.day}-${tm.home}-${tm.away}`,
           matchDate: targetDay.toISOString().slice(0, 10),
           scheduledTime,
           leagueName: info.name,
@@ -51558,16 +51541,22 @@ function _resGetMatchesForDate(targetDate) {
           countryCode: null,
           tierIdx: -1,
           competition: 'tournament',
-          tournamentType: _trnType,
-          tournament_key: m.tournament_key,
-          tournament_phase: m.tournament_phase,
-          season: m.season,
-          day: m.day,
-          week: m.day
+          tournamentType: _typeMap[tm.tournament_key] || 'championship',
+          tournament_key: tm.tournament_key,
+          tournament_phase: tm.tournament_phase,
+          season: tm.season,
+          day: tm.day,
+          week: tm.day
         });
       }
-    }
-  } catch(e) { console.warn('[res] turnuva ekleme hata:', e); }
+    } catch(e) { console.warn('[res] turnuva ekleme hata:', e); }
+
+    _resFixtureDayCache[dayKey] = allMatches;
+  }
+
+  // Cache'ten skorları okuyup birleştir
+  let resultsCache = {};
+  try { resultsCache = _matchResultsLoad(); } catch(e) {}
 
   // 🆕 Saati geçmiş bot maçları için HIZLI skor üretimi (kullanıcı maçı hariç)
   // Önceden simulateBotMatch çağrıldığında 256+ maç için tam simülasyon yapılıyordu → sayfa donuyordu.
