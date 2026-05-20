@@ -35353,6 +35353,39 @@ async function _matchResultsLoadFromServer() {
   } catch(e) { console.warn('[match_results] load hata:', e); _matchResultsCache = {}; }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// tournament_state RAM cache — turnuva fixture'ları (gruplar + maçlar)
+// Key formatı: "{trnKey}_s{season}" (örn "champ_s1")
+// ═══════════════════════════════════════════════════════════════
+let _tournamentStateCache = {};
+
+async function _tournamentStateLoadFromServer() {
+  try {
+    if (!window.sb) { _tournamentStateCache = {}; return; }
+    const { data, error } = await window.sb.from('tournament_state')
+      .select('tournament_key,season,phase,fixture,qualified_teams,results');
+    if (error) { console.warn('[tournament_state] load hata:', error); return; }
+    const cache = {};
+    for (const row of (data || [])) {
+      const k = `${row.tournament_key}_s${row.season}`;
+      cache[k] = {
+        trnKey: row.tournament_key,
+        season: row.season,
+        phase: row.phase,
+        fixture: row.fixture || {},
+        qualified_teams: row.qualified_teams || [],
+        results: row.results || {}
+      };
+    }
+    _tournamentStateCache = cache;
+    console.info('[tournament_state] yüklendi:', Object.keys(cache).length, 'turnuva');
+  } catch(e) { console.warn('[tournament_state] load hata:', e); _tournamentStateCache = {}; }
+}
+
+function _tournamentStateGet(trnKey, season) {
+  return _tournamentStateCache[`${trnKey}_s${season}`] || null;
+}
+
 // 🆕 Tek maçın detayını (data jsonb: events, stats, playerStats, comp) lazy çek
 async function _matchResultsLoadDetail(matchKey) {
   if (!matchKey || !window.sb) return null;
@@ -60058,32 +60091,60 @@ function _trnMatchTimeStr(trnKey, season, groupIdx, matchday, homeIdx, awayIdx) 
 
 // ── 8 grup × 4 takım (32 takımdan) — UEFA klasik çift round-robin (12 maç/grup, 6 maç/takım) ──
 function trn2BuildGroups(teams32, season, trnKey) {
-  // teams32: Play-Off'u geçen 32 takım
-  const groups = Array.from({length:8}, () => []);
+  // 🆕 ÖNCE Supabase tournament_state'ten grup yapısını al (tek doğruluk kaynağı)
+  // Server'da fixture varsa onu kullan, lokal kura çekmeyi atla
+  const _srvState = (typeof _tournamentStateGet === 'function') ? _tournamentStateGet(trnKey, season) : null;
+  const _srvGroups = _srvState && _srvState.fixture && Array.isArray(_srvState.fixture.groups) ? _srvState.fixture.groups : null;
 
-  // Deterministik gruplama: farklı ülkeler aynı grupta
-  function h(s) { return (s * 1664525 + 1013904223) & 0x7fffffff; }
-  let drawSeed = season * 777 + trnKey.charCodeAt(0) * 31;
-
-  const shuffled = [...teams32].sort((a,b) => {
-    drawSeed = h(drawSeed + a.countryKey.charCodeAt(0));
-    return (drawSeed & 1) ? 1 : -1;
-  });
-
-  shuffled.forEach((t, i) => {
-    let placed = false;
-    for(let gi = 0; gi < 8; gi++) {
-      if(groups[gi].length < 4 && !groups[gi].some(g => g.countryKey === t.countryKey)) {
-        groups[gi].push(t);
-        placed = true;
-        break;
+  // CFT_DB'den takım bilgilerini hidrat: server fixture sadece countryCode+name+rank verir,
+  // bg/tc/short gibi UI alanları için CFT_DB lookup gerek
+  function _hydrateTeam(srvTeam) {
+    if (!srvTeam || !srvTeam.name || !srvTeam.countryCode) return null;
+    const cc = srvTeam.countryCode;
+    if (typeof CFT_DB !== 'undefined' && CFT_DB[cc] && CFT_DB[cc].leagues) {
+      for (const lg of CFT_DB[cc].leagues) {
+        const found = (lg.teams || []).find(x => x.name === srvTeam.name);
+        if (found) return { ...found, countryKey: cc, rank: srvTeam.rank || 0 };
       }
     }
-    if(!placed) {
-      const gi = groups.reduce((mi, g, gi2) => g.length < groups[mi].length ? gi2 : mi, 0);
-      groups[gi].push(t);
-    }
-  });
+    return { name: srvTeam.name, countryKey: cc, rank: srvTeam.rank || 0 };
+  }
+
+  const groups = Array.from({length:8}, () => []);
+
+  if (_srvGroups && _srvGroups.length === 8) {
+    // Server kurasını kullan
+    _srvGroups.forEach((sg, gi) => {
+      for (const srvT of (sg.teams || [])) {
+        const hyd = _hydrateTeam(srvT);
+        if (hyd) groups[gi].push(hyd);
+      }
+    });
+  } else {
+    // Server'da yok → eski lokal kura mantığı (fallback)
+    function h(s) { return (s * 1664525 + 1013904223) & 0x7fffffff; }
+    let drawSeed = season * 777 + trnKey.charCodeAt(0) * 31;
+
+    const shuffled = [...teams32].sort((a,b) => {
+      drawSeed = h(drawSeed + a.countryKey.charCodeAt(0));
+      return (drawSeed & 1) ? 1 : -1;
+    });
+
+    shuffled.forEach((t, i) => {
+      let placed = false;
+      for(let gi = 0; gi < 8; gi++) {
+        if(groups[gi].length < 4 && !groups[gi].some(g => g.countryKey === t.countryKey)) {
+          groups[gi].push(t);
+          placed = true;
+          break;
+        }
+      }
+      if(!placed) {
+        const gi = groups.reduce((mi, g, gi2) => g.length < groups[mi].length ? gi2 : mi, 0);
+        groups[gi].push(t);
+      }
+    });
+  }
 
   // 🆕 Tam takım nesnesi çıkar (simulateBotMatch için players + rating lazım)
   function _fullTeamForSim(t) {
@@ -71880,6 +71941,7 @@ setTimeout(async ()=>{
   try { await bootstrapWorld(); } catch(e) { console.warn('bootstrapWorld hata:', e); }
   try { await _worldStateLoadFromServer(); } catch(e) { console.warn('worldState load hata:', e); }
   try { await _matchResultsLoadFromServer(); } catch(e) { console.warn('matchResults load hata:', e); }
+  try { await _tournamentStateLoadFromServer(); } catch(e) { console.warn('tournamentState load hata:', e); }
   try { await userTeamLoadFromServer(); } catch(e) { console.warn('userTeamLoadFromServer hata:', e); }
   try { authInit(); } catch(e) { console.warn('authInit hata:', e); }
   document.getElementById('splash').classList.add('hide');
