@@ -19485,7 +19485,7 @@ body.drawer-open{overflow:hidden}
   box-shadow:0 -8px 32px rgba(0,0,0,.55), 0 -1px 0 rgba(255,255,255,.04) inset;
 }
 .cfcmd-search-overlay.open .cfcmd-search-sheet{transform:translateY(0)}
-.cfcmd-search-handle{
+.cfcmd-search-grip{
   width:44px;height:5px;border-radius:3px;
   background:rgba(255,255,255,.18);
   margin:10px auto 4px;flex-shrink:0;
@@ -23576,7 +23576,7 @@ body.drawer-open{overflow:hidden}
     <!-- 🆕 Kullanıcı arama modalı (Instagram tarzı bottom sheet) -->
     <div class="cfcmd-search-overlay" id="cfcMdSearchOverlay" onclick="if(event.target===this)cfcMdCloseSearch()">
       <div class="cfcmd-search-sheet" role="dialog" aria-modal="true" aria-labelledby="cfcMdSearchTitle">
-        <div class="cfcmd-search-handle"></div>
+        <div class="cfcmd-search-grip"></div>
         <div class="cfcmd-search-head">
           <div class="cfcmd-search-title" id="cfcMdSearchTitle">Kullanıcı Ara</div>
           <button class="cfcmd-search-close" onclick="cfcMdCloseSearch()" aria-label="Kapat">
@@ -23604,7 +23604,7 @@ body.drawer-open{overflow:hidden}
     <!-- 🆕 Takip & Takipçi modalı (sekmeli, search ile aynı sheet base) -->
     <div class="cfcmd-search-overlay" id="cfcMdFollowsOverlay" onclick="if(event.target===this)cfcMdCloseFollows()">
       <div class="cfcmd-search-sheet" role="dialog" aria-modal="true" aria-labelledby="cfcMdFollowsTitle">
-        <div class="cfcmd-search-handle"></div>
+        <div class="cfcmd-search-grip"></div>
         <div class="cfcmd-search-head">
           <div class="cfcmd-search-title" id="cfcMdFollowsTitle">Takip</div>
           <button class="cfcmd-search-close" onclick="cfcMdCloseFollows()" aria-label="Kapat">
@@ -72007,26 +72007,34 @@ async function cfcMdLoadKnownUsers() {
     return _cfcMdUsersCache;
   }
   try {
-    const { data, error } = await window.sb.from('profiles')
-      .select('id, username, name, nationality, avatar_id')
-      .order('username');
-    if (error) { console.warn('[social] users:', error); _cfcMdUsersCache = []; return []; }
+    // Profiles + players paralel
+    const [profRes, playersRes] = await Promise.all([
+      window.sb.from('profiles').select('id, username, name, nationality, avatar_id').order('username'),
+      window.sb.from('players').select('user_id, user_team_data').not('user_id', 'is', null),
+    ]);
+    if (profRes.error) { console.warn('[social] users:', profRes.error); _cfcMdUsersCache = []; return []; }
+    // user_id → user_team_data
+    const teamByUid = {};
+    for (const row of (playersRes.data || [])) {
+      if (row.user_id && row.user_team_data) teamByUid[row.user_id] = row.user_team_data;
+    }
     const myId = cfcMdGetMyId();
-    const users = (data || []).map(p => {
+    const users = (profRes.data || []).map(p => {
       const handle = '@' + (p.username || '').replace(/^@+/, '').toLowerCase();
       const id = 'user:' + (p.username || '').replace(/^@+/, '').toLowerCase();
       let avHTML = '⚽';
       if (p.avatar_id && typeof getAvatarEmoji === 'function') {
         avHTML = getAvatarEmoji(p.avatar_id, null);
       }
+      const t = teamByUid[p.id];
       return {
         id,
         name: p.name || p.username || 'Kullanıcı',
         handle,
         avatar: avHTML,
         avatarId: p.avatar_id || null,
-        team: null,
-        country: p.nationality || null,
+        team: t && t.teamName ? t.teamName : null,
+        country: p.nationality || (t && t.countryCode) || null,
         isMe: id === myId,
       };
     });
@@ -72090,7 +72098,14 @@ function cfcMdRenderSearchResults(query) {
   }
 
   const label = q ? 'SONUÇLAR' : 'KAYITLI KULLANICILAR';
-  const items = filtered.map(u => `
+  const items = filtered.map(u => {
+    const flag = (u.country && typeof CFT_DB !== 'undefined' && CFT_DB[u.country] && CFT_DB[u.country].flag) || '';
+    const countryName = (u.country && typeof CFT_DB !== 'undefined' && CFT_DB[u.country] && CFT_DB[u.country].name) || u.country || '';
+    const parts = [];
+    if (flag || countryName) parts.push(`${flag} ${_cfcMdEscape(countryName)}`.trim());
+    if (u.team) parts.push(_cfcMdEscape(u.team));
+    const subText = parts.join(' · ');
+    return `
     <div class="cfcmd-search-item" onclick="cfcMdViewProfile('${u.id}')">
       <div class="cfcmd-search-avatar">${u.avatar || '⚽'}</div>
       <div class="cfcmd-search-meta">
@@ -72098,10 +72113,10 @@ function cfcMdRenderSearchResults(query) {
           ${_cfcMdEscape(u.name)}
           ${u.isMe ? '<span class="me-tag">Sen</span>' : ''}
         </div>
-        <div class="cfcmd-search-handle">${_cfcMdEscape(u.handle)}${u.team ? ' · ' + _cfcMdEscape(u.team) : ''}</div>
+        ${subText ? `<div class="cfcmd-search-handle">${subText}</div>` : ''}
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 
   container.innerHTML = `
     <div class="cfcmd-search-section-lbl">${label} · ${filtered.length}</div>
@@ -72285,11 +72300,17 @@ function cfcMdRenderFollowsList(query) {
     const isFollowing = followingNow.includes(u.id);
     // "Following" sekmesinde küçük unfollow ipucu olarak takip durumu rozetli olabilir
     // Ama tıklamayla profile gitmek ana akış — sadece chevron göster
+    const flag = (u.country && typeof CFT_DB !== 'undefined' && CFT_DB[u.country] && CFT_DB[u.country].flag) || '';
+    const countryName = (u.country && typeof CFT_DB !== 'undefined' && CFT_DB[u.country] && CFT_DB[u.country].name) || u.country || '';
+    const parts = [];
+    if (flag || countryName) parts.push(`${flag} ${_cfcMdEscape(countryName)}`.trim());
+    if (u.team) parts.push(_cfcMdEscape(u.team));
+    const subText = parts.join(' · ');
     return `<div class="cfcmd-search-item" onclick="cfcMdViewProfile('${u.id}')">
       <div class="cfcmd-search-avatar">${u.avatar || '⚽'}</div>
       <div class="cfcmd-search-meta">
         <div class="cfcmd-search-name">${_cfcMdEscape(u.name)}</div>
-        <div class="cfcmd-search-handle">${_cfcMdEscape(u.handle)}${u.team ? ' · ' + _cfcMdEscape(u.team) : ''}</div>
+        ${subText ? `<div class="cfcmd-search-handle">${subText}</div>` : ''}
       </div>
     </div>`;
   }).join('');
