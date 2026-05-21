@@ -39045,9 +39045,10 @@ let ROSTER_DATA = [
 // 🆕 Diğer takımlarla TUTARLI — getOrCreateTeamRoster ile aynı deterministik havuz kullanılır.
 // Kullanıcı kendi pozisyonuna uygun bir slot'a yerleştirilir, oradaki bot kaldırılır.
 function rosterBuildTeam(countryCode) {
+  console.info('[rosterBuildTeam] çağrıldı, ülke:', countryCode, 'takım:', _userTeam && _userTeam.teamName);
   // Önce mevcut user'ı koru
   const user = ROSTER_DATA.find(p => p.role === 'user');
-  if(!user) return;
+  if(!user) { console.warn('[rosterBuildTeam] user yok, return'); return; }
 
   // Takımı CFT_DB'den bul (renkler ve gerçek meta için)
   let teamMeta = null;
@@ -39239,18 +39240,27 @@ function rosterBuildTeam(countryCode) {
 
 // 🆕 Gerçek üyeleri Supabase'ten taze çekip ROSTER_DATA'ya entegre et
 async function _rosterRefreshRealMembers(countryCode) {
-  if (!window.sb || !_userTeam || !_userTeam.teamName) return;
+  console.info('[rosterRefresh] çağrıldı, ülke:', countryCode, 'takım:', _userTeam && _userTeam.teamName);
+  if (!window.sb || !_userTeam || !_userTeam.teamName) {
+    console.warn('[rosterRefresh] erken çıkış: sb=', !!window.sb, 'userTeam=', !!_userTeam);
+    return;
+  }
   try {
     const { data, error } = await window.sb.from('players')
       .select('user_id, name, avatar, level, overall, rating, pos, pos_group, nationality, nation, last_seen, xp, user_team_data')
       .eq('country_code', countryCode)
       .eq('team_name', _userTeam.teamName)
       .not('user_id', 'is', null);
-    if (error) { console.warn('[rosterRefresh] hata:', error); return; }
+    if (error) { console.warn('[rosterRefresh] DB hata:', error); return; }
+    console.info('[rosterRefresh] DB satır sayısı:', (data || []).length);
 
     const myUserId = (window.authUser || {}).id;
     const realMembers = (data || []).filter(r => r.user_id !== myUserId);
-    if (realMembers.length === 0) return;
+    console.info('[rosterRefresh] benden farklı üye sayısı:', realMembers.length, 'myUserId:', myUserId);
+    if (realMembers.length === 0) {
+      console.info('[rosterRefresh] hiç ekleme yok');
+      return;
+    }
 
     // ROSTER_DATA'dan eski gerçek üyeleri çıkar (yeniden ekleyeceğiz)
     ROSTER_DATA = ROSTER_DATA.filter(p => p.role === 'user' || p.isBot);
@@ -39311,9 +39321,11 @@ async function _rosterRefreshRealMembers(countryCode) {
     }
 
     // Re-render
+    console.info('[rosterRefresh] başarılı! ROSTER_DATA boyut:', ROSTER_DATA.length, 'gerçek üye sayısı:', realMembers.length);
+    console.info('[rosterRefresh] eklenen gerçek üyeler:', ROSTER_DATA.filter(p => !p.isBot && p.role !== 'user').map(p => `${p.name}(ov:${p.overall},lvl:${p.level},av:${p.avatar})`));
     if (typeof renderRoster === 'function') renderRoster('all');
     if (typeof updateHero === 'function') updateHero();
-  } catch(e) { console.warn('[rosterRefresh] exception:', e); }
+  } catch(e) { console.error('[rosterRefresh] EXCEPTION:', e.message, e.stack); }
 }
 
 // Takımdan çıktığında: sadece user kalır
