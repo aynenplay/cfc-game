@@ -27962,6 +27962,18 @@ window._jrwtUpdateSummary = function(){
 
 window.submitJoinRequestWithTerms = async function(){
   if(!_jrwtTarget) return;
+
+  // 🆕 KRİTİK: authUser kontrolü — eksikse istek gönderme
+  if (!window.authUser || !window.authUser.id || !window.authUser.name) {
+    showInfoModal({
+      icon:'⚠️', iconColor:'#f59e0b',
+      title:'Oturum Hazır Değil',
+      subtitle:'Lütfen birkaç saniye bekleyin ve tekrar deneyin',
+      body:'<div class="info-modal-note">Profil yüklemesi tamamlanmadan istek gönderilemez. Sayfayı yenileyip tekrar deneyin.</div>'
+    });
+    return;
+  }
+
   const cc = _jrwtTarget.countryCode;
   const tn = _jrwtTarget.teamName;
 
@@ -28007,7 +28019,8 @@ window.submitJoinRequestWithTerms = async function(){
   }
 
   const flag = (typeof CFT_DB !== 'undefined' && CFT_DB[cc]) ? (CFT_DB[cc].flag || '') : '';
-  const myName = (window.authUser||{}).name || 'Sen';
+  const myName = window.authUser.name;
+  const myUserId = window.authUser.id;
   const captainName = (typeof getTeamRealCaptainName === 'function')
     ? getTeamRealCaptainName(cc, tn) : 'Kaptan';
 
@@ -28082,7 +28095,7 @@ window.submitJoinRequestWithTerms = async function(){
         subject: `Katılma İsteği — ${myName}`,
         body: `${myName} adlı oyuncu ${flag} ${tn} takımına katılmak istiyor.\n\nÖnerdiği şartlar:\n• İmza Parası: ${fmt(bonus)}\n• Yıllık Ücret: ${fmt(salary)}\n• Süre: ${_jrwtSeasons} sezon\n\nKaptan veya yardımcı kaptan olarak onaylayabilir veya reddedebilirsin.`,
         joinReqIncomingData: {
-          requestorUserId: (window.authUser || {}).id || null,
+          requestorUserId: myUserId,
           requestorName: myName,
           countryCode: cc,
           teamName: tn,
@@ -28223,8 +28236,8 @@ window.inboxApproveJoinRequest = async function(msgId){
     } catch(e){ console.warn('Sözleşme kurulum hatası:', e); }
   } else if(d.requestorUserId && typeof inboxSendToUser === 'function'){
     // 🆕 Başka kullanıcı: onay mesajını + sözleşme meta'sını alıcının inbox'una gönder
-    // Alıcı inbox açtığında otomatik takıma yerleşecek (aşağıdaki _inboxProcessIncomingApprovals fonksiyonu)
-    await inboxSendToUser(d.requestorUserId, {
+    console.info('[approve] mesaj gönderiliyor → requestorUserId:', d.requestorUserId);
+    const sendOk = await inboxSendToUser(d.requestorUserId, {
       id: 'jr_resp_ok_' + Date.now(),
       from: `${d.teamName} Yönetimi`,
       fromAvatar: '✅',
@@ -28238,6 +28251,29 @@ window.inboxApproveJoinRequest = async function(msgId){
         contract: contractData,
       },
     });
+    console.info('[approve] inboxSendToUser sonuç:', sendOk);
+    if (!sendOk) {
+      // Kullanıcıya hata göster - kasadan düşülen parayı geri ver
+      if (d.signingBonus > 0 && typeof trsAddIncome === 'function') {
+        trsAddIncome('eur', d.signingBonus, `İmza parası iade — ${d.requestorName} (mesaj gönderilemedi)`);
+      }
+      showInfoModal({
+        icon:'❌', iconColor:'#ef4444',
+        title:'Mesaj Gönderilemedi',
+        subtitle:'Oyuncuya onay mesajı ulaştırılamadı',
+        body:'<div class="info-modal-note">Tekrar deneyin. Sorun devam ederse Supabase yapılandırmasını kontrol edin (RLS politikaları).</div>'
+      });
+      return;
+    }
+  } else if(!d.requestorUserId) {
+    console.warn('[approve] requestorUserId yok — eski format mesaj. Onay yapılamıyor.');
+    showInfoModal({
+      icon:'⚠️', iconColor:'#f59e0b',
+      title:'Eski Format Mesaj',
+      subtitle:'Bu istek mesajında kullanıcı ID yok',
+      body:'<div class="info-modal-note">Bu istek, sistem güncellemesinden önce gönderilmiş. Oyuncudan yeni istek göndermesini iste.</div>'
+    });
+    return;
   }
 
   // İsteği approved işaretle (kaptanın kendi inbox'unda)
@@ -64831,15 +64867,23 @@ function saveInboxMsgs(msgs) {
 // 🆕 Başka kullanıcıya mesaj gönder (katılma isteği, takım daveti vs.)
 // Alıcının inbox'una mesaj insert eder.
 async function inboxSendToUser(toUserId, msg) {
-  if (!window.sb || !toUserId || !msg) return false;
+  if (!window.sb || !toUserId || !msg) {
+    console.warn('[inboxSendToUser] eksik parametre:', { hasSB: !!window.sb, toUserId, hasMsg: !!msg });
+    return false;
+  }
   try {
     // Önce alıcının mevcut mesajlarını çek
+    console.info('[inboxSendToUser] çekiliyor:', toUserId);
     const { data, error } = await window.sb.from('user_inbox')
       .select('messages')
       .eq('user_id', toUserId)
       .maybeSingle();
-    if (error) { console.warn('[inbox] send hata (read):', error); return false; }
+    if (error) {
+      console.error('[inboxSendToUser] READ hata:', error.message, error.code, error);
+      return false;
+    }
     const current = (data && Array.isArray(data.messages)) ? data.messages : [];
+    console.info('[inboxSendToUser] mevcut mesaj sayısı:', current.length);
     // Yeni mesaj objesini başa ekle (en yeni üstte)
     const newMsg = Object.assign({
       id: 'msg_' + Date.now() + '_' + Math.floor(Math.random() * 100000),
@@ -64847,16 +64891,24 @@ async function inboxSendToUser(toUserId, msg) {
       read: false,
       thread: []
     }, msg);
-    const updated = [newMsg, ...current].slice(0, 200); // son 200 mesaj
+    const updated = [newMsg, ...current].slice(0, 200);
     // Upsert
+    console.info('[inboxSendToUser] yazılıyor...');
     const { error: upErr } = await window.sb.from('user_inbox').upsert({
       user_id: toUserId,
       messages: updated,
       updated_at: new Date().toISOString()
     }, { onConflict: 'user_id' });
-    if (upErr) { console.warn('[inbox] send hata (write):', upErr); return false; }
+    if (upErr) {
+      console.error('[inboxSendToUser] WRITE hata:', upErr.message, upErr.code, upErr);
+      return false;
+    }
+    console.info('[inboxSendToUser] BAŞARILI');
     return true;
-  } catch(e) { console.warn('[inbox] send hata:', e); return false; }
+  } catch(e) {
+    console.error('[inboxSendToUser] exception:', e);
+    return false;
+  }
 }
 
 function inboxUnreadCount() {
