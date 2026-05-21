@@ -38419,6 +38419,27 @@ function doLogin(){
         };
       }
 
+      // 🆕 Skills + Active Trainings cache (session restore ile aynı)
+      try {
+        const POS_LIST = ['GK','DEF','MID','FWD'];
+        POS_LIST.forEach(p => { try { localStorage.removeItem('cft_tr_' + p); } catch(e){} });
+        try { localStorage.removeItem('cft_tr_active'); } catch(e){}
+        _skillsCache = { GK: {}, DEF: {}, MID: {}, FWD: {} };
+        _activeCache = [];
+        const serverSkills = (uplayer && uplayer.skills && typeof uplayer.skills === 'object') ? uplayer.skills : {};
+        POS_LIST.forEach(pos => {
+          if (serverSkills[pos] && typeof serverSkills[pos] === 'object' && Object.keys(serverSkills[pos]).length > 0) {
+            _skillsCache[pos] = serverSkills[pos];
+            try { localStorage.setItem('cft_tr_' + pos, JSON.stringify(serverSkills[pos])); } catch(e){}
+          }
+        });
+        const serverActive = (uplayer && Array.isArray(uplayer.active_trainings)) ? uplayer.active_trainings : [];
+        if (serverActive.length > 0) {
+          _activeCache = serverActive;
+          try { localStorage.setItem('cft_tr_active', JSON.stringify(serverActive)); } catch(e){}
+        }
+      } catch(e) { console.warn('[Login skills cache] hata:', e); }
+
       try{ localStorage.setItem('cft_auth', JSON.stringify(authUser)); }catch(e){}
 
       authShowMsg('success', 'Hoşgeldin ' + authUser.username + '!');
@@ -38436,6 +38457,9 @@ function doLogin(){
         if(typeof syncEnergyDisplay === 'function') syncEnergyDisplay();
         if(typeof renderRoster === 'function') renderRoster('all');
         if(typeof updateHero === 'function') updateHero();
+        // 🆕 Antrenman + oyuncu sayfaları yetenek verisini cache'ten alsın
+        if(typeof trRender === 'function') { try { trRender(); } catch(e){} }
+        if(typeof renderPlayer === 'function') { try { renderPlayer(); } catch(e){} }
       }, 500);
     } catch(e){
       authShowMsg('error','Beklenmeyen hata: ' + (e.message || e));
