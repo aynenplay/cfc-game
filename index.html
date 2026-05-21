@@ -28242,7 +28242,82 @@ window.inboxApproveJoinRequest = async function(msgId){
       }
     } catch(e){ console.warn('Sözleşme kurulum hatası:', e); }
   } else if(d.requestorUserId && typeof inboxSendToUser === 'function'){
-    // 🆕 Başka kullanıcı: onay mesajını + sözleşme meta'sını alıcının inbox'una gönder
+    // 🆕 Başka kullanıcı: önce B'nin players row'una user_team_data direkt yaz
+    // Sonra onay mesajını gönder (B'nin inbox'una)
+    console.info('[approve] B players row update → user_id:', d.requestorUserId);
+
+    // CFT_DB'den tierIdx bul
+    let tierIdx = 0;
+    try {
+      const country = (typeof CFT_DB !== 'undefined') ? CFT_DB[d.countryCode] : null;
+      if (country && Array.isArray(country.leagues)) {
+        for (let i = 0; i < country.leagues.length; i++) {
+          const t = (country.leagues[i].teams || []).find(x => x.name === d.teamName);
+          if (t) { tierIdx = i; break; }
+        }
+      }
+    } catch(e) {}
+
+    const newUserTeamData = {
+      countryCode: d.countryCode,
+      teamName: d.teamName,
+      role: 'member',
+      tierIdx,
+      joinedAt: Date.now(),
+      contract: contractData,
+    };
+
+    let dbWriteOk = false;
+    try {
+      const { error: upErr } = await window.sb.from('players')
+        .update({
+          user_team_data: newUserTeamData,
+          team_name: d.teamName,
+          country_code: d.countryCode,
+          role: 'member'
+        })
+        .eq('user_id', d.requestorUserId);
+      if (upErr) {
+        console.error('[approve] players update hata:', upErr);
+      } else {
+        dbWriteOk = true;
+        console.info('[approve] B players row güncellendi ✅');
+      }
+    } catch(e) { console.error('[approve] players update exception:', e); }
+
+    if (!dbWriteOk) {
+      // Geri al: kasaya parayı iade
+      if (d.signingBonus > 0 && typeof trsAddIncome === 'function') {
+        trsAddIncome('eur', d.signingBonus, `İmza parası iade — ${d.requestorName} (DB hatası)`);
+      }
+      showInfoModal({
+        icon:'❌', iconColor:'#ef4444',
+        title:'Sözleşme Kaydedilemedi',
+        subtitle:'Oyuncu takıma yazılamadı',
+        body:'<div class="info-modal-note">Veritabanı hatası. Konsoldan detay görebilirsin. Tekrar dene.</div>'
+      });
+      return;
+    }
+
+    // 🆕 B'nin cüzdanına imza parası yatır (Supabase direkt)
+    if (d.signingBonus > 0) {
+      try {
+        // B'nin mevcut wallet'ını çek
+        const { data: wRow } = await window.sb.from('user_wallet')
+          .select('eur, total_in')
+          .eq('user_id', d.requestorUserId)
+          .maybeSingle();
+        const curEur = wRow ? Number(wRow.eur || 0) : 0;
+        const curTotalIn = wRow ? Number(wRow.total_in || 0) : 0;
+        await window.sb.from('user_wallet').upsert({
+          user_id: d.requestorUserId,
+          eur: curEur + d.signingBonus,
+          total_in: curTotalIn + d.signingBonus
+        }, { onConflict: 'user_id' });
+      } catch(e) { console.warn('[approve] B wallet update hata:', e); }
+    }
+
+    // Şimdi B'nin inbox'una onay mesajı gönder (bilgilendirme)
     console.info('[approve] mesaj gönderiliyor → requestorUserId:', d.requestorUserId);
     const sendOk = await inboxSendToUser(d.requestorUserId, {
       id: 'jr_resp_ok_' + Date.now(),
@@ -28259,19 +28334,10 @@ window.inboxApproveJoinRequest = async function(msgId){
       },
     });
     console.info('[approve] inboxSendToUser sonuç:', sendOk);
-    if (!sendOk) {
-      // Kullanıcıya hata göster - kasadan düşülen parayı geri ver
-      if (d.signingBonus > 0 && typeof trsAddIncome === 'function') {
-        trsAddIncome('eur', d.signingBonus, `İmza parası iade — ${d.requestorName} (mesaj gönderilemedi)`);
-      }
-      showInfoModal({
-        icon:'❌', iconColor:'#ef4444',
-        title:'Mesaj Gönderilemedi',
-        subtitle:'Oyuncuya onay mesajı ulaştırılamadı',
-        body:'<div class="info-modal-note">Tekrar deneyin. Sorun devam ederse Supabase yapılandırmasını kontrol edin (RLS politikaları).</div>'
-      });
-      return;
-    }
+
+    // _realCaptainsCache'i invalidate et — A'nın UI'da B'nin takıma katıldığını görebilmesi için
+    if (typeof _invalidateRealCaptainsCache === 'function') _invalidateRealCaptainsCache();
+
   } else if(!d.requestorUserId) {
     console.warn('[approve] requestorUserId yok — eski format mesaj. Onay yapılamıyor.');
     showInfoModal({
