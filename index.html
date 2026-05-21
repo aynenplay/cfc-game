@@ -24257,6 +24257,11 @@ document.addEventListener('DOMContentLoaded', function(){
     localStorage.removeItem('cft_wallet');
     localStorage.removeItem('cft_wallet_log');
     localStorage.removeItem('cft_tr_energy');
+    // 🆕 EURO Nation state localStorage'tan kaldırıldı (Supabase'de tournament_state)
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('cft_eurocup_s')) localStorage.removeItem(k);
+    }
   } catch(e) {}
 });
 
@@ -35392,6 +35397,15 @@ async function _tournamentStateLoadFromServer() {
       };
     }
     _tournamentStateCache = cache;
+    // 🆕 enc state'lerini _encStateCache'e de aktar (encLoad sync için)
+    if (typeof _encStateCache === 'object') {
+      for (const k in cache) {
+        const row = cache[k];
+        if (row.trnKey === 'enc' && row.fixture) {
+          _encStateCache[row.season] = row.fixture;
+        }
+      }
+    }
     console.info('[tournament_state] yüklendi:', Object.keys(cache).length, 'turnuva');
   } catch(e) { console.warn('[tournament_state] load hata:', e); _tournamentStateCache = {}; }
 }
@@ -62119,18 +62133,58 @@ function encCalcAllStats(state) {
   return { scorers, assisters, ratings };
 }
 
-// State yönetimi
+// State yönetimi - Supabase tournament_state tabanlı (localStorage YOK)
 function encStateKey(season) { return 'cft_eurocup_s' + season; }
 
-function encLoad(season) {
+// 🆕 RAM cache: { sezon: state } - bootstrapta server'dan yüklenir
+const _encStateCache = {};
+
+// Server'dan oku (bootstrap ve manuel reload için)
+async function _encLoadFromServer(season) {
+  if (!window.sb) return null;
   try {
-    const raw = localStorage.getItem(encStateKey(season));
-    if(raw) return JSON.parse(raw);
-  } catch(e) {}
+    const { data } = await window.sb.from('tournament_state')
+      .select('fixture, results')
+      .eq('tournament_key', 'enc')
+      .eq('season', season)
+      .maybeSingle();
+    if (data && data.fixture) {
+      // fixture içine state'i koyduk
+      _encStateCache[season] = data.fixture;
+      return data.fixture;
+    }
+  } catch(e) { console.warn('[enc] load hata:', e); }
   return null;
 }
+
+// Server'a yaz (debounced)
+let _encSaveTimers = {};
+async function _encSaveToServer(season, state) {
+  if (!window.sb) return;
+  // Debounce: 1 sn sonra yaz
+  if (_encSaveTimers[season]) clearTimeout(_encSaveTimers[season]);
+  _encSaveTimers[season] = setTimeout(async () => {
+    try {
+      await window.sb.from('tournament_state').upsert({
+        tournament_key: 'enc',
+        season,
+        phase: 'group',
+        fixture: state,
+        qualified_teams: state.groups ? state.groups.flatMap(g => g.teams || []) : [],
+        results: state.stats || {},
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'tournament_key,season' });
+    } catch(e) { console.warn('[enc] save hata:', e); }
+  }, 1000);
+}
+
+// Sync API - cache'ten döner
+function encLoad(season) {
+  return _encStateCache[season] || null;
+}
 function encSave(season, state) {
-  try { localStorage.setItem(encStateKey(season), JSON.stringify(state)); } catch(e) {}
+  _encStateCache[season] = state;
+  _encSaveToServer(season, state);  // arka plan
 }
 
 // Sezon turnuvasını oluştur (henüz oluşturulmamışsa)
