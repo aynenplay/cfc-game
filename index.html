@@ -25453,18 +25453,120 @@ function _foreignCountForTier(tier, seed) {
   return Math.floor(r * 2);                    // 0 veya 1
 }
 
-function getOrCreateTeamRoster(teamData) {
-  const teamKey = 'cft_r3_' + (teamData.name || 'unk').replace(/\s+/g, '_');
-  const cc = (teamData.countryCode || teamData.cc || 'TR').toUpperCase().slice(0, 2);
+// 🆕 RAM cache: takım bazlı bot listesi (Supabase'ten yüklenir)
+// Format: { "TR:Galatasaray": [{num, name, pos, ...}, ...] }
+const _teamRosterCache = {};
+const _teamRosterLoading = {};
 
-  // Cache kontrolü (v8 — jenerik isim, tüm yetenekler 10)
+// Tek takım için Supabase'ten botları çek ve cache'e koy
+async function _loadTeamRosterFromServer(cc, teamName) {
+  if (!window.sb) return null;
+  const key = cc + ':' + teamName;
+  if (_teamRosterCache[key]) return _teamRosterCache[key];
+  if (_teamRosterLoading[key]) return _teamRosterLoading[key];
+  _teamRosterLoading[key] = (async () => {
+    try {
+      const { data, error } = await window.sb.from('players')
+        .select('num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar')
+        .eq('country_code', cc)
+        .eq('team_name', teamName)
+        .eq('is_bot', true)
+        .order('num');
+      if (error) { console.warn('[teamRoster] hata:', error); return null; }
+      if (!data || data.length === 0) return null;
+      // SQUAD_SLOTS_15 ile starter/x/y bilgisini birleştir
+      const players = data.map((r, i) => {
+        const sl = (typeof SQUAD_SLOTS_15 !== 'undefined' && SQUAD_SLOTS_15[i]) || {};
+        return {
+          num: r.num,
+          name: r.name,
+          pos: r.pos,
+          posGroup: r.pos_group,
+          rating: r.rating || 10,
+          overall: r.overall || 10,
+          level: r.level || 0,
+          xp: r.xp || 0,
+          age: 18 + (r.num % 17),
+          starter: !!sl.starter,
+          abilities: r.abilities,
+          nation: r.nation || '🏳️',
+          nationality: r.nationality || cc,
+          avatar: r.avatar || '🤖',
+          role: r.role || 'member',
+          isBot: true,
+          seasonYellow: 0,
+          suspendMatches: 0,
+          suspendReason: null,
+          injuryUntil: 0,
+          x: sl.x, y: sl.y,
+        };
+      });
+      _teamRosterCache[key] = players;
+      return players;
+    } catch(e) { console.warn('[teamRoster] exception:', e); return null; }
+    finally { delete _teamRosterLoading[key]; }
+  })();
+  return _teamRosterLoading[key];
+}
+
+// Önyükleme: bir kerelik tüm takımları cache'le (ağır, isteğe bağlı)
+async function preloadAllTeamRosters() {
+  if (!window.sb) return;
   try {
-    const cached = JSON.parse(localStorage.getItem(teamKey) || 'null');
-    if (cached && cached.ver === _ROSTER_VER
-        && Array.isArray(cached.players) && cached.players.length === 15) {
-      return cached.players;
+    const PAGE = 1000;
+    let all = [];
+    for (let from = 0; from < 40000; from += PAGE) {
+      const { data, error } = await window.sb.from('players')
+        .select('country_code, team_name, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar')
+        .eq('is_bot', true)
+        .order('country_code').order('team_name').order('num')
+        .range(from, from + PAGE - 1);
+      if (error) { console.warn('[preloadAllRosters] hata:', error); break; }
+      if (!Array.isArray(data) || data.length === 0) break;
+      all = all.concat(data);
+      if (data.length < PAGE) break;
     }
-  } catch(e) {}
+    // Gruplayıp cache'e yaz
+    for (const r of all) {
+      const key = r.country_code + ':' + r.team_name;
+      if (!_teamRosterCache[key]) _teamRosterCache[key] = [];
+      const sl = (typeof SQUAD_SLOTS_15 !== 'undefined' && SQUAD_SLOTS_15[_teamRosterCache[key].length]) || {};
+      _teamRosterCache[key].push({
+        num: r.num, name: r.name, pos: r.pos, posGroup: r.pos_group,
+        rating: r.rating || 10, overall: r.overall || 10,
+        level: r.level || 0, xp: r.xp || 0,
+        age: 18 + (r.num % 17),
+        starter: !!sl.starter,
+        abilities: r.abilities,
+        nation: r.nation || '🏳️',
+        nationality: r.nationality || r.country_code,
+        avatar: r.avatar || '🤖',
+        role: r.role || 'member',
+        isBot: true,
+        seasonYellow: 0, suspendMatches: 0, suspendReason: null, injuryUntil: 0,
+        x: sl.x, y: sl.y,
+      });
+    }
+    for (const k of Object.keys(_teamRosterCache)) {
+      _teamRosterCache[k].sort((a, b) => a.num - b.num);
+    }
+    console.info('[preloadAllRosters] yüklendi:', all.length, 'oyuncu /', Object.keys(_teamRosterCache).length, 'takım');
+  } catch(e) { console.warn('[preloadAllRosters] exception:', e); }
+}
+
+function getOrCreateTeamRoster(teamData) {
+  const teamName = teamData.name || 'unk';
+  const cc = (teamData.countryCode || teamData.cc || 'TR').toUpperCase().slice(0, 2);
+  const key = cc + ':' + teamName;
+
+  // 🆕 Önce RAM cache (Supabase'ten yüklenmiş)
+  if (_teamRosterCache[key]) return _teamRosterCache[key];
+
+  // Background fetch — gelecek çağrı için yükle
+  _loadTeamRosterFromServer(cc, teamName).catch(()=>{});
+
+  // 🆕 Fallback: eski seed üretimi (Supabase yüklenene kadar geçici)
+  const teamKey = 'cft_r3_' + teamName.replace(/\s+/g, '_');
 
   const seed = (teamData.name || 'TEAM') + '|' + cc;
 
@@ -25555,11 +25657,8 @@ function getOrCreateTeamRoster(teamData) {
     return p;
   });
 
-  try {
-    localStorage.setItem(teamKey, JSON.stringify({
-      ver: _ROSTER_VER, players, ts: Date.now()
-    }));
-  } catch(e) {}
+  // 🆕 RAM cache'e koy (eski localStorage yazımı kaldırıldı)
+  _teamRosterCache[key] = players;
 
   return players;
 }
@@ -38159,6 +38258,12 @@ async function bootstrapWorld(){
     }
     CFT_DB = db;
     console.info('[bootstrap] CFT_DB yüklendi:', Object.keys(db).length, 'ülke /', all.length, 'takım');
+    // 🆕 Tüm botları preload et (27k satır, ~3-5 saniye)
+    try {
+      if (typeof preloadAllTeamRosters === 'function') {
+        await preloadAllTeamRosters();
+      }
+    } catch(e) { console.warn('[bootstrap] preload botlar hata:', e); }
   } catch(e) { console.warn('[bootstrap] hata:', e); }
 }
 
