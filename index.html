@@ -71534,27 +71534,41 @@ async function cfcMdRender() {
   }
 }
 
-function cfcMdRenderPosts(posts, container) {
+async function cfcMdRenderPosts(posts, container) {
   if (!container) return;
   if (!posts.length) {
     container.innerHTML = `<div class="cfcmd-empty"><div class="cfcmd-empty-icon">💬</div>Henüz gönderi yok.<br>İlk paylaşımı sen yap!</div>`;
     return;
   }
-  const myLikes  = posts.flatMap(p => p.likes).filter(id => id === cfcMdGetMyId());
-  const myId     = cfcMdGetMyId();
-  // 🆕 Kullanıcının güncel avatarı — eski postlarda da yansısın diye
+  const myId = cfcMdGetMyId();
   const myAvatarHTML = (typeof cfcMdGetMyProfile === 'function') ? (cfcMdGetMyProfile().avatar || '⚽') : '⚽';
 
+  // 🆕 Tüm postların reaksiyonlarını server'dan toplu çek
+  let myReactions = {};
+  let postCounts = {};
+  try {
+    if (window.sb) {
+      const postIds = posts.map(p => p.id);
+      const [meRes, allRes] = await Promise.all([
+        window.sb.from('social_likes').select('post_id, reaction').eq('user_id', myId).in('post_id', postIds),
+        window.sb.from('social_likes').select('post_id, reaction').in('post_id', postIds),
+      ]);
+      (meRes.data || []).forEach(r => { myReactions[r.post_id] = r.reaction; });
+      (allRes.data || []).forEach(r => {
+        if (!postCounts[r.post_id]) postCounts[r.post_id] = { like: 0, dislike: 0 };
+        postCounts[r.post_id][r.reaction] = (postCounts[r.post_id][r.reaction] || 0) + 1;
+      });
+    }
+  } catch(e) { console.warn('[social] renderPosts reacts:', e); }
+
   container.innerHTML = posts.map(p => {
-    const liked     = Array.isArray(p.likes)    && p.likes.includes(myId);
-    const disliked  = Array.isArray(p.dislikes) && p.dislikes.includes(myId);
-    const reposted  = Array.isArray(p.reposts)  && p.reposts.includes(myId);
+    const liked    = myReactions[p.id] === 'like';
+    const disliked = myReactions[p.id] === 'dislike';
+    const likeC    = (postCounts[p.id] && postCounts[p.id].like) || 0;
+    const dislikeC = (postCounts[p.id] && postCounts[p.id].dislike) || 0;
+    const reposted = Array.isArray(p.reposts) && p.reposts.includes(myId);
     const safeBody = _cfcMdEscape(p.content);
     const taggedBody = safeBody.replace(/(#[\wçğıöşüÇĞİÖŞÜ]+|@[\w]+)/g, '<span class="cfcmd-tag">$1</span>');
-    // 🆕 Avatar HTML çözümü öncelik sırası:
-    // 1) Post benimse → güncel my.avatar (avatar değişikliği geriye yansır)
-    // 2) Post'ta authorAvatarId varsa → getAvatarEmoji ile HTML üret (PNG/img)
-    // 3) Yoksa → authorAvatar (emoji string) veya '⚽' fallback
     let avatarHTML;
     if (p.authorId === myId) {
       avatarHTML = myAvatarHTML;
@@ -71583,11 +71597,11 @@ function cfcMdRenderPosts(posts, container) {
       <div class="cfcmd-post-actions">
         <button class="cfcmd-post-action ${liked?'liked':''}" onclick="cfcMdToggleLike('${p.id}')" aria-label="Beğen">
           <svg class="cfcmd-icon cfcmd-icon-like" viewBox="0 0 24 24" fill="${liked?'currentColor':'none'}" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M7 22V11M2 13v7a2 2 0 0 0 2 2h3V11H4a2 2 0 0 0-2 2zm18.79-3.39A2 2 0 0 0 19 9h-5.12l.92-4.39a1 1 0 0 0-.17-.84A1 1 0 0 0 13.83 3h-.5a1 1 0 0 0-.76.35L7 11v11h10.56a2 2 0 0 0 2-1.68l1.28-8.32a2 2 0 0 0-.05-.79z"/></svg>
-          <span>${_cfcMdLikeCount(p)}</span>
+          <span>${likeC}</span>
         </button>
         <button class="cfcmd-post-action ${disliked?'disliked':''}" onclick="cfcMdToggleDislike('${p.id}')" aria-label="Beğenme">
           <svg class="cfcmd-icon cfcmd-icon-dislike" viewBox="0 0 24 24" fill="${disliked?'currentColor':'none'}" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M17 2v11M22 11V4a2 2 0 0 0-2-2h-3v11h3a2 2 0 0 0 2-2zM3.21 14.39A2 2 0 0 0 5 15h5.12l-.92 4.39a1 1 0 0 0 .17.84 1 1 0 0 0 .8.39h.5a1 1 0 0 0 .76-.35L17 13V2H6.44a2 2 0 0 0-2 1.68l-1.28 8.32a2 2 0 0 0 .05.79z"/></svg>
-          <span>${_cfcMdDislikeCount(p)}</span>
+          <span>${dislikeC}</span>
         </button>
       </div>
     </div>`;
@@ -71657,7 +71671,18 @@ async function cfcMdRenderProfile() {
   const followerCount = cfcMdGetFollowerCount(viewedUser.id);
   const following = cfcMdGetFollowing();
   const isFollowing = following.includes(viewedUser.id);
-  const followingDisplay = viewingOther ? '—' : following.length;
+  // 🆕 Ziyaretçi modunda: kullanıcının takip+takipçi sayılarını server'dan çek
+  let followingDisplay;
+  let viewedFollowerCount = followerCount;
+  if (viewingOther) {
+    try {
+      const stats = await cfcMdLoadUserFollowStats(viewedUser.id);
+      viewedFollowerCount = stats.followers;
+      followingDisplay = stats.following;
+    } catch(e) { followingDisplay = '—'; }
+  } else {
+    followingDisplay = following.length;
+  }
 
   // Postları HTML string olarak üret (inline)
   const postsHtml = userPosts.map(p => {
@@ -71760,7 +71785,7 @@ async function cfcMdRenderProfile() {
           <div class="cfcmd-profile-stat-lbl">Takip</div>
         </div>
         <div class="cfcmd-profile-stat${!viewingOther ? ' clickable' : ''}"${!viewingOther ? " onclick=\"cfcMdOpenFollows('followers')\"" : ''}>
-          <div class="cfcmd-profile-stat-val">${followerCount}</div>
+          <div class="cfcmd-profile-stat-val">${viewedFollowerCount}</div>
           <div class="cfcmd-profile-stat-lbl">Takipçi</div>
         </div>
       </div>
@@ -71888,17 +71913,34 @@ function _cfcMdRelTime(ts) {
 // - Kendi takipçim → 0 (yerel oyun, kimse beni takip edemez)
 // - Başkasının takipçisi → ben onu takip ediyorsam 1, değilsem 0
 // Backend gelince burası adapter'a taşınıp gerçek sayı döner.
-// Takipçi sayısı — Supabase'ten cache üstünden hesaplanır
+// Takipçi sayısı — kendi profilim için cache, ziyaretçi profilinde async server sayımı
+// (cfcMdRenderProfile içinde async olarak doldurulur)
 function cfcMdGetFollowerCount(userId) {
   if (!userId) return 0;
   const my = cfcMdGetMyProfile();
   if (userId === my.id) {
-    // Kendi profilim — takipçi listesi cache'ten
     return _cfcMdFollowersCache.length;
   }
-  // Başkasının takipçi sayısı — şu an cache'te o kullanıcı için yok
-  // İleride lazımsa ayrı async sorgu yapılır
-  return 0;
+  // Başkasının takipçi sayısı için cache (async olarak doldurulur)
+  return _cfcMdOtherFollowerCounts[userId] || 0;
+}
+
+// Ziyaret edilen kullanıcı için takipçi+takip eden sayılarını çek
+let _cfcMdOtherFollowerCounts = {};
+let _cfcMdOtherFollowingCounts = {};
+async function cfcMdLoadUserFollowStats(userId) {
+  if (!userId || !window.sb) return { followers: 0, following: 0 };
+  try {
+    const [ferRes, fingRes] = await Promise.all([
+      window.sb.from('social_follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', userId),
+      window.sb.from('social_follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', userId),
+    ]);
+    const followers = ferRes.count || 0;
+    const following = fingRes.count || 0;
+    _cfcMdOtherFollowerCounts[userId] = followers;
+    _cfcMdOtherFollowingCounts[userId] = following;
+    return { followers, following };
+  } catch(e) { return { followers: 0, following: 0 }; }
 }
 
 // 🆕 Toplu sayım — bir kullanıcının postlarındaki toplam like + dislike (server'dan)
