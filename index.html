@@ -38112,10 +38112,15 @@ async function _userTeamSaveImpl() {
       console.warn('[userTeamSave] sb yok');
       return;
     }
-    const { data: { user } } = await window.sb.auth.getUser();
-    if (!user) {
-      console.warn('[userTeamSave] auth.getUser null döndü');
-      return;
+    // authUser hazırsa direkt kullan, değilse auth.getUser fallback
+    let uid = (window.authUser && window.authUser.id) || null;
+    if (!uid) {
+      const { data: { user } } = await window.sb.auth.getUser();
+      if (!user) {
+        console.warn('[userTeamSave] kullanıcı yok (authUser ve auth.getUser ikisi de null)');
+        return;
+      }
+      uid = user.id;
     }
     const patch = _userTeam ? {
       user_team_data: _userTeam,
@@ -38126,16 +38131,16 @@ async function _userTeamSaveImpl() {
       user_team_data: null,
       team_name: null, country_code: null, role: null
     };
-    console.info('[userTeamSave] UPDATE çağrılıyor:', user.id, patch.team_name);
-    const { data: upData, error: upErr, count } = await window.sb.from('players')
+    console.info('[userTeamSave] UPDATE çağrılıyor:', uid, patch.team_name);
+    const { data: upData, error: upErr } = await window.sb.from('players')
       .update(patch)
-      .eq('user_id', user.id)
+      .eq('user_id', uid)
       .select();
     if (upErr) {
       console.error('[userTeamSave] UPDATE hata:', upErr.message, upErr);
       return;
     }
-    console.info('[userTeamSave] UPDATE başarılı, etkilenen satır:', Array.isArray(upData) ? upData.length : '?', upData);
+    console.info('[userTeamSave] UPDATE başarılı, etkilenen satır:', Array.isArray(upData) ? upData.length : '?');
   } catch(e) { console.error('[userTeam] save exception:', e); }
 }
 
@@ -38508,6 +38513,17 @@ function authInit(){
 
           // İlk açılışsa auth ekranını kapat
           hideAuthScreen();
+
+          // 🆕 Takım datalarını da yükle (manifesto, treasury, facility, strategy, trophies, inbox)
+          try { if (typeof userTeamLoadFromServer === 'function') await userTeamLoadFromServer(); } catch(e){}
+          try { if (typeof _loadRealCaptainsFromServer === 'function') await _loadRealCaptainsFromServer(); } catch(e){}
+          try { if (typeof _teamStrategyLoadFromServer === 'function') await _teamStrategyLoadFromServer(); } catch(e){}
+          try { if (typeof _rosterPersistLoadFromServer === 'function') await _rosterPersistLoadFromServer(); } catch(e){}
+          try { if (typeof _facLevelsLoadFromServer === 'function') await _facLevelsLoadFromServer(); } catch(e){}
+          try { if (typeof _trsLoadFromServer === 'function') await _trsLoadFromServer(); } catch(e){}
+          try { if (typeof _mfsLoadFromServer === 'function') await _mfsLoadFromServer(); } catch(e){}
+          try { if (typeof _trophiesLoadFromServer === 'function') await _trophiesLoadFromServer(); } catch(e){}
+          try { if (typeof _inboxLoadFromServer === 'function') await _inboxLoadFromServer(); } catch(e){}
 
           // UI refresh — önce roster + restore, sonra topbar
           if (typeof syncUserToRoster === 'function') syncUserToRoster();
@@ -64788,14 +64804,29 @@ let _inboxSaveTimer = null;
 
 // Server'dan kendi inbox'unu yükle (bootstrap + login sonrası)
 async function _inboxLoadFromServer() {
-  if (!window.sb || !authUser || !authUser.id) { _inboxCache = null; return; }
+  if (!window.sb) { _inboxCache = null; return; }
+  // authUser hazır değilse Supabase auth'tan fallback
+  let uid = (window.authUser && window.authUser.id) || null;
+  if (!uid) {
+    try {
+      const { data: { user } } = await window.sb.auth.getUser();
+      if (user) {
+        uid = user.id;
+        // authUser'ı da set et
+        if (!window.authUser) window.authUser = {};
+        if (!window.authUser.id) window.authUser.id = uid;
+      }
+    } catch(e) {}
+  }
+  if (!uid) { _inboxCache = null; return; }
   try {
     const { data, error } = await window.sb.from('user_inbox')
       .select('messages')
-      .eq('user_id', authUser.id)
+      .eq('user_id', uid)
       .maybeSingle();
     if (error) { console.warn('[inbox] load hata:', error); _inboxCache = null; return; }
-    _inboxCache = (data && Array.isArray(data.messages)) ? data.messages : null;
+    _inboxCache = (data && Array.isArray(data.messages)) ? data.messages : [];
+    console.info('[inbox] cache yüklendi:', _inboxCache.length, 'mesaj');
     // 🆕 Onaylanan katılma istekleri otomatik takıma yerleştir
     if (typeof _inboxProcessApprovedJoinRequests === 'function') {
       await _inboxProcessApprovedJoinRequests();
@@ -64804,23 +64835,21 @@ async function _inboxLoadFromServer() {
 }
 
 // 🆕 İnbox'a gelen onay mesajlarını işle — kullanıcıyı takıma fiilen yerleştir
-// Onay mesajları bir kez işlenir (offerProcessed=true işaretlenir)
 async function _inboxProcessApprovedJoinRequests() {
-  if (!Array.isArray(_inboxCache) || !authUser || !authUser.id) {
-    console.info('[inbox-process] skip: cache yok veya kullanıcı yok', { cacheLen: _inboxCache?.length, hasUser: !!authUser });
+  if (!Array.isArray(_inboxCache)) {
+    console.info('[inbox-process] skip: cache yok');
     return;
   }
   let changed = false;
   let processed = 0;
   for (const msg of _inboxCache) {
     if (msg.type !== 'join_request_approved') continue;
-    if (msg.offerProcessed) continue; // zaten işlenmiş
+    if (msg.offerProcessed) continue;
     const meta = msg.contractMeta;
     if (!meta || !meta.countryCode || !meta.teamName) {
       console.warn('[inbox-process] meta eksik:', msg);
       continue;
     }
-    // Kullanıcı zaten o takımdaysa skip
     if (typeof _userTeam !== 'undefined' && _userTeam
         && _userTeam.countryCode === meta.countryCode
         && _userTeam.teamName === meta.teamName) {
