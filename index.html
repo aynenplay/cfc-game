@@ -27969,11 +27969,40 @@ window.submitJoinRequestWithTerms = async function(){
   const salary = Math.max(0, parseInt((document.getElementById('jrwtYearlySalary')||{}).value) || 0);
 
   if(salary <= 0){
-    alert('⚠️ Yıllık ücret sıfırdan büyük olmalı.');
+    showInfoModal({icon:'⚠️',iconColor:'#f59e0b',title:'Geçersiz Ücret',subtitle:'Yıllık ücret sıfırdan büyük olmalı.',body:''});
     return;
   }
   if(_jrwtSeasons < 1 || _jrwtSeasons > 5){
-    alert('⚠️ Sözleşme süresi 1-5 sezon arasında olmalı.');
+    showInfoModal({icon:'⚠️',iconColor:'#f59e0b',title:'Geçersiz Süre',subtitle:'Sözleşme süresi 1-5 sezon arasında olmalı.',body:''});
+    return;
+  }
+
+  // 🆕 Kadro dolu mu? — Server'dan taze kontrol
+  if (typeof _loadRealCaptainsFromServer === 'function') {
+    _invalidateRealCaptainsCache();
+    try { await _loadRealCaptainsFromServer(); } catch(e) {}
+  }
+  const teamKey = cc + ':' + tn;
+  const teamEntry = _realCaptainsCache[teamKey];
+  const realMemberCount = (teamEntry && Array.isArray(teamEntry.members)) ? teamEntry.members.length : 0;
+  // Not: 15 varsayılan kadro sınırı (hedef takımın tesis seviyesini bilmiyoruz, en kötü senaryo)
+  if (realMemberCount >= 15) {
+    showInfoModal({
+      icon: '👥', iconColor: '#f59e0b',
+      title: 'Kadro Dolu',
+      subtitle: `${tn} takımı şu an dolu`,
+      body: `
+        <div class="info-modal-rows">
+          <div class="info-modal-row">
+            <div class="info-modal-row-ic">📊</div>
+            <div class="info-modal-row-body">
+              <div class="info-modal-row-lbl">Mevcut Üye</div>
+              <div class="info-modal-row-val">${realMemberCount} oyuncu</div>
+            </div>
+          </div>
+        </div>
+        <div class="info-modal-note">💡 Bu takımın kaptanı kadrosunu büyütmediği için yeni istek kabul edilemez. Başka bir takım dene veya bekle.</div>`
+    });
     return;
   }
 
@@ -28085,6 +28114,40 @@ window.inboxApproveJoinRequest = async function(msgId){
   const msg = msgs[idx];
   const d   = msg.joinReqIncomingData;
   if(!d) return;
+
+  // 🆕 Kadro kapasitesi kontrolü — taze veri için cache'i tazele
+  if (typeof _loadRealCaptainsFromServer === 'function') {
+    _invalidateRealCaptainsCache();
+    try { await _loadRealCaptainsFromServer(); } catch(e) {}
+  }
+  const maxRoster = (typeof getMaxRosterSize === 'function') ? getMaxRosterSize() : 15;
+  const teamKey = d.countryCode + ':' + d.teamName;
+  const teamEntry = _realCaptainsCache[teamKey];
+  const realMemberCount = (teamEntry && Array.isArray(teamEntry.members)) ? teamEntry.members.length : 0;
+  // Kullanıcı zaten takımda mı? (örn. çift istek edilmiş olabilir)
+  const alreadyInTeam = teamEntry && Array.isArray(teamEntry.members) &&
+    teamEntry.members.some(m => m.userId === d.requestorUserId);
+  if (!alreadyInTeam && realMemberCount >= maxRoster) {
+    showInfoModal({
+      icon: '👥', iconColor: '#f59e0b',
+      title: 'Kadro Dolu',
+      subtitle: `${d.teamName} takımının kadrosunda yer yok`,
+      body: `
+        <div class="info-modal-rows">
+          <div class="info-modal-row">
+            <div class="info-modal-row-ic">📊</div>
+            <div class="info-modal-row-body">
+              <div class="info-modal-row-lbl">Mevcut</div>
+              <div class="info-modal-row-val">${realMemberCount} / ${maxRoster} oyuncu</div>
+            </div>
+          </div>
+        </div>
+        <div class="info-modal-note">
+          💡 Yeni oyuncu kabul etmek için <b>kadroda boş slot</b> olmalı. Tesis (Kapasite) yükseltmesi yaparak kadro boyutunu arttırabilir veya bir oyuncuyu takımdan çıkarabilirsin.
+        </div>`
+    });
+    return;
+  }
 
   // Kasada imza parası var mı?
   const treasury = (typeof trsGetBalance === 'function') ? trsGetBalance('eur') : 0;
@@ -64660,14 +64723,21 @@ async function _inboxLoadFromServer() {
 // 🆕 İnbox'a gelen onay mesajlarını işle — kullanıcıyı takıma fiilen yerleştir
 // Onay mesajları bir kez işlenir (offerProcessed=true işaretlenir)
 async function _inboxProcessApprovedJoinRequests() {
-  if (!Array.isArray(_inboxCache) || !authUser || !authUser.id) return;
+  if (!Array.isArray(_inboxCache) || !authUser || !authUser.id) {
+    console.info('[inbox-process] skip: cache yok veya kullanıcı yok', { cacheLen: _inboxCache?.length, hasUser: !!authUser });
+    return;
+  }
   let changed = false;
+  let processed = 0;
   for (const msg of _inboxCache) {
     if (msg.type !== 'join_request_approved') continue;
     if (msg.offerProcessed) continue; // zaten işlenmiş
     const meta = msg.contractMeta;
-    if (!meta || !meta.countryCode || !meta.teamName) continue;
-    // Kullanıcı zaten o takımdaysa (örn. cihaz B'de daha önce işlendiyse) skip
+    if (!meta || !meta.countryCode || !meta.teamName) {
+      console.warn('[inbox-process] meta eksik:', msg);
+      continue;
+    }
+    // Kullanıcı zaten o takımdaysa skip
     if (typeof _userTeam !== 'undefined' && _userTeam
         && _userTeam.countryCode === meta.countryCode
         && _userTeam.teamName === meta.teamName) {
@@ -64675,35 +64745,60 @@ async function _inboxProcessApprovedJoinRequests() {
       changed = true;
       continue;
     }
-    // Takıma fiilen yerleş
+    // Takıma fiilen yerleş (manuel — joinTeamDirect transfer kontrolü ve sayfa yönlendirme yapar)
     try {
-      if (typeof joinTeamDirect === 'function') {
-        joinTeamDirect(meta.countryCode, meta.teamName, { skipToast: true });
-      } else {
-        window._userTeam = {
-          countryCode: meta.countryCode,
-          teamName: meta.teamName,
-          role: 'member',
-          joinedAt: Date.now(),
-        };
+      console.info('[inbox-process] takıma yerleştiriyor:', meta.countryCode, meta.teamName);
+      // CFT_DB'den teamObj + tierIdx bul
+      const country = (typeof CFT_DB !== 'undefined') ? CFT_DB[meta.countryCode] : null;
+      let tierIdx = 0;
+      if (country && Array.isArray(country.leagues)) {
+        for (let i = 0; i < country.leagues.length; i++) {
+          const t = (country.leagues[i].teams || []).find(x => x.name === meta.teamName);
+          if (t) { tierIdx = i; break; }
+        }
       }
-      if (window._userTeam && meta.contract) {
-        window._userTeam.contract = meta.contract;
-      }
+      // _userTeam set + sözleşme
+      window._userTeam = {
+        countryCode: meta.countryCode,
+        teamName: meta.teamName,
+        role: 'member',
+        tierIdx,
+        joinedAt: Date.now(),
+        contract: meta.contract || null,
+      };
       if (typeof userTeamSave === 'function') userTeamSave();
+
+      // ROSTER_DATA yeniden inşa et
+      if (typeof rosterClearPersist === 'function') rosterClearPersist();
+      if (typeof syncUserToRoster === 'function') syncUserToRoster();
+      if (typeof rosterBuildTeam === 'function') rosterBuildTeam(meta.countryCode);
+      if (typeof rosterSavePersist === 'function') rosterSavePersist();
+
       // İmza parasını cüzdana yatır
       if (meta.contract && meta.contract.signingBonus > 0 && typeof wlAddIncome === 'function') {
         wlAddIncome('eur', meta.contract.signingBonus, `İmza Parası — ${meta.teamName} (kontrat onaylandı)`);
       }
       msg.offerProcessed = true;
       changed = true;
-      // UI güncelle
+      processed++;
+      // UI güncelle (sayfa yönlendirme YOK)
+      if (typeof exitGuestMode === 'function') exitGuestMode(true);
       if (typeof applyUserTeamUI === 'function') applyUserTeamUI();
       if (typeof renderRoster === 'function') renderRoster('all');
       if (typeof updateHero === 'function') updateHero();
+      if (typeof renderForeignBar === 'function') renderForeignBar();
+      // Toast bildirimi
+      try {
+        const t = document.createElement('div');
+        t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#00c853,#43a047);color:#fff;padding:14px 24px;border-radius:24px;font-size:14px;font-weight:700;z-index:9999;font-family:"Barlow Condensed",sans-serif;letter-spacing:.5px;box-shadow:0 8px 24px rgba(0,0,0,.4);text-align:center';
+        t.innerHTML = `🎉 ${meta.teamName} takımına katıldın!`;
+        document.body.appendChild(t);
+        setTimeout(() => { t.style.transition='opacity .4s'; t.style.opacity='0'; setTimeout(()=>t.remove(),400); }, 3500);
+      } catch(e){}
     } catch(e) { console.warn('[inbox] join onay işleme hatası:', e); }
   }
   if (changed && typeof saveInboxMsgs === 'function') saveInboxMsgs(_inboxCache);
+  if (processed > 0) console.info('[inbox-process] işlenen onay sayısı:', processed);
 }
 
 // Sync getter — mevcut kod imzasını koru
@@ -73380,6 +73475,22 @@ setInterval(_frmTickSimulate, 60 * 1000);
 // Sayfa görünür hale geldiğinde (kullanıcı sekmeye geri döndüğünde)
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) _frmTickSimulate();
+});
+
+// 🆕 Inbox poll — kullanıcı oyunda gezerken yeni mesajları yakala (30sn)
+// Özellikle "katılma isteği onaylandı" mesajlarını otomatik işler
+function _inboxPollTick() {
+  if (!authUser || !authUser.id) return;
+  if (typeof _inboxLoadFromServer === 'function') {
+    _inboxLoadFromServer().then(() => {
+      if (typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
+    }).catch(()=>{});
+  }
+}
+setInterval(_inboxPollTick, 30 * 1000);
+// Sayfa görünür olduğunda da çağır
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) _inboxPollTick();
 });
 
 // Enerji günlük reset kontrolü — her dakika kontrol et (gece yarısı geçişini yakalamak için)
