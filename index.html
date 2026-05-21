@@ -24371,6 +24371,15 @@ document.addEventListener('DOMContentLoaded', function(){
     // 🆕 Takım kasası artık Supabase'de (team_data tablosu)
     localStorage.removeItem('cft_treasury');
     localStorage.removeItem('cft_treasury_log');
+    // 🆕 Manifesto artık Supabase'de (team_data tablosu)
+    try {
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('cft_team_manifesto__')) keysToRemove.push(k);
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k));
+    } catch(e) {}
   } catch(e) {}
 });
 
@@ -38577,6 +38586,7 @@ function doLogin(){
       try { if (typeof _rosterPersistLoadFromServer === 'function') await _rosterPersistLoadFromServer(); } catch(e){}
       try { if (typeof _facLevelsLoadFromServer === 'function') await _facLevelsLoadFromServer(); } catch(e){}
       try { if (typeof _trsLoadFromServer === 'function') await _trsLoadFromServer(); } catch(e){}
+      try { if (typeof _mfsLoadFromServer === 'function') await _mfsLoadFromServer(); } catch(e){}
 
       setTimeout(() => {
         hideAuthScreen();
@@ -39721,6 +39731,7 @@ function confirmTeamBuy() {
   FAC_LEVELS = {};
   _trsCache = null;
   _trsLogCache = null;
+  _mfsCache = null;
   if (typeof _teamStrategyLoadFromServer === 'function') {
     _teamStrategyLoadFromServer().catch(()=>{});
   }
@@ -39732,6 +39743,9 @@ function confirmTeamBuy() {
   }
   if (typeof _trsLoadFromServer === 'function') {
     _trsLoadFromServer().catch(()=>{});
+  }
+  if (typeof _mfsLoadFromServer === 'function') {
+    _mfsLoadFromServer().catch(()=>{});
   }
 
   // ROSTER_DATA'yı yeniden inşa et + kullanıcının rolünü kaptan yap
@@ -47996,9 +48010,13 @@ function teamTab(name, el) {
   if (name === 'chat' && typeof vtRenderActiveList === 'function') {
     setTimeout(() => vtRenderActiveList(), 50);
   }
-  // 🆕 Manifesto sekmesi
+  // 🆕 Manifesto sekmesi — server'dan tazele, sonra render
   if (name === 'manifesto' && typeof mfsRender === 'function') {
-    setTimeout(() => mfsRender(), 50);
+    if (typeof _mfsLoadFromServer === 'function') {
+      _mfsLoadFromServer().then(() => mfsRender()).catch(() => mfsRender());
+    } else {
+      setTimeout(() => mfsRender(), 50);
+    }
   }
   // 🆕 Forma sekmesi
   if (name === 'jersey' && typeof jrsRender === 'function') {
@@ -50887,14 +50905,32 @@ function _mfsStorageKey(teamKey) {
   return 'cft_team_manifesto__' + teamKey;
 }
 
+// 🆕 RAM cache - bootstrap'ta server'dan doldurulur
+let _mfsCache = null;
+let _mfsSaveTimer = null;
+
+// Server'dan manifesto verisini yükle (bootstrap ve takım değişimi sonrası)
+async function _mfsLoadFromServer() {
+  if (!window.sb || !_userTeam || !_userTeam.countryCode || !_userTeam.teamName) {
+    _mfsCache = null;
+    return;
+  }
+  try {
+    const { data, error } = await window.sb.from('team_data')
+      .select('data')
+      .eq('country_code', _userTeam.countryCode)
+      .eq('team_name', _userTeam.teamName)
+      .eq('data_key', 'manifesto')
+      .maybeSingle();
+    if (error) { console.warn('[manifesto] load hata:', error); _mfsCache = null; return; }
+    _mfsCache = (data && data.data) ? data.data : null;
+  } catch(e) { console.warn('[manifesto] load hata:', e); _mfsCache = null; }
+}
+
 function mfsLoad() {
   const tk = _mfsCurrentTeamKey();
   if (!tk) return null;
-  try {
-    const raw = localStorage.getItem(_mfsStorageKey(tk));
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch (e) { return null; }
+  return _mfsCache;
 }
 
 function mfsStore(text, authorName, role) {
@@ -50906,10 +50942,24 @@ function mfsStore(text, authorName, role) {
     authorRole: role || 'captain',
     updatedAt: Date.now()
   };
-  try {
-    localStorage.setItem(_mfsStorageKey(tk), JSON.stringify(data));
-    return true;
-  } catch (e) { return false; }
+  // RAM cache anında güncelle
+  _mfsCache = data;
+  // Debounced Supabase write (500 ms)
+  if (window.sb && _userTeam && _userTeam.countryCode && _userTeam.teamName) {
+    clearTimeout(_mfsSaveTimer);
+    _mfsSaveTimer = setTimeout(async () => {
+      try {
+        await window.sb.from('team_data').upsert({
+          country_code: _userTeam.countryCode,
+          team_name: _userTeam.teamName,
+          data_key: 'manifesto',
+          data: data,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'country_code,team_name,data_key' });
+      } catch(e) { console.warn('[manifesto] save hata:', e); }
+    }, 500);
+  }
+  return true;
 }
 
 // Düzenleme yetkisi: sadece kaptan veya yardımcı kaptan, ziyaretçi modunda asla
@@ -72736,6 +72786,7 @@ setTimeout(async ()=>{
   try { await _rosterPersistLoadFromServer(); } catch(e) { console.warn('roster_persist load hata:', e); }
   try { await _facLevelsLoadFromServer(); } catch(e) { console.warn('fac_levels load hata:', e); }
   try { await _trsLoadFromServer(); } catch(e) { console.warn('treasury load hata:', e); }
+  try { await _mfsLoadFromServer(); } catch(e) { console.warn('manifesto load hata:', e); }
   try { authInit(); } catch(e) { console.warn('authInit hata:', e); }
   document.getElementById('splash').classList.add('hide');
   // 🆕 _userTeam server'dan geldikten sonra ana sayfa panelleri yenile
