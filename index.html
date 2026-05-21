@@ -64712,7 +64712,35 @@ async function _inboxLoadFromServer() {
     if (error) { console.warn('[inbox] load hata:', error); _inboxCache = null; return; }
     _inboxCache = (data && Array.isArray(data.messages)) ? data.messages : [];
     console.info('[inbox] cache yüklendi:', _inboxCache.length, 'mesaj');
-    // 🆕 Onaylanan katılma istekleri otomatik takıma yerleştir
+
+    // 🆕 Edge Function tarafından gelen onay mesajı varsa _userTeam'i Supabase'ten taze çek
+    // (DB'de zaten güncel, RAM cache eski olabilir)
+    const hasFreshApproval = _inboxCache.some(m =>
+      m.type === 'join_request_approved_done' && !m.read
+    );
+    if (hasFreshApproval) {
+      console.info('[inbox] yeni onay tespit edildi → _userTeam tazeleniyor');
+      try {
+        if (typeof userTeamLoadFromServer === 'function') await userTeamLoadFromServer();
+        if (typeof wlLoadFromServer === 'function') await wlLoadFromServer();
+        // UI tazele
+        if (_userTeam && _userTeam.countryCode) {
+          if (typeof rosterClearPersist === 'function') rosterClearPersist();
+          if (typeof syncUserToRoster === 'function') syncUserToRoster();
+          if (typeof rosterBuildTeam === 'function') rosterBuildTeam(_userTeam.countryCode);
+          if (typeof rosterSavePersist === 'function') rosterSavePersist();
+        }
+        if (typeof exitGuestMode === 'function') exitGuestMode(true);
+        if (typeof applyUserTeamUI === 'function') applyUserTeamUI();
+        if (typeof renderRoster === 'function') renderRoster('all');
+        if (typeof updateHero === 'function') updateHero();
+        if (typeof updateTopbarFromUser === 'function') updateTopbarFromUser();
+        if (typeof trsSyncHeader === 'function') trsSyncHeader();
+        if (typeof wlSyncHeader === 'function') wlSyncHeader();
+      } catch(e) { console.warn('[inbox] post-approve refresh hata:', e); }
+    }
+
+    // 🆕 Onaylanan katılma istekleri otomatik takıma yerleştir (eski format için)
     if (typeof _inboxProcessApprovedJoinRequests === 'function') {
       await _inboxProcessApprovedJoinRequests();
     }
