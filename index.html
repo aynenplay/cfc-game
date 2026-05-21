@@ -71229,22 +71229,27 @@ function rkRenderCountries(){
 const SocialServerAdapter = {
   async getGlobal(limit) {
     if (!window.sb) return [];
+    // Son 24 saat içindeki postlar
+    const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
     const { data, error } = await window.sb.from('social_posts')
       .select('id, author_id, author_country, post_data, ts')
+      .gte('ts', since)
       .order('ts', { ascending: false })
-      .limit(limit || 50);
+      .limit((limit || 50) * 2);  // daha çok çek, sonra like'a göre sırala
     if (error) { console.warn('[social] getGlobal:', error); return []; }
-    return (data || []).map(_postFromRow);
+    return await _sortByLikes((data || []).map(_postFromRow), limit || 50);
   },
   async getNational(countryCode, limit) {
     if (!window.sb) return [];
+    const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
     const { data, error } = await window.sb.from('social_posts')
       .select('id, author_id, author_country, post_data, ts')
       .eq('author_country', countryCode)
+      .gte('ts', since)
       .order('ts', { ascending: false })
-      .limit(limit || 50);
+      .limit((limit || 50) * 2);
     if (error) { console.warn('[social] getNational:', error); return []; }
-    return (data || []).map(_postFromRow);
+    return await _sortByLikes((data || []).map(_postFromRow), limit || 50);
   },
   async getPostsByAuthor(authorId, limit) {
     if (!window.sb) return [];
@@ -71410,6 +71415,26 @@ async function _socialCountReaction(postId, reaction) {
     .select('user_id', { count: 'exact', head: true })
     .eq('post_id', postId).eq('reaction', reaction);
   return count || 0;
+}
+
+// 🆕 Postları like sayısına göre sırala (en çok beğenilen önde)
+// Bağlı sorgular yerine tek toplu sorguyla like sayılarını çek
+async function _sortByLikes(posts, limit) {
+  if (!posts.length || !window.sb) return posts.slice(0, limit);
+  const postIds = posts.map(p => p.id);
+  try {
+    const { data } = await window.sb.from('social_likes')
+      .select('post_id, reaction').in('post_id', postIds).eq('reaction', 'like');
+    const counts = {};
+    (data || []).forEach(r => { counts[r.post_id] = (counts[r.post_id] || 0) + 1; });
+    posts.sort((a, b) => {
+      const lA = counts[a.id] || 0;
+      const lB = counts[b.id] || 0;
+      if (lB !== lA) return lB - lA;
+      return (b.ts || 0) - (a.ts || 0);  // beraberlik bozucu: en yeni
+    });
+  } catch(e) { console.warn('[social] sortByLikes:', e); }
+  return posts.slice(0, limit);
 }
 
 // Aktif adapter — Supabase server adapter kullan
@@ -72075,9 +72100,6 @@ function cfcMdRenderSearchResults(query) {
         </div>
         <div class="cfcmd-search-handle">${_cfcMdEscape(u.handle)}${u.team ? ' · ' + _cfcMdEscape(u.team) : ''}</div>
       </div>
-      <div class="cfcmd-search-chev">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-      </div>
     </div>
   `).join('');
 
@@ -72268,9 +72290,6 @@ function cfcMdRenderFollowsList(query) {
       <div class="cfcmd-search-meta">
         <div class="cfcmd-search-name">${_cfcMdEscape(u.name)}</div>
         <div class="cfcmd-search-handle">${_cfcMdEscape(u.handle)}${u.team ? ' · ' + _cfcMdEscape(u.team) : ''}</div>
-      </div>
-      <div class="cfcmd-search-chev">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
       </div>
     </div>`;
   }).join('');
