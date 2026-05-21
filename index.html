@@ -27962,18 +27962,6 @@ window._jrwtUpdateSummary = function(){
 
 window.submitJoinRequestWithTerms = async function(){
   if(!_jrwtTarget) return;
-
-  // 🆕 KRİTİK: authUser kontrolü — eksikse istek gönderme
-  if (!window.authUser || !window.authUser.id || !window.authUser.name) {
-    showInfoModal({
-      icon:'⚠️', iconColor:'#f59e0b',
-      title:'Oturum Hazır Değil',
-      subtitle:'Lütfen birkaç saniye bekleyin ve tekrar deneyin',
-      body:'<div class="info-modal-note">Profil yüklemesi tamamlanmadan istek gönderilemez. Sayfayı yenileyip tekrar deneyin.</div>'
-    });
-    return;
-  }
-
   const cc = _jrwtTarget.countryCode;
   const tn = _jrwtTarget.teamName;
 
@@ -28019,8 +28007,27 @@ window.submitJoinRequestWithTerms = async function(){
   }
 
   const flag = (typeof CFT_DB !== 'undefined' && CFT_DB[cc]) ? (CFT_DB[cc].flag || '') : '';
-  const myName = window.authUser.name;
-  const myUserId = window.authUser.id;
+
+  // 🆕 Kullanıcı kimliğini al - authUser yoksa Supabase auth'tan çek
+  let myUserId = (window.authUser || {}).id;
+  let myName = (window.authUser || {}).name;
+  if (!myUserId && window.sb) {
+    try {
+      const { data: { user } } = await window.sb.auth.getUser();
+      if (user) {
+        myUserId = user.id;
+        // Profilden name al
+        const { data: prof } = await window.sb.from('profiles').select('name, username').eq('id', user.id).maybeSingle();
+        if (prof) myName = prof.name || prof.username || user.email;
+        // authUser'ı da güncelle
+        if (!window.authUser) window.authUser = {};
+        window.authUser.id = myUserId;
+        if (myName) window.authUser.name = myName;
+      }
+    } catch(e) { console.warn('[join-req] auth çekme hatası:', e); }
+  }
+  if (!myName) myName = 'Oyuncu';
+
   const captainName = (typeof getTeamRealCaptainName === 'function')
     ? getTeamRealCaptainName(cc, tn) : 'Kaptan';
 
