@@ -25525,17 +25525,23 @@ async function preloadAllTeamRosters() {
   try {
     const PAGE = 1000;
     let all = [];
-    for (let from = 0; from < 40000; from += PAGE) {
+    let lastId = 0;
+    let safety = 0;
+    while (safety++ < 50) {
       const { data, error } = await window.sb.from('players')
-        .select('country_code, team_name, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar')
+        .select('id, country_code, team_name, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar')
         .eq('is_bot', true)
-        .order('country_code').order('team_name').order('num')
-        .range(from, from + PAGE - 1);
+        .gt('id', lastId)
+        .order('id')
+        .limit(PAGE);
       if (error) { console.warn('[preloadAllRosters] hata:', error); break; }
       if (!Array.isArray(data) || data.length === 0) break;
       all = all.concat(data);
+      lastId = data[data.length - 1].id;
       if (data.length < PAGE) break;
     }
+    // Cache temizle (yeniden yüklüyoruz, çift olmasın)
+    for (const k of Object.keys(_teamRosterCache)) delete _teamRosterCache[k];
     // Gruplayıp cache'e yaz
     for (const r of all) {
       const key = r.country_code + ':' + r.team_name;
@@ -39390,13 +39396,16 @@ async function _rosterRefreshRealMembers(countryCode) {
 
     const realMembers = (data || []).filter(r => r.user_id !== myUserId);
     console.info('[rosterRefresh] benden farklı üye sayısı:', realMembers.length, 'myUserId:', myUserId);
+
+    // 🆕 ROSTER_DATA'dan eski gerçek üyeleri her zaman çıkar (yeniden ekleyeceğiz)
+    // (gerçek üye 0 olsa bile eski hatalı eklemeyi temizler)
+    ROSTER_DATA = ROSTER_DATA.filter(p => p.role === 'user' || p.isBot);
+
     if (realMembers.length === 0) {
       console.info('[rosterRefresh] hiç ekleme yok');
+      if (typeof renderRoster === 'function') renderRoster('all');
       return;
     }
-
-    // ROSTER_DATA'dan eski gerçek üyeleri çıkar (yeniden ekleyeceğiz)
-    ROSTER_DATA = ROSTER_DATA.filter(p => p.role === 'user' || p.isBot);
 
     const POSGRP = (typeof POS_GROUP !== 'undefined') ? POS_GROUP : {};
     const POS_ROTATION = ['DEF', 'MID', 'FWD', 'DEF', 'MID', 'FWD'];
