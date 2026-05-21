@@ -59948,6 +59948,58 @@ function trn2GetQualifiers(currentSeason) {
 
 // ── Play-Off: 64 → 32 (1. vs 2., farklı ülke) ──
 function trn2BuildPlayoff(teams, season, trnKey) {
+  // 🆕 ÖNCE Supabase tournament_state'ten playoff fixture'ını al (tek doğruluk kaynağı)
+  const _srvState = (typeof _tournamentStateGet === 'function') ? _tournamentStateGet(trnKey, season) : null;
+  const _srvPlayoff = _srvState && _srvState.fixture && Array.isArray(_srvState.fixture.playoff) ? _srvState.fixture.playoff : null;
+
+  // match_results'tan playoff skor lookup
+  const _mrAll = (typeof _matchResultsLoad === 'function') ? _matchResultsLoad() : {};
+  const _playoffFromServer = {};
+  for (const k in _mrAll) {
+    const m = _mrAll[k];
+    if (!m || m.season !== season || m.tournament_key !== trnKey) continue;
+    if (m.tournament_phase !== 'playoff') continue;
+    _playoffFromServer[`${m.home}|${m.away}`] = m;
+  }
+
+  // CFT_DB hidrat
+  function _hydratePlayoffTeam(srvTeam) {
+    if (!srvTeam || !srvTeam.name) return null;
+    const cc = srvTeam.countryCode || srvTeam.countryKey;
+    if (!cc) return { name: srvTeam.name, rank: srvTeam.rank || 0 };
+    if (typeof CFT_DB !== 'undefined' && CFT_DB[cc] && CFT_DB[cc].leagues) {
+      for (const lg of CFT_DB[cc].leagues) {
+        const found = (lg.teams || []).find(x => x.name === srvTeam.name);
+        if (found) return { ...found, countryKey: cc, countryCode: cc, rank: srvTeam.rank || 0 };
+      }
+    }
+    return { name: srvTeam.name, countryKey: cc, countryCode: cc, rank: srvTeam.rank || 0 };
+  }
+
+  // 🆕 SERVER YOLU: Playoff fixture'ı serverdan
+  if (_srvPlayoff && _srvPlayoff.length > 0) {
+    const _results = _srvPlayoff.map((pm, idx) => {
+      const home = _hydratePlayoffTeam(pm.home);
+      const away = _hydratePlayoffTeam(pm.away);
+      if (!home || !away) return null;
+
+      const srv = _playoffFromServer[`${home.name}|${away.name}`];
+      const hs = srv ? srv.hs : 0;
+      const as = srv ? srv.as : 0;
+      const winner = srv
+        ? (hs > as ? home : hs < as ? away : (idx % 2 === 0 ? home : away))
+        : null;
+
+      return { home, away, hs, as, winner, fromServer: true };
+    }).filter(x => x);
+
+    // Cache'e koy (UI tutarlılığı için)
+    window._trn2PlayoffCache = window._trn2PlayoffCache || {};
+    window._trn2PlayoffCache[`${trnKey}_s${season}`] = _results;
+    return _results;
+  }
+
+  // 🆕 YEDEK: server'da playoff yoksa eski lokal mantık
   // 1'ler ve 2'ler
   const ones = teams.filter(t => t.rank % 2 === 1); // 1. veya 5. sıralar (tek)
   const twos = teams.filter(t => t.rank % 2 === 0); // 2. veya 6. sıralar (çift)
@@ -60437,25 +60489,110 @@ function trn2GetUserStatus(trnKey, season) {
 
 // ── Eleme braketi (FAZ 3: iki maçlı sistem, Final hariç) ──
 function trn2BuildBracket(groups, season, trnKey) {
-  // 🆕 Helper: CFT_DB'den tam takım nesnesi (rating + players) çıkar — knockout motoru için lazım
+  // 🆕 ÖNCE Supabase tournament_state'ten knockout fikstürünü dene (tek doğruluk kaynağı)
+  // Server'da r16/qf/sf/final fixture varsa, lokal hesaplamayı atla
+  const _srvState = (typeof _tournamentStateGet === 'function') ? _tournamentStateGet(trnKey, season) : null;
+  const _srvFix = _srvState && _srvState.fixture ? _srvState.fixture : null;
+  const _hasSrvR16 = _srvFix && Array.isArray(_srvFix.r16) && _srvFix.r16.length > 0;
+
+  // match_results lookup: home+away → skor
+  const _mrAll = (typeof _matchResultsLoad === 'function') ? _matchResultsLoad() : {};
+  const _knockoutFromServer = {};  // phase → { "home|away": match }
+  for (const k in _mrAll) {
+    const m = _mrAll[k];
+    if (!m || m.season !== season || m.tournament_key !== trnKey) continue;
+    if (!['r16','qf','sf','final'].includes(m.tournament_phase || '')) continue;
+    const phase = m.tournament_phase;
+    if (!_knockoutFromServer[phase]) _knockoutFromServer[phase] = {};
+    _knockoutFromServer[phase][`${m.home}|${m.away}`] = m;
+  }
+
+  // CFT_DB'den tam takım nesnesi (rating + players) — hem server hem lokal mantık için lazım
   function _bracketFullTeam(t) {
-    if (!t || !t.countryKey || !t.name) return null;
-    if (typeof CFT_DB === 'undefined' || !CFT_DB[t.countryKey]) return null;
-    const country = CFT_DB[t.countryKey];
+    if (!t) return null;
+    const cc = t.countryKey || t.countryCode;
+    const nm = t.name;
+    if (!cc || !nm) return null;
+    if (typeof CFT_DB === 'undefined' || !CFT_DB[cc]) return null;
+    const country = CFT_DB[cc];
     for (const lg of (country.leagues || [])) {
-      const found = (lg.teams || []).find(x => x.name === t.name);
+      const found = (lg.teams || []).find(x => x.name === nm);
       if (found) {
-        const full = { ...found, countryCode: t.countryKey };
+        const full = { ...found, countryCode: cc, countryKey: cc };
         if (typeof guestGenerateRoster === 'function') {
-          try { full._roster = guestGenerateRoster(t.countryKey, t.name, found.rank || 1); } catch(e){}
-          // roster'ı 'players' alanı olarak da expose et (knockout motor uyumluluğu için)
+          try { full._roster = guestGenerateRoster(cc, nm, found.rank || 1); } catch(e){}
           if (full._roster && !full.players) full.players = full._roster;
         }
         return full;
       }
     }
-    return null;
+    return { name: nm, countryCode: cc, countryKey: cc };
   }
+
+  // 🆕 SERVER YOLU: tournament_state.fixture'tan tur tur bracket oluştur
+  if (_hasSrvR16) {
+    const _bracket = [];
+    const _phaseInfo = [
+      { phase: 'r16', name: 'Son 16', twoLeg: true },
+      { phase: 'qf',  name: 'Çeyrek Final', twoLeg: true },
+      { phase: 'sf',  name: 'Yarı Final', twoLeg: true },
+      { phase: 'final', name: 'Final 🏆', twoLeg: false }
+    ];
+
+    for (const info of _phaseInfo) {
+      const pairs = _srvFix[info.phase];
+      if (!Array.isArray(pairs) || pairs.length === 0) break;  // bu tur henüz kurulmadı
+
+      const matches = pairs.map((p, idx) => {
+        const t1 = _bracketFullTeam(p.home || { name: (p.home && p.home.name), countryKey: (p.home && p.home.countryCode) });
+        const t2 = _bracketFullTeam(p.away || { name: (p.away && p.away.name), countryKey: (p.away && p.away.countryCode) });
+        if (!t1 || !t2) return null;
+
+        // Leg 1: t1 evinde, t2 deplasman
+        const srvL1 = (_knockoutFromServer[info.phase] || {})[`${t1.name}|${t2.name}`];
+        // Leg 2: t2 evinde (yer değişti)
+        const srvL2 = info.twoLeg
+          ? (_knockoutFromServer[info.phase] || {})[`${t2.name}|${t1.name}`]
+          : null;
+
+        const leg1 = srvL1 ? { hs: srvL1.hs, as: srvL1.as, played: true } : null;
+        const leg2 = srvL2 ? { hs: srvL2.hs, as: srvL2.as, played: true } : null;
+
+        // Kazanan: aggregate skor
+        let winner = null;
+        if (info.twoLeg) {
+          if (leg1 && leg2) {
+            const t1Total = leg1.hs + leg2.as;
+            const t2Total = leg1.as + leg2.hs;
+            if (t1Total > t2Total) winner = t1;
+            else if (t2Total > t1Total) winner = t2;
+            else winner = (t1.name < t2.name) ? t1 : t2;  // basit tiebreaker
+          }
+        } else {
+          if (leg1) {
+            if (leg1.hs > leg1.as) winner = t1;
+            else if (leg1.as > leg1.hs) winner = t2;
+            else winner = (t1.name < t2.name) ? t1 : t2;
+          }
+        }
+
+        return {
+          home: t1, away: t2,
+          leg1, leg2,
+          winner,
+          twoLeg: info.twoLeg,
+          fromServer: true
+        };
+      }).filter(x => x);
+
+      _bracket.push({ name: info.name, matches, twoLeg: info.twoLeg });
+    }
+
+    return _bracket;
+  }
+
+  // 🆕 YEDEK (fallback): server'da knockout fixture yoksa eski lokal mantık devam etsin
+  // Helper: CFT_DB'den tam takım nesnesi (rating + players) çıkar — knockout motoru için lazım
 
   // 🆕 Yedek (fallback) skor üretici — motor erişilemezse
   function _fallbackScore(seed, salt) {
