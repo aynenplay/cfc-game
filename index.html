@@ -40425,15 +40425,77 @@ function confirmTeamBuy() {
   }catch(e){ console.warn('Kasa başlatma hatası:', e); }
 
   // Kullanıcı takımı: kaptan rolü ile kaydet
+  // 🆕 Bu takımdaki kullanılmayan forma numarası bul (cache'ten)
+  const rosterCacheKey = t.countryCode + ':' + t.teamName;
+  const teamRoster = (typeof _teamRosterCache !== 'undefined' && _teamRosterCache[rosterCacheKey]) || [];
+  const usedNums = new Set(teamRoster.map(p => p.num));
+  let assignedNum = null;
+  for (let n = 16; n <= 99; n++) {
+    if (!usedNums.has(n)) { assignedNum = n; break; }
+  }
+  if (!assignedNum) assignedNum = 99;
+
   _userTeam = {
     countryCode: t.countryCode,
     teamName: t.teamName,
     role: 'captain',  // satın alan otomatik kaptan
     tierIdx: t.tierIdx,
+    num: assignedNum,                  // 🆕 forma numarası
     purchasedAt: Date.now(),
     purchasePrice: t.price,
   };
-  userTeamSave();
+
+  // 🆕 Kullanıcıyı önce kaptan olarak DB'ye yaz, SONRA bot kaptanı düşür + ROSTER tazele
+  (async () => {
+    try {
+      // 1. Kullanıcı satırını kaptan olarak güncelle (await ile)
+      if (typeof _userTeamSaveImpl === 'function') {
+        await _userTeamSaveImpl();
+      } else {
+        userTeamSave();
+      }
+
+      // 2. DB'deki bot kaptanı takımdan tamamen ÇIKAR (kapasite 15'te kalsın)
+      // Kullanıcı eski kaptanın koltuğunu aldı — bot kovuldu
+      if (window.sb) {
+        const { error: botErr } = await window.sb.from('players')
+          .update({ 
+            team_name: null,
+            country_code: null,
+            role: null,
+            num: null,
+          })
+          .eq('country_code', t.countryCode)
+          .eq('team_name', t.teamName)
+          .eq('is_bot', true)
+          .eq('role', 'captain');
+        if (botErr) console.warn('[buyTeam] bot kaptan çıkarma hata:', botErr.message);
+        else console.info('[buyTeam] bot kaptan takımdan çıkarıldı');
+      }
+
+      // 3. ROSTER_DATA'yı Supabase'ten taze çek + bekle
+      if (typeof _rosterRefreshFromServer === 'function') {
+        await _rosterRefreshFromServer(t.countryCode);
+      }
+
+      // 4. Diziliş için ilk 11 yeniden hesapla (kullanıcı kaptan, sahaya kondu)
+      try {
+        if (typeof activePitchPlayers !== 'undefined' && Array.isArray(activePitchPlayers)) {
+          activePitchPlayers.length = 0;
+        }
+        if (typeof benchPlayers !== 'undefined' && Array.isArray(benchPlayers)) {
+          benchPlayers.length = 0;
+        }
+        if (typeof initFormation === 'function') initFormation();
+      } catch(e) {}
+
+      // 5. Tüm UI'yi tazele
+      if (typeof renderRoster === 'function') renderRoster('all');
+      if (typeof updateHero === 'function') updateHero();
+      if (typeof applyUserTeamUI === 'function') applyUserTeamUI();
+      if (typeof renderHomeNextMatch === 'function') renderHomeNextMatch();
+    } catch(e) { console.warn('[buyTeam] async setup hata:', e); }
+  })();
 
   // 🆕 Career history'ye yeni takım ekle (kaptan rolü)
   if (typeof pushCareerHistory === 'function' && _userTeam) {
@@ -64393,12 +64455,46 @@ function tfRender() {
 }
 
 // 🆕 Boştaki oyuncular listesini render et
-function renderFreeAgentList(){
+async function renderFreeAgentList(){
   const el = document.getElementById('tfList');
   if(!el) return;
   const sub = document.getElementById('tfSubtitle');
 
+  // 🆕 Supabase'ten serbest oyuncuları çek (team_name IS NULL olan botlar)
+  // + localStorage'taki manuel kovulan oyuncular (eski sistem geriye uyumluluk)
   let agents = getFreeAgents();
+  if (window.sb) {
+    try {
+      const { data, error } = await window.sb.from('players')
+        .select('id, name, pos, pos_group, overall, level, nation, nationality, avatar, is_bot, user_id')
+        .is('team_name', null)
+        .eq('is_bot', true)
+        .order('overall', { ascending: false })
+        .limit(200);
+      if (!error && Array.isArray(data)) {
+        // Supabase'ten geleni "free agent" formatına çevir, localStorage'a duplicate eklemeden birleştir
+        const existingIds = new Set(agents.map(a => a.playerId));
+        for (const p of data) {
+          if (!existingIds.has(p.name)) {
+            agents.push({
+              id: 'sb_' + p.id,
+              playerId: p.name,
+              avatar: p.avatar || '🤖',
+              pos: p.pos || 'MID',
+              overall: p.overall || 10,
+              level: p.level || 0,
+              nation: p.nation || '🏳️',
+              nationality: p.nationality || '',
+              isBot: !!p.is_bot,
+              kickedFrom: null,
+              _sbId: p.id,  // Supabase id (transfer için lazım)
+            });
+          }
+        }
+      }
+    } catch(e) { console.warn('[freeAgents] Supabase okuma hatası:', e); }
+  }
+
   // Filtre & arama
   agents = agents.filter(a => {
     if(!_tfMatchesPositionFilter(a.pos, _tfFilter)) return false;
@@ -64406,7 +64502,7 @@ function renderFreeAgentList(){
     return true;
   });
 
-  if(sub) sub.textContent = `${getFreeAgents().length} sözleşmesiz oyuncu`;
+  if(sub) sub.textContent = `${agents.length} sözleşmesiz oyuncu`;
 
   if(!agents.length) {
     el.innerHTML = '<div class="tf-empty">🆓 Boşta oyuncu yok.<br><span style="font-size:11px">Kovulan veya takımı dağılan oyuncular burada listelenir.</span></div>';
