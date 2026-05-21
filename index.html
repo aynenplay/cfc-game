@@ -28135,172 +28135,7 @@ window.inboxApproveJoinRequest = async function(msgId){
   const d   = msg.joinReqIncomingData;
   if(!d) return;
 
-  // 🆕 Kadro kapasitesi kontrolü — taze veri için cache'i tazele
-  if (typeof _loadRealCaptainsFromServer === 'function') {
-    _invalidateRealCaptainsCache();
-    try { await _loadRealCaptainsFromServer(); } catch(e) {}
-  }
-  const maxRoster = (typeof getMaxRosterSize === 'function') ? getMaxRosterSize() : 15;
-  const teamKey = d.countryCode + ':' + d.teamName;
-  const teamEntry = _realCaptainsCache[teamKey];
-  const realMemberCount = (teamEntry && Array.isArray(teamEntry.members)) ? teamEntry.members.length : 0;
-  // Kullanıcı zaten takımda mı? (örn. çift istek edilmiş olabilir)
-  const alreadyInTeam = teamEntry && Array.isArray(teamEntry.members) &&
-    teamEntry.members.some(m => m.userId === d.requestorUserId);
-  if (!alreadyInTeam && realMemberCount >= maxRoster) {
-    showInfoModal({
-      icon: '👥', iconColor: '#f59e0b',
-      title: 'Kadro Dolu',
-      subtitle: `${d.teamName} takımının kadrosunda yer yok`,
-      body: `
-        <div class="info-modal-rows">
-          <div class="info-modal-row">
-            <div class="info-modal-row-ic">📊</div>
-            <div class="info-modal-row-body">
-              <div class="info-modal-row-lbl">Mevcut</div>
-              <div class="info-modal-row-val">${realMemberCount} / ${maxRoster} oyuncu</div>
-            </div>
-          </div>
-        </div>
-        <div class="info-modal-note">
-          💡 Yeni oyuncu kabul etmek için <b>kadroda boş slot</b> olmalı. Tesis (Kapasite) yükseltmesi yaparak kadro boyutunu arttırabilir veya bir oyuncuyu takımdan çıkarabilirsin.
-        </div>`
-    });
-    return;
-  }
-
-  // Kasada imza parası var mı?
-  const treasury = (typeof trsGetBalance === 'function') ? trsGetBalance('eur') : 0;
-  if(d.signingBonus > 0 && treasury < d.signingBonus){
-    const bal = treasury.toLocaleString('tr');
-    const need = d.signingBonus.toLocaleString('tr');
-    showInfoModal({
-      icon: '💰', iconColor: '#ef4444', title: 'Yetersiz Bakiye',
-      subtitle: 'Takım kasasında yeterli para yok',
-      body: `
-        <div class="info-modal-rows">
-          <div class="info-modal-row"><div class="info-modal-row-ic">💸</div><div class="info-modal-row-body"><div class="info-modal-row-lbl">Gerekli</div><div class="info-modal-row-val">${need} €</div></div></div>
-          <div class="info-modal-row"><div class="info-modal-row-ic">🏦</div><div class="info-modal-row-body"><div class="info-modal-row-lbl">Kasada</div><div class="info-modal-row-val">${bal} €</div></div></div>
-        </div>
-        <div class="info-modal-note">Önce takım kasasına gelir aktar, sonra tekrar onayla.</div>`
-    });
-    return;
-  }
-
-  // İmza parasını kasadan düş
-  if(d.signingBonus > 0){
-    if(typeof trsDeduct === 'function'){
-      const ok = trsDeduct('eur', d.signingBonus, `İmza Parası: ${d.requestorName}`);
-      if(!ok){
-        showInfoModal({icon:'❌',iconColor:'#ef4444',title:'Ödeme Yapılamadı',subtitle:'Kasadan ödeme alınamadı',body:'<div class="info-modal-note">Lütfen tekrar deneyin.</div>'});
-        return;
-      }
-    }
-  }
-
-  const fmt = (v) => v >= 1e6 ? (v/1e6).toFixed(2)+'M €' : Math.round(v/1000)+'K €';
-  const captainName = (typeof getTeamRealCaptainName === 'function')
-    ? getTeamRealCaptainName(d.countryCode, d.teamName) : 'Kaptan';
-
-  // 🆕 ÇOK KULLANICILI: İstek yapana onay mesajını GERÇEK INBOX'INA gönder
-  // Mesajın meta'sında contract bilgileri var, alıcı inbox'ı açtığında otomatik takıma yerleşir
-  const info = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : { season: 1, dayInSeason: 1 };
-  const contractData = {
-    signedAt: Date.now(),
-    signedSeason: info.season,
-    signedDay: info.dayInSeason,
-    signingBonus: d.signingBonus,
-    yearlySalary: d.yearlySalary,
-    durationSeasons: d.durationSeasons,
-    endsSeason: info.season + d.durationSeasons - 1,
-    capName: captainName,
-    canLeaveFreely: false,
-    unpaidInstallments: 0,
-  };
-
-  // İstek yapan = mevcut kullanıcı mı? (eski tek-kullanıcı senaryosu desteği)
-  const myName = (window.authUser||{}).name || 'Sen';
-  const myUserId = (window.authUser||{}).id || null;
-  const isSameUser = (d.requestorUserId && d.requestorUserId === myUserId) || d.requestorName === myName;
-
-  if(isSameUser){
-    // Aynı kullanıcı: hemen kendi takımına yerleş
-    try {
-      if(typeof joinTeamDirect === 'function'){
-        joinTeamDirect(d.countryCode, d.teamName, { skipToast: true });
-      } else {
-        window._userTeam = {
-          countryCode: d.countryCode, teamName: d.teamName,
-          role: 'member', joinedAt: Date.now(),
-        };
-      }
-      window._userTeam.contract = contractData;
-      if(typeof userTeamSave === 'function') userTeamSave();
-      // İmza parasını cüzdana yatır
-      if(d.signingBonus > 0 && typeof wlAddIncome === 'function'){
-        wlAddIncome('eur', d.signingBonus, `İmza Parası — ${d.teamName} (kontrat onaylandı)`);
-      }
-    } catch(e){ console.warn('Sözleşme kurulum hatası:', e); }
-  } else if(d.requestorUserId && typeof inboxSendToUser === 'function'){
-    // 🆕 Başka kullanıcı: önce B'nin cüzdanına imza parası yatır (kendi user_id'ine yazma değil, başka user_id'e yazma RLS ile engelli olabilir)
-    // Sonra onay mesajını gönder, B inbox açtığında kendi players row'unu update edecek
-    console.info('[approve] B için işlem başlıyor → user_id:', d.requestorUserId);
-
-    // 🆕 B'nin cüzdanına imza parası yatır (eğer RLS izin verirse)
-    if (d.signingBonus > 0) {
-      try {
-        const { data: wRow, error: wErr } = await window.sb.from('user_wallet')
-          .select('eur, total_in')
-          .eq('user_id', d.requestorUserId)
-          .maybeSingle();
-        if (!wErr) {
-          const curEur = wRow ? Number(wRow.eur || 0) : 0;
-          const curTotalIn = wRow ? Number(wRow.total_in || 0) : 0;
-          const { error: upErr } = await window.sb.from('user_wallet').upsert({
-            user_id: d.requestorUserId,
-            eur: curEur + d.signingBonus,
-            total_in: curTotalIn + d.signingBonus
-          }, { onConflict: 'user_id' });
-          if (upErr) console.warn('[approve] B wallet upsert RLS hata:', upErr);
-          else console.info('[approve] B cüzdanına imza parası yatırıldı ✅');
-        }
-      } catch(e) { console.warn('[approve] B wallet exception:', e); }
-    }
-
-    // Şimdi B'nin inbox'una onay mesajı gönder
-    console.info('[approve] mesaj gönderiliyor → requestorUserId:', d.requestorUserId);
-    const sendOk = await inboxSendToUser(d.requestorUserId, {
-      id: 'jr_resp_ok_' + Date.now(),
-      from: `${d.teamName} Yönetimi`,
-      fromAvatar: '✅',
-      type: 'join_request_approved',
-      subject: `Sözleşmen Onaylandı — ${d.teamName}`,
-      body: `🎉 Tebrikler! ${captainName}, ${d.teamName} takımına katılma isteğini onayladı.\n\nSözleşme şartların:\n• İmza Parası: ${fmt(d.signingBonus)} (cüzdanına yatırıldı)\n• Yıllık Ücret: ${fmt(d.yearlySalary)} (sezonun 19 ve 38. gününde 2 taksit)\n• Süre: ${d.durationSeasons} sezon\n\nArtık ${d.teamName} takımının kontratlı oyuncususun.`,
-      offerApproved: true,
-      contractMeta: {
-        countryCode: d.countryCode,
-        teamName: d.teamName,
-        contract: contractData,
-      },
-    });
-    console.info('[approve] inboxSendToUser sonuç:', sendOk);
-    if (!sendOk) {
-      if (d.signingBonus > 0 && typeof trsAddIncome === 'function') {
-        trsAddIncome('eur', d.signingBonus, `İmza parası iade — ${d.requestorName} (mesaj gönderilemedi)`);
-      }
-      showInfoModal({
-        icon:'❌', iconColor:'#ef4444',
-        title:'Mesaj Gönderilemedi',
-        subtitle:'Oyuncuya onay mesajı ulaştırılamadı',
-        body:'<div class="info-modal-note">Tekrar deneyin. Konsolda detay var.</div>'
-      });
-      return;
-    }
-
-    if (typeof _invalidateRealCaptainsCache === 'function') _invalidateRealCaptainsCache();
-
-  } else if(!d.requestorUserId) {
-    console.warn('[approve] requestorUserId yok — eski format mesaj. Onay yapılamıyor.');
+  if(!d.requestorUserId){
     showInfoModal({
       icon:'⚠️', iconColor:'#f59e0b',
       title:'Eski Format Mesaj',
@@ -28310,38 +28145,88 @@ window.inboxApproveJoinRequest = async function(msgId){
     return;
   }
 
-  // İsteği approved işaretle (kaptanın kendi inbox'unda)
+  const captainName = (typeof getTeamRealCaptainName === 'function')
+    ? getTeamRealCaptainName(d.countryCode, d.teamName) : 'Kaptan';
+  const info = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : { season: 1, dayInSeason: 1 };
+  const myUserId = (window.authUser || {}).id;
+  if(!myUserId){
+    showInfoModal({icon:'⚠️',iconColor:'#f59e0b',title:'Oturum Hazır Değil',subtitle:'Sayfayı yenileyip tekrar deneyin',body:''});
+    return;
+  }
+
+  // 🆕 Edge Function çağrısı — atomik işlem, RLS bypass
+  const SUPABASE_URL = 'https://fkmpkfhikhludkgrzvtd.supabase.co';
+  let resData = null;
+  try {
+    const session = await window.sb.auth.getSession();
+    const token = session?.data?.session?.access_token;
+    const resp = await fetch(SUPABASE_URL + '/functions/v1/approve-join-request', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + (token || ''),
+      },
+      body: JSON.stringify({
+        requestor_user_id: d.requestorUserId,
+        captain_user_id: myUserId,
+        country_code: d.countryCode,
+        team_name: d.teamName,
+        signing_bonus: d.signingBonus || 0,
+        yearly_salary: d.yearlySalary || 0,
+        duration_seasons: d.durationSeasons || 1,
+        captain_name: captainName,
+        season: info.season,
+        day_in_season: info.dayInSeason,
+      })
+    });
+    resData = await resp.json();
+    console.info('[approve] edge function sonuç:', resData);
+  } catch(e){
+    console.error('[approve] edge function exception:', e);
+    showInfoModal({icon:'❌',iconColor:'#ef4444',title:'Bağlantı Hatası',subtitle:'Onay servisi yanıt vermedi',body:'<div class="info-modal-note">İnternet bağlantını kontrol et, tekrar dene.</div>'});
+    return;
+  }
+
+  if(!resData || !resData.ok){
+    const errMap = {
+      missing_params: { t:'Eksik Bilgi', s:'Form alanlarını kontrol et' },
+      captain_not_in_team: { t:'Yetkin Yok', s:'Bu takımın kaptanı değilsin' },
+      captain_team_mismatch: { t:'Takım Uyumsuz', s:'Sen artık bu takımın kaptanı değilsin' },
+      not_authorized: { t:'Yetki Yok', s:'Sadece kaptan veya yardımcı kaptan onaylayabilir' },
+      requestor_not_found: { t:'Oyuncu Bulunamadı', s:'İstek yapan kullanıcı sistemde yok' },
+      already_in_team: { t:'Zaten Takımda', s:'Bu oyuncu zaten takımda' },
+      insufficient_treasury: { t:'Yetersiz Bakiye', s:`Kasada ${resData.treasury}€, gereken ${resData.needed}€` },
+      roster_full: { t:'Kadro Dolu', s:`${resData.current} / ${resData.max} oyuncu` },
+      players_update_failed: { t:'Veritabanı Hatası', s:resData.detail || 'Oyuncu kaydı yazılamadı' },
+    };
+    const e = errMap[resData.error] || { t:'Hata', s:resData.error || 'Bilinmeyen hata' };
+    showInfoModal({icon:'❌',iconColor:'#ef4444',title:e.t,subtitle:e.s,body:''});
+    return;
+  }
+
+  // BAŞARILI ✅
+  // Kaptanın UI'sını güncelle (kasa, inbox, real captains cache)
   msg.offerStatus = 'approved';
   msg.read = true;
-
-  // Karşı tarafa (kaptanın kendi inbox'una) işlem kayıt mesajı
-  msgs.unshift({
-    id: 'jr_resp_ok_' + Date.now(),
-    from: `${d.teamName} Yönetimi`,
-    fromAvatar: '✅',
-    type: 'system',
-    subject: `${d.requestorName} İçin Sözleşme Onayladın`,
-    body: `${d.requestorName} adlı oyuncuyu takıma kattın.\n\n• İmza Parası: ${fmt(d.signingBonus)} (kasadan oyuncuya gitti)\n• Yıllık Ücret: ${fmt(d.yearlySalary)}\n• Süre: ${d.durationSeasons} sezon`,
-    time: new Date().toLocaleDateString('tr'),
-    read: false,
-    thread: [],
-  });
-
   if(typeof saveInboxMsgs === 'function') saveInboxMsgs(msgs);
+  if(typeof _trsLoadFromServer === 'function') await _trsLoadFromServer();
+  if(typeof _inboxLoadFromServer === 'function') await _inboxLoadFromServer();
+  if(typeof _invalidateRealCaptainsCache === 'function') _invalidateRealCaptainsCache();
+  if(typeof trsSyncHeader === 'function') trsSyncHeader();
   if(typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
   if(typeof inboxRenderDetail === 'function') inboxRenderDetail(msg);
-  if(typeof applyUserTeamUI === 'function') applyUserTeamUI();
-  if(typeof renderRoster === 'function') renderRoster('all');
 
   // Toast
   try {
+    const fmt = (v) => v >= 1e6 ? (v/1e6).toFixed(2)+'M €' : Math.round(v/1000)+'K €';
     const t = document.createElement('div');
-    t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#00c853;color:#fff;padding:12px 22px;border-radius:24px;font-size:13px;font-weight:700;z-index:9999;font-family:"Barlow Condensed",sans-serif;letter-spacing:.4px;box-shadow:0 8px 24px rgba(0,0,0,.4)';
-    t.textContent = `✅ ${d.requestorName} takıma katıldı! ${fmt(d.signingBonus)} kasadan ödendi.`;
+    t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#00c853,#43a047);color:#fff;padding:14px 24px;border-radius:24px;font-size:14px;font-weight:700;z-index:9999;font-family:"Barlow Condensed",sans-serif;letter-spacing:.4px;box-shadow:0 8px 24px rgba(0,0,0,.4)';
+    t.textContent = `✅ ${resData.requestor_name} takıma katıldı! ${fmt(d.signingBonus)} kasadan ödendi.`;
     document.body.appendChild(t);
-    setTimeout(() => t.remove(), 3000);
+    setTimeout(() => { t.style.transition='opacity .4s'; t.style.opacity='0'; setTimeout(()=>t.remove(),400); }, 3500);
   } catch(e){}
 };
+
 
 window.inboxRejectJoinRequest = function(msgId){
   const msgs = (typeof getInboxMsgs === 'function') ? getInboxMsgs() : null;
