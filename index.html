@@ -28077,7 +28077,7 @@ window.submitJoinRequestWithTerms = async function(){
 // KAPTAN TARAFI — Gelen isteği ONAYLA / REDDET
 // ══════════════════════════════════════════════════════════════
 
-window.inboxApproveJoinRequest = function(msgId){
+window.inboxApproveJoinRequest = async function(msgId){
   const msgs = (typeof getInboxMsgs === 'function') ? getInboxMsgs() : null;
   if(!msgs) return;
   const idx = msgs.findIndex(m => m.id === msgId);
@@ -28091,38 +28091,57 @@ window.inboxApproveJoinRequest = function(msgId){
   if(d.signingBonus > 0 && treasury < d.signingBonus){
     const bal = treasury.toLocaleString('tr');
     const need = d.signingBonus.toLocaleString('tr');
-    alert(`❌ Yetersiz Bakiye!\n\nİmza parası: ${need} €\nKasada mevcut: ${bal} €\n\nÖnce takım kasasına gelir aktar, sonra tekrar onayla.`);
+    showInfoModal({
+      icon: '💰', iconColor: '#ef4444', title: 'Yetersiz Bakiye',
+      subtitle: 'Takım kasasında yeterli para yok',
+      body: `
+        <div class="info-modal-rows">
+          <div class="info-modal-row"><div class="info-modal-row-ic">💸</div><div class="info-modal-row-body"><div class="info-modal-row-lbl">Gerekli</div><div class="info-modal-row-val">${need} €</div></div></div>
+          <div class="info-modal-row"><div class="info-modal-row-ic">🏦</div><div class="info-modal-row-body"><div class="info-modal-row-lbl">Kasada</div><div class="info-modal-row-val">${bal} €</div></div></div>
+        </div>
+        <div class="info-modal-note">Önce takım kasasına gelir aktar, sonra tekrar onayla.</div>`
+    });
     return;
   }
 
-  // İmza parasını kasadan düş, oyuncuya yatır (oyuncu = kullanıcı çoğu zaman)
+  // İmza parasını kasadan düş
   if(d.signingBonus > 0){
     if(typeof trsDeduct === 'function'){
       const ok = trsDeduct('eur', d.signingBonus, `İmza Parası: ${d.requestorName}`);
       if(!ok){
-        alert('❌ Kasadan ödeme yapılamadı.');
+        showInfoModal({icon:'❌',iconColor:'#ef4444',title:'Ödeme Yapılamadı',subtitle:'Kasadan ödeme alınamadı',body:'<div class="info-modal-note">Lütfen tekrar deneyin.</div>'});
         return;
       }
     }
-    // Kullanıcı kendisi katılıyor olabilir — bu durumda imza parası ona gider
-    // Backend'de bu, istek yapan kullanıcının cüzdanına gider.
-    // Bu test akışında: istek yapan ile bu cihazdaki kullanıcı aynı kişiyse ona yatır
-    if(typeof wlAddIncome === 'function'){
-      wlAddIncome('eur', d.signingBonus, `İmza Parası — ${d.teamName} (kontrat onaylandı)`);
-    }
   }
 
-  // Oyuncu sözleşmesini imzala (kullanıcının _userTeam.contract'ı kurulur)
-  // Bu, kullanıcının kendi katılımı senaryosunda otomatik oluşur.
-  // Multi-user'da: bu istek yapan kullanıcıya gider (backend); şimdi sadece test simülasyonu.
   const fmt = (v) => v >= 1e6 ? (v/1e6).toFixed(2)+'M €' : Math.round(v/1000)+'K €';
   const captainName = (typeof getTeamRealCaptainName === 'function')
     ? getTeamRealCaptainName(d.countryCode, d.teamName) : 'Kaptan';
 
-  // İstek yapan = mevcut kullanıcı senaryosu (test panelinde de bu)
+  // 🆕 ÇOK KULLANICILI: İstek yapana onay mesajını GERÇEK INBOX'INA gönder
+  // Mesajın meta'sında contract bilgileri var, alıcı inbox'ı açtığında otomatik takıma yerleşir
+  const info = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : { season: 1, dayInSeason: 1 };
+  const contractData = {
+    signedAt: Date.now(),
+    signedSeason: info.season,
+    signedDay: info.dayInSeason,
+    signingBonus: d.signingBonus,
+    yearlySalary: d.yearlySalary,
+    durationSeasons: d.durationSeasons,
+    endsSeason: info.season + d.durationSeasons - 1,
+    capName: captainName,
+    canLeaveFreely: false,
+    unpaidInstallments: 0,
+  };
+
+  // İstek yapan = mevcut kullanıcı mı? (eski tek-kullanıcı senaryosu desteği)
   const myName = (window.authUser||{}).name || 'Sen';
-  if(d.requestorName === myName){
-    // Kullanıcıyı takıma fiilen kaydet + sözleşme yapıştır
+  const myUserId = (window.authUser||{}).id || null;
+  const isSameUser = (d.requestorUserId && d.requestorUserId === myUserId) || d.requestorName === myName;
+
+  if(isSameUser){
+    // Aynı kullanıcı: hemen kendi takımına yerleş
     try {
       if(typeof joinTeamDirect === 'function'){
         joinTeamDirect(d.countryCode, d.teamName, { skipToast: true });
@@ -28131,52 +28150,45 @@ window.inboxApproveJoinRequest = function(msgId){
           countryCode: d.countryCode, teamName: d.teamName,
           role: 'member', joinedAt: Date.now(),
         };
-        if(typeof userTeamSave === 'function') userTeamSave();
       }
-      // Sözleşme bilgisi
-      const info = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : { season: 1, dayInSeason: 1 };
-      window._userTeam.contract = {
-        signedAt: Date.now(),
-        signedSeason: info.season,
-        signedDay: info.dayInSeason,
-        signingBonus: d.signingBonus,
-        yearlySalary: d.yearlySalary,
-        durationSeasons: d.durationSeasons,
-        endsSeason: info.season + d.durationSeasons - 1,
-        capName: captainName,
-        canLeaveFreely: false,
-        unpaidInstallments: 0,
-      };
+      window._userTeam.contract = contractData;
       if(typeof userTeamSave === 'function') userTeamSave();
-    } catch(e){
-      console.warn('Sözleşme kurulum hatası:', e);
-    }
+      // İmza parasını cüzdana yatır
+      if(d.signingBonus > 0 && typeof wlAddIncome === 'function'){
+        wlAddIncome('eur', d.signingBonus, `İmza Parası — ${d.teamName} (kontrat onaylandı)`);
+      }
+    } catch(e){ console.warn('Sözleşme kurulum hatası:', e); }
+  } else if(d.requestorUserId && typeof inboxSendToUser === 'function'){
+    // 🆕 Başka kullanıcı: onay mesajını + sözleşme meta'sını alıcının inbox'una gönder
+    // Alıcı inbox açtığında otomatik takıma yerleşecek (aşağıdaki _inboxProcessIncomingApprovals fonksiyonu)
+    await inboxSendToUser(d.requestorUserId, {
+      id: 'jr_resp_ok_' + Date.now(),
+      from: `${d.teamName} Yönetimi`,
+      fromAvatar: '✅',
+      type: 'join_request_approved',
+      subject: `Sözleşmen Onaylandı — ${d.teamName}`,
+      body: `🎉 Tebrikler! ${captainName}, ${d.teamName} takımına katılma isteğini onayladı.\n\nSözleşme şartların:\n• İmza Parası: ${fmt(d.signingBonus)} (cüzdanına yatırıldı)\n• Yıllık Ücret: ${fmt(d.yearlySalary)} (sezonun 19 ve 38. gününde 2 taksit)\n• Süre: ${d.durationSeasons} sezon\n\nArtık ${d.teamName} takımının kontratlı oyuncususun.`,
+      offerApproved: true,
+      contractMeta: {
+        countryCode: d.countryCode,
+        teamName: d.teamName,
+        contract: contractData,
+      },
+    });
   }
 
-  // İsteği approved işaretle
+  // İsteği approved işaretle (kaptanın kendi inbox'unda)
   msg.offerStatus = 'approved';
   msg.read = true;
 
-  // Bekleyen listede status güncelle
-  try {
-    const list = JSON.parse(localStorage.getItem('cft_joinRequests') || '[]');
-    list.forEach(r => {
-      if(r.countryCode === d.countryCode && r.teamName === d.teamName && r.status === 'pending'){
-        r.status = 'approved';
-        r.respondedAt = Date.now();
-      }
-    });
-    localStorage.setItem('cft_joinRequests', JSON.stringify(list));
-  } catch(e){}
-
-  // Karşı tarafa (istek yapana) onay mesajı
+  // Karşı tarafa (kaptanın kendi inbox'una) işlem kayıt mesajı
   msgs.unshift({
     id: 'jr_resp_ok_' + Date.now(),
     from: `${d.teamName} Yönetimi`,
     fromAvatar: '✅',
     type: 'system',
-    subject: `Sözleşmen Onaylandı — ${d.teamName}`,
-    body: `🎉 Tebrikler! ${captainName}, ${d.teamName} takımına katılma isteğini onayladı.\n\nSözleşme şartların:\n• İmza Parası: ${fmt(d.signingBonus)} (cüzdanına yatırıldı)\n• Yıllık Ücret: ${fmt(d.yearlySalary)} (sezonun 19 ve 38. gününde 2 taksit)\n• Süre: ${d.durationSeasons} sezon\n\nArtık ${d.teamName} takımının kontratlı oyuncususun.`,
+    subject: `${d.requestorName} İçin Sözleşme Onayladın`,
+    body: `${d.requestorName} adlı oyuncuyu takıma kattın.\n\n• İmza Parası: ${fmt(d.signingBonus)} (kasadan oyuncuya gitti)\n• Yıllık Ücret: ${fmt(d.yearlySalary)}\n• Süre: ${d.durationSeasons} sezon`,
     time: new Date().toLocaleDateString('tr'),
     read: false,
     thread: [],
@@ -28192,7 +28204,7 @@ window.inboxApproveJoinRequest = function(msgId){
   try {
     const t = document.createElement('div');
     t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#00c853;color:#fff;padding:12px 22px;border-radius:24px;font-size:13px;font-weight:700;z-index:9999;font-family:"Barlow Condensed",sans-serif;letter-spacing:.4px;box-shadow:0 8px 24px rgba(0,0,0,.4)';
-    t.textContent = `✅ Sözleşme imzalandı! ${fmt(d.signingBonus)} kasadan oyuncu cüzdanına aktarıldı.`;
+    t.textContent = `✅ ${d.requestorName} takıma katıldı! ${fmt(d.signingBonus)} kasadan ödendi.`;
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 3000);
   } catch(e){}
@@ -49975,20 +49987,117 @@ function _enforceTransferWindow(actionLabel) {
   }
   const next = (typeof getNextTransferWindowInfo === 'function') ? getNextTransferWindowInfo() : null;
   const info = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : null;
-  const todayStr = info ? `Bugün: ${info.dayInSeason}. gün` : '';
-  const nextStr = next
-    ? `Sonraki transfer dönemi: ${next.label} (${next.startDay}-${next.endDay}. günler)`
-    : '';
   const lbl = actionLabel || 'Transfer';
-  const msg = `⛔ TRANSFER DÖNEMİ KAPALI\n\n` +
-              `${lbl} işlemi sadece transfer dönemlerinde yapılabilir:\n\n` +
-              `📆 Ara Transfer:    16-18. günler\n` +
-              `📆 Sezon Arası:     34-40. günler\n\n` +
-              (todayStr ? todayStr + '\n' : '') +
-              (nextStr ? nextStr + '\n' : '') +
-              `\nNot: Serbest oyuncular bu kuraldan etkilenmez (her zaman katılabilir).`;
-  try { alert(msg); } catch(e) {}
-  return { blocked: true, message: msg };
+
+  // 🆕 Şık modal (alert yerine)
+  showInfoModal({
+    icon: '🚫',
+    iconColor: '#ef4444',
+    title: 'Transfer Dönemi Kapalı',
+    subtitle: `${lbl} işlemi sadece transfer dönemlerinde yapılabilir`,
+    body: `
+      <div class="info-modal-rows">
+        <div class="info-modal-row">
+          <div class="info-modal-row-ic">📆</div>
+          <div class="info-modal-row-body">
+            <div class="info-modal-row-lbl">Ara Transfer</div>
+            <div class="info-modal-row-val">16-18. günler</div>
+          </div>
+        </div>
+        <div class="info-modal-row">
+          <div class="info-modal-row-ic">📆</div>
+          <div class="info-modal-row-body">
+            <div class="info-modal-row-lbl">Sezon Arası</div>
+            <div class="info-modal-row-val">34-40. günler</div>
+          </div>
+        </div>
+      </div>
+      <div class="info-modal-divider"></div>
+      <div class="info-modal-rows">
+        ${info ? `
+        <div class="info-modal-row info-modal-row-flat">
+          <div class="info-modal-row-body">
+            <div class="info-modal-row-lbl">Bugün</div>
+            <div class="info-modal-row-val">${info.dayInSeason}. gün</div>
+          </div>
+        </div>` : ''}
+        ${next ? `
+        <div class="info-modal-row info-modal-row-flat info-modal-row-highlight">
+          <div class="info-modal-row-body">
+            <div class="info-modal-row-lbl">Sonraki Dönem</div>
+            <div class="info-modal-row-val">${next.label} · ${next.startDay}-${next.endDay}. günler</div>
+          </div>
+        </div>` : ''}
+      </div>
+      <div class="info-modal-note">
+        💡 Serbest oyuncular bu kuraldan etkilenmez — her zaman katılabilir.
+      </div>
+    `
+  });
+  return { blocked: true, message: 'Transfer dönemi kapalı.' };
+}
+
+// 🆕 Şık bilgilendirme modalı — alert yerine her yerden çağrılabilir
+// Kullanım: showInfoModal({ icon, iconColor, title, subtitle, body (HTML), btnText })
+function showInfoModal(opts) {
+  opts = opts || {};
+  const existing = document.getElementById('cftInfoModal');
+  if (existing) existing.remove();
+  const modal = document.createElement('div');
+  modal.id = 'cftInfoModal';
+  const icon = opts.icon || 'ℹ️';
+  const iconColor = opts.iconColor || '#5fb8ff';
+  const title = opts.title || 'Bilgi';
+  const subtitle = opts.subtitle || '';
+  const body = opts.body || '';
+  const btnText = opts.btnText || 'Anladım';
+
+  modal.innerHTML = `
+    <style>
+      #cftInfoModal{position:fixed;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(4px);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;animation:cftInfoFade .2s ease}
+      @keyframes cftInfoFade{from{opacity:0}to{opacity:1}}
+      .info-modal-box{background:linear-gradient(180deg,#1a1f2e 0%,#0f1320 100%);border-radius:18px;max-width:440px;width:100%;max-height:85vh;display:flex;flex-direction:column;border:1px solid rgba(95,184,255,.22);box-shadow:0 24px 60px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.06);overflow:hidden;animation:cftInfoSlide .25s cubic-bezier(.34,1.2,.64,1)}
+      @keyframes cftInfoSlide{from{transform:translateY(20px) scale(.96);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
+      .info-modal-header{position:relative;padding:22px 22px 16px;background:linear-gradient(135deg,${iconColor}22,rgba(0,0,0,.18));border-bottom:1px solid rgba(255,255,255,.06);text-align:center}
+      .info-modal-icon-wrap{width:54px;height:54px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:28px;background:linear-gradient(135deg,${iconColor}33,${iconColor}11);border:2px solid ${iconColor};box-shadow:0 0 24px ${iconColor}33,inset 0 1px 0 rgba(255,255,255,.18);margin-bottom:10px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.4))}
+      .info-modal-title{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;letter-spacing:.5px;color:#fff;line-height:1.1;text-transform:uppercase}
+      .info-modal-subtitle{font-size:12.5px;color:#90caf9;margin-top:6px;line-height:1.4;font-weight:600;letter-spacing:.2px}
+      .info-modal-close{position:absolute;top:12px;right:12px;background:rgba(255,255,255,.06);border:none;color:#fff;width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;transition:all .2s}
+      .info-modal-close:hover{background:rgba(255,255,255,.14);transform:rotate(90deg)}
+      .info-modal-body{padding:18px 20px;overflow-y:auto;flex:1}
+      .info-modal-rows{display:flex;flex-direction:column;gap:8px}
+      .info-modal-row{display:flex;align-items:center;gap:12px;padding:11px 14px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:11px}
+      .info-modal-row-flat{padding:9px 14px}
+      .info-modal-row-highlight{background:linear-gradient(135deg,rgba(105,240,174,.12),rgba(0,0,0,.0));border-color:rgba(105,240,174,.3)}
+      .info-modal-row-ic{font-size:20px;flex-shrink:0;width:28px;text-align:center}
+      .info-modal-row-body{flex:1;min-width:0}
+      .info-modal-row-lbl{font-size:10px;color:#8b90a0;text-transform:uppercase;letter-spacing:.6px;font-weight:800;line-height:1}
+      .info-modal-row-val{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;color:#e3f2fd;line-height:1.1;margin-top:4px;letter-spacing:.3px}
+      .info-modal-divider{height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.1),transparent);margin:14px 0}
+      .info-modal-note{margin-top:14px;padding:10px 14px;background:rgba(255,213,79,.08);border:1px solid rgba(255,213,79,.2);border-radius:11px;font-size:12px;color:#ffd54f;line-height:1.5;font-weight:600}
+      .info-modal-footer{padding:14px 20px 18px;background:rgba(0,0,0,.2);border-top:1px solid rgba(255,255,255,.04)}
+      .info-modal-btn{width:100%;padding:13px 18px;border:none;border-radius:11px;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;background:linear-gradient(180deg,${iconColor},${iconColor}dd);color:#fff;box-shadow:0 4px 14px ${iconColor}55,inset 0 1px 0 rgba(255,255,255,.2);transition:all .15s}
+      .info-modal-btn:hover{transform:translateY(-1px);box-shadow:0 6px 18px ${iconColor}77,inset 0 1px 0 rgba(255,255,255,.22);filter:brightness(1.08)}
+    </style>
+    <div class="info-modal-box">
+      <div class="info-modal-header">
+        <div class="info-modal-icon-wrap">${icon}</div>
+        <div class="info-modal-title">${title}</div>
+        ${subtitle ? `<div class="info-modal-subtitle">${subtitle}</div>` : ''}
+        <button class="info-modal-close" onclick="closeInfoModal()" aria-label="Kapat">✕</button>
+      </div>
+      <div class="info-modal-body">${body}</div>
+      <div class="info-modal-footer">
+        <button class="info-modal-btn" onclick="closeInfoModal()">${btnText}</button>
+      </div>
+    </div>`;
+  modal.addEventListener('click', (e) => { if (e.target === modal) closeInfoModal(); });
+  document.body.appendChild(modal);
+}
+
+function closeInfoModal() {
+  const m = document.getElementById('cftInfoModal');
+  if (m) m.remove();
 }
 
 
@@ -64541,7 +64650,60 @@ async function _inboxLoadFromServer() {
       .maybeSingle();
     if (error) { console.warn('[inbox] load hata:', error); _inboxCache = null; return; }
     _inboxCache = (data && Array.isArray(data.messages)) ? data.messages : null;
+    // 🆕 Onaylanan katılma istekleri otomatik takıma yerleştir
+    if (typeof _inboxProcessApprovedJoinRequests === 'function') {
+      await _inboxProcessApprovedJoinRequests();
+    }
   } catch(e) { console.warn('[inbox] load hata:', e); _inboxCache = null; }
+}
+
+// 🆕 İnbox'a gelen onay mesajlarını işle — kullanıcıyı takıma fiilen yerleştir
+// Onay mesajları bir kez işlenir (offerProcessed=true işaretlenir)
+async function _inboxProcessApprovedJoinRequests() {
+  if (!Array.isArray(_inboxCache) || !authUser || !authUser.id) return;
+  let changed = false;
+  for (const msg of _inboxCache) {
+    if (msg.type !== 'join_request_approved') continue;
+    if (msg.offerProcessed) continue; // zaten işlenmiş
+    const meta = msg.contractMeta;
+    if (!meta || !meta.countryCode || !meta.teamName) continue;
+    // Kullanıcı zaten o takımdaysa (örn. cihaz B'de daha önce işlendiyse) skip
+    if (typeof _userTeam !== 'undefined' && _userTeam
+        && _userTeam.countryCode === meta.countryCode
+        && _userTeam.teamName === meta.teamName) {
+      msg.offerProcessed = true;
+      changed = true;
+      continue;
+    }
+    // Takıma fiilen yerleş
+    try {
+      if (typeof joinTeamDirect === 'function') {
+        joinTeamDirect(meta.countryCode, meta.teamName, { skipToast: true });
+      } else {
+        window._userTeam = {
+          countryCode: meta.countryCode,
+          teamName: meta.teamName,
+          role: 'member',
+          joinedAt: Date.now(),
+        };
+      }
+      if (window._userTeam && meta.contract) {
+        window._userTeam.contract = meta.contract;
+      }
+      if (typeof userTeamSave === 'function') userTeamSave();
+      // İmza parasını cüzdana yatır
+      if (meta.contract && meta.contract.signingBonus > 0 && typeof wlAddIncome === 'function') {
+        wlAddIncome('eur', meta.contract.signingBonus, `İmza Parası — ${meta.teamName} (kontrat onaylandı)`);
+      }
+      msg.offerProcessed = true;
+      changed = true;
+      // UI güncelle
+      if (typeof applyUserTeamUI === 'function') applyUserTeamUI();
+      if (typeof renderRoster === 'function') renderRoster('all');
+      if (typeof updateHero === 'function') updateHero();
+    } catch(e) { console.warn('[inbox] join onay işleme hatası:', e); }
+  }
+  if (changed && typeof saveInboxMsgs === 'function') saveInboxMsgs(_inboxCache);
 }
 
 // Sync getter — mevcut kod imzasını koru
