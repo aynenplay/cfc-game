@@ -27409,26 +27409,45 @@ let _realCaptainsLoading = null;
 
 async function _loadRealCaptainsFromServer() {
   if (!window.sb) return _realCaptainsCache;
-  // 60 saniye cache (sık sorguda spam olmasın). Manuel yenileme için _realCaptainsCacheTs=0 yap.
   if ((Date.now() - _realCaptainsCacheTs) < 60000 && Object.keys(_realCaptainsCache).length > 0) {
     return _realCaptainsCache;
   }
   if (_realCaptainsLoading) return _realCaptainsLoading;
   _realCaptainsLoading = (async () => {
     try {
-      // user_id'si olan (gerçek kullanıcı) ve user_team_data dolu olanlar
+      // 🆕 Kapsamlı kullanıcı bilgisi çek: avatar, level, overall, pos, last_seen
       const { data, error } = await window.sb.from('players')
-        .select('user_id, user_team_data, name')
+        .select('user_id, user_team_data, name, avatar, level, overall, rating, pos, pos_group, nationality, nation, last_seen, xp')
         .not('user_id', 'is', null)
         .not('user_team_data', 'is', null);
       if (error) { console.warn('[realCaptains] load hata:', error); return _realCaptainsCache; }
       const cache = {};
+      const ONLINE_THRESHOLD_MS = 5 * 60 * 1000; // 5 dk
+      const nowMs = Date.now();
       for (const row of (data || [])) {
         const t = row.user_team_data;
         if (!t || !t.countryCode || !t.teamName) continue;
         const key = t.countryCode + ':' + t.teamName;
         if (!cache[key]) cache[key] = { captainUserId: null, captainName: null, members: [] };
-        cache[key].members.push({ userId: row.user_id, role: t.role || 'member', name: row.name || 'Oyuncu' });
+        // Online?
+        const lastSeenMs = row.last_seen ? new Date(row.last_seen).getTime() : 0;
+        const isOnline = lastSeenMs && (nowMs - lastSeenMs < ONLINE_THRESHOLD_MS);
+        cache[key].members.push({
+          userId: row.user_id,
+          role: t.role || 'member',
+          name: row.name || 'Oyuncu',
+          avatar: row.avatar || '👤',
+          level: Number(row.level || 0),
+          xp: Number(row.xp || 0),
+          overall: Number(row.overall || 10),
+          rating: Number(row.rating || row.overall || 10),
+          pos: row.pos || 'MID',
+          posGroup: row.pos_group || row.pos || 'MID',
+          nationality: row.nationality || t.countryCode,
+          nation: row.nation || null,
+          isOnline,
+          lastSeen: row.last_seen || null,
+        });
         if (t.role === 'captain') {
           cache[key].captainUserId = row.user_id;
           cache[key].captainName = row.name || 'Kaptan';
@@ -38424,6 +38443,9 @@ function authInit(){
           // 🆕 Antrenman + oyuncu sayfaları cache dolduktan sonra zorla yenile
           if (typeof trRender === 'function') { try { trRender(); } catch(e){} }
           if (typeof renderPlayer === 'function') { try { renderPlayer(); } catch(e){} }
+          // 🆕 Fikstür cache'i sıfırla ve ana sayfa maç önizleme paneli güncelle
+          if (typeof invalidateFixtureCache === 'function') invalidateFixtureCache();
+          if (typeof renderHomeNextMatch === 'function') { try { renderHomeNextMatch(); } catch(e){} }
         } catch(e) {
           console.warn('[Supabase] session restore hata:', e);
         }
@@ -38801,6 +38823,9 @@ function doLogin(){
         if(typeof renderPlayer === 'function') { try { renderPlayer(); } catch(e){} }
         // 🆕 Inbox badge'i güncelle (login sonrası okunmamış mesaj göstergesi)
         if(typeof inboxUpdateBadge === 'function') { try { inboxUpdateBadge(); } catch(e){} }
+        // 🆕 Fikstür cache + ana sayfa maç önizleme
+        if(typeof invalidateFixtureCache === 'function') invalidateFixtureCache();
+        if(typeof renderHomeNextMatch === 'function') { try { renderHomeNextMatch(); } catch(e){} }
       }, 500);
     } catch(e){
       authShowMsg('error','Beklenmeyen hata: ' + (e.message || e));
@@ -39146,24 +39171,42 @@ function rosterBuildTeam(countryCode) {
   ROSTER_DATA = [userPlayer, ...otherBots];
 
   // 🆕 Aynı takımdaki diğer gerçek kullanıcıları EK olarak kadroya ekle (botlar dokunulmaz)
-  // Pozisyon dağıtımı: ilk gelene GK, sonra DEF/MID/FWD rotasyonu
+  // Forma numarası: user_id hash'ten deterministik üretilir → her cihazda AYNI numara
+  function _hashNumFromId(uid, min, max) {
+    let h = 0;
+    const s = String(uid || '');
+    for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+    h = Math.abs(h);
+    return min + (h % (max - min + 1));
+  }
+  const usedNums = new Set(ROSTER_DATA.map(p => p.num));
   const POS_ROTATION = ['DEF', 'MID', 'FWD', 'DEF', 'MID', 'FWD'];
   let posIdx = 0;
   for (const realM of otherRealMembers) {
     const pos = realM.pos || POS_ROTATION[posIdx % POS_ROTATION.length];
     posIdx++;
+    // user_id'den deterministik num (30-99 arası), bot numaralarıyla çakışırsa kaydır
+    let num = _hashNumFromId(realM.userId, 30, 99);
+    let tries = 0;
+    while (usedNums.has(num) && tries < 70) { num = 30 + ((num - 30 + 1) % 70); tries++; }
+    usedNums.add(num);
     const realPlayer = {
-      num: 30 + ROSTER_DATA.length, // bot numaralarıyla çakışmasın
+      num,
       pos,
-      posGroup: POSGRP[pos] || pos,
+      posGroup: realM.posGroup || POSGRP[pos] || pos,
       name: realM.name || 'Oyuncu',
-      nation: userPlayer.nation,
-      nationality: countryCode,
-      level: 0, xp: 0, overall: 10, rating: 10,
-      avatar: '👤',
+      nation: realM.nation || userPlayer.nation,
+      nationality: realM.nationality || countryCode,
+      level: realM.level || 0,
+      xp: realM.xp || 0,
+      overall: realM.overall || 10,
+      rating: realM.rating || realM.overall || 10,
+      avatar: realM.avatar || '👤',
       role: realM.role || 'member',
       isBot: false,
       userId: realM.userId,
+      isOnline: !!realM.isOnline,
+      lastSeen: realM.lastSeen || null,
     };
     ROSTER_DATA.push(realPlayer);
   }
@@ -39188,6 +39231,89 @@ function rosterBuildTeam(countryCode) {
       benchPlayers.length = 0;
     }
   } catch(e) {}
+
+  // 🆕 Async fresh fetch — gerçek üyeleri DB'den ANINDA çek ve ROSTER_DATA'yı güncelle
+  // (cache stale olsa bile bu garanti taze veriyle çalışır)
+  _rosterRefreshRealMembers(countryCode);
+}
+
+// 🆕 Gerçek üyeleri Supabase'ten taze çekip ROSTER_DATA'ya entegre et
+async function _rosterRefreshRealMembers(countryCode) {
+  if (!window.sb || !_userTeam || !_userTeam.teamName) return;
+  try {
+    const { data, error } = await window.sb.from('players')
+      .select('user_id, name, avatar, level, overall, rating, pos, pos_group, nationality, nation, last_seen, xp, user_team_data')
+      .eq('country_code', countryCode)
+      .eq('team_name', _userTeam.teamName)
+      .not('user_id', 'is', null);
+    if (error) { console.warn('[rosterRefresh] hata:', error); return; }
+
+    const myUserId = (window.authUser || {}).id;
+    const realMembers = (data || []).filter(r => r.user_id !== myUserId);
+    if (realMembers.length === 0) return;
+
+    // ROSTER_DATA'dan eski gerçek üyeleri çıkar (yeniden ekleyeceğiz)
+    ROSTER_DATA = ROSTER_DATA.filter(p => p.role === 'user' || p.isBot);
+
+    const POSGRP = (typeof POS_GROUP !== 'undefined') ? POS_GROUP : {};
+    const POS_ROTATION = ['DEF', 'MID', 'FWD', 'DEF', 'MID', 'FWD'];
+    const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
+    const nowMs = Date.now();
+
+    function _hashNum(uid, min, max) {
+      let h = 0;
+      const s = String(uid || '');
+      for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+      h = Math.abs(h);
+      return min + (h % (max - min + 1));
+    }
+
+    const usedNums = new Set(ROSTER_DATA.map(p => p.num));
+    let posIdx = 0;
+    for (const r of realMembers) {
+      const tInfo = r.user_team_data || {};
+      const role = tInfo.role || 'member';
+      const pos = r.pos || POS_ROTATION[posIdx % POS_ROTATION.length];
+      posIdx++;
+      let num = _hashNum(r.user_id, 30, 99);
+      let tries = 0;
+      while (usedNums.has(num) && tries < 70) { num = 30 + ((num - 30 + 1) % 70); tries++; }
+      usedNums.add(num);
+      const lastSeenMs = r.last_seen ? new Date(r.last_seen).getTime() : 0;
+      const isOnline = lastSeenMs && (nowMs - lastSeenMs < ONLINE_THRESHOLD_MS);
+      ROSTER_DATA.push({
+        num,
+        pos,
+        posGroup: r.pos_group || POSGRP[pos] || pos,
+        name: r.name || 'Oyuncu',
+        nation: r.nation || null,
+        nationality: r.nationality || countryCode,
+        level: Number(r.level || 0),
+        xp: Number(r.xp || 0),
+        overall: Number(r.overall || 10),
+        rating: Number(r.rating || r.overall || 10),
+        avatar: r.avatar || '👤',
+        role,
+        isBot: false,
+        userId: r.user_id,
+        isOnline: !!isOnline,
+        lastSeen: r.last_seen || null,
+      });
+    }
+
+    // Gerçek kaptan varsa bot kaptanı member yap
+    const realCaptainExists = realMembers.some(r => (r.user_team_data||{}).role === 'captain')
+      || (_userTeam && _userTeam.role === 'captain');
+    if (realCaptainExists) {
+      for (const p of ROSTER_DATA) {
+        if (p.isBot && p.role === 'captain') p.role = 'member';
+      }
+    }
+
+    // Re-render
+    if (typeof renderRoster === 'function') renderRoster('all');
+    if (typeof updateHero === 'function') updateHero();
+  } catch(e) { console.warn('[rosterRefresh] exception:', e); }
 }
 
 // Takımdan çıktığında: sadece user kalır
