@@ -24262,6 +24262,8 @@ document.addEventListener('DOMContentLoaded', function(){
       const k = localStorage.key(i);
       if (k && k.startsWith('cft_eurocup_s')) localStorage.removeItem(k);
     }
+    // 🆕 Hazırlık maçları artık Supabase'de
+    localStorage.removeItem('cft_friendly_matches');
   } catch(e) {}
 });
 
@@ -48181,15 +48183,76 @@ function captainScheduleFriendly() {
 }
 
 // ── Hazırlık Maçı (FRiendly Match) sistemi ─────────────────────────
-const FRM_MATCHES_KEY = 'cft_friendly_matches';
 const FRM_BUFFER_MS = 60 * 60 * 1000; // ±1 saat
 
-function frmGetMatches() {
-  try { return JSON.parse(localStorage.getItem(FRM_MATCHES_KEY) || '[]'); }
-  catch(e) { return []; }
+// 🆕 RAM cache: hazırlık maçları (bootstrap'ta Supabase'ten yüklenir)
+let _frmMatchesCache = [];
+
+// Server'dan tüm hazırlık maçlarını yükle (bootstrap)
+async function _frmLoadFromServer() {
+  if (!window.sb) { _frmMatchesCache = []; return; }
+  try {
+    const { data, error } = await window.sb.from('friendly_matches')
+      .select('id, match_data, created_at');
+    if (error) { console.warn('[frm] load hata:', error); _frmMatchesCache = []; return; }
+    _frmMatchesCache = (data || []).map(r => r.match_data || {});
+    console.info('[frm] yüklendi:', _frmMatchesCache.length, 'hazırlık maçı');
+  } catch(e) { console.warn('[frm] load hata:', e); _frmMatchesCache = []; }
 }
+
+// Sync API - RAM cache döner
+function frmGetMatches() {
+  return _frmMatchesCache.slice();
+}
+
+// Tek bir maçı server'a yaz (upsert)
+async function _frmUpsertOne(match) {
+  if (!window.sb || !match || !match.id) return;
+  try {
+    const uid = (window._userTeam && window._userTeam.userId) || null;
+    await window.sb.from('friendly_matches').upsert({
+      id: match.id,
+      user_id: uid,
+      match_data: match,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'id' });
+  } catch(e) { console.warn('[frm] upsert hata:', e); }
+}
+
+// Tek bir maçı sil
+async function _frmDeleteOne(matchId) {
+  if (!window.sb || !matchId) return;
+  try {
+    await window.sb.from('friendly_matches').delete().eq('id', matchId);
+  } catch(e) { console.warn('[frm] delete hata:', e); }
+}
+
+// frmSaveMatches: tüm dizi gelince diff hesaplayıp yalnız değişenleri yaz
+// Bu mevcut kodun davranışını korur (frmSaveMatches(updatedArr) çağrıları)
 function frmSaveMatches(arr) {
-  try { localStorage.setItem(FRM_MATCHES_KEY, JSON.stringify(arr)); } catch(e){}
+  if (!Array.isArray(arr)) return;
+  const oldById = {};
+  for (const m of _frmMatchesCache) {
+    if (m && m.id) oldById[m.id] = m;
+  }
+  const newById = {};
+  for (const m of arr) {
+    if (m && m.id) newById[m.id] = m;
+  }
+  // Silinen
+  for (const id in oldById) {
+    if (!newById[id]) _frmDeleteOne(id);
+  }
+  // Yeni veya değişen
+  for (const id in newById) {
+    const oldM = oldById[id];
+    const newM = newById[id];
+    if (!oldM || JSON.stringify(oldM) !== JSON.stringify(newM)) {
+      _frmUpsertOne(newM);
+    }
+  }
+  // RAM cache güncelle
+  _frmMatchesCache = arr.slice();
 }
 
 // 🆕 Verilen takımın gerçek lig fikstür maçlarının zamanları (datetime ms array)
@@ -72191,6 +72254,7 @@ setTimeout(async ()=>{
   try { await _worldStateLoadFromServer(); } catch(e) { console.warn('worldState load hata:', e); }
   try { await _matchResultsLoadFromServer(); } catch(e) { console.warn('matchResults load hata:', e); }
   try { await _tournamentStateLoadFromServer(); } catch(e) { console.warn('tournamentState load hata:', e); }
+  try { await _frmLoadFromServer(); } catch(e) { console.warn('friendly load hata:', e); }
   try { await userTeamLoadFromServer(); } catch(e) { console.warn('userTeamLoadFromServer hata:', e); }
   try { authInit(); } catch(e) { console.warn('authInit hata:', e); }
   document.getElementById('splash').classList.add('hide');
