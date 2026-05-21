@@ -39102,16 +39102,32 @@ function rosterBuildTeam(countryCode) {
     ? teamEntry.members.filter(m => m.userId && m.userId !== myUserId)
     : [];
 
+  // 🆕 Gerçek kullanıcılar arasında kaptan var mı?
+  const realCaptainExists = otherRealMembers.some(m => m.role === 'captain')
+    || (_userTeam && _userTeam.role === 'captain');
+  // Gerçek kullanıcı yardımcı kaptan sayısı
+  const realViceCount = otherRealMembers.filter(m => m.role === 'vice').length
+    + ((_userTeam && _userTeam.role === 'vice') ? 1 : 0);
+
   // Diğer botlar: aynı slot'u atla, role ataması yap
+  // 🆕 Gerçek kullanıcı kaptan/vice varsa botlar member olur
   const isUserCaptain = (_userTeam && _userTeam.role === 'captain');
+  const isUserVice = (_userTeam && _userTeam.role === 'vice');
   const otherBots = fullRoster.filter((_, i) => i !== userSlotIdx).map((p, i) => {
     let role;
-    if (isUserCaptain) {
-      role = i < 3 ? 'vice' : 'member';
+    // Maks 1 kaptan + 3 vice. Gerçek kullanıcılar öncelikli.
+    const realCapTotal = (realCaptainExists ? 1 : 0);
+    const realViceTotal = realViceCount;
+    // Bot kaptanı: gerçek kaptan yoksa → ilk bot kaptan olur
+    // Bot vice: kalan vice slot'larını botlar doldurur
+    const botCaptainSlotsRemaining = 1 - realCapTotal - (isUserCaptain ? 1 : 0);
+    const botViceSlotsRemaining = Math.max(0, 3 - realViceTotal - (isUserVice ? 1 : 0));
+    if (i === 0 && botCaptainSlotsRemaining > 0) {
+      role = 'captain';
+    } else if (i < botViceSlotsRemaining + (botCaptainSlotsRemaining > 0 ? 1 : 0)) {
+      role = 'vice';
     } else {
-      if (i === 0) role = 'captain';
-      else if (i < 4) role = 'vice';
-      else role = 'member';
+      role = 'member';
     }
     return {
       ...p,
@@ -42795,7 +42811,57 @@ async function _teamChatLoadAndRender() {
     }
     area.scrollTop = area.scrollHeight;
     requestAnimationFrame(() => { area.scrollTop = area.scrollHeight; });
+
+    // 🆕 Realtime subscription — yeni mesajları anlık dinle
+    _teamChatSubscribe();
   } catch(e) { console.warn('[team_chat] load hata:', e); }
+}
+
+// 🆕 Realtime subscription state
+let _teamChatChannel = null;
+let _teamChatChannelKey = null;
+
+function _teamChatSubscribe() {
+  if (!window.sb || !_userTeam || !_userTeam.countryCode || !_userTeam.teamName) return;
+  const newKey = _userTeam.countryCode + ':' + _userTeam.teamName;
+  // Aynı takım için zaten dinleniyorsa atla
+  if (_teamChatChannelKey === newKey && _teamChatChannel) return;
+  // Önceki kanalı kapat (takım değiştiyse)
+  if (_teamChatChannel) {
+    try { window.sb.removeChannel(_teamChatChannel); } catch(e) {}
+    _teamChatChannel = null;
+  }
+
+  const myId = (typeof authUser !== 'undefined' && authUser) ? authUser.id : null;
+  _teamChatChannelKey = newKey;
+  _teamChatChannel = window.sb.channel('team_chat:' + newKey)
+    .on('postgres_changes', {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'team_chat',
+      filter: `team_name=eq.${_userTeam.teamName}`,
+    }, (payload) => {
+      const m = payload.new;
+      // Sadece kendi takımının mesajını al (filter team_name ile çalışıyor ama country için ekstra)
+      if (!m || m.country_code !== _userTeam.countryCode || m.team_name !== _userTeam.teamName) return;
+      // Kendi gönderdiğim mesaj zaten sendTeamChat tarafından ekrana eklendi, dublicate engelle
+      if (m.user_id && m.user_id === myId) return;
+      const area = document.getElementById('teamChatArea');
+      if (!area) return;
+      _teamChatAppendMsg(area, m, false);
+      area.scrollTop = area.scrollHeight;
+    })
+    .subscribe((status) => {
+      console.info('[team_chat] realtime status:', status, newKey);
+    });
+}
+
+function _teamChatUnsubscribe() {
+  if (_teamChatChannel) {
+    try { window.sb.removeChannel(_teamChatChannel); } catch(e) {}
+    _teamChatChannel = null;
+    _teamChatChannelKey = null;
+  }
 }
 
 // Sayfa açılışında kadroyu render et
@@ -64762,6 +64828,8 @@ async function _inboxLoadFromServer() {
           if (typeof rosterBuildTeam === 'function') rosterBuildTeam(_userTeam.countryCode);
           if (typeof rosterSavePersist === 'function') rosterSavePersist();
         }
+        // 🆕 Fikstür cache'ini sıfırla — yeni takıma göre maçlar görünsün
+        if (typeof invalidateFixtureCache === 'function') invalidateFixtureCache();
         if (typeof exitGuestMode === 'function') exitGuestMode(true);
         if (typeof applyUserTeamUI === 'function') applyUserTeamUI();
         if (typeof renderRoster === 'function') renderRoster('all');
@@ -64769,6 +64837,8 @@ async function _inboxLoadFromServer() {
         if (typeof updateTopbarFromUser === 'function') updateTopbarFromUser();
         if (typeof trsSyncHeader === 'function') trsSyncHeader();
         if (typeof wlSyncHeader === 'function') wlSyncHeader();
+        // 🆕 Ana sayfa maç önizleme panelini yenile
+        if (typeof renderHomeNextMatch === 'function') renderHomeNextMatch();
       } catch(e) { console.warn('[inbox] post-approve refresh hata:', e); }
     }
 
