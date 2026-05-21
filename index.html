@@ -39245,6 +39245,12 @@ async function _rosterRefreshRealMembers(countryCode) {
     console.warn('[rosterRefresh] erken çıkış: sb=', !!window.sb, 'userTeam=', !!_userTeam);
     return;
   }
+  // 🆕 authUser hazır değilse atla — yanlış filtreleme olur (kendisi de "diğer üye" sayılır)
+  const myUserId = (window.authUser || {}).id;
+  if (!myUserId) {
+    console.warn('[rosterRefresh] authUser yok, refresh atlandı. Login sonrası tekrar çağrılacak.');
+    return;
+  }
   try {
     const { data, error } = await window.sb.from('players')
       .select('user_id, name, avatar, level, overall, rating, pos, pos_group, nationality, nation, last_seen, xp, user_team_data')
@@ -39254,7 +39260,6 @@ async function _rosterRefreshRealMembers(countryCode) {
     if (error) { console.warn('[rosterRefresh] DB hata:', error); return; }
     console.info('[rosterRefresh] DB satır sayısı:', (data || []).length);
 
-    const myUserId = (window.authUser || {}).id;
     const realMembers = (data || []).filter(r => r.user_id !== myUserId);
     console.info('[rosterRefresh] benden farklı üye sayısı:', realMembers.length, 'myUserId:', myUserId);
     if (realMembers.length === 0) {
