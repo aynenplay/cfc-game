@@ -37176,7 +37176,20 @@ function showPage(name,btn){
     if(typeof ntTab === 'function') ntTab('roster', rosterTabBtn);
   }
   if(name==='leagues') { lg2RenderList(); }
-  if(name==='training') { trRender(); }
+  if(name==='training') {
+    // 🆕 Sayfa her açıldığında kullanıcının ana mevki grubuna sıfırla
+    try {
+      const userPos = (authUser && authUser.position) || (_userTeam && _userTeam.position);
+      if (userPos) {
+        // Spesifik pozisyondan grup'a çevir (STB→DEF, SAK→MID, ...)
+        const grp = (typeof POS_GROUP !== 'undefined' && POS_GROUP[userPos]) || userPos;
+        if (['GK','DEF','MID','FWD'].includes(grp)) {
+          _trPos = grp;
+        }
+      }
+    } catch(e) {}
+    trRender();
+  }
   if(name==='entertainment') { totoRender(); }
   if(name==='rankings') { if(typeof rkRenderPlayers==='function') rkRenderPlayers(); }
   if(name==='events') {
@@ -37963,16 +37976,21 @@ function authInit(){
           }
 
           if (!sess?.session?.user) {
-            // 🆕 4 deneme sonrası hâlâ oturum yok → gerçek logout
-            console.warn('[Supabase] Oturum bulunamadı (4 deneme sonrası). Login ekranına yönlendiriliyor.', lastError || '');
-            try { localStorage.removeItem('cft_auth'); } catch(e){}
-            authUser = null;
-            if (typeof showAuthScreen === 'function') {
-              showAuthScreen();
-            } else {
-              const a = document.getElementById('auth-screen');
-              if (a) a.classList.remove('hidden');
+            // 🆕 Session restore başarısız (token expired, network sorun, vs.) — kullanıcıyı DIŞARI ATMA
+            // cft_auth varsa UI mevcut kullanıcıyla çalışmaya devam etsin
+            // Sadece kullanıcı kendisi "Çıkış" derse auth ekranına dönülür
+            console.warn('[Supabase] Session restore başarısız — cft_auth ile devam ediliyor.', lastError || '');
+            if (!localStorage.getItem('cft_auth')) {
+              // cft_auth da yoksa gerçekten oturum yok → auth ekranı
+              authUser = null;
+              if (typeof showAuthScreen === 'function') {
+                showAuthScreen();
+              } else {
+                const a = document.getElementById('auth-screen');
+                if (a) a.classList.remove('hidden');
+              }
             }
+            // cft_auth var → mevcut authUser ile devam, UI yüklü kalır
             return;
           }
 
