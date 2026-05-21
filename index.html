@@ -39090,18 +39090,25 @@ function rosterBuildTeam(countryCode) {
     rating: user.rating || user.overall || 10,
     avatar: user.avatar || '⭐',
     role: 'user',
-    isBot: false
+    isBot: false,
+    userId: (window.authUser || {}).id || null,
   };
+
+  // 🆕 Aynı takımdaki diğer gerçek kullanıcıları cache'ten al (kendisi hariç)
+  const myUserId = (window.authUser || {}).id || null;
+  const teamKey = countryCode + ':' + (_userTeam && _userTeam.teamName);
+  const teamEntry = (typeof _realCaptainsCache !== 'undefined') ? _realCaptainsCache[teamKey] : null;
+  const otherRealMembers = (teamEntry && Array.isArray(teamEntry.members))
+    ? teamEntry.members.filter(m => m.userId && m.userId !== myUserId)
+    : [];
 
   // Diğer botlar: aynı slot'u atla, role ataması yap
   const isUserCaptain = (_userTeam && _userTeam.role === 'captain');
   const otherBots = fullRoster.filter((_, i) => i !== userSlotIdx).map((p, i) => {
     let role;
     if (isUserCaptain) {
-      // Kullanıcı kaptan → ilk 3 bot vice, diğerleri member
       role = i < 3 ? 'vice' : 'member';
     } else {
-      // Kullanıcı üye/yardımcı → 0. bot kaptan, sonraki 3 vice (kullanıcı zaten ayrı)
       if (i === 0) role = 'captain';
       else if (i < 4) role = 'vice';
       else role = 'member';
@@ -39110,7 +39117,6 @@ function rosterBuildTeam(countryCode) {
       ...p,
       role,
       isBot: true,
-      // Roster verisinin tam olduğundan emin ol
       posGroup: p.posGroup || POSGRP[p.pos] || p.pos,
       nation: p.nation || userPlayer.nation,
       nationality: p.nationality || countryCode,
@@ -39122,6 +39128,29 @@ function rosterBuildTeam(countryCode) {
   });
 
   ROSTER_DATA = [userPlayer, ...otherBots];
+
+  // 🆕 Aynı takımdaki diğer gerçek kullanıcıları EK olarak kadroya ekle (botlar dokunulmaz)
+  // Pozisyon dağıtımı: ilk gelene GK, sonra DEF/MID/FWD rotasyonu
+  const POS_ROTATION = ['DEF', 'MID', 'FWD', 'DEF', 'MID', 'FWD'];
+  let posIdx = 0;
+  for (const realM of otherRealMembers) {
+    const pos = realM.pos || POS_ROTATION[posIdx % POS_ROTATION.length];
+    posIdx++;
+    const realPlayer = {
+      num: 30 + ROSTER_DATA.length, // bot numaralarıyla çakışmasın
+      pos,
+      posGroup: POSGRP[pos] || pos,
+      name: realM.name || 'Oyuncu',
+      nation: userPlayer.nation,
+      nationality: countryCode,
+      level: 0, xp: 0, overall: 10, rating: 10,
+      avatar: '👤',
+      role: realM.role || 'member',
+      isBot: false,
+      userId: realM.userId,
+    };
+    ROSTER_DATA.push(realPlayer);
+  }
 
   // Persistence: önceden kaydedilmiş roster varsa role değişikliklerini yükle
   const persisted = rosterLoadPersist();
@@ -64723,6 +64752,9 @@ async function _inboxLoadFromServer() {
       try {
         if (typeof userTeamLoadFromServer === 'function') await userTeamLoadFromServer();
         if (typeof wlLoadFromServer === 'function') await wlLoadFromServer();
+        // 🆕 Gerçek kullanıcı listesini de tazele (kadroda Özcan + Hayati görünmesi için)
+        if (typeof _invalidateRealCaptainsCache === 'function') _invalidateRealCaptainsCache();
+        if (typeof _loadRealCaptainsFromServer === 'function') await _loadRealCaptainsFromServer();
         // UI tazele
         if (_userTeam && _userTeam.countryCode) {
           if (typeof rosterClearPersist === 'function') rosterClearPersist();
