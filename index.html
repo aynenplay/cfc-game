@@ -24264,6 +24264,11 @@ document.addEventListener('DOMContentLoaded', function(){
     }
     // 🆕 Hazırlık maçları artık Supabase'de
     localStorage.removeItem('cft_friendly_matches');
+    // 🆕 CFC Media artık Supabase'de
+    localStorage.removeItem('cft_cfcmd_posts');
+    localStorage.removeItem('cft_cfcmd_my_likes');
+    localStorage.removeItem('cft_cfcmd_my_reposts');
+    localStorage.removeItem('cft_cfcmd_following');
   } catch(e) {}
 });
 
@@ -71216,245 +71221,223 @@ function rkRenderCountries(){
 //   InboxAdapter gibi — SocialServerAdapter doldurulup _socialAdapter swap edilir
 //   Tüm fonksiyon imzaları async (server geldiğinde fetch döner)
 
-const SocialLocalAdapter = {
-  // 🌍 Global — tüm postların en çok beğenilenleri
+
+// Aktif adapter (backend gelince SocialServerAdapter ile değişir)
+// ════════════════════════════════════════════════════════════════
+// 🆕 SUPABASE SERVER ADAPTER — gerçek kullanıcılar, sosyal alan
+// ════════════════════════════════════════════════════════════════
+const SocialServerAdapter = {
   async getGlobal(limit) {
-    const all = cfcMdGetAllPosts();
-    return [...all].sort((a, b) => _cfcMdLikeCount(b) - _cfcMdLikeCount(a)).slice(0, limit || 50);
+    if (!window.sb) return [];
+    const { data, error } = await window.sb.from('social_posts')
+      .select('id, author_id, author_country, post_data, ts')
+      .order('ts', { ascending: false })
+      .limit(limit || 50);
+    if (error) { console.warn('[social] getGlobal:', error); return []; }
+    return (data || []).map(_postFromRow);
   },
-  // 🏳️ Ulusal — kullanıcının ülkesindeki postların en çok beğenilenleri
   async getNational(countryCode, limit) {
-    const all = cfcMdGetAllPosts();
-    return [...all]
-      .filter(p => p.authorCountry === countryCode)
-      .sort((a, b) => _cfcMdLikeCount(b) - _cfcMdLikeCount(a))
-      .slice(0, limit || 50);
+    if (!window.sb) return [];
+    const { data, error } = await window.sb.from('social_posts')
+      .select('id, author_id, author_country, post_data, ts')
+      .eq('author_country', countryCode)
+      .order('ts', { ascending: false })
+      .limit(limit || 50);
+    if (error) { console.warn('[social] getNational:', error); return []; }
+    return (data || []).map(_postFromRow);
   },
   async getPostsByAuthor(authorId, limit) {
-    const all = cfcMdGetAllPosts();
-    return all.filter(p => p.authorId === authorId).slice(0, limit || 50);
+    if (!window.sb) return [];
+    const { data, error } = await window.sb.from('social_posts')
+      .select('id, author_id, author_country, post_data, ts')
+      .eq('author_id', authorId)
+      .order('ts', { ascending: false })
+      .limit(limit || 50);
+    if (error) { console.warn('[social] getPostsByAuthor:', error); return []; }
+    return (data || []).map(_postFromRow);
   },
   async getFollowingFeed(limit) {
-    const following = cfcMdGetFollowing();
-    const all = cfcMdGetAllPosts();
-    return all
-      .filter(p => following.includes(p.authorId))
-      .sort((a, b) => b.ts - a.ts)
-      .slice(0, limit || 50);
+    if (!window.sb) return [];
+    const myId = cfcMdGetMyId();
+    // Önce takip edilenleri çek
+    const { data: follows } = await window.sb.from('social_follows')
+      .select('following_id').eq('follower_id', myId);
+    const ids = (follows || []).map(f => f.following_id);
+    if (ids.length === 0) return [];
+    const { data, error } = await window.sb.from('social_posts')
+      .select('id, author_id, author_country, post_data, ts')
+      .in('author_id', ids)
+      .order('ts', { ascending: false })
+      .limit(limit || 50);
+    if (error) { console.warn('[social] getFollowingFeed:', error); return []; }
+    return (data || []).map(_postFromRow);
   },
   async createPost(content) {
+    if (!window.sb) return null;
     const my = cfcMdGetMyProfile();
-    // 🆕 localStorage'a base64 PNG HTML'i kaydetmek quota'yı aşar.
-    // Sadece avatarId referansı sakla — render anında HTML üretilir.
     const myAvId = (typeof authUser !== 'undefined' && authUser && authUser.avatarId) ? authUser.avatarId : null;
+    const id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
     const post = {
-      id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+      id,
       authorId: my.id,
       authorName: my.name,
       authorHandle: my.handle,
-      authorAvatarId: myAvId,    // 🆕 Hafif referans (string, ~20 byte)
-      authorAvatar: '⚽',          // 🆕 Bot/eski sistem uyumluluğu için fallback emoji
+      authorAvatarId: myAvId,
+      authorAvatar: '⚽',
       authorTeam: my.team,
       authorCountry: my.country,
       authorVerified: false,
-      content: content,
+      content,
       ts: Date.now(),
       likeCount: 0,
-      dislikeCount: 0,    // 🆕 Dislike sayacı
+      dislikeCount: 0,
       repostCount: 0,
       likes: [],
-      dislikes: [],       // 🆕 Dislike eden kullanıcılar
+      dislikes: [],
       replies: [],
       reposts: [],
     };
-    const all = cfcMdGetAllPosts();
-    all.unshift(post);
-    cfcMdSaveAllPosts(all);
-
-    // Save sonrası doğrulama (sessiz) — sadece localStorage'ı oku
-    try {
-      const verifyRaw = localStorage.getItem('cft_cfcmd_posts');
-      const verifyArr = verifyRaw ? JSON.parse(verifyRaw) : [];
-      const found = verifyArr.some(p => p.id === post.id);
-      if (!found) {
-        // Post listede yoksa hata değil — sadece konsola yaz, kullanıcıya gösterme
-        console.warn('[CFC Media] Post localStorage\'a yazıldı ama listede bulunamadı (fallback temizleme olabilir)');
-      }
-    } catch(e) {
-      console.warn('[CFC Media] Verify uyarı:', e);
-    }
+    const { error } = await window.sb.from('social_posts').insert({
+      id,
+      author_id: my.id,
+      author_country: my.country,
+      post_data: post,
+      ts: new Date().toISOString()
+    });
+    if (error) { console.warn('[social] createPost:', error); return null; }
     return post;
   },
   async toggleLike(postId) {
+    if (!window.sb) return null;
     const myId = cfcMdGetMyId();
-    const all = cfcMdGetAllPosts();
-    const p = all.find(x => x.id === postId);
-    if (!p) return null;
-    if (!Array.isArray(p.likes)) p.likes = [];
-    if (!Array.isArray(p.dislikes)) p.dislikes = [];
-    if (typeof p.likeCount !== 'number') p.likeCount = 0;
-    if (typeof p.dislikeCount !== 'number') p.dislikeCount = 0;
-    // 🆕 YouTube davranışı: dislike varsa kaldır (aynı anda ikisi olamaz)
-    const dIdx = p.dislikes.indexOf(myId);
-    if (dIdx !== -1) { p.dislikes.splice(dIdx, 1); p.dislikeCount = Math.max(0, p.dislikeCount - 1); }
-    const idx = p.likes.indexOf(myId);
-    if (idx === -1) { p.likes.push(myId); p.likeCount++; }
-    else { p.likes.splice(idx, 1); p.likeCount = Math.max(0, p.likeCount - 1); }
-    cfcMdSaveAllPosts(all);
-    return { liked: idx === -1, count: p.likeCount };
+    // Mevcut reaksiyon
+    const { data: existing } = await window.sb.from('social_likes')
+      .select('reaction').eq('user_id', myId).eq('post_id', postId).maybeSingle();
+    if (existing && existing.reaction === 'like') {
+      // Kaldır
+      await window.sb.from('social_likes').delete().eq('user_id', myId).eq('post_id', postId);
+      const count = await _socialCountReaction(postId, 'like');
+      return { liked: false, count };
+    } else {
+      // Like at (varsa dislike sil)
+      await window.sb.from('social_likes').upsert({
+        user_id: myId, post_id: postId, reaction: 'like'
+      }, { onConflict: 'user_id,post_id' });
+      const count = await _socialCountReaction(postId, 'like');
+      return { liked: true, count };
+    }
   },
   async toggleDislike(postId) {
+    if (!window.sb) return null;
     const myId = cfcMdGetMyId();
-    const all = cfcMdGetAllPosts();
-    const p = all.find(x => x.id === postId);
-    if (!p) return null;
-    if (!Array.isArray(p.likes)) p.likes = [];
-    if (!Array.isArray(p.dislikes)) p.dislikes = [];
-    if (typeof p.likeCount !== 'number') p.likeCount = 0;
-    if (typeof p.dislikeCount !== 'number') p.dislikeCount = 0;
-    // 🆕 YouTube davranışı: like varsa kaldır
-    const lIdx = p.likes.indexOf(myId);
-    if (lIdx !== -1) { p.likes.splice(lIdx, 1); p.likeCount = Math.max(0, p.likeCount - 1); }
-    const idx = p.dislikes.indexOf(myId);
-    if (idx === -1) { p.dislikes.push(myId); p.dislikeCount++; }
-    else { p.dislikes.splice(idx, 1); p.dislikeCount = Math.max(0, p.dislikeCount - 1); }
-    cfcMdSaveAllPosts(all);
-    return { disliked: idx === -1, count: p.dislikeCount };
+    const { data: existing } = await window.sb.from('social_likes')
+      .select('reaction').eq('user_id', myId).eq('post_id', postId).maybeSingle();
+    if (existing && existing.reaction === 'dislike') {
+      await window.sb.from('social_likes').delete().eq('user_id', myId).eq('post_id', postId);
+      const count = await _socialCountReaction(postId, 'dislike');
+      return { disliked: false, count };
+    } else {
+      await window.sb.from('social_likes').upsert({
+        user_id: myId, post_id: postId, reaction: 'dislike'
+      }, { onConflict: 'user_id,post_id' });
+      const count = await _socialCountReaction(postId, 'dislike');
+      return { disliked: true, count };
+    }
   },
   async toggleRepost(postId) {
+    // Repost'lar şimdilik post_data içinde tutulur (basit)
+    if (!window.sb) return null;
     const myId = cfcMdGetMyId();
-    const all = cfcMdGetAllPosts();
-    const p = all.find(x => x.id === postId);
-    if (!p) return null;
+    const { data: row } = await window.sb.from('social_posts')
+      .select('post_data').eq('id', postId).maybeSingle();
+    if (!row) return null;
+    const p = row.post_data || {};
+    if (!Array.isArray(p.reposts)) p.reposts = [];
     const idx = p.reposts.indexOf(myId);
     if (idx === -1) p.reposts.push(myId); else p.reposts.splice(idx, 1);
-    cfcMdSaveAllPosts(all);
+    p.repostCount = p.reposts.length;
+    await window.sb.from('social_posts').update({ post_data: p }).eq('id', postId);
     return { reposted: idx === -1, count: p.reposts.length };
   },
   async toggleFollow(authorId) {
-    const following = cfcMdGetFollowing();
-    const idx = following.indexOf(authorId);
-    if (idx === -1) following.push(authorId); else following.splice(idx, 1);
-    try { localStorage.setItem('cft_cfcmd_following', JSON.stringify(following)); } catch(e) {}
-    return { following: idx === -1 };
+    if (!window.sb) return null;
+    const myId = cfcMdGetMyId();
+    if (myId === authorId) return { following: false };  // kendini takip edemez
+    const { data: existing } = await window.sb.from('social_follows')
+      .select('follower_id').eq('follower_id', myId).eq('following_id', authorId).maybeSingle();
+    if (existing) {
+      await window.sb.from('social_follows').delete()
+        .eq('follower_id', myId).eq('following_id', authorId);
+      return { following: false };
+    } else {
+      await window.sb.from('social_follows').insert({
+        follower_id: myId, following_id: authorId
+      });
+      return { following: true };
+    }
   },
   async deletePost(postId) {
-    // 🆕 Sadece kullanıcının kendi postlarını silmesine izin ver
+    if (!window.sb) return { deleted: false, reason: 'no_sb' };
     const myId = cfcMdGetMyId();
-    const all = cfcMdGetAllPosts();
-    const idx = all.findIndex(x => x.id === postId);
-    if (idx === -1) return { deleted: false, reason: 'not_found' };
-    if (all[idx].authorId !== myId) return { deleted: false, reason: 'forbidden' };
-    all.splice(idx, 1);
-    cfcMdSaveAllPosts(all);
+    const { data: row } = await window.sb.from('social_posts')
+      .select('author_id').eq('id', postId).maybeSingle();
+    if (!row) return { deleted: false, reason: 'not_found' };
+    if (row.author_id !== myId) return { deleted: false, reason: 'forbidden' };
+    await window.sb.from('social_posts').delete().eq('id', postId);
+    // Bağlı reaksiyonları da temizle
+    await window.sb.from('social_likes').delete().eq('post_id', postId);
     return { deleted: true };
   },
 };
 
-// Aktif adapter (backend gelince SocialServerAdapter ile değişir)
-let _socialAdapter = SocialLocalAdapter;
-
-// ── Yardımcılar ──
-function cfcMdGetAllPosts() {
-  // Var mı? Varsa parse et ve dön (boş [] olsa bile)
-  const raw = (() => { try { return localStorage.getItem('cft_cfcmd_posts'); } catch(e) { return null; } })();
-  if (raw !== null && raw !== undefined) {
-    try {
-      const arr = JSON.parse(raw);
-      if (Array.isArray(arr)) {
-        // 🆕 Eski bot seed postlarını otomatik temizle (sadece kullanıcı postları kalsın)
-        let userOnly = arr.filter(p => String(p.authorId || '').startsWith('user:'));
-        // 🆕 Migration: eski sürümde authorAvatar olarak base64 <img> kaydedilmiş olabilir.
-        // Bunlar localStorage quota'sını şişiriyor. Tespit edip hafifletelim.
-        let migrated = false;
-        userOnly = userOnly.map(p => {
-          const av = p.authorAvatar;
-          if (typeof av === 'string' && (av.length > 200 || av.indexOf('<img') !== -1 || av.indexOf('base64,') !== -1)) {
-            migrated = true;
-            return Object.assign({}, p, {
-              authorAvatar: '⚽',                                   // Hafif fallback
-              authorAvatarId: p.authorAvatarId || null,            // Eğer yoksa null bırak; render my.avatar'a düşer
-            });
-          }
-          return p;
-        });
-        if (userOnly.length !== arr.length || migrated) {
-          try { localStorage.setItem('cft_cfcmd_posts', JSON.stringify(userOnly)); } catch(e) {}
-        }
-        return userOnly;
-      }
-    } catch(e) {
-      console.warn('[CFC Media] localStorage parse hatası:', e);
-    }
+// Post row → frontend post objesi (post_data + likeCount hesabı)
+function _postFromRow(row) {
+  const p = row.post_data || {};
+  p.id = row.id;
+  p.authorId = row.author_id || p.authorId;
+  p.authorCountry = row.author_country || p.authorCountry;
+  if (typeof row.ts === 'string') {
+    const t = Date.parse(row.ts);
+    if (!isNaN(t)) p.ts = t;
   }
-  // İlk açılış — boş dön
-  return [];
+  return p;
 }
 
-function cfcMdSaveAllPosts(list) {
-  const tryWrite = (arr) => {
-    const str = JSON.stringify(arr);
-    localStorage.setItem('cft_cfcmd_posts', str);
-    return str.length;
-  };
+// Reaksiyon sayısını sayar
+async function _socialCountReaction(postId, reaction) {
+  if (!window.sb) return 0;
+  const { count } = await window.sb.from('social_likes')
+    .select('user_id', { count: 'exact', head: true })
+    .eq('post_id', postId).eq('reaction', reaction);
+  return count || 0;
+}
 
+// Aktif adapter — Supabase server adapter kullan
+let _socialAdapter = SocialServerAdapter;
+
+// 🆕 Takip listesi RAM cache (Supabase'ten yüklenir)
+let _cfcMdFollowingCache = [];
+let _cfcMdFollowersCache = [];
+
+async function cfcMdLoadFollows() {
+  if (!window.sb) { _cfcMdFollowingCache = []; _cfcMdFollowersCache = []; return; }
+  const myId = cfcMdGetMyId();
   try {
-    tryWrite(list);
-    return; // Başarılı
-  } catch(e1) {
-    // 1. Deneme başarısız — bot postlarını sil, sadece kullanıcı postları
-    try {
-      const userOnly = list.filter(p => String(p.authorId || '').startsWith('user:'));
-      tryWrite(userOnly);
-      console.warn('[CFC Media] Quota: bot seed silindi, ' + userOnly.length + ' kullanıcı postu saklandı');
-      return;
-    } catch(e2) {
-      // 2. Deneme başarısız — diğer büyük localStorage anahtarlarını silmeyi dene
-      console.warn('[CFC Media] Quota hala dolu, diğer önbellekleri temizliyor...');
-      const tempCleared = [];
-      const cleanupCandidates = [
-        'cft_match_results',          // Maç sonuçları cache (en büyük)
-        'cft_results_cache',
-        'cft_enc_state',              // EURO Cup state
-        'cft_news_cache',
-        'cft_inbox_archive',
-      ];
-      for (const k of cleanupCandidates) {
-        try {
-          if (localStorage.getItem(k)) {
-            localStorage.removeItem(k);
-            tempCleared.push(k);
-          }
-        } catch(_) {}
-      }
-      // 3. Tekrar dene
-      try {
-        const userOnly = list.filter(p => String(p.authorId || '').startsWith('user:'));
-        tryWrite(userOnly);
-        console.warn('[CFC Media] ' + tempCleared.length + ' önbellek silindi, post kaydedildi');
-        return;
-      } catch(e3) {
-        // Son çare — sadece son 5 kullanıcı postunu sakla
-        try {
-          const userOnly = list.filter(p => String(p.authorId || '').startsWith('user:')).slice(0, 5);
-          tryWrite(userOnly);
-          console.warn('[CFC Media] Son çare: sadece son 5 post saklandı');
-          return;
-        } catch(e4) {
-          console.error('[CFC Media] localStorage tamamen dolu, kayıt başarısız:', e4);
-          throw e4;
-        }
-      }
-    }
-  }
+    const [fingRes, fersRes] = await Promise.all([
+      window.sb.from('social_follows').select('following_id').eq('follower_id', myId),
+      window.sb.from('social_follows').select('follower_id').eq('following_id', myId),
+    ]);
+    _cfcMdFollowingCache = (fingRes.data || []).map(r => r.following_id);
+    _cfcMdFollowersCache = (fersRes.data || []).map(r => r.follower_id);
+  } catch(e) { console.warn('[social] follows hata:', e); }
 }
 
 function cfcMdGetFollowing() {
-  try {
-    const s = localStorage.getItem('cft_cfcmd_following');
-    if (s) return JSON.parse(s);
-  } catch(e) {}
-  return [];
+  return _cfcMdFollowingCache.slice();
+}
+
+function cfcMdGetFollowersList() {
+  return _cfcMdFollowersCache.slice();
 }
 
 function cfcMdGetMyId() {
@@ -71492,47 +71475,6 @@ function cfcMdGetMyProfile() {
     team: t ? t.teamName : null,
     country: cc,
   };
-}
-
-// ── Bot post seed ──
-function cfcMdSeedBotPosts() {
-  // 32 ülke + popüler kulüpler için karışık örnek postlar
-  const now = Date.now();
-  const HOUR = 3600000;
-
-  const samples = [
-    { author: 'Cristiano Ronaldo', handle: '@cr7_official', avatar: '🇵🇹', team: 'Portekiz Milli', country:'PT', verified: true, body: 'Sezonun ilk maçı yarın. Hazırız! 💪🔥 #ForçaPortugal', age: 0.5 },
-    { author: 'Galatasaray', handle: '@galatasaray', avatar: '🦁', team: 'Galatasaray', country:'TR', verified: true, body: 'Bugünkü antrenmandan kareler. Pazar günü Fenerbahçe maçı için tam form! 🟡🔴 #DerbiHaftası', age: 2 },
-    { author: 'Fenerbahçe', handle: '@fenerbahce', avatar: '🐤', team: 'Fenerbahçe', country:'TR', verified: true, body: 'Taraftarlarımız bizim 12. adamımız. Bu hafta sonu Şükrü Saracoğlu\'nda buluşalım! 💙💛', age: 3 },
-    { author: 'UEFA', handle: '@uefa', avatar: '🏆', team: 'UEFA', country:'EU', verified: true, body: 'EURO Cup kura çekimi tamamlandı. 32 milli takım, 8 grup. Heyecan başlasın! 🌍⚽', age: 6 },
-    { author: 'Beşiktaş', handle: '@besiktas', avatar: '🦅', team: 'Beşiktaş', country:'TR', verified: true, body: 'Vodafone Park\'ta bu hafta sonu büyük bir akşam bizi bekliyor. Biletler tükenmek üzere!', age: 10 },
-    { author: 'Kylian Mbappé', handle: '@kmbappe', avatar: '🇫🇷', team: 'Fransa Milli', country:'FR', verified: true, body: 'Hard work pays off. Always. 🏃‍♂️💨', age: 14 },
-    { author: 'Manchester United', handle: '@manutd', avatar: '🔴', team: 'Man United', country:'GB', verified: true, body: 'Old Trafford bu hafta sonu kırmızıya bürünecek. #MUFC', age: 22 },
-    { author: 'Real Madrid', handle: '@realmadrid', avatar: '👑', team: 'Real Madrid', country:'ES', verified: true, body: 'La décima... la decimaquinta... hedeflerimiz büyük. ¡Hala Madrid! 🤍', age: 30 },
-    { author: 'Bayern München', handle: '@fcbayern', avatar: '🔴', team: 'Bayern', country:'DE', verified: true, body: 'Mia san mia! Allianz Arena bu akşam dolacak. 🔴⚪', age: 36 },
-    { author: 'Erling Haaland', handle: '@erling.haaland', avatar: '🇳🇴', team: 'Norveç', country:'NO', verified: true, body: 'Goals, goals, goals. That\'s the only language I speak. 🤖⚽', age: 48 },
-    { author: 'Lionel Messi', handle: '@leomessi', avatar: '🇦🇷', team: 'Inter Miami', country:'AR', verified: true, body: 'Futbol bir aile sporu. Her zaman destekleyenlere teşekkürler. 🐐', age: 60 },
-    { author: 'Türkiye Milli', handle: '@millitakim', avatar: '🇹🇷', team: 'Türkiye Milli', country:'TR', verified: true, body: 'EURO Cup\'ta Türkiye 1. potta! Çok iddialıyız. 🇹🇷❤️ #BizimÇocuklar', age: 72 },
-  ];
-
-  return samples.map((s, i) => ({
-    id: 'bot_seed_' + i,
-    authorId: 'bot:' + s.handle.slice(1),
-    authorName: s.author,
-    authorHandle: s.handle,
-    authorAvatar: s.avatar,
-    authorTeam: s.team,
-    authorCountry: s.country,
-    authorVerified: s.verified,
-    content: s.body,
-    ts: now - s.age * HOUR,
-    // 🆕 Kompakt — array yerine integer (Safari localStorage quota friendly)
-    likeCount: Math.floor(Math.random()*500)+50,
-    repostCount: Math.floor(Math.random()*150)+10,
-    likes: [],       // Kullanıcı beğenirse kendi ID'si buraya
-    replies: [],
-    reposts: [],
-  }));
 }
 
 // ── UI Render ──
@@ -71652,17 +71594,20 @@ function cfcMdRenderPosts(posts, container) {
   }).join('');
 }
 
-function cfcMdRenderProfile() {
+async function cfcMdRenderProfile() {
   const my = cfcMdGetMyProfile();
-  const all = cfcMdGetAllPosts();
   const myId = my.id;
 
   // 🆕 Ziyaretçi modu: _cfcMdViewingUserId set ise farklı kullanıcının profili
   const viewingOther = _cfcMdViewingUserId && _cfcMdViewingUserId !== myId;
   let viewedUser;
   if (viewingOther) {
-    // Bilinen kullanıcılar listesinden bul
-    const known = cfcMdGetKnownUsers();
+    // Bilinen kullanıcılar listesinden bul (cache yoksa server'dan yükle)
+    let known = cfcMdGetKnownUsers();
+    if (!known.length) {
+      try { await cfcMdLoadKnownUsers(); } catch(e) {}
+      known = cfcMdGetKnownUsers();
+    }
     viewedUser = known.find(u => u.id === _cfcMdViewingUserId) || {
       id: _cfcMdViewingUserId,
       name: 'Bilinmeyen Kullanıcı',
@@ -71676,26 +71621,54 @@ function cfcMdRenderProfile() {
     viewedUser = my;
   }
 
-  const userPosts = all.filter(p => p.authorId === viewedUser.id);
-  const totalLikes = userPosts.reduce((s, p) => s + _cfcMdLikeCount(p), 0);
-  // 🆕 Dislike ve takipçi sayıları
-  const totalDislikes = userPosts.reduce((s, p) => s + _cfcMdDislikeCount(p), 0);
+  // 🆕 Server'dan o kullanıcının postlarını çek
+  let userPosts = [];
+  try {
+    userPosts = await _socialAdapter.getPostsByAuthor(viewedUser.id, 50);
+  } catch(e) { console.warn('[social] profile posts:', e); }
+  
+  // Reaksiyonları çek (kendi cihazımdan kim like/dislike etmiş)
+  let myReactions = {};
+  try {
+    if (window.sb && userPosts.length) {
+      const postIds = userPosts.map(p => p.id);
+      const { data: reacts } = await window.sb.from('social_likes')
+        .select('post_id, reaction').eq('user_id', myId).in('post_id', postIds);
+      (reacts || []).forEach(r => { myReactions[r.post_id] = r.reaction; });
+    }
+  } catch(e) {}
+  
+  // Reaksiyon sayılarını çek (her post için)
+  let postCounts = {};
+  try {
+    if (window.sb && userPosts.length) {
+      const postIds = userPosts.map(p => p.id);
+      const { data: allReacts } = await window.sb.from('social_likes')
+        .select('post_id, reaction').in('post_id', postIds);
+      (allReacts || []).forEach(r => {
+        if (!postCounts[r.post_id]) postCounts[r.post_id] = { like: 0, dislike: 0 };
+        postCounts[r.post_id][r.reaction] = (postCounts[r.post_id][r.reaction] || 0) + 1;
+      });
+    }
+  } catch(e) {}
+  
+  const totalLikes = userPosts.reduce((s, p) => s + ((postCounts[p.id] && postCounts[p.id].like) || 0), 0);
+  const totalDislikes = userPosts.reduce((s, p) => s + ((postCounts[p.id] && postCounts[p.id].dislike) || 0), 0);
   const followerCount = cfcMdGetFollowerCount(viewedUser.id);
   const following = cfcMdGetFollowing();
   const isFollowing = following.includes(viewedUser.id);
-  // Ziyaretçi profilinde "kimi takip ediyor" sayısı bilinmiyor (yerel modda) → "—"
   const followingDisplay = viewingOther ? '—' : following.length;
 
   // Postları HTML string olarak üret (inline)
   const postsHtml = userPosts.map(p => {
-    const liked    = Array.isArray(p.likes)    && p.likes.includes(myId);
-    const disliked = Array.isArray(p.dislikes) && p.dislikes.includes(myId);
+    const liked    = myReactions[p.id] === 'like';
+    const disliked = myReactions[p.id] === 'dislike';
+    const likeC = (postCounts[p.id] && postCounts[p.id].like) || 0;
+    const dislikeC = (postCounts[p.id] && postCounts[p.id].dislike) || 0;
     const safeBody = _cfcMdEscape(p.content);
     const taggedBody = safeBody.replace(/(#[\wçğıöşüÇĞİÖŞÜ]+|@[\w]+)/g, '<span class="cfcmd-tag">$1</span>');
-    // Avatar: kendi profilim ise my.avatar, ziyaretçi profilinde viewedUser.avatar
     const postAvatar = !viewingOther ? (my.avatar || p.authorAvatar || '⚽')
                                      : (viewedUser.avatar || p.authorAvatar || '⚽');
-    // Sil butonu sadece KENDİ postlarımda görünür (ziyaretçi profilinde asla)
     const isMine = !viewingOther && p.authorId === myId;
     return `<div class="cfcmd-post${isMine ? ' is-mine' : ''}">
       ${isMine ? `<button class="cfcmd-post-del" onclick="cfcMdAskDelete('${p.id}')" aria-label="Gönderiyi sil" title="Gönderiyi sil">
@@ -71716,11 +71689,11 @@ function cfcMdRenderProfile() {
       <div class="cfcmd-post-actions">
         <button class="cfcmd-post-action ${liked?'liked':''}" onclick="cfcMdToggleLike('${p.id}')" aria-label="Beğen">
           <svg class="cfcmd-icon cfcmd-icon-like" viewBox="0 0 24 24" fill="${liked?'currentColor':'none'}" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M7 22V11M2 13v7a2 2 0 0 0 2 2h3V11H4a2 2 0 0 0-2 2zm18.79-3.39A2 2 0 0 0 19 9h-5.12l.92-4.39a1 1 0 0 0-.17-.84A1 1 0 0 0 13.83 3h-.5a1 1 0 0 0-.76.35L7 11v11h10.56a2 2 0 0 0 2-1.68l1.28-8.32a2 2 0 0 0-.05-.79z"/></svg>
-          <span>${_cfcMdLikeCount(p)}</span>
+          <span>${likeC}</span>
         </button>
         <button class="cfcmd-post-action ${disliked?'disliked':''}" onclick="cfcMdToggleDislike('${p.id}')" aria-label="Beğenme">
           <svg class="cfcmd-icon cfcmd-icon-dislike" viewBox="0 0 24 24" fill="${disliked?'currentColor':'none'}" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M17 2v11M22 11V4a2 2 0 0 0-2-2h-3v11h3a2 2 0 0 0 2-2zM3.21 14.39A2 2 0 0 0 5 15h5.12l-.92 4.39a1 1 0 0 0 .17.84 1 1 0 0 0 .8.39h.5a1 1 0 0 0 .76-.35L17 13V2H6.44a2 2 0 0 0-2 1.68l-1.28 8.32a2 2 0 0 0 .05.79z"/></svg>
-          <span>${_cfcMdDislikeCount(p)}</span>
+          <span>${dislikeC}</span>
         </button>
       </div>
     </div>`;
@@ -71915,83 +71888,100 @@ function _cfcMdRelTime(ts) {
 // - Kendi takipçim → 0 (yerel oyun, kimse beni takip edemez)
 // - Başkasının takipçisi → ben onu takip ediyorsam 1, değilsem 0
 // Backend gelince burası adapter'a taşınıp gerçek sayı döner.
+// Takipçi sayısı — Supabase'ten cache üstünden hesaplanır
 function cfcMdGetFollowerCount(userId) {
   if (!userId) return 0;
   const my = cfcMdGetMyProfile();
-  if (userId === my.id) return 0;
-  const following = cfcMdGetFollowing();
-  return following.includes(userId) ? 1 : 0;
+  if (userId === my.id) {
+    // Kendi profilim — takipçi listesi cache'ten
+    return _cfcMdFollowersCache.length;
+  }
+  // Başkasının takipçi sayısı — şu an cache'te o kullanıcı için yok
+  // İleride lazımsa ayrı async sorgu yapılır
+  return 0;
 }
 
-// 🆕 Toplu sayım — bir kullanıcının postlarındaki toplam like + dislike
-function cfcMdGetUserStats(userId) {
-  const all = cfcMdGetAllPosts();
-  const posts = all.filter(p => p.authorId === userId);
-  let likes = 0, dislikes = 0;
-  for (const p of posts) {
-    likes    += _cfcMdLikeCount(p);
-    dislikes += _cfcMdDislikeCount(p);
+// 🆕 Toplu sayım — bir kullanıcının postlarındaki toplam like + dislike (server'dan)
+async function cfcMdGetUserStats(userId) {
+  if (!userId || !window.sb) return { postCount: 0, totalLikes: 0, totalDislikes: 0 };
+  try {
+    const { data: posts } = await window.sb.from('social_posts')
+      .select('id').eq('author_id', userId);
+    const postCount = (posts || []).length;
+    if (postCount === 0) return { postCount: 0, totalLikes: 0, totalDislikes: 0 };
+    const postIds = posts.map(p => p.id);
+    const { data: reacts } = await window.sb.from('social_likes')
+      .select('reaction').in('post_id', postIds);
+    let totalLikes = 0, totalDislikes = 0;
+    (reacts || []).forEach(r => {
+      if (r.reaction === 'like') totalLikes++;
+      else if (r.reaction === 'dislike') totalDislikes++;
+    });
+    return { postCount, totalLikes, totalDislikes };
+  } catch(e) {
+    console.warn('[social] userStats:', e);
+    return { postCount: 0, totalLikes: 0, totalDislikes: 0 };
   }
-  return { postCount: posts.length, totalLikes: likes, totalDislikes: dislikes };
 }
 
 // ─────────────────────────────────────────────────────────────
 // 🆕 ARAMA / ZİYARETÇİ PROFİL — Instagram tarzı kullanıcı arama
 // ─────────────────────────────────────────────────────────────
 
-// Bilinen GERÇEK kullanıcılar (botlar HARİÇ)
-// - authUser (kendisi) her zaman dahil
-// - localStorage'daki kayıtlı postların yazarları (user: prefix'li)
-// Bot postları zaten cfcMdGetAllPosts içinde filtreleniyor.
-function cfcMdGetKnownUsers() {
-  const my = cfcMdGetMyProfile();
-  const map = new Map();
-  // 1. Kendisi
-  map.set(my.id, {
-    id: my.id,
-    name: my.name,
-    handle: my.handle,
-    avatar: my.avatar,
-    avatarId: (typeof authUser !== 'undefined' && authUser && authUser.avatarId) || null,
-    team: my.team,
-    country: my.country,
-    isMe: true,
-  });
-  // 2. Postlardan tespit edilen gerçek kullanıcılar
+// Kayıtlı kullanıcıları getir (Supabase profiles tablosundan)
+// Async olduğu için arama açılışında awaitlenir, sonuçlar _cfcMdUsersCache'e atılır
+let _cfcMdUsersCache = null;
+let _cfcMdUsersCacheTs = 0;
+
+async function cfcMdLoadKnownUsers() {
+  if (!window.sb) { _cfcMdUsersCache = []; return []; }
+  // 30 saniye cache (arama açıldıkça spam istek olmasın)
+  if (_cfcMdUsersCache && (Date.now() - _cfcMdUsersCacheTs) < 30000) {
+    return _cfcMdUsersCache;
+  }
   try {
-    const all = cfcMdGetAllPosts();
-    all.forEach(p => {
-      const aid = String(p.authorId || '');
-      if (!aid.startsWith('user:')) return;          // sadece gerçek kullanıcı postları
-      if (map.has(aid)) return;                        // zaten var
-      // Avatar HTML'i — post'taki authorAvatarId varsa getAvatarEmoji ile, yoksa fallback
+    const { data, error } = await window.sb.from('profiles')
+      .select('id, username, name, nationality, avatar_id')
+      .order('username');
+    if (error) { console.warn('[social] users:', error); _cfcMdUsersCache = []; return []; }
+    const myId = cfcMdGetMyId();
+    const users = (data || []).map(p => {
+      const handle = '@' + (p.username || '').replace(/^@+/, '').toLowerCase();
+      const id = 'user:' + (p.username || '').replace(/^@+/, '').toLowerCase();
       let avHTML = '⚽';
-      if (p.authorAvatarId && typeof getAvatarEmoji === 'function') {
-        avHTML = getAvatarEmoji(p.authorAvatarId, null);
-      } else if (p.authorAvatar) {
-        avHTML = p.authorAvatar;
+      if (p.avatar_id && typeof getAvatarEmoji === 'function') {
+        avHTML = getAvatarEmoji(p.avatar_id, null);
       }
-      map.set(aid, {
-        id: aid,
-        name: p.authorName || 'Kullanıcı',
-        handle: p.authorHandle || ('@' + aid.replace('user:', '')),
+      return {
+        id,
+        name: p.name || p.username || 'Kullanıcı',
+        handle,
         avatar: avHTML,
-        avatarId: p.authorAvatarId || null,
-        team: p.authorTeam || null,
-        country: p.authorCountry || null,
-        isMe: false,
-      });
+        avatarId: p.avatar_id || null,
+        team: null,
+        country: p.nationality || null,
+        isMe: id === myId,
+      };
     });
-  } catch(e) { console.warn('[CFC Media] getKnownUsers hata:', e); }
-  return Array.from(map.values());
+    _cfcMdUsersCache = users;
+    _cfcMdUsersCacheTs = Date.now();
+    return users;
+  } catch(e) { console.warn('[social] users hata:', e); _cfcMdUsersCache = []; return []; }
 }
 
-function cfcMdOpenSearch() {
+function cfcMdGetKnownUsers() {
+  // Sync API — cache'ten dön (asenkron yükleme cfcMdLoadKnownUsers ile yapılır)
+  return _cfcMdUsersCache || [];
+}
+
+async function cfcMdOpenSearch() {
   const ov = document.getElementById('cfcMdSearchOverlay');
   const inp = document.getElementById('cfcMdSearchInput');
   if (!ov) return;
   ov.classList.add('open');
   if (inp) inp.value = '';
+  // 🆕 Önce server'dan kayıtlı kullanıcıları yükle, sonra render
+  try { await cfcMdLoadKnownUsers(); } catch(e) {}
   cfcMdRenderSearchResults('');
   // Bir tık sonra fokuslan (animasyon bitsin)
   setTimeout(() => { if (inp) inp.focus(); }, 250);
@@ -72088,9 +72078,11 @@ async function cfcMdToggleFollowUser(userId) {
   if (!userId) return;
   try {
     await _socialAdapter.toggleFollow(userId);
+    // 🆕 Cache'i yenile
+    await cfcMdLoadFollows();
     // Profile'i yenile (takip butonu durumu güncellensin)
     cfcMdRenderProfile();
-    // 🆕 Follows modali açıksa onu da yenile
+    // Follows modali açıksa onu da yenile
     const fov = document.getElementById('cfcMdFollowsOverlay');
     if (fov && fov.classList.contains('open')) {
       cfcMdRenderFollowsList(document.getElementById('cfcMdFollowsInput')?.value || '');
@@ -72126,14 +72118,7 @@ function _cfcMdResolveUserById(id) {
   };
 }
 
-// Takipçiler — yerel modda her zaman boş array (cihazlar arası senkron yok).
-// Backend gelince adapter buraya gerçek listeyi koyar.
-function cfcMdGetFollowersList() {
-  // Yerel/single-user modda: kimse benim cihazıma "takip ediyor" diye veri yazamaz
-  return [];
-}
-
-function cfcMdOpenFollows(initialTab) {
+async function cfcMdOpenFollows(initialTab) {
   // Sadece kendi profilim üzerinden açılır (ziyaretçi profilinde stat'lar clickable değil)
   _cfcMdFollowsActiveTab = (initialTab === 'followers') ? 'followers' : 'following';
   const inp = document.getElementById('cfcMdFollowsInput');
@@ -72142,6 +72127,9 @@ function cfcMdOpenFollows(initialTab) {
   document.querySelectorAll('.cfcmd-follows-tab').forEach(t => {
     t.classList.toggle('active', t.getAttribute('data-follows-tab') === _cfcMdFollowsActiveTab);
   });
+  // 🆕 Server'dan follows + users yükle
+  try { await cfcMdLoadFollows(); } catch(e) {}
+  try { await cfcMdLoadKnownUsers(); } catch(e) {}
   // Sayaçları güncelle
   const followingIds = cfcMdGetFollowing();
   const followersIds = cfcMdGetFollowersList();
@@ -72258,6 +72246,9 @@ if (typeof showPage === 'function') {
     if (p.classList.contains('active')) {
       // 🆕 Her CFC Media'ya girişte "Profilim" sekmesinden başla
       _cfcMdViewingUserId = null; // ziyaretçi modu da sıfırlansın
+      // 🆕 Server'dan follows + users cache'leri yükle
+      cfcMdLoadFollows().catch(()=>{});
+      cfcMdLoadKnownUsers().catch(()=>{});
       const profileTab = document.querySelector('.cfcmd-tab[data-cfcmd-tab="profile"]');
       if (profileTab) {
         cfcMdTab('profile', profileTab);
