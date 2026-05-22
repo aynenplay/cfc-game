@@ -36189,16 +36189,22 @@ async function _liveMatchLoadFromServer() {
 // SONUÇLAR sayfası açıkken poll başlat
 function _liveMatchStartPolling() {
   if (_liveMatchPollTimer) return;
-  _liveMatchLoadFromServer();
+  // 🆕 İlk yükleme: bekle ve renderResultsPage'i tetikle
+  _liveMatchLoadFromServer().then(() => {
+    const page = document.querySelector('.page.active');
+    if (page && page.id === 'page-results' && typeof renderResultsPage === 'function') {
+      try { renderResultsPage(); } catch(e) {}
+    }
+  });
+  // Sonra 5sn'de bir poll (canlı maç güncellemesi için)
   _liveMatchPollTimer = setInterval(() => {
     _liveMatchLoadFromServer().then(() => {
-      // SONUÇLAR sayfası açıksa yeniden render
       const page = document.querySelector('.page.active');
       if (page && page.id === 'page-results' && typeof renderResultsPage === 'function') {
         try { renderResultsPage(); } catch(e) {}
       }
     });
-  }, 10000); // 10sn
+  }, 5000); // 🆕 10sn → 5sn (daha akıcı canlı güncelleme)
 }
 
 function _liveMatchStopPolling() {
@@ -53009,7 +53015,8 @@ function _resBuildSeasonFixtures(seasonNum) {
   // 1. Bellek cache (oturum içi)
   if (_resFixtureSeasonCache[cacheKey]) return _resFixtureSeasonCache[cacheKey];
 
-  // 2. WorldState'ten persist'i oku — daha önce çekildiyse buradan gelir
+  // 2. WorldState'ten persist'i oku — Supabase'ten geldiyse buradan döner
+  // 🆕 Edge function sezon başında üretip yazıyor. Frontend SADECE bunu okur.
   try {
     const state = (typeof loadWorldState === 'function') ? loadWorldState() : null;
     if (state && state.season_fixtures && state.season_fixtures[seasonNum]) {
@@ -53021,77 +53028,9 @@ function _resBuildSeasonFixtures(seasonNum) {
     }
   } catch(e) { console.warn('[Fixture] WorldState okuma hatası:', e); }
 
-  // 3. Daha önce çekilmemiş — şimdi üret (bir kez yapılır)
-  if (typeof CFT_DB === 'undefined' || typeof buildLeagueFixture !== 'function') {
-    return { dayMap: {} };
-  }
-
-  // Bu sezonun başlangıç tarihi
-  const seasonStart = new Date(SEASON_EPOCH);
-  seasonStart.setDate(SEASON_EPOCH.getDate() + (seasonNum - 1) * SEASON_LEN);
-
-  const dayMap = {}; // gün numarası → matches[]
-
-  Object.keys(CFT_DB).forEach(cc => {
-    const country = CFT_DB[cc];
-    if (!country || !country.leagues) return;
-    country.leagues.forEach((lg, ti) => {
-      if (!lg.teams || lg.teams.length === 0) return;
-      let fixture;
-      try { fixture = buildLeagueFixture(lg.teams, seasonStart, cc, ti); } catch(e) { return; }
-      const halfWeeks = lg.teams.length - 1;
-
-      fixture.forEach(f => {
-        const dayOffset = (f.week <= halfWeeks) ? (f.week - 1) : (f.week + 2);
-        const matchDay = dayOffset + 1;
-        // 🆕 Gerçek tarih hesapla — seasonStart + dayOffset (lokal, UTC dönüşümü yok)
-        const matchDate = new Date(seasonStart);
-        matchDate.setDate(seasonStart.getDate() + dayOffset);
-        const _y = matchDate.getFullYear();
-        const _m = String(matchDate.getMonth() + 1).padStart(2, '0');
-        const _d = String(matchDate.getDate()).padStart(2, '0');
-        const matchDateISO = `${_y}-${_m}-${_d}`;
-        const matchTime = f.matchTime || '15:00';
-        // ISO 8601 datetime: "2026-05-16T15:00:00"
-        const matchDateTimeISO = matchDateISO + 'T' + matchTime + ':00';
-
-        if (!dayMap[matchDay]) dayMap[matchDay] = [];
-        dayMap[matchDay].push({
-          home: f.homeTeam.name,
-          away: f.awayTeam.name,
-          homeShort: f.homeTeam.short,
-          awayShort: f.awayTeam.short,
-          countryCode: cc,
-          leagueName: lg.name,
-          leagueFlag: country.flag || '🏳️',
-          tierIdx: ti,
-          scheduledTime: matchTime,
-          matchDate: matchDateISO,           // 🆕 "2026-05-16"
-          matchDateTime: matchDateTimeISO,   // 🆕 "2026-05-16T15:00:00"
-          matchKey: f.matchKey,
-          week: f.week,
-          season: seasonNum,
-          day: matchDay,
-          competition: 'league'
-        });
-      });
-    });
-  });
-
-  const result = { dayMap, drawnAt: new Date().toISOString() };
-
-  // 🆕 KALICI YAZ — WorldState'e persist
-  try {
-    const state = (typeof loadWorldState === 'function') ? loadWorldState() : null;
-    if (state) {
-      if (!state.season_fixtures) state.season_fixtures = {};
-      state.season_fixtures[seasonNum] = result;
-      if (typeof saveWorldState === 'function') saveWorldState(state);
-    }
-  } catch(e) { console.warn('[Fixture] WorldState yazma hatası:', e); }
-
-  _resFixtureSeasonCache[cacheKey] = result;
-  return result;
+  // 🆕 Server'da yoksa boş döndür (lokal hesaplama YOK - CFT_DB Supabase'ten geliyor)
+  // Edge function'ın setup_season_start endpoint'ini çağırmadan fixture görünmez
+  return { dayMap: {} };
 }
 
 // Tüm ülkelerin/liglerin o güne ait maçlarını topla (oynanmış + oynanmamış)
@@ -57008,17 +56947,13 @@ function _simExtraTime(state) {
 //   - aggDiff: ev sahibi açısından 1. maçın skor farkı (ör. 1. maç 2-1 → 2. maç için aggDiff=+1 ev sahibi lehine)
 //     Tek maç play-off için aggDiff=0 (default)
 function simulateBotMatch(homeTeam, awayTeam, seed, options) {
-  // Maç motoru Supabase Edge Function'a taşındı. Bu fonksiyon artık üretim yapmaz.
-  // Server'ın yazdığı sonuçları match_results cache'inden okumaya çalış.
+  // 🆕 Maç motoru tamamen Supabase Edge Function'da. Frontend lokal motor ÇALIŞTIRMAZ.
+  // Bu fonksiyon sadece match_results cache'inden lookup yapar.
+  // Cache miss → null döner (callsite "henüz oynanmadı" göstermeli).
   try {
-    const home = (homeTeam && homeTeam.name) || '';
-    const away = (awayTeam && awayTeam.name) || '';
-    if (home && away && typeof _matchResultsLoad === 'function') {
+    if (seed && typeof _matchResultsLoad === 'function') {
       const cache = _matchResultsLoad();
-      // Sadece seed direkt match_results key formatındaysa kullan
-      // (Format: "season_day_home_away" — lig maçları için geçerli)
-      // Turnuva maçları farklı seed kullanır → match yok, 0-0 döner
-      if (seed && cache[seed]) {
+      if (cache[seed]) {
         const m = cache[seed];
         return {
           hs: m.hs || 0,
@@ -57032,8 +56967,8 @@ function simulateBotMatch(homeTeam, awayTeam, seed, options) {
       }
     }
   } catch(e) {}
-  // Cache'te yok → boş sonuç
-  return { hs: 0, as: 0, events: [], stats: null, playerStats: null, byBot: true, _empty: true };
+  // 🆕 Cache miss → null. Eskiden _empty:true ile 0-0 boş objesi dönüyordu, bu yanlış sonuç gösteriyordu.
+  return null;
 }
 
 // 🆕 BOT MAÇ OUTCOME wrapper — simulateBotMatch sonrası bot oyuncularına kart/sakat işler.
