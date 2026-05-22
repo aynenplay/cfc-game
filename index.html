@@ -61853,172 +61853,9 @@ function trn2BuildPlayoff(teams, season, trnKey) {
     return _results;
   }
 
-  // 🆕 YEDEK: server'da playoff yoksa eski lokal mantık
-  // 1'ler ve 2'ler
-  const ones = teams.filter(t => t.rank % 2 === 1); // 1. veya 5. sıralar (tek)
-  const twos = teams.filter(t => t.rank % 2 === 0); // 2. veya 6. sıralar (çift)
-
-  // Kura: 1. × 2.'yi farklı ülke şartıyla eşleştir
-  // Deterministik seed bazlı karıştır
-  function seededShuffle(arr, seed) {
-    const a = [...arr];
-    for(let i = a.length-1; i > 0; i--) {
-      const j = ((seed * (i+1) * 1103515245 + 12345) & 0x7fffffff) % (i+1);
-      [a[i], a[j]] = [a[j], a[i]];
-      seed = (seed * 1664525 + 1013904223) & 0x7fffffff;
-    }
-    return a;
-  }
-
-  const shuffledOnes = seededShuffle(ones, season * 1000 + trnKey.charCodeAt(0));
-  const shuffledTwos = seededShuffle(twos, season * 2000 + trnKey.charCodeAt(0) * 3);
-
-  // Eşleştir: aynı ülkeden olamaz
-  const matches = [];
-  const usedTwos = new Set();
-
-  shuffledOnes.forEach((one, i) => {
-    // Bu 1. için uygun 2. bul (farklı ülke)
-    let found = null;
-    for(let j = 0; j < shuffledTwos.length; j++) {
-      if(!usedTwos.has(j) && shuffledTwos[j].countryKey !== one.countryKey) {
-        found = j;
-        break;
-      }
-    }
-    if(found === null) {
-      // Zorunlu durum: aynı ülke olsa bile ekle
-      for(let j = 0; j < shuffledTwos.length; j++) {
-        if(!usedTwos.has(j)) { found = j; break; }
-      }
-    }
-    if(found !== null) {
-      usedTwos.add(found);
-      matches.push({ home: one, away: shuffledTwos[found] });
-    }
-  });
-
-  // 🆕 Helper: countryKey+name'den CFT_DB tam takım objesi (rating, players) çıkar
-  function _fullTeamFromCFTDB(t) {
-    if (!t || !t.countryKey || !t.name) return null;
-    if (typeof CFT_DB === 'undefined' || !CFT_DB[t.countryKey]) return null;
-    const country = CFT_DB[t.countryKey];
-    for (const lg of (country.leagues || [])) {
-      const found = (lg.teams || []).find(x => x.name === t.name);
-      if (found) {
-        const full = { ...found, countryCode: t.countryKey };
-        // Roster üret (penaltı sim için lazım)
-        if (typeof guestGenerateRoster === 'function') {
-          try { full._roster = guestGenerateRoster(t.countryKey, t.name, found.rank || 1); } catch(e){}
-        }
-        return full;
-      }
-    }
-    return null;
-  }
-
-  // 🆕 Cache (deterministik, ama performans için)
-  window._trn2PlayoffCache = window._trn2PlayoffCache || {};
-  const _cacheKey = `${trnKey}_s${season}`;
-  if (window._trn2PlayoffCache[_cacheKey]) {
-    // Aynı eşleşme dizisi varsa cache'ten dön
-    const _cached = window._trn2PlayoffCache[_cacheKey];
-    if (_cached.length === matches.length) {
-      let _allMatch = true;
-      for (let i = 0; i < matches.length; i++) {
-        const cm = _cached[i];
-        if (cm.home.name !== matches[i].home.name || cm.away.name !== matches[i].away.name) {
-          _allMatch = false; break;
-        }
-      }
-      if (_allMatch) return _cached;
-    }
-  }
-
-  // 🆕 ÖNCE Supabase match_results'tan oku — server tek doğruluk kaynağı
-  // Lokal cache her açılışta farklı skor üretiyordu; artık match_results sabit.
-  const _trnNameForKey = { champ: 'EURO Championship League', elite: 'EURO Elite League', conv: 'EURO Convergence League' };
-  const _trnName = _trnNameForKey[trnKey];
-  const _mrCache = (typeof _matchResultsLoad === 'function') ? _matchResultsLoad() : {};
-  
-  // match_results'tan playoff maçlarını lookup için index'le (home+away → maç)
-  const _playoffMrLookup = {};
-  for (const k in _mrCache) {
-    const m = _mrCache[k];
-    if (!m || m.season !== season) continue;
-    if (m.tournament_key !== trnKey || m.tournament_phase !== 'playoff') continue;
-    _playoffMrLookup[`${m.home}|${m.away}`] = m;
-  }
-
-  // 🆕 GERÇEK MOTOR: generateMatchScore ile skor + berabereyse motor uzatma+penaltı
-  const _results = matches.map((m, idx) => {
-    // 1) Önce match_results'tan ara
-    const _srvKey = `${m.home.name}|${m.away.name}`;
-    const _srvMatch = _playoffMrLookup[_srvKey];
-    if (_srvMatch) {
-      const hs = _srvMatch.hs ?? 0;
-      const as = _srvMatch.as ?? 0;
-      const winner = hs > as ? m.home : hs < as ? m.away : (idx % 2 === 0 ? m.home : m.away);
-      return { ...m, hs, as, winner, fromServer: true };
-    }
-    
-    // 2) Server'da yoksa lokal üret (geçici fallback)
-    const seedStr = `${trnKey}_s${season}_PO_${idx}_${m.home.countryKey}-${m.home.name}_${m.away.countryKey}-${m.away.name}`;
-    const seedNum = (m.home.countryKey.charCodeAt(0)*100 + m.away.countryKey.charCodeAt(0)*7 + idx*13 + season*23) & 0xff;
-
-    const homeFull = _fullTeamFromCFTDB(m.home);
-    const awayFull = _fullTeamFromCFTDB(m.away);
-
-    // Fallback: motor erişilemezse eski hard-coded skor
-    if (!homeFull || !awayFull || typeof generateMatchScore !== 'function' || typeof simulateBotMatch !== 'function') {
-      const scores = [[2,1],[1,0],[3,1],[2,0],[1,0],[3,2],[2,1],[1,0],[0,0],[2,0]];
-      const [hs, as] = scores[seedNum % scores.length];
-      const winner = hs > as ? m.home : hs < as ? m.away : (seedNum % 2 === 0 ? m.home : m.away);
-      return {
-        ...m,
-        hs: hs===0&&as===0 ? '0('+((seedNum%3)+4)+')' : hs,
-        as: hs===0&&as===0 ? '0('+((seedNum%2)+3)+')' : as,
-        winner
-      };
-    }
-
-    // 🆕 TEK MOTOR: Her play-off maçı için doğrudan 3D motor (simulateBotMatch içeride)
-    // Eskiden: önce hızlı Poisson skor, eşit değilse motor atla → tutarsızlık (events/stats eksik)
-    // Şimdi: hep _simulateKnockoutMatch (90 dk için simulateBotMatch + eşitlikse Faz 1 ET+pen)
-    let sim = null;
-    try {
-      if (typeof window._simulateKnockoutMatch === 'function') {
-        sim = window._simulateKnockoutMatch(homeFull, awayFull, seedStr, { aggregate: false });
-      } else {
-        sim = simulateBotMatch(homeFull, awayFull, seedStr);
-      }
-    } catch(e) { sim = null; }
-
-    if (!sim) {
-      // Motor hata verirse — son çare deterministik fallback (asla tetiklenmemeli)
-      const seedNum = (m.home.countryKey.charCodeAt(0)*100 + idx*13 + season*23) & 0xff;
-      const fbScores = [[2,1],[1,0],[3,1],[2,0],[1,0],[3,2],[2,1],[1,0],[0,1],[2,0]];
-      const [hs, as] = fbScores[seedNum % fbScores.length];
-      const winner = hs > as ? m.home : (hs < as ? m.away : (seedNum % 2 === 0 ? m.home : m.away));
-      return { ...m, hs, as, winner, et: null, pens: null };
-    }
-
-    return {
-      ...m,
-      hs: sim.hs, as: sim.as,  // 120 dk toplam (90 + ET varsa)
-      reg90: sim.reg90 || { hs: hs90, as: as90 },
-      winner: sim.winnerSide === 'home' ? m.home : m.away,
-      et: sim.et || null,
-      pens: sim.pens || null,
-      extraTime: !!sim.et,
-      penaltyShootout: !!sim.pens,
-      knockoutPhase: sim.knockoutPhase || 'regulation'
-    };
-  });
-
-  // Cache yaz
-  window._trn2PlayoffCache[_cacheKey] = _results;
-  return _results;
+  // 🆕 Server'da playoff yoksa BOŞ dön (lokal simülasyon YOK)
+  // Eski sahte kura + sahte skor mantığı kaldırıldı
+  return [];
 }
 
 // 🆕 Turnuva grup maçı için gerçek tarih (sezon+gün → ISO YYYY-MM-DD)
@@ -62215,48 +62052,30 @@ function trn2BuildGroups(teams32, season, trnKey) {
 
       let hs = null, as = null, simEvents = null, simStats = null;
 
-      // 🆕 Maç oynandıysa simüle et, yoksa skor null kalır
-      if (isPlayed) {
-        // 🆕 ÖNCE Supabase match_results'tan ara — her açılışta aynı skor
-        const _srvKey = `${home.name}|${away.name}`;
-        const _srvMatch = _groupFromServer[_srvKey];
-        if (_srvMatch) {
-          hs = _srvMatch.hs ?? 0;
-          as = _srvMatch.as ?? 0;
-          simEvents = _srvMatch.events || null;
-          simStats = _srvMatch.stats || null;
-        } else if (homeFull && awayFull && typeof simulateBotMatch === 'function') {
-          // Server'da yok → lokal motorla üret (geçici fallback)
-          try {
-            const sim = simulateBotMatch(homeFull, awayFull, seedStr);
-            if (sim) {
-              hs = sim.hs;
-              as = sim.as;
-              simEvents = sim.events || null;
-              simStats = sim.stats || null;
-            }
-          } catch(e) { /* fallback below */ }
-        }
-        if (typeof hs !== 'number') {
-          // Fallback (motor erişilemezse)
-          const seedNum = (drawSeed + md * 31 + hi * 7 + ai * 13) & 0xff;
-          const scores = [[2,1],[1,0],[2,2],[3,1],[0,0],[1,1],[2,0],[3,2],[1,2],[0,1]];
-          const [h, a] = scores[seedNum % scores.length];
-          hs = h; as = a;
-        }
+      // 🆕 SADECE Supabase match_results'tan al — lokal simülasyon YOK
+      // Server'da yoksa hs/as null kalır, UI "henüz oynanmadı" gösterir
+      const _srvKey = `${home.name}|${away.name}`;
+      const _srvMatch = _groupFromServer[_srvKey];
+      if (_srvMatch) {
+        hs = _srvMatch.hs ?? 0;
+        as = _srvMatch.as ?? 0;
+        simEvents = _srvMatch.events || null;
+        simStats = _srvMatch.stats || null;
       }
+      // played: sadece server'da maç varsa true
+      const actuallyPlayed = (typeof hs === 'number');
 
       matches.push({
         matchday: md, homeIdx: hi, awayIdx: ai, home, away, hs, as,
-        events: simEvents, stats: simStats, played: isPlayed,
+        events: simEvents, stats: simStats, played: actuallyPlayed,
         // 🆕 Gerçek tarih + saat — deterministic
         matchDate: _trnMatchDateISO(season, mdDay),
         scheduledTime: _trnMatchTimeStr(trnKey, season, gi, md, hi, ai),
         matchDateTime: _trnMatchDateISO(season, mdDay) + 'T' + _trnMatchTimeStr(trnKey, season, gi, md, hi, ai) + ':00',
       });
 
-      // 🆕 Stat güncellemesi SADECE oynanan maçlar için
-      if (isPlayed && typeof hs === 'number' && typeof as === 'number') {
+      // 🆕 Stat güncellemesi SADECE gerçekten oynanan maçlar için
+      if (actuallyPlayed && typeof hs === 'number' && typeof as === 'number') {
         const hStat = stats[hi];
         const aStat = stats[ai];
         hStat.gf += hs; hStat.ga += as;
