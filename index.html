@@ -24425,6 +24425,19 @@ document.addEventListener('DOMContentLoaded', function(){
     localStorage.removeItem('cft_team_strategy');
     // 🆕 Takım roster state artık Supabase'de (team_data tablosu)
     localStorage.removeItem('cft_roster_state');
+    localStorage.removeItem('cft_roster_persist');
+    // 🆕 Botlar artık Supabase'de (players tablosu) — eski cft_r3_* cache'leri sil
+    try {
+      const botKeysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('cft_r3_')) botKeysToRemove.push(k);
+      }
+      botKeysToRemove.forEach(k => localStorage.removeItem(k));
+      if (botKeysToRemove.length > 0) console.info('[cleanup] Eski bot cache silindi:', botKeysToRemove.length, 'anahtar');
+    } catch(e) {}
+    // 🆕 Free agents artık Supabase'de (players.team_name IS NULL)
+    localStorage.removeItem('cft_free_agents');
     // 🆕 Tesis seviyeleri artık Supabase'de (team_data tablosu)
     localStorage.removeItem('cft_facilities');
     localStorage.removeItem('cft_facilities_meta');
@@ -25496,19 +25509,21 @@ async function preloadAllTeamRosters() {
   try {
     const PAGE = 1000;
     let all = [];
-    let lastId = 0;
+    let offset = 0;
     let safety = 0;
     while (safety++ < 50) {
       const { data, error } = await window.sb.from('players')
         .select('id, country_code, team_name, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar')
         .eq('is_bot', true)
-        .gt('id', lastId)
-        .order('id')
-        .limit(PAGE);
+        .not('team_name', 'is', null)
+        .order('country_code')
+        .order('team_name')
+        .order('num')
+        .range(offset, offset + PAGE - 1);
       if (error) { console.warn('[preloadAllRosters] hata:', error); break; }
       if (!Array.isArray(data) || data.length === 0) break;
       all = all.concat(data);
-      lastId = data[data.length - 1].id;
+      offset += data.length;
       if (data.length < PAGE) break;
     }
     // Cache temizle (yeniden yüklüyoruz, çift olmasın)
@@ -25542,113 +25557,18 @@ async function preloadAllTeamRosters() {
 }
 
 function getOrCreateTeamRoster(teamData) {
+  // 🆕 Sadece Supabase RAM cache döner. Eski localStorage seed üretimi tamamen silindi.
+  // Botlar artık DB'de — fetch arka planda, cache yüklenene kadar boş array.
   const teamName = teamData.name || 'unk';
   const cc = (teamData.countryCode || teamData.cc || 'TR').toUpperCase().slice(0, 2);
   const key = cc + ':' + teamName;
-
-  // 🆕 Önce RAM cache (Supabase'ten yüklenmiş)
   if (_teamRosterCache[key]) return _teamRosterCache[key];
-
-  // Background fetch — gelecek çağrı için yükle
-  _loadTeamRosterFromServer(cc, teamName).catch(()=>{});
-
-  // 🆕 Fallback: eski seed üretimi (Supabase yüklenene kadar geçici)
-  const teamKey = 'cft_r3_' + teamName.replace(/\s+/g, '_');
-
-  const seed = (teamData.name || 'TEAM') + '|' + cc;
-
-  // 🆕 v4: Tier hesabı (rank 1-16 → tier 0, 17-32 → tier 1, ...)
-  // Eğer teamData.tierIdx varsa onu kullan, yoksa rank'tan türet
-  const tierIdx = (typeof teamData.tierIdx === 'number')
-    ? teamData.tierIdx
-    : Math.floor(((teamData.rank || 1) - 1) / 16);
-
-  // 🆕 Hangi slot'lar yabancı olacak — deterministik
-  // Yabancı sayısı tier'a göre, hangi slot'ları seçeceğimizi seed'den belirle
-  const foreignCount = _foreignCountForTier(tierIdx, seed);
-  const foreignSlots = new Set();
-  // Yabancılar genelde "ataklı" pozisyonlardan: kanat/forvet/orta saha (idx 6-10)
-  // Daha az olarak savunma (idx 1-5). Kaleci (idx 0) genelde yerli.
-  const candidateIdxs = [6, 7, 8, 9, 10, 5, 4, 3, 2, 11, 12, 13, 14]; // öncelik sırası
-  for (let i = 0; i < foreignCount && i < candidateIdxs.length; i++) {
-    const pickR = _hashRng(seed, `foreignSlot${i}`);
-    const idx   = candidateIdxs[Math.floor(pickR * candidateIdxs.length)];
-    foreignSlots.add(idx);
+  if (typeof _loadTeamRosterFromServer === 'function') {
+    _loadTeamRosterFromServer(cc, teamName).catch(()=>{});
   }
-
-  // 🆕 Yabancı slot için ülke havuzu (takımın kendi ülkesini hariç tut)
-  const availableForeignCCs = _FOREIGN_POOL_CCS.filter(c => c !== cc);
-  const _pickForeignCC = (slotIdx) => {
-    const r  = _hashRng(seed, `foreignCC${slotIdx}`);
-    return availableForeignCCs[Math.floor(r * availableForeignCCs.length)] || 'BR';
-  };
-
-  // İsim havuzları (her CC için ayrı pool)
-  const _localPool = _namePoolForCC(cc);
-  const usedNames  = new Set();
-
-  const pickName = (i, slotCC) => {
-    const pool = (slotCC === cc) ? _localPool : _namePoolForCC(slotCC);
-    const FIRST = pool.FIRST;
-    const LAST  = pool.LAST;
-    for (let a = 0; a < 50; a++) {
-      const fi = Math.floor(_hashRng(seed, `fn${i}_${a}_${slotCC}`) * FIRST.length);
-      const li = Math.floor(_hashRng(seed, `ln${i}_${a}_${slotCC}`) * LAST.length);
-      const full = FIRST[fi] + ' ' + LAST[li];
-      if (!usedNames.has(full)) { usedNames.add(full); return full; }
-    }
-    return FIRST[i % FIRST.length] + ' ' + LAST[i % LAST.length];
-  };
-
-  // Bayrak ülke kodundan
-  const _ccFlag = (xcc) => {
-    if (typeof CFT_DB !== 'undefined' && CFT_DB[xcc] && CFT_DB[xcc].flag) return CFT_DB[xcc].flag;
-    if (typeof ccToFlag === 'function') return ccToFlag(xcc) || '🏳️';
-    return '🏳️';
-  };
-
-  // 🆕 15 oyuncu: 11 ilk on + 4 yedek. Tüm oyuncular 10'dan başlar.
-  // Takım gücü = oyuncuların ortalaması (dinamik). Oyuncular geliştikçe takım güçlenir.
-  const players = SQUAD_SLOTS_15.map((sl, i) => {
-    const age = 18 + Math.floor(_hashRng(seed, `age${i}`) * 17); // 18-34
-
-    // 🆕 Yabancı/yerli ayrımı
-    const isForeignSlot = foreignSlots.has(i);
-    const slotCC   = isForeignSlot ? _pickForeignCC(i) : cc;
-    const slotFlag = _ccFlag(slotCC);
-
-    const p = {
-      num:    sl.num,
-      name:   pickName(i, slotCC),
-      pos:    sl.pos,                  // KL/STB/SB/DOS/OS/SAK/FWD (maç motoru)
-      posGroup: POS_GROUP[sl.pos] || 'MID', // GK/DEF/MID/FWD (takım sayfası)
-      rating: 10,                      // 🆕 herkes 10'dan başlar (meritokrasi)
-      overall: 10,                     // geriye dönük uyumluluk
-      level:  0,
-      xp:     0,
-      age,
-      starter: sl.starter,
-      abilities: _buildAbilities(),
-      nation: slotFlag,                // yabancı ise kendi bayrağı
-      nationality: slotCC,             // yabancı ise kendi CC'si
-      avatar: '🤖',
-      role:   i === 0 ? 'captain' : (i < 4 ? 'vice' : 'member'),
-      isBot:  true,
-      // 🆕 KART/SAKATLIK SİSTEMİ (kullanıcı isteği — botlar dahil tüm kurallar)
-      seasonYellow:   0,        // sezondaki sarı kart sayısı (4 → 1 maç ceza)
-      suspendMatches: 0,        // kalan ceza maç sayısı
-      suspendReason:  null,     // 'yellow' | 'red' | null
-      injuryUntil:    0         // sakatlık bitiş timestamp (ms), 0 = sakat değil
-    };
-    if (sl.starter) { p.x = sl.x; p.y = sl.y; }
-    return p;
-  });
-
-  // 🆕 RAM cache'e koy (eski localStorage yazımı kaldırıldı)
-  _teamRosterCache[key] = players;
-
-  return players;
+  return [];
 }
+
 
 // 🆕 KRİTİK YARDIMCI: Oyuncu havuzunu template slotlarına POS UYUMLU yerleştir.
 // Sıralı index ('botPlayers[i]') yanlış sonuç verir — en yüksek overall'lı stoper
@@ -26167,67 +26087,10 @@ function applyInjury(p, eventData) {
 //   3. Sakatlık event'lerini işle (injuryUntil, default 50 saat)
 //   4. Değişiklikleri localStorage'a geri yaz (persistent)
 function applyBotMatchOutcome(homeTeam, awayTeam, sim) {
-  if (!sim || !Array.isArray(sim.events)) return;
-  // Kullanıcı takımıysa atla (processMatchOutcome ayrı çağrılır)
-  const userTeamName = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : null;
-
-  const _processBot = (team, side) => {
-    if (!team || !team.name) return;
-    if (userTeamName && team.name === userTeamName) return; // kullanıcı takımı zaten ayrı işleniyor
-    const teamKey = 'cft_r3_' + team.name.replace(/\s+/g, '_');
-    let cached;
-    try {
-      cached = JSON.parse(localStorage.getItem(teamKey) || 'null');
-    } catch(e) { return; }
-    if (!cached || !Array.isArray(cached.players)) return;
-    const roster = cached.players;
-
-    // 1) Her oyuncu için suspendMatches azalt (bu maçı kaçırmış oldular)
-    roster.forEach(p => {
-      if ((p.suspendMatches || 0) > 0) {
-        p.suspendMatches = Math.max(0, p.suspendMatches - 1);
-        if (p.suspendMatches === 0) p.suspendReason = null;
-      }
-    });
-
-    // 2) Bu takımın event'lerini işle
-    const teamEvs = sim.events.filter(e => e && e.team === side);
-    teamEvs.forEach(ev => {
-      // Oyuncu eşleştir — event.player veya event.scorer
-      const evName = ev.player || ev.scorer || '';
-      if (!evName) return;
-      const p = roster.find(rp => rp && rp.name === evName);
-      if (!p) return;
-
-      if (ev.type === 'yellow' || ev.type === 'yellowCard') {
-        p.seasonYellow = (p.seasonYellow || 0) + 1;
-        if (p.seasonYellow >= 4) {
-          p.suspendMatches = (p.suspendMatches || 0) + 1;
-          p.suspendReason = 'yellow';
-          p.seasonYellow = 0;
-        }
-      } else if (ev.type === 'red' || ev.type === 'redCard') {
-        p.suspendMatches = (p.suspendMatches || 0) + 1;
-        p.suspendReason = 'red';
-      } else if (ev.type === 'injury') {
-        // Bot takımlarının medikal seviyesi yok → default 50 saat
-        const hours = ev.daysOut ? ev.daysOut * 24 : 50;
-        p.injuryUntil = Date.now() + hours * 3600000;
-        if (ev.severity) p.injurySeverity = ev.severity;
-      }
-    });
-
-    // 3) Geri yaz
-    try {
-      cached.players = roster;
-      cached.ts = Date.now();
-      localStorage.setItem(teamKey, JSON.stringify(cached));
-    } catch(e) { /* quota olabilir, sessizce geç */ }
-  };
-
-  _processBot(homeTeam, 'home');
-  _processBot(awayTeam, 'away');
+  // 🆕 No-op: bot maç sonu artık Edge function'da işleniyor.
+  // Eski localStorage tabanlı bot kart/sakatlık sistemi tamamen silindi.
 }
+
 
 // ═══════════════════════════════════════════════════════════════════
 //  SERVER-READY MAÇ ADAPTÖRÜ
@@ -40480,10 +40343,20 @@ function confirmTeamBuy() {
 
       // 4. Diziliş için ilk 11 yeniden hesapla (kullanıcı kaptan, sahaya kondu)
       try {
-        // Eski takım strategy cache'i temizle (lineup/bench restore engellensin)
+        // Eski takım strategy cache + localStorage + DB'deki strategy'i temizle
         _teamStrategyCache = null;
         try { localStorage.removeItem('cft_team_strategy'); } catch(e) {}
         try { localStorage.removeItem('cft_roster_persist'); } catch(e) {}
+        // 🆕 DB'deki eski strategy'i sil (eski kaptan/bot tarafından saved 9-lineup vb)
+        if (window.sb) {
+          try {
+            await window.sb.from('team_data')
+              .delete()
+              .eq('country_code', t.countryCode)
+              .eq('team_name', t.teamName)
+              .eq('data_key', 'strategy');
+          } catch(e) { console.warn('[buyTeam] DB strategy temizleme hatası:', e); }
+        }
         if (typeof activePitchPlayers !== 'undefined' && Array.isArray(activePitchPlayers)) {
           activePitchPlayers.length = 0;
         }
