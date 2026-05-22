@@ -24221,40 +24221,11 @@ function _cftStorageCleanup(aggressive) {
 
   // 2. cft_match_results — Supabase'e taşındı, localStorage YOK
 
-  // 3. cft_match_xp_log — son 100 girdi
-  try {
-    const raw = localStorage.getItem('cft_match_xp_log');
-    if (raw) {
-      const arr = JSON.parse(raw);
-      if (Array.isArray(arr) && arr.length > 100) {
-        const newRaw = JSON.stringify(arr.slice(-100));
-        freed += (raw.length - newRaw.length);
-        localStorage.setItem('cft_match_xp_log', newRaw);
-      }
-    }
-  } catch(e){}
+  // 3. cft_match_xp_log → Supabase'e taşındı, localStorage temizle
+  try { localStorage.removeItem('cft_match_xp_log'); } catch(e){}
 
-  // 4. cft_mv_history — her oyuncu için son 30 entry
-  try {
-    const raw = localStorage.getItem('cft_mv_history');
-    if (raw) {
-      const obj = JSON.parse(raw);
-      if (obj && typeof obj === 'object') {
-        let changed = false;
-        Object.keys(obj).forEach(k => {
-          if (Array.isArray(obj[k]) && obj[k].length > 30) {
-            obj[k] = obj[k].slice(-30);
-            changed = true;
-          }
-        });
-        if (changed) {
-          const newRaw = JSON.stringify(obj);
-          freed += (raw.length - newRaw.length);
-          localStorage.setItem('cft_mv_history', newRaw);
-        }
-      }
-    }
-  } catch(e){}
+  // 4. cft_mv_history → Supabase'e taşındı, localStorage temizle
+  try { localStorage.removeItem('cft_mv_history'); } catch(e){}
 
   // 5. cft_inbox — Supabase'e taşındı, localStorage temizle
   try { localStorage.removeItem('cft_inbox'); } catch(e){}
@@ -27239,14 +27210,46 @@ function canUserLeaveTeam() {
   return { allowed: true, requiresConfirm: false };
 }
 
-// Ödenmiş taksit kayıtları
-function getPaidInstallments() {
-  try { return JSON.parse(localStorage.getItem('cft_paid_installments') || '[]'); }
-  catch(e){ return []; }
+// 🆕 Ödenmiş taksitler: team_data tablosunda (takım bazlı, kaptan değişse bile kalır)
+let _paidInstallmentsCache = null;
+let _paidInstallmentsSaveTimer = null;
+
+async function _paidInstallmentsLoadFromServer() {
+  if (!window.sb || !_userTeam || !_userTeam.countryCode || !_userTeam.teamName) {
+    _paidInstallmentsCache = [];
+    return;
+  }
+  try {
+    const { data } = await window.sb.from('team_data')
+      .select('data')
+      .eq('country_code', _userTeam.countryCode)
+      .eq('team_name', _userTeam.teamName)
+      .eq('data_key', 'installments')
+      .maybeSingle();
+    _paidInstallmentsCache = Array.isArray(data?.data?.list) ? data.data.list : [];
+  } catch(e) { _paidInstallmentsCache = []; }
 }
+
+function getPaidInstallments() {
+  return Array.isArray(_paidInstallmentsCache) ? _paidInstallmentsCache : [];
+}
+
 function savePaidInstallments(list) {
-  try { localStorage.setItem('cft_paid_installments', JSON.stringify(list || [])); }
-  catch(e){}
+  _paidInstallmentsCache = Array.isArray(list) ? list : [];
+  if (window.sb && _userTeam && _userTeam.countryCode && _userTeam.teamName) {
+    clearTimeout(_paidInstallmentsSaveTimer);
+    _paidInstallmentsSaveTimer = setTimeout(async () => {
+      try {
+        await window.sb.from('team_data').upsert({
+          country_code: _userTeam.countryCode,
+          team_name: _userTeam.teamName,
+          data_key: 'installments',
+          data: { list: _paidInstallmentsCache },
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'country_code,team_name,data_key' });
+      } catch(e) { console.warn('[installments] save hata:', e); }
+    }, 500);
+  }
 }
 function isInstallmentPaid(season, day) {
   return getPaidInstallments().some(p => p.season === season && p.day === day
@@ -28035,9 +28038,9 @@ window.submitJoinRequestWithTerms = async function(){
   const captainName = (typeof getTeamRealCaptainName === 'function')
     ? getTeamRealCaptainName(cc, tn) : 'Kaptan';
 
-  // 1) Bekleyen istek listesine kaydet
+  // 1) Bekleyen istek listesine kaydet (Supabase tabanlı)
   try {
-    const list = JSON.parse(localStorage.getItem('cft_joinRequests') || '[]');
+    const list = getJoinRequests().slice();
     // Aynı takıma daha önce gönderilmişse atla
     if(list.some(r => r.countryCode === cc && r.teamName === tn && r.status === 'pending')){
       alert(`⚠️ ${flag} ${tn} takımına zaten bekleyen bir isteğin var.`);
@@ -28057,7 +28060,7 @@ window.submitJoinRequestWithTerms = async function(){
         durationSeasons: _jrwtSeasons,
       },
     });
-    localStorage.setItem('cft_joinRequests', JSON.stringify(list));
+    saveJoinRequests(list);
   } catch(e){
     alert('Hata: ' + e.message);
     return;
@@ -28247,14 +28250,14 @@ window.inboxRejectJoinRequest = function(msgId){
 
   // Bekleyen listede status güncelle
   try {
-    const list = JSON.parse(localStorage.getItem('cft_joinRequests') || '[]');
+    const list = getJoinRequests().slice();
     list.forEach(r => {
       if(r.countryCode === d.countryCode && r.teamName === d.teamName && r.status === 'pending'){
         r.status = 'rejected';
         r.respondedAt = Date.now();
       }
     });
-    localStorage.setItem('cft_joinRequests', JSON.stringify(list));
+    saveJoinRequests(list);
   } catch(e){}
 
   // Karşı tarafa red mesajı
@@ -28550,7 +28553,7 @@ function processMatchOutcome(script, userIsHome) {
         const result = rosterAwardXp(userPlayer.num, totalXp);
         // Maç XP log'u
         try {
-          const xpLog = JSON.parse(localStorage.getItem('cft_match_xp_log') || '[]');
+          const xpLog = getUserXpLog();
           xpLog.push({
             ts: Date.now(),
             player: meName,
@@ -28559,7 +28562,7 @@ function processMatchOutcome(script, userIsHome) {
             leveled: result.leveled,
             newLevel: result.newLevel,
           });
-          localStorage.setItem('cft_match_xp_log', JSON.stringify(xpLog.slice(-50)));
+          saveUserXpLog(xpLog.slice(-50));
         } catch(e) {}
 
         // İnbox bildirimi (level atladıysa)
@@ -29113,10 +29116,10 @@ function generateInjuryEvent(player, pos) {
 function pickSetPieceTaker(team, role) {
   // role: 'penalty' | 'freekick' | 'corner'
   if (!team || !team.players) return null;
-  // Kullanıcı override'ı (localStorage)
+  // 🆕 Kullanıcı override'ı: team_data.setpiece (Supabase)
   if (typeof _userTeam !== 'undefined' && _userTeam && team.name === _userTeam.teamName) {
     try {
-      const stored = JSON.parse(localStorage.getItem('cft_setpiece_takers') || '{}');
+      const stored = (typeof _setpieceCache !== 'undefined' && _setpieceCache) ? _setpieceCache : {};
       if (stored[role]) {
         const num = stored[role];
         const p = team.players.find(pl => pl.num === num);
@@ -29136,17 +29139,45 @@ function pickSetPieceTaker(team, role) {
   return cands.slice().sort((a,b) => (b.rating||70) - (a.rating||70))[0];
 }
 
-function getUserSetPieceTakers() {
+// 🆕 Setpiece takers RAM cache (Supabase'ten _trsLoadFromServer benzeri)
+let _setpieceCache = {};
+
+async function _setpieceLoadFromServer() {
+  if (!window.sb || !_userTeam || !_userTeam.countryCode || !_userTeam.teamName) {
+    _setpieceCache = {};
+    return;
+  }
   try {
-    return JSON.parse(localStorage.getItem('cft_setpiece_takers') || '{}');
-  } catch(e) { return {}; }
+    const { data } = await window.sb.from('team_data')
+      .select('data')
+      .eq('country_code', _userTeam.countryCode)
+      .eq('team_name', _userTeam.teamName)
+      .eq('data_key', 'setpiece')
+      .maybeSingle();
+    _setpieceCache = (data && data.data) ? data.data : {};
+  } catch(e) { _setpieceCache = {}; }
+}
+
+function getUserSetPieceTakers() {
+  return _setpieceCache || {};
 }
 
 function setUserSetPieceTaker(role, num) {
   try {
-    const stored = getUserSetPieceTakers();
-    stored[role] = num;
-    localStorage.setItem('cft_setpiece_takers', JSON.stringify(stored));
+    _setpieceCache = _setpieceCache || {};
+    _setpieceCache[role] = num;
+    // Supabase'e yaz
+    if (window.sb && _userTeam && _userTeam.countryCode && _userTeam.teamName) {
+      window.sb.from('team_data').upsert({
+        country_code: _userTeam.countryCode,
+        team_name: _userTeam.teamName,
+        data_key: 'setpiece',
+        data: _setpieceCache,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'country_code,team_name,data_key' }).then(({error}) => {
+        if (error) console.warn('[setpiece] save hata:', error.message);
+      });
+    }
     return true;
   } catch(e) { return false; }
 }
@@ -30332,7 +30363,7 @@ function showHistoricalMatchResult(m, fixtureIdx) {
   // Kullanıcının bu maçı oynayıp oynamadığını anla
   let userMatch = null;
   try {
-    const log = JSON.parse(localStorage.getItem('cft_user_match_log') || '[]');
+    const log = getUserMatchLog();
     userMatch = log.find(l => l.home === m.home.name && l.away === m.away.name) || null;
   } catch(e) {}
 
@@ -37450,7 +37481,7 @@ function _finalizeMatch(script) {
       const myScore = userIsHome ? (MS.scoreH || 0) : (MS.scoreA || 0);
       const oppScore = userIsHome ? (MS.scoreA || 0) : (MS.scoreH || 0);
       const result = myScore > oppScore ? 'W' : (myScore < oppScore ? 'L' : 'D');
-      const log = JSON.parse(localStorage.getItem('cft_user_match_log') || '[]');
+      const log = getUserMatchLog();
       log.push({
         date: new Date().toISOString(),
         home: curHome.name,
@@ -37471,7 +37502,7 @@ function _finalizeMatch(script) {
       });
       // Son 30 maçı tut (yer tasarrufu)
       const trimmed = log.slice(-30);
-      localStorage.setItem('cft_user_match_log', JSON.stringify(trimmed));
+      saveUserMatchLog(trimmed);
     }
   } catch(e) { console.warn('Match log yazımı başarısız:', e); }
 
@@ -38492,38 +38523,8 @@ function authInit(){
     }
   }
 
-  // 🆕 Transfer listesi bot seed temizliği (bir kerelik)
-  // Eski demo bot oyuncularını temizle — sadece gerçek satışlar kalır
-  try {
-    if (!localStorage.getItem('cft_tf_seed_cleanup_v1')) {
-      const raw = localStorage.getItem('cft_transfers');
-      if (raw) {
-        try {
-          const arr = JSON.parse(raw);
-          if (Array.isArray(arr)) {
-            // Demo seed item id'leri "tf_bot1" - "tf_bot5"
-            const cleaned = arr.filter(it => !(it && typeof it.id === 'string' && it.id.startsWith('tf_bot')));
-            if (cleaned.length === 0) {
-              localStorage.removeItem('cft_transfers');
-            } else if (cleaned.length !== arr.length) {
-              localStorage.setItem('cft_transfers', JSON.stringify(cleaned));
-            }
-          }
-        } catch(e) {
-          // Parse hatası → güvenli temizle
-          localStorage.removeItem('cft_transfers');
-        }
-      }
-      // 🆕 Güvenli yazma (quota dolarsa cleanup yapar)
-      if (typeof _cftSafeSetLS === 'function') _cftSafeSetLS('cft_tf_seed_cleanup_v1', '1');
-      else { try { localStorage.setItem('cft_tf_seed_cleanup_v1', '1'); } catch(e){} }
-    }
-  } catch(e) {
-    // QuotaExceededError sessizce geç — auto-cleanup zaten devrede
-    if (!e || (e.name !== 'QuotaExceededError' && e.code !== 22)) {
-      console.warn('TF seed temizliği hatası:', e);
-    }
-  }
+  // 🆕 cft_transfers Supabase'e taşındı (transfer_listings tablosu) — eski lokal sil
+  try { localStorage.removeItem('cft_transfers'); } catch(e) {}
 
   // Önce kullanıcı takımı bilgisini yükle
   userTeamLoad();
@@ -38677,7 +38678,7 @@ function authInit(){
           try {
             const POS_LIST = ['GK','DEF','MID','FWD'];
 
-            // 1) ESKİ localStorage cache'lerini sil (cross-cihaz / eski kullanıcı kalıntısı temizliği)
+            // 1) ESKİ localStorage cache'lerini sil (eski mimarinin kalıntısı)
             POS_LIST.forEach(p => { try { localStorage.removeItem('cft_tr_' + p); } catch(e) {} });
             try { localStorage.removeItem('cft_tr_active'); } catch(e) {}
 
@@ -38685,27 +38686,23 @@ function authInit(){
             _skillsCache = { GK: {}, DEF: {}, MID: {}, FWD: {} };
             _activeCache = [];
 
-            // 3) Server skills'ten doldur
+            // 3) Server skills'ten doldur (RAM cache — Supabase tek doğru kaynak)
             const serverSkills = (uplayer && uplayer.skills && typeof uplayer.skills === 'object') ? uplayer.skills : {};
             let loadedPos = 0;
             POS_LIST.forEach(pos => {
               if (serverSkills[pos] && typeof serverSkills[pos] === 'object' && Object.keys(serverSkills[pos]).length > 0) {
                 _skillsCache[pos] = serverSkills[pos];
-                try { localStorage.setItem('cft_tr_' + pos, JSON.stringify(serverSkills[pos])); } catch(e) {}
                 loadedPos++;
               }
             });
             if (loadedPos > 0) {
               console.info('[Skills] Server\'dan yüklendi:', loadedPos, '/4 pozisyon');
-            } else {
-              console.info('[Skills] Server boş — default seviye 10 kullanılacak');
             }
 
             // 4) Server active_trainings'ten doldur
             const serverActive = (uplayer && Array.isArray(uplayer.active_trainings)) ? uplayer.active_trainings : [];
             if (serverActive.length > 0) {
               _activeCache = serverActive;
-              try { localStorage.setItem('cft_tr_active', JSON.stringify(serverActive)); } catch(e) {}
               console.info('[ActiveTrainings] Server\'dan yüklendi:', serverActive.length);
             }
           } catch(e) { console.warn('[Skills/Active] cache hata:', e); }
@@ -39068,7 +39065,7 @@ function doLogin(){
         };
       }
 
-      // 🆕 Skills + Active Trainings cache (session restore ile aynı)
+      // 🆕 Skills + Active Trainings cache (Supabase tek doğru kaynak)
       try {
         const POS_LIST = ['GK','DEF','MID','FWD'];
         POS_LIST.forEach(p => { try { localStorage.removeItem('cft_tr_' + p); } catch(e){} });
@@ -39079,13 +39076,11 @@ function doLogin(){
         POS_LIST.forEach(pos => {
           if (serverSkills[pos] && typeof serverSkills[pos] === 'object' && Object.keys(serverSkills[pos]).length > 0) {
             _skillsCache[pos] = serverSkills[pos];
-            try { localStorage.setItem('cft_tr_' + pos, JSON.stringify(serverSkills[pos])); } catch(e){}
           }
         });
         const serverActive = (uplayer && Array.isArray(uplayer.active_trainings)) ? uplayer.active_trainings : [];
         if (serverActive.length > 0) {
           _activeCache = serverActive;
-          try { localStorage.setItem('cft_tr_active', JSON.stringify(serverActive)); } catch(e){}
         }
       } catch(e) { console.warn('[Login skills cache] hata:', e); }
 
@@ -40280,9 +40275,13 @@ function confirmTeamBuy() {
   // Takım kalitesi/popülasyonuna bağlı: 20K€ - 200K€ aralığı
   try{
     const startTreasury = Math.round( Math.max(20000, Math.min(200000, (t.pop||100000)/100 * (t.rating||60)/50 )) );
-    // Treasury'i sıfırdan başlat (eski takımdan kalan para olmasın)
-    localStorage.setItem('cft_treasury', JSON.stringify({eur: startTreasury, totalIn: startTreasury, totalOut: 0, donCount: 0}));
-    localStorage.removeItem('cft_treasury_log');
+    // 🆕 Treasury'i Supabase'e sıfırdan başlat (eski takımdan kalan para olmasın)
+    // Önce RAM cache'i sıfırla, sonra trsSaveData ile Supabase'e yaz
+    if (typeof _trsCache !== 'undefined') _trsCache = null;
+    if (typeof _trsLogCache !== 'undefined') _trsLogCache = null;
+    if(typeof trsSaveData === 'function') {
+      trsSaveData({eur: startTreasury, dia: 0, totalIn: startTreasury, totalOut: 0, donCount: 0});
+    }
     if(typeof trsAddLog === 'function') trsAddLog({type:'in', cur:'eur', amount: startTreasury, source: 'Takım Devralma Sermayesi'});
     if(typeof trsSyncHeader === 'function') trsSyncHeader();
   }catch(e){ console.warn('Kasa başlatma hatası:', e); }
@@ -40412,6 +40411,9 @@ function confirmTeamBuy() {
   }
   if (typeof _mfsLoadFromServer === 'function') {
     _mfsLoadFromServer().catch(()=>{});
+  }
+  if (typeof _setpieceLoadFromServer === 'function') {
+    _setpieceLoadFromServer().catch(()=>{});
   }
 
   // ROSTER_DATA'yı yeniden inşa et + kullanıcının rolünü kaptan yap
@@ -40770,16 +40772,37 @@ function showJoinToast(msg) {
 
 // ══ KATILMA İSTEKLERİ (Join Requests) ══
 // Takımsız kullanıcının başka takımlara gönderdiği "katılmak istiyorum" istekleri.
-// localStorage: cft_joinRequests = [{id, countryCode, teamName, sentAt, status}]
-// status: 'pending' | 'accepted' | 'rejected' (şu an sadece pending)
-function getJoinRequests() {
+// 🆕 Join requests: user_player.join_requests jsonb kolonunda tutulur
+let _joinRequestsCache = null;
+let _joinRequestsSaveTimer = null;
+
+async function _joinRequestsLoadFromServer() {
+  if (!window.sb || !authUser || !authUser.id) { _joinRequestsCache = []; return; }
   try {
-    const raw = localStorage.getItem('cft_joinRequests');
-    return raw ? JSON.parse(raw) : [];
-  } catch(e) { return []; }
+    const { data } = await window.sb.from('user_player')
+      .select('join_requests')
+      .eq('user_id', authUser.id)
+      .maybeSingle();
+    _joinRequestsCache = Array.isArray(data?.join_requests) ? data.join_requests : [];
+  } catch(e) { _joinRequestsCache = []; }
 }
+
+function getJoinRequests() {
+  return Array.isArray(_joinRequestsCache) ? _joinRequestsCache : [];
+}
+
 function saveJoinRequests(list) {
-  try { localStorage.setItem('cft_joinRequests', JSON.stringify(list || [])); } catch(e) {}
+  _joinRequestsCache = Array.isArray(list) ? list : [];
+  if (window.sb && authUser && authUser.id) {
+    clearTimeout(_joinRequestsSaveTimer);
+    _joinRequestsSaveTimer = setTimeout(async () => {
+      try {
+        await window.sb.from('user_player').update({
+          join_requests: _joinRequestsCache
+        }).eq('user_id', authUser.id);
+      } catch(e) { console.warn('[joinRequests] save hata:', e); }
+    }, 500);
+  }
 }
 
 // Bu takıma daha önce istek gönderdik mi?
@@ -41458,6 +41481,63 @@ function rosterRestoreUserProgress() {
 }
 
 let rosterCurrentFilter = 'all';
+
+// ═══════════════════════════════════════════════════════════
+// 🆕 Kullanıcı Maç Logu + XP Logu — Supabase tek doğru kaynak
+// user_player.match_log ve user_player.xp_log jsonb kolonlarında
+// ═══════════════════════════════════════════════════════════
+let _userMatchLogCache = null;   // null = yüklenmedi, array = yüklendi
+let _userXpLogCache = null;
+let _userMatchLogSaveTimer = null;
+let _userXpLogSaveTimer = null;
+
+async function _userMatchLogLoadFromServer() {
+  if (!window.sb || !authUser || !authUser.id) { _userMatchLogCache = []; _userXpLogCache = []; return; }
+  try {
+    const { data } = await window.sb.from('user_player')
+      .select('match_log, xp_log')
+      .eq('user_id', authUser.id)
+      .maybeSingle();
+    _userMatchLogCache = Array.isArray(data?.match_log) ? data.match_log : [];
+    _userXpLogCache = Array.isArray(data?.xp_log) ? data.xp_log : [];
+  } catch(e) { _userMatchLogCache = []; _userXpLogCache = []; }
+}
+
+function getUserMatchLog() {
+  return Array.isArray(_userMatchLogCache) ? _userMatchLogCache : [];
+}
+
+function saveUserMatchLog(list) {
+  _userMatchLogCache = Array.isArray(list) ? list.slice(-30) : [];  // son 30
+  if (window.sb && authUser && authUser.id) {
+    clearTimeout(_userMatchLogSaveTimer);
+    _userMatchLogSaveTimer = setTimeout(async () => {
+      try {
+        await window.sb.from('user_player').update({
+          match_log: _userMatchLogCache
+        }).eq('user_id', authUser.id);
+      } catch(e) { console.warn('[match_log] save hata:', e); }
+    }, 1000);
+  }
+}
+
+function getUserXpLog() {
+  return Array.isArray(_userXpLogCache) ? _userXpLogCache : [];
+}
+
+function saveUserXpLog(list) {
+  _userXpLogCache = Array.isArray(list) ? list.slice(-100) : [];  // son 100
+  if (window.sb && authUser && authUser.id) {
+    clearTimeout(_userXpLogSaveTimer);
+    _userXpLogSaveTimer = setTimeout(async () => {
+      try {
+        await window.sb.from('user_player').update({
+          xp_log: _userXpLogCache
+        }).eq('user_id', authUser.id);
+      } catch(e) { console.warn('[xp_log] save hata:', e); }
+    }, 1000);
+  }
+}
 
 // (Eski teamTab tanımı kaldırıldı — aşağıda satır ~6803'te güncel sürümü var)
 
@@ -43730,15 +43810,42 @@ function autoSmartLineup() {
 // ═══════════════════════════════════════════════════════════════════
 const VT_DURATION_MS = 24 * 3600 * 1000;
 
-function vtGetVotes() {
+// 🆕 Team votes RAM cache (Supabase team_data.votes)
+let _votesCache = [];
+
+async function _votesLoadFromServer() {
+  if (!window.sb || !_userTeam || !_userTeam.countryCode || !_userTeam.teamName) {
+    _votesCache = [];
+    return;
+  }
   try {
-    const v = JSON.parse(localStorage.getItem('cft_team_votes') || '[]');
-    return Array.isArray(v) ? v : [];
-  } catch(e) { return []; }
+    const { data } = await window.sb.from('team_data')
+      .select('data')
+      .eq('country_code', _userTeam.countryCode)
+      .eq('team_name', _userTeam.teamName)
+      .eq('data_key', 'votes')
+      .maybeSingle();
+    _votesCache = (data && Array.isArray(data.data)) ? data.data : [];
+  } catch(e) { _votesCache = []; }
+}
+
+function vtGetVotes() {
+  return Array.isArray(_votesCache) ? _votesCache : [];
 }
 
 function vtSaveVotes(votes) {
-  try { localStorage.setItem('cft_team_votes', JSON.stringify(votes)); } catch(e) {}
+  _votesCache = Array.isArray(votes) ? votes : [];
+  if (window.sb && _userTeam && _userTeam.countryCode && _userTeam.teamName) {
+    window.sb.from('team_data').upsert({
+      country_code: _userTeam.countryCode,
+      team_name: _userTeam.teamName,
+      data_key: 'votes',
+      data: _votesCache,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'country_code,team_name,data_key' }).then(({error}) => {
+      if (error) console.warn('[votes] save hata:', error.message);
+    });
+  }
 }
 
 function vtCleanupExpired() {
@@ -45989,9 +46096,12 @@ function ntBuildRoster(cc) {
     ntSaveSquadIds(cc, ids);
   }
 
-  // Forma numarası override'ları (T.D. değiştirebiliyor)
+  // Forma numarası override'ları (Supabase user_player.nt_jersey_overrides)
   let numOverrides = {};
-  try { numOverrides = JSON.parse(localStorage.getItem('cft_nt_jersey_' + cc) || '{}'); } catch(e) {}
+  try {
+    const all = _ntJerseyOverridesCache || {};
+    numOverrides = all[cc] || {};
+  } catch(e) {}
 
   return ids.map((id, slotIdx) => {
     if (!id) return null;
@@ -46093,11 +46203,10 @@ function ntAutoFillSquadIfStale(cc) {
   if (typeof CFT_DB === 'undefined' || !CFT_DB[cc]) return;
   if (typeof NT_SQUAD_SLOTS === 'undefined') return;
 
-  // Sezon/gün kontrolü
-  let progress = {};
-  try { progress = JSON.parse(localStorage.getItem('cft_userProgress') || '{}'); } catch(e) {}
-  const season = progress.season || 1;
-  const day = progress.day || 1;
+  // Sezon/gün kontrolü (🆕 localStorage yerine getSeasonInfo)
+  const _si = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : { season: 1, dayInSeason: 1 };
+  const season = _si.season || 1;
+  const day = _si.dayInSeason || 1;
 
   // EURO National Cup S2'de başlar; öncesinde otomatik fill yapma
   if (season < 2) return;
@@ -46594,13 +46703,13 @@ function ntExecuteJerseyEdit() {
   // Numarayı güncelle (in-memory)
   player.num = newNum;
 
-  // Persist: ülke bazlı override map'ine kaydet
+  // Persist: ülke bazlı override map'ine kaydet (Supabase user_player.nt_jersey_overrides)
   const cc = (typeof fedActiveCountry === 'function') ? fedActiveCountry() : 'TR';
-  let overrides = {};
-  try { overrides = JSON.parse(localStorage.getItem('cft_nt_jersey_' + cc) || '{}'); } catch(e){}
+  const all = _ntJerseyOverridesCache || {};
+  if (!all[cc]) all[cc] = {};
   if(typeof player.slotIdx === 'number') {
-    overrides[player.slotIdx] = newNum;
-    try { localStorage.setItem('cft_nt_jersey_' + cc, JSON.stringify(overrides)); } catch(e){}
+    all[cc][player.slotIdx] = newNum;
+    _saveNtJerseyOverrides(all);
   }
 
   // Diziliş lineup snapshot'ı güncelle (saha üzerindeki oyuncunun num'u değişebilir)
@@ -47607,10 +47716,10 @@ function fedCallupPlayer(payloadStr) {
     const fromTitle = fedRole === 'president' ? 'Federasyon Başkanı' : 'Federasyon Yardımcısı';
     const fromName = (typeof authUser !== 'undefined' && authUser && authUser.name) ? authUser.name : 'Federasyon';
 
-    // Bugünün tarihi — oyun sezon/gün sistemine göre
+    // Bugünün tarihi — oyun sezon/gün sistemine göre (🆕 Supabase'ten)
     const progress = (function(){
-      try { return JSON.parse(localStorage.getItem('cft_userProgress') || '{}'); }
-      catch(e) { return {}; }
+      const _si = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : {};
+      return { season: _si.season || 1, day: _si.dayInSeason || 1 };
     })();
     const dateLabel = 'S' + (progress.season||1) + ' G' + (progress.day||1);
 
@@ -47719,9 +47828,9 @@ function fedRemoveFromNT(payloadStr) {
 // EURO National Cup'ta kullanıcının ülkesinin yer aldığı grubu bul
 // Dönen: { letter, group, matches, standings, season } veya null (sezon < 2)
 function _ntFindUserGroup(cc) {
-  let progress = {};
-  try { progress = JSON.parse(localStorage.getItem('cft_userProgress') || '{}'); } catch(e) {}
-  const season = progress.season || 1;
+  // 🆕 Sezon bilgisi Supabase'ten (getSeasonInfo)
+  const _si = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : { season: 1 };
+  const season = _si.season || 1;
   // Sezon 2'den önce EURO National Cup yok
   if (season < 2) return { season, notStarted: true };
   if (typeof encEnsureState !== 'function') return null;
@@ -50968,8 +51077,8 @@ function renderHomeSmartAction() {
   // Aktif antrenman var mı?
   let activeTrainingCount = 0;
   try {
-    const s = localStorage.getItem('cft_tr_active');
-    if(s) activeTrainingCount = JSON.parse(s).length;
+    const list = (typeof trGetActive === 'function') ? trGetActive() : [];
+    activeTrainingCount = Array.isArray(list) ? list.length : 0;
   } catch(e) {}
 
   const setIcon  = (v) => { const el = document.getElementById('hmAcIcon');  if(el) el.textContent = v; };
@@ -52303,7 +52412,7 @@ function renderTrophyShelf() {
 
   // Kariyer istatistikleri (cft_user_match_log'dan)
   let log = [];
-  try { log = JSON.parse(localStorage.getItem('cft_user_match_log') || '[]'); } catch(e) {}
+  try { log = getUserMatchLog(); } catch(e) {}
 
   // Sezon sayısı (mevcut sezon - 1)
   let seasonsPlayed = 0;
@@ -52642,7 +52751,7 @@ function generateEventFeed(seed, count) {
 
   // 1. KULLANICI MAÇ GEÇMİŞİ (cft_user_match_log)
   try {
-    const log = JSON.parse(localStorage.getItem('cft_user_match_log') || '[]');
+    const log = getUserMatchLog();
     // Son 5 maç → en yeni başta
     const recent = [...log].reverse().slice(0, 5);
     recent.forEach(m => {
@@ -52668,7 +52777,7 @@ function generateEventFeed(seed, count) {
 
   // 2. KULLANICI XP & LEVEL ATLAMA (cft_match_xp_log)
   try {
-    const xpLog = JSON.parse(localStorage.getItem('cft_match_xp_log') || '[]');
+    const xpLog = getUserXpLog();
     const recent = [...xpLog].reverse().slice(0, 4);
     recent.forEach(x => {
       if (x.leveled) {
@@ -53898,45 +54007,117 @@ function _carDaysSince(dateStr) {
 }
 
 // Yardımcı: takım geçmişine ekle (kullanıcı yeni takıma katıldığında çağrılır)
-function pushCareerHistory(entry) {
+// 🆕 NT Jersey Overrides: user_player.nt_jersey_overrides {cc: {slotIdx: num}}
+let _ntJerseyOverridesCache = null;
+let _ntJerseyOverridesSaveTimer = null;
+
+async function _ntJerseyOverridesLoadFromServer() {
+  if (!window.sb || !authUser || !authUser.id) { _ntJerseyOverridesCache = {}; return; }
   try {
-    const list = JSON.parse(localStorage.getItem('cft_career_history') || '[]');
-    list.push({
-      teamName: entry.teamName,
-      countryCode: entry.countryCode,
-      leagueName: entry.leagueName || '',
-      role: entry.role || 'member',
-      joinDate: entry.joinDate || new Date().toISOString(),
-      leaveDate: entry.leaveDate || null,
-      reason: entry.reason || ''
-    });
-    _safeSetItem('cft_career_history', JSON.stringify(list));
-  } catch(e) { console.warn('career history push hatası:', e); }
+    const { data } = await window.sb.from('user_player')
+      .select('nt_jersey_overrides')
+      .eq('user_id', authUser.id)
+      .maybeSingle();
+    _ntJerseyOverridesCache = (data && data.nt_jersey_overrides) || {};
+  } catch(e) { _ntJerseyOverridesCache = {}; }
+}
+
+function _saveNtJerseyOverrides(all) {
+  _ntJerseyOverridesCache = all || {};
+  if (window.sb && authUser && authUser.id) {
+    clearTimeout(_ntJerseyOverridesSaveTimer);
+    _ntJerseyOverridesSaveTimer = setTimeout(async () => {
+      try {
+        await window.sb.from('user_player').update({
+          nt_jersey_overrides: _ntJerseyOverridesCache
+        }).eq('user_id', authUser.id);
+      } catch(e) { console.warn('[nt_jersey] save hata:', e); }
+    }, 500);
+  }
+}
+
+// 🆕 Career History: user_player.career_history jsonb
+let _careerHistoryCache = null;
+let _careerHistorySaveTimer = null;
+
+async function _careerHistoryLoadFromServer() {
+  if (!window.sb || !authUser || !authUser.id) { _careerHistoryCache = []; return; }
+  try {
+    const { data } = await window.sb.from('user_player')
+      .select('career_history')
+      .eq('user_id', authUser.id)
+      .maybeSingle();
+    _careerHistoryCache = Array.isArray(data?.career_history) ? data.career_history : [];
+  } catch(e) { _careerHistoryCache = []; }
+}
+
+function getCareerHistory() {
+  return Array.isArray(_careerHistoryCache) ? _careerHistoryCache : [];
+}
+
+function _saveCareerHistory(list) {
+  _careerHistoryCache = Array.isArray(list) ? list : [];
+  if (window.sb && authUser && authUser.id) {
+    clearTimeout(_careerHistorySaveTimer);
+    _careerHistorySaveTimer = setTimeout(async () => {
+      try {
+        await window.sb.from('user_player').update({
+          career_history: _careerHistoryCache
+        }).eq('user_id', authUser.id);
+      } catch(e) { console.warn('[career_history] save hata:', e); }
+    }, 500);
+  }
+}
+
+// Yardımcı: takım geçmişine ekle (kullanıcı yeni takıma katıldığında çağrılır)
+function pushCareerHistory(entry) {
+  const list = getCareerHistory().slice();
+  list.push({
+    teamName: entry.teamName,
+    countryCode: entry.countryCode,
+    leagueName: entry.leagueName || '',
+    role: entry.role || 'member',
+    joinDate: entry.joinDate || new Date().toISOString(),
+    leaveDate: entry.leaveDate || null,
+    reason: entry.reason || ''
+  });
+  _saveCareerHistory(list);
 }
 
 // Yardımcı: aktif takımın "leaveDate"ini set et (ayrılırken)
 function _carCloseCurrentHistory(reason) {
-  try {
-    const list = JSON.parse(localStorage.getItem('cft_career_history') || '[]');
-    if (list.length > 0 && !list[list.length - 1].leaveDate) {
-      list[list.length - 1].leaveDate = new Date().toISOString();
-      list[list.length - 1].reason = reason || '';
-      _safeSetItem('cft_career_history', JSON.stringify(list));
-    }
-  } catch(e) {}
+  const list = getCareerHistory().slice();
+  if (list.length > 0 && !list[list.length - 1].leaveDate) {
+    list[list.length - 1].leaveDate = new Date().toISOString();
+    list[list.length - 1].reason = reason || '';
+    _saveCareerHistory(list);
+  }
 }
 
 // Yardımcı: piyasa değeri snapshot kaydı (her render'da güncel snapshot eklenir)
 function _carRecordMarketValue(value) {
   try {
-    const list = JSON.parse(localStorage.getItem('cft_mv_history') || '[]');
+    // 🆕 Supabase RAM cache'inden oku
+    const list = Array.isArray(_marketValHistCache) ? _marketValHistCache : [];
     const todayKey = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
     // Aynı gün için varsa güncelle, yoksa ekle
     const existing = list.findIndex(e => e.day === todayKey);
     if (existing >= 0) list[existing].value = value;
     else list.push({ day: todayKey, value });
     // Son 30 gün
-    localStorage.setItem('cft_mv_history', JSON.stringify(list.slice(-30)));
+    const trimmed = list.slice(-30);
+    _marketValHistCache = trimmed;
+    // Debounced Supabase write
+    if (window.sb && authUser && authUser.id) {
+      clearTimeout(_marketValHistSaveTimer);
+      _marketValHistSaveTimer = setTimeout(async () => {
+        try {
+          await window.sb.from('user_player').update({
+            market_val_history: trimmed
+          }).eq('user_id', authUser.id);
+        } catch(e) { console.warn('[mv_history] save hata:', e); }
+      }, 1000);
+    }
   } catch(e) {}
 }
 
@@ -53944,10 +54125,10 @@ function _carRecordMarketValue(value) {
 function renderCareerPage() {
   // ─── Verileri topla ───
   let log = [];
-  try { log = JSON.parse(localStorage.getItem('cft_user_match_log') || '[]'); } catch(e) {}
+  try { log = getUserMatchLog(); } catch(e) {}
   let trophies = getTrophies();
   let careerHist = [];
-  try { careerHist = JSON.parse(localStorage.getItem('cft_career_history') || '[]'); } catch(e) {}
+  try { careerHist = getCareerHistory(); } catch(e) {}
 
   const userPlayer = (typeof ROSTER_DATA !== 'undefined' && ROSTER_DATA.length)
     ? ROSTER_DATA.find(p => p.role === 'user') : null;
@@ -53991,7 +54172,7 @@ function renderCareerPage() {
       // Trend hesapla (son ile öncesi)
       let trendHtml = '';
       try {
-        const mvList = JSON.parse(localStorage.getItem('cft_mv_history') || '[]');
+        const mvList = Array.isArray(_marketValHistCache) ? _marketValHistCache : [];
         if (mvList.length >= 2) {
           const prev = mvList[mvList.length - 2].value;
           const diff = mv - prev;
@@ -54123,7 +54304,7 @@ function renderCareerPage() {
         role: _userTeam.role,
         joinDate: _userTeam.joinDate || new Date().toISOString()
       });
-      careerHist = JSON.parse(localStorage.getItem('cft_career_history') || '[]');
+      careerHist = getCareerHistory();
     }
 
     if (careerHist.length === 0) {
@@ -54165,8 +54346,7 @@ function renderCareerPage() {
   // ─── PİYASA DEĞERİ GRAFİĞİ ───
   const mvChartEl = document.getElementById('carMvChart');
   if (mvChartEl) {
-    let mvList = [];
-    try { mvList = JSON.parse(localStorage.getItem('cft_mv_history') || '[]'); } catch(e) {}
+    let mvList = Array.isArray(_marketValHistCache) ? _marketValHistCache : [];
 
     if (mvList.length === 0) {
       mvChartEl.innerHTML = '<div class="car-mv-empty">Piyasa değeri geçmişi yok</div>';
@@ -57884,7 +58064,30 @@ function getEquippedBonuses() {
 }
 
 function saveSkillLevels(pos, levels) {
-  try { localStorage.setItem('cft_skills_' + pos, JSON.stringify(levels)); } catch(e){}
+  // 🆕 localStorage kaldırıldı — Supabase user_player.skills tek kaynak
+  if (window.sb && authUser && authUser.id) {
+    try {
+      // RAM cache güncelle
+      if (window._skillsCache) {
+        window._skillsCache[pos] = levels;
+      }
+      // Tüm pozisyonları içeren full object'i kaydet
+      const full = {
+        GK: (window._skillsCache && window._skillsCache.GK) || {},
+        DEF: (window._skillsCache && window._skillsCache.DEF) || {},
+        MID: (window._skillsCache && window._skillsCache.MID) || {},
+        FWD: (window._skillsCache && window._skillsCache.FWD) || {}
+      };
+      full[pos] = levels;
+      // Debounced update
+      clearTimeout(window._saveSkillsTimer);
+      window._saveSkillsTimer = setTimeout(() => {
+        window.sb.from('user_player').update({ skills: full }).eq('user_id', authUser.id).then(({error}) => {
+          if (error) console.warn('[skills] save hata:', error.message);
+        });
+      }, 1000);
+    } catch(e) { console.warn('[skills] save hata:', e); }
+  }
 }
 
 // Oyuncu genel gücü hesapla
@@ -58183,8 +58386,8 @@ function renderPlayerHistory() {
   let matchLog = [];
   let careerHist = [];
   let curSeason = 1;
-  try { matchLog   = JSON.parse(localStorage.getItem('cft_user_match_log') || '[]'); } catch(e) {}
-  try { careerHist = JSON.parse(localStorage.getItem('cft_career_history') || '[]'); } catch(e) {}
+  try { matchLog   = getUserMatchLog(); } catch(e) {}
+  try { careerHist = getCareerHistory(); } catch(e) {}
   try { if (typeof getSeasonInfo === 'function') curSeason = getSeasonInfo().season || 1; } catch(e) {}
 
   // Toplamlar
@@ -58448,47 +58651,57 @@ const SAMPLE_ITEMS = [
    type:'Defans', rarity:'common'},
 ];
 
-// localStorage: slot durumları + dolap
-function getEqData() {
+// 🆕 Equipment Supabase user_player.equipment jsonb'de
+let _eqDataCache = null;
+let _eqDataSaveTimer = null;
+
+async function _eqDataLoadFromServer() {
+  if (!window.sb || !authUser || !authUser.id) { _eqDataCache = null; return; }
   try {
-    const s = localStorage.getItem('cft_equipment');
-    if(s) {
-      const d = JSON.parse(s);
-      // 🆕 Geriye dönük: 4→5 slot expand veya 5+ trim
-      if (Array.isArray(d.unlockedSlots) && d.unlockedSlots.length > 5) d.unlockedSlots = d.unlockedSlots.slice(0,5);
-      if (Array.isArray(d.activeSlots)   && d.activeSlots.length   > 5) d.activeSlots   = d.activeSlots.slice(0,5);
-      while ((d.unlockedSlots||[]).length < 5) (d.unlockedSlots = d.unlockedSlots||[]).push(false);
-      while ((d.activeSlots  ||[]).length < 5) (d.activeSlots   = d.activeSlots  ||[]).push(null);
+    const { data } = await window.sb.from('user_player')
+      .select('equipment')
+      .eq('user_id', authUser.id)
+      .maybeSingle();
+    _eqDataCache = (data && data.equipment) ? data.equipment : null;
+  } catch(e) {}
+}
 
-      // 🆕 Eski demo itemleri (i001-i005, bonus formatı '+%X Y') temizle — gerçek skill etkisi olmuyor
-      if (Array.isArray(d.wardrobe)) {
-        const oldDemoIds = ['i001','i002','i003','i004','i005'];
-        const before = d.wardrobe.length;
-        d.wardrobe = d.wardrobe.filter(w => !oldDemoIds.includes(w.id));
-        // Aktif slottaki eski demo itemler null'a çevrilsin
-        d.activeSlots = d.activeSlots.map(id => oldDemoIds.includes(id) ? null : id);
-        // Eğer dolap boşaldıysa SAMPLE_ITEMS ekle (yeni format)
-        if (d.wardrobe.length === 0 && before > 0) {
-          d.wardrobe = [...SAMPLE_ITEMS];
-          try { localStorage.setItem('cft_equipment', JSON.stringify(d)); } catch(e){}
-        } else if (before !== d.wardrobe.length) {
-          // En azından migrasyon yapıldı, kaydet
-          try { localStorage.setItem('cft_equipment', JSON.stringify(d)); } catch(e){}
-        }
-      }
-
-      return d;
-    }
-  } catch(e){}
-  return {
+// localStorage: slot durumları + dolap (artık Supabase, RAM cache)
+function getEqData() {
+  const defaultData = {
     unlockedSlots: [true, false, false, false, false],
     activeSlots:   [null, null, null, null, null],
     wardrobe:      [...SAMPLE_ITEMS],
   };
+  if (!_eqDataCache) return defaultData;
+  const d = JSON.parse(JSON.stringify(_eqDataCache));  // deep copy
+  // Geriye dönük migrations
+  if (Array.isArray(d.unlockedSlots) && d.unlockedSlots.length > 5) d.unlockedSlots = d.unlockedSlots.slice(0,5);
+  if (Array.isArray(d.activeSlots)   && d.activeSlots.length   > 5) d.activeSlots   = d.activeSlots.slice(0,5);
+  while ((d.unlockedSlots||[]).length < 5) (d.unlockedSlots = d.unlockedSlots||[]).push(false);
+  while ((d.activeSlots  ||[]).length < 5) (d.activeSlots   = d.activeSlots  ||[]).push(null);
+  // Demo item temizliği
+  if (Array.isArray(d.wardrobe)) {
+    const oldDemoIds = ['i001','i002','i003','i004','i005'];
+    d.wardrobe = d.wardrobe.filter(w => !oldDemoIds.includes(w.id));
+    d.activeSlots = d.activeSlots.map(id => oldDemoIds.includes(id) ? null : id);
+    if (d.wardrobe.length === 0) d.wardrobe = [...SAMPLE_ITEMS];
+  }
+  return d;
 }
 
 function saveEqData(data) {
-  try { localStorage.setItem('cft_equipment', JSON.stringify(data)); } catch(e){}
+  _eqDataCache = data;
+  if (window.sb && authUser && authUser.id) {
+    clearTimeout(_eqDataSaveTimer);
+    _eqDataSaveTimer = setTimeout(async () => {
+      try {
+        await window.sb.from('user_player').update({
+          equipment: _eqDataCache
+        }).eq('user_id', authUser.id);
+      } catch(e) { console.warn('[equipment] save hata:', e); }
+    }, 500);
+  }
 }
 
 let _eqData      = null;
@@ -59175,22 +59388,46 @@ function formatMarketVal(v) {
 }
 
 // ══ ESKİ MV SİSTEMİ — DEPRECATED ══
-// Yeni sistem: ROSTER_DATA[i].captainMV (kadro listesi/oyuncu sayfası tek kaynak)
-// Bu fonksiyonlar legacy modal'lar için bırakıldı, ama artık plMarketVal'a yazmıyor
-function getMarketVal() {
-  try { return parseInt(localStorage.getItem('cft_marketval') || '0') || 0; } catch(e){ return 0; }
-}
-function setMarketVal(v) {
-  try { localStorage.setItem('cft_marketval', v); } catch(e){}
+// 🆕 Piyasa değeri Supabase user_player tablosunda tutulur
+// localStorage cleanup için bırakıldı, gerçek okuma RAM cache + Supabase'ten
+let _marketValCache = null;          // null = yüklenmedi, sayı = yüklendi
+let _marketValHistCache = null;       // null = yüklenmedi, array = yüklendi
+let _marketValSaveTimer = null;
+let _marketValHistSaveTimer = null;
+
+async function _marketValLoadFromServer() {
+  if (!window.sb || !authUser || !authUser.id) return;
+  try {
+    const { data, error } = await window.sb.from('user_player')
+      .select('market_val, market_val_history')
+      .eq('user_id', authUser.id)
+      .maybeSingle();
+    if (error) { console.warn('[marketval] load hata:', error); return; }
+    if (data) {
+      _marketValCache = data.market_val || 0;
+      _marketValHistCache = Array.isArray(data.market_val_history) ? data.market_val_history : [];
+    }
+  } catch(e) { console.warn('[marketval] load exception:', e); }
 }
 
-// 🆕 Eski 450K default temizliği — bir kez çalışır
-(function _purgeOldMVDefault(){
-  try {
-    const v = localStorage.getItem('cft_marketval');
-    if (v === '450000') localStorage.removeItem('cft_marketval');
-  } catch(e){}
-})();
+function getMarketVal() {
+  return _marketValCache || 0;
+}
+
+function setMarketVal(v) {
+  _marketValCache = v;
+  // Debounced Supabase write
+  if (window.sb && authUser && authUser.id) {
+    clearTimeout(_marketValSaveTimer);
+    _marketValSaveTimer = setTimeout(async () => {
+      try {
+        await window.sb.from('user_player').update({
+          market_val: v
+        }).eq('user_id', authUser.id);
+      } catch(e) { console.warn('[marketval] save hata:', e); }
+    }, 500);
+  }
+}
 
 function openMarketModal() {
   const user = authUser || {};
@@ -59351,23 +59588,43 @@ let _marketListings = []; // Pazar yeri satışları
 let _buyTarget      = null;
 let _sellItemId     = null;
 
-// Pazar yeri ilanları — sadece gerçek kullanıcı satışları
+// Pazar yeri ilanları — sadece gerçek kullanıcı satışları (Supabase tek doğru kaynak)
+let _marketListingsLoading = null;
+
+async function _marketListingsLoadFromServer() {
+  if (!window.sb) return [];
+  try {
+    const { data, error } = await window.sb.from('item_listings')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (error) { console.warn('[market] load hata:', error); return []; }
+    return (data || []).map(r => Object.assign({
+      id: r.id,
+      seller: r.seller_name,
+      sellerUserId: r.seller_user_id,
+      price: r.price,
+      listed: r.listed !== false,
+      createdAt: new Date(r.created_at).getTime()
+    }, r.data || {}));
+  } catch(e) { console.warn('[market] load exception:', e); return []; }
+}
+
 function initMarketListings() {
   if(_marketListings.length) return;
-  _marketListings = []; // 🆕 Sahte bot listingler kaldırıldı
-  try {
-    const s = localStorage.getItem('cft_market');
-    if (s) {
-      const saved = JSON.parse(s);
-      if (Array.isArray(saved)) {
-        // 🆕 Eski sahte ID'leri filtrele (ml1-ml7) — geriye dönük migrasyon
-        const fakeIds = new Set(['ml1','ml2','ml3','ml4','ml5','ml6','ml7']);
-        const fakeSellers = new Set(['Bot_Burak','Bot_İsmail','Bot_Ahmet','Bot_Murat','Bot_Kemal','Bot_Emre','Bot_Hakan']);
-        const cleaned = saved.filter(l => !fakeIds.has(l.id) && !fakeSellers.has(l.seller));
-        _marketListings = [..._marketListings, ...cleaned];
-      }
-    }
-  } catch(e) {}
+  _marketListings = [];
+  // Supabase'ten yükle (async — sayfa açıldığında render edilir)
+  if (!_marketListingsLoading) {
+    _marketListingsLoading = _marketListingsLoadFromServer().then(arr => {
+      _marketListings = arr;
+      _marketListingsLoading = null;
+      try {
+        if (typeof renderMarket === 'function' && document.getElementById('shop-market') && document.getElementById('shop-market').style.display !== 'none') {
+          renderMarket();
+        }
+      } catch(e) {}
+    });
+  }
 }
 
 function shopTab(name, btn) {
@@ -59552,8 +59809,12 @@ function tmConfirmBuy(){
   try{
     const country = CFT_DB[listing.countryCode];
     const startTreasury = Math.round( Math.max(20000, Math.min(200000, (listing.pop||100000)/100 * (listing.rating||60)/50 )) );
-    localStorage.setItem('cft_treasury', JSON.stringify({eur: startTreasury, dia: 0, totalIn: startTreasury, totalOut: 0, donCount: 0}));
-    localStorage.removeItem('cft_treasury_log');
+    // 🆕 Supabase'e yaz (localStorage'a değil)
+    if (typeof _trsCache !== 'undefined') _trsCache = null;
+    if (typeof _trsLogCache !== 'undefined') _trsLogCache = null;
+    if(typeof trsSaveData === 'function') {
+      trsSaveData({eur: startTreasury, dia: 0, totalIn: startTreasury, totalOut: 0, donCount: 0});
+    }
     if(typeof trsAddLog === 'function') trsAddLog({type:'in', cur:'eur', amount: startTreasury, source: 'Takım Devralma Sermayesi'});
   }catch(e){}
 
@@ -59968,9 +60229,26 @@ function _doCancelListing(listingId) {
   }
 }
 
-function saveMarket() {
-  const myListings = _marketListings.filter(l=>l.seller===(authUser?.name||''));
-  try { localStorage.setItem('cft_market', JSON.stringify(myListings)); } catch(e){}
+async function saveMarket() {
+  // 🆕 Supabase tek doğru kaynak — kullanıcının kendi listinglerini upsert et
+  if (!window.sb || !authUser || !authUser.id) return;
+  const myListings = _marketListings.filter(l => l.sellerUserId === authUser.id || l.seller === (authUser?.name || ''));
+  try {
+    for (const l of myListings) {
+      const dataExtra = Object.assign({}, l);
+      delete dataExtra.id; delete dataExtra.seller; delete dataExtra.sellerUserId;
+      delete dataExtra.price; delete dataExtra.listed; delete dataExtra.createdAt;
+      await window.sb.from('item_listings').upsert({
+        id: l.id,
+        seller_name: l.seller || (authUser?.name || 'Bilinmeyen'),
+        seller_user_id: authUser.id,
+        price: l.price || 0,
+        listed: l.listed !== false,
+        data: dataExtra,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'id' });
+    }
+  } catch(e) { console.warn('[market] save hata:', e); }
 }
 
 // ── Satış Modalı ──
@@ -60053,13 +60331,30 @@ function showShopToast(msg, color) {
 }
 
 
-// ── Mağaza stok takibi ──
-function getShopStocks() {
+// 🆕 Mağaza stok takibi — Supabase shop_stocks tablosu (GLOBAL — herkes aynı)
+let _shopStocksCache = null;
+let _shopStocksLoading = null;
+
+async function _shopStocksLoadFromServer() {
+  if (!window.sb) return;
   try {
-    const s = localStorage.getItem('cft_shop_stocks');
-    if(s) return JSON.parse(s);
-  } catch(e){}
-  // Demo: bazı itemlere başlangıç satışı ver
+    const { data, error } = await window.sb.from('shop_stocks').select('item_id, sold_count');
+    if (error) { _shopStocksCache = {}; return; }
+    const map = {};
+    (data || []).forEach(r => { map[r.item_id] = r.sold_count || 0; });
+    _shopStocksCache = map;
+  } catch(e) { _shopStocksCache = {}; }
+}
+
+function getShopStocks() {
+  if (_shopStocksCache) return _shopStocksCache;
+  // Henüz yüklenmedi — arkaplan yükleme tetikle, demo değerleri dön
+  if (!_shopStocksLoading) {
+    _shopStocksLoading = _shopStocksLoadFromServer().then(() => {
+      _shopStocksLoading = null;
+      try { if (typeof renderShopItems === 'function') renderShopItems(); } catch(e) {}
+    });
+  }
   return {
     'gk1':12, 'gk2':8,  'gk3':25, 'gk4':30,
     'atk1':18,'atk2':14,'atk3':40,'atk4':38,'atk5':42,
@@ -60069,10 +60364,19 @@ function getShopStocks() {
   };
 }
 
-function incrShopStock(itemId) {
-  const stocks = getShopStocks();
-  stocks[itemId] = (stocks[itemId] || 0) + 1;
-  try { localStorage.setItem('cft_shop_stocks', JSON.stringify(stocks)); } catch(e){}
+async function incrShopStock(itemId) {
+  if (!_shopStocksCache) _shopStocksCache = {};
+  _shopStocksCache[itemId] = (_shopStocksCache[itemId] || 0) + 1;
+  // Supabase'e yaz
+  if (window.sb) {
+    try {
+      await window.sb.from('shop_stocks').upsert({
+        item_id: itemId,
+        sold_count: _shopStocksCache[itemId],
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'item_id' });
+    } catch(e) { console.warn('[shop_stocks] upsert hata:', e); }
+  }
 }
 
 
@@ -60461,7 +60765,7 @@ function computePlayerStats(countryCode, tierIdx) {
 
   // Kullanıcı oyuncusu için cft_user_match_log
   let userMatchLog = [];
-  try { userMatchLog = JSON.parse(localStorage.getItem('cft_user_match_log') || '[]'); } catch(e) {}
+  try { userMatchLog = getUserMatchLog(); } catch(e) {}
   const userTotals = userMatchLog.reduce((acc, m) => {
     acc.goals    += m.goals    || 0;
     acc.assists  += m.assists  || 0;
@@ -64142,20 +64446,67 @@ function trn2SubTab(trnKey, sub, btn) {
 
 
 
-// ══ TRANSFER SİSTEMİ ══
+// ══ TRANSFER SİSTEMİ — Oyuncu transfer pazarı ══
+// 🆕 Supabase player_transfer_listings tablosu
+let _tfListCache = null;
+let _tfListLoading = null;
 
-// Transfer listesi localStorage'da saklanır
-function getTfList() {
+async function _tfListLoadFromServer() {
+  if (!window.sb) return [];
   try {
-    const s = localStorage.getItem('cft_transfers');
-    if(s) return JSON.parse(s);
-  } catch(e) {}
-  // 🆕 Liste boş başlar — sadece gerçek kaptanların satışa çıkardığı oyuncular eklenir
-  return [];
+    const { data, error } = await window.sb.from('player_transfer_listings')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (error) { console.warn('[tf_list] load hata:', error); return []; }
+    return (data || []).map(r => Object.assign({
+      id: r.id,
+      sellerUserId: r.seller_user_id,
+      createdAt: new Date(r.created_at).getTime()
+    }, r.data || {}));
+  } catch(e) { return []; }
 }
 
-function saveTfList(list) {
-  try { localStorage.setItem('cft_transfers', JSON.stringify(list)); } catch(e) {}
+// Transfer listesi: Supabase
+function getTfList() {
+  if (_tfListCache === null) {
+    if (!_tfListLoading) {
+      _tfListLoading = _tfListLoadFromServer().then(arr => {
+        _tfListCache = arr;
+        _tfListLoading = null;
+        try {
+          if (typeof tfRender === 'function' && document.getElementById('page-transfers') && document.getElementById('page-transfers').classList.contains('active')) {
+            tfRender();
+          }
+        } catch(e) {}
+      });
+    }
+    return [];
+  }
+  return _tfListCache;
+}
+
+async function saveTfList(list) {
+  _tfListCache = Array.isArray(list) ? list : [];
+  // Supabase: full rewrite yerine tek tek upsert (büyük listede daha verimli)
+  // Burada basit yaklaşım: tüm listeyi senkron tutmak yerine, üst seviyede tek tek
+  // add/update/remove fonksiyonları kullanmak daha mantıklı.
+  // Geçici çözüm: cache'i güncel tutuyoruz, gerçek persist için tfAddItem/tfRemoveItem fonksiyonları gerek.
+  // Ancak mevcut kod direkt saveTfList kullanıyor, biz de batch upsert yapalım:
+  if (window.sb && authUser && authUser.id) {
+    try {
+      const userListings = _tfListCache.filter(l => l.sellerUserId === authUser.id || l.sellerId === authUser.id);
+      for (const l of userListings) {
+        const payload = {
+          id: l.id,
+          seller_user_id: authUser.id,
+          data: Object.assign({}, l)
+        };
+        delete payload.data.id; delete payload.data.sellerUserId;
+        await window.sb.from('player_transfer_listings').upsert(payload, { onConflict: 'id' });
+      }
+    } catch(e) { console.warn('[tf_list] batch save hata:', e); }
+  }
 }
 
 let _tfFilter   = 'all';
@@ -66277,11 +66628,7 @@ function trGetData(pos) {
   if (_skillsCache && _skillsCache[pos] && Object.keys(_skillsCache[pos]).length > 0) {
     return _skillsCache[pos];
   }
-  // localStorage fallback
-  try {
-    const s = localStorage.getItem('cft_tr_' + pos);
-    if(s) return JSON.parse(s);
-  } catch(e) {}
+  // 🆕 Cache yok — boş başlangıç (Supabase'ten yüklenecek)
   // Başlangıç: her yetenek seviye 10, 0 puan
   const data = {};
   (TR_SKILLS[pos] || []).forEach(sk => {
@@ -66290,17 +66637,14 @@ function trGetData(pos) {
   return data;
 }
 
-// 🆕 Skill payload üret (tüm 4 mevkiyi RAM cache + localStorage'tan birleştir)
+// 🆕 Skill payload üret (tüm 4 mevkiyi RAM cache'ten birleştir)
 function _trBuildSkillsPayload() {
   const full = {};
   ['GK','DEF','MID','FWD'].forEach(p => {
     if (_skillsCache && _skillsCache[p]) {
       full[p] = _skillsCache[p];
     } else {
-      try {
-        const s = localStorage.getItem('cft_tr_' + p);
-        full[p] = s ? JSON.parse(s) : {};
-      } catch(e) { full[p] = {}; }
+      full[p] = {};
     }
   });
   return full;
@@ -66333,13 +66677,10 @@ function trFlushPendingSaves() {
 }
 
 function trSaveData(pos, data) {
-  // localStorage (offline fallback + hızlı okuma)
-  try { localStorage.setItem('cft_tr_' + pos, JSON.stringify(data)); } catch(e) {}
-  // 🆕 RAM cache güncelle
+  // 🆕 RAM cache güncelle (localStorage yazma yok — Supabase tek doğru kaynak)
   if (!_skillsCache) _skillsCache = {};
   _skillsCache[pos] = data;
   // 🆕 Debounced Supabase write — 4 pozisyonu tek JSONB sütununda tutar
-  // 200ms — yeterince kısa, yine de hızlı ardışık çağrıları toparlar
   if (window.sb && typeof authUser !== 'undefined' && authUser && authUser.id) {
     clearTimeout(_skillsSaveTimer);
     _skillsSaveTimer = setTimeout(async () => {
@@ -66356,15 +66697,11 @@ function trSaveData(pos, data) {
 
 // Aktif antrenmanlar: [{pos, skillId, skillName, mins, startTime, endTime}]
 function trGetActive() {
-  // 🆕 ÖNCE RAM cache
-  if (_activeCache !== null) return _activeCache;
-  try { const s = localStorage.getItem('cft_tr_active'); if(s) return JSON.parse(s); } catch(e) {}
-  return [];
+  // 🆕 RAM cache — Supabase tek doğru kaynak
+  return Array.isArray(_activeCache) ? _activeCache : [];
 }
 function trSaveActive(list) {
-  // localStorage (offline fallback)
-  try { localStorage.setItem('cft_tr_active', JSON.stringify(list)); } catch(e) {}
-  // 🆕 RAM cache güncelle
+  // 🆕 RAM cache güncelle (localStorage yazma yok)
   _activeCache = list || [];
   // 🆕 Debounced Supabase write — 200ms
   if (window.sb && typeof authUser !== 'undefined' && authUser && authUser.id) {
@@ -67402,38 +67739,66 @@ let _totoSelections = {}; // {matchIdx: '1'|'0'|'2'}
 let _totoBilet   = 100;
 let _totoActiveTab = 'coupons';
 
-// 🆕 SIFIRLAMA — v2 sürümü: rastgele bültenler + simüle havuz kaldırıldı,
-// yerine gerçek lig fikstürü + kullanıcı kuponları bazlı havuz birikme.
-// Geçişte eski 'cft_toto' (kuponlar) temizlenir, gerçek sistem sıfırdan başlar.
-try {
-  const _totoMeta = localStorage.getItem('cft_toto_meta');
-  if(_totoMeta !== 'v2-real-pool') {
-    localStorage.removeItem('cft_toto');
-    localStorage.removeItem('cft_toto_pools');
-    localStorage.setItem('cft_toto_meta', 'v2-real-pool');
-  }
-} catch(e){}
+// 🆕 TOTO SUPABASE — kuponlar: user_player.toto_coupons jsonb
+//                   havuz: toto_pools tablosu (SHARED — herkes aynı görür)
+let _totoCouponsCache = null;
+let _totoCouponsSaveTimer = null;
+let _totoPoolsCache = null;       // {leagueKey_S1_D5: {pool, players}}
+let _totoPoolsSaveTimer = null;
 
-// Kuponlar: localStorage
+async function _totoLoadFromServer() {
+  if (!window.sb) return;
+  // 1. Kuponlar (kullanıcı bazlı)
+  if (authUser && authUser.id) {
+    try {
+      const { data } = await window.sb.from('user_player')
+        .select('toto_coupons')
+        .eq('user_id', authUser.id)
+        .maybeSingle();
+      _totoCouponsCache = Array.isArray(data?.toto_coupons) ? data.toto_coupons : [];
+    } catch(e) { _totoCouponsCache = []; }
+  }
+  // 2. Havuzlar (GLOBAL - shared)
+  try {
+    const { data } = await window.sb.from('toto_pools')
+      .select('pool_key, pool_amount, players_count')
+      .gte('updated_at', new Date(Date.now() - 14 * 86400000).toISOString());  // son 2 hafta
+    const map = {};
+    (data || []).forEach(r => {
+      map[r.pool_key] = { pool: r.pool_amount || 0, players: r.players_count || 0 };
+    });
+    _totoPoolsCache = map;
+  } catch(e) { _totoPoolsCache = {}; }
+}
+
+// Kuponlar: Supabase
 function totoGetCoupons() {
-  try { const s=localStorage.getItem('cft_toto'); if(s) return JSON.parse(s); } catch(e){}
-  return [];
+  return Array.isArray(_totoCouponsCache) ? _totoCouponsCache : [];
 }
 function totoSaveCoupons(c) {
-  try { localStorage.setItem('cft_toto', JSON.stringify(c)); } catch(e){}
+  _totoCouponsCache = Array.isArray(c) ? c : [];
+  if (window.sb && authUser && authUser.id) {
+    clearTimeout(_totoCouponsSaveTimer);
+    _totoCouponsSaveTimer = setTimeout(async () => {
+      try {
+        await window.sb.from('user_player').update({
+          toto_coupons: _totoCouponsCache
+        }).eq('user_id', authUser.id);
+      } catch(e) { console.warn('[toto coupons] save hata:', e); }
+    }, 500);
+  }
 }
 
-// 🆕 GERÇEK HAVUZ SİSTEMİ — kullanıcı kuponları bazlı, gün+sezon+lig bazlı
-// Yapı: cft_toto_pools = { "TR_0_S1_D5": { pool: 1500, players: 3 } }
+// Havuz: GLOBAL Supabase
 function _totoPoolKey(leagueKey, season, day) {
   return `${leagueKey}_S${season}_D${day}`;
 }
 function _totoGetPoolStorage() {
-  try { return JSON.parse(localStorage.getItem('cft_toto_pools') || '{}'); }
-  catch(e) { return {}; }
+  return _totoPoolsCache || {};
 }
 function _totoSavePoolStorage(p) {
-  try { localStorage.setItem('cft_toto_pools', JSON.stringify(p)); } catch(e){}
+  // Sadece RAM cache güncelle; gerçek upsert tek tek totoAddToPool'da yapılır
+  _totoPoolsCache = p;
 }
 
 // O ligin BUGÜNKÜ havuz verisi (kullanıcı kuponları toplamı)
@@ -67447,8 +67812,8 @@ function totoGetRealPool(leagueKey) {
   return pools[key] || { pool: 0, players: 0 };
 }
 
-// Kupon yatırıldığında havuzu büyüt
-function totoAddToPool(leagueKey, betAmount) {
+// Kupon yatırıldığında havuzu büyüt — Supabase shared
+async function totoAddToPool(leagueKey, betAmount) {
   if(typeof getSeasonInfo !== 'function') return;
   const info = getSeasonInfo();
   const season = info.season || 1;
@@ -67459,6 +67824,17 @@ function totoAddToPool(leagueKey, betAmount) {
   pools[key].pool += (betAmount || 0);
   pools[key].players += 1;
   _totoSavePoolStorage(pools);
+  // Supabase'e yaz (RPC ile atomic increment yapılabilir, şimdilik upsert)
+  if (window.sb) {
+    try {
+      await window.sb.from('toto_pools').upsert({
+        pool_key: key,
+        pool_amount: pools[key].pool,
+        players_count: pools[key].players,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'pool_key' });
+    } catch(e) { console.warn('[toto pools] upsert hata:', e); }
+  }
 }
 
 // Günlük kupon sayısı
@@ -68629,35 +69005,130 @@ const TM_MIN_EUR = 10000;   // Minimum € fiyat (zorunlu)
 // Listing state (modal için)
 let _tmListingCurrency = 'eur';  // 'eur' | 'dia'
 
+// 🆕 Transfer Market RAM cache - Supabase tek doğru kaynak
+let _tmCache = null;  // null = henüz yüklenmedi, [] = yüklendi+boş
+let _tmLoadingPromise = null;
+
+async function _tmLoadFromServer() {
+  if (!window.sb) return [];
+  try {
+    const { data, error } = await window.sb.from('transfer_listings')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (error) { console.warn('[transfers] load hata:', error); return []; }
+    // DB row → frontend listing format
+    return (data || []).map(r => ({
+      id: r.id,
+      owner: r.owner_tag,
+      ownerUserId: r.owner_user_id,
+      countryCode: r.country_code,
+      teamName: r.team_name,
+      tierIdx: r.tier_idx,
+      currency: r.currency,
+      price: r.price,
+      createdAt: new Date(r.created_at).getTime(),
+      // Esnek payload
+      ...(r.data || {})
+    }));
+  } catch(e) { console.warn('[transfers] load exception:', e); return []; }
+}
+
 function tmGetListings(){
-  try{
-    const raw = localStorage.getItem(TM_KEY);
-    if(raw) return JSON.parse(raw);
-  }catch(e){}
-  return [];
+  // Cache yoksa boş dön + arka planda yükle
+  if (_tmCache === null) {
+    if (!_tmLoadingPromise) {
+      _tmLoadingPromise = _tmLoadFromServer().then(arr => {
+        _tmCache = arr;
+        _tmLoadingPromise = null;
+        // Eğer transfer sayfası açıksa render et
+        try {
+          if (typeof tfRender === 'function' && document.getElementById('page-transfers') && document.getElementById('page-transfers').classList.contains('active')) {
+            tfRender();
+          }
+        } catch(e) {}
+      });
+    }
+    return [];
+  }
+  return _tmCache;
 }
 
 function tmSaveListings(arr){
-  try{ localStorage.setItem(TM_KEY, JSON.stringify(arr)); }catch(e){}
+  // Yeni mimari: tek tek upsert/delete yapıyoruz, tüm array overwrite yok.
+  // Bu fonksiyon backward-compat için kalır ama Supabase'e direkt yazmaz.
+  _tmCache = arr;
 }
 
-function tmAddListing(listing){
-  const arr = tmGetListings();
-  arr.unshift(listing);
-  tmSaveListings(arr);
+async function tmAddListing(listing){
+  // Cache'e ekle
+  if (_tmCache === null) _tmCache = [];
+  _tmCache.unshift(listing);
+  // Supabase'e yaz
+  if (window.sb) {
+    try {
+      const payload = {
+        id: listing.id,
+        owner_tag: listing.owner || null,
+        owner_user_id: listing.ownerUserId || (typeof authUser !== 'undefined' && authUser ? authUser.id : null),
+        country_code: listing.countryCode || null,
+        team_name: listing.teamName || null,
+        tier_idx: typeof listing.tierIdx === 'number' ? listing.tierIdx : null,
+        currency: listing.currency || 'eur',
+        price: listing.price || 0,
+        data: Object.assign({}, listing),  // tüm orijinal field'lar jsonb'de
+        created_at: new Date(listing.createdAt || Date.now()).toISOString()
+      };
+      // jsonb'den DB kolonlarını çıkar (duplicate olmasın)
+      delete payload.data.id; delete payload.data.owner; delete payload.data.ownerUserId;
+      delete payload.data.countryCode; delete payload.data.teamName; delete payload.data.tierIdx;
+      delete payload.data.currency; delete payload.data.price; delete payload.data.createdAt;
+      const { error } = await window.sb.from('transfer_listings').insert(payload);
+      if (error) console.warn('[transfers] insert hata:', error);
+    } catch(e) { console.warn('[transfers] add exception:', e); }
+  }
 }
 
-function tmRemoveListing(id){
-  const arr = tmGetListings().filter(l => l.id !== id);
-  tmSaveListings(arr);
+async function tmRemoveListing(id){
+  // Cache'ten çıkar
+  if (Array.isArray(_tmCache)) {
+    _tmCache = _tmCache.filter(l => l.id !== id);
+  }
+  // Supabase'ten sil
+  if (window.sb) {
+    try {
+      const { error } = await window.sb.from('transfer_listings').delete().eq('id', id);
+      if (error) console.warn('[transfers] delete hata:', error);
+    } catch(e) {}
+  }
 }
 
-function tmUpdateListing(id, patch){
-  const arr = tmGetListings();
-  const idx = arr.findIndex(l => l.id === id);
-  if(idx >= 0){
-    arr[idx] = Object.assign({}, arr[idx], patch);
-    tmSaveListings(arr);
+async function tmUpdateListing(id, patch){
+  if (Array.isArray(_tmCache)) {
+    const idx = _tmCache.findIndex(l => l.id === id);
+    if (idx >= 0) {
+      _tmCache[idx] = Object.assign({}, _tmCache[idx], patch);
+    }
+  }
+  if (window.sb) {
+    try {
+      // Patch içinde DB kolonu olanları ayır, kalanı data'ya
+      const dbCols = {};
+      if (typeof patch.price === 'number') dbCols.price = patch.price;
+      if (patch.currency) dbCols.currency = patch.currency;
+      // Diğer alanlar: önce mevcut data'yı çek, üzerine yaz
+      const { data: cur } = await window.sb.from('transfer_listings')
+        .select('data').eq('id', id).maybeSingle();
+      const newData = Object.assign({}, (cur && cur.data) || {}, patch);
+      // DB kolonlarını data'dan temizle
+      delete newData.price; delete newData.currency; delete newData.id;
+      delete newData.owner; delete newData.ownerUserId;
+      delete newData.countryCode; delete newData.teamName; delete newData.tierIdx;
+      delete newData.createdAt;
+      dbCols.data = newData;
+      const { error } = await window.sb.from('transfer_listings').update(dbCols).eq('id', id);
+      if (error) console.warn('[transfers] update hata:', error);
+    } catch(e) {}
   }
 }
 
@@ -69548,7 +70019,7 @@ function _evRaceCountdownStr() {
 // (Maç motoru cft_user_match_log'a yazıyor — son 7 gündeki maçların ortalaması)
 function _evRaceUserRatingScore() {
   try {
-    const log = JSON.parse(localStorage.getItem('cft_user_match_log') || '[]');
+    const log = getUserMatchLog();
     const weekStart = Date.now() - 7 * 86400000;
     const recent = log.filter(m => (m.date || m.playedAt || 0) >= weekStart);
     if (!recent.length) return 0;
@@ -69563,18 +70034,10 @@ function _evRaceUserRatingScore() {
 }
 
 // Kullanıcı antrenman puanı: bu hafta harcanan toplam enerji
+// 🆕 cft_train_log artık tutulmuyor (Supabase'e geçildi, henüz yeni log sistemi yok)
+// Geçici olarak 0 döner — Supabase'te xp_log var, ileride oradan hesaplanabilir
 function _evRaceUserTrainScore() {
-  try {
-    // cft_train_log → [{ts, energySpent, ...}]
-    const log = JSON.parse(localStorage.getItem('cft_train_log') || '[]');
-    const weekStart = Date.now() - 7 * 86400000;
-    let total = 0;
-    log.forEach(t => {
-      const ts = t.ts || t.date || 0;
-      if (ts >= weekStart) total += (t.energySpent || t.energy || 0);
-    });
-    return total;
-  } catch(e) { return 0; }
+  return 0;
 }
 
 // Bot leaderboard üreteci (CFT_DB takım isimlerinden) — deterministik (hafta bazlı seed)
@@ -70681,23 +71144,9 @@ function wlAddDia(amount, source){ return wlAddIncome('dia', amount, source); }
 function wlDeductDia(amount, reason){ return wlDeduct('dia', amount, reason); }
 function wlCanAffordDia(amount){ return wlCanAfford('dia', amount); }
 
-// ── Migration: eski cft_treasury içindeki .dia değerini cüzdana taşı ──
-// (Eski sürümden gelen kullanıcılar için tek seferlik)
-function wlMigrateFromTreasury(){
-  try{
-    if(localStorage.getItem(WL_KEY)) return; // Cüzdan zaten varsa migrate etme
-    const oldRaw = localStorage.getItem('cft_treasury');
-    if(!oldRaw) return;
-    const old = JSON.parse(oldRaw);
-    if(old && typeof old.dia === 'number'){
-      // Eski dia'yı cüzdana taşı, eur 50.000 default
-      const wlData = { eur: 50000, dia: old.dia, totalIn: 50000 + old.dia, totalOut: 0 };
-      localStorage.setItem(WL_KEY, JSON.stringify(wlData));
-      delete old.dia;
-      localStorage.setItem('cft_treasury', JSON.stringify(old));
-    }
-  }catch(e){ console.warn('[wallet] migration hatası:', e); }
-}
+// 🆕 wlMigrateFromTreasury fonksiyonu silindi (Aşama 1)
+// Cüzdan ve treasury artık tamamen Supabase'te. Eski lokal data migrate gerekmez.
+function wlMigrateFromTreasury(){ /* no-op */ }
 
 try{ wlMigrateFromTreasury(); }catch(e){}
 
@@ -71623,7 +72072,7 @@ function buildRkPlayerList() {
 
   // Kullanıcı oyuncusunun gerçek loguna bak (cft_user_match_log)
   let userMatchLog = [];
-  try { userMatchLog = JSON.parse(localStorage.getItem('cft_user_match_log') || '[]'); } catch(e) {}
+  try { userMatchLog = getUserMatchLog(); } catch(e) {}
   const userTotals = userMatchLog.reduce((acc, m) => {
     acc.goals    += m.goals    || 0;
     acc.assists  += m.assists  || 0;
@@ -74057,6 +74506,16 @@ setTimeout(async ()=>{
   try { await _facLevelsLoadFromServer(); } catch(e) { console.warn('fac_levels load hata:', e); }
   try { await _trsLoadFromServer(); } catch(e) { console.warn('treasury load hata:', e); }
   try { await _mfsLoadFromServer(); } catch(e) { console.warn('manifesto load hata:', e); }
+  try { await _marketValLoadFromServer(); } catch(e) { console.warn('marketval load hata:', e); }
+  try { await _joinRequestsLoadFromServer(); } catch(e) { console.warn('joinRequests load hata:', e); }
+  try { await _userMatchLogLoadFromServer(); } catch(e) { console.warn('matchLog load hata:', e); }
+  try { await _eqDataLoadFromServer(); } catch(e) { console.warn('equipment load hata:', e); }
+  try { await _paidInstallmentsLoadFromServer(); } catch(e) { console.warn('installments load hata:', e); }
+  try { await _careerHistoryLoadFromServer(); } catch(e) { console.warn('career_history load hata:', e); }
+  try { await _ntJerseyOverridesLoadFromServer(); } catch(e) { console.warn('nt_jersey load hata:', e); }
+  try { await _totoLoadFromServer(); } catch(e) { console.warn('toto load hata:', e); }
+  try { await _shopStocksLoadFromServer(); } catch(e) { console.warn('shop_stocks load hata:', e); }
+  try { await _tfListLoadFromServer().then(arr => { _tfListCache = arr; }); } catch(e) { console.warn('tf_list load hata:', e); }
   try { authInit(); } catch(e) { console.warn('authInit hata:', e); }
   document.getElementById('splash').classList.add('hide');
   // 🆕 _userTeam server'dan geldikten sonra ana sayfa panelleri yenile
