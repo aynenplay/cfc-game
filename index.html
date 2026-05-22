@@ -40480,6 +40480,10 @@ function confirmTeamBuy() {
 
       // 4. Diziliş için ilk 11 yeniden hesapla (kullanıcı kaptan, sahaya kondu)
       try {
+        // Eski takım strategy cache'i temizle (lineup/bench restore engellensin)
+        _teamStrategyCache = null;
+        try { localStorage.removeItem('cft_team_strategy'); } catch(e) {}
+        try { localStorage.removeItem('cft_roster_persist'); } catch(e) {}
         if (typeof activePitchPlayers !== 'undefined' && Array.isArray(activePitchPlayers)) {
           activePitchPlayers.length = 0;
         }
@@ -40487,7 +40491,7 @@ function confirmTeamBuy() {
           benchPlayers.length = 0;
         }
         if (typeof initFormation === 'function') initFormation();
-      } catch(e) {}
+      } catch(e) { console.warn('[buyTeam] initFormation hata:', e); }
 
       // 5. Tüm UI'yi tazele
       if (typeof renderRoster === 'function') renderRoster('all');
@@ -43488,7 +43492,8 @@ function loadTeamStrategy() {
       _clubBenchUserManaged = data.benchUserManaged;
     }
     // 🆕 Lineup yükleme — ROSTER_DATA hazırsa hemen, değilse initFormation'da kullanılacak
-    if (data.lineup && Array.isArray(data.lineup) && typeof ROSTER_DATA !== 'undefined' && ROSTER_DATA.length) {
+    // ÖNEMLİ: Saved lineup eksikse (< 11) restore etme, smart yerleştirmeye bırak
+    if (data.lineup && Array.isArray(data.lineup) && data.lineup.length >= 11 && typeof ROSTER_DATA !== 'undefined' && ROSTER_DATA.length) {
       const slots = FORMATIONS[currentFormation];
       if (slots) {
         const restored = [];
@@ -43601,9 +43606,9 @@ function initFormation() {
 
   const slots = FORMATIONS[currentFormation];
 
-  // 🆕 Eğer loadTeamStrategy kayıtlı lineup yüklediyse (>= 1 oyuncu), onu koru
-  // Aksi halde default seçimi yap (user + kaptan + vice + en iyi 11)
-  if (Array.isArray(activePitchPlayers) && activePitchPlayers.length > 0) {
+  // 🆕 Eğer loadTeamStrategy KOMPLE (>= 11) bir lineup yüklediyse, onu koru
+  // Eksikse (< 11) → temizle, smart yerleştirmeye bırak
+  if (Array.isArray(activePitchPlayers) && activePitchPlayers.length >= 11) {
     // Sahaya yerleşmiş oyuncuların num'leri
     const pitchNums = new Set(activePitchPlayers.map(e => e.player && e.player.num));
     // 🆕 Bench yüklendiyse koru (kullanıcı yönetiyor olabilir veya saved liste).
