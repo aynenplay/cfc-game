@@ -29203,9 +29203,8 @@ function getCoachProfile(presidentId, isUser) {
     return { skill: 50, trait: 'tactician', traitData: COACH_TRAITS.tactician, label: 'Belirsiz' };
   }
   if (isUser) {
-    // Kullanıcı T.D. — kendi profili (localStorage'dan veya default)
-    let stored = null;
-    try { stored = JSON.parse(localStorage.getItem('cft_coach_profile') || 'null'); } catch(e){}
+    // Kullanıcı T.D. — kendi profili (Supabase user_player.coach_profile)
+    const stored = _coachProfileCache;
     if (stored && stored.skill) {
       return {
         skill: stored.skill,
@@ -45477,9 +45476,18 @@ function saveCoachProfile() {
   const slider = document.getElementById('coachSkillSlider');
   const skill = slider ? parseInt(slider.value, 10) : 60;
   const trait = window._coachEditTrait || 'tactician';
-  try {
-    localStorage.setItem('cft_coach_profile', JSON.stringify({ skill, trait }));
-  } catch(e) {}
+  // 🆕 Supabase user_player.coach_profile
+  _coachProfileCache = { skill, trait };
+  if (window.sb && authUser && authUser.id) {
+    clearTimeout(_coachProfileSaveTimer);
+    _coachProfileSaveTimer = setTimeout(async () => {
+      try {
+        await window.sb.from('user_player').update({
+          coach_profile: { skill, trait }
+        }).eq('user_id', authUser.id);
+      } catch(e) { console.warn('[coach_profile] save hata:', e); }
+    }, 500);
+  }
   closeCoachEditModal();
   // Re-render panel
   if (typeof renderCoachProfilePanel === 'function') renderCoachProfilePanel();
@@ -54007,6 +54015,21 @@ function _carDaysSince(dateStr) {
 }
 
 // Yardımcı: takım geçmişine ekle (kullanıcı yeni takıma katıldığında çağrılır)
+// 🆕 Coach Profile: user_player.coach_profile jsonb
+let _coachProfileCache = null;
+let _coachProfileSaveTimer = null;
+
+async function _coachProfileLoadFromServer() {
+  if (!window.sb || !authUser || !authUser.id) { _coachProfileCache = null; return; }
+  try {
+    const { data } = await window.sb.from('user_player')
+      .select('coach_profile')
+      .eq('user_id', authUser.id)
+      .maybeSingle();
+    _coachProfileCache = (data && data.coach_profile) ? data.coach_profile : null;
+  } catch(e) { _coachProfileCache = null; }
+}
+
 // 🆕 NT Jersey Overrides: user_player.nt_jersey_overrides {cc: {slotIdx: num}}
 let _ntJerseyOverridesCache = null;
 let _ntJerseyOverridesSaveTimer = null;
@@ -72494,20 +72517,56 @@ const ACHIEVEMENT_DEFS = [
   {id:'goat',            tier:'legend', icon:'🐐', name:'Goat',              desc:'Tüm 99 başarıyı tamamla',                    eur:5000000, dia:5000, itemId:null},
 ];
 
+// 🆕 Başarımlar: user_player.achievements jsonb {state: {...}, overrides: {...}}
+let _achStateCache = null;
+let _achOverridesCache = null;
+let _achSaveTimer = null;
+
+async function _achLoadFromServer() {
+  if (!window.sb || !authUser || !authUser.id) {
+    _achStateCache = {}; _achOverridesCache = {};
+    return;
+  }
+  try {
+    const { data } = await window.sb.from('user_player')
+      .select('achievements')
+      .eq('user_id', authUser.id)
+      .maybeSingle();
+    const ach = (data && data.achievements) || {};
+    _achStateCache = ach.state || {};
+    _achOverridesCache = ach.overrides || {};
+  } catch(e) { _achStateCache = {}; _achOverridesCache = {}; }
+}
+
+function _achPersistToServer() {
+  if (!window.sb || !authUser || !authUser.id) return;
+  clearTimeout(_achSaveTimer);
+  _achSaveTimer = setTimeout(async () => {
+    try {
+      await window.sb.from('user_player').update({
+        achievements: {
+          state: _achStateCache || {},
+          overrides: _achOverridesCache || {}
+        }
+      }).eq('user_id', authUser.id);
+    } catch(e) { console.warn('[achievements] save hata:', e); }
+  }, 500);
+}
+
 // Storage helpers
 function _achLoadState() {
-  try { return JSON.parse(localStorage.getItem('cft_ach_state') || '{}'); }
-  catch(e) { return {}; }
+  return _achStateCache || {};
 }
 function _achSaveState(s) {
-  try { localStorage.setItem('cft_ach_state', JSON.stringify(s)); } catch(e) {}
+  _achStateCache = s || {};
+  _achPersistToServer();
 }
 function _achLoadOverrides() {
-  try { return JSON.parse(localStorage.getItem('cft_ach_overrides') || '{}'); }
-  catch(e) { return {}; }
+  return _achOverridesCache || {};
 }
 function _achSaveOverrides(o) {
-  try { localStorage.setItem('cft_ach_overrides', JSON.stringify(o)); } catch(e) {}
+  _achOverridesCache = o || {};
+  _achPersistToServer();
 }
 
 // Bir başarının final tanımını döner (override varsa uygulanmış)
@@ -74516,6 +74575,8 @@ setTimeout(async ()=>{
   try { await _totoLoadFromServer(); } catch(e) { console.warn('toto load hata:', e); }
   try { await _shopStocksLoadFromServer(); } catch(e) { console.warn('shop_stocks load hata:', e); }
   try { await _tfListLoadFromServer().then(arr => { _tfListCache = arr; }); } catch(e) { console.warn('tf_list load hata:', e); }
+  try { await _achLoadFromServer(); } catch(e) { console.warn('achievements load hata:', e); }
+  try { await _coachProfileLoadFromServer(); } catch(e) { console.warn('coach_profile load hata:', e); }
   try { authInit(); } catch(e) { console.warn('authInit hata:', e); }
   document.getElementById('splash').classList.add('hide');
   // 🆕 _userTeam server'dan geldikten sonra ana sayfa panelleri yenile
