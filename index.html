@@ -36114,17 +36114,26 @@ let _liveMatchPollTimer = null;
 async function _liveMatchLoadFromServer() {
   if (!window.sb) return;
   try {
-    const { data, error } = await window.sb.from('match_state')
-      .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,events,started_at,kickoff_at')
+    // 1) Canlı/yakın kickoff: son 30 dk - sonraki ne olursa olsun
+    const { data: liveData, error: e1 } = await window.sb.from('match_state')
+      .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,events,started_at,kickoff_at,tournament_key,tournament_phase')
       .in('status', ['running', 'scheduled'])
-      .gte('kickoff_at', new Date(Date.now() - 30 * 60 * 1000).toISOString())  // son 30 dakikadaki kickoff'lar
+      .gte('kickoff_at', new Date(Date.now() - 30 * 60 * 1000).toISOString())
       .order('kickoff_at', { ascending: false })
       .limit(500);
-    if (error) { console.warn('[live_match] hata:', error.message); return; }
+    if (e1) { console.warn('[live_match] hata:', e1.message); }
+    
+    // 2) 🆕 Tüm EURO Nations Cup planlanmış maçları (gün 34+ için)
+    const { data: encData, error: e2 } = await window.sb.from('match_state')
+      .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,events,started_at,kickoff_at,tournament_key,tournament_phase')
+      .eq('tournament_key', 'enc')
+      .order('day_in_season', { ascending: true })
+      .limit(500);
+    if (e2) { console.warn('[live_match enc] hata:', e2.message); }
+    
     const cache = {};
-    for (const r of (data || [])) {
-      cache[r.match_key] = r;
-    }
+    for (const r of (liveData || [])) cache[r.match_key] = r;
+    for (const r of (encData || [])) cache[r.match_key] = r;  // enc kayıtları üst yazsın (en güncel)
     _liveMatchCache = cache;
   } catch(e) { console.warn('[live_match] hata:', e); }
 }
@@ -53061,45 +53070,70 @@ function _resGetMatchesForDate(targetDate) {
     const seasonCache = _resBuildSeasonFixtures(season);
     allMatches = (seasonCache.dayMap[dayInSeason] || []).slice();
 
-    // 🆕 Bu güne ait TURNUVA maçlarını ekle (cache'e tek sefer)
+    // 🆕 Bu güne ait TURNUVA maçlarını ekle — sadece EURO Nations Cup (enc)
+    // Saatler match_state'ten gelir (edge function'ın yazdığı kickoff_at)
     try {
       const _resCache = (typeof _matchResultsLoad === 'function') ? _matchResultsLoad() : {};
-      const _trnNameMap = {
-        champ: { name: 'EURO Championship League', flag: '🏆' },
-        elite: { name: 'EURO Elite League', flag: '🥈' },
-        conv: { name: 'EURO Convergence League', flag: '🥉' }
-      };
-      const _typeMap = { champ: 'championship', elite: 'elite', conv: 'convergence' };
+      // 1) match_results'tan oynanmış enc maçları (geçmiş)
       for (const k in _resCache) {
         const tm = _resCache[k];
-        if (!tm || !tm.tournament_key) continue;
+        if (!tm || tm.tournament_key !== 'enc') continue;
         if (tm.season !== season) continue;
         if (tm.day !== dayInSeason) continue;
-        const info = _trnNameMap[tm.tournament_key] || { name: tm.tournament_key, flag: '🏆' };
-        const hourSeed = ((tm.home.charCodeAt(0) + tm.away.charCodeAt(0)) * 7) % 4;
-        const hours = [19, 19, 20, 21];
-        const minutes = ['00', '45', '00', '00'];
-        const scheduledTime = hours[hourSeed] + ':' + minutes[hourSeed];
+        const playedTime = tm.playedAt ? new Date(tm.playedAt).toTimeString().slice(0,5) : '14:00';
         allMatches.push({
           home: tm.home,
           away: tm.away,
           homeShort: tm.home.slice(0,3).toUpperCase(),
           awayShort: tm.away.slice(0,3).toUpperCase(),
-          matchKey: `T-${tm.tournament_key}-${tm.season}-${tm.day}-${tm.home}-${tm.away}`,
+          matchKey: `T-enc-${tm.season}-${tm.day}-${tm.home}-${tm.away}`,
           matchDate: targetDay.toISOString().slice(0, 10),
-          scheduledTime,
-          leagueName: info.name,
-          leagueFlag: info.flag,
+          scheduledTime: playedTime,
+          leagueName: 'EURO Nations Cup',
+          leagueFlag: '🏆',
           countryCode: null,
           tierIdx: -1,
           competition: 'tournament',
-          tournamentType: _typeMap[tm.tournament_key] || 'championship',
-          tournament_key: tm.tournament_key,
+          tournamentType: 'enc',
+          tournament_key: 'enc',
           tournament_phase: tm.tournament_phase,
           season: tm.season,
           day: tm.day,
           week: tm.day
         });
+      }
+      // 2) match_state'ten henüz oynanmamış enc maçları (planlanmış) — saatlerle
+      if (typeof _liveMatchCache === 'object' && _liveMatchCache) {
+        for (const k in _liveMatchCache) {
+          const ms = _liveMatchCache[k];
+          if (!ms || ms.tournament_key !== 'enc') continue;
+          if (ms.season !== season || ms.day_in_season !== dayInSeason) continue;
+          // Zaten match_results'ta varsa atla (yukarıda eklendi)
+          const cacheKey = `${ms.season}_${ms.day_in_season}_${ms.home_team}_${ms.away_team}`;
+          if (_resCache[cacheKey]) continue;
+          const kickoff = ms.kickoff_at ? new Date(ms.kickoff_at) : null;
+          const scheduledTime = kickoff ? kickoff.toTimeString().slice(0,5) : '14:00';
+          allMatches.push({
+            home: ms.home_team,
+            away: ms.away_team,
+            homeShort: ms.home_team.slice(0,3).toUpperCase(),
+            awayShort: ms.away_team.slice(0,3).toUpperCase(),
+            matchKey: ms.match_key,
+            matchDate: targetDay.toISOString().slice(0, 10),
+            scheduledTime,
+            leagueName: 'EURO Nations Cup',
+            leagueFlag: '🏆',
+            countryCode: null,
+            tierIdx: -1,
+            competition: 'tournament',
+            tournamentType: 'enc',
+            tournament_key: 'enc',
+            tournament_phase: ms.tournament_phase,
+            season: ms.season,
+            day: ms.day_in_season,
+            week: ms.day_in_season
+          });
+        }
       }
     } catch(e) { console.warn('[res] turnuva ekleme hata:', e); }
 
