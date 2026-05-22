@@ -37930,6 +37930,73 @@ function closeModal(){document.getElementById('modal').classList.remove('open');
 // ═══════════ LEAGUES DATABASE ═══════════
 let CFT_DB = {};
 
+// 🆕 Supabase teams tablosundan CFT_DB'yi yükle
+// Çağrı: bootstrap'ta _worldStateLoadFromServer'dan sonra (1 kere)
+async function _loadCftDbFromServer() {
+  try {
+    if (!window.sb) return;
+    const { data, error } = await window.sb.from('teams')
+      .select('country_code,country_name,country_flag,tier,tier_name,tier_color,rank,name,city,population,market_value,rating,bg,tc,short')
+      .order('country_code')
+      .order('tier')
+      .order('rank');
+    if (error) { console.warn('[CFT_DB] load hata:', error.message); return; }
+    if (!Array.isArray(data) || data.length === 0) {
+      console.warn('[CFT_DB] teams tablosu boş');
+      return;
+    }
+    
+    // Yapı: CFT_DB[cc] = { name, flag, leagues: [ { tier, name, color, teams: [...] } ] }
+    const db = {};
+    for (const r of data) {
+      const cc = r.country_code;
+      if (!db[cc]) {
+        db[cc] = {
+          name: r.country_name || cc,
+          flag: r.country_flag || '🏳️',
+          countryCode: cc,
+          leagues: []
+        };
+      }
+      const country = db[cc];
+      // Bu tier'ı bul, yoksa ekle
+      let lg = country.leagues.find(l => l.tier === r.tier);
+      if (!lg) {
+        lg = {
+          tier: r.tier,
+          name: r.tier_name || `${country.name} Tier ${r.tier}`,
+          color: r.tier_color || '#ffd54f',
+          teams: []
+        };
+        country.leagues.push(lg);
+      }
+      lg.teams.push({
+        name: r.name,
+        short: r.short || (r.name || '').slice(0, 3).toUpperCase(),
+        rank: r.rank,
+        city: r.city,
+        population: r.population,
+        market_value: r.market_value,
+        rating: r.rating,
+        bg: r.bg || '#37474f',
+        tc: r.tc || '#fff',
+        countryCode: cc,
+        countryKey: cc
+      });
+    }
+    
+    // Tier sıralı tut
+    for (const cc in db) {
+      db[cc].leagues.sort((a, b) => (a.tier || 0) - (b.tier || 0));
+    }
+    
+    CFT_DB = db;
+    console.info(`[CFT_DB] yüklendi: ${Object.keys(db).length} ülke, ${data.length} takım`);
+  } catch(e) {
+    console.warn('[CFT_DB] load exception:', e);
+  }
+}
+
 // 🆕 FAZ 5: Sayfa yüklendiğinde önce auto-reset kontrolü, sonra WorldState'i CFT_DB'ye uygula
 // (Bu online multi-server bir oyun — state bir kez başladığında admin müdahalesi
 // olmadan sonsuza dek devam eder. localStorage şu an mock, ileride backend API olur.)
@@ -74425,6 +74492,7 @@ setTimeout(async ()=>{
   // Aksi halde splash gizlendiğinde 500ms boyunca ana menü görünür
   try { await bootstrapWorld(); } catch(e) { console.warn('bootstrapWorld hata:', e); }
   try { await _worldStateLoadFromServer(); } catch(e) { console.warn('worldState load hata:', e); }
+  try { await _loadCftDbFromServer(); } catch(e) { console.warn('CFT_DB load hata:', e); }
   try { await _matchResultsLoadFromServer(); } catch(e) { console.warn('matchResults load hata:', e); }
   try { await _tournamentStateLoadFromServer(); } catch(e) { console.warn('tournamentState load hata:', e); }
   try { await _frmLoadFromServer(); } catch(e) { console.warn('friendly load hata:', e); }
