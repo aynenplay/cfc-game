@@ -35938,13 +35938,54 @@ async function _matchResultsLoadFromServer() {
     const _epoch = (typeof SEASON_EPOCH !== 'undefined') ? SEASON_EPOCH : null;
     const _slen = (typeof SEASON_LEN !== 'undefined') ? SEASON_LEN : 40;
     for (const r of all) {
-      // Gerçek maç tarihi: season+day'den hesapla, created_at değil
+      // 🆕 Gerçek maç tarih + saati: season+day + competition tipine göre saat
       let realPlayedAt = 0;
       if (_epoch && r.season && r.day_in_season) {
         const matchDate = new Date(_epoch.getFullYear(), _epoch.getMonth(), _epoch.getDate());
         matchDate.setDate(matchDate.getDate() + (r.season - 1) * _slen + (r.day_in_season - 1));
-        // Saat 18:00 (turnuva) veya öğleden sonra (lig) - basit, sadece tarih için
-        matchDate.setHours(18, 0, 0, 0);
+        
+        // 🆕 Saat hesabı: turnuva mı, lig mi?
+        let hh = 15, mm = 0;
+        if (r.tournament_key) {
+          // Turnuva: scheduledTime hesabı (frontend ile aynı)
+          const key = `${r.tournament_key}_s${r.season}_${r.home_team}_${r.away_team}_d${r.day_in_season}`;
+          let h = 2166136261;
+          for (let i = 0; i < key.length; i++) {
+            h ^= key.charCodeAt(i);
+            h = Math.imul(h, 16777619) | 0;
+          }
+          h = (h ^ (h >>> 16)) >>> 0;
+          // EUROCUP eski: 19, 20, 21 / EURO Nations (enc): 14, 15, 16 (saatler 14:00-16:00)
+          if (r.tournament_key === 'enc') {
+            const hours = [14, 15, 16];
+            const minutes = [0, 30];
+            hh = hours[h % hours.length];
+            mm = minutes[(h >>> 4) % minutes.length];
+          } else {
+            const hours = [19, 20, 21];
+            const minutes = [0, 45];
+            hh = hours[h % hours.length];
+            mm = minutes[(h >>> 4) % minutes.length];
+          }
+        } else if (typeof getSimpleMatchTime === 'function' && r.country_code) {
+          // Lig: getSimpleMatchTime ile saat hesabı (12:00-18:00)
+          // 🆕 buildLeagueFixture'daki matchKey formatına uygun: "{cc}-{tier}-w{w}-m{m}"
+          // week+match bilinmiyor → home+away'den deterministik hash üret
+          let h = 2166136261;
+          const seedStr = `${r.country_code}-${r.tier || 0}-${r.home_team}-${r.away_team}-${r.day_in_season}`;
+          for (let i = 0; i < seedStr.length; i++) {
+            h ^= seedStr.charCodeAt(i);
+            h = Math.imul(h, 16777619) | 0;
+          }
+          const fakeWeek = ((h >>> 0) % 30) + 1;
+          const fakeMatch = (((h >>> 8) >>> 0) % 8) + 1;
+          const fakeKey = `${r.country_code}-${r.tier || 0}-w${fakeWeek}-m${fakeMatch}`;
+          const time = getSimpleMatchTime('league', fakeKey);
+          const [ph, pm] = time.split(':').map(s => parseInt(s, 10));
+          if (!isNaN(ph)) hh = ph;
+          if (!isNaN(pm)) mm = pm;
+        }
+        matchDate.setHours(hh, mm, 0, 0);
         realPlayedAt = matchDate.getTime();
       } else if (r.created_at) {
         realPlayedAt = new Date(r.created_at).getTime();
@@ -52996,10 +53037,13 @@ function _resBuildSeasonFixtures(seasonNum) {
       fixture.forEach(f => {
         const dayOffset = (f.week <= halfWeeks) ? (f.week - 1) : (f.week + 2);
         const matchDay = dayOffset + 1;
-        // 🆕 Gerçek tarih hesapla — seasonStart + dayOffset
+        // 🆕 Gerçek tarih hesapla — seasonStart + dayOffset (lokal, UTC dönüşümü yok)
         const matchDate = new Date(seasonStart);
         matchDate.setDate(seasonStart.getDate() + dayOffset);
-        const matchDateISO = matchDate.toISOString().slice(0, 10); // "2026-05-16"
+        const _y = matchDate.getFullYear();
+        const _m = String(matchDate.getMonth() + 1).padStart(2, '0');
+        const _d = String(matchDate.getDate()).padStart(2, '0');
+        const matchDateISO = `${_y}-${_m}-${_d}`;
         const matchTime = f.matchTime || '15:00';
         // ISO 8601 datetime: "2026-05-16T15:00:00"
         const matchDateTimeISO = matchDateISO + 'T' + matchTime + ':00';
@@ -61986,7 +62030,11 @@ function _trnMatchDateISO(seasonNum, dayInSeason) {
   seasonStart.setDate(SEASON_EPOCH.getDate() + (seasonNum - 1) * SEASON_LEN);
   const matchDate = new Date(seasonStart);
   matchDate.setDate(seasonStart.getDate() + (dayInSeason - 1));
-  return matchDate.toISOString().slice(0, 10); // "2026-05-17"
+  // 🆕 Lokal tarih (UTC dönüşümü timezone kayması yapar) — manuel format
+  const y = matchDate.getFullYear();
+  const m = String(matchDate.getMonth() + 1).padStart(2, '0');
+  const d = String(matchDate.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 // 🆕 Turnuva grup maçı için deterministic saat
