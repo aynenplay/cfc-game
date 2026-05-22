@@ -24375,55 +24375,57 @@ document.addEventListener('DOMContentLoaded', function(){
     if(_cftButtonSoundEnabled) tog.classList.add('on');
     else tog.classList.remove('on');
   }
-  // 🆕 Lokal cüzdan + enerji anahtarlarını sil — artık Supabase'den geliyor
+  // 🆕 Eski localStorage anahtarlarını sil — Supabase migration tamamlandı
+  // Bir defalık çalışır (flag kontrolüyle), sonraki sayfa yüklemelerinde atlanır
   try {
-    localStorage.removeItem('cft_wallet');
-    localStorage.removeItem('cft_wallet_log');
-    localStorage.removeItem('cft_tr_energy');
-    // 🆕 EURO Nation state localStorage'tan kaldırıldı (Supabase'de tournament_state)
-    for (let i = localStorage.length - 1; i >= 0; i--) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith('cft_eurocup_s')) localStorage.removeItem(k);
+    const CLEANUP_FLAG = 'cft_v2_supabase_migration_cleanup';
+    if (!localStorage.getItem(CLEANUP_FLAG)) {
+      const oldKeys = [
+        // Cüzdan + enerji (Supabase)
+        'cft_wallet', 'cft_wallet_log', 'cft_tr_energy',
+        // Hazırlık maçları
+        'cft_friendly_matches',
+        // CFC Media
+        'cft_cfcmd_posts', 'cft_cfcmd_my_likes', 'cft_cfcmd_my_reposts', 'cft_cfcmd_following',
+        // Takım stratejisi + roster
+        'cft_team_strategy', 'cft_roster_state', 'cft_roster_persist',
+        // Free agents
+        'cft_free_agents',
+        // Tesis seviyeleri
+        'cft_facilities', 'cft_facilities_meta',
+        // Takım kasası
+        'cft_treasury', 'cft_treasury_log',
+        // Aşama 2 sonrası ek anahtarlar
+        'cft_userTeam', 'cft_userProgress',
+        'cft_market', 'cft_marketval', 'cft_mv_history',
+        'cft_match_xp_log', 'cft_user_match_log',
+        'cft_equipment', 'cft_career_history',
+        'cft_paid_installments', 'cft_joinRequests',
+        'cft_train_log', 'cft_tr_active',
+        'cft_toto', 'cft_toto_pools', 'cft_toto_meta',
+        'cft_shop_stocks', 'cft_transfers',
+        'cft_ach_state', 'cft_ach_overrides',
+        'cft_coach_profile',
+        'cft_inbox',
+      ];
+      // Sabit anahtarları sil
+      oldKeys.forEach(k => { try { localStorage.removeItem(k); } catch(e) {} });
+      // Prefix anahtarları sil (cft_r3_*, cft_eurocup_s*, cft_team_manifesto__*, cft_tr_GK/DEF/MID/FWD, cft_skills_*, cft_nt_jersey_*)
+      const prefixes = ['cft_r3_', 'cft_eurocup_s', 'cft_team_manifesto__', 'cft_skills_', 'cft_nt_jersey_'];
+      const trPosKeys = ['cft_tr_GK', 'cft_tr_DEF', 'cft_tr_MID', 'cft_tr_FWD'];
+      try {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (!k) continue;
+          if (trPosKeys.includes(k)) { localStorage.removeItem(k); continue; }
+          for (const p of prefixes) {
+            if (k.startsWith(p)) { localStorage.removeItem(k); break; }
+          }
+        }
+      } catch(e) {}
+      localStorage.setItem(CLEANUP_FLAG, '1');
+      console.info('[cleanup] V2 Supabase migration: eski localStorage anahtarları silindi');
     }
-    // 🆕 Hazırlık maçları artık Supabase'de
-    localStorage.removeItem('cft_friendly_matches');
-    // 🆕 CFC Media artık Supabase'de
-    localStorage.removeItem('cft_cfcmd_posts');
-    localStorage.removeItem('cft_cfcmd_my_likes');
-    localStorage.removeItem('cft_cfcmd_my_reposts');
-    localStorage.removeItem('cft_cfcmd_following');
-    // 🆕 Takım stratejisi artık Supabase'de (team_data tablosu)
-    localStorage.removeItem('cft_team_strategy');
-    // 🆕 Takım roster state artık Supabase'de (team_data tablosu)
-    localStorage.removeItem('cft_roster_state');
-    localStorage.removeItem('cft_roster_persist');
-    // 🆕 Botlar artık Supabase'de (players tablosu) — eski cft_r3_* cache'leri sil
-    try {
-      const botKeysToRemove = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith('cft_r3_')) botKeysToRemove.push(k);
-      }
-      botKeysToRemove.forEach(k => localStorage.removeItem(k));
-      if (botKeysToRemove.length > 0) console.info('[cleanup] Eski bot cache silindi:', botKeysToRemove.length, 'anahtar');
-    } catch(e) {}
-    // 🆕 Free agents artık Supabase'de (players.team_name IS NULL)
-    localStorage.removeItem('cft_free_agents');
-    // 🆕 Tesis seviyeleri artık Supabase'de (team_data tablosu)
-    localStorage.removeItem('cft_facilities');
-    localStorage.removeItem('cft_facilities_meta');
-    // 🆕 Takım kasası artık Supabase'de (team_data tablosu)
-    localStorage.removeItem('cft_treasury');
-    localStorage.removeItem('cft_treasury_log');
-    // 🆕 Manifesto artık Supabase'de (team_data tablosu)
-    try {
-      const keysToRemove = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith('cft_team_manifesto__')) keysToRemove.push(k);
-      }
-      keysToRemove.forEach(k => localStorage.removeItem(k));
-    } catch(e) {}
   } catch(e) {}
 });
 
@@ -39251,33 +39253,16 @@ function doLogoutConfirmed(){
     if (window.sb) window.sb.auth.signOut().catch(()=>{});
   } catch(e) {}
 
-  // Tüm kullanıcıya özel verileri temizle
+  // Tüm kullanıcıya özel verileri temizle (sadece cft_auth — diğer her şey Supabase'te zaten)
   try{
     localStorage.removeItem('cft_auth');
-    localStorage.removeItem('cft_userTeam');
-    localStorage.removeItem('cft_treasury');
-    localStorage.removeItem('cft_treasury_log');
-    localStorage.removeItem('cft_wallet');
-    localStorage.removeItem('cft_wallet_log');
-    localStorage.removeItem('cft_inbox');
-    localStorage.removeItem('cft_facilities');
-    localStorage.removeItem('cft_facilities_meta');
-    localStorage.removeItem('cft_equipment');
-    localStorage.removeItem('cft_market');
-    localStorage.removeItem('cft_marketval');
-    localStorage.removeItem('cft_shop_stocks');
-    localStorage.removeItem('cft_toto');
-    localStorage.removeItem('cft_tr_active');
-    localStorage.removeItem('cft_tr_energy');
-    localStorage.removeItem('cft_transfers');
-    localStorage.removeItem('cft_joinRequests');
-    localStorage.removeItem('cft_userProgress');
-    // cft_skills_GK, cft_skills_DEF, cft_skills_MID, cft_skills_FWD, cft_tr_*
-    Object.keys(localStorage).forEach(k => {
-      if(k.startsWith('cft_skills_') || k.startsWith('cft_tr_')) {
-        localStorage.removeItem(k);
-      }
-    });
+    // 🆕 RAM cache'leri sıfırla (Supabase'ten yeniden yüklenecek)
+    try { _wlCache = null; _energyCache = null; _trsCache = null; _inboxCache = null; } catch(e){}
+    try { _userMatchLogCache = null; _userXpLogCache = null; _eqDataCache = null; } catch(e){}
+    try { _marketValCache = null; _marketValHistCache = null; _joinRequestsCache = null; } catch(e){}
+    try { _careerHistoryCache = null; _achStateCache = null; _coachProfileCache = null; } catch(e){}
+    try { _skillsCache = null; _activeCache = null; _paidInstallmentsCache = null; } catch(e){}
+    try { _totoCouponsCache = null; _ntJerseyOverridesCache = null; } catch(e){}
   }catch(e){}
 
   authUser = null;
@@ -70586,10 +70571,8 @@ function evRaceClaimReward(metric, diamonds, rank) {
       const metricLabel = metric === 'rating' ? 'Haftanın Yıldızı' : 'Antrenman Yıldızı';
       trsAddIncome('diamond', diamonds, `${metricLabel} #${rank} ödülü`);
     } else {
-      // Fallback: doğrudan localStorage
-      const profile = JSON.parse(localStorage.getItem('cft_profile') || '{}');
-      profile.diamonds = (profile.diamonds || 0) + diamonds;
-      localStorage.setItem('cft_profile', JSON.stringify(profile));
+      // 🆕 trsAddIncome yoksa hata logla — cft_profile fallback kaldırıldı (gereksiz, hiç kullanılmıyor)
+      console.warn('[evRaceClaimReward] trsAddIncome bulunamadı, elmas ödülü işlenmedi:', diamonds);
     }
   } catch(e) { console.warn('Elmas ekleme hatası:', e); }
 
