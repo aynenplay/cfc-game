@@ -62401,200 +62401,9 @@ function trn2BuildBracket(groups, season, trnKey) {
     return _bracket;
   }
 
-  // 🆕 YEDEK (fallback): server'da knockout fixture yoksa eski lokal mantık devam etsin
-  // Helper: CFT_DB'den tam takım nesnesi (rating + players) çıkar — knockout motoru için lazım
-
-  // 🆕 Yedek (fallback) skor üretici — motor erişilemezse
-  function _fallbackScore(seed, salt) {
-    const seedNum = (seed + (salt || 0)) & 0xff;
-    const scores = [[2,1],[1,0],[3,1],[2,0],[1,0],[3,2],[2,1],[0,0]];
-    return scores[seedNum % scores.length];
-  }
-
-  // 🆕 ÇİFT MAÇLI tie (ev + deplasman, agg skor, no away goals)
-  //    1. maçta uzatma/penaltı YOK; 2. maçta agg eşitse uzatma+penaltı
-  function _twoLegTie(t1, t2, round, idx) {
-    if (!t1 || !t2) return { home:t1, away:t2, leg1:null, leg2:null, winner:t1, twoLeg:true };
-
-    const seedBase = `${trnKey}_s${season}_R${round}_M${idx}_${t1.countryKey}-${t1.name}_vs_${t2.countryKey}-${t2.name}`;
-    const seedNum = ((t1.countryKey||'?').charCodeAt(0)*100 + round*50 + idx*13 + season*7) & 0xffff;
-
-    const t1Full = _bracketFullTeam(t1);
-    const t2Full = _bracketFullTeam(t2);
-    const motorOK = (t1Full && t2Full && typeof generateMatchScore === 'function' && typeof window._simulateKnockoutMatch === 'function');
-
-    // 🆕 TEK MOTOR: leg1 ve leg2 her ikisi de tam 3D motor (simulateBotMatch)
-    // Eskiden: generateMatchScore ile sadece skor — events/stats üretilmiyordu
-    // Şimdi: simulateBotMatch çağrısı → tam motor + tüm istatistikler
-
-    // ── 1. MAÇ — t1 evinde, t2 deplasman (90 dk, no extra) ──
-    let leg1HS, leg1AS, leg1Sim = null;
-    if (motorOK && typeof simulateBotMatch === 'function') {
-      try {
-        leg1Sim = simulateBotMatch(t1Full, t2Full, seedBase + '|L1');
-        if (leg1Sim) {
-          leg1HS = leg1Sim.hs;
-          leg1AS = leg1Sim.as;
-        }
-      } catch(e) { leg1Sim = null; }
-    }
-    if (!leg1Sim) {
-      const [h, a] = _fallbackScore(seedNum, 0);
-      leg1HS = h; leg1AS = a;
-    }
-    const leg1 = { home: t1, away: t2, hs: leg1HS, as: leg1AS, sim: leg1Sim };
-
-    // ── 2. MAÇ — t2 evinde, t1 deplasman; agg eşitse uzatma+pen ──
-    let leg2HS, leg2AS, et = null, pens = null, knockoutPhase = 'regulation', leg2Sim = null;
-    if (motorOK) {
-      // Önce gerçek 90 dk simülasyonu (events + stats)
-      try {
-        leg2Sim = simulateBotMatch(t2Full, t1Full, seedBase + '|L2');
-        if (leg2Sim) {
-          leg2HS = leg2Sim.hs;
-          leg2AS = leg2Sim.as;
-        }
-      } catch(e) { leg2Sim = null; }
-
-      // Agg kontrolü
-      const aggT1_at90 = leg1.hs + (leg2AS || 0);
-      const aggT2_at90 = leg1.as + (leg2HS || 0);
-
-      if (leg2Sim && aggT1_at90 === aggT2_at90) {
-        // Agg eşit → _simulateKnockoutMatch çağır (aynı seed ile aynı 90 dk skor + ET/pen ekleyecek)
-        try {
-          const koSim = window._simulateKnockoutMatch(t2Full, t1Full, seedBase + '|L2', {
-            aggregate: true,
-            aggHomeGoals: leg1.as,
-            aggAwayGoals: leg1.hs
-          });
-          if (koSim) {
-            leg2HS = koSim.hs;
-            leg2AS = koSim.as;
-            et = koSim.et || null;
-            pens = koSim.pens || null;
-            knockoutPhase = koSim.knockoutPhase || 'regulation';
-            // Merge events: koSim'in et events'i 91-120 arası, leg2Sim 0-90 arası
-            if (koSim.events && leg2Sim) leg2Sim.events = koSim.events;
-          }
-        } catch(e) { /* leg2Sim ile devam */ }
-      }
-    }
-    if (typeof leg2HS !== 'number') {
-      const [h, a] = _fallbackScore(seedNum, 13);
-      leg2HS = h; leg2AS = a;
-    }
-    const leg2 = { home: t2, away: t1, hs: leg2HS, as: leg2AS, sim: leg2Sim };
-
-    // Agg toplam — t1 perspektifi (t1 ev + t1 dep)
-    const aggT1 = leg1.hs + leg2.as;
-    const aggT2 = leg1.as + leg2.hs;
-
-    // Kazanan: penaltı varsa pens.winnerSide (home=t2, away=t1 olduğu için ters çeviriyoruz)
-    let winner;
-    if (pens) {
-      winner = pens.winnerSide === 'home' ? t2 : t1;
-    } else if (aggT1 !== aggT2) {
-      winner = aggT1 > aggT2 ? t1 : t2;
-    } else {
-      // Hala eşit (etkili motor yok) — seed bazlı tiebreak
-      winner = (seedNum % 2 === 0) ? t1 : t2;
-    }
-
-    return {
-      home: t1, away: t2,
-      leg1, leg2,
-      aggHome: aggT1, aggAway: aggT2,
-      winner,
-      et, pens,
-      knockoutPhase,
-      extraTime: !!et,
-      penaltyShootout: !!pens,
-      twoLeg: true,
-      // hs/as alanlarına agg değer koy (eski UI/kod uyumluluğu için)
-      hs: aggT1, as: aggT2
-    };
-  }
-
-  // 🆕 TEK MAÇLIK Final — eşitlikte uzatma + penaltı
-  function _finalMatch(t1, t2, round, idx) {
-    if (!t1 || !t2) return { home:t1, away:t2, hs:'?', as:'?', winner:t1, twoLeg:false };
-
-    const seedStr = `${trnKey}_s${season}_FINAL_${t1.countryKey}-${t1.name}_vs_${t2.countryKey}-${t2.name}`;
-    const seedNum = ((t1.countryKey||'?').charCodeAt(0)*100 + round*50 + idx*13 + season*7) & 0xff;
-
-    const t1Full = _bracketFullTeam(t1);
-    const t2Full = _bracketFullTeam(t2);
-
-    if (!t1Full || !t2Full || typeof window._simulateKnockoutMatch !== 'function') {
-      const [hs, as] = _fallbackScore(seedNum, 0);
-      const winner = hs > as ? t1 : hs < as ? t2 : (seedNum % 2 === 0 ? t1 : t2);
-      return { home:t1, away:t2, hs, as, winner, et:null, pens:null, twoLeg:false, knockoutPhase:'regulation' };
-    }
-
-    // Önce 90 dk
-    const [hs90, as90] = generateMatchScore(t1Full.rating || 70, t2Full.rating || 70, seedStr);
-    if (hs90 !== as90) {
-      // 90'da bitti
-      const winner = hs90 > as90 ? t1 : t2;
-      return { home:t1, away:t2, hs:hs90, as:as90, reg90:{hs:hs90,as:as90}, winner, et:null, pens:null, twoLeg:false, knockoutPhase:'regulation' };
-    }
-
-    // Berabere → tam knockout sim
-    let sim = null;
-    try { sim = window._simulateKnockoutMatch(t1Full, t2Full, seedStr, { aggregate: false }); }
-    catch(e) { sim = null; }
-
-    if (!sim) {
-      const winner = (seedNum % 2 === 0) ? t1 : t2;
-      return { home:t1, away:t2, hs:hs90, as:as90, winner, et:null, pens:null, twoLeg:false };
-    }
-
-    return {
-      home: t1, away: t2,
-      hs: sim.hs, as: sim.as,
-      reg90: sim.reg90 || { hs: hs90, as: as90 },
-      winner: sim.winnerSide === 'home' ? t1 : t2,
-      et: sim.et || null,
-      pens: sim.pens || null,
-      extraTime: !!sim.et,
-      penaltyShootout: !!sim.pens,
-      knockoutPhase: sim.knockoutPhase || 'regulation',
-      twoLeg: false
-    };
-  }
-
-  // 🆕 Cache — agg sim performans için
-  window._trn2BracketCache = window._trn2BracketCache || {};
-  const _cacheKey = `${trnKey}_s${season}_br_v3_${(groups||[]).map(g=>g.letter||'?').join('')}`;
-  if (window._trn2BracketCache[_cacheKey]) return window._trn2BracketCache[_cacheKey];
-
-  // Son 16: her gruptan 1. ve 2.
-  const r16 = [];
-  for(let gi=0; gi<groups.length; gi+=2) {
-    if(groups[gi] && groups[gi+1]) {
-      r16.push(_twoLegTie(groups[gi].teams[0], groups[gi+1].teams[1], 1, gi));
-      r16.push(_twoLegTie(groups[gi+1].teams[0], groups[gi].teams[1], 1, gi+1));
-    }
-  }
-  const bracket = [{ name:'Son 16', matches: r16, twoLeg: true }];
-
-  const qf_t = r16.map(m=>m.winner);
-  const qf = [];
-  for(let i=0;i<qf_t.length;i+=2) qf.push(_twoLegTie(qf_t[i],qf_t[i+1],2,i));
-  bracket.push({ name:'Çeyrek Final', matches:qf, twoLeg: true });
-
-  const sf_t = qf.map(m=>m.winner);
-  const sf = [];
-  for(let i=0;i<sf_t.length;i+=2) sf.push(_twoLegTie(sf_t[i],sf_t[i+1],3,i));
-  bracket.push({ name:'Yarı Final', matches:sf, twoLeg: true });
-
-  const fin_t = sf.map(m=>m.winner);
-  if(fin_t[0]&&fin_t[1]) bracket.push({ name:'Final 🏆', matches:[_finalMatch(fin_t[0],fin_t[1],4,0)], twoLeg: false });
-
-  window._trn2BracketCache[_cacheKey] = bracket;
-
-  return bracket;
+  // 🆕 Server'da knockout fixture yoksa BOŞ döndür (lokal simülasyon yapma)
+  // Eski lokal "sahte sonuç üretme" mantığı kaldırıldı — sadece gerçek server verisi gösterilir
+  return [];
 }
 
 // ── Roadmap toggle (info butonu ile aç/kapa) ──
@@ -63224,7 +63033,41 @@ function encGroupToggle(id) {
 
 // ── Eleme braketi HTML ──
 function trn2BuildBracketHtml(bracket, trnKey) {
-  const trnColor = {champ:'var(--gold)', elite:'#00b0ff', conv:'var(--accent)'}[trnKey];
+  const trnColor = {champ:'var(--gold)', elite:'#00b0ff', conv:'var(--accent)', enc:'var(--gold)'}[trnKey] || 'var(--gold)';
+  
+  // 🆕 BOŞ BRACKET — server'da henüz knockout kurulmamış (gruplar bitmedi)
+  if (!Array.isArray(bracket) || bracket.length === 0) {
+    const PHASES = [
+      { name: 'Son 16', count: 8 },
+      { name: 'Çeyrek Final', count: 4 },
+      { name: 'Yarı Final', count: 2 },
+      { name: 'Final 🏆', count: 1 }
+    ];
+    let html = `<div style="padding:0 10px 6px;font-size:10px;color:var(--text3)">Eleme turu fikstürü, grup aşaması tamamlandığında otomatik oluşturulacak.</div>
+    <div class="trn2-bracket-wrap"><div class="trn2-bracket">`;
+    PHASES.forEach(ph => {
+      html += `<div class="trn2-br-round">
+        <div class="trn2-br-round-title" style="color:${trnColor}">${ph.name}</div>`;
+      for (let i = 0; i < ph.count; i++) {
+        html += `<div class="trn2-br-match" style="opacity:0.5">
+          <div class="trn2-br-team">
+            <div class="trn2-br-logo" style="background:#37474f;color:#fff">?</div>
+            <span class="trn2-br-tname" style="color:var(--text3)">— Belli değil —</span>
+            <span class="trn2-br-score">-</span>
+          </div>
+          <div class="trn2-br-team">
+            <div class="trn2-br-logo" style="background:#37474f;color:#fff">?</div>
+            <span class="trn2-br-tname" style="color:var(--text3)">— Belli değil —</span>
+            <span class="trn2-br-score">-</span>
+          </div>
+        </div>`;
+      }
+      html += `</div>`;
+    });
+    html += `</div></div>`;
+    return html;
+  }
+  
   // 🆕 isAnk: kullanıcının GERÇEK takımı için (hardcoded Ankara/TR yerine)
   const _userTeamName = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : null;
   const _userCC = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.countryCode : null;
@@ -64364,8 +64207,8 @@ function encRenderKnockout(state) {
 
   // 1) Round verilerini hazırla
   let rounds;
-  if (!state) {
-    // Şema modu — kura öncesi placeholder
+  if (!state || !state.knockout) {
+    // Şema modu — kura öncesi VEYA knockout henüz kurulmadı (gruplar oynanıyor)
     const emptyM = () => ({ home: null, away: null });
     rounds = [
       { name: 'Son 16',        matches: Array.from({length: 8}, emptyM) },
