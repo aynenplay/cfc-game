@@ -63758,13 +63758,17 @@ function encCalcStandings(group) {
   }));
   function find(code) { return stats.find(s => s.code === code); }
   group.matches.forEach(m => {
+    // 🆕 Sadece oynanmış maçlar (hg/ag null değilse)
+    if (typeof m.hg !== 'number' || typeof m.ag !== 'number') return;
     const h = find(m.home), a = find(m.away);
     if(!h || !a) return;
     h.P++; a.P++;
     h.GF += m.hg; h.GA += m.ag;
     a.GF += m.ag; a.GA += m.hg;
-    if(m.result === 'home') { h.W++; h.Pts += 3; a.L++; }
-    else if(m.result === 'away') { a.W++; a.Pts += 3; h.L++; }
+    // 🆕 result yerine skora bakarak hesapla (backend henüz result field yazmıyor)
+    const result = m.result || (m.hg > m.ag ? 'home' : m.hg < m.ag ? 'away' : 'draw');
+    if(result === 'home') { h.W++; h.Pts += 3; a.L++; }
+    else if(result === 'away') { a.W++; a.Pts += 3; h.L++; }
     else { h.D++; a.D++; h.Pts++; a.Pts++; }
   });
   stats.forEach(s => s.GD = s.GF - s.GA);
@@ -63949,23 +63953,50 @@ function encSave(season, state) {
   _encSaveToServer(season, state);  // arka plan
 }
 
-// Sezon turnuvasını oluştur (henüz oluşturulmamışsa)
+// Sezon turnuvasını oluştur (Supabase'ten yükle, yoksa null)
+// 🆕 Edge function backend'i tournament_state'e yazıyor — frontend onu okur
 function encEnsureState(season) {
-  let state = encLoad(season);
-  if(state && state.knockout) return state;
-  const groups = encDrawGroups(season);
-  groups.forEach(g => { g.matches = encGenGroupMatches(g, season); });
-  const knockout = encBuildKnockout(groups, season);
-  state = {
-    season, generated: Date.now(),
-    groups, knockout,
-    champion: { code: knockout.final.result === 'home' ? knockout.final.home : knockout.final.away,
-                name: knockout.final.result === 'home' ? knockout.final.homeName : knockout.final.awayName,
-                flag: knockout.final.result === 'home' ? knockout.final.homeFlag : knockout.final.awayFlag }
-  };
-  state.stats = encCalcAllStats(state);
-  encSave(season, state);
-  return state;
+  const serverState = encLoad(season);
+  if (!serverState) return null;  // backend henüz kurmadı (örn: gün 17 öncesi)
+  
+  // 🆕 Backend formatını frontend formatına çevir
+  // Backend: { groups: [{letter, teams}], groupMatches: [{group, week, day, home, away}] }
+  // Frontend: { groups: [{id, teams, matches: [{day, homeName, homeFlag, awayName, awayFlag, hg, ag}]}] }
+  if (serverState.groups && serverState.groupMatches && !serverState.groups[0]?.matches) {
+    // Adaptör: maçları grup içine taşı, alan isimlerini değiştir
+    const groupMap = {};
+    serverState.groups.forEach(g => {
+      groupMap[g.letter] = {
+        id: g.letter,
+        teams: g.teams,
+        matches: []
+      };
+    });
+    serverState.groupMatches.forEach(m => {
+      const grp = groupMap[m.group];
+      if (grp) {
+        grp.matches.push({
+          day: m.day,
+          week: m.week,
+          home: m.home.code, homeName: m.home.name, homeFlag: m.home.flag,
+          away: m.away.code, awayName: m.away.name, awayFlag: m.away.flag,
+          hg: m.hg ?? null,  // henüz oynanmadıysa null
+          ag: m.ag ?? null,
+          played: typeof m.hg === 'number'
+        });
+      }
+    });
+    const adapted = {
+      season: serverState.season || season,
+      groups: Object.values(groupMap),
+      groupMatches: serverState.groupMatches,
+      knockout: serverState.knockout || null,
+      phase: serverState.phase || 'group'
+    };
+    return adapted;
+  }
+  
+  return serverState;
 }
 
 let _encSubTab = 'groups';  // 'groups' | 'knockout' | 'schedule'
@@ -64085,8 +64116,10 @@ function trn2RenderEuroNation(season) {
     statusCls = 'trn2-status-active';
   }
 
-  // State: pre-season değil ve kura günü gelmişse aktif
-  const isActive = (!preSeason && dayInSeason >= DRAW_DAY);
+  // 🆕 State: pre-season değil VE (kura günü gelmişse VEYA Supabase'te state varsa)
+  // Backend force ile gün 17 öncesi de kurabilir (test) — varsa göster.
+  const serverState = encLoad(season);
+  const isActive = !preSeason && (dayInSeason >= DRAW_DAY || !!serverState);
   const state = isActive ? encEnsureState(season) : null;
 
   // Subtab seçimi (state yoksa içerikler placeholder gösterir)
@@ -64249,21 +64282,25 @@ function encRenderGroups(state) {
         <td class="enc-pts">${s.Pts}</td>
       </tr>
     `).join('');
-    const matchesByDay = [1,2,3].map(d => g.matches.filter(m => m.day === d));
+    const matchesByDay = [1,2,3].map(d => g.matches.filter(m => m.week === d || m.day === [34,35,36][d-1]));
     const matchHtml = matchesByDay.map((dayM, di) => `
       <div class="enc-md-block">
         <div class="enc-md-lbl">${di+1}. Maç Günü</div>
-        ${dayM.map(m => `
+        ${dayM.map(m => {
+          const played = typeof m.hg === 'number' && typeof m.ag === 'number';
+          const scoreText = played ? `${m.hg} - ${m.ag}` : '- vs -';
+          const scoreStyle = played ? '' : 'color:var(--text3)';
+          return `
           <div class="enc-match-row">
             <div class="enc-mr-team enc-mr-home">
               <span>${m.homeName}</span><span class="enc-mr-flag">${m.homeFlag}</span>
             </div>
-            <div class="enc-mr-score">${m.hg} - ${m.ag}</div>
+            <div class="enc-mr-score" style="${scoreStyle}">${scoreText}</div>
             <div class="enc-mr-team enc-mr-away">
               <span class="enc-mr-flag">${m.awayFlag}</span><span>${m.awayName}</span>
             </div>
-          </div>
-        `).join('')}
+          </div>`;
+        }).join('')}
       </div>
     `).join('');
     return `
