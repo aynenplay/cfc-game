@@ -34128,8 +34128,59 @@ function updatePoss(ph){
   document.getElementById('possBarA').style.width=pa+'%';
 }
 
-// ═══════════ MAIN LOOP ═══════════
+// ═══════════ MAIN LOOP — SERVER-ONLY ═══════════
+// 🆕 Maç motoru tamamen Supabase Edge Function'da. Frontend SADECE izler.
+// Eski lokal motor kodu (_startMatchInternal vs) tutulur ama ÇAĞRILMAZ.
 async function startMatch(){
+  if(MS.running||MS.finished)return;
+  
+  // Maç verisi: curHome, curAway, MS.season, MS.day, MS.kickoffMs
+  const homeName = curHome && curHome.name;
+  const awayName = curAway && curAway.name;
+  if (!homeName || !awayName) {
+    if (typeof showToast === 'function') showToast('Maç verisi eksik');
+    return;
+  }
+  
+  // Kickoff kontrolü
+  if (MS && typeof MS.kickoffMs === 'number') {
+    const _now = Date.now();
+    if (_now < MS.kickoffMs) {
+      const remMin = Math.max(1, Math.ceil((MS.kickoffMs - _now) / 60000));
+      const msg = `Maç ${remMin} dakika sonra başlayacak — şimdi izlenemez`;
+      if (typeof showToast === 'function') showToast(msg);
+      else alert(msg);
+      return;
+    }
+  }
+  
+  // 🆕 SERVER-ONLY: liveMatchOpen ile izleme modunu aç
+  // Edge function maçı simüle ediyor, biz sadece match_state'i poll edip gösteriyoruz
+  const matchData = {
+    season: MS.season || 1,
+    day: MS.day || 0,
+    home: homeName,
+    away: awayName,
+    homeShort: (curHome && curHome.short) || homeName.slice(0,3).toUpperCase(),
+    awayShort: (curAway && curAway.short) || awayName.slice(0,3).toUpperCase(),
+    leagueName: (curHome && curHome.leagueName) || 'Maç',
+    leagueFlag: '⚽',
+    matchDateTime: MS.kickoffMs ? new Date(MS.kickoffMs).toISOString() : null
+  };
+  
+  // match-screen'i kapat, liveMatchOpen modal'ını aç
+  const ms = document.getElementById('match-screen');
+  if (ms) ms.style.display = 'none';
+  
+  if (typeof liveMatchOpen === 'function') {
+    liveMatchOpen(matchData, MS.kickoffMs);
+  } else {
+    alert('Canlı maç izleyici yüklü değil');
+  }
+}
+
+// ═══════════ ESKİ LOKAL MOTOR — ÇAĞRILMAZ (deprecated, dur) ═══════════
+async function _OLD_startMatch(){
   if(MS.running||MS.finished)return;
 
   // ═══════════════════════════════════════════════════════════════
