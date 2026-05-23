@@ -24152,7 +24152,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-05-23-03';
+const APP_BUILD = '2026-05-23-04';
 
 (function _cacheBustCheck() {
   try {
@@ -39492,13 +39492,8 @@ let ROSTER_DATA = [
 // Çağrı yerleri korunsun diye sync fonksiyon — RAM cache + arka plan refresh
 function rosterBuildTeam(countryCode) {
   if (!_userTeam || !_userTeam.teamName) return;
-  // RAM cache varsa direkt kullan
-  const key = countryCode + ':' + _userTeam.teamName;
-  const cached = _teamRosterCache[key];
-  if (cached && Array.isArray(cached) && cached.length > 0) {
-    ROSTER_DATA = _buildRosterFromPlayers(cached, countryCode);
-  }
-  // Her durumda arka planda taze çek + UI güncelle
+  // 🆕 Cache devre dışı — her zaman taze server verisi çekilir
+  // Önceki sürümde cache eski (yanlış) overall/pos/level gösteriyordu
   _rosterRefreshFromServer(countryCode);
 }
 
@@ -39611,12 +39606,43 @@ async function _rosterRefreshFromServer(countryCode) {
       }
     });
 
+    // 🆕 DEBUG: Mevcut kullanıcının birleştirilmiş verisini logla
+    const myUserId = (window.authUser || {}).id;
+    const myRow = data.find(p => p.user_id === myUserId);
+    if (myRow) {
+      console.info('[rosterRefresh] kullanıcı satırı:', {
+        name: myRow.name, pos: myRow.pos, level: myRow.level,
+        overall: myRow.overall, rating: myRow.rating, xp: myRow.xp
+      });
+    }
+
     // Cache güncelle
     const key = countryCode + ':' + _userTeam.teamName;
     _teamRosterCache[key] = data;
 
     // ROSTER_DATA'yı yeniden inşa et
     ROSTER_DATA = _buildRosterFromPlayers(data, countryCode);
+
+    // 🆕 EXTRA GARANTİ: Kullanıcı satırını user_player'dan TEKRAR override et
+    // (_buildRosterFromPlayers'da bir şey kaçırırsa diye savunma)
+    if (myUserId && userPlayerMap[myUserId]) {
+      const up = userPlayerMap[myUserId];
+      const prof = profileMap[myUserId];
+      const userIdx = ROSTER_DATA.findIndex(r => r.userId === myUserId);
+      if (userIdx >= 0) {
+        const r = ROSTER_DATA[userIdx];
+        r.level = up.level ?? r.level;
+        r.xp = up.xp ?? r.xp;
+        r.overall = up.overall ?? r.overall;
+        r.rating = up.rating ?? r.rating;
+        r.pos = up.position || r.pos;
+        r.posGroup = up.position_group || r.posGroup;
+        if (prof) {
+          r.name = prof.name || r.name;
+          r.nationality = prof.nationality || r.nationality;
+        }
+      }
+    }
 
     console.info('[rosterRefresh]', _userTeam.teamName, '→', ROSTER_DATA.length, 'oyuncu (',
       ROSTER_DATA.filter(p => !p.isBot).length, 'gerçek)');
