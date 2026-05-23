@@ -43150,10 +43150,33 @@ function openPlayerModalSelfFromRanking() {
 }
 
 // Genel modal açma
-function openPlayerModal(player, ctx) {
+async function openPlayerModal(player, ctx) {
   const card = document.getElementById('playerModalCard');
   const overlay = document.getElementById('playerModal');
   if(!card || !overlay) return;
+
+  // 🆕 KANONİK PLAYER ÇÖZÜMLEMESİ
+  // Bot oyuncuların gerçek profili Supabase players tablosunda — caller'lar
+  // bazen seed/rastgele overall ile player nesnesi üretiyordu (rankings,
+  // stat list, race vs). Burada cache'ten gerçek veriyi alıp override ederiz.
+  // Sonuç: aynı oyuncu hangi sayfadan açılırsa açılsın AYNI değerleri gösterir.
+  try {
+    if (player && player.isBot && player.role !== 'user') {
+      const cc = ((ctx && (ctx.countryCode || ctx.cc)) || '').toUpperCase().slice(0,2);
+      const teamName = (ctx && (ctx.teamLookupName || ctx.teamName)) || '';
+      if (cc && teamName) {
+        const key = cc + ':' + teamName;
+        let roster = _teamRosterCache[key];
+        if ((!Array.isArray(roster) || roster.length === 0) && typeof _loadTeamRosterFromServer === 'function') {
+          roster = await _loadTeamRosterFromServer(cc, teamName);
+        }
+        if (Array.isArray(roster) && roster.length) {
+          const canonical = roster.find(r => r && r.name === player.name);
+          if (canonical) player = canonical;
+        }
+      }
+    }
+  } catch(e) { /* sessizce devam — fallback player kullanılır */ }
 
   // 🆕 Modal açılırken from-page'i kaydet (Profil Görüntüle → Geri Dön için)
   // En güvenilir kaynak: showPage takibi → window._lastNonPlayerPage
