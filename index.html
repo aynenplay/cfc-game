@@ -24152,7 +24152,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-05-23-12';
+const APP_BUILD = '2026-05-23-13';
 
 (function _cacheBustCheck() {
   try {
@@ -61505,47 +61505,35 @@ function calcLeagueStandings(countryCode, tierIdx, opts) {
     const home = f.homeTeam.name;
     const away = f.awayTeam.name;
     const key = `${season}_${matchDay}_${home}_${away}`;
+    const keyReverse = `${season}_${matchDay}_${away}_${home}`;
 
-    let entry = cache[key];
-
-    // Cache yoksa simulate kontrolü:
-    // - Geçmiş gün → her zaman simulate
-    // - Bugünkü gün → kickoff saati geçmişse simulate, geçmediyse atla
+    // 🆕 SADECE SUPABASE: cache (= match_results) ne diyorsa o
+    // Lokal simulate KALDIRILDI — yalnızca Supabase'te bitmiş maçlar puana sayılır
+    // Sıra duyarsız arama: home-away veya away-home eşleşebilir
+    let entry = cache[key] || cache[keyReverse];
+    
+    // 🆕 Suffix varyantları (turnuva _trn) ve esnek arama
     if (!entry) {
-      let shouldSimulate = matchDay < todayDayInSeason;
-      if (!shouldSimulate && matchDay === todayDayInSeason) {
-        // Bugünkü maç — kickoff zamanını kontrol et
-        const [hh, mm] = (f.matchTime || '15:00').split(':').map(n => parseInt(n, 10));
-        const todayDay = new Date();
-        todayDay.setHours(hh || 15, mm || 0, 0, 0);
-        if (todayDay.getTime() <= Date.now()) shouldSimulate = true;
-      }
-      if (!shouldSimulate) return; // henüz oynanmamış, atla
-
-      try {
-        // Roster'ları üret (events + playerStats için)
-        const hRoster = (typeof guestGenerateRoster === 'function') ? guestGenerateRoster(countryCode, home, f.homeTeam.rank || 1) : null;
-        const aRoster = (typeof guestGenerateRoster === 'function') ? guestGenerateRoster(countryCode, away, f.awayTeam.rank || 1) : null;
-        const homeWithRoster = { ...f.homeTeam, _roster: hRoster };
-        const awayWithRoster = { ...f.awayTeam, _roster: aRoster };
-        const sim = simulateBotMatch(homeWithRoster, awayWithRoster, key);
-        entry = {
-          season, day: matchDay, home, away,
-          hs: sim.hs, as: sim.as,
-          comp: ((getLeagueFlag(league.name) ? getLeagueFlag(league.name) + ' ' : '') + league.name),
-          round: 'Hafta ' + f.week,
-          playedAt: 0, byBot: true,
-          events: sim.events || [],
-          playerStats: sim.playerStats || null,
-          stats: sim.stats || null
-        };
-        cache[key] = entry;
-        cacheUpdated = true;
-      } catch(e) { return; }
+      entry = cache[key + '_trn'] || cache[keyReverse + '_trn'];
     }
+    if (!entry) {
+      for (const k in cache) {
+        const v = cache[k];
+        if (v && v.season === season && v.day === matchDay &&
+            ((v.home === home && v.away === away) || (v.home === away && v.away === home))) {
+          entry = v;
+          break;
+        }
+      }
+    }
+    
+    if (!entry) return; // Maç henüz oynanmamış (veya Supabase'e yazılmamış) — atla
 
-    const hs = Number(entry.hs) || 0;
-    const as_ = Number(entry.as) || 0;
+    // 🆕 Skoru, fikstürdeki home/away'e göre yorumla
+    // Eğer DB satırı ters sırada ise (Giresun-Rize ama fikstür Rize-Giresun)
+    const dbIsReversed = entry.home === away && entry.away === home;
+    const hs = Number(dbIsReversed ? entry.as : entry.hs) || 0;
+    const as_ = Number(dbIsReversed ? entry.hs : entry.as) || 0;
 
     // Ev sahibi istatistik
     if (stats[home]) {
