@@ -21354,7 +21354,7 @@ body.drawer-open{overflow:hidden}
 
         <!-- İsim + meta -->
         <div class="pl-hero-info">
-          <div class="pl-name" id="plName">Ali Yılmaz</div>
+          <div class="pl-name" id="plName">—</div>
           <div class="pl-hero-meta-row">
             <span class="pl-pos-pill" id="plPosBadge">Orta Saha</span>
             <span class="pl-hero-flag" id="plFcFlag">🇹🇷</span>
@@ -24152,7 +24152,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-05-23-05';
+const APP_BUILD = '2026-05-23-06';
 
 (function _cacheBustCheck() {
   try {
@@ -38578,8 +38578,10 @@ function syncUserToRoster() {
     return;
   }
 
-  // Takımsız: ROSTER_DATA = sadece user (kendi DB satırından)
+  // Takımsız: Supabase user_player + profiles'tan oku
   const FLAG_BY_CC = CFT_FLAG_BY_CC;
+  // Cache'te güncel user_player verisi var mı?
+  const up = window._userProgressCache || {};
   const userPos = authUser.position || 'MID';
   const existing = ROSTER_DATA.find(p => p.role === 'user');
   if (existing) {
@@ -38588,9 +38590,10 @@ function syncUserToRoster() {
     existing.posGroup = (typeof POS_GROUP !== 'undefined' && POS_GROUP[userPos]) || 'MID';
     existing.nationality = authUser.nationality || existing.nationality;
     existing.nation = FLAG_BY_CC[authUser.nationality] || existing.nation;
-    if (!existing.abilities || !existing.abilities.GK) {
-      existing.abilities = (typeof _buildAbilities === 'function') ? _buildAbilities() : null;
-    }
+    existing.level = up.level ?? existing.level;
+    existing.xp = up.xp ?? existing.xp;
+    existing.overall = up.overall ?? existing.overall;
+    // abilities Supabase'ten gelirse atanır, lokal fake üretilmez
   } else {
     ROSTER_DATA = [{
       num: 8, name: authUser.name || 'Oyuncu',
@@ -38598,10 +38601,13 @@ function syncUserToRoster() {
       nationality: authUser.nationality || 'TR',
       pos: userPos,
       posGroup: (typeof POS_GROUP !== 'undefined' && POS_GROUP[userPos]) || 'MID',
-      level: 0, xp: 0, overall: 10, avatar: '🧑',
+      level: up.level ?? 0,
+      xp: up.xp ?? 0,
+      overall: up.overall ?? 10,
+      avatar: '🧑',
       role: 'user', isBot: false,
       userId: authUser.id || null,
-      abilities: (typeof _buildAbilities === 'function') ? _buildAbilities() : null
+      abilities: null  // Supabase'ten user_player.abilities gelirse async güncellenecek
     }];
   }
   // Sıralama cache'ini geçersiz kıl
@@ -39470,15 +39476,10 @@ function doLogoutConfirmed(){
 // ── Ankara Kadrosu ──
 // Kuruluş kadrosu: 1 kullanıcı + 15 bot. Tüm yetenekler 10, level 0, xp 0.
 // Antrenmanlardan kazanılan xp ile level atlanır (her 100 xp = +1 level).
-// ── ROSTER_DATA — dinamik ──
-// Takımsız: sadece kullanıcı (1 oyuncu)
-// Takımlı: kullanıcı + 14 bot (takımın ülkesinin yerli isimleriyle)
-let ROSTER_DATA = [
-  // Gerçek oyuncu (kullanıcı) — başlangıç defaultu
-  // 🆕 4 mevki grubu için ayrı yetenek setleri (hepsi 10'dan başlar)
-  {num:8, name:'Ali Yılmaz', nation:'🇹🇷', nationality:'TR', pos:'MID', posGroup:'MID', level:0, xp:0, overall:10, avatar:'🧑', role:'user', isBot:false,
-   abilities: (typeof _buildAbilities === 'function') ? _buildAbilities() : null}
-];
+// 🆕 ROSTER_DATA tek kaynaktan: Supabase players + user_player + profiles
+// Default boş — sayfa Supabase'ten veri gelene kadar boş kadro gösterir
+// (Eski "Ali Yılmaz" default'u kaldırıldı — yanlış kullanıcı bilgisi göstermesin)
+let ROSTER_DATA = [];
 
 // Takıma katıldığında 14 bot ekler (kaptan + 3 yrd kaptan + 10 üye)
 // 🆕 Diğer takımlarla TUTARLI — getOrCreateTeamRoster ile aynı deterministik havuz kullanılır.
