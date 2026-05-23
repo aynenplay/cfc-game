@@ -62220,13 +62220,15 @@ function trn2BuildGroups(teams32, season, trnKey) {
   function _hydrateTeam(srvTeam) {
     if (!srvTeam || !srvTeam.name || !srvTeam.countryCode) return null;
     const cc = srvTeam.countryCode;
-    if (true && _cftGetCountry(cc) && _cftGetCountry(cc).leagues) {
-      for (const lg of _cftGetCountry(cc).leagues) {
+    const country = _cftGetCountry(cc);
+    const countryFlag = country ? country.flag : '🏳️';
+    if (true && country && country.leagues) {
+      for (const lg of country.leagues) {
         const found = (lg.teams || []).find(x => x.name === srvTeam.name);
-        if (found) return { ...found, countryKey: cc, rank: srvTeam.rank || 0 };
+        if (found) return { ...found, countryKey: cc, countryFlag, rank: srvTeam.rank || 0 };
       }
     }
-    return { name: srvTeam.name, countryKey: cc, rank: srvTeam.rank || 0 };
+    return { name: srvTeam.name, countryKey: cc, countryFlag, rank: srvTeam.rank || 0 };
   }
 
   const groups = Array.from({length:8}, () => []);
@@ -64221,8 +64223,10 @@ function encEnsureState(season) {
         grp.matches.push({
           day: m.day,
           week: m.week,
-          home: m.home.code, homeName: m.home.name, homeFlag: m.home.flag,
-          away: m.away.code, awayName: m.away.name, awayFlag: m.away.flag,
+          home: m.home.code, homeName: m.home.name,
+          homeFlag: m.home.flag || (_cftGetCountry(m.home.code) && _cftGetCountry(m.home.code).flag) || '🏳️',
+          away: m.away.code, awayName: m.away.name,
+          awayFlag: m.away.flag || (_cftGetCountry(m.away.code) && _cftGetCountry(m.away.code).flag) || '🏳️',
           hg: m.hg ?? null,
           ag: m.ag ?? null,
           played: typeof m.hg === 'number',
@@ -64548,10 +64552,12 @@ function encRenderGroups(state) {
 
   return state.groups.map((g, gi) => {
     const standings = encCalcStandings(g);
-    const rowsHtml = standings.map((s, i) => `
+    const rowsHtml = standings.map((s, i) => {
+      const _flag = s.flag || (_cftGetCountry(s.code) && _cftGetCountry(s.code).flag) || '🏳️';
+      return `
       <tr class="enc-st-row${i<2?' enc-qualified':''}">
         <td class="enc-st-pos">${i+1}</td>
-        <td class="enc-st-team"><span class="enc-st-flag">${s.flag}</span><span class="enc-st-name">${s.name}</span></td>
+        <td class="enc-st-team"><span class="enc-st-flag">${_flag}</span><span class="enc-st-name">${s.name}</span></td>
         <td>${s.P}</td>
         <td class="enc-w">${s.W}</td>
         <td>${s.D}</td>
@@ -64559,7 +64565,8 @@ function encRenderGroups(state) {
         <td class="enc-gd">${s.GF}:${s.GA}</td>
         <td class="enc-pts">${s.Pts}</td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
     const matchesByDay = [1,2,3].map(d => g.matches.filter(m => m.week === d || m.day === [34,35,36][d-1]));
     const DAYS_TR_S = ['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
     const MONTHS_S = ['OCA','ŞUB','MAR','NİS','MAY','HAZ','TEM','AĞU','EYL','EKİ','KAS','ARA'];
