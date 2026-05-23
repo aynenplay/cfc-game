@@ -42055,11 +42055,18 @@ function saveUserTrainLog(list, immediate) {
   clearTimeout(_userTrainLogSaveTimer);
   const doSave = async () => {
     try {
-      const { error } = await window.sb.from('user_player').update({
+      const { data, error } = await window.sb.from('user_player').upsert({
+        user_id: authUser.id,
         train_log: _userTrainLogCache
-      }).eq('user_id', authUser.id);
-      if (error) console.warn('[train_log] save error:', error.message || error);
-    } catch(e) { console.warn('[train_log] save hata:', e); }
+      }, { onConflict: 'user_id' }).select();
+      if (error) {
+        console.warn('[train_log] save error:', error.message || error);
+      } else if (!data || data.length === 0) {
+        console.warn('[train_log] save: 0 satır etkilendi');
+      } else {
+        console.info('[train_log] save OK, entries:', _userTrainLogCache.length);
+      }
+    } catch(e) { console.warn('[train_log] save exception:', e); }
   };
   if (immediate) doSave();
   else _userTrainLogSaveTimer = setTimeout(doSave, 1000);
