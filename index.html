@@ -24152,7 +24152,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-05-23-14';
+const APP_BUILD = '2026-05-23-15';
 
 (function _cacheBustCheck() {
   try {
@@ -75176,6 +75176,126 @@ setTimeout(async ()=>{
       }
     }
   } catch(e) { console.warn('[presence] hata:', e); }
+  
+  // 🆕 SUPABASE REALTIME — anlık veri güncellemeleri
+  // Sayfa yenileme gereği kalkıyor: maç biter, takım katılım, vs anlık güncellenir
+  try {
+    if (window.sb && !window._rtSubscribed) {
+      window._rtSubscribed = true;
+      
+      // Debounce yardımcı (kısa sürede çok event geldiğinde tek tek değil tek seferde tepki ver)
+      const _rtDebounce = (fn, ms) => {
+        let t = null;
+        return () => { if (t) clearTimeout(t); t = setTimeout(fn, ms); };
+      };
+      
+      // 1) match_results — biten maçlar → puan tablosu + fikstür güncelle
+      const _refreshMatchResults = _rtDebounce(async () => {
+        try {
+          if (typeof _matchResultsLoadFromServer === 'function') {
+            await _matchResultsLoadFromServer();
+          }
+          // Açık ligler sayfasındaysa puan tablosunu/fikstürü tazele
+          const lgPage = document.getElementById('page-leagues');
+          if (lgPage && lgPage.classList.contains('active')) {
+            if (window._lg2ViewTab === 'fixture' && typeof lg2RenderFixture === 'function') {
+              lg2RenderFixture();
+            } else if (typeof lg2RenderTable === 'function') {
+              lg2RenderTable();
+            }
+          }
+          // Ana sayfa maç önizleme paneli de güncellensin
+          if (typeof renderHomeNextMatch === 'function') renderHomeNextMatch();
+          console.info('[realtime] match_results güncellendi');
+        } catch(e) { console.warn('[realtime] match_results refresh hata:', e); }
+      }, 800);
+      
+      window.sb.channel('rt-match-results')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'match_results' }, _refreshMatchResults)
+        .subscribe();
+      
+      // 2) match_state — canlı maç skorları (dakika, gol vb)
+      const _refreshMatchState = _rtDebounce(async () => {
+        try {
+          if (typeof _loadAllMatchStateFromServer === 'function') {
+            await _loadAllMatchStateFromServer();
+          }
+          // Maç önizleme paneli güncellensin
+          if (typeof renderHomeNextMatch === 'function') renderHomeNextMatch();
+          // Açık match-screen varsa güncelle
+          const ms = document.getElementById('match-screen');
+          if (ms && ms.classList.contains('open') && typeof _resLiveUpdate === 'function') {
+            _resLiveUpdate();
+          }
+        } catch(e) { console.warn('[realtime] match_state refresh hata:', e); }
+      }, 500);
+      
+      window.sb.channel('rt-match-state')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'match_state' }, _refreshMatchState)
+        .subscribe();
+      
+      // 3) players — takım kadrosu (yeni katılım, ayrılma, online durumu)
+      const _refreshPlayers = _rtDebounce(async () => {
+        try {
+          // Kullanıcının takımı varsa kadroyu tazele
+          if (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.countryCode && _userTeam.teamName) {
+            if (typeof _rosterRefreshFromServer === 'function') {
+              await _rosterRefreshFromServer(_userTeam.countryCode);
+            }
+          }
+        } catch(e) { console.warn('[realtime] players refresh hata:', e); }
+      }, 1000);
+      
+      window.sb.channel('rt-players')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, _refreshPlayers)
+        .subscribe();
+      
+      // 4) team_data — manifesto, treasury, facility değişimleri
+      const _refreshTeamData = _rtDebounce(async () => {
+        try {
+          if (typeof _mfsLoadFromServer === 'function') await _mfsLoadFromServer();
+          if (typeof _trsLoadFromServer === 'function') await _trsLoadFromServer();
+          if (typeof _facLevelsLoadFromServer === 'function') await _facLevelsLoadFromServer();
+          if (typeof trsSyncHeader === 'function') trsSyncHeader();
+        } catch(e) { console.warn('[realtime] team_data refresh hata:', e); }
+      }, 1000);
+      
+      window.sb.channel('rt-team-data')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'team_data' }, _refreshTeamData)
+        .subscribe();
+      
+      // 5) user_wallet — kendi cüzdanım değişti mi (server tarafından)
+      if (window.authUser && window.authUser.id) {
+        const myUserId = window.authUser.id;
+        window.sb.channel('rt-my-wallet')
+          .on('postgres_changes', { 
+            event: '*', 
+            schema: 'public', 
+            table: 'user_wallet',
+            filter: `user_id=eq.${myUserId}`
+          }, _rtDebounce(async () => {
+            try {
+              const { data } = await window.sb.from('user_wallet').select('*').eq('user_id', myUserId).maybeSingle();
+              if (data) {
+                _wlCache = {
+                  eur: Number(data.eur) || 0,
+                  dia: Number(data.dia) || 0,
+                  total_in: Number(data.total_in) || 0,
+                  total_out: Number(data.total_out) || 0,
+                  totalIn: Number(data.total_in) || 0,
+                  totalOut: Number(data.total_out) || 0
+                };
+                if (typeof wlSyncHeader === 'function') wlSyncHeader();
+              }
+            } catch(e) {}
+          }, 300))
+          .subscribe();
+      }
+      
+      console.info('[realtime] Subscribe edilen tablolar: match_results, match_state, players, team_data, user_wallet');
+    }
+  } catch(e) { console.warn('[realtime] subscribe hata:', e); }
+  
   try { await _loadRealCaptainsFromServer(); } catch(e) { console.warn('realCaptains load hata:', e); }
   try { await _teamStrategyLoadFromServer(); } catch(e) { console.warn('team_strategy load hata:', e); }
   try { await _rosterPersistLoadFromServer(); } catch(e) { console.warn('roster_persist load hata:', e); }
