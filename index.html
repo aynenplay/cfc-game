@@ -67936,7 +67936,7 @@ function totoGenMatches(leagueKey, couponPart) {
     return matches;
   }
 
-  // ──── LİG (teams DB) ────
+  // ──── LİG (Supabase match_state) ────
   const [ck, tierStr] = leagueKey.split('_');
   const tierIdx = parseInt(tierStr) || 0;
   const country = _cftGetCountry(ck);
@@ -67945,46 +67945,43 @@ function totoGenMatches(leagueKey, couponPart) {
   if(!league || !league.teams) return [];
   const leagueName = league.name;
   const flagStr = country.flag;
+  const tier1based = league.tier;  // teams tablosu tier (1-based)
 
-  if(typeof buildLeagueFixture !== 'function') return [];
-  const seasonStart = info.seasonStart || new Date();
-  const fixture = buildLeagueFixture(league.teams, seasonStart, ck, tierIdx);
-  if(!fixture.length) return [];
-
+  // 🆕 match_state cache'inden bu liginin maçlarını al (kickoff_at gerçek)
+  if (!_matchStateCache || !_matchStateCache.byKey) return [];
+  const ligMatches = Object.values(_matchStateCache.byKey).filter(m =>
+    m.countryCode === ck && m.tier === tier1based && !m.tournament_key
+  );
+  if (ligMatches.length === 0) return [];
+  
+  // Kickoff zamanına göre sırala
+  ligMatches.sort((a, b) => new Date(a.matchDateTime).getTime() - new Date(b.matchDateTime).getTime());
+  
   // 🆕 Bültenin günü: bugünden başla, eğer bugünde BAŞLAMIŞ maç varsa yarına geç
-  // (devam eden maçlara tahmin yapılamaz — toto kuralı)
   let bulletinDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
   for (let attempt = 0; attempt < 14; attempt++) {
     const dayEnd = new Date(bulletinDate.getTime() + 86400000);
-    const dayMatches = fixture.filter(f => {
-      const d = new Date(f.date);
+    const dayMatches = ligMatches.filter(m => {
+      const d = new Date(m.matchDateTime);
       return d >= bulletinDate && d < dayEnd;
     });
-
     if (dayMatches.length === 0) {
-      // O gün maç yok, sonraki güne bak
       bulletinDate = new Date(bulletinDate.getTime() + 86400000);
       continue;
     }
-
     // O günde başlamış (kickoff geçmiş) maç var mı?
-    const anyStarted = dayMatches.some(f => {
-      const [hh, mm] = (f.matchTime || '15:00').split(':').map(n => parseInt(n)||0);
-      const kickoff = new Date(f.date);
-      kickoff.setHours(hh, mm, 0, 0);
+    const anyStarted = dayMatches.some(m => {
+      const kickoff = new Date(m.matchDateTime);
       return now.getTime() >= kickoff.getTime();
     });
-
-    if (!anyStarted) break; // Bu gün uygun (henüz hiçbir maç başlamamış)
-
-    // Sonraki güne geç
+    if (!anyStarted) break;
     bulletinDate = new Date(bulletinDate.getTime() + 86400000);
   }
 
-  // bulletinDate günündeki maçları al (bu güne ait fikstür)
+  // bulletinDate günündeki maçları al
   const bulletinEnd = new Date(bulletinDate.getTime() + 86400000);
-  const future = fixture.filter(f => {
-    const d = new Date(f.date);
+  const future = ligMatches.filter(m => {
+    const d = new Date(m.matchDateTime);
     return d >= bulletinDate && d < bulletinEnd;
   });
   if(!future.length) return [];
@@ -67992,55 +67989,44 @@ function totoGenMatches(leagueKey, couponPart) {
   const offset = part * 8;
   const slice = future.slice(offset, offset + 8);
   const season = info.season || 1;
-  // 🆕 Maç sonuçlarını cache'ten oku — maçtan önce skor BELİRLENMEZ.
-  // Maç gerçekten oynandığında (saat geçtikten 15dk sonra) cft_match_results'a
-  // simulateBotMatch / _quickScore yazar. Toto da aynı kaynaktan okur → tutarlı.
+  // Maç sonuçlarını cache'ten oku
   let resultsCache = {};
   try { resultsCache = _matchResultsLoad(); } catch(e) {}
   const matches = [];
-  slice.forEach((f, i) => {
-    const home = f.homeTeam;
-    const away = f.awayTeam;
-    const [hh, mm] = (f.matchTime || '15:00').split(':').map(n => parseInt(n)||0);
-    const kickoff = new Date(f.date);
-    kickoff.setHours(hh, mm, 0, 0);
+  slice.forEach((m, i) => {
+    const homeTeam = league.teams.find(t => t.name === m.home) || { name: m.home, short: m.homeShort };
+    const awayTeam = league.teams.find(t => t.name === m.away) || { name: m.away, short: m.awayShort };
+    const home = {...homeTeam, bg: homeTeam.bg||'#37474f', tc: homeTeam.tc||'#fff'};
+    const away = {...awayTeam, bg: awayTeam.bg||'#37474f', tc: awayTeam.tc||'#fff'};
+    const kickoff = new Date(m.matchDateTime);
     const matchEnd = kickoff.getTime() + 95*60*1000;
 
-    // 🆕 Cache'ten gerçek sonuç ara
-    let cached = null;
-    for (const k in resultsCache) {
-      const r = resultsCache[k];
-      if (r && r.home === home.name && r.away === away.name &&
-          Math.abs((r.playedAt || 0) - kickoff.getTime()) < 24*60*60*1000) {
-        cached = r;
-        break;
-      }
-    }
-
+    // Cache'ten gerçek sonuç ara
+    const cacheKey = `${m.season}_${m.day}_${m.home}_${m.away}`;
+    let cached = resultsCache[cacheKey] || null;
+    
     let hs = null, as = null, result = null;
     if (cached && typeof cached.hs === 'number' && typeof cached.as === 'number') {
       hs = cached.hs;
       as = cached.as;
       result = hs > as ? '1' : (hs === as ? '0' : '2');
+    } else if (m.status === 'running') {
+      hs = m.home_score;
+      as = m.away_score;
     }
 
-    // Finished: cache'te varsa true (gerçekten oynanmış)
-    // Started: kickoff geçmiş ama cache yok (live oynanıyor demek)
-    // Pending: kickoff gelmedi (tahmin yapılabilir)
-    const finished = !!cached;
+    const finished = !!cached || m.status === 'finished';
     const started  = !cached && (now.getTime() >= kickoff.getTime() && now.getTime() < matchEnd);
 
     matches.push({
-      home: {...home, bg: home.bg||'#37474f', tc: home.tc||'#fff'},
-      away: {...away, bg: away.bg||'#37474f', tc: away.tc||'#fff'},
+      home, away,
       result, hs, as,
       league: leagueName, flag: flagStr,
       kickoff, kickoffStr: kickoff.toTimeString().slice(0,5),
       started, finished,
-      week: f.week, matchKey: f.matchKey,
+      week: Math.ceil(m.day / 1), matchKey: m.matchKey,
     });
   });
-  // 🆕 Bültenin tarihini döndür (matches dizisine attach et)
   matches._bulletinDate = bulletinDate;
   return matches;
 }
