@@ -64053,14 +64053,33 @@ function encEnsureState(season) {
     serverState.groupMatches.forEach(m => {
       const grp = groupMap[m.group];
       if (grp) {
+        // 🆕 match_state cache'inden gerçek kickoff_at'i bul
+        let _matchDateTime = null;
+        let _scheduledTime = null;
+        if (_matchStateCache && _matchStateCache.byKey) {
+          const _found = Object.values(_matchStateCache.byKey).find(ms =>
+            ms.tournament_key === 'enc' &&
+            ms.tournament_phase === 'group' &&
+            ms.season === season &&
+            ms.home === m.home.name &&
+            ms.away === m.away.name
+          );
+          if (_found && _found.matchDateTime) {
+            _matchDateTime = _found.matchDateTime;
+            const _d = new Date(_found.matchDateTime);
+            _scheduledTime = String(_d.getHours()).padStart(2,'0') + ':' + String(_d.getMinutes()).padStart(2,'0');
+          }
+        }
         grp.matches.push({
           day: m.day,
           week: m.week,
           home: m.home.code, homeName: m.home.name, homeFlag: m.home.flag,
           away: m.away.code, awayName: m.away.name, awayFlag: m.away.flag,
-          hg: m.hg ?? null,  // henüz oynanmadıysa null
+          hg: m.hg ?? null,
           ag: m.ag ?? null,
-          played: typeof m.hg === 'number'
+          played: typeof m.hg === 'number',
+          matchDateTime: _matchDateTime,
+          scheduledTime: _scheduledTime
         });
       }
     });
@@ -64125,8 +64144,21 @@ function encRenderSchedule(state) {
   let lastMonth = -1;
 
   allEvents.forEach(ev => {
-    const date = new Date(seasonStart);
-    date.setDate(seasonStart.getDate() + ev.day - 1);
+    // 🆕 Tarih kaynağı: önce match_state cache (Supabase'ten gerçek kickoff_at)
+    // Yedek: seasonStart + ev.day - 1 (lokal hesap, ENC maçı henüz kurulmamışsa)
+    let date = null;
+    if (_matchStateCache && _matchStateCache.byKey) {
+      const _encMatch = Object.values(_matchStateCache.byKey).find(m =>
+        m.tournament_key === 'enc' && m.day === ev.day && m.matchDateTime
+      );
+      if (_encMatch && _encMatch.matchDateTime) {
+        date = new Date(_encMatch.matchDateTime);
+      }
+    }
+    if (!date) {
+      date = new Date(seasonStart);
+      date.setDate(seasonStart.getDate() + ev.day - 1);
+    }
     const _today00 = new Date(); _today00.setHours(0,0,0,0);
     const _date00 = new Date(date); _date00.setHours(0,0,0,0);
     const isPast  = _date00.getTime() < _today00.getTime();
@@ -64366,8 +64398,8 @@ function encRenderGroups(state) {
         <div class="enc-md-lbl">${di+1}. Maç Günü</div>
         ${dayM.map(m => {
           const played = typeof m.hg === 'number' && typeof m.ag === 'number';
-          const scoreText = played ? `${m.hg} - ${m.ag}` : '- vs -';
-          const scoreStyle = played ? '' : 'color:var(--text3)';
+          const scoreText = played ? `${m.hg} - ${m.ag}` : (m.scheduledTime || '- vs -');
+          const scoreStyle = played ? '' : 'color:var(--text2);font-weight:700;font-size:13px';
           return `
           <div class="enc-match-row">
             <div class="enc-mr-team enc-mr-home">
