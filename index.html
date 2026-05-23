@@ -10954,10 +10954,30 @@ body.lg-myleague-mode .lg2-tier-pills{display:none !important}
   display:flex;gap:5px;
   padding:6px 12px 12px;
   margin:0;
+  overflow-x:auto;
+  overflow-y:hidden;
+  scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;
+}
+.trn2-sub-tabs::-webkit-scrollbar{display:none}
+.trn2-team-logo{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:22px;height:22px;
+  border-radius:5px;
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:9px;font-weight:900;
+  letter-spacing:.3px;
+  margin-right:5px;
+  flex-shrink:0;
+}
+.trn2-team-logo.sm{
+  width:18px;height:18px;
+  font-size:8px;
+  margin:0 4px;
 }
 .trn2-stab{
-  flex:1;
-  padding:10px 6px;
+  flex:0 0 auto;
+  padding:10px 14px;
   font-family:'Barlow Condensed',sans-serif;
   font-size:10.5px;font-weight:800;
   color:var(--text2);
@@ -38836,15 +38856,22 @@ function authInit(){
           hideAuthScreen();
 
           // 🆕 Takım datalarını da yükle (manifesto, treasury, facility, strategy, trophies, inbox)
-          try { if (typeof userTeamLoadFromServer === 'function') await userTeamLoadFromServer(); } catch(e){}
-          try { if (typeof _loadRealCaptainsFromServer === 'function') await _loadRealCaptainsFromServer(); } catch(e){}
-          try { if (typeof _teamStrategyLoadFromServer === 'function') await _teamStrategyLoadFromServer(); } catch(e){}
-          try { if (typeof _rosterPersistLoadFromServer === 'function') await _rosterPersistLoadFromServer(); } catch(e){}
-          try { if (typeof _facLevelsLoadFromServer === 'function') await _facLevelsLoadFromServer(); } catch(e){}
-          try { if (typeof _trsLoadFromServer === 'function') await _trsLoadFromServer(); } catch(e){}
-          try { if (typeof _mfsLoadFromServer === 'function') await _mfsLoadFromServer(); } catch(e){}
-          try { if (typeof _trophiesLoadFromServer === 'function') await _trophiesLoadFromServer(); } catch(e){}
-          try { if (typeof _inboxLoadFromServer === 'function') await _inboxLoadFromServer(); } catch(e){}
+          // Her birini ayrı catch ile sar ki birisi başarısız olursa diğerleri yüklensin
+          const _loadStep = async (name, fn) => {
+            if (typeof fn !== 'function') { console.warn('[Login] ' + name + ' fonksiyonu yok'); return; }
+            try { await fn(); }
+            catch(e) { console.error('[Login] ' + name + ' HATA:', e?.message || e); }
+          };
+          await _loadStep('userTeamLoadFromServer', typeof userTeamLoadFromServer === 'function' ? userTeamLoadFromServer : null);
+          await _loadStep('_loadRealCaptainsFromServer', typeof _loadRealCaptainsFromServer === 'function' ? _loadRealCaptainsFromServer : null);
+          await _loadStep('_teamStrategyLoadFromServer', typeof _teamStrategyLoadFromServer === 'function' ? _teamStrategyLoadFromServer : null);
+          await _loadStep('_rosterPersistLoadFromServer', typeof _rosterPersistLoadFromServer === 'function' ? _rosterPersistLoadFromServer : null);
+          await _loadStep('_facLevelsLoadFromServer', typeof _facLevelsLoadFromServer === 'function' ? _facLevelsLoadFromServer : null);
+          await _loadStep('_trsLoadFromServer', typeof _trsLoadFromServer === 'function' ? _trsLoadFromServer : null);
+          await _loadStep('_mfsLoadFromServer', typeof _mfsLoadFromServer === 'function' ? _mfsLoadFromServer : null);
+          await _loadStep('_trophiesLoadFromServer', typeof _trophiesLoadFromServer === 'function' ? _trophiesLoadFromServer : null);
+          await _loadStep('_inboxLoadFromServer', typeof _inboxLoadFromServer === 'function' ? _inboxLoadFromServer : null);
+          console.info('[Login] Server yüklemeleri tamamlandı. userTeam:', !!_userTeam, 'name:', authUser?.name);
 
           // UI refresh — önce roster + restore, sonra topbar
           if (typeof syncUserToRoster === 'function') syncUserToRoster();
@@ -63223,6 +63250,7 @@ function trn2BuildGroupsHtml(groups, trnKey, season) {
         <tr class="enc-st-row${isQ?' enc-qualified':''}${isU?' user-row':''}">
           <td class="enc-st-pos">${ti+1}</td>
           <td class="enc-st-team">
+            <span class="trn2-team-logo" style="background:${t.bg||'#37474f'};color:${t.tc||'#fff'}">${t.short||(t.name||'?').slice(0,3).toUpperCase()}</span>
             <span class="enc-st-flag">${t.countryFlag||'🏳️'}</span>
             <span class="enc-st-name" style="${nameStyle}">${t.name}</span>
           </td>
@@ -63279,11 +63307,15 @@ function trn2BuildGroupsHtml(groups, trnKey, season) {
               return `
               <div class="enc-match-row">
                 <div class="enc-mr-team enc-mr-home">
-                  <span>${m.home.name}</span><span class="enc-mr-flag">${m.home.countryFlag||'🏳️'}</span>
+                  <span>${m.home.name}</span>
+                  <span class="enc-mr-flag">${m.home.countryFlag||'🏳️'}</span>
+                  <span class="trn2-team-logo sm" style="background:${m.home.bg||'#37474f'};color:${m.home.tc||'#fff'}">${m.home.short||(m.home.name||'?').slice(0,3).toUpperCase()}</span>
                 </div>
                 ${scoreHtml}
                 <div class="enc-mr-team enc-mr-away">
-                  <span class="enc-mr-flag">${m.away.countryFlag||'🏳️'}</span><span>${m.away.name}</span>
+                  <span class="trn2-team-logo sm" style="background:${m.away.bg||'#37474f'};color:${m.away.tc||'#fff'}">${m.away.short||(m.away.name||'?').slice(0,3).toUpperCase()}</span>
+                  <span class="enc-mr-flag">${m.away.countryFlag||'🏳️'}</span>
+                  <span>${m.away.name}</span>
                 </div>
               </div>
               `;
