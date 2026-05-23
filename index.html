@@ -39993,24 +39993,26 @@ function rosterPromoteVice(playerNum){
   if(p.role === 'vice'){ rosterToast('Bu oyuncu zaten yardımcı.', 'err'); return; }
 
   p.role = 'vice';
-  rosterSavePersist();
-  
-  // 🆕 Players tablosunu ve user_team_data JSON'ını da güncelle (sayfa yenilense bile kalıcı)
-  if (window.sb && p.userId) {
+
+  // Players tablosunu güncelle (gerçek kullanıcı: user_id ile, bot: country+team+num ile)
+  if (window.sb) {
     (async () => {
       try {
-        // Önce mevcut user_team_data'yı al
-        const { data: row } = await window.sb.from('players')
-          .select('user_team_data')
-          .eq('user_id', p.userId)
-          .maybeSingle();
-        const utd = (row && row.user_team_data) ? row.user_team_data : {};
-        utd.role = 'vice';
-        // role + user_team_data ikisini birlikte güncelle
-        await window.sb.from('players').update({
-          role: 'vice',
-          user_team_data: utd
-        }).eq('user_id', p.userId);
+        if (p.userId) {
+          const { data: row } = await window.sb.from('players')
+            .select('user_team_data')
+            .eq('user_id', p.userId)
+            .maybeSingle();
+          const utd = (row && row.user_team_data) ? row.user_team_data : {};
+          utd.role = 'vice';
+          await window.sb.from('players').update({ role: 'vice', user_team_data: utd })
+            .eq('user_id', p.userId);
+        } else if (_userTeam && _userTeam.countryCode && _userTeam.teamName) {
+          await window.sb.from('players').update({ role: 'vice' })
+            .eq('country_code', _userTeam.countryCode)
+            .eq('team_name', _userTeam.teamName)
+            .eq('num', p.num);
+        }
         console.info('[promoteVice] players güncellendi:', p.name);
       } catch(e) { console.warn('[promoteVice] hata:', e); }
     })();
@@ -40032,22 +40034,26 @@ function rosterDemoteVice(playerNum){
   if(p.role !== 'vice'){ rosterToast('Bu oyuncu yardımcı değil.', 'err'); return; }
 
   p.role = 'member';
-  rosterSavePersist();
-  
-  // 🆕 Players tablosunu ve user_team_data JSON'ını da güncelle
-  if (window.sb && p.userId) {
+
+  // Players tablosunu güncelle (gerçek kullanıcı: user_id ile, bot: country+team+num ile)
+  if (window.sb) {
     (async () => {
       try {
-        const { data: row } = await window.sb.from('players')
-          .select('user_team_data')
-          .eq('user_id', p.userId)
-          .maybeSingle();
-        const utd = (row && row.user_team_data) ? row.user_team_data : {};
-        utd.role = 'member';
-        await window.sb.from('players').update({
-          role: 'member',
-          user_team_data: utd
-        }).eq('user_id', p.userId);
+        if (p.userId) {
+          const { data: row } = await window.sb.from('players')
+            .select('user_team_data')
+            .eq('user_id', p.userId)
+            .maybeSingle();
+          const utd = (row && row.user_team_data) ? row.user_team_data : {};
+          utd.role = 'member';
+          await window.sb.from('players').update({ role: 'member', user_team_data: utd })
+            .eq('user_id', p.userId);
+        } else if (_userTeam && _userTeam.countryCode && _userTeam.teamName) {
+          await window.sb.from('players').update({ role: 'member' })
+            .eq('country_code', _userTeam.countryCode)
+            .eq('team_name', _userTeam.teamName)
+            .eq('num', p.num);
+        }
       } catch(e) { console.warn('[demoteVice] hata:', e); }
     })();
   }
@@ -40120,32 +40126,30 @@ function executeKick(){
     return;
   }
 
-  // Free agents listesine ekle
-  try {
-    const fa = {
-      name: p.name,
-      avatar: p.avatar || '🤖',
-      pos: p.pos,
-      overall: p.overall || 10,
-      level: p.level || 0,
-      nation: p.nation || '🏳️',
-      nationality: p.nationality || '',
-      isBot: !!p.isBot,
-    };
-    const fromTeam = (_userTeam && _userTeam.teamName) ? _userTeam.teamName : null;
-    if(typeof addFreeAgent === 'function') addFreeAgent(fa, fromTeam);
-  } catch(e){ console.warn('Free agent ekleme hatası:', e); }
+  // Players tablosunda team_name=null yap → free agent havuzuna düşer
+  if (window.sb) {
+    (async () => {
+      try {
+        if (p.userId) {
+          await window.sb.from('players').update({
+            team_name: null, country_code: null, num: null, role: null, user_team_data: null
+          }).eq('user_id', p.userId);
+        } else if (_userTeam && _userTeam.countryCode && _userTeam.teamName) {
+          await window.sb.from('players').update({ team_name: null })
+            .eq('country_code', _userTeam.countryCode)
+            .eq('team_name', _userTeam.teamName)
+            .eq('num', p.num);
+        }
+        console.info('[kick] players güncellendi:', p.name);
+      } catch(e) { console.warn('[kick] hata:', e); }
+    })();
+  }
 
-  // ROSTER_DATA'dan çıkar
+  // Lokal ROSTER_DATA'dan çıkar (UI hemen güncellensin)
   const idx = ROSTER_DATA.findIndex(x => x.num === num);
   if(idx < 0) return;
   ROSTER_DATA.splice(idx, 1);
 
-  // 🆕 Yerine bot ekleme KALDIRILDI — kadro fiilen küçülür (min ROSTER_MIN_SIZE)
-  // Yeni oyuncu için kaptan transfer yapmalı (Boşta veya Satışta'dan)
-
-  // Persist + render — kadro sayfasında kalacak
-  if(typeof rosterSavePersist === 'function') rosterSavePersist();
   if(typeof renderRoster === 'function') renderRoster(typeof rosterCurrentFilter !== 'undefined' ? (rosterCurrentFilter || 'all') : 'all');
   if(typeof applyUserTeamUI === 'function') applyUserTeamUI();
 
@@ -40191,46 +40195,6 @@ function rosterCreateReplacementBot(pos){
     role: 'member',
     isBot: true,
   };
-}
-
-// ── Free Agents (Boştaki Oyuncular) ──
-// Kovulan veya takımı dağılan oyuncular bu listeye eklenir
-const FREE_AGENTS_KEY = 'cft_free_agents';
-
-function getFreeAgents(){
-  try { return JSON.parse(localStorage.getItem(FREE_AGENTS_KEY) || '[]'); }
-  catch(e) { return []; }
-}
-
-function saveFreeAgents(arr){
-  try { localStorage.setItem(FREE_AGENTS_KEY, JSON.stringify(arr || [])); } catch(e) {}
-}
-
-function addFreeAgent(player, kickedFromTeam){
-  if(!player) return;
-  const arr = getFreeAgents();
-  const id = 'fa_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-  arr.unshift({
-    id,
-    playerId: player.name || 'Bilinmeyen',
-    avatar: player.avatar || '🤖',
-    pos: player.pos || 'MID',
-    overall: player.overall || 10,
-    level: player.level || 0,
-    nation: player.nation || '🏳️',
-    nationality: player.nationality || '',
-    isBot: !!player.isBot,
-    kickedFrom: kickedFromTeam || null,
-    kickedAt: Date.now(),
-  });
-  // Boyut sınırı (en yeni 100 kayıt)
-  if(arr.length > 100) arr.length = 100;
-  saveFreeAgents(arr);
-}
-
-function removeFreeAgent(id){
-  const arr = getFreeAgents().filter(f => f.id !== id);
-  saveFreeAgents(arr);
 }
 
 function rosterToast(msg, kind){
@@ -65415,9 +65379,8 @@ async function renderFreeAgentList(){
   if(!el) return;
   const sub = document.getElementById('tfSubtitle');
 
-  // 🆕 Supabase'ten serbest oyuncuları çek (team_name IS NULL olan botlar)
-  // + localStorage'taki manuel kovulan oyuncular (eski sistem geriye uyumluluk)
-  let agents = getFreeAgents();
+  // Supabase'ten serbest oyuncuları çek (team_name IS NULL olan botlar)
+  let agents = [];
   if (window.sb) {
     try {
       const { data, error } = await window.sb.from('players')
@@ -65427,24 +65390,19 @@ async function renderFreeAgentList(){
         .order('overall', { ascending: false })
         .limit(200);
       if (!error && Array.isArray(data)) {
-        // Supabase'ten geleni "free agent" formatına çevir, localStorage'a duplicate eklemeden birleştir
-        const existingIds = new Set(agents.map(a => a.playerId));
         for (const p of data) {
-          if (!existingIds.has(p.name)) {
-            agents.push({
-              id: 'sb_' + p.id,
-              playerId: p.name,
-              avatar: p.avatar || '🤖',
-              pos: p.pos || 'MID',
-              overall: p.overall || 10,
-              level: p.level || 0,
-              nation: p.nation || '🏳️',
-              nationality: p.nationality || '',
-              isBot: !!p.is_bot,
-              kickedFrom: null,
-              _sbId: p.id,  // Supabase id (transfer için lazım)
-            });
-          }
+          agents.push({
+            id: 'sb_' + p.id,
+            playerId: p.name,
+            avatar: p.avatar || '🤖',
+            pos: p.pos || 'MID',
+            overall: p.overall || 10,
+            level: p.level || 0,
+            nation: p.nation || '🏳️',
+            nationality: p.nationality || '',
+            isBot: !!p.is_bot,
+            kickedFrom: null,
+          });
         }
       }
     } catch(e) { console.warn('[freeAgents] Supabase okuma hatası:', e); }
@@ -65504,62 +65462,77 @@ async function renderFreeAgentList(){
 }
 
 // 🆕 Boştaki oyuncuyu takıma katmak (sadece kaptan)
-function tfHireFreeAgent(agentId){
+async function tfHireFreeAgent(agentId){
   if(!_userTeam || _userTeam.role !== 'captain') {
     if(typeof rosterToast === 'function') rosterToast('🔒 Sadece kaptan oyuncu transfer edebilir.', 'err');
     return;
   }
-  const agents = (typeof getFreeAgents === 'function') ? getFreeAgents() : [];
-  const a = agents.find(x => x && x.id === agentId);
-  if(!a){
-    if(typeof rosterToast === 'function') rosterToast('Oyuncu bulunamadı.', 'err');
+  if(!window.sb || !agentId || !String(agentId).startsWith('sb_')){
+    if(typeof rosterToast === 'function') rosterToast('Geçersiz oyuncu kimliği.', 'err');
     return;
   }
+  const sbId = String(agentId).slice(3);
 
-  // 🆕 Tesis seviyesine bağlı dinamik kadro sınırı
+  // Tesis seviyesine bağlı dinamik kadro sınırı
   const maxRoster = (typeof getMaxRosterSize === 'function') ? getMaxRosterSize() : 15;
   if(typeof ROSTER_DATA === 'undefined' || ROSTER_DATA.length >= maxRoster) {
     if(typeof rosterToast === 'function') rosterToast(`⚠️ Kadro dolu (${ROSTER_DATA.length}/${maxRoster}). Tesisleri yükselt veya bir oyuncu kov.`, 'err');
     return;
   }
 
-  // 🆕 confirm kaldırıldı — direkt al
-
   // Yeni numara üret (çakışmasın)
   const usedNums = new Set(ROSTER_DATA.map(p => p && p.num).filter(n => typeof n === 'number'));
   let newNum = 30;
   while(usedNums.has(newNum) && newNum < 100) newNum++;
 
-  // ROSTER_DATA'ya ekle
+  // Supabase'ten oyuncuyu çek + transfer et (team_name IS NULL koşulu ile yarış güvenliği)
+  const { data: pRow, error: e1 } = await window.sb.from('players')
+    .select('id, name, pos, pos_group, overall, level, nation, nationality, avatar, is_bot, user_id, team_name')
+    .eq('id', sbId).maybeSingle();
+  if(e1 || !pRow){
+    if(typeof rosterToast === 'function') rosterToast('Oyuncu bulunamadı.', 'err'); return;
+  }
+  if(pRow.team_name){
+    if(typeof rosterToast === 'function') rosterToast('Oyuncu artık serbest değil.', 'err');
+    if(typeof renderFreeAgentList === 'function') renderFreeAgentList();
+    return;
+  }
+  const { error: e2 } = await window.sb.from('players').update({
+    team_name: _userTeam.teamName,
+    country_code: _userTeam.countryCode,
+    num: newNum,
+    role: 'member'
+  }).eq('id', sbId).is('team_name', null);
+  if(e2){
+    if(typeof rosterToast === 'function') rosterToast('Transfer hatası.', 'err'); return;
+  }
+
+  // Lokal ROSTER_DATA'ya ekle (UI hemen güncellensin)
   ROSTER_DATA.push({
     num: newNum,
-    name: a.playerId,
-    nation: a.nation || '🏳️',
-    nationality: a.nationality || '',
-    pos: a.pos,
-    level: a.level || 0,
+    name: pRow.name,
+    nation: pRow.nation || '🏳️',
+    nationality: pRow.nationality || '',
+    pos: pRow.pos,
+    posGroup: pRow.pos_group || 'MID',
+    level: pRow.level || 0,
     xp: 0,
-    overall: a.overall || 10,
-    avatar: a.avatar || '🤖',
+    overall: pRow.overall || 10,
+    avatar: pRow.avatar || '🤖',
     role: 'member',
-    isBot: !!a.isBot,
+    isBot: !!pRow.is_bot,
+    userId: pRow.user_id || null,
   });
 
-  // Free agents'tan kaldır
-  if(typeof removeFreeAgent === 'function') removeFreeAgent(agentId);
-
-  // Persist + render
-  if(typeof rosterSavePersist === 'function') rosterSavePersist();
   if(typeof renderFreeAgentList === 'function') renderFreeAgentList();
   if(typeof renderRoster === 'function') renderRoster('all');
   if(typeof applyUserTeamUI === 'function') applyUserTeamUI();
 
-  // 🆕 Bot ve gerçek kullanıcı için farklı toast
   if(typeof rosterToast === 'function'){
-    if(a.isBot){
-      rosterToast(`✅ ${a.playerId} takıma katıldı (#${newNum}).`, 'ok');
+    if(pRow.is_bot){
+      rosterToast(`✅ ${pRow.name} takıma katıldı (#${newNum}).`, 'ok');
     } else {
-      rosterToast(`📨 ${a.playerId} davetinizi kabul etti ve takıma katıldı (#${newNum}).`, 'ok');
+      rosterToast(`📨 ${pRow.name} davetinizi kabul etti ve takıma katıldı (#${newNum}).`, 'ok');
     }
   }
 }
