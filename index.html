@@ -24150,7 +24150,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-05-23-17';
+const APP_BUILD = '2026-05-23-18';
 
 (function _cacheBustCheck() {
   try {
@@ -42818,8 +42818,10 @@ function getPlayerContract(player, teamName) {
 function openPlayerModalSelf(num) {
   const p = ROSTER_DATA.find(x => x.num === num);
   if(!p) return;
-  const teamName = (typeof FIX_TEAMS !== 'undefined' && FIX_TEAMS.ANK) ? FIX_TEAMS.ANK.name : 'Ankara';
-  openPlayerModal(p, { teamName, countryCode: 'TR', isOwnTeam: true });
+  // 🆕 Kullanıcının gerçek takım adı (eski hardcoded "Ankara" kaldırıldı)
+  const teamName = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName) ? _userTeam.teamName : '—';
+  const cc = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.countryCode) ? _userTeam.countryCode : 'TR';
+  openPlayerModal(p, { teamName, countryCode: cc, isOwnTeam: true });
 }
 
 // Ziyaret edilen takımdaki oyuncuya tıklayınca (cache'den bul)
@@ -42854,7 +42856,7 @@ function openPlayerModalRanking(idx) {
 
   // Eğer ROSTER_DATA'daki bir oyuncu ise tam objeyi kullan
   if(rk._rosterPlayer) {
-    const myTeamName = (typeof FIX_TEAMS !== 'undefined' && FIX_TEAMS.ANK) ? FIX_TEAMS.ANK.name : 'Ankara';
+    const myTeamName = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName) ? _userTeam.teamName : '—';
     openPlayerModal(rk._rosterPlayer, { teamName: myTeamName, countryCode: 'TR', isOwnTeam: true });
     return;
   }
@@ -42884,7 +42886,7 @@ function openPlayerModalRanking(idx) {
 function openPlayerModalSelfFromRanking() {
   const me = ROSTER_DATA.find(p => p.role === 'user');
   if(!me) return;
-  const teamName = (typeof FIX_TEAMS !== 'undefined' && FIX_TEAMS.ANK) ? FIX_TEAMS.ANK.name : 'Ankara';
+  const teamName = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName) ? _userTeam.teamName : '—';
   openPlayerModal(me, { teamName, countryCode: 'TR', isOwnTeam: true });
 }
 
@@ -44467,11 +44469,19 @@ function renderPitch() {
     node.style.top  = entry.y + '%';
     node.dataset.idx = i;
 
-    // 🆕 Kullanıcı için PNG avatar (var ise)
+    // 🆕 Avatar kaynağı:
+    //   - Kendi kullanıcı → authUser.avatarId
+    //   - Diğer gerçek kullanıcılar → p.avatar_id (profiles tablosundan)
+    //   - Botlar → emoji
     let userAvatarHTML = null;
     try {
       if(isUser && typeof authUser !== 'undefined' && authUser && authUser.avatarId && typeof getAvatarEmoji === 'function') {
         const result = getAvatarEmoji(authUser.avatarId, p.pos);
+        if(typeof result === 'string' && result.indexOf('<img') === 0) {
+          userAvatarHTML = result;
+        }
+      } else if (!isUser && !p.isBot && p.avatar_id && typeof getAvatarEmoji === 'function') {
+        const result = getAvatarEmoji(p.avatar_id, p.pos);
         if(typeof result === 'string' && result.indexOf('<img') === 0) {
           userAvatarHTML = result;
         }
