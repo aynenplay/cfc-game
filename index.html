@@ -24150,7 +24150,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-05-23-21';
+const APP_BUILD = '2026-05-23-22';
 
 (function _cacheBustCheck() {
   try {
@@ -43087,9 +43087,18 @@ function openPlayerModal(player, ctx) {
   }
 
   // Avatar HTML — kullanıcı kendi seçtiği PNG'yi görür; başka oyuncularda emoji
-  const pmAvatarHTML = (isUser && typeof authUser !== 'undefined' && authUser && authUser.avatarId && typeof getAvatarEmoji === 'function')
-    ? getAvatarEmoji(authUser.avatarId, player.pos)
-    : (player.avatar || '');
+  // 🆕 Avatar kaynağı:
+  //   - Kendi kullanıcı → authUser.avatarId
+  //   - Diğer gerçek kullanıcılar → player.avatar_id (profiles tablosundan)
+  //   - Botlar → emoji (player.avatar)
+  let pmAvatarHTML;
+  if (isUser && typeof authUser !== 'undefined' && authUser && authUser.avatarId && typeof getAvatarEmoji === 'function') {
+    pmAvatarHTML = getAvatarEmoji(authUser.avatarId, player.pos);
+  } else if (!isBot && player.avatar_id && typeof getAvatarEmoji === 'function') {
+    pmAvatarHTML = getAvatarEmoji(player.avatar_id, player.pos);
+  } else {
+    pmAvatarHTML = player.avatar || '';
+  }
 
   // Pozisyon kısa kodu (gk/def/mid/fwd) ve uzun etiketi
   const posCls = (player.pos||'').toLowerCase();
@@ -58779,9 +58788,21 @@ function renderPlayerPage() {
   const badge = document.getElementById('plPosBadge');
   badge.textContent  = cfg.label;
   badge.className    = 'pl-pos-pill ' + cfg.badge;
-  // Avatar: ziyaretçide vp.avatar (emoji) varsa o, yoksa pos fallback emoji
+  // Avatar: 
+  //   - Ziyaretçi: vp.avatar_id varsa PNG (profiles tablosundan), yoksa vp.avatar emoji, yoksa pos fallback
+  //   - Kendisi: authUser.avatarId
   if (isVisitor) {
-    document.getElementById('plAvatar').innerHTML = vp.avatar || (typeof getAvatarEmoji === 'function' ? getAvatarEmoji(null, pos) : '👤');
+    let visitorAvatarHTML = '';
+    if (vp.avatar_id && typeof getAvatarEmoji === 'function') {
+      visitorAvatarHTML = getAvatarEmoji(vp.avatar_id, pos);
+    } else if (vp.avatar) {
+      visitorAvatarHTML = vp.avatar;
+    } else if (typeof getAvatarEmoji === 'function') {
+      visitorAvatarHTML = getAvatarEmoji(null, pos);
+    } else {
+      visitorAvatarHTML = '👤';
+    }
+    document.getElementById('plAvatar').innerHTML = visitorAvatarHTML;
   } else {
     document.getElementById('plAvatar').innerHTML = getAvatarEmoji(user.avatarId, pos);
   }
