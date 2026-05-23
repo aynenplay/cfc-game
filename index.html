@@ -61545,10 +61545,55 @@ function lg2RenderFixture() {
     return;
   }
 
-  // ── BERGER ROUND-ROBIN ──
-  // n takım için n-1 hafta her yarı, 2 yarı = 2*(n-1) hafta
-  // 16 takım → 30 hafta. 14 takım → 26 hafta. (Şu an tüm teams DB ligleri 16 takım.)
-  const fixture = buildLeagueFixture(teams, seasonStart, _lg2Country, _lg2TierIdx);
+  // 🆕 Fikstür kaynağı: match_state cache (Supabase tek doğruluk kaynağı)
+  // Eski buildLeagueFixture (lokal hesap) artık kullanılmıyor — saatler/günler yanlış üretiyordu
+  const _tier1based = league.tier;  // teams tablosundaki gerçek tier (1-based)
+  const _allFromMs = (_matchStateCache && _matchStateCache.byKey) ? Object.values(_matchStateCache.byKey) : [];
+  const _filtered = _allFromMs.filter(m => 
+    m.countryCode === _lg2Country && 
+    m.tier === _tier1based &&
+    !m.tournament_key
+  );
+  
+  // _filtered → fixture formatına çevir (eski koda uyumlu)
+  // hafta hesabı: SEASON_TEMPLATE'e göre gün 1-15 = hafta 1-15, gün 19-33 = hafta 16-30
+  const _dayToWeek = (d) => (d <= 15) ? d : (d - 3);
+  // Aynı hafta içindeki maçları gruplama (match index için)
+  const _weekMatches = {};  // { week: [match,...] }
+  for (const m of _filtered) {
+    const w = _dayToWeek(m.day);
+    if (!_weekMatches[w]) _weekMatches[w] = [];
+    _weekMatches[w].push(m);
+  }
+  
+  const fixture = [];
+  for (const wStr of Object.keys(_weekMatches).sort((a,b) => +a - +b)) {
+    const w = +wStr;
+    const weekMatches = _weekMatches[w];
+    // Bu haftadaki maçları kickoff zamanına göre sırala
+    weekMatches.sort((a, b) => new Date(a.matchDateTime).getTime() - new Date(b.matchDateTime).getTime());
+    weekMatches.forEach((m, idx) => {
+      const homeTeam = teams.find(t => t.name === m.home) || { name: m.home, short: m.homeShort };
+      const awayTeam = teams.find(t => t.name === m.away) || { name: m.away, short: m.awayShort };
+      const kickoffDate = m.matchDateTime ? new Date(m.matchDateTime) : new Date();
+      const _h = String(kickoffDate.getHours()).padStart(2, '0');
+      const _mn = String(kickoffDate.getMinutes()).padStart(2, '0');
+      fixture.push({
+        week: w,
+        match: idx + 1,
+        date: kickoffDate,
+        matchTime: `${_h}:${_mn}`,
+        homeTeam,
+        awayTeam,
+        matchKey: `${m.season}_${m.day}_${m.home}_${m.away}`,
+        // Canlı/skor durumu (match_state'ten)
+        status: m.status,
+        sim_minute: m.sim_minute,
+        home_score: m.home_score,
+        away_score: m.away_score
+      });
+    });
+  }
 
   // 🆕 cft_match_results cache'inden skor okuma (kullanıcı oynadığı maçlar dahil)
   let _cache = {};
