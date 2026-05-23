@@ -56689,14 +56689,27 @@ function buildFixtureData(filter) {
           const home = { ...myMatch.homeTeam, user: userIsHome };
           const away = { ...myMatch.awayTeam, user: !userIsHome };
 
-          // Tek saat sistemi: getSimpleMatchTime
-          const matchKey = `${homeCountry}-${userTierIdx}-w${ev.week}-m1`;
-          const timeStr = (typeof getSimpleMatchTime === 'function')
-            ? getSimpleMatchTime('league', matchKey)
-            : '15:00';
-          const [hour, minute] = timeStr.split(':').map(Number);
-          const matchDate = new Date(date);
-          matchDate.setHours(hour, minute, 0, 0);
+          // 🆕 Saat: match_state'ten gerçek kickoff_at (Supabase)
+          // Eski getSimpleMatchTime/hash hesabı KULLANILMIYOR
+          let matchDate = new Date(date);
+          let hour = 15, minute = 0;
+          if (_matchStateCache && _matchStateCache.byKey) {
+            // tier 0-based → tier 1-based
+            const tier1 = userTierIdx + 1;
+            const userTeamName2 = userTeamName;
+            const found = Object.values(_matchStateCache.byKey).find(mm =>
+              mm.season === s &&
+              mm.day === day &&
+              mm.countryCode === homeCountry &&
+              mm.tier === tier1 &&
+              (mm.home === userTeamName2 || mm.away === userTeamName2)
+            );
+            if (found && found.matchDateTime) {
+              matchDate = new Date(found.matchDateTime);
+              hour = matchDate.getHours();
+              minute = matchDate.getMinutes();
+            }
+          }
 
           // 🆕 isPast'i SAAT bazlı yeniden hesapla (kickoff + ~12dk geçti mi)
           // Üst seviye gün-bazlı isPast bugün maçı için yanılır; saat-aware override
