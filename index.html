@@ -24152,7 +24152,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-05-23-02';
+const APP_BUILD = '2026-05-23-03';
 
 (function _cacheBustCheck() {
   try {
@@ -39563,6 +39563,53 @@ async function _rosterRefreshFromServer(countryCode) {
       .order('num');
     if (error) { console.warn('[rosterRefresh] hata:', error); return; }
     if (!Array.isArray(data) || data.length === 0) return;
+
+    // 🆕 Gerçek kullanıcıların user_player verilerini çek (level/xp/overall/rating/pos doğru kaynak)
+    // players tablosundaki user veriler eski olabilir — user_player tek doğruluk kaynağı
+    const realUserIds = data.filter(p => !p.is_bot && p.user_id).map(p => p.user_id);
+    let userPlayerMap = {};
+    if (realUserIds.length > 0) {
+      const { data: ups, error: upErr } = await window.sb.from('user_player')
+        .select('user_id, position, position_group, level, xp, overall, rating, country_code, nation_flag, abilities')
+        .in('user_id', realUserIds);
+      if (upErr) {
+        console.warn('[rosterRefresh] user_player çekme hatası:', upErr);
+      } else if (Array.isArray(ups)) {
+        ups.forEach(up => { userPlayerMap[up.user_id] = up; });
+      }
+    }
+    
+    // 🆕 profiles tablosundan name çek (players.name eski olabilir)
+    let profileMap = {};
+    if (realUserIds.length > 0) {
+      const { data: profs } = await window.sb.from('profiles')
+        .select('id, name, username, nationality')
+        .in('id', realUserIds);
+      if (Array.isArray(profs)) {
+        profs.forEach(pr => { profileMap[pr.id] = pr; });
+      }
+    }
+    
+    // Gerçek kullanıcıların satırlarını user_player + profiles ile birleştir
+    data.forEach(p => {
+      if (p.is_bot || !p.user_id) return;
+      const up = userPlayerMap[p.user_id];
+      const prof = profileMap[p.user_id];
+      if (up) {
+        p.level = up.level ?? p.level;
+        p.xp = up.xp ?? p.xp;
+        p.overall = up.overall ?? p.overall;
+        p.rating = up.rating ?? p.rating;
+        p.pos = up.position || p.pos;
+        p.pos_group = up.position_group || p.pos_group;
+        p.nation = up.nation_flag || p.nation;
+        if (up.abilities) p.abilities = up.abilities;
+      }
+      if (prof) {
+        p.name = prof.name || p.name;
+        p.nationality = prof.nationality || p.nationality;
+      }
+    });
 
     // Cache güncelle
     const key = countryCode + ':' + _userTeam.teamName;
