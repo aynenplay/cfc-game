@@ -63379,9 +63379,21 @@ function trn2BuildScheduleHtml(trnKey, season) {
   let lastMonth = -1;
 
   allEvents.forEach(ev => {
-    const date = new Date(seasonStart);
-    date.setDate(seasonStart.getDate() + ev.day - 1);
-    // 🆕 Gün-bazlı karşılaştırma (saat dahil değil) — bugün 'Bugün', önceki 'Oynadı', sonraki 'Bekliyor'
+    // 🆕 Tarih kaynağı: önce match_state cache (Supabase'ten gerçek kickoff_at)
+    // Yedek: seasonStart + ev.day - 1 (lokal hesap, maç henüz kurulmamışsa)
+    let date = null;
+    if (_matchStateCache && _matchStateCache.byKey) {
+      const _trnMatch = Object.values(_matchStateCache.byKey).find(m =>
+        m.tournament_key === trnKey && m.day === ev.day && m.matchDateTime
+      );
+      if (_trnMatch && _trnMatch.matchDateTime) {
+        date = new Date(_trnMatch.matchDateTime);
+      }
+    }
+    if (!date) {
+      date = new Date(seasonStart);
+      date.setDate(seasonStart.getDate() + ev.day - 1);
+    }
     const _today00 = new Date(); _today00.setHours(0,0,0,0);
     const _date00 = new Date(date); _date00.setHours(0,0,0,0);
     const isPast  = _date00.getTime() < _today00.getTime();
@@ -64393,9 +64405,18 @@ function encRenderGroups(state) {
       </tr>
     `).join('');
     const matchesByDay = [1,2,3].map(d => g.matches.filter(m => m.week === d || m.day === [34,35,36][d-1]));
-    const matchHtml = matchesByDay.map((dayM, di) => `
+    const DAYS_TR_S = ['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
+    const MONTHS_S = ['OCA','ŞUB','MAR','NİS','MAY','HAZ','TEM','AĞU','EYL','EKİ','KAS','ARA'];
+    const matchHtml = matchesByDay.map((dayM, di) => {
+      // 🆕 İlk maçtan tarih çek
+      let dateLabel = '';
+      if (dayM.length > 0 && dayM[0].matchDateTime) {
+        const _d = new Date(dayM[0].matchDateTime);
+        dateLabel = ` · ${_d.getDate()} ${MONTHS_S[_d.getMonth()]} ${DAYS_TR_S[_d.getDay()]}`;
+      }
+      return `
       <div class="enc-md-block">
-        <div class="enc-md-lbl">${di+1}. Maç Günü</div>
+        <div class="enc-md-lbl">${di+1}. MAÇ GÜNÜ${dateLabel}</div>
         ${dayM.map(m => {
           const played = typeof m.hg === 'number' && typeof m.ag === 'number';
           const scoreText = played ? `${m.hg} - ${m.ag}` : (m.scheduledTime || '- vs -');
@@ -64411,8 +64432,8 @@ function encRenderGroups(state) {
             </div>
           </div>`;
         }).join('')}
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
     return `
       <div class="enc-group-card${gi===0?' open':''}" id="grp_euro_${gi}">
         <div class="enc-group-head" onclick="encGroupToggle('grp_euro_${gi}')">
