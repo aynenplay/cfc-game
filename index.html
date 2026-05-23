@@ -63459,10 +63459,21 @@ function trn2BuildScheduleHtml(trnKey, season) {
   if(!allEvents.length) allEvents.push({ day:2, label:'🎫 Play-Off', round:'Play-Off Turu (1. Tur)', phase:'playoff' });
   allEvents.push({ day:4, label:'🎫 Play-Off', round:'Play-Off Turu (Rövanş)', phase:'playoff' });
 
-  // Turnuva günleri
+  // 🆕 SEASON_TEMPLATE'de turnuva type kısa adları: chm, eli, con
+  // trn2 ekran tarafında: champ, elite, conv
+  const _trnTypeMap = { champ: 'chm', elite: 'eli', conv: 'con' };
+  const _shortType = _trnTypeMap[trnKey] || trnKey;
+
+  // Turnuva günleri (grup + knockout)
   Object.entries(SEASON_TEMPLATE).forEach(([d, evs]) => {
     evs.forEach(e => {
-      if(e.type===trnKey) allEvents.push({ day:parseInt(d), label:trnIcon+' '+trnLabel, round:e.round, phase:'group' });
+      if (e.type === _shortType) {
+        // Round'a göre faz: Grup, Son 16, Çeyrek, Yarı, Final
+        const round = e.round || '';
+        let phase = 'group';
+        if (/Son 16|Çeyrek|Yarı|Final/i.test(round)) phase = 'knockout';
+        allEvents.push({ day:parseInt(d), label:trnIcon+' '+trnLabel, round, phase });
+      }
     });
   });
 
@@ -63497,7 +63508,7 @@ function trn2BuildScheduleHtml(trnKey, season) {
       lastMonth = mo;
     }
     const pill = isToday?`<span class="trn2-sched-pill today">Bugün</span>`:isPast?`<span class="trn2-sched-pill past">Oynadı</span>`:`<span class="trn2-sched-pill future">Bekliyor</span>`;
-    const phaseColor = ev.phase==='playoff'?'#b39ddb':trnColor;
+    const phaseColor = ev.phase==='playoff'?'#b39ddb':ev.phase==='knockout'?'#ff9800':trnColor;
 
     html += `<div class="trn2-sched-row">
       <div class="trn2-sched-date">
@@ -64446,6 +64457,17 @@ function encRenderGroups(state) {
   // 🆕 Şema modu: state yoksa (kura öncesi) boş 8 grup iskeleti
   if (!state) {
     const LETTERS = ['A','B','C','D','E','F','G','H'];
+    // 🆕 EURO Cup grup maç günleri: 34, 35, 36 - tarihlerini hesapla
+    const DAYS_TR_S = ['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
+    const MONTHS_S = ['OCA','ŞUB','MAR','NİS','MAY','HAZ','TEM','AĞU','EYL','EKİ','KAS','ARA'];
+    const _seasonInfo = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : null;
+    const _seasonStart = _seasonInfo && _seasonInfo.seasonStart ? new Date(_seasonInfo.seasonStart) : new Date();
+    function _encMatchDayLabel(d) {
+      const targetDay = [34, 35, 36][d-1];
+      const dt = new Date(_seasonStart);
+      dt.setDate(_seasonStart.getDate() + targetDay - 1);
+      return `${d}. MAÇ GÜNÜ · ${dt.getDate()} ${MONTHS_S[dt.getMonth()]} ${DAYS_TR_S[dt.getDay()]}`;
+    }
     return LETTERS.map((letter, idx) => {
       const emptyRows = [1,2,3,4].map(i => `
         <tr class="enc-st-row">
@@ -64457,7 +64479,7 @@ function encRenderGroups(state) {
       `).join('');
       const emptyMatches = [1,2,3].map(d => `
         <div class="enc-md-block">
-          <div class="enc-md-lbl">${d}. Maç Günü</div>
+          <div class="enc-md-lbl">${_encMatchDayLabel(d)}</div>
           ${[1,2].map(() => `
             <div class="enc-match-row">
               <div class="enc-mr-team enc-mr-home">
