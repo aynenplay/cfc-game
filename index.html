@@ -38853,12 +38853,15 @@ async function bootstrapWorld(){
     }
     _cftDb = db;
     console.info('[bootstrap] _cftDb yüklendi:', Object.keys(db).length, 'ülke /', all.length, 'takım');
-    // 🆕 Tüm botları preload et (27k satır, ~3-5 saniye)
-    try {
-      if (typeof preloadAllTeamRosters === 'function') {
-        await preloadAllTeamRosters();
-      }
-    } catch(e) { console.warn('[bootstrap] preload botlar hata:', e); }
+    // 🆕 Botları background'da preload et (boot'u bloke etmesin)
+    // getOrCreateTeamRoster zaten gerektiğinde fetch ediyor; preload sadece optimizasyon
+    setTimeout(() => {
+      try {
+        if (typeof preloadAllTeamRosters === 'function') {
+          preloadAllTeamRosters();
+        }
+      } catch(e) { console.warn('[bootstrap] background preload hata:', e); }
+    }, 0);
   } catch(e) { console.warn('[bootstrap] hata:', e); }
 }
 
@@ -71027,6 +71030,106 @@ async function _evRacePreloadServerLb() {
   } catch(e) { console.warn('[race lb rating] hata:', e); }
 }
 
+// match_results cache'inden rating leaderboard'ı hesapla (cycle filtreli)
+// Lig sayfasındaki "Sezon Reytingi" ile aynı veri kaynağı, sadece cycle başlangıcı sonrası
+function _evRaceCalcLeaderboardFromCache(cycleStartMs) {
+  const cache = (typeof _matchResultsLoad === 'function') ? _matchResultsLoad() : {};
+  const stats = {};
+  // Takım → ülke/renk lookup
+  const teamLookup = {};
+  try {
+    _cftAllEntries().forEach(([cc, country]) => {
+      (country.leagues || []).forEach((lg, ti) => {
+        (lg.teams || []).forEach(t => {
+          teamLookup[t.name] = {
+            cc, tierIdx: ti, rank: t.rank || 1,
+            flag: country.flag || '🏳️',
+            short: t.short || t.name.slice(0,3).toUpperCase(),
+            bg: t.bg || '#333', tc: t.tc || '#fff',
+          };
+        });
+      });
+    });
+  } catch(e) {}
+
+  // Roster cache (deterministic dağıtım için)
+  const rosterCache = {};
+  function _getRoster(cc, teamName, rank) {
+    const k = `${cc}_${teamName}`;
+    if (!rosterCache[k]) {
+      try {
+        rosterCache[k] = (typeof guestGenerateRoster === 'function')
+          ? guestGenerateRoster(cc, teamName, rank || 1) : [];
+      } catch(e) { rosterCache[k] = []; }
+    }
+    return rosterCache[k];
+  }
+
+  function _accum(teamName, playerName, rating) {
+    const info = teamLookup[teamName] || {};
+    const sk = `${teamName}__${playerName}`;
+    if (!stats[sk]) {
+      stats[sk] = {
+        playerName, teamName,
+        countryCode: info.cc || '',
+        countryFlag: info.flag || '🏳️',
+        teamShort: info.short || teamName.slice(0,3).toUpperCase(),
+        teamBg: info.bg || '#333',
+        teamTc: info.tc || '#fff',
+        ratingSum: 0, matches: 0,
+      };
+    }
+    stats[sk].ratingSum += rating;
+    stats[sk].matches += 1;
+  }
+
+  Object.entries(cache).forEach(([key, m]) => {
+    if (!m || m.hs === undefined || m.hs === null) return;
+    if (m.comp === 'Hazırlık Maçı') return;  // Hazırlık maçları hariç
+    const ts = m.playedAt || m.kickoffMs || 0;
+    if (ts < cycleStartMs) return;
+
+    // playerStats varsa direkt kullan
+    if (m.playerStats && typeof m.playerStats === 'object') {
+      Object.entries(m.playerStats).forEach(([teamName, players]) => {
+        if (!Array.isArray(players)) return;
+        players.forEach(d => {
+          if (!d || !d.name) return;
+          _accum(teamName, d.name, typeof d.rating === 'number' ? d.rating : 6.5);
+        });
+      });
+      return;
+    }
+
+    // Fallback: deterministik dağıtım (bot vs bot maçları)
+    const homeInfo = teamLookup[m.home];
+    const awayInfo = teamLookup[m.away];
+    if (!homeInfo || !awayInfo) return;
+    const homePlayers = _getRoster(homeInfo.cc, m.home, homeInfo.rank);
+    const awayPlayers = _getRoster(awayInfo.cc, m.away, awayInfo.rank);
+    if (!homePlayers.length || !awayPlayers.length) return;
+
+    if (typeof _distributeMatchStats === 'function') {
+      const homeDist = _distributeMatchStats(homePlayers, m.hs, m.as, `${key}_h`);
+      const awayDist = _distributeMatchStats(awayPlayers, m.as, m.hs, `${key}_a`);
+      homeDist.forEach(d => { if (d && d.name) _accum(m.home, d.name, d.rating || 6.5); });
+      awayDist.forEach(d => { if (d && d.name) _accum(m.away, d.name, d.rating || 6.5); });
+    }
+  });
+
+  return Object.values(stats).map(s => ({
+    playerName: s.playerName,
+    teamName: s.teamName,
+    teamShort: s.teamShort,
+    teamBg: s.teamBg,
+    teamTc: s.teamTc,
+    countryCode: s.countryCode,
+    countryFlag: s.countryFlag,
+    score: s.matches ? Math.round((s.ratingSum / s.matches) * 100) / 100 : 0,
+    _matchCount: s.matches,
+  })).sort((a, b) => b.score - a.score).slice(0, 200);
+}
+
 // Teams DB'den alfabetik fallback — gerçek veri yoksa veya cycle yeni başladıysa
 function _evRaceAlphabeticFallback(metric) {
   const teams = [];
@@ -71062,36 +71165,8 @@ function _evRaceAlphabeticFallback(metric) {
 
 function _evRaceGenerateRatingPlayers(weekKey) {
   const cycle = _evRaceCycleInfo();
-  const cycleStartMs = cycle.start.getTime();
-  // Server cache uygunsa kullan
-  const cache = _evRaceServerLbCache.rating;
-  if (cache && cache.cycleStart === cycleStartMs && Array.isArray(cache.data) && cache.data.length > 0) {
-    return cache.data.map(r => {
-      const country = (typeof _cftGetCountry === 'function') ? _cftGetCountry(r.country_code) : null;
-      const flag = (country && country.flag) || '🏳️';
-      // Takım renkleri
-      let short = (r.team_name || '').slice(0,3).toUpperCase(), bg = '#333', tc = '#fff';
-      try {
-        if (country) {
-          for (const lg of (country.leagues || [])) {
-            const t = (lg.teams || []).find(x => x.name === r.team_name);
-            if (t) { short = t.short || short; bg = t.bg || bg; tc = t.tc || tc; break; }
-          }
-        }
-      } catch(e) {}
-      return {
-        playerName: r.player_name || '—',
-        teamName: r.team_name || '',
-        teamShort: short,
-        teamBg: bg,
-        teamTc: tc,
-        countryCode: r.country_code,
-        countryFlag: flag,
-        score: parseFloat(r.avg_rating) || 0,
-        _matchCount: r.match_count || 0,
-      };
-    });
-  }
+  const players = _evRaceCalcLeaderboardFromCache(cycle.start.getTime());
+  if (players && players.length > 0) return players;
   // Veri yok → alfabetik fallback
   return _evRaceAlphabeticFallback('rating');
 }
@@ -71139,33 +71214,39 @@ function _evRaceBuildLeaderboard(metric) {
   } catch(e) {}
 
   let bots, userScore;
-  // 🆕 Bot leaderboard hafta cache (CPU optimizasyonu)
-  const cacheKey = (metric === 'rating') ? 'rating' : 'train';
-  const cached = _evRaceLbCache[cacheKey];
-  if (cached && cached.weekKey === weekKey && Array.isArray(cached.data)) {
-    bots = cached.data;
-  } else if (metric === 'rating') {
+  // Her render'da yeniden hesapla (match_results güncellendikçe sıralama değişsin)
+  if (metric === 'rating') {
     bots = _evRaceGenerateRatingPlayers(weekKey);
-    _evRaceLbCache.rating = { weekKey, data: bots };
   } else {
     bots = _evRaceGenerateTrainPlayers(weekKey);
-    _evRaceLbCache.train = { weekKey, data: bots };
   }
-  // Kullanıcı skoru her zaman canlı (cache'lenmez — gerçek istatistiklerden)
+  // Kullanıcı skoru her zaman canlı
   userScore = (metric === 'rating') ? _evRaceUserRatingScore() : _evRaceUserTrainScore();
 
-  const userEntry = {
-    playerName: userPlayerName,
-    teamName: userTeamName,
-    teamShort,
-    teamBg,
-    teamTc,
-    countryCode: userCC,
-    countryFlag: userFlag,
-    score: userScore,
-    isUser: true
-  };
-  const all = [...bots, userEntry];
+  // Bots içinde kullanıcı varsa (gerçek maç verisinden) onu user olarak işaretle
+  let userInList = false;
+  bots.forEach(b => {
+    if (b.teamName === userTeamName && b.playerName === userPlayerName) {
+      b.isUser = true;
+      userInList = true;
+    }
+  });
+
+  // Yoksa manuel ekle (cycle'da hiç oynamamış)
+  if (!userInList) {
+    bots.push({
+      playerName: userPlayerName,
+      teamName: userTeamName,
+      teamShort,
+      teamBg,
+      teamTc,
+      countryCode: userCC,
+      countryFlag: userFlag,
+      score: userScore,
+      isUser: true,
+    });
+  }
+  const all = bots;
   all.sort((a, b) => b.score - a.score);
   all.forEach((e, i) => { e.rank = i + 1; });
 
@@ -71189,17 +71270,6 @@ function _evRaceDiamondForRank(rank) {
 function evRaceRender() {
   const cycle = _evRaceCycleInfo();
   const isRewardPhase = cycle.phase === 'rewards';
-
-  // Server cache yoksa preload tetikle (rerender'ı async olarak)
-  const cycleStartMs = cycle.start.getTime();
-  const ratingCache = _evRaceServerLbCache.rating;
-  if (!ratingCache || ratingCache.cycleStart !== cycleStartMs) {
-    _evRacePreloadServerLb().then(() => {
-      // İkinci pass'te server verisi varsa rerender
-      try { _evRaceLbCache.rating = { weekKey: null, data: null }; } catch(e) {}
-      if (typeof evRaceRender === 'function') evRaceRender();
-    });
-  }
 
   // Banner — faz'a göre
   const tEl = document.getElementById('evRaceTimer');
@@ -75372,12 +75442,15 @@ setTimeout(async ()=>{
   // 🔧 ÖNCE auth ekranını hazırla (görünür yap), SONRA splash'ı fade'le
   // Aksi halde splash gizlendiğinde 500ms boyunca ana menü görünür
   try { await bootstrapWorld(); } catch(e) { console.warn('bootstrapWorld hata:', e); }
-  try { await _worldStateLoadFromServer(); } catch(e) { console.warn('worldState load hata:', e); }
-  try { await _loadAllMatchStateFromServer(); } catch(e) { console.warn('match_state load hata:', e); }
-  try { await _matchResultsLoadFromServer(); } catch(e) { console.warn('matchResults load hata:', e); }
-  try { await _tournamentStateLoadFromServer(); } catch(e) { console.warn('tournamentState load hata:', e); }
-  try { await _frmLoadFromServer(); } catch(e) { console.warn('friendly load hata:', e); }
-  try { await userTeamLoadFromServer(); } catch(e) { console.warn('userTeamLoadFromServer hata:', e); }
+  // 🆕 Geri kalan 6 yükleme paralel — birbirinden bağımsız tablolar
+  await Promise.all([
+    _worldStateLoadFromServer().catch(e => console.warn('worldState load hata:', e)),
+    _loadAllMatchStateFromServer().catch(e => console.warn('match_state load hata:', e)),
+    _matchResultsLoadFromServer().catch(e => console.warn('matchResults load hata:', e)),
+    _tournamentStateLoadFromServer().catch(e => console.warn('tournamentState load hata:', e)),
+    _frmLoadFromServer().catch(e => console.warn('friendly load hata:', e)),
+    userTeamLoadFromServer().catch(e => console.warn('userTeamLoadFromServer hata:', e)),
+  ]);
   
   // 🆕 PRESENCE — players.last_seen sayfa açılışında ve her 60 sn güncellenir
   // Diğer kullanıcılar bu satırı okuyup "online" rozeti gösterir
