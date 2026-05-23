@@ -62860,20 +62860,23 @@ function trn2RenderTrn(trnKey, season) {
     <button class="trn2-stab ${subtab==='groups'?'active':''}" onclick="trn2SubTab('${trnKey}','groups',this)">📊 Gruplar</button>
     <button class="trn2-stab ${subtab==='bracket'?'active':''}" onclick="trn2SubTab('${trnKey}','bracket',this)">🏅 Eleme</button>
     <button class="trn2-stab ${subtab==='schedule'?'active':''}" onclick="trn2SubTab('${trnKey}','schedule',this)">📅 Takvim</button>
+    <button class="trn2-stab ${subtab==='goals'?'active':''}" onclick="trn2SubTab('${trnKey}','goals',this)">⚽ Gol</button>
+    <button class="trn2-stab ${subtab==='assists'?'active':''}" onclick="trn2SubTab('${trnKey}','assists',this)">🎯 Asist</button>
+    <button class="trn2-stab ${subtab==='rating'?'active':''}" onclick="trn2SubTab('${trnKey}','rating',this)">⭐ Reyting</button>
   </div>`;
 
   // İçerik
-  if(subtab==='playoff')  html += trn2BuildPlayoffHtml(playoff, trnKey, season);
+  if(subtab==='playoff')       html += trn2BuildPlayoffHtml(playoff, trnKey, season);
   else if(subtab==='groups')   html += trn2BuildGroupsHtml(groups, trnKey, season);
   else if(subtab==='bracket')  html += trn2BuildBracketHtml(trn2BuildBracket(groups,season,trnKey), trnKey);
-  else                         html += trn2BuildScheduleHtml(trnKey, season);
+  else if(subtab==='schedule') html += trn2BuildScheduleHtml(trnKey, season);
+  else if(subtab==='goals')    html += trn2BuildStatHtml(trnKey, season, 'goals');
+  else if(subtab==='assists')  html += trn2BuildStatHtml(trnKey, season, 'assists');
+  else if(subtab==='rating')   html += trn2BuildStatHtml(trnKey, season, 'rating');
 
   html += '</div>';
 
-  // Sezon Liderleri (gol kralı / asist / reyting) — turnuva bazında özet
-  if(typeof trn2BuildLeadersHtml === 'function') {
-    html += trn2BuildLeadersHtml(trnKey, season);
-  }
+  // 🆕 Eski "Sezon Liderleri" alt kısmı KALDIRILDI - şimdi sekmelerde
 
   el.innerHTML = html;
 }
@@ -62972,7 +62975,97 @@ function trn2BuildLeadersHtml(trnKey, season) {
   </div>`;
 }
 
-// ── Play-Off HTML ──
+// 🆕 Tek istatistik için tam liste (Top 30 oyuncu) — sekme içeriği
+function trn2BuildStatHtml(trnKey, season, statType) {
+  if (typeof computePlayerStats !== 'function') return '';
+
+  const slotMap = {
+    champ: [1,2],
+    elite: [3,4],
+    conv:  [5,6],
+  };
+  const slots = slotMap[trnKey];
+  if(!slots) return '';
+
+  // Turnuvaya katılan takımların oyuncularını topla
+  const allPlayers = [];
+  _cftGetCountryCodes().forEach(cc => {
+    const country = _cftGetCountry(cc);
+    if(!country.leagues || !country.leagues[0]) return;
+    const teams = country.leagues[0].teams || [];
+    const qualifyingTeams = teams.filter(t => slots.includes(t.rank));
+    if(!qualifyingTeams.length) return;
+    const tierStats = computePlayerStats(cc, 0);
+    const filtered = tierStats.filter(p => qualifyingTeams.some(t => t.name === p.teamName));
+    allPlayers.push(...filtered);
+  });
+
+  if(!allPlayers.length) {
+    return `<div style="text-align:center;padding:36px 20px;color:var(--text3)">
+      <div style="font-size:42px;margin-bottom:10px">📊</div>
+      <div style="font-size:13px">Henüz oyuncu verisi yok</div>
+    </div>`;
+  }
+
+  // Türe göre sırala (Top 30)
+  let sorted;
+  let headerInfo;
+  if (statType === 'goals') {
+    sorted = [...allPlayers].sort((a,b) => b.goals - a.goals).slice(0, 30);
+    headerInfo = { icon:'⚽', label:'Gol Krallığı', color:'#ffd54f', bg:'rgba(255,213,79,.06)' };
+  } else if (statType === 'assists') {
+    sorted = [...allPlayers].sort((a,b) => b.assists - a.assists).slice(0, 30);
+    headerInfo = { icon:'🎯', label:'Asist Krallığı', color:'#00b0ff', bg:'rgba(0,176,255,.06)' };
+  } else {
+    sorted = [...allPlayers].sort((a,b) => b.rating - a.rating).slice(0, 30);
+    headerInfo = { icon:'⭐', label:'En Yüksek Reyting', color:'#ba68c8', bg:'rgba(186,104,200,.06)' };
+  }
+
+  // Tüm değerler sıfırsa "henüz veri yok"
+  const maxVal = statType === 'rating' 
+    ? Math.max(...sorted.map(p => p.rating || 0))
+    : Math.max(...sorted.map(p => p[statType] || 0));
+  if (statType !== 'rating' && maxVal === 0) {
+    return `<div style="text-align:center;padding:36px 20px;color:var(--text3)">
+      <div style="font-size:42px;margin-bottom:10px">📅</div>
+      <div style="font-size:13px">Turnuva istatistikleri sezon ilerledikçe burada görünecek</div>
+    </div>`;
+  }
+
+  function _statRow(p, i) {
+    const val = statType === 'rating' ? (p.rating || 0).toFixed(1) : (p[statType] || 0);
+    const posCls = (p.pos||'').toLowerCase();
+    if (!window._statListPlayerCache) window._statListPlayerCache = [];
+    const _cIdx = window._statListPlayerCache.length;
+    window._statListPlayerCache.push({
+      name: p.name, pos: p.pos, teamName: p.teamName,
+      countryCode: p.countryCode, flag: p.flag,
+      rating: typeof p.rating === 'number' ? p.rating : 7.0,
+      isUser: !!p.isUser
+    });
+    const clickAttr = p.isUser
+      ? `onclick="if(typeof openPlayerModalSelfFromRanking==='function')openPlayerModalSelfFromRanking()"`
+      : `onclick="statListViewPlayer(${_cIdx})"`;
+    return `<div class="lst-row ${p.isUser?'is-user':''}" ${clickAttr} style="padding:7px 10px;cursor:pointer">
+      <div class="lst-rank ${_rankClass(i+1)}" style="font-size:13px;width:22px">${i+1}</div>
+      <div class="lst-team-logo" style="background:${p.teamBg};color:${p.teamTc};width:24px;height:24px;font-size:9px">${p.teamShort}</div>
+      <div class="lst-info-col">
+        <div class="lst-pname ${p.isUser?'user-mark':''}" style="font-size:12px"><span class="lst-pos-pill ${posCls}">${_posLabel3(p.pos)}</span>${p.name}</div>
+        <div class="lst-psub" style="font-size:9px">${p.flag} ${p.teamName}</div>
+      </div>
+      <div class="lst-stat-val ${i<3?'gold':''}" style="font-size:16px;min-width:32px">${val}</div>
+    </div>`;
+  }
+
+  return `<div style="margin:12px 12px 0">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+      <div style="padding:10px 12px;background:${headerInfo.bg};font-size:11px;font-weight:800;color:${headerInfo.color};letter-spacing:.4px;text-transform:uppercase;border-bottom:1px solid var(--border)">${headerInfo.icon} ${headerInfo.label} (Top 30)</div>
+      ${sorted.map((p,i) => _statRow(p, i)).join('')}
+    </div>
+  </div>`;
+}
+
+
 function trn2BuildPlayoffHtml(playoff, trnKey, season) {
   const trnColor = {champ:'var(--gold)', elite:'#00b0ff', conv:'var(--accent)'}[trnKey];
   // 🆕 isAnk: kullanıcının GERÇEK takımı için (hardcoded Ankara/TR yerine)
@@ -64112,7 +64205,7 @@ let _encSubTab = 'groups';  // 'groups' | 'knockout' | 'schedule'
 
 function encSetSubTab(tab) {
   // Geçerli sekme değilse 'groups'a düşür
-  if (!['groups', 'knockout', 'schedule'].includes(tab)) tab = 'groups';
+  if (!['groups', 'knockout', 'schedule', 'goals', 'assists', 'rating'].includes(tab)) tab = 'groups';
   _encSubTab = tab;
   trn2RenderEuroNation(getSeasonInfo().season);
 }
@@ -64266,6 +64359,12 @@ function trn2RenderEuroNation(season) {
     bodyHtml = encRenderKnockout(state);
   } else if (subtab === 'schedule') {
     bodyHtml = encRenderSchedule(state);
+  } else if (subtab === 'goals') {
+    bodyHtml = encBuildStatHtml(state, 'goals');
+  } else if (subtab === 'assists') {
+    bodyHtml = encBuildStatHtml(state, 'assists');
+  } else if (subtab === 'rating') {
+    bodyHtml = encBuildStatHtml(state, 'rating');
   } else {
     bodyHtml = '';
   }
@@ -64310,6 +64409,9 @@ function trn2RenderEuroNation(season) {
       <button class="trn2-stab ${subtab==='groups'?'active':''}"   onclick="encSetSubTab('groups')">📊 Gruplar</button>
       <button class="trn2-stab ${subtab==='knockout'?'active':''}" onclick="encSetSubTab('knockout')">🏅 Eleme</button>
       <button class="trn2-stab ${subtab==='schedule'?'active':''}" onclick="encSetSubTab('schedule')">📅 Takvim</button>
+      <button class="trn2-stab ${subtab==='goals'?'active':''}"    onclick="encSetSubTab('goals')">⚽ Gol</button>
+      <button class="trn2-stab ${subtab==='assists'?'active':''}"  onclick="encSetSubTab('assists')">🎯 Asist</button>
+      <button class="trn2-stab ${subtab==='rating'?'active':''}"   onclick="encSetSubTab('rating')">⭐ Reyting</button>
     </div>
 
     <div class="enc-body">
@@ -64577,6 +64679,58 @@ function encRenderStats(state) {
     </div>
   `;
 }
+
+// 🆕 Tek istatistik sekmesi için (sekme bazlı render)
+function encBuildStatHtml(state, statType) {
+  if (!state || !state.stats) {
+    return `<div style="text-align:center;padding:36px 20px;color:var(--text3)">
+      <div style="font-size:42px;margin-bottom:10px">📊</div>
+      <div style="font-size:13px">Turnuva istatistikleri sezon ilerledikçe burada görünecek</div>
+    </div>`;
+  }
+  const st = state.stats;
+  let items, headerInfo, suffix;
+  if (statType === 'goals') {
+    items = st.scorers || [];
+    headerInfo = { icon:'⚽', label:'Gol Krallığı', color:'#ffd54f', bg:'rgba(255,213,79,.06)' };
+    suffix = 'gol';
+  } else if (statType === 'assists') {
+    items = st.assisters || [];
+    headerInfo = { icon:'🎯', label:'Asist Krallığı', color:'#00b0ff', bg:'rgba(0,176,255,.06)' };
+    suffix = 'asist';
+  } else {
+    items = st.ratings || [];
+    headerInfo = { icon:'⭐', label:'En Yüksek Reyting', color:'#ba68c8', bg:'rgba(186,104,200,.06)' };
+    suffix = 'rating';
+  }
+
+  if (!items.length) {
+    return `<div style="text-align:center;padding:36px 20px;color:var(--text3)">
+      <div style="font-size:42px;margin-bottom:10px">📅</div>
+      <div style="font-size:13px">Henüz veri yok — turnuva ilerledikçe doldurulacak</div>
+    </div>`;
+  }
+
+  function _row(item, i) {
+    return `
+      <div class="enc-stat-row">
+        <div class="enc-stat-rank">${i+1}</div>
+        <div class="enc-stat-flag">${item.flag||'🏳️'}</div>
+        <div class="enc-stat-info">
+          <div class="enc-stat-name">${item.name}</div>
+          <div class="enc-stat-country">${item.country||''}</div>
+        </div>
+        <div class="enc-stat-val">${item.value}<span>${suffix}</span></div>
+      </div>
+    `;
+  }
+
+  return `<div class="enc-stats-block" style="margin:12px">
+    <div class="enc-stats-head" style="color:${headerInfo.color};background:${headerInfo.bg}">${headerInfo.icon} ${headerInfo.label} <span>İlk ${items.length}</span></div>
+    <div class="enc-stats-list">${items.map((it,i) => _row(it,i)).join('')}</div>
+  </div>`;
+}
+
 
 function encRenderAbout(state) {
   const totalMatches = state.groups.reduce((s,g) => s + g.matches.length, 0)
