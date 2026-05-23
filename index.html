@@ -26511,6 +26511,42 @@ const MatchAuthority = (function() {
     };
     console.log(`[MatchAuthority] 🏁 BİTTİ: ${m.matchKey} → ${m.scoreH}-${m.scoreA}`);
 
+    // 🆕 Maç sonucunu players tablosuna yaz (RPC idempotent — ilk yazan tetikler)
+    try {
+      const homeTeam = m.homeTeam;
+      const awayTeam = m.awayTeam;
+      const homePlayers = (homeTeam && Array.isArray(homeTeam.players)) ? homeTeam.players : null;
+      const awayPlayers = (awayTeam && Array.isArray(awayTeam.players)) ? awayTeam.players : null;
+      if (homePlayers && awayPlayers && typeof ratePlayers === 'function' && typeof _recordMatchToSupabase === 'function') {
+        const homeWon = (m.scoreH || 0) > (m.scoreA || 0);
+        const awayWon = (m.scoreA || 0) > (m.scoreH || 0);
+        const draw = (m.scoreH || 0) === (m.scoreA || 0);
+        const stats = (m.simState && m.simState.stats) || {};
+        const homeCtx = {
+          teamRating: (homeTeam.rating) || 75, oppRating: (awayTeam.rating) || 75,
+          teamPossession: (stats.possession && stats.possession[0]) || 50,
+          teamPassAcc: (stats.passAcc && stats.passAcc[0]) || 80,
+          teamScored: m.scoreH || 0,
+          oppShotsOnTarget: (stats.shotsOnTarget && stats.shotsOnTarget[1]) || 0,
+        };
+        const awayCtx = {
+          teamRating: (awayTeam.rating) || 75, oppRating: (homeTeam.rating) || 75,
+          teamPossession: (stats.possession && stats.possession[1]) || 50,
+          teamPassAcc: (stats.passAcc && stats.passAcc[1]) || 80,
+          teamScored: m.scoreA || 0,
+          oppShotsOnTarget: (stats.shotsOnTarget && stats.shotsOnTarget[0]) || 0,
+        };
+        const homeRatings = ratePlayers(homePlayers, m.events, 'home',
+          homeWon ? true : (draw ? 'draw' : false), m.scoreA || 0, [], homeCtx);
+        const awayRatings = ratePlayers(awayPlayers, m.events, 'away',
+          awayWon ? true : (draw ? 'draw' : false), m.scoreH || 0, [], awayCtx);
+        const matchId = (m.season && m.day)
+          ? `${m.season}_${m.day}_${homeTeam.name}_${awayTeam.name}`
+          : `${homeTeam.name}_${awayTeam.name}_${m.kickoffMs}`;
+        _recordMatchToSupabase(matchId, homePlayers, awayPlayers, homeRatings, awayRatings, m.events);
+      }
+    } catch(e) { console.warn('[MatchAuthority] rating yazma hatası:', e); }
+
     // cft_match_results cache'ine yaz (mevcut UI bunu okur)
     try {
       const cache = _matchResultsLoad();
@@ -28550,6 +28586,22 @@ function processMatchOutcome(script, userIsHome) {
           if (!MS._userStats) MS._userStats = {};
           MS._userStats.rating = userRating.rating;
         }
+      }
+
+      // 🆕 Maç sonucunu players tablosuna yaz (hazırlık maçları hariç)
+      if (!MS._isFriendly) {
+        const fx = MS._fixtureRef || {};
+        const homeName = (curHome && curHome.name) || '';
+        const awayName = (curAway && curAway.name) || '';
+        const season = fx.season || 1;
+        const day = fx.day || 0;
+        const matchId = `${season}_${day}_${homeName}_${awayName}`;
+        _recordMatchToSupabase(
+          matchId,
+          (curHome && curHome.players) || [],
+          (curAway && curAway.players) || [],
+          homeRatings, awayRatings, script.evs
+        );
       }
     } catch(e) { console.warn('Rating hesaplanamadı:', e); }
   }
@@ -41982,6 +42034,45 @@ function setUserRaceClaimed(key, value) {
       } catch(e) { console.warn('[race_claimed] save hata:', e); }
     }, 500);
   }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Maç sonu rating + gol/asist → players tablosuna (RPC idempotent)
+// ═══════════════════════════════════════════════════════════
+async function _recordMatchToSupabase(matchId, homePlayers, awayPlayers, homeRatings, awayRatings, events) {
+  if (!window.sb || !matchId) return;
+  if (!Array.isArray(homePlayers) || !Array.isArray(awayPlayers)) return;
+
+  function countGoalsAssists(playerName, side) {
+    let g = 0, a = 0;
+    (events || []).forEach(e => {
+      if (e.team !== side) return;
+      if (e.type === 'goal' && !e.isOwnGoal && e.player === playerName) g++;
+      if (e.assist && e.assist === playerName) a++;
+    });
+    return { g, a };
+  }
+
+  const payload = [];
+  function pushRow(p, ratingArr, side) {
+    if (!p || !p.id) return;
+    const r = (ratingArr || []).find(x => x && x.num === p.num);
+    const rating = (r && typeof r.rating === 'number') ? r.rating : 7.0;
+    const { g, a } = countGoalsAssists(p.name, side);
+    payload.push({ player_id: p.id, rating, goals: g, assists: a });
+  }
+
+  homePlayers.forEach(p => pushRow(p, homeRatings, 'home'));
+  awayPlayers.forEach(p => pushRow(p, awayRatings, 'away'));
+
+  if (!payload.length) return;
+
+  try {
+    await window.sb.rpc('record_match_result', {
+      p_match_id: matchId,
+      p_players: payload
+    });
+  } catch(e) { console.warn('[record_match_result] hata:', e); }
 }
 
 // (Eski teamTab tanımı kaldırıldı — aşağıda satır ~6803'te güncel sürümü var)
@@ -70825,7 +70916,7 @@ function _evRaceCountdownStr() {
 }
 
 // Kullanıcı reyting puanı: bu hafta yapılan maçların ortalama reytingi
-// (En az 4 maç şartı — altındaysa 0 döner, sıralamaya girmez)
+// (Cycle'ın 4. gününden sonra min 4 maç şartı uygulanır)
 function _evRaceUserRatingScore() {
   try {
     const cycle = _evRaceCycleInfo();
@@ -70837,7 +70928,10 @@ function _evRaceUserRatingScore() {
       if (typeof m.userRating === 'number') { total += m.userRating; count++; }
       else if (typeof m.rating === 'number') { total += m.rating; count++; }
     });
-    if (count < 4) return 0;  // min 4 maç şartı
+    if (!count) return 0;
+    // Cycle'ın 4 günü geçtiyse min 4 maç şartı devreye girer
+    const daysSinceStart = (Date.now() - weekStart) / 86400000;
+    if (daysSinceStart >= 4 && count < 4) return 0;
     return Math.round((total / count) * 100) / 100;
   } catch(e) { return 0; }
 }
@@ -70928,7 +71022,7 @@ function _evRaceGenerateRatingPlayers(weekKey) {
     return (h >>> 0) / 4294967296;
   }
 
-  // Tüm takımları topla — rank/tier bilgisi de lazım (roster üretimi için)
+  // Tüm takımları topla
   const teams = [];
   try {
     if (true) {
@@ -70953,31 +71047,28 @@ function _evRaceGenerateRatingPlayers(weekKey) {
 
   if (!teams.length) return [];
 
+  const FIRST_FALLBACK = ['Mehmet','Ali','Ahmet','Mustafa'];
+  const LAST_FALLBACK = ['Yılmaz','Demir','Kaya','Çelik'];
+
   const players = [];
   teams.forEach(t => {
-    let star = null;
-    try {
-      const roster = (typeof getOrCreateTeamRoster === 'function')
-        ? getOrCreateTeamRoster({ name: t.name, countryCode: t.countryCode, rank: t.rank, tierIdx: t.tierIdx })
-        : null;
-      if (Array.isArray(roster) && roster.length) {
-        // En yüksek overall = yıldız
-        star = roster.reduce((a, b) => ((b.overall||0) > (a.overall||0) ? b : a), roster[0]);
-      }
-    } catch(e) {}
-    if (!star) return;
+    // Yıldız oyuncu adı: ülke isim havuzundan deterministik (takım + hafta)
+    const FIRST = (typeof NAMES_BY_COUNTRY !== 'undefined' && NAMES_BY_COUNTRY[t.countryCode]) || FIRST_FALLBACK;
+    const LAST  = (typeof SURNAMES_BY_COUNTRY !== 'undefined' && SURNAMES_BY_COUNTRY[t.countryCode]) || LAST_FALLBACK;
+    const fIdx = Math.floor(rng() * FIRST.length);
+    const lIdx = Math.floor(rng() * LAST.length);
+    const playerName = `${FIRST[fIdx]} ${LAST[lIdx]}`;
 
-    // Skor: overall'a göre baz + hafta varyansı + form
-    // 60 ovr → ~6.7, 75 ovr → ~7.5, 90 ovr → ~8.7, 99 ovr → ~9.4
-    const ov = star.overall || 65;
-    const baseRating = 5.5 + (ov - 50) * 0.045; // 50→5.5, 99→7.7
-    // ±0.6 hafta varyansı (form)
+    // Skor: tier ve rank'a göre baz reyting + hafta varyansı
+    // 1. lig top 3 → 7.5-8.7, 5. lig orta → 6.0-7.2
+    const tierFactor = Math.max(0, 5 - t.tierIdx) * 0.3; // 1. lig=1.5, 5. lig=0
+    const rankFactor = Math.max(0, (17 - (t.rank || 16))) * 0.05; // rank 1→0.8, rank 16→0
+    const base = 6.0 + tierFactor + rankFactor;
     const variance = (rng() - 0.5) * 1.2;
-    // Tepe oyuncuları daha tutarlı (yüksek ovr → düşük varyans)
-    const finalScore = Math.max(5.5, Math.min(9.9, baseRating + variance + (ov >= 85 ? rng() * 0.8 : 0)));
+    const finalScore = Math.max(5.5, Math.min(9.9, base + variance));
 
     players.push({
-      playerName: star.name || (`#${star.shirt || ''}`),
+      playerName,
       teamName: t.name,
       teamShort: t.short,
       teamBg: t.bg,
@@ -70985,9 +71076,6 @@ function _evRaceGenerateRatingPlayers(weekKey) {
       countryCode: t.countryCode,
       countryFlag: t.countryFlag,
       score: Math.round(finalScore * 100) / 100,
-      // Roster ref — modal açıldığında detay göstermek için
-      _starOverall: ov,
-      _starPos: star.pos || '—',
     });
   });
   return players;
@@ -71034,35 +71122,28 @@ function _evRaceGenerateTrainPlayers(weekKey) {
 
   if (!teams.length) return [];
 
+  const FIRST_FALLBACK = ['Mehmet','Ali','Ahmet','Mustafa'];
+  const LAST_FALLBACK = ['Yılmaz','Demir','Kaya','Çelik'];
+
   const players = [];
   teams.forEach(t => {
-    let star = null;
-    try {
-      const roster = (typeof getOrCreateTeamRoster === 'function')
-        ? getOrCreateTeamRoster({ name: t.name, countryCode: t.countryCode, rank: t.rank, tierIdx: t.tierIdx })
-        : null;
-      if (Array.isArray(roster) && roster.length) {
-        // Antrenman yıldızı = en yüksek level (overall'a tie-breaker)
-        star = roster.reduce((a, b) => {
-          const bScore = (b.level||0) * 1000 + (b.overall||0);
-          const aScore = (a.level||0) * 1000 + (a.overall||0);
-          return bScore > aScore ? b : a;
-        }, roster[0]);
-      }
-    } catch(e) {}
-    if (!star) return;
+    // Yıldız oyuncu adı: deterministic
+    const FIRST = (typeof NAMES_BY_COUNTRY !== 'undefined' && NAMES_BY_COUNTRY[t.countryCode]) || FIRST_FALLBACK;
+    const LAST  = (typeof SURNAMES_BY_COUNTRY !== 'undefined' && SURNAMES_BY_COUNTRY[t.countryCode]) || LAST_FALLBACK;
+    const fIdx = Math.floor(rng() * FIRST.length);
+    const lIdx = Math.floor(rng() * LAST.length);
+    const playerName = `${FIRST[fIdx]} ${LAST[lIdx]}`;
 
-    // Skor: level'a göre baz enerji + overall katkısı + hafta varyansı
-    // level=0 → 100-300, level=10 → 300-700, level=25 → 700-1100, level=40+ → 1000-1400
-    const lvl = star.level || 0;
-    const ov  = star.overall || 65;
-    const baseEnergy = 150 + lvl * 22 + (ov - 50) * 4; // genel taban
-    // ±%30 hafta varyansı (motivasyon)
-    const variance = (rng() - 0.3) * baseEnergy * 0.4;
-    const finalScore = Math.max(50, Math.floor(baseEnergy + variance));
+    // Skor: tier ve rank'a göre baz enerji + hafta varyansı
+    // 1. lig top → 800-1300, 5. lig orta → 200-500
+    const tierFactor = Math.max(0, 5 - t.tierIdx) * 150; // 1. lig=750, 5. lig=0
+    const rankFactor = Math.max(0, (17 - (t.rank || 16))) * 15;
+    const base = 200 + tierFactor + rankFactor;
+    const variance = (rng() - 0.3) * base * 0.4;
+    const finalScore = Math.max(50, Math.floor(base + variance));
 
     players.push({
-      playerName: star.name || (`#${star.shirt || ''}`),
+      playerName,
       teamName: t.name,
       teamShort: t.short,
       teamBg: t.bg,
@@ -71070,9 +71151,6 @@ function _evRaceGenerateTrainPlayers(weekKey) {
       countryCode: t.countryCode,
       countryFlag: t.countryFlag,
       score: finalScore,
-      _starOverall: ov,
-      _starLevel: lvl,
-      _starPos: star.pos || '—',
     });
   });
   return players;
@@ -71089,12 +71167,15 @@ function _evRaceBuildLeaderboard(metric) {
   const userFlag = (true && _cftGetCountry(userCC)) ? _cftGetCountry(userCC).flag : '🏳️';
   const userTeamName = userTeam ? userTeam.teamName : 'Senin Takımın';
 
-  // Kullanıcı oyuncu adı (kaptan varsa)
-  let userPlayerName = 'SEN';
+  // Kullanıcı oyuncu adı: ROSTER_DATA'da role='user' olan, yoksa authUser.name
+  let userPlayerName = 'Sen';
   try {
     if (typeof ROSTER_DATA !== 'undefined' && Array.isArray(ROSTER_DATA)) {
-      const captain = ROSTER_DATA.find(p => p && p.role === 'captain');
-      if (captain) userPlayerName = captain.name;
+      const me = ROSTER_DATA.find(p => p && p.role === 'user');
+      if (me && me.name) userPlayerName = me.name;
+    }
+    if (userPlayerName === 'Sen' && window.authUser && window.authUser.name) {
+      userPlayerName = window.authUser.name;
     }
   } catch(e) {}
   // Takım renkleri (varsa)
@@ -71138,17 +71219,6 @@ function _evRaceBuildLeaderboard(metric) {
   const all = [...bots, userEntry];
   all.sort((a, b) => b.score - a.score);
   all.forEach((e, i) => { e.rank = i + 1; });
-
-  // 🆕 İlk hafta tamamlanmadıysa (sezon başı) — tüm skorları 0 yap, alfabetik sırala
-  // (Ana sayfa "Etkinlik Akışı" da bu fonksiyonu çağırıyor — tek noktadan kontrol)
-  // ÖNEMLİ: bots cache'ten referansla geliyor; mutate edersek cache bozulur.
-  // O yüzden ilk hafta olduğunda klonlayıp 0 yap.
-  if (typeof _evIsBeforeFirstWeekComplete === 'function' && _evIsBeforeFirstWeekComplete()) {
-    const cloned = all.map(e => ({...e, score: 0}));
-    cloned.sort((a, b) => (a.playerName || '').localeCompare(b.playerName || '', 'tr'));
-    cloned.forEach((e, i) => { e.rank = i + 1; });
-    return cloned;
-  }
 
   return all;
 }
