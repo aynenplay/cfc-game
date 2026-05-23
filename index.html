@@ -24152,7 +24152,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-05-23-09';
+const APP_BUILD = '2026-05-23-11';
 
 (function _cacheBustCheck() {
   try {
@@ -38516,6 +38516,29 @@ async function userTeamLoadFromServer() {
       _userTeam = data.user_team_data;
       if (data.num && !_userTeam.num) _userTeam.num = data.num;
       if (!_userTeam.role && data.role) _userTeam.role = data.role;
+      
+      // 🆕 tierIdx'i takımın gerçek liginden doğrula/düzelt
+      if (_userTeam.teamName && _userTeam.countryCode && typeof _cftGetCountry === 'function') {
+        const country = _cftGetCountry(_userTeam.countryCode);
+        if (country && country.leagues) {
+          let realTierIdx = -1;
+          for (let li = 0; li < country.leagues.length; li++) {
+            const lg = country.leagues[li];
+            if (lg && lg.teams && lg.teams.some(t => t.name === _userTeam.teamName)) {
+              realTierIdx = li;
+              break;
+            }
+          }
+          if (realTierIdx >= 0 && _userTeam.tierIdx !== realTierIdx) {
+            console.info('[userTeam] tierIdx düzeltildi:', _userTeam.tierIdx, '→', realTierIdx);
+            _userTeam.tierIdx = realTierIdx;
+            // DB'ye yaz (geleceğe yönelik)
+            try {
+              await window.sb.from('players').update({ user_team_data: _userTeam }).eq('user_id', user.id);
+            } catch(e) {}
+          }
+        }
+      }
     } else if (data && data.team_name && data.country_code) {
       // FALLBACK 1: user_team_data JSON boş ama team_name + country_code dolu
       console.info('[userTeam] user_team_data boş, players sütunlarından inşa ediliyor');
@@ -51592,6 +51615,11 @@ function renderHomeNextMatch() {
   const noMatch = document.getElementById('hmNoMatch');
   if (!panel || !noMatch) return;
 
+  // 🆕 DEBUG — panel neden gösterilmiyor anlamak için
+  console.info('[hmNextMatch] _userTeam:', _userTeam ? _userTeam.teamName + '/' + _userTeam.countryCode : 'YOK',
+    '| hasTeam:', typeof userHasTeam === 'function' ? userHasTeam() : 'fn yok',
+    '| fixData:', _fixtureData ? _fixtureData.length : 'yok');
+
   // 🆕 Önceki render'dan kalan geri sayım interval'ini temizle
   // (Lig maçı render'ı setInterval ile sürekli butona yazar; hazırlık veya turnuva
   //  maçı seçildiğinde bu interval temizlenmezse butonu lig geri sayımıyla ezer.)
@@ -51669,6 +51697,7 @@ function renderHomeNextMatch() {
   }
 
   if (candidates.length === 0) {
+    console.info('[hmNextMatch] aday yok — _fixtureData uzunluğu:', _fixtureData?.length || 0);
     panel.style.display = 'none';
     noMatch.style.display = 'block';
     noMatch.innerHTML = `<div style="padding:6px 12px;color:var(--text3);font-size:12px">Bekleyen maç yok</div>`;
@@ -56924,8 +56953,25 @@ function buildFixtureData(filter) {
           const homeCountry = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.countryCode)
             ? _userTeam.countryCode
             : ((authUser && authUser.nationality) ? authUser.nationality : 'TR');
-          const userTierIdx = (typeof _userTeam !== 'undefined' && _userTeam && typeof _userTeam.tierIdx === 'number')
-            ? _userTeam.tierIdx : 0;
+          
+          // 🆕 tierIdx — _userTeam'deki değer yanlış olabilir, takımın GERÇEK liginden bul
+          const userTeamNameForTier = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : null;
+          let userTierIdx = -1;
+          const _countryObj = _cftGetCountry(homeCountry);
+          if (_countryObj && _countryObj.leagues && userTeamNameForTier) {
+            for (let li = 0; li < _countryObj.leagues.length; li++) {
+              const lg = _countryObj.leagues[li];
+              if (lg && lg.teams && lg.teams.some(t => t.name === userTeamNameForTier)) {
+                userTierIdx = li;
+                break;
+              }
+            }
+          }
+          // Bulunamadıysa _userTeam.tierIdx'e düş (geriye uyumlu)
+          if (userTierIdx < 0) {
+            userTierIdx = (typeof _userTeam !== 'undefined' && _userTeam && typeof _userTeam.tierIdx === 'number')
+              ? _userTeam.tierIdx : 0;
+          }
 
           if (false || !_cftGetCountry(homeCountry)) return;
           const userLg = _cftGetCountry(homeCountry).leagues[userTierIdx];
