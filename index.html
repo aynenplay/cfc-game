@@ -24152,7 +24152,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-05-23-07';
+const APP_BUILD = '2026-05-23-08';
 
 (function _cacheBustCheck() {
   try {
@@ -34215,29 +34215,67 @@ async function startMatch(){
     }
   }
   
-  // 🆕 SERVER-ONLY: liveMatchOpen ile izleme modunu aç
-  // Edge function maçı simüle ediyor, biz sadece match_state'i poll edip gösteriyoruz
-  const matchData = {
-    season: MS.season || 1,
-    day: MS.day || 0,
-    home: homeName,
-    away: awayName,
-    homeShort: (curHome && curHome.short) || homeName.slice(0,3).toUpperCase(),
-    awayShort: (curAway && curAway.short) || awayName.slice(0,3).toUpperCase(),
-    leagueName: (curHome && curHome.leagueName) || 'Maç',
-    leagueFlag: '⚽',
-    matchDateTime: MS.kickoffMs ? new Date(MS.kickoffMs).toISOString() : null
-  };
-  
-  // match-screen'i kapat, liveMatchOpen modal'ını aç
+  // 🆕 SERVER-ONLY: match-screen'i canlı moda geçir
+  // Edge function maçı simüle ediyor, biz match_state'i poll edip ekranı güncelliyoruz
   const ms = document.getElementById('match-screen');
-  if (ms) ms.style.display = 'none';
-  
-  if (typeof liveMatchOpen === 'function') {
-    liveMatchOpen(matchData, MS.kickoffMs);
-  } else {
-    alert('Canlı maç izleyici yüklü değil');
+  if (ms) {
+    // Preview kapat, LIVE/İSTATİSTİK/KADRO/TAKTİK sekmeleri görünsün
+    ms.classList.remove('preview-mode');
+    if (!ms.classList.contains('open')) ms.classList.add('open');
   }
+  
+  // Durum: maç başladı
+  MS.running = true;
+  
+  // Status badge
+  const sb = document.getElementById('statusBadge');
+  if (sb) {
+    sb.className = 'status-badge sb-live';
+    sb.innerHTML = '🔴 CANLI';
+  }
+  
+  // 🆕 match_state poll — her 3 sn'de bir skor + dakika güncelle
+  if (window._matchScreenLiveTimer) clearInterval(window._matchScreenLiveTimer);
+  window._matchScreenLiveTimer = setInterval(async () => {
+    try {
+      // match-screen kapatıldıysa timer'ı temizle
+      if (!ms || !ms.classList.contains('open')) {
+        clearInterval(window._matchScreenLiveTimer);
+        window._matchScreenLiveTimer = null;
+        return;
+      }
+      // match_state'i tazele
+      if (typeof _liveMatchLoadFromServer === 'function') {
+        await _liveMatchLoadFromServer();
+      }
+      // Bu maça ait match_state satırını bul
+      const cacheKey = `${MS.season || 1}_${MS.day || 0}_${homeName}_${awayName}`;
+      const liveRow = (typeof _liveMatchCache === 'object' && _liveMatchCache) ?
+        Object.values(_liveMatchCache).find(r =>
+          r && r.season === (MS.season || 1) && r.day_in_season === (MS.day || 0) &&
+          r.home_team === homeName && r.away_team === awayName
+        ) : null;
+      if (liveRow) {
+        // Skor + dakika UI'a yaz
+        const sh = document.getElementById('scoreH');
+        const sa = document.getElementById('scoreA');
+        const clk = document.getElementById('matchClock');
+        if (sh) sh.textContent = liveRow.home_score ?? 0;
+        if (sa) sa.textContent = liveRow.away_score ?? 0;
+        if (clk) clk.textContent = (liveRow.sim_minute ?? 0) + "'";
+        // Bittiyse
+        if (liveRow.status === 'finished' || liveRow.sim_minute >= 90) {
+          MS.finished = true;
+          MS.running = false;
+          const sbF = document.getElementById('statusBadge');
+          if (sbF) { sbF.className = 'status-badge sb-ft'; sbF.innerHTML = '⏱️ BİTTİ'; }
+          if (clk) clk.textContent = 'FT';
+          clearInterval(window._matchScreenLiveTimer);
+          window._matchScreenLiveTimer = null;
+        }
+      }
+    } catch(e) { console.warn('[matchScreen live] hata:', e); }
+  }, 3000);
 }
 
 // ═══════════ ESKİ LOKAL MOTOR — ÇAĞRILMAZ (deprecated, dur) ═══════════
