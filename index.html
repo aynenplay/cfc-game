@@ -62372,13 +62372,39 @@ function trn2BuildGroups(teams32, season, trnKey) {
         }
       }
 
+      // 🆕 Tarih + saat: match_state'ten gerçek kickoff_at (Supabase tek doğruluk)
+      // Lokal _trnMatchTimeStr/_trnMatchDateISO hesabı KULLANILMIYOR
+      let _matchDateISO = null;
+      let _scheduledTime = null;
+      let _matchDateTimeISO = null;
+      if (_matchStateCache && _matchStateCache.byKey) {
+        const _msFound = Object.values(_matchStateCache.byKey).find(mm =>
+          mm.tournament_key === trnKey &&
+          mm.tournament_phase === 'group' &&
+          mm.home === home.name &&
+          mm.away === away.name &&
+          mm.season === season
+        );
+        if (_msFound && _msFound.matchDateTime) {
+          const _d = new Date(_msFound.matchDateTime);
+          _matchDateISO = _d.toISOString().slice(0, 10);
+          _scheduledTime = String(_d.getHours()).padStart(2,'0') + ':' + String(_d.getMinutes()).padStart(2,'0');
+          _matchDateTimeISO = _msFound.matchDateTime;
+        }
+      }
+      // Fallback (match_state'te yoksa — sezon henüz kurulmamış)
+      if (!_scheduledTime) {
+        _matchDateISO = _trnMatchDateISO(season, mdDay);
+        _scheduledTime = _trnMatchTimeStr(trnKey, season, gi, md, hi, ai);
+        _matchDateTimeISO = _matchDateISO + 'T' + _scheduledTime + ':00';
+      }
+      
       matches.push({
         matchday: md, homeIdx: hi, awayIdx: ai, home, away, hs, as,
         events: simEvents, stats: simStats, played: isPlayed,
-        // 🆕 Gerçek tarih + saat — deterministic
-        matchDate: _trnMatchDateISO(season, mdDay),
-        scheduledTime: _trnMatchTimeStr(trnKey, season, gi, md, hi, ai),
-        matchDateTime: _trnMatchDateISO(season, mdDay) + 'T' + _trnMatchTimeStr(trnKey, season, gi, md, hi, ai) + ':00',
+        matchDate: _matchDateISO,
+        scheduledTime: _scheduledTime,
+        matchDateTime: _matchDateTimeISO,
       });
 
       // 🆕 Stat güncellemesi SADECE oynanan maçlar için
