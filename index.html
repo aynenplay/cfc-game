@@ -24150,7 +24150,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-05-23-18';
+const APP_BUILD = '2026-05-23-20';
 
 (function _cacheBustCheck() {
   try {
@@ -39965,6 +39965,28 @@ function rosterPromoteVice(playerNum){
 
   p.role = 'vice';
   rosterSavePersist();
+  
+  // 🆕 Players tablosunu ve user_team_data JSON'ını da güncelle (sayfa yenilense bile kalıcı)
+  if (window.sb && p.userId) {
+    (async () => {
+      try {
+        // Önce mevcut user_team_data'yı al
+        const { data: row } = await window.sb.from('players')
+          .select('user_team_data')
+          .eq('user_id', p.userId)
+          .maybeSingle();
+        const utd = (row && row.user_team_data) ? row.user_team_data : {};
+        utd.role = 'vice';
+        // role + user_team_data ikisini birlikte güncelle
+        await window.sb.from('players').update({
+          role: 'vice',
+          user_team_data: utd
+        }).eq('user_id', p.userId);
+        console.info('[promoteVice] players güncellendi:', p.name);
+      } catch(e) { console.warn('[promoteVice] hata:', e); }
+    })();
+  }
+  
   if(typeof renderRoster === 'function') renderRoster(rosterCurrentFilter || 'all');
   if(typeof applyUserTeamUI === 'function') applyUserTeamUI();
   closePlayerModal();
@@ -39982,6 +40004,25 @@ function rosterDemoteVice(playerNum){
 
   p.role = 'member';
   rosterSavePersist();
+  
+  // 🆕 Players tablosunu ve user_team_data JSON'ını da güncelle
+  if (window.sb && p.userId) {
+    (async () => {
+      try {
+        const { data: row } = await window.sb.from('players')
+          .select('user_team_data')
+          .eq('user_id', p.userId)
+          .maybeSingle();
+        const utd = (row && row.user_team_data) ? row.user_team_data : {};
+        utd.role = 'member';
+        await window.sb.from('players').update({
+          role: 'member',
+          user_team_data: utd
+        }).eq('user_id', p.userId);
+      } catch(e) { console.warn('[demoteVice] hata:', e); }
+    })();
+  }
+  
   if(typeof renderRoster === 'function') renderRoster(rosterCurrentFilter || 'all');
   if(typeof applyUserTeamUI === 'function') applyUserTeamUI();
   closePlayerModal();
@@ -58676,7 +58717,10 @@ function renderPlayerPage() {
   // Botlar artık SABİT 10 yetenekli → calcOverall(pos, lvls) → 10
   let overall;
   if (isVisitor) {
-    overall = calcOverall(pos, lvls);
+    // 🆕 SADECE SUPABASE: vp.overall (player.overall = user_player.overall'dan geldi)
+    // Lokal SKILL_DEFS hesabı KALDIRILDI
+    overall = Number(vp.overall || vp.rating || 10);
+    overall = Math.max(1, Math.min(99, Math.round(overall)));
   } else if (meRoster && typeof getPlayerMainOverall === 'function') {
     overall = getPlayerMainOverall(meRoster);
   } else {
