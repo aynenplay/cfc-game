@@ -24152,7 +24152,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-05-23-08';
+const APP_BUILD = '2026-05-23-09';
 
 (function _cacheBustCheck() {
   try {
@@ -38515,11 +38515,9 @@ async function userTeamLoadFromServer() {
       // Birincil kaynak: user_team_data JSON
       _userTeam = data.user_team_data;
       if (data.num && !_userTeam.num) _userTeam.num = data.num;
-      // Eski kayıtlarda role yoksa players.role'den tamamla
       if (!_userTeam.role && data.role) _userTeam.role = data.role;
     } else if (data && data.team_name && data.country_code) {
-      // 🆕 FALLBACK: user_team_data JSON boş ama team_name + country_code dolu
-      // (Eski katılım akışında JSON güncellenmemiş olabilir — bu satırlardan inşa et)
+      // FALLBACK 1: user_team_data JSON boş ama team_name + country_code dolu
       console.info('[userTeam] user_team_data boş, players sütunlarından inşa ediliyor');
       _userTeam = {
         teamName: data.team_name,
@@ -38527,14 +38525,47 @@ async function userTeamLoadFromServer() {
         role: data.role || 'member',
         num: data.num || null,
       };
-      // 🆕 Geleceğe yönelik: user_team_data JSON'unu doldur
       try {
-        await window.sb.from('players')
-          .update({ user_team_data: _userTeam })
-          .eq('user_id', user.id);
+        await window.sb.from('players').update({ user_team_data: _userTeam }).eq('user_id', user.id);
       } catch(e) {}
     } else {
-      _userTeam = null;
+      // 🆕 FALLBACK 2: players satırı eksik kalmış olabilir
+      // Inbox'tan kabul edilmiş katılım mesajı ara ve oradan takım bilgisini al
+      try {
+        const { data: inboxData } = await window.sb.from('user_inbox')
+          .select('messages')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        const msgs = (inboxData && Array.isArray(inboxData.messages)) ? inboxData.messages : [];
+        // En son kabul edilmiş katılım mesajını bul
+        const accepted = msgs.filter(m => 
+          m && (m.type === 'join_accepted' || m.type === 'offer_accepted' || m.offerStatus === 'approved')
+          && m.teamName && m.countryCode
+        ).sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+        if (accepted) {
+          console.info('[userTeam] inbox\'tan takım bilgisi alındı:', accepted.teamName);
+          _userTeam = {
+            teamName: accepted.teamName,
+            countryCode: accepted.countryCode,
+            role: 'member',
+            num: null,
+          };
+          // players satırını da güncelle (geleceğe yönelik)
+          try {
+            await window.sb.from('players').update({
+              team_name: _userTeam.teamName,
+              country_code: _userTeam.countryCode,
+              role: 'member',
+              user_team_data: _userTeam,
+            }).eq('user_id', user.id);
+          } catch(e) { console.warn('[userTeam] players update hata:', e); }
+        } else {
+          _userTeam = null;
+        }
+      } catch(e) {
+        console.warn('[userTeam] inbox fallback hata:', e);
+        _userTeam = null;
+      }
     }
   } catch(e) { console.warn('[userTeam] load hata:', e); _userTeam = null; }
 }
@@ -42194,8 +42225,15 @@ function isPlayerOnline(p) {
   if (!p) return false;
   // Bot oyuncular asla online değil
   if (p.isBot) return false;
-  // Şu an: sadece kullanıcının kendi karakteri
-  return p.role === 'user' || !!p.isUser;
+  // Kendi kullanıcı her zaman online
+  if (p.role === 'user' || p.isUser) return true;
+  // Diğer gerçek kullanıcılar: last_seen son 5 dakika içinde mi?
+  const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
+  if (p.lastSeen) {
+    const lastMs = new Date(p.lastSeen).getTime();
+    if (!isNaN(lastMs) && (Date.now() - lastMs) < ONLINE_THRESHOLD_MS) return true;
+  }
+  return false;
 }
 
 // ════════════════════════════════════════════════════════════
