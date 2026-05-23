@@ -42049,18 +42049,20 @@ function saveUserXpLog(list) {
 function getUserTrainLog() {
   return Array.isArray(_userTrainLogCache) ? _userTrainLogCache : [];
 }
-function saveUserTrainLog(list) {
+function saveUserTrainLog(list, immediate) {
   _userTrainLogCache = Array.isArray(list) ? list.slice(-200) : [];  // son 200
-  if (window.sb && authUser && authUser.id) {
-    clearTimeout(_userTrainLogSaveTimer);
-    _userTrainLogSaveTimer = setTimeout(async () => {
-      try {
-        await window.sb.from('user_player').update({
-          train_log: _userTrainLogCache
-        }).eq('user_id', authUser.id);
-      } catch(e) { console.warn('[train_log] save hata:', e); }
-    }, 1000);
-  }
+  if (!window.sb || !authUser || !authUser.id) return;
+  clearTimeout(_userTrainLogSaveTimer);
+  const doSave = async () => {
+    try {
+      const { error } = await window.sb.from('user_player').update({
+        train_log: _userTrainLogCache
+      }).eq('user_id', authUser.id);
+      if (error) console.warn('[train_log] save error:', error.message || error);
+    } catch(e) { console.warn('[train_log] save hata:', e); }
+  };
+  if (immediate) doSave();
+  else _userTrainLogSaveTimer = setTimeout(doSave, 1000);
 }
 
 // Yarış ödül claim'leri: { "<weekKey>_<metric>": true }
@@ -68356,7 +68358,7 @@ function trCollect(id) {
   try{
     const trainLog = getUserTrainLog();
     trainLog.push({ ts: Date.now(), energy: entry.mins });
-    saveUserTrainLog(trainLog);
+    saveUserTrainLog(trainLog, /*immediate*/ true);
   }catch(e){}
 
   trRender();
