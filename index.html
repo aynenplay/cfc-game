@@ -24150,7 +24150,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-05-23-20';
+const APP_BUILD = '2026-05-23-21';
 
 (function _cacheBustCheck() {
   try {
@@ -32084,6 +32084,35 @@ function openMatchScreenV2(opts) {
   } else {
     ms.classList.remove('preview-mode');
   }
+  
+  // 🆕 Maç ZATEN CANLI ise (kickoff geçmiş, henüz finished değil) — direkt canlı moda geç
+  // Bu sayede kullanıcı sonuçlar listesinden canlı maça tıklayınca direkt izleyebilir
+  try {
+    const _now = Date.now();
+    const _kickoffMs = (opts.kickoff && typeof opts.kickoff === 'object' && opts.kickoff.getTime)
+      ? opts.kickoff.getTime()
+      : (typeof opts.kickoff === 'number' ? opts.kickoff : 0);
+    if (_kickoffMs && _now >= _kickoffMs) {
+      // Match_state'ten durumu kontrol et
+      const homeName = curHome && curHome.name;
+      const awayName = curAway && curAway.name;
+      if (homeName && awayName && typeof _matchStateCache !== 'undefined' && _matchStateCache && _matchStateCache.byKey) {
+        const liveRow = Object.values(_matchStateCache.byKey || {}).find(r =>
+          r && r.home_team === homeName && r.away_team === awayName &&
+          (r.status === 'live' || r.status === 'in_progress' || (r.status !== 'finished' && r.sim_minute > 0))
+        );
+        if (liveRow) {
+          // Maç canlı — preview kapat, startMatch ile canlı poll başlat
+          MS.kickoffMs = _kickoffMs;
+          MS.season = liveRow.season || 1;
+          MS.day = liveRow.day_in_season || 0;
+          setTimeout(() => {
+            if (typeof startMatch === 'function') startMatch();
+          }, 200);
+        }
+      }
+    }
+  } catch(e) { console.warn('[openMatchScreenV2] live auto-start hata:', e); }
 }
 
 
