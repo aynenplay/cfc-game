@@ -41883,19 +41883,32 @@ let rosterCurrentFilter = 'all';
 // ═══════════════════════════════════════════════════════════
 let _userMatchLogCache = null;   // null = yüklenmedi, array = yüklendi
 let _userXpLogCache = null;
+let _userTrainLogCache = null;
+let _userRaceClaimedCache = null;
 let _userMatchLogSaveTimer = null;
 let _userXpLogSaveTimer = null;
+let _userTrainLogSaveTimer = null;
+let _userRaceClaimedSaveTimer = null;
 
 async function _userMatchLogLoadFromServer() {
-  if (!window.sb || !authUser || !authUser.id) { _userMatchLogCache = []; _userXpLogCache = []; return; }
+  if (!window.sb || !authUser || !authUser.id) {
+    _userMatchLogCache = []; _userXpLogCache = [];
+    _userTrainLogCache = []; _userRaceClaimedCache = {};
+    return;
+  }
   try {
     const { data } = await window.sb.from('user_player')
-      .select('match_log, xp_log')
+      .select('match_log, xp_log, train_log, race_claimed')
       .eq('user_id', authUser.id)
       .maybeSingle();
     _userMatchLogCache = Array.isArray(data?.match_log) ? data.match_log : [];
     _userXpLogCache = Array.isArray(data?.xp_log) ? data.xp_log : [];
-  } catch(e) { _userMatchLogCache = []; _userXpLogCache = []; }
+    _userTrainLogCache = Array.isArray(data?.train_log) ? data.train_log : [];
+    _userRaceClaimedCache = (data?.race_claimed && typeof data.race_claimed === 'object') ? data.race_claimed : {};
+  } catch(e) {
+    _userMatchLogCache = []; _userXpLogCache = [];
+    _userTrainLogCache = []; _userRaceClaimedCache = {};
+  }
 }
 
 function getUserMatchLog() {
@@ -41931,6 +41944,43 @@ function saveUserXpLog(list) {
         }).eq('user_id', authUser.id);
       } catch(e) { console.warn('[xp_log] save hata:', e); }
     }, 1000);
+  }
+}
+
+// Antrenman log: { ts, energy } — Antrenman Yıldızı yarışması için
+function getUserTrainLog() {
+  return Array.isArray(_userTrainLogCache) ? _userTrainLogCache : [];
+}
+function saveUserTrainLog(list) {
+  _userTrainLogCache = Array.isArray(list) ? list.slice(-200) : [];  // son 200
+  if (window.sb && authUser && authUser.id) {
+    clearTimeout(_userTrainLogSaveTimer);
+    _userTrainLogSaveTimer = setTimeout(async () => {
+      try {
+        await window.sb.from('user_player').update({
+          train_log: _userTrainLogCache
+        }).eq('user_id', authUser.id);
+      } catch(e) { console.warn('[train_log] save hata:', e); }
+    }, 1000);
+  }
+}
+
+// Yarış ödül claim'leri: { "<weekKey>_<metric>": true }
+function getUserRaceClaimed() {
+  return (_userRaceClaimedCache && typeof _userRaceClaimedCache === 'object') ? _userRaceClaimedCache : {};
+}
+function setUserRaceClaimed(key, value) {
+  if (!_userRaceClaimedCache || typeof _userRaceClaimedCache !== 'object') _userRaceClaimedCache = {};
+  _userRaceClaimedCache[key] = value;
+  if (window.sb && authUser && authUser.id) {
+    clearTimeout(_userRaceClaimedSaveTimer);
+    _userRaceClaimedSaveTimer = setTimeout(async () => {
+      try {
+        await window.sb.from('user_player').update({
+          race_claimed: _userRaceClaimedCache
+        }).eq('user_id', authUser.id);
+      } catch(e) { console.warn('[race_claimed] save hata:', e); }
+    }, 500);
   }
 }
 
@@ -68142,6 +68192,13 @@ function trCollect(id) {
     if(typeof evRefreshBadge === 'function') evRefreshBadge();
   }catch(e){}
 
+  // Antrenman Yıldızı yarışması için: train_log'a {ts, energy} ekle
+  try{
+    const trainLog = getUserTrainLog();
+    trainLog.push({ ts: Date.now(), energy: entry.mins });
+    saveUserTrainLog(trainLog);
+  }catch(e){}
+
   trRender();
 }
 
@@ -70767,29 +70824,38 @@ function _evRaceCountdownStr() {
   return `${mins}dk`;
 }
 
-// Kullanıcı reyting puanı: ROSTER_DATA'da bu hafta oyuncuların ortalama reytingi
-// (Maç motoru cft_user_match_log'a yazıyor — son 7 gündeki maçların ortalaması)
+// Kullanıcı reyting puanı: bu hafta yapılan maçların ortalama reytingi
+// (En az 4 maç şartı — altındaysa 0 döner, sıralamaya girmez)
 function _evRaceUserRatingScore() {
   try {
+    const cycle = _evRaceCycleInfo();
     const log = getUserMatchLog();
-    const weekStart = Date.now() - 7 * 86400000;
+    const weekStart = cycle.start.getTime();
     const recent = log.filter(m => (m.date || m.playedAt || 0) >= weekStart);
-    if (!recent.length) return 0;
     let total = 0, count = 0;
     recent.forEach(m => {
       if (typeof m.userRating === 'number') { total += m.userRating; count++; }
       else if (typeof m.rating === 'number') { total += m.rating; count++; }
     });
-    if (!count) return 0;
+    if (count < 4) return 0;  // min 4 maç şartı
     return Math.round((total / count) * 100) / 100;
   } catch(e) { return 0; }
 }
 
 // Kullanıcı antrenman puanı: bu hafta harcanan toplam enerji
-// 🆕 cft_train_log artık tutulmuyor (Supabase'e geçildi, henüz yeni log sistemi yok)
-// Geçici olarak 0 döner — Supabase'te xp_log var, ileride oradan hesaplanabilir
 function _evRaceUserTrainScore() {
-  return 0;
+  try {
+    const cycle = _evRaceCycleInfo();
+    const log = getUserTrainLog();
+    const weekStart = cycle.start.getTime();
+    let total = 0;
+    log.forEach(e => {
+      if (e && typeof e.ts === 'number' && e.ts >= weekStart && typeof e.energy === 'number') {
+        total += e.energy;
+      }
+    });
+    return total;
+  } catch(e) { return 0; }
 }
 
 // Bot leaderboard üreteci (teams DB takım isimlerinden) — deterministik (hafta bazlı seed)
@@ -71165,12 +71231,9 @@ function evRaceRender() {
   const lbEl = document.getElementById('evRaceLeaderboard');
   if (!lbEl) return;
 
-  // Ödülü toplama durumunu kontrol et
-  const claimedKey = `cft_race_claimed_${cycle.startKey}_${isRating ? 'rating' : 'train'}`;
-  const claimed = (() => {
-    try { return JSON.parse(localStorage.getItem(claimedKey) || 'false'); }
-    catch(e) { return false; }
-  })();
+  // Ödülü toplama durumunu kontrol et (Supabase race_claimed)
+  const claimedKey = `${cycle.startKey}_${isRating ? 'rating' : 'train'}`;
+  const claimed = !!getUserRaceClaimed()[claimedKey];
 
   // 🆕 İlk hafta — lb zaten yukarıda alfabetik+0 yapıldı, top25'i ondan al
   const top25 = lb.slice(0, 25);
@@ -71301,10 +71364,9 @@ function evRaceClaimReward(metric, diamonds, rank) {
     alert('Ödül toplama penceresi kapalı.');
     return;
   }
-  const claimedKey = `cft_race_claimed_${cycle.startKey}_${metric}`;
-  let alreadyClaimed = false;
-  try { alreadyClaimed = JSON.parse(localStorage.getItem(claimedKey) || 'false'); } catch(e) {}
-  if (alreadyClaimed) {
+  const claimedKey = `${cycle.startKey}_${metric}`;
+  const claimed = getUserRaceClaimed();
+  if (claimed[claimedKey]) {
     alert('Bu ödülü zaten topladın.');
     return;
   }
@@ -71315,13 +71377,12 @@ function evRaceClaimReward(metric, diamonds, rank) {
       const metricLabel = metric === 'rating' ? 'Haftanın Yıldızı' : 'Antrenman Yıldızı';
       trsAddIncome('diamond', diamonds, `${metricLabel} #${rank} ödülü`);
     } else {
-      // 🆕 trsAddIncome yoksa hata logla — cft_profile fallback kaldırıldı (gereksiz, hiç kullanılmıyor)
       console.warn('[evRaceClaimReward] trsAddIncome bulunamadı, elmas ödülü işlenmedi:', diamonds);
     }
   } catch(e) { console.warn('Elmas ekleme hatası:', e); }
 
-  // İşaretle: toplandı
-  try { localStorage.setItem(claimedKey, 'true'); } catch(e) {}
+  // İşaretle: toplandı (Supabase race_claimed)
+  setUserRaceClaimed(claimedKey, true);
 
   // İnbox bildirimi
   try {
