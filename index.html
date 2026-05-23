@@ -55163,55 +55163,66 @@ function renderHomeMatches() {
   }
 
   // Kullanıcının ülkesinin TÜM liglerinin bugünkü maçlarını topla
+  // 🆕 Veri kaynağı: _matchStateCache (Supabase). Lokal buildLeagueFixture KULLANILMAZ.
   const todayMatches = [];
   const today00 = new Date();
   today00.setHours(0, 0, 0, 0);
   const tomorrow00 = new Date(today00.getTime() + 86400000);
-  const seasonStart = info.seasonStart || SEASON_EPOCH;
+  const seasonInfoToday = info.dayInSeason;
 
-  country.leagues.forEach((lg, ti) => {
-    if (!lg.teams || lg.teams.length === 0) return;
-    let fixture;
-    try { fixture = buildLeagueFixture(lg.teams, seasonStart, userCC, ti); } catch(e) { return; }
-    const halfWeeks = lg.teams.length - 1;
-
-    fixture.forEach(f => {
-      const fDate = new Date(f.date);
-      if (fDate < today00 || fDate >= tomorrow00) return;
-
-      const dayOffset = (f.week <= halfWeeks) ? (f.week - 1) : (f.week + 2);
-      const day = dayOffset + 1;
-      const cacheKey = `${info.season}_${day}_${f.homeTeam.name}_${f.awayTeam.name}`;
-      // 🆕 Garanti bulma: helper takım çiftine göre cache'i tarar (key formatından bağımsız)
-      const cached = findCachedMatch(f.homeTeam.name, f.awayTeam.name, info.season, day);
-
-      // 🆕 Canlı durum kontrolü: kickoff geçmiş + 95dk dolmamış + cache yok
-      const [hh, mm] = (f.matchTime || '15:00').split(':').map(n => parseInt(n) || 0);
-      const kickoffMs = new Date(today00.getFullYear(), today00.getMonth(), today00.getDate(), hh, mm).getTime();
+  // _matchStateCache'ten bu kullanıcının ülkesinin bugünkü maçlarını al
+  if (_matchStateCache && _matchStateCache.dayMap) {
+    const dayMatches = _matchStateCache.dayMap[seasonInfoToday] || [];
+    dayMatches.forEach(m => {
+      if (m.countryCode !== userCC) return;
+      if (m.tournament_key) return; // turnuva ayrı render edilir
+      
+      const kickoffMs = m.matchDateTime ? new Date(m.matchDateTime).getTime() : 0;
+      const _d = m.matchDateTime ? new Date(m.matchDateTime) : new Date();
+      if (_d < today00 || _d >= tomorrow00) return;
+      
+      const _h = String(_d.getHours()).padStart(2, '0');
+      const _mn = String(_d.getMinutes()).padStart(2, '0');
+      const matchTimeStr = `${_h}:${_mn}`;
+      
+      // tier 1-based → leagues array index (0-based)
+      const tierIdx = country.leagues.findIndex(l => l.tier === m.tier);
+      const lg = tierIdx >= 0 ? country.leagues[tierIdx] : null;
+      
+      // Takım nesnelerini bul
+      const homeTeam = (lg && lg.teams.find(t => t.name === m.home)) || { name: m.home, short: m.homeShort };
+      const awayTeam = (lg && lg.teams.find(t => t.name === m.away)) || { name: m.away, short: m.awayShort };
+      
+      const day = m.day;
+      const cacheKey = `${info.season}_${day}_${m.home}_${m.away}`;
+      const cached = findCachedMatch(m.home, m.away, info.season, day);
+      
       const nowMs = Date.now();
-      const isLive = !cached && nowMs >= kickoffMs && nowMs < kickoffMs + 95*60*1000;
-
+      // Canlı durum: match_state'te status='running' VEYA kickoff geçti ama match_results'ta yok
+      const isLive = m.status === 'running' || 
+                     (!cached && nowMs >= kickoffMs && nowMs < kickoffMs + 95*60*1000);
+      
       todayMatches.push({
-        home: f.homeTeam,
-        away: f.awayTeam,
-        leagueName: lg.name,
+        home: homeTeam,
+        away: awayTeam,
+        leagueName: lg ? lg.name : m.leagueName,
         flag: country.flag,
-        tierIdx: ti,
-        day,                          // 🆕 fixture day (cache key için)
-        cacheKey,                     // 🆕 tutarlı cache key (yazım = okuma)
-        kickoffMs,                    // 🆕 kickoff timestamp (auto-simulate için)
-        scheduledTime: f.matchTime || '15:00',
+        tierIdx,
+        day,
+        cacheKey,
+        kickoffMs,
+        scheduledTime: matchTimeStr,
         played: !!cached,
         isLive,
-        hs: cached ? cached.hs : null,
-        as: cached ? cached.as : null,
+        hs: cached ? cached.hs : (m.status === 'running' ? m.home_score : null),
+        as: cached ? cached.as : (m.status === 'running' ? m.away_score : null),
         playedAt: cached ? cached.playedAt : null,
         isUserMatch: !!(typeof _userTeam !== 'undefined' && _userTeam && (
-          f.homeTeam.name === _userTeam.teamName || f.awayTeam.name === _userTeam.teamName
+          m.home === _userTeam.teamName || m.away === _userTeam.teamName
         ))
       });
     });
-  });
+  }
 
   if (todayMatches.length === 0) {
     wrap.innerHTML = `<div class="home-empty-card">
