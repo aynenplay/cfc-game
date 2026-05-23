@@ -11406,9 +11406,9 @@ body.lg-myleague-mode .lg2-tier-pills{display:none !important}
 .inbox-compose-btn{
   display:inline-flex;align-items:center;gap:5px;
   padding:5px 12px 5px 10px;
-  background:linear-gradient(135deg,#ffd54f 0%,#d4af37 50%,#b8860b 100%);
-  color:#1a1208;
-  border:1px solid rgba(255,213,79,.55);
+  background:linear-gradient(135deg,#00e676 0%,#00c853 50%,#00a040 100%);
+  color:#0a1f12;
+  border:1px solid rgba(0,230,118,.65);
   border-radius:14px;
   font-size:11px;
   font-weight:900;
@@ -11417,9 +11417,10 @@ body.lg-myleague-mode .lg2-tier-pills{display:none !important}
   letter-spacing:.7px;
   text-transform:uppercase;
   box-shadow:
-    0 2px 8px rgba(212,175,55,.25),
-    inset 0 1px 0 rgba(255,255,255,.35),
-    inset 0 -1px 0 rgba(0,0,0,.08);
+    0 2px 10px rgba(0,230,118,.35),
+    0 0 0 2px rgba(0,230,118,.12),
+    inset 0 1px 0 rgba(255,255,255,.3),
+    inset 0 -1px 0 rgba(0,0,0,.12);
   transition:transform .12s ease, box-shadow .15s ease, filter .15s;
   position:relative;
   overflow:hidden;
@@ -11427,7 +11428,7 @@ body.lg-myleague-mode .lg2-tier-pills{display:none !important}
 .inbox-compose-btn::before{
   content:'';
   position:absolute;inset:0;
-  background:linear-gradient(115deg, transparent 35%, rgba(255,255,255,.35) 50%, transparent 65%);
+  background:linear-gradient(115deg, transparent 35%, rgba(255,255,255,.4) 50%, transparent 65%);
   transform:translateX(-100%);
   transition:transform .55s ease;
   pointer-events:none;
@@ -11435,16 +11436,17 @@ body.lg-myleague-mode .lg2-tier-pills{display:none !important}
 .inbox-compose-btn:hover{
   transform:translateY(-1px);
   box-shadow:
-    0 4px 14px rgba(212,175,55,.4),
-    inset 0 1px 0 rgba(255,255,255,.45),
-    inset 0 -1px 0 rgba(0,0,0,.1);
-  filter:brightness(1.05);
+    0 4px 16px rgba(0,230,118,.5),
+    0 0 0 3px rgba(0,230,118,.18),
+    inset 0 1px 0 rgba(255,255,255,.4),
+    inset 0 -1px 0 rgba(0,0,0,.14);
+  filter:brightness(1.08);
 }
 .inbox-compose-btn:hover::before{transform:translateX(100%)}
 .inbox-compose-btn:active{transform:translateY(0);filter:brightness(.95)}
 .inbox-compose-btn-icon{
   font-size:13px;line-height:1;font-weight:900;
-  filter:drop-shadow(0 1px 0 rgba(255,255,255,.4));
+  filter:drop-shadow(0 1px 0 rgba(255,255,255,.45));
 }
 .inbox-close-btn{background:none;border:1px solid var(--border);border-radius:50%;width:28px;height:28px;color:var(--text2);cursor:pointer;font-size:14px}
 
@@ -21084,7 +21086,7 @@ body.drawer-open{overflow:hidden}
       </div>
       <div class="inbox-compose-body">
         <div class="inbox-compose-label">Alıcı</div>
-        <input type="text" class="inbox-compose-input" id="inboxComposeTo" placeholder="Oyuncu adı (örn: Bot_Burak)"/>
+        <input type="text" class="inbox-compose-input" id="inboxComposeTo" placeholder="@kullaniciadi"/>
         <div class="inbox-compose-label">Konu</div>
         <input type="text" class="inbox-compose-input" id="inboxComposeSubject" placeholder="Konu..."/>
         <div class="inbox-compose-label">Mesaj</div>
@@ -28061,25 +28063,30 @@ window.submitJoinRequestWithTerms = async function(){
 
   const flag = (true && _cftGetCountry(cc)) ? (_cftGetCountry(cc).flag || '') : '';
 
-  // 🆕 Kullanıcı kimliğini al - authUser yoksa Supabase auth'tan çek
+  // Kullanıcı kimliğini al
   let myUserId = (window.authUser || {}).id;
-  let myName = (window.authUser || {}).name;
   if (!myUserId && window.sb) {
     try {
       const { data: { user } } = await window.sb.auth.getUser();
       if (user) {
         myUserId = user.id;
-        // Profilden name al
-        const { data: prof } = await window.sb.from('profiles').select('name, username').eq('id', user.id).maybeSingle();
-        if (prof) myName = prof.name || prof.username || user.email;
-        // authUser'ı da güncelle
         if (!window.authUser) window.authUser = {};
         window.authUser.id = myUserId;
-        if (myName) window.authUser.name = myName;
       }
     } catch(e) { console.warn('[join-req] auth çekme hatası:', e); }
   }
-  if (!myName) myName = 'Oyuncu';
+  // 🆕 myName HER ZAMAN profilden taze çekilir (cache eski/Oyuncu olabilir)
+  let myName = null;
+  if (myUserId && window.sb) {
+    try {
+      const { data: prof } = await window.sb.from('profiles').select('name, username').eq('id', myUserId).maybeSingle();
+      if (prof) {
+        myName = prof.name || prof.username;
+        if (myName) window.authUser.name = myName;
+      }
+    } catch(e) { console.warn('[join-req] profile çekme hatası:', e); }
+  }
+  if (!myName) myName = (window.authUser || {}).name || 'Oyuncu';
 
   const captainName = (typeof getTeamRealCaptainName === 'function')
     ? getTeamRealCaptainName(cc, tn) : 'Kaptan';
@@ -37230,11 +37237,13 @@ function checkUpcomingMatchNotif() {
 
   // Bugün maç var mı?
   if (todayKey === matchKey) {
-    const id = `match_today_${matchKey}_${upcoming.away.name}`;
+    const myTeam = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : null;
+    const opponent = (myTeam && upcoming.home.name === myTeam) ? upcoming.away.name : upcoming.home.name;
+    const id = `match_today_${matchKey}_${opponent}`;
     _addInboxNotif(
       id,
       '⚽ Maç Günü',
-      `Bugün ${upcoming.away.name} ile maç var!`,
+      `Bugün ${opponent} ile maç var!`,
       `Saat ${matchDate.getHours()}:${String(matchDate.getMinutes()).padStart(2,'0')}\n` +
       `${upcoming.home.name} - ${upcoming.away.name}\n` +
       `${upcoming.comp || 'Lig Maçı'}\n\n` +
@@ -37250,11 +37259,13 @@ function checkUpcomingMatchNotif() {
   const tomorrowKey = `${tomorrow.getFullYear()}-${tomorrow.getMonth()}-${tomorrow.getDate()}`;
 
   if (tomorrowKey === matchKey) {
-    const id = `match_tomorrow_${matchKey}_${upcoming.away.name}`;
+    const myTeam = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : null;
+    const opponent = (myTeam && upcoming.home.name === myTeam) ? upcoming.away.name : upcoming.home.name;
+    const id = `match_tomorrow_${matchKey}_${opponent}`;
     _addInboxNotif(
       id,
       '📅 Yaklaşan Maç',
-      `Yarın ${upcoming.away.name} maçı var`,
+      `Yarın ${opponent} maçı var`,
       `${upcoming.home.name} - ${upcoming.away.name}\n` +
       `Saat ${matchDate.getHours()}:${String(matchDate.getMinutes()).padStart(2,'0')}\n` +
       `${upcoming.comp || 'Lig Maçı'}\n\n` +
@@ -67118,20 +67129,47 @@ function inboxOpenCompose(toName) {
   document.getElementById('inboxComposeBody').value = '';
 }
 
-function inboxSendCompose() {
-  const to      = document.getElementById('inboxComposeTo').value.trim();
+async function inboxSendCompose() {
+  const toRaw   = document.getElementById('inboxComposeTo').value.trim();
   const subject = document.getElementById('inboxComposeSubject').value.trim() || 'Yeni Mesaj';
   const body    = document.getElementById('inboxComposeBody').value.trim();
-  if(!to || !body) { alert('Alıcı ve mesaj gerekli!'); return; }
+  if(!toRaw || !body) { alert('Alıcı ve mesaj gerekli!'); return; }
+
+  // @ prefix kaldır, küçük harfe çevir
+  const username = toRaw.replace(/^@+/, '').trim().toLowerCase();
+  if (!username) { alert('Geçerli bir kullanıcı adı gir.'); return; }
+
+  // Profilden user_id bul
+  if (!window.sb) { alert('Bağlantı yok, sayfayı yenile.'); return; }
+  const { data: prof, error } = await window.sb.from('profiles')
+    .select('id, name, username')
+    .ilike('username', username)
+    .maybeSingle();
+  if (error || !prof) {
+    alert(`Kullanıcı bulunamadı: @${username}`);
+    return;
+  }
 
   const myName = (authUser||{}).name || 'Sen';
   const now    = new Date().toLocaleDateString('tr');
 
-  // Gönderilen mesajı "gönderildi" olarak kaydet + inbox'ta görünsün
-  const newMsg = {
+  // Alıcıya gerçek mesajı gönder
+  const ok = await inboxSendToUser(prof.id, {
+    from: myName,
+    fromAvatar: '👤',
+    type: 'chat',
+    subject,
+    body,
+    sent: false,
+  });
+  if (!ok) { alert('Mesaj gönderilemedi.'); return; }
+
+  // Kendi inbox'una "gönderildi" kaydı (lokal görünüm)
+  const msgs = getInboxMsgs();
+  msgs.unshift({
     id: 'msg_'+Date.now(),
     from: myName,
-    to,
+    to: '@' + prof.username,
     fromAvatar: '👤',
     type: 'chat',
     subject,
@@ -67140,15 +67178,12 @@ function inboxSendCompose() {
     read: true,
     thread: [],
     sent: true,
-  };
-
-  const msgs = getInboxMsgs();
-  msgs.unshift(newMsg);
+  });
   saveInboxMsgs(msgs);
 
   inboxBackToList();
   inboxUpdateBadge();
-  tfShowToast(`✅ Mesaj gönderildi: ${to}`, 'var(--accent2)');
+  tfShowToast(`✅ Mesaj gönderildi: @${prof.username}`, 'var(--accent2)');
 }
 
 // ── Transfer teklifi → Inbox mesajı ──
