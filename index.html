@@ -71008,152 +71008,101 @@ function _evRaceGenerateBots(metric, weekKey) {
 // Her takımın GERÇEK roster'ından en yüksek overall'lı oyuncuyu seç → "yıldız".
 // Skor = overall'a göre baz reyting + hafta-bazlı varyans (deterministik).
 // Önceki sürüm uydurma isim/skor üretiyordu — şimdi gerçek oyuncular.
-function _evRaceGenerateRatingPlayers(weekKey) {
-  let h = 2166136261;
-  const seed = `race-rating-players-${weekKey}`;
-  for (let i = 0; i < seed.length; i++) {
-    h ^= seed.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  function rng() {
-    h = Math.imul(h ^ (h >>> 15), 2246822507);
-    h = Math.imul(h ^ (h >>> 13), 3266489909);
-    h ^= h >>> 16;
-    return (h >>> 0) / 4294967296;
-  }
+// Server-side leaderboard cache (RPC ile çekilir, preload edilir)
+let _evRaceServerLbCache = { rating: null, train: null };
 
-  // Tüm takımları topla
+async function _evRacePreloadServerLb() {
+  if (!window.sb) return;
+  const cycle = _evRaceCycleInfo();
+  const cycleStartMs = cycle.start.getTime();
+  // Rating leaderboard
+  try {
+    const { data, error } = await window.sb.rpc('get_race_rating_leaderboard', {
+      cycle_start_ms: cycleStartMs,
+      limit_count: 200
+    });
+    if (!error && Array.isArray(data)) {
+      _evRaceServerLbCache.rating = { cycleStart: cycleStartMs, data };
+    }
+  } catch(e) { console.warn('[race lb rating] hata:', e); }
+}
+
+// Teams DB'den alfabetik fallback — gerçek veri yoksa veya cycle yeni başladıysa
+function _evRaceAlphabeticFallback(metric) {
   const teams = [];
   try {
-    if (true) {
-      _cftAllEntries().forEach(([cc, country]) => {
-        (country.leagues || []).forEach((lg, lgIdx) => {
-          (lg.teams || []).forEach((t, teamIdx) => {
-            teams.push({
-              name: t.name,
-              short: t.short || t.name.slice(0,3).toUpperCase(),
-              bg: t.bg || '#333',
-              tc: t.tc || '#fff',
-              countryCode: cc,
-              countryFlag: country.flag || '🏳️',
-              rank: t.rank || (lgIdx * 16 + teamIdx + 1),
-              tierIdx: lgIdx,
-            });
+    _cftAllEntries().forEach(([cc, country]) => {
+      (country.leagues || []).forEach((lg, lgIdx) => {
+        (lg.teams || []).forEach((t, teamIdx) => {
+          teams.push({
+            name: t.name,
+            short: t.short || t.name.slice(0,3).toUpperCase(),
+            bg: t.bg || '#333',
+            tc: t.tc || '#fff',
+            countryCode: cc,
+            countryFlag: country.flag || '🏳️',
           });
         });
       });
-    }
-  } catch(e) {}
-
-  if (!teams.length) return [];
-
-  const FIRST_FALLBACK = ['Mehmet','Ali','Ahmet','Mustafa'];
-  const LAST_FALLBACK = ['Yılmaz','Demir','Kaya','Çelik'];
-
-  const players = [];
-  teams.forEach(t => {
-    // Yıldız oyuncu adı: ülke isim havuzundan deterministik (takım + hafta)
-    const FIRST = (typeof NAMES_BY_COUNTRY !== 'undefined' && NAMES_BY_COUNTRY[t.countryCode]) || FIRST_FALLBACK;
-    const LAST  = (typeof SURNAMES_BY_COUNTRY !== 'undefined' && SURNAMES_BY_COUNTRY[t.countryCode]) || LAST_FALLBACK;
-    const fIdx = Math.floor(rng() * FIRST.length);
-    const lIdx = Math.floor(rng() * LAST.length);
-    const playerName = `${FIRST[fIdx]} ${LAST[lIdx]}`;
-
-    // Skor: tier ve rank'a göre baz reyting + hafta varyansı
-    // 1. lig top 3 → 7.5-8.7, 5. lig orta → 6.0-7.2
-    const tierFactor = Math.max(0, 5 - t.tierIdx) * 0.3; // 1. lig=1.5, 5. lig=0
-    const rankFactor = Math.max(0, (17 - (t.rank || 16))) * 0.05; // rank 1→0.8, rank 16→0
-    const base = 6.0 + tierFactor + rankFactor;
-    const variance = (rng() - 0.5) * 1.2;
-    const finalScore = Math.max(5.5, Math.min(9.9, base + variance));
-
-    players.push({
-      playerName,
-      teamName: t.name,
-      teamShort: t.short,
-      teamBg: t.bg,
-      teamTc: t.tc,
-      countryCode: t.countryCode,
-      countryFlag: t.countryFlag,
-      score: Math.round(finalScore * 100) / 100,
     });
-  });
-  return players;
+  } catch(e) {}
+  // Takım adına göre alfabetik
+  teams.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'));
+  return teams.slice(0, 50).map(t => ({
+    playerName: t.name,  // Yıldız henüz yok, takım adı göster
+    teamName: t.name,
+    teamShort: t.short,
+    teamBg: t.bg,
+    teamTc: t.tc,
+    countryCode: t.countryCode,
+    countryFlag: t.countryFlag,
+    score: 0,
+  }));
+}
+
+function _evRaceGenerateRatingPlayers(weekKey) {
+  const cycle = _evRaceCycleInfo();
+  const cycleStartMs = cycle.start.getTime();
+  // Server cache uygunsa kullan
+  const cache = _evRaceServerLbCache.rating;
+  if (cache && cache.cycleStart === cycleStartMs && Array.isArray(cache.data) && cache.data.length > 0) {
+    return cache.data.map(r => {
+      const country = (typeof _cftGetCountry === 'function') ? _cftGetCountry(r.country_code) : null;
+      const flag = (country && country.flag) || '🏳️';
+      // Takım renkleri
+      let short = (r.team_name || '').slice(0,3).toUpperCase(), bg = '#333', tc = '#fff';
+      try {
+        if (country) {
+          for (const lg of (country.leagues || [])) {
+            const t = (lg.teams || []).find(x => x.name === r.team_name);
+            if (t) { short = t.short || short; bg = t.bg || bg; tc = t.tc || tc; break; }
+          }
+        }
+      } catch(e) {}
+      return {
+        playerName: r.player_name || '—',
+        teamName: r.team_name || '',
+        teamShort: short,
+        teamBg: bg,
+        teamTc: tc,
+        countryCode: r.country_code,
+        countryFlag: flag,
+        score: parseFloat(r.avg_rating) || 0,
+        _matchCount: r.match_count || 0,
+      };
+    });
+  }
+  // Veri yok → alfabetik fallback
+  return _evRaceAlphabeticFallback('rating');
 }
 
 // Bot leaderboard üreteci — OYUNCU bazlı (Antrenman Yıldızı)
 // Her takımın GERÇEK roster'ından en yüksek level'lı oyuncuyu seç (level = antrenman göstergesi).
 // Skor = level'a göre baz enerji + overall katkısı + hafta varyansı.
 function _evRaceGenerateTrainPlayers(weekKey) {
-  let h = 2166136261;
-  const seed = `race-train-players-${weekKey}`;
-  for (let i = 0; i < seed.length; i++) {
-    h ^= seed.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  function rng() {
-    h = Math.imul(h ^ (h >>> 15), 2246822507);
-    h = Math.imul(h ^ (h >>> 13), 3266489909);
-    h ^= h >>> 16;
-    return (h >>> 0) / 4294967296;
-  }
-
-  const teams = [];
-  try {
-    if (true) {
-      _cftAllEntries().forEach(([cc, country]) => {
-        (country.leagues || []).forEach((lg, lgIdx) => {
-          (lg.teams || []).forEach((t, teamIdx) => {
-            teams.push({
-              name: t.name,
-              short: t.short || t.name.slice(0,3).toUpperCase(),
-              bg: t.bg || '#333',
-              tc: t.tc || '#fff',
-              countryCode: cc,
-              countryFlag: country.flag || '🏳️',
-              rank: t.rank || (lgIdx * 16 + teamIdx + 1),
-              tierIdx: lgIdx,
-            });
-          });
-        });
-      });
-    }
-  } catch(e) {}
-
-  if (!teams.length) return [];
-
-  const FIRST_FALLBACK = ['Mehmet','Ali','Ahmet','Mustafa'];
-  const LAST_FALLBACK = ['Yılmaz','Demir','Kaya','Çelik'];
-
-  const players = [];
-  teams.forEach(t => {
-    // Yıldız oyuncu adı: deterministic
-    const FIRST = (typeof NAMES_BY_COUNTRY !== 'undefined' && NAMES_BY_COUNTRY[t.countryCode]) || FIRST_FALLBACK;
-    const LAST  = (typeof SURNAMES_BY_COUNTRY !== 'undefined' && SURNAMES_BY_COUNTRY[t.countryCode]) || LAST_FALLBACK;
-    const fIdx = Math.floor(rng() * FIRST.length);
-    const lIdx = Math.floor(rng() * LAST.length);
-    const playerName = `${FIRST[fIdx]} ${LAST[lIdx]}`;
-
-    // Skor: tier ve rank'a göre baz enerji + hafta varyansı
-    // 1. lig top → 800-1300, 5. lig orta → 200-500
-    const tierFactor = Math.max(0, 5 - t.tierIdx) * 150; // 1. lig=750, 5. lig=0
-    const rankFactor = Math.max(0, (17 - (t.rank || 16))) * 15;
-    const base = 200 + tierFactor + rankFactor;
-    const variance = (rng() - 0.3) * base * 0.4;
-    const finalScore = Math.max(50, Math.floor(base + variance));
-
-    players.push({
-      playerName,
-      teamName: t.name,
-      teamShort: t.short,
-      teamBg: t.bg,
-      teamTc: t.tc,
-      countryCode: t.countryCode,
-      countryFlag: t.countryFlag,
-      score: finalScore,
-    });
-  });
-  return players;
+  // Antrenman bot tarafı server'da yok → alfabetik fallback (skor 0)
+  // Gerçek kullanıcı entry'si _evRaceBuildLeaderboard tarafından eklenecek
+  return _evRaceAlphabeticFallback('train');
 }
 
 // Liderlik tablosunu hesapla (kullanıcı + bot'lar)
@@ -71240,6 +71189,17 @@ function _evRaceDiamondForRank(rank) {
 function evRaceRender() {
   const cycle = _evRaceCycleInfo();
   const isRewardPhase = cycle.phase === 'rewards';
+
+  // Server cache yoksa preload tetikle (rerender'ı async olarak)
+  const cycleStartMs = cycle.start.getTime();
+  const ratingCache = _evRaceServerLbCache.rating;
+  if (!ratingCache || ratingCache.cycleStart !== cycleStartMs) {
+    _evRacePreloadServerLb().then(() => {
+      // İkinci pass'te server verisi varsa rerender
+      try { _evRaceLbCache.rating = { weekKey: null, data: null }; } catch(e) {}
+      if (typeof evRaceRender === 'function') evRaceRender();
+    });
+  }
 
   // Banner — faz'a göre
   const tEl = document.getElementById('evRaceTimer');
