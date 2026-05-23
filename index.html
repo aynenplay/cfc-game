@@ -39656,6 +39656,7 @@ function _buildRosterFromPlayers(playersList, countryCode) {
     const lastSeenMs = p.last_seen ? new Date(p.last_seen).getTime() : 0;
     const isOnline = lastSeenMs && (nowMs - lastSeenMs < ONLINE_THRESHOLD_MS);
     return {
+      id: p.id,
       num,
       name: p.name,
       pos: p.pos,
@@ -39692,7 +39693,7 @@ async function _rosterRefreshFromServer(countryCode) {
   if (!window.sb || !_userTeam || !_userTeam.teamName) return;
   try {
     const { data, error } = await window.sb.from('players')
-      .select('user_id, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, is_bot, last_seen')
+      .select('id, user_id, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, is_bot, last_seen')
       .eq('country_code', countryCode)
       .eq('team_name', _userTeam.teamName)
       .order('num');
@@ -39994,26 +39995,18 @@ function rosterPromoteVice(playerNum){
 
   p.role = 'vice';
 
-  // Players tablosunu güncelle (gerçek kullanıcı: user_id ile, bot: country+team+num ile)
-  if (window.sb) {
+  // Players tablosunu RPC ile güncelle (RLS bypass, sadece kaptan + bu takım üyesi)
+  if (window.sb && p.id) {
     (async () => {
       try {
-        if (p.userId) {
-          const { data: row } = await window.sb.from('players')
-            .select('user_team_data')
-            .eq('user_id', p.userId)
-            .maybeSingle();
-          const utd = (row && row.user_team_data) ? row.user_team_data : {};
-          utd.role = 'vice';
-          await window.sb.from('players').update({ role: 'vice', user_team_data: utd })
-            .eq('user_id', p.userId);
-        } else if (_userTeam && _userTeam.countryCode && _userTeam.teamName) {
-          await window.sb.from('players').update({ role: 'vice' })
-            .eq('country_code', _userTeam.countryCode)
-            .eq('team_name', _userTeam.teamName)
-            .eq('num', p.num);
+        const { error } = await window.sb.rpc('team_set_member_role', {
+          target_player_id: p.id, new_role: 'vice'
+        });
+        if (error) {
+          rosterToast('Sunucu hatası: ' + error.message, 'err');
+          p.role = 'member';
+          if (typeof renderRoster === 'function') renderRoster(rosterCurrentFilter || 'all');
         }
-        console.info('[promoteVice] players güncellendi:', p.name);
       } catch(e) { console.warn('[promoteVice] hata:', e); }
     })();
   }
@@ -40035,24 +40028,17 @@ function rosterDemoteVice(playerNum){
 
   p.role = 'member';
 
-  // Players tablosunu güncelle (gerçek kullanıcı: user_id ile, bot: country+team+num ile)
-  if (window.sb) {
+  // Players tablosunu RPC ile güncelle
+  if (window.sb && p.id) {
     (async () => {
       try {
-        if (p.userId) {
-          const { data: row } = await window.sb.from('players')
-            .select('user_team_data')
-            .eq('user_id', p.userId)
-            .maybeSingle();
-          const utd = (row && row.user_team_data) ? row.user_team_data : {};
-          utd.role = 'member';
-          await window.sb.from('players').update({ role: 'member', user_team_data: utd })
-            .eq('user_id', p.userId);
-        } else if (_userTeam && _userTeam.countryCode && _userTeam.teamName) {
-          await window.sb.from('players').update({ role: 'member' })
-            .eq('country_code', _userTeam.countryCode)
-            .eq('team_name', _userTeam.teamName)
-            .eq('num', p.num);
+        const { error } = await window.sb.rpc('team_set_member_role', {
+          target_player_id: p.id, new_role: 'member'
+        });
+        if (error) {
+          rosterToast('Sunucu hatası: ' + error.message, 'err');
+          p.role = 'vice';
+          if (typeof renderRoster === 'function') renderRoster(rosterCurrentFilter || 'all');
         }
       } catch(e) { console.warn('[demoteVice] hata:', e); }
     })();
@@ -40126,21 +40112,20 @@ function executeKick(){
     return;
   }
 
-  // Players tablosunda team_name=null yap → free agent havuzuna düşer
-  if (window.sb) {
+  // Players tablosunda team_name=null yap → free agent havuzuna düşer (RPC ile RLS bypass)
+  if (window.sb && p.id) {
     (async () => {
       try {
-        if (p.userId) {
-          await window.sb.from('players').update({
-            team_name: null, country_code: null, num: null, role: null, user_team_data: null
-          }).eq('user_id', p.userId);
-        } else if (_userTeam && _userTeam.countryCode && _userTeam.teamName) {
-          await window.sb.from('players').update({ team_name: null })
-            .eq('country_code', _userTeam.countryCode)
-            .eq('team_name', _userTeam.teamName)
-            .eq('num', p.num);
+        const { error } = await window.sb.rpc('team_kick_member', {
+          target_player_id: p.id
+        });
+        if (error) {
+          rosterToast('Kov başarısız: ' + error.message, 'err');
+          // Lokal değişikliği geri al
+          ROSTER_DATA.push(p);
+          ROSTER_DATA.sort((a,b) => (a.num||999)-(b.num||999));
+          if (typeof renderRoster === 'function') renderRoster(rosterCurrentFilter || 'all');
         }
-        console.info('[kick] players güncellendi:', p.name);
       } catch(e) { console.warn('[kick] hata:', e); }
     })();
   }
@@ -42197,11 +42182,28 @@ function executeJerseyEdit(){
   const player = ROSTER_DATA.find(p => p && p.num === cur);
   if (!player) { closeJerseyEdit(); return; }
 
-  // Numarayı güncelle
+  // Numarayı lokal güncelle (UI hemen tepkimeli)
+  const oldNum = player.num;
   player.num = newNum;
 
-  // Persist + render
-  if (typeof rosterSavePersist === 'function') rosterSavePersist();
+  // Players tablosunu RPC ile güncelle
+  if (window.sb && player.id) {
+    (async () => {
+      try {
+        const { error } = await window.sb.rpc('team_set_member_num', {
+          target_player_id: player.id, new_num: newNum
+        });
+        if (error) {
+          rosterToast('Numara değişmedi: ' + error.message, 'err');
+          player.num = oldNum;
+          if (typeof renderRoster === 'function') {
+            renderRoster(typeof rosterCurrentFilter !== 'undefined' ? rosterCurrentFilter : 'all');
+          }
+        }
+      } catch(e) { console.warn('[jersey] hata:', e); }
+    })();
+  }
+
   if (typeof renderRoster === 'function') {
     renderRoster(typeof rosterCurrentFilter !== 'undefined' ? rosterCurrentFilter : 'all');
   }
