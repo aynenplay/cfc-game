@@ -24152,7 +24152,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-05-23-11';
+const APP_BUILD = '2026-05-23-12';
 
 (function _cacheBustCheck() {
   try {
@@ -35917,10 +35917,24 @@ function computeLeagueStandings(countryCode, tierIdx, seasonNum) {
   return sorted;
 }
 
+// 🆕 Kullanıcının takımının GERÇEK tier'ını teams DB'den bul (cache'lenmiş tierIdx'e güvenme)
+function getUserRealTierIdx() {
+  if (typeof _userTeam === 'undefined' || !_userTeam || !_userTeam.teamName || !_userTeam.countryCode) return 0;
+  const country = _cftGetCountry(_userTeam.countryCode);
+  if (!country || !country.leagues) return _userTeam.tierIdx || 0;
+  for (let li = 0; li < country.leagues.length; li++) {
+    const lg = country.leagues[li];
+    if (lg && lg.teams && lg.teams.some(t => t.name === _userTeam.teamName)) {
+      return li;
+    }
+  }
+  return _userTeam.tierIdx || 0;
+}
+
 // Kullanıcı takımının final pozisyonunu bul
 function getUserFinalRank(seasonNum) {
   if (typeof _userTeam === 'undefined' || !_userTeam) return null;
-  const tierIdx = _userTeam.tierIdx || 0;
+  const tierIdx = getUserRealTierIdx();
   const cc = _userTeam.countryCode || 'TR';
   const standings = computeLeagueStandings(cc, tierIdx, seasonNum);
   const idx = standings.findIndex(s => s.team.name === _userTeam.teamName);
@@ -40711,8 +40725,9 @@ function confirmTeamBuy() {
   // 🆕 Career history'ye yeni takım ekle (kaptan rolü)
   if (typeof pushCareerHistory === 'function' && _userTeam) {
     const cc = _userTeam.countryCode;
-    const lgName = (true && _cftGetCountry(cc) && _cftGetCountry(cc).leagues && _cftGetCountry(cc).leagues[_userTeam.tierIdx || 0])
-      ? _cftGetCountry(cc).leagues[_userTeam.tierIdx || 0].name : '';
+    const _tierIdx = getUserRealTierIdx();
+    const lgName = (true && _cftGetCountry(cc) && _cftGetCountry(cc).leagues && _cftGetCountry(cc).leagues[_tierIdx])
+      ? _cftGetCountry(cc).leagues[_tierIdx].name : '';
     pushCareerHistory({
       teamName: _userTeam.teamName,
       countryCode: cc,
@@ -50851,7 +50866,7 @@ function getUserTurnuva() {
     const country = _cftGetCountry(cc);
     if (!country || !country.leagues) return null;
     // Sadece Süper Lig'deyse (tier 0)
-    if ((_userTeam.tierIdx || 0) !== 0) return null;
+    if (getUserRealTierIdx() !== 0) return null;
     const tier1 = country.leagues[0];
     if (!tier1 || !tier1.teams) return null;
     const idx = tier1.teams.findIndex(t => t.name === _userTeam.teamName);
@@ -54350,7 +54365,7 @@ function _carEstimateMarketValue(player, ctx) {
   let tierIdx = (ctx && typeof ctx.tierIdx === 'number') ? ctx.tierIdx : null;
   if (tierIdx === null) {
     if (player.role === 'user' && typeof _userTeam !== 'undefined' && _userTeam) {
-      tierIdx = _userTeam.tierIdx || 0;
+      tierIdx = getUserRealTierIdx();
     } else {
       tierIdx = 0; // bot oyuncuları için varsayılan üst tier
     }
@@ -54714,7 +54729,7 @@ function renderCareerPage() {
       pushCareerHistory({
         teamName: _userTeam.teamName,
         countryCode: cc,
-        leagueName: country?.leagues?.[_userTeam.tierIdx || 0]?.name || '',
+        leagueName: country?.leagues?.[getUserRealTierIdx()]?.name || '',
         role: _userTeam.role,
         joinDate: _userTeam.joinDate || new Date().toISOString()
       });
