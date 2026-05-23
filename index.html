@@ -35919,7 +35919,7 @@ async function _matchResultsLoadFromServer() {
     let all = [];
     for (let from = 0; from < 100000; from += PAGE) {
       const { data, error } = await window.sb.from('match_results')
-        .select('season,day_in_season,country_code,tier,home_team,away_team,home_score,away_score,tournament_key,tournament_phase,created_at')
+        .select('season,day_in_season,country_code,tier,home_team,away_team,home_score,away_score,tournament_key,tournament_phase,created_at,kickoff_at')
         .order('season', { ascending: true })
         .order('day_in_season', { ascending: true })
         .order('home_team', { ascending: true })
@@ -35937,52 +35937,14 @@ async function _matchResultsLoadFromServer() {
     for (const r of all) {
       // 🆕 Gerçek maç tarih + saati: season+day + competition tipine göre saat
       let realPlayedAt = 0;
-      if (_epoch && r.season && r.day_in_season) {
+      if (r.kickoff_at) {
+        // 🆕 Edge function gerçek kickoff_at yazdı → direkt kullan (HASH HESABI YOK)
+        realPlayedAt = new Date(r.kickoff_at).getTime();
+      } else if (_epoch && r.season && r.day_in_season) {
+        // Yedek: kickoff_at yoksa season+day'den tarih, saat=15:00 (sabit)
         const matchDate = new Date(_epoch.getFullYear(), _epoch.getMonth(), _epoch.getDate());
         matchDate.setDate(matchDate.getDate() + (r.season - 1) * _slen + (r.day_in_season - 1));
-        
-        // 🆕 Saat hesabı: turnuva mı, lig mi?
-        let hh = 15, mm = 0;
-        if (r.tournament_key) {
-          // Turnuva: scheduledTime hesabı (frontend ile aynı)
-          const key = `${r.tournament_key}_s${r.season}_${r.home_team}_${r.away_team}_d${r.day_in_season}`;
-          let h = 2166136261;
-          for (let i = 0; i < key.length; i++) {
-            h ^= key.charCodeAt(i);
-            h = Math.imul(h, 16777619) | 0;
-          }
-          h = (h ^ (h >>> 16)) >>> 0;
-          // EUROCUP eski: 19, 20, 21 / EURO Nations (enc): 14, 15, 16 (saatler 14:00-16:00)
-          if (r.tournament_key === 'enc') {
-            const hours = [14, 15, 16];
-            const minutes = [0, 30];
-            hh = hours[h % hours.length];
-            mm = minutes[(h >>> 4) % minutes.length];
-          } else {
-            const hours = [19, 20, 21];
-            const minutes = [0, 45];
-            hh = hours[h % hours.length];
-            mm = minutes[(h >>> 4) % minutes.length];
-          }
-        } else if (typeof getSimpleMatchTime === 'function' && r.country_code) {
-          // Lig: getSimpleMatchTime ile saat hesabı (12:00-18:00)
-          // 🆕 buildLeagueFixture'daki matchKey formatına uygun: "{cc}-{tier}-w{w}-m{m}"
-          // week+match bilinmiyor → home+away'den deterministik hash üret
-          let h = 2166136261;
-          const seedStr = `${r.country_code}-${r.tier || 0}-${r.home_team}-${r.away_team}-${r.day_in_season}`;
-          for (let i = 0; i < seedStr.length; i++) {
-            h ^= seedStr.charCodeAt(i);
-            h = Math.imul(h, 16777619) | 0;
-          }
-          const fakeWeek = ((h >>> 0) % 30) + 1;
-          const fakeMatch = (((h >>> 8) >>> 0) % 8) + 1;
-          const fakeKey = `${r.country_code}-${r.tier || 0}-w${fakeWeek}-m${fakeMatch}`;
-          const time = getSimpleMatchTime('league', fakeKey);
-          const [ph, pm] = time.split(':').map(s => parseInt(s, 10));
-          if (!isNaN(ph)) hh = ph;
-          if (!isNaN(pm)) mm = pm;
-        }
-        matchDate.setHours(hh, mm, 0, 0);
+        matchDate.setHours(15, 0, 0, 0);
         realPlayedAt = matchDate.getTime();
       } else if (r.created_at) {
         realPlayedAt = new Date(r.created_at).getTime();
@@ -56577,30 +56539,41 @@ function getMatchHour(season, day, slot, isLeague, homeCountryCode, usedSlots) {
 //
 // Format: "HH:MM" string döner
 function getSimpleMatchTime(kind, matchKey) {
-  // FNV-1a benzeri hash — komşu key'ler için iyi karışım
+  // 🆕 1. öncelik: match_state'ten gerçek kickoff_at'i bul
+  // matchKey format: "{cc}-{tier}-w{week}-m{match}"
+  if (kind !== 'tournament' && kind !== 'special' && _matchStateCache) {
+    const parsed = matchKey && matchKey.match(/^([A-Z]+)-(\d+)-w(\d+)-m(\d+)$/);
+    if (parsed) {
+      const [, cc, tierStr, weekStr] = parsed;
+      const week = parseInt(weekStr, 10);
+      const tier1based = parseInt(tierStr, 10) + 1; // matchKey tier 0-based, table 1-based
+      // SEASON_TEMPLATE: week 1-15 → day 1-15, week 16-30 → day 19-33
+      const day = (week <= 15) ? week : (week + 3);
+      // _matchStateCache.dayMap[day] içinde bu lig'in maçlarını ara
+      const dayMatches = _matchStateCache.dayMap[day] || [];
+      const found = dayMatches.find(m => 
+        m.countryCode === cc && m.tier === tier1based && !m.tournament_key
+      );
+      if (found && found.matchDateTime) {
+        const d = new Date(found.matchDateTime);
+        return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+      }
+    }
+  }
+  // 2. Yedek: hash (sadece match_state cache hazır değilse)
   let h = 2166136261;
   for(let i = 0; i < matchKey.length; i++) {
     h ^= matchKey.charCodeAt(i);
     h = Math.imul(h, 16777619) | 0;
   }
-  h = (h ^ (h >>> 16)) >>> 0; // ek mix
-
+  h = (h ^ (h >>> 16)) >>> 0;
   const minutes = [0, 15, 30, 45];
-  const min = minutes[h & 3];     // alt 2 bit dakika
+  const min = minutes[h & 3];
   const hbits = (h >>> 2);
-
   let hour;
-  if(kind === 'tournament') {
-    // 19-22 arası 4 saat
-    hour = 19 + (hbits % 4);
-  } else if(kind === 'special') {
-    // 12-22 arası 11 saat
-    hour = 12 + (hbits % 11);
-  } else {
-    // Lig: 12-18 arası 7 saat
-    hour = 12 + (hbits % 7);
-  }
-
+  if(kind === 'tournament') hour = 19 + (hbits % 4);
+  else if(kind === 'special') hour = 12 + (hbits % 11);
+  else hour = 12 + (hbits % 7);
   return String(hour).padStart(2, '0') + ':' + String(min).padStart(2, '0');
 }
 
