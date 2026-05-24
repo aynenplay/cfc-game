@@ -32900,7 +32900,8 @@ function openMatchScreenV2(opts) {
   // Bu sayede kullanıcı sonuçlar listesinden canlı maça tıklayınca direkt izleyebilir
   // ÖNEMLİ: _liveMatchCache (ham Supabase verisi, home_team/away_team field'ları)
   // _matchStateCache.byKey ile karıştırma — orada field adları çevrilmiş (home/away)
-  try {
+  (async () => {
+   try {
     const _now = Date.now();
     const _kickoffMs = (opts.kickoff && typeof opts.kickoff === 'object' && opts.kickoff.getTime)
       ? opts.kickoff.getTime()
@@ -32908,46 +32909,51 @@ function openMatchScreenV2(opts) {
     if (_kickoffMs && _now >= _kickoffMs) {
       const homeName = curHome && curHome.name;
       const awayName = curAway && curAway.name;
-      // Önce _liveMatchCache (canlı/scheduled satırlar burada) — yoksa _matchStateCache.byKey
+      // Önce cache'i tazele (yeni scheduled satırları yakala)
+      if (typeof _liveMatchLoadFromServer === 'function') {
+        try { await _liveMatchLoadFromServer(); } catch(e) {}
+      }
+      // Cache'te home/away eşleşen satırı bul (status filtresiz — scheduled da kabul)
+      // _liveMatchLoadFromServer zaten finished satırları çekmiyor.
       let liveRow = null;
       if (homeName && awayName && typeof _liveMatchCache === 'object' && _liveMatchCache) {
         liveRow = Object.values(_liveMatchCache).find(r =>
-          r && r.home_team === homeName && r.away_team === awayName &&
-          (r.status === 'running' || r.status === 'live' || r.status === 'in_progress' ||
-           (r.status !== 'finished' && (r.sim_minute || 0) > 0))
+          r && r.home_team === homeName && r.away_team === awayName
         );
       }
-      // Fallback: _matchStateCache.byKey (frontend formatı — home/away)
+      // Fallback: _matchStateCache.byKey
       if (!liveRow && homeName && awayName && typeof _matchStateCache !== 'undefined' && _matchStateCache && _matchStateCache.byKey) {
         const row = Object.values(_matchStateCache.byKey || {}).find(r =>
-          r && r.home === homeName && r.away === awayName &&
-          (r.status === 'running' || r.status === 'live' || r.status === 'in_progress' ||
-           (r.status !== 'finished' && (r.sim_minute || 0) > 0))
+          r && r.home === homeName && r.away === awayName && r.status !== 'finished'
         );
-        if (row) liveRow = { home_team: row.home, away_team: row.away, season: row.season, day_in_season: row.day, status: row.status, sim_minute: row.sim_minute, home_score: row.home_score, away_score: row.away_score };
+        if (row) liveRow = { match_key: row.matchKey, home_team: row.home, away_team: row.away, season: row.season, day_in_season: row.day, status: row.status, sim_minute: row.sim_minute, home_score: row.home_score, away_score: row.away_score };
       }
       if (liveRow) {
-        // Maç canlı — preview kapat, startMatch ile canlı poll başlat
+        // Maç bulundu (scheduled/running) — preview kapat, startMatch ile poll başlat
         MS.kickoffMs = _kickoffMs;
+        MS.match_key = liveRow.match_key;
         MS.season = liveRow.season || 1;
         MS.day = liveRow.day_in_season || 0;
-        // İlk anlık skor + dakikayı UI'a yaz
+        // İlk anlık skor + dakikayı UI'a yaz (varsa)
         const sh = document.getElementById('scoreH');
         const sa = document.getElementById('scoreA');
         const clk = document.getElementById('matchClock');
         const sb = document.getElementById('statusBadge');
         if (sh) sh.textContent = liveRow.home_score ?? 0;
         if (sa) sa.textContent = liveRow.away_score ?? 0;
-        if (clk) clk.textContent = (liveRow.sim_minute ?? 0) + "'";
-        if (sb) { sb.className = 'status-badge sb-live'; sb.innerHTML = '🔴 CANLI'; }
+        if (clk && (liveRow.sim_minute || 0) > 0) clk.textContent = liveRow.sim_minute + "'";
+        if (sb && (liveRow.status === 'running' || (liveRow.sim_minute || 0) > 0)) {
+          sb.className = 'status-badge sb-live';
+          sb.innerHTML = '🔴 CANLI';
+        }
         // Preview kapat
         ms.classList.remove('preview-mode');
-        setTimeout(() => {
-          if (typeof startMatch === 'function') startMatch();
-        }, 200);
+        // startMatch poll'u başlat — Edge Function tick attıkça skor/dakika güncellenir
+        if (typeof startMatch === 'function') startMatch();
       }
     }
-  } catch(e) { console.warn('[openMatchScreenV2] live auto-start hata:', e); }
+   } catch(e) { console.warn('[openMatchScreenV2] live auto-start hata:', e); }
+  })();
 }
 
 
@@ -35090,13 +35096,23 @@ async function startMatch(){
       if (typeof _liveMatchLoadFromServer === 'function') {
         await _liveMatchLoadFromServer();
       }
-      // Bu maça ait match_state satırını bul
-      const cacheKey = `${MS.season || 1}_${MS.day || 0}_${homeName}_${awayName}`;
-      const liveRow = (typeof _liveMatchCache === 'object' && _liveMatchCache) ?
-        Object.values(_liveMatchCache).find(r =>
-          r && r.season === (MS.season || 1) && r.day_in_season === (MS.day || 0) &&
-          r.home_team === homeName && r.away_team === awayName
-        ) : null;
+      // Bu maça ait match_state satırını bul — match_key öncelikli, yoksa home/away
+      let liveRow = null;
+      if (typeof _liveMatchCache === 'object' && _liveMatchCache) {
+        if (MS.match_key && _liveMatchCache[MS.match_key]) {
+          liveRow = _liveMatchCache[MS.match_key];
+        } else {
+          liveRow = Object.values(_liveMatchCache).find(r =>
+            r && r.home_team === homeName && r.away_team === awayName
+          );
+        }
+      }
+      // Live geçişi: scheduled iken running olunca badge'i CANLI yap
+      if (liveRow && liveRow.status === 'running' && !MS.running) {
+        MS.running = true;
+        const sbL = document.getElementById('statusBadge');
+        if (sbL) { sbL.className = 'status-badge sb-live'; sbL.innerHTML = '🔴 CANLI'; }
+      }
       if (liveRow) {
         // Skor + dakika UI'a yaz
         const sh = document.getElementById('scoreH');
@@ -35104,7 +35120,7 @@ async function startMatch(){
         const clk = document.getElementById('matchClock');
         if (sh) sh.textContent = liveRow.home_score ?? 0;
         if (sa) sa.textContent = liveRow.away_score ?? 0;
-        if (clk) clk.textContent = (liveRow.sim_minute ?? 0) + "'";
+        if (clk && (liveRow.sim_minute || 0) > 0) clk.textContent = liveRow.sim_minute + "'";
         // Bittiyse
         if (liveRow.status === 'finished' || liveRow.sim_minute >= 90) {
           MS.finished = true;
