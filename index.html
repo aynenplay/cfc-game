@@ -44585,7 +44585,7 @@ document.addEventListener('keydown', function(e) {
 var _visitedPlayerData = null;
 var _visitedReturnAction = null; // { type:'guestTeam', cc, tn } veya { type:'page', name }
 
-function playerViewProfile(playerJson) {
+async function playerViewProfile(playerJson) {
   let player, ctx;
   try {
     const data = JSON.parse(playerJson);
@@ -44593,6 +44593,25 @@ function playerViewProfile(playerJson) {
     ctx = data.ctx;
   } catch(e) { return; }
   if(!player) return;
+
+  // 🆕 Player JSON'dan parse edilince abilities/userId gibi field'lar kaybolabilir (büyük objeler)
+  // → Kanonik objeyi cache'ten tekrar çöz, böylece ziyaretçi modu doğru veriye sahip olur
+  try {
+    if (player.role !== 'user') {
+      const cc = ((ctx && (ctx.countryCode || ctx.cc)) || '').toUpperCase().slice(0,2);
+      const teamName = (ctx && (ctx.teamLookupName || ctx.teamName)) || '';
+      if (cc && teamName && typeof _loadTeamRosterFromServer === 'function') {
+        let roster = _teamRosterCache[cc + ':' + teamName];
+        if (!Array.isArray(roster) || roster.length === 0) {
+          roster = await _loadTeamRosterFromServer(cc, teamName);
+        }
+        if (Array.isArray(roster) && roster.length) {
+          const canonical = roster.find(r => r && r.name === player.name);
+          if (canonical) player = canonical;
+        }
+      }
+    }
+  } catch(e) {}
 
   // 🆕 Return action snapshot: ne geldiğine göre nasıl döneceğini kaydet
   // Sadece henüz set edilmemişse (zincirleme ziyaret oturumunda eski action'ı koru)
@@ -59802,7 +59821,9 @@ function _carBuildSkillsForVisitor(vp) {
   // Durum 1: Gerçek kullanıcı → cache'ten skills al (async yüklenir)
   // Field adı player objesinde 'userId' (camelCase), Supabase row'da 'user_id'
   const vpUid = vp && (vp.userId || vp.user_id);
-  if (vp && vp.isBot === false && vpUid) {
+  // isBot açıkça true değilse ve userId varsa → gerçek kullanıcı yolu
+  const isExplicitBot = vp && vp.isBot === true;
+  if (vp && !isExplicitBot && vpUid) {
     const cached = _visitorSkillsCache[vpUid];
     if (cached) {
       // Cache'ten her skill'i set et
