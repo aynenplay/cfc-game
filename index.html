@@ -32898,29 +32898,53 @@ function openMatchScreenV2(opts) {
   
   // 🆕 Maç ZATEN CANLI ise (kickoff geçmiş, henüz finished değil) — direkt canlı moda geç
   // Bu sayede kullanıcı sonuçlar listesinden canlı maça tıklayınca direkt izleyebilir
+  // ÖNEMLİ: _liveMatchCache (ham Supabase verisi, home_team/away_team field'ları)
+  // _matchStateCache.byKey ile karıştırma — orada field adları çevrilmiş (home/away)
   try {
     const _now = Date.now();
     const _kickoffMs = (opts.kickoff && typeof opts.kickoff === 'object' && opts.kickoff.getTime)
       ? opts.kickoff.getTime()
       : (typeof opts.kickoff === 'number' ? opts.kickoff : 0);
     if (_kickoffMs && _now >= _kickoffMs) {
-      // Match_state'ten durumu kontrol et
       const homeName = curHome && curHome.name;
       const awayName = curAway && curAway.name;
-      if (homeName && awayName && typeof _matchStateCache !== 'undefined' && _matchStateCache && _matchStateCache.byKey) {
-        const liveRow = Object.values(_matchStateCache.byKey || {}).find(r =>
+      // Önce _liveMatchCache (canlı/scheduled satırlar burada) — yoksa _matchStateCache.byKey
+      let liveRow = null;
+      if (homeName && awayName && typeof _liveMatchCache === 'object' && _liveMatchCache) {
+        liveRow = Object.values(_liveMatchCache).find(r =>
           r && r.home_team === homeName && r.away_team === awayName &&
-          (r.status === 'live' || r.status === 'in_progress' || (r.status !== 'finished' && r.sim_minute > 0))
+          (r.status === 'running' || r.status === 'live' || r.status === 'in_progress' ||
+           (r.status !== 'finished' && (r.sim_minute || 0) > 0))
         );
-        if (liveRow) {
-          // Maç canlı — preview kapat, startMatch ile canlı poll başlat
-          MS.kickoffMs = _kickoffMs;
-          MS.season = liveRow.season || 1;
-          MS.day = liveRow.day_in_season || 0;
-          setTimeout(() => {
-            if (typeof startMatch === 'function') startMatch();
-          }, 200);
-        }
+      }
+      // Fallback: _matchStateCache.byKey (frontend formatı — home/away)
+      if (!liveRow && homeName && awayName && typeof _matchStateCache !== 'undefined' && _matchStateCache && _matchStateCache.byKey) {
+        const row = Object.values(_matchStateCache.byKey || {}).find(r =>
+          r && r.home === homeName && r.away === awayName &&
+          (r.status === 'running' || r.status === 'live' || r.status === 'in_progress' ||
+           (r.status !== 'finished' && (r.sim_minute || 0) > 0))
+        );
+        if (row) liveRow = { home_team: row.home, away_team: row.away, season: row.season, day_in_season: row.day, status: row.status, sim_minute: row.sim_minute, home_score: row.home_score, away_score: row.away_score };
+      }
+      if (liveRow) {
+        // Maç canlı — preview kapat, startMatch ile canlı poll başlat
+        MS.kickoffMs = _kickoffMs;
+        MS.season = liveRow.season || 1;
+        MS.day = liveRow.day_in_season || 0;
+        // İlk anlık skor + dakikayı UI'a yaz
+        const sh = document.getElementById('scoreH');
+        const sa = document.getElementById('scoreA');
+        const clk = document.getElementById('matchClock');
+        const sb = document.getElementById('statusBadge');
+        if (sh) sh.textContent = liveRow.home_score ?? 0;
+        if (sa) sa.textContent = liveRow.away_score ?? 0;
+        if (clk) clk.textContent = (liveRow.sim_minute ?? 0) + "'";
+        if (sb) { sb.className = 'status-badge sb-live'; sb.innerHTML = '🔴 CANLI'; }
+        // Preview kapat
+        ms.classList.remove('preview-mode');
+        setTimeout(() => {
+          if (typeof startMatch === 'function') startMatch();
+        }, 200);
       }
     }
   } catch(e) { console.warn('[openMatchScreenV2] live auto-start hata:', e); }
@@ -51155,6 +51179,59 @@ function frmSaveMatches(arr) {
   _frmMatchesCache = arr.slice();
 }
 
+// 🆕 Hazırlık maçı kabul edildiğinde match_state'e scheduled satır yazılır.
+// Edge Function (tick-matches) scheduled status'lü ve kickoff'u geçmiş satırları
+// otomatik başlatıp simüle eder — lig/turnuva maçlarıyla aynı akış.
+async function _frmUpsertMatchState(fm) {
+  if (!window.sb || !fm || !fm.id || !fm.dateTime) return;
+  try {
+    const kickoffMs = new Date(fm.dateTime).getTime();
+    // Hazırlık maçının kendi tarihinden season/day hesapla
+    let season = 1, day = 1;
+    try {
+      if (typeof SEASON_EPOCH !== 'undefined' && typeof SEASON_LEN !== 'undefined') {
+        const kDay = new Date(new Date(kickoffMs).getFullYear(), new Date(kickoffMs).getMonth(), new Date(kickoffMs).getDate());
+        const diffMs = kDay - SEASON_EPOCH;
+        if (diffMs >= 0) {
+          const diffDays = Math.floor(diffMs / 86400000);
+          season = Math.floor(diffDays / SEASON_LEN) + 1;
+          day = (diffDays % SEASON_LEN) + 1;
+        }
+      }
+    } catch(e) {}
+    await window.sb.from('match_state').upsert({
+      match_key: 'friendly_' + fm.id,
+      season: season,
+      day_in_season: day,
+      home_team: fm.fromTeam,
+      away_team: fm.toTeam,
+      country_code: null,
+      tier: null,
+      tournament_key: 'friendly',
+      tournament_phase: null,
+      league_name: 'Hazırlık Maçı',
+      status: 'scheduled',
+      sim_minute: 0,
+      home_score: 0,
+      away_score: 0,
+      kickoff_at: new Date(kickoffMs).toISOString(),
+      events: []
+    }, { onConflict: 'match_key' });
+  } catch(e) { console.warn('[frm match_state upsert]', e); }
+}
+
+// 🆕 Hazırlık reddedildi/iptal edildi → match_state'teki scheduled satır silinir.
+// Maç zaten başlamışsa (running/finished) silmeye çalışmayız; Edge Function bitirir.
+async function _frmDeleteMatchState(fmId) {
+  if (!window.sb || !fmId) return;
+  try {
+    await window.sb.from('match_state')
+      .delete()
+      .eq('match_key', 'friendly_' + fmId)
+      .eq('status', 'scheduled');
+  } catch(e) { console.warn('[frm match_state delete]', e); }
+}
+
 // 🆕 Verilen takımın gerçek lig fikstür maçlarının zamanları (datetime ms array)
 function frmGetTeamBusyTimes(teamName, cc, lg) {
   const out = [];
@@ -51219,31 +51296,28 @@ function frmCheckConflict(dateTimeStr, opponent /* { team, cc, lg } */) {
   if (isNaN(t)) return { ok: false, reason: 'Geçersiz tarih' };
   if (t < Date.now()) return { ok: false, reason: 'Geçmiş bir tarih seçemezsin' };
 
-  // 🆕 Günde en fazla 1 hazırlık maçı kuralı (kullanıcının takımı için)
-  // Aynı tarihte zaten beklenen veya kabul edilen bir hazırlık maçı varsa engelle.
-  if (typeof _userTeam !== 'undefined' && _userTeam) {
-    const targetDate = new Date(t);
-    const sameDay = (a, b) => a.getFullYear() === b.getFullYear()
-                           && a.getMonth() === b.getMonth()
-                           && a.getDate() === b.getDate();
-    const all = (typeof frmGetMatches === 'function') ? frmGetMatches() : [];
-    const dayConflict = all.find(fm => {
-      // Reddedilenler veya iptal edilenler sayılmaz
-      if (fm.status === 'rejected' || fm.status === 'cancelled') return false;
-      // Sadece kullanıcının takımına ait hazırlık maçları
-      if (fm.fromTeam !== _userTeam.teamName && fm.toTeam !== _userTeam.teamName) return false;
-      const fmDate = new Date(fm.dateTime);
-      if (isNaN(fmDate.getTime())) return false;
-      return sameDay(fmDate, targetDate);
-    });
-    if (dayConflict) {
-      const fmDate = new Date(dayConflict.dateTime);
-      const hh = String(fmDate.getHours()).padStart(2,'0');
-      const mm = String(fmDate.getMinutes()).padStart(2,'0');
-      const otherTeam = (dayConflict.fromTeam === _userTeam.teamName) ? dayConflict.toTeam : dayConflict.fromTeam;
-      return { ok: false, reason: `Bu gün için zaten bir hazırlık maçın var (${hh}:${mm} → ${otherTeam}). Günde en fazla 1 hazırlık maçı düzenleyebilirsin.` };
-    }
-  }
+  // 🆕 GEÇİCİ TEST: Günde 1 hazırlık limiti kaldırıldı — test bittikten sonra geri aç!
+  // if (typeof _userTeam !== 'undefined' && _userTeam) {
+  //   const targetDate = new Date(t);
+  //   const sameDay = (a, b) => a.getFullYear() === b.getFullYear()
+  //                          && a.getMonth() === b.getMonth()
+  //                          && a.getDate() === b.getDate();
+  //   const all = (typeof frmGetMatches === 'function') ? frmGetMatches() : [];
+  //   const dayConflict = all.find(fm => {
+  //     if (fm.status === 'rejected' || fm.status === 'cancelled') return false;
+  //     if (fm.fromTeam !== _userTeam.teamName && fm.toTeam !== _userTeam.teamName) return false;
+  //     const fmDate = new Date(fm.dateTime);
+  //     if (isNaN(fmDate.getTime())) return false;
+  //     return sameDay(fmDate, targetDate);
+  //   });
+  //   if (dayConflict) {
+  //     const fmDate = new Date(dayConflict.dateTime);
+  //     const hh = String(fmDate.getHours()).padStart(2,'0');
+  //     const mm = String(fmDate.getMinutes()).padStart(2,'0');
+  //     const otherTeam = (dayConflict.fromTeam === _userTeam.teamName) ? dayConflict.toTeam : dayConflict.fromTeam;
+  //     return { ok: false, reason: `Bu gün için zaten bir hazırlık maçın var (${hh}:${mm} → ${otherTeam}). Günde en fazla 1 hazırlık maçı düzenleyebilirsin.` };
+  //   }
+  // }
 
   const userBusy = frmGetUserBusyTimes();
   const oppBusy  = opponent ? frmGetTeamBusyTimes(opponent.team.name, opponent.cc, opponent.lg) : [];
@@ -51485,216 +51559,12 @@ function frmSendInvite() {
 // Kullanıcı oynamayı atladıysa (veya hiç başlatmadıysa) bu fonksiyon
 // devreye girer: simulateBotMatch ile skor üretir, played:true yazar.
 function frmEnsurePlayed() {
-  if (typeof simulateBotMatch !== 'function') return;
-  const all = frmGetMatches();
-  if (!all.length) return;
-  const NOW = Date.now();
-  let dirty = false;
-
-  // 🆕 cft_match_results cache'i de güncelleyeceğiz
-  let matchResults = {};
-  try { matchResults = _matchResultsLoad(); } catch(e) {}
-  let cacheUpdated = false;
-
-  all.forEach(fm => {
-    if (fm.status !== 'accepted') return;
-    if (fm.played) return;
-    const t = new Date(fm.dateTime).getTime();
-    if (isNaN(t)) return;
-    // Maç başlangıç + ~13dk geçtiyse otomatik sonuçlandır (sıkıştırılmış: 5dk + 100sn + 5dk = 700sn maç)
-    if (NOW < t + 13 * 60 * 1000) return;
-
-    // Takım objelerini çek (renkler + roster için)
-    const _findTeam = (cc, name) => {
-      if (false || !_cftGetCountry(cc)) return null;
-      for (const lg of (_cftGetCountry(cc).leagues || [])) {
-        const team = (lg.teams || []).find(x => x.name === name);
-        if (team) return { ...team, countryCode: cc };
-      }
-      return null;
-    };
-    const homeT = _findTeam(fm.fromCC, fm.fromTeam) || { name: fm.fromTeam, rating: 70, countryCode: fm.fromCC };
-    const awayT = _findTeam(fm.toCC,   fm.toTeam)   || { name: fm.toTeam,   rating: 70, countryCode: fm.toCC };
-    try {
-      // 🆕 Maç tarihini MS._fixtureRef üzerinden simulateBotMatch'a paslamak için geçici olarak set et
-      const _prevFR = (typeof MS !== 'undefined') ? MS._fixtureRef : null;
-      if (typeof MS !== 'undefined') {
-        MS._fixtureRef = { dateTime: fm.dateTime, season: 0, day: Math.floor(t / 86400000), comp: 'Hazırlık Maçı' };
-      }
-      const sim = simulateBotMatch(homeT, awayT, fm.id);
-      if (typeof MS !== 'undefined') {
-        MS._fixtureRef = _prevFR; // restore
-      }
-
-      fm.hs = sim.hs || 0;
-      fm.as = sim.as || 0;
-      fm.played = true;
-      fm.playedAt = t + 15 * 60 * 1000; // maç bitişi (simülasyon süresi ~12 dk)
-      fm.result = fm.hs > fm.as ? 'home' : (fm.hs < fm.as ? 'away' : 'draw');
-      fm.autoSimulated = true;
-      dirty = true;
-
-      // 🆕 cft_match_results'a da yaz (SONUÇLAR'da istatistik görünsün)
-      const fmSeason = 0;
-      const fmDay = Math.floor(t / 86400000);
-      const cacheKey = `${fmSeason}_${fmDay}_${fm.fromTeam}_${fm.toTeam}`;
-      if (!matchResults[cacheKey]) {
-        matchResults[cacheKey] = {
-          season: fmSeason, day: fmDay,
-          home: fm.fromTeam, away: fm.toTeam,
-          hs: fm.hs, as: fm.as,
-          comp: 'Hazırlık Maçı',
-          round: '',
-          playedAt: fm.playedAt,
-          byUser: false,
-          friendly: true,
-          events: sim.events || [],
-          stats: sim.stats || null,
-          playerStats: sim.playerStats || null
-        };
-        cacheUpdated = true;
-      }
-
-      // 🆕 Kullanıcı bu maçta yer aldı mı? → inbox + gelir + moral
-      const userTeamName = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : null;
-      if (userTeamName && (fm.fromTeam === userTeamName || fm.toTeam === userTeamName)) {
-        const userIsHome = fm.fromTeam === userTeamName;
-        const myScore = userIsHome ? fm.hs : fm.as;
-        const oppScore = userIsHome ? fm.as : fm.hs;
-        const oppName = userIsHome ? fm.toTeam : fm.fromTeam;
-        const isWin  = myScore > oppScore;
-        const isDraw = myScore === oppScore;
-
-        // ── BİLET GELİRİ — hazırlık maçı için sadece ev sahibi alır, lig'e göre %50 düşük doluluk ──
-        let income = 0;
-        if (userIsHome && typeof FAC_LEVELS !== 'undefined' && FAC_LEVELS.stadium) {
-          const capacity = FAC_LEVELS.stadium * 5000;
-          const fillRate = 0.45 + Math.random() * 0.20; // %45-65 (lig'e göre düşük)
-          const ticketPrice = 30; // Hazırlık maçı bilet fiyatı (lig'in yarısı)
-          income = Math.round(capacity * fillRate * ticketPrice);
-          if (income > 0 && typeof trsAddIncome === 'function') {
-            trsAddIncome('eur', income, `Hazırlık Maçı Bilet Geliri: ${oppName}`);
-          }
-        }
-
-        // ── MORAL ETKİSİ — galibiyet +3, beraberlik 0, yenilgi -2 (lig'in yarısı) ──
-        try {
-          if (typeof ROSTER_DATA !== 'undefined' && Array.isArray(ROSTER_DATA)) {
-            const moralDelta = isWin ? 3 : (isDraw ? 0 : -2);
-            const reason = isWin ? `Hazırlık maçı galibiyeti (${oppName})` :
-                           isDraw ? `Hazırlık maçı beraberliği (${oppName})` :
-                                    `Hazırlık maçı yenilgisi (${oppName})`;
-            if (moralDelta !== 0 && typeof adjustMorale === 'function') {
-              ROSTER_DATA.forEach(p => {
-                if (p && p.name) adjustMorale(p, moralDelta, reason);
-              });
-            }
-          }
-        } catch(e) { console.warn('Hazırlık moral güncellemesi başarısız:', e); }
-
-        // ── İNBOX BİLDİRİMİ ──
-        try {
-          if (typeof getInboxMsgs === 'function' && typeof saveInboxMsgs === 'function') {
-            const resultEmoji = isWin ? '🎉' : (isDraw ? '🤝' : '😔');
-            const resultText = isWin ? 'Galibiyet' : (isDraw ? 'Beraberlik' : 'Yenilgi');
-            const scoreLine = userIsHome
-              ? `${userTeamName} ${fm.hs}-${fm.as} ${oppName}`
-              : `${oppName} ${fm.hs}-${fm.as} ${userTeamName}`;
-            const bodyLines = [
-              `${resultEmoji} **${resultText}**`,
-              ``,
-              `${scoreLine}`,
-              ``
-            ];
-            if (income > 0) bodyLines.push(`💰 Bilet Geliri: ${income.toLocaleString('tr-TR')} €`);
-            if (isWin)  bodyLines.push(`📈 Takım Morali: +3`);
-            else if (!isDraw) bodyLines.push(`📉 Takım Morali: -2`);
-            bodyLines.push(``, `Detaylar için SONUÇLAR sayfasına göz atabilirsin.`);
-
-            const inbox = getInboxMsgs();
-            inbox.unshift({
-              id: 'frm_done_' + fm.id,
-              from: '⚽ Hazırlık Maçı',
-              subject: `${resultEmoji} Hazırlık maçı: ${userTeamName} ${fm.hs}-${fm.as} ${oppName}`,
-              body: bodyLines.join('\n'),
-              ts: fm.playedAt,
-              read: false,
-              type: 'friendly_response'
-            });
-            saveInboxMsgs(inbox);
-            if (typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
-          }
-        } catch(e) { console.warn('Hazırlık inbox bildirimi başarısız:', e); }
-
-        // ── 🆕 ROSTER_DATA ETKİSİ (otomatik hazırlık maçında bile) ──
-        // Tam processMatchOutcome çağrılamaz (MS.script yok). Sentetik özet uygulanır:
-        // - Tüm oyunculara küçük XP (+8 her, kazanırsa +12)
-        // - Düşük rating oyunculara form +1, yüksek rating oyunculara form düz
-        // - %15 sakatlık riski (1 oyuncu, 2-5 gün)
-        // - %10 kart riski (1 oyuncu sarı kart)
-        try {
-          if (typeof ROSTER_DATA !== 'undefined' && Array.isArray(ROSTER_DATA) && ROSTER_DATA.length > 0) {
-            const xpBase = isWin ? 12 : (isDraw ? 8 : 6);
-            ROSTER_DATA.forEach(p => {
-              if (!p || !p.name) return;
-              // XP — addPlayerXP varsa onu kullan
-              if (typeof addPlayerXP === 'function') {
-                try { addPlayerXP(p, xpBase); } catch(e) {}
-              } else if (typeof p.xp === 'number') {
-                p.xp = (p.xp || 0) + xpBase;
-              }
-            });
-
-            // Sakatlık riski — 1 random oyuncu, %15 ihtimal
-            if (Math.random() < 0.15) {
-              const cand = ROSTER_DATA[Math.floor(Math.random() * ROSTER_DATA.length)];
-              if (cand && !cand.injured) {
-                cand.injured = true;
-                cand.injuryDays = 2 + Math.floor(Math.random() * 4); // 2-5 gün
-                cand.injuryDate = Date.now();
-                // İnbox bildirimi
-                try {
-                  if (typeof getInboxMsgs === 'function' && typeof saveInboxMsgs === 'function') {
-                    const inbox2 = getInboxMsgs();
-                    inbox2.unshift({
-                      id: 'frm_inj_' + fm.id + '_' + cand.name,
-                      from: '🏥 Sağlık Ekibi',
-                      subject: `Sakatlık: ${cand.name}`,
-                      body: `${cand.name} hazırlık maçında sakatlandı. ~${cand.injuryDays} gün dinlenmesi gerekiyor.`,
-                      ts: fm.playedAt + 1000,
-                      read: false,
-                      type: 'system'
-                    });
-                    saveInboxMsgs(inbox2);
-                  }
-                } catch(e) {}
-              }
-            }
-
-            // Kart riski — %10 (sarı kart, sadece bilgisel)
-            if (Math.random() < 0.10) {
-              const cand = ROSTER_DATA[Math.floor(Math.random() * ROSTER_DATA.length)];
-              if (cand && cand.name) {
-                cand.yellowCards = (cand.yellowCards || 0) + 1;
-              }
-            }
-
-            // Persist roster (eğer bir saver fonksiyonu varsa)
-            try {
-              if (typeof saveRosterData === 'function') saveRosterData();
-              else if (typeof persistRoster === 'function') persistRoster();
-            } catch(e) {}
-          }
-        } catch(e) { console.warn('Hazırlık roster güncellemesi başarısız:', e); }
-      }
-    } catch(e) { /* simulate başarısız — atla */ }
-  });
-
-  if (dirty) frmSaveMatches(all);
-  if (cacheUpdated) {
-    try { _matchResultsSave(matchResults); } catch(e) {}
-  }
+  // 🆕 Edge Function (tick-matches) hazırlık maçlarını da match_state üzerinden
+  // simüle eder. Maç bitince status='finished' yazar, skor match_state'te kalır.
+  // Eski lokal simulateBotMatch çağrısı kaldırıldı — lokal sim yok kuralı.
+  return;
 }
+
 
 function frmBotRespond(matchId) {
   const all = frmGetMatches();
@@ -51709,6 +51579,13 @@ function frmBotRespond(matchId) {
   match.respondedAt = Date.now();
   all[idx] = match;
   frmSaveMatches(all);
+
+  // 🆕 match_state senkronizasyonu — kabul → scheduled satır, ret → satır silme
+  if (accept) {
+    _frmUpsertMatchState(match);
+  } else {
+    _frmDeleteMatchState(match.id);
+  }
 
   // İnbox'a cevap mesajı düşür
   const dt = new Date(match.dateTime);
@@ -53502,14 +53379,9 @@ function _startFriendlyMatch(fm) {
   const home = _findTeam(fm.fromCC, fm.fromTeam) || { name: fm.fromTeam, short: fm.fromTeam.slice(0,3).toUpperCase(), rating: 70, countryCode: fm.fromCC };
   const away = _findTeam(fm.toCC,   fm.toTeam)   || { name: fm.toTeam,   short: fm.toShort || fm.toTeam.slice(0,3).toUpperCase(), rating: 70, bg: fm.toBg, tc: fm.toTc, countryCode: fm.toCC };
 
-  // Maç vakti gelmediyse uyar ama yine de oyna seçeneği ver
-  const t = new Date(fm.dateTime).getTime();
-  if (Date.now() < t - 5*60*1000) { // 5dk öncesinden erken
-    const dt = new Date(fm.dateTime);
-    const dStr = String(dt.getDate()).padStart(2,'0') + '.' + String(dt.getMonth()+1).padStart(2,'0') + ' ' + String(dt.getHours()).padStart(2,'0') + ':' + String(dt.getMinutes()).padStart(2,'0');
-    if (!confirm(`Maç vakti henüz gelmedi (${dStr}). Yine de şimdi oynamak istiyor musun?`)) return;
-  }
-
+  // 🆕 Edge Function maçı simüle eder. Kickoff vakti gelmemişse izleme açılır
+  // ama "Maç X dakika sonra başlayacak" mesajıyla bekleme moduna geçer.
+  // (Eskiden lokal "yine de oyna" promptu vardı — lokal sim olmadığı için kaldırıldı.)
   openMatchScreenV2({
     home, away,
     league: '⚽ Hazırlık Maçı',
@@ -53526,20 +53398,8 @@ function _startFriendlyMatch(fm) {
     MS._friendlyMatchId = fm.id;
   }
 
-  setTimeout(() => {
-    try { if (typeof startMatch === 'function') startMatch(); } catch(e) { console.warn('friendly startMatch:', e); }
-  }, 250);
-
-  // Maçı oynanmış olarak işaretle (frmGetMatches filtresi 120dk sonra zaten kaldırıyor,
-  // ama kullanıcı şimdi oynadıysa hemen "played" işaretleyelim ki bir sonraki render'da düşsün)
-  try {
-    const all = frmGetMatches();
-    const idx = all.findIndex(x => x.id === fm.id);
-    if (idx !== -1) {
-      all[idx].playedAt = Date.now();
-      frmSaveMatches(all);
-    }
-  } catch(e){}
+  // openMatchScreenV2 zaten _liveMatchCache'ten canlı satırı detect edip
+  // startMatch'i kendisi çağırıyor — manuel başlatma kaldırıldı.
 }
 
 
@@ -54128,6 +53988,27 @@ function hmOpenNextMatch() {
   // 🆕 Hazırlık maçı → test maçında kullanılan canlı motoru başlat (lig tablosu etkilenmez)
   if (m && m.isFriendly && m.friendlyData) {
     _startFriendlyMatch(m.friendlyData);
+    return;
+  }
+
+  // 🆕 Turnuva maçı (Champ/Elite/Conv) → openMatchScreenV2 ile canlı izleme
+  if (m && m.isTournament && m.tournamentData) {
+    const t = m.tournamentData;
+    const kickoff = (t.date instanceof Date) ? t.date : new Date(t.date);
+    const TRN_LABEL = { chm: 'Championship', eli: 'Elite', con: 'Convergence' };
+    const leagueName = (TRN_LABEL[t.trnType] || 'Turnuva') + (t.phase ? ' · ' + t.phase : '');
+    const venue = (t.home && t.home.name) ? `${t.home.name} Stadyumu` : 'Stadyum';
+    if (typeof openMatchScreenV2 === 'function') {
+      openMatchScreenV2({
+        home: t.home,
+        away: t.away,
+        league: leagueName,
+        venue: venue,
+        kickoff: kickoff,
+        hClass: 'c1',
+        aClass: 'c2'
+      });
+    }
     return;
   }
 
