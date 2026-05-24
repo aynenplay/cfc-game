@@ -41011,7 +41011,7 @@ function rosterDemoteVice(playerNum){
 let _pendingKickNum = null;
 
 // 🆕 Minimum kadro boyutu — 11'in altına düşmek yasak
-const ROSTER_MIN_SIZE = 11;
+const ROSTER_MIN_SIZE = 12;
 
 function rosterKickPlayer(playerNum){
   // Ziyaretçi modunda çalışmaz
@@ -41091,6 +41091,59 @@ function executeKick(){
   const idx = ROSTER_DATA.findIndex(x => x.num === num);
   if(idx < 0) return;
   ROSTER_DATA.splice(idx, 1);
+
+  // 🆕 DİZİLİŞ + BENCH TEMİZLİĞİ
+  // 1) Kovulan oyuncu ilk 11'de ise, slot boş kalmasın → bench'ten otomatik yedek geçir
+  // 2) Bench'te ise, sadece bench'ten çıkar
+  let lineupChanged = false;
+  try {
+    if (typeof activePitchPlayers !== 'undefined' && Array.isArray(activePitchPlayers)) {
+      const pIdx = activePitchPlayers.findIndex(e => e && e.player && e.player.num === num);
+      if (pIdx !== -1) {
+        const removedSlot = activePitchPlayers[pIdx];
+        activePitchPlayers.splice(pIdx, 1);
+        lineupChanged = true;
+
+        // Aynı pos grubundan bench'te oyuncu varsa otomatik geçir
+        if (typeof benchPlayers !== 'undefined' && Array.isArray(benchPlayers) && removedSlot.slotIdx != null) {
+          const POSGRP = (typeof POS_GROUP !== 'undefined') ? POS_GROUP : {};
+          const slotPos = removedSlot.pos;
+          const slotGrp = POSGRP[slotPos];
+          // Önce tam pos uyumlu yedek ara, yoksa aynı pos grubundan al
+          let replIdx = benchPlayers.findIndex(b => b && b.pos === slotPos);
+          if (replIdx === -1 && slotGrp) {
+            replIdx = benchPlayers.findIndex(b => b && (POSGRP[b.pos] === slotGrp));
+          }
+          if (replIdx !== -1) {
+            const repl = benchPlayers[replIdx];
+            benchPlayers.splice(replIdx, 1);
+            activePitchPlayers.push({
+              rosterIdx: ROSTER_DATA.indexOf(repl),
+              slotIdx: removedSlot.slotIdx,
+              pos: removedSlot.pos,
+              x: removedSlot.x,
+              y: removedSlot.y,
+              player: repl
+            });
+          }
+        }
+      }
+    }
+    // Bench'te ise sadece çıkar
+    if (typeof benchPlayers !== 'undefined' && Array.isArray(benchPlayers)) {
+      const bIdx = benchPlayers.findIndex(b => b && b.num === num);
+      if (bIdx !== -1) {
+        benchPlayers.splice(bIdx, 1);
+        lineupChanged = true;
+      }
+    }
+    // Saha veya bench değişti → kaydet
+    if (lineupChanged) {
+      if (typeof saveTeamStrategy === 'function') saveTeamStrategy();
+      if (typeof renderPitch === 'function') renderPitch();
+      if (typeof renderBench === 'function') renderBench();
+    }
+  } catch(e) { console.warn('[kick] diziliş temizlik hatası:', e); }
 
   if(typeof renderRoster === 'function') renderRoster(typeof rosterCurrentFilter !== 'undefined' ? (rosterCurrentFilter || 'all') : 'all');
   if(typeof applyUserTeamUI === 'function') applyUserTeamUI();
