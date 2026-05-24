@@ -76174,30 +76174,39 @@ setTimeout(async ()=>{
     }
   } catch(e) { console.warn('[realtime] subscribe hata:', e); }
   
-  try { await _loadRealCaptainsFromServer(); } catch(e) { console.warn('realCaptains load hata:', e); }
-  try { await _teamStrategyLoadFromServer(); } catch(e) { console.warn('team_strategy load hata:', e); }
-  try { await _rosterPersistLoadFromServer(); } catch(e) { console.warn('roster_persist load hata:', e); }
-  try { await _facLevelsLoadFromServer(); } catch(e) { console.warn('fac_levels load hata:', e); }
-  try { await _trsLoadFromServer(); } catch(e) { console.warn('treasury load hata:', e); }
-  try { await _mfsLoadFromServer(); } catch(e) { console.warn('manifesto load hata:', e); }
-  try { await _marketValLoadFromServer(); } catch(e) { console.warn('marketval load hata:', e); }
-  try { await _joinRequestsLoadFromServer(); } catch(e) { console.warn('joinRequests load hata:', e); }
-  try { await _userMatchLogLoadFromServer(); } catch(e) { console.warn('matchLog load hata:', e); }
-  try { await _eqDataLoadFromServer(); } catch(e) { console.warn('equipment load hata:', e); }
-  try { await _paidInstallmentsLoadFromServer(); } catch(e) { console.warn('installments load hata:', e); }
-  try { await _careerHistoryLoadFromServer(); } catch(e) { console.warn('career_history load hata:', e); }
-  try { await _ntJerseyOverridesLoadFromServer(); } catch(e) { console.warn('nt_jersey load hata:', e); }
-  try { await _totoLoadFromServer(); } catch(e) { console.warn('toto load hata:', e); }
-  try { await _shopStocksLoadFromServer(); } catch(e) { console.warn('shop_stocks load hata:', e); }
-  try { await _tfListLoadFromServer().then(arr => { _tfListCache = arr; }); } catch(e) { console.warn('tf_list load hata:', e); }
-  try { await _achLoadFromServer(); } catch(e) { console.warn('achievements load hata:', e); }
-  try { await _coachProfileLoadFromServer(); } catch(e) { console.warn('coach_profile load hata:', e); }
+  // 🆕 14 ardışık await → Promise.all paralel (kritik için bekle, kritik olmayan arka plan)
+  // KRİTİK: authInit'in görmesi gereken kullanıcı verileri — bunları beklemeli
+  await Promise.all([
+    _facLevelsLoadFromServer().catch(e => console.warn('fac_levels load hata:', e)),
+    _trsLoadFromServer().catch(e => console.warn('treasury load hata:', e)),
+    _mfsLoadFromServer().catch(e => console.warn('manifesto load hata:', e)),
+    _userMatchLogLoadFromServer().catch(e => console.warn('matchLog load hata:', e)),
+    _rosterPersistLoadFromServer().catch(e => console.warn('roster_persist load hata:', e)),
+    _teamStrategyLoadFromServer().catch(e => console.warn('team_strategy load hata:', e)),
+  ]);
   try { authInit(); } catch(e) { console.warn('authInit hata:', e); }
   document.getElementById('splash').classList.add('hide');
   // 🆕 _userTeam server'dan geldikten sonra ana sayfa panelleri yenile
   try { if (typeof updateHero === 'function') updateHero(); } catch(e) {}
   try { if (typeof renderHomeNextMatch === 'function') renderHomeNextMatch(); } catch(e) {}
-}, 4200);
+  
+  // 🆕 KRİTİK OLMAYAN VERİLER — arka planda paralel yüklenir, UI bekletmez
+  // Bunlar açılış anında gerekmez, sayfaya girince/etkileşimde kullanılır
+  Promise.all([
+    _loadRealCaptainsFromServer().catch(e => console.warn('realCaptains load hata:', e)),
+    _marketValLoadFromServer().catch(e => console.warn('marketval load hata:', e)),
+    _joinRequestsLoadFromServer().catch(e => console.warn('joinRequests load hata:', e)),
+    _eqDataLoadFromServer().catch(e => console.warn('equipment load hata:', e)),
+    _paidInstallmentsLoadFromServer().catch(e => console.warn('installments load hata:', e)),
+    _careerHistoryLoadFromServer().catch(e => console.warn('career_history load hata:', e)),
+    _ntJerseyOverridesLoadFromServer().catch(e => console.warn('nt_jersey load hata:', e)),
+    _totoLoadFromServer().catch(e => console.warn('toto load hata:', e)),
+    _shopStocksLoadFromServer().catch(e => console.warn('shop_stocks load hata:', e)),
+    _tfListLoadFromServer().then(arr => { _tfListCache = arr; }).catch(e => console.warn('tf_list load hata:', e)),
+    _achLoadFromServer().catch(e => console.warn('achievements load hata:', e)),
+    _coachProfileLoadFromServer().catch(e => console.warn('coach_profile load hata:', e)),
+  ]).catch(()=>{});
+}, 800);
 
 // 🆕 Hazırlık maçları otomatik simülasyonu — saati gelmiş olanları periyodik kontrol et
 // Sayfa açılınca + her dakika + sayfa odağa gelince kontrol eder
