@@ -46075,9 +46075,26 @@ function applyFormation(name) {
   }
 }
 
-function saveFormation() {
+async function saveFormation() {
   // 🆕 GERÇEK KAYIT — strateji + formasyon + diziliş
+  // saveTeamStrategy() debounce'lu (500ms). Manuel "Kaydet" tıklanınca
+  // pending timer'ı iptal edip ANINDA yazıp toast'ı write sonrası göster.
   try { saveTeamStrategy(); } catch(e){}
+  try {
+    if (_teamStrategySaveTimer) {
+      clearTimeout(_teamStrategySaveTimer);
+      _teamStrategySaveTimer = null;
+    }
+    if (window.sb && _userTeam && _userTeam.countryCode && _userTeam.teamName && _teamStrategyCache) {
+      await window.sb.from('team_data').upsert({
+        country_code: _userTeam.countryCode,
+        team_name: _userTeam.teamName,
+        data_key: 'strategy',
+        data: _teamStrategyCache,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'country_code,team_name,data_key' });
+    }
+  } catch(e) { console.warn('[saveFormation] write hata:', e); }
 
   // Toast
   const toast = document.createElement('div');
