@@ -12256,6 +12256,36 @@ body.lg-myleague-mode .lg2-tier-pills{display:none !important}
   border-radius:10px;
 }
 
+/* ══════════════════════════════════════════════
+   🆕 LOGO OVERRIDE — Tüm takım badge'lerinde geçerli
+   inlineBadge / applyCrestToEl logo varsa parent'a 'crest-has-logo' class ekler.
+   Bu class çerçeveyi/background'ı/glow'u kaldırır + img'i alanı doldurur.
+   ══════════════════════════════════════════════ */
+.crest-has-logo{
+  background:none !important;
+  background-color:transparent !important;
+  border:none !important;
+  box-shadow:none !important;
+  padding:0 !important;
+}
+.crest-has-logo::before,
+.crest-has-logo::after{
+  display:none !important;
+}
+.crest-has-logo > img{
+  width:100% !important;
+  height:100% !important;
+  max-width:100% !important;
+  max-height:100% !important;
+  object-fit:contain !important;
+  display:block !important;
+  filter:drop-shadow(0 2px 4px rgba(0,0,0,.5));
+}
+
+/* lst-team-logo boyut varyantları (eski inline style yerine class) */
+.lst-team-logo-sm{width:22px;height:22px;font-size:8px}
+.lst-team-logo-md{width:24px;height:24px;font-size:9px}
+
 /* ══ Takım Logosu / Badge — Logo varsa <img>, yoksa renkli short badge ══ */
 .tm-badge{
   display:inline-flex;align-items:center;justify-content:center;
@@ -38552,6 +38582,33 @@ function teamBadgeHTML(team, sizePx) {
   const fontSize = Math.max(8, Math.round(s * 0.36));
   return `<div class="tm-badge tm-badge-text" style="width:${s}px;height:${s}px;background:${bg};color:${tc};font-size:${fontSize}px">${short}</div>`;
 }
+// Inline badge HTML — render edilen string template'lerde kullanılır.
+// Render eden yerler team objesini veya {name, bg, tc, short} verilerini geçer.
+// Logo varsa <img> ile gösterir + parent'a crest-has-logo class ekler (CSS çerçeveyi kaldırır).
+function inlineBadge(opts) {
+  const tag = opts.tag || 'span';
+  const cls = opts.cls || '';
+  let team = opts.team;
+  // Team objesi yoksa name'den bul
+  if (!team && opts.name) {
+    for (const cc of _cftGetCountryCodes()) {
+      for (const lg of (_cftGetCountry(cc).leagues || [])) {
+        const t = (lg.teams || []).find(x => x.name === opts.name);
+        if (t) { team = t; break; }
+      }
+      if (team) break;
+    }
+  }
+  const url = team ? teamLogoUrl(team) : null;
+  if (url) {
+    return `<${tag} class="${cls} crest-has-logo"><img src="${url}" alt="" loading="lazy"></${tag}>`;
+  }
+  const bg = (team && team.bg) || opts.bg || '#333';
+  const tc = (team && team.tc) || opts.tc || '#fff';
+  const short = (team && team.short) || opts.short || '?';
+  return `<${tag} class="${cls}" style="background:${bg};color:${tc}">${short}</${tag}>`;
+}
+
 // Mevcut bir crest <div>'inin içeriğini set eder: logo varsa <img>, yoksa renkli short text.
 // Mevcut setCrest local fonksiyonlarının tek doğru implementasyonu.
 function applyCrestToEl(el, name, shortTxt) {
@@ -38649,7 +38706,7 @@ function lgBuildCountry(code, d, searchQ){
       lgMatch++; totalMatch++;
       const isMyTeam = lgUserTeam && lgUserTeam.code===code && lgUserTeam.city===t.city;
       teamsHtml += `<div class="tm-card${isMyTeam?' my-team':''}" onclick="lgOpenSheet('${code}','${lg.tier}','${t.city.replace(/'/g,"\\'")}')">
-        <div class="tm-logo" style="background:${t.bg};color:${t.tc}">${t.short}</div>
+        ${inlineBadge({tag:'div', cls:'tm-logo', team:t})}
         <div class="tm-body">
           <div class="tm-name" style="${isMyTeam?'color:#00e676;font-weight:800':''}">${t.name}</div>
           <div class="tm-city">${t.city}</div>
@@ -46425,7 +46482,7 @@ function fedRenderMembers() {
           <div class="fed-mem-body">
             <div class="fed-mem-name">${m.captainName}${m.isUser ? ' <span class="vp-me-tag">SEN</span>' : ''} ${badge}</div>
             <div class="fed-mem-team">
-              <span class="fed-mem-crest" style="background:${m.teamBg};color:${m.teamTc}">${m.teamShort}</span>
+              ${inlineBadge({cls:'fed-mem-crest', name:m.teamName, bg:m.teamBg, tc:m.teamTc, short:m.teamShort})}
               ${m.teamName} <span class="fed-mem-tier" style="color:${m.leagueColor}">· T${m.tier}</span>
             </div>
           </div>
@@ -49209,7 +49266,7 @@ function ntKadroConfirmRemove(ntId) {
         <div class="nm">${p.name || '—'}</div>
         <div class="meta">
           <span class="pos pos-${posClsKey}">${posShort}</span>
-          <span class="nt-an-tbadge" style="background:${tBg};color:${tTc}">${tShort}</span>
+          ${inlineBadge({cls:'nt-an-tbadge', name:p.sourceClub, bg:tBg, tc:tTc, short:tShort})}
           <span style="color:var(--text2,#90caf9);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.sourceClub || ''}</span>
         </div>
       </div>
@@ -49455,7 +49512,7 @@ function ntConfirmCallup(idx) {
         <div class="nm">${p.name || '—'}</div>
         <div class="meta">
           <span class="pos pos-${posClsKey}">${posShort}</span>
-          <span class="nt-an-tbadge" style="background:${tBg};color:${tTc}">${tShort}</span>
+          ${inlineBadge({cls:'nt-an-tbadge', name:p._team, bg:tBg, tc:tTc, short:tShort})}
           <span style="color:var(--text2,#90caf9);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p._team || ''}</span>
         </div>
       </div>
@@ -49508,7 +49565,7 @@ function ntConfirmRemove(idx) {
         <div class="nm">${p.name || '—'}</div>
         <div class="meta">
           <span class="pos pos-${posClsKey}">${posShort}</span>
-          <span class="nt-an-tbadge" style="background:${tBg};color:${tTc}">${tShort}</span>
+          ${inlineBadge({cls:'nt-an-tbadge', name:p._team, bg:tBg, tc:tTc, short:tShort})}
           <span style="color:var(--text2,#90caf9);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p._team || ''}</span>
         </div>
       </div>
@@ -49713,7 +49770,7 @@ function ntRenderCallup() {
       const tBg = p._teamBg || '#1976d2';
       const tTc = p._teamTc || '#ffffff';
       const tShort = p._teamShort || (p._team || 'TM').slice(0,3).toUpperCase();
-      const teamBadge = `<span class="nt-an-tbadge" style="background:${tBg};color:${tTc}">${tShort}</span>`;
+      const teamBadge = inlineBadge({cls:'nt-an-tbadge', name:p._team, bg:tBg, tc:tTc, short:tShort});
 
       const cardCls = [
         'nt-an-card',
@@ -50887,7 +50944,7 @@ function frmOnTeamChange(teamName) {
     info.innerHTML = `
       <div class="frm2-sel-label">Seçilen Rakip</div>
       <div class="frm2-sel-row">
-        <div class="frm2-sel-badge" style="background:${team.bg};color:${team.tc}">${team.short}</div>
+        ${inlineBadge({tag:'div', cls:'frm2-sel-badge', team})}
         <div class="frm2-sel-meta">
           <div class="frm2-sel-name">${team.name}</div>
           <div class="frm2-sel-league">${country.flag} ${lg.name}</div>
@@ -53713,7 +53770,7 @@ function renderHomeEventFeed(forceRefresh) {
     const display = e.playerName || e.teamName || '—';
     return `<div class="hm-race-row${rankCls}${userCls}" title="${e.teamName||''}${isUser?' · SEN':''}">
       <span class="hm-race-rank">${e.rank}</span>
-      <span class="hm-race-team-logo" style="background:${bg};color:${tc}">${short}</span>
+      ${inlineBadge({cls:'hm-race-team-logo', name:e.teamName, bg, tc, short})}
       <span class="hm-race-name">${display}</span>
       <span class="hm-race-score">${scoreTxt}</span>
     </div>`;
@@ -55708,7 +55765,7 @@ function renderHomeLeagueScene() {
         return `
           <div class="lg-scene-row${isUser ? ' is-user' : ''}">
             <div class="lg-scene-rank">${pos}</div>
-            <div class="lg-scene-crest" style="background:${bg};color:${tc}">${short}</div>
+            ${inlineBadge({tag:'div', cls:'lg-scene-crest', name:t.name, bg, tc, short})}
             <div class="lg-scene-tname" title="${t.name || ''}">${t.name || '—'}</div>
             <div class="lg-scene-pts">${t.pts != null ? t.pts : 0}</div>
           </div>
@@ -56728,13 +56785,13 @@ function _euMatchRowHtml(m, userTeamName) {
   return `
     <div class="lg-scene-row eu-match-row${isUserRow ? ' is-user' : ''}">
       <div class="eu-team-l">
-        <span class="eu-crest" style="background:${homeBg};color:${homeTc}">${homeShort}</span>
+        ${inlineBadge({cls:'eu-crest', name:m.home.name, bg:homeBg, tc:homeTc, short:homeShort})}
         <span class="eu-tname" title="${m.home.name||''}">${m.home.countryFlag||''} ${m.home.name||'—'}</span>
       </div>
       <div class="eu-score">${score}</div>
       <div class="eu-team-r">
         <span class="eu-tname" title="${m.away.name||''}">${m.away.name||'—'} ${m.away.countryFlag||''}</span>
-        <span class="eu-crest" style="background:${awayBg};color:${awayTc}">${awayShort}</span>
+        ${inlineBadge({cls:'eu-crest', name:m.away.name, bg:awayBg, tc:awayTc, short:awayShort})}
       </div>
     </div>
   `;
@@ -56796,7 +56853,7 @@ function _euRenderGroupMini(trnKey, season, userTeamName) {
       return `
         <div class="lg-scene-row${isUser ? ' is-user' : ''}">
           <div class="lg-scene-rank">${ti+1}</div>
-          <div class="lg-scene-crest" style="background:${bg};color:${tc}">${short}</div>
+          ${inlineBadge({tag:'div', cls:'lg-scene-crest', name:t.name, bg, tc, short})}
           <div class="lg-scene-tname" title="${t.name||''}">${t.countryFlag||''} ${t.name||'—'}</div>
           <div class="lg-scene-pts">${t.pts||0}</div>
         </div>
@@ -56868,13 +56925,13 @@ function _euEuroMatchRowHtml(m, userCountry) {
   return `
     <div class="lg-scene-row eu-match-row${isUserRow ? ' is-user' : ''}">
       <div class="eu-team-l">
-        <span class="eu-crest" style="background:${homeBg};color:${homeTc}">${homeShort}</span>
+        ${inlineBadge({cls:'eu-crest', name:m.home.name, bg:homeBg, tc:homeTc, short:homeShort})}
         <span class="eu-tname" title="${m.homeName||''}">${m.homeFlag||''} ${m.homeName||'—'}</span>
       </div>
       <div class="eu-score">${score}</div>
       <div class="eu-team-r">
         <span class="eu-tname" title="${m.awayName||''}">${m.awayName||'—'} ${m.awayFlag||''}</span>
-        <span class="eu-crest" style="background:${awayBg};color:${awayTc}">${awayShort}</span>
+        ${inlineBadge({cls:'eu-crest', name:m.away.name, bg:awayBg, tc:awayTc, short:awayShort})}
       </div>
     </div>
   `;
@@ -58306,12 +58363,12 @@ function renderFixture() {
         <div class="lg2-fix-week ${m.compClass||''}">${m.comp} · ${m.round}</div>
         <div class="lg2-fix-teams">
           <div class="lg2-fix-tm">
-            <div class="lg2-fix-ball" style="background:${m.home.bg};color:${m.home.tc}">${m.home.short}</div>
+            ${inlineBadge({tag:'div', cls:'lg2-fix-ball', team:m.home})}
             <span class="lg2-fix-tmn ${m.home.user?'user-t':''}">${m.home.name}</span>
           </div>
           ${scorePart}
           <div class="lg2-fix-tm away-tm">
-            <div class="lg2-fix-ball" style="background:${m.away.bg};color:${m.away.tc}">${m.away.short}</div>
+            ${inlineBadge({tag:'div', cls:'lg2-fix-ball', team:m.away})}
             <span class="lg2-fix-tmn ${m.away.user?'user-t':''}">${m.away.name}</span>
           </div>
         </div>
@@ -58433,7 +58490,7 @@ function _renderFriendlyFixtureSection() {
     else if (m.status === 'rejected') badge = '<span style="background:rgba(239,83,80,.14);color:#ef5350;padding:2px 7px;border-radius:6px;font-size:9px;font-weight:800">❌ REDDEDİLDİ</span>';
 
     return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border);${m.status==='rejected'?'opacity:.6;':''}">
-      <div style="width:32px;height:32px;border-radius:50%;background:${oppBg};color:${oppTc};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;flex-shrink:0">${oppShort}</div>
+      ${inlineBadge({tag:'div', cls:'frm-inb-opp', name:oppName, bg:oppBg, tc:oppTc, short:oppShort})}
       <div style="flex:1;min-width:0">
         <div style="font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${venue} ${oppName}</div>
         <div style="font-size:10px;color:var(--text3);margin-top:2px">${dateStr} · ${timeStr}</div>
@@ -59656,7 +59713,7 @@ function renderPlayerHistory() {
       const tc = s.ongoing ? '#00e676' : 'var(--text2)';
       return `<div class="cv-row">
         <div class="cv-left">
-          <div class="cv-logo" style="background:${bg};color:${tc}">${s.short}</div>
+          ${inlineBadge({tag:'div', cls:'cv-logo', name:s.teamName, bg, tc, short:s.short})}
         </div>
         <div class="cv-mid">
           <div class="cv-club">${s.flag} ${s.teamName}${s.ongoing?'<span class="cv-live"> ●</span>':''}</div>
@@ -62055,7 +62112,7 @@ function _statRowHtml(p, rank, statType) {
 
   return `<div class="lst-row ${p.isUser?'is-user':''}" ${clickAttr} style="cursor:pointer">
     <div class="lst-rank ${_rankClass(rank)}">${rank}</div>
-    <div class="lst-team-logo" style="background:${p.teamBg};color:${p.teamTc}">${p.teamShort}</div>
+    ${inlineBadge({tag:'div', cls:'lst-team-logo', name:p.teamName, bg:p.teamBg, tc:p.teamTc, short:p.teamShort})}
     <div class="lst-info-col">
       <div class="lst-pname ${p.isUser?'user-mark':''}"><span class="lst-pos-pill ${posCls}">${_posLabel3(p.pos)}</span>${p.name}</div>
       <div class="lst-psub">${p.flag} ${p.teamName}</div>
@@ -62397,7 +62454,7 @@ function renderTeamLeagueTable() {
       onclick="viewTeam('${countryCode}', '${(t.name||'').replace(/'/g, "\\'")}')">
       <div class="lg2-rank ${zs.rank}">${pos}</div>
       <div class="lg2-tcell">
-        <div class="lg2-tball" style="background:${t.bg};color:${t.tc}">${t.short}</div>
+        ${inlineBadge({tag:'div', cls:'lg2-tball', team:t})}
         <span class="lg2-tball-name ${isUser?'user-t':''}">${t.name}</span>
       </div>
       <span class="lg2-tn">${t.played}</span>
@@ -62488,7 +62545,7 @@ function lg2RenderTable() {
       onclick="viewTeam('${_lg2Country}', '${(t.name||'').replace(/'/g, "\\'")}')">
       <div class="lg2-rank ${zs.rank}">${pos}</div>
       <div class="lg2-tcell">
-        <div class="lg2-tball" style="background:${t.bg};color:${t.tc}">${t.short}</div>
+        ${inlineBadge({tag:'div', cls:'lg2-tball', team:t})}
         <span class="lg2-tball-name ${isUser?'user-t':''}">${t.name}</span>
       </div>
       <span class="lg2-tn">${t.played}</span>
@@ -62805,12 +62862,12 @@ function lg2RenderFixture() {
           <div class="lg2-fix-week">${league.name} · H${m.week} M${m.match}</div>
           <div class="lg2-fix-teams">
             <div class="lg2-fix-tm">
-              <div class="lg2-fix-ball" style="background:${m.homeTeam.bg};color:${m.homeTeam.tc}">${m.homeTeam.short}</div>
+              ${inlineBadge({tag:'div', cls:'lg2-fix-ball', team:m.homeTeam})}
               <span class="lg2-fix-tmn">${m.homeTeam.name}</span>
             </div>
             ${scoreHtml}
             <div class="lg2-fix-tm away-tm">
-              <div class="lg2-fix-ball" style="background:${m.awayTeam.bg};color:${m.awayTeam.tc}">${m.awayTeam.short}</div>
+              ${inlineBadge({tag:'div', cls:'lg2-fix-ball', team:m.awayTeam})}
               <span class="lg2-fix-tmn">${m.awayTeam.name}</span>
             </div>
           </div>
@@ -63914,7 +63971,7 @@ function trn2BuildLeadersHtml(trnKey, season) {
       : `onclick="statListViewPlayer(${_cIdx})"`;
     return `<div class="lst-row ${p.isUser?'is-user':''}" ${clickAttr} style="padding:6px 8px;cursor:pointer">
       <div class="lst-rank ${_rankClass(i+1)}" style="font-size:13px;width:18px">${i+1}</div>
-      <div class="lst-team-logo" style="background:${p.teamBg};color:${p.teamTc};width:22px;height:22px;font-size:8px">${p.teamShort}</div>
+      ${inlineBadge({tag:'div', cls:'lst-team-logo lst-team-logo-sm', name:p.teamName, bg:p.teamBg, tc:p.teamTc, short:p.teamShort})}
       <div class="lst-info-col">
         <div class="lst-pname ${p.isUser?'user-mark':''}" style="font-size:11px"><span class="lst-pos-pill ${posCls}">${_posLabel3(p.pos)}</span>${p.name}</div>
         <div class="lst-psub" style="font-size:8px">${p.flag} ${p.teamName}</div>
@@ -64015,7 +64072,7 @@ function trn2BuildStatHtml(trnKey, season, statType) {
       : `onclick="statListViewPlayer(${_cIdx})"`;
     return `<div class="lst-row ${p.isUser?'is-user':''}" ${clickAttr} style="padding:7px 10px;cursor:pointer">
       <div class="lst-rank ${_rankClass(i+1)}" style="font-size:13px;width:22px">${i+1}</div>
-      <div class="lst-team-logo" style="background:${p.teamBg};color:${p.teamTc};width:24px;height:24px;font-size:9px">${p.teamShort}</div>
+      ${inlineBadge({tag:'div', cls:'lst-team-logo lst-team-logo-md', name:p.teamName, bg:p.teamBg, tc:p.teamTc, short:p.teamShort})}
       <div class="lst-info-col">
         <div class="lst-pname ${p.isUser?'user-mark':''}" style="font-size:12px"><span class="lst-pos-pill ${posCls}">${_posLabel3(p.pos)}</span>${p.name}</div>
         <div class="lst-psub" style="font-size:9px">${p.flag} ${p.teamName}</div>
@@ -64089,7 +64146,7 @@ function trn2BuildPlayoffHtml(playoff, trnKey, season) {
       <div class="trn2-po-match-num">#${idx+1}</div>
       <div class="trn2-po-teams">
         <div class="trn2-po-team home-side ${isHomeWin?'winner':''} ${isAnk(m.home)?'user-t':''}">
-          <div class="trn2-po-logo" style="background:${m.home.bg};color:${m.home.tc}">${m.home.short}</div>
+          ${inlineBadge({tag:'div', cls:'trn2-po-logo', team:m.home})}
           <div class="trn2-po-tinfo">
             <div class="trn2-po-tname">${m.home.name}</div>
             <div class="trn2-po-flag">${m.home.countryFlag} ${m.home.rank===1||m.home.rank===3||m.home.rank===5?'1.':'2.'} Sıra</div>
@@ -64101,7 +64158,7 @@ function trn2BuildPlayoffHtml(playoff, trnKey, season) {
           <div class="trn2-po-sc" style="color:${isAwayWin?trnColor:'var(--text2)'}">${m.as}</div>
         </div>
         <div class="trn2-po-team away-side ${isAwayWin?'winner':''} ${isAnk(m.away)?'user-t':''}">
-          <div class="trn2-po-logo" style="background:${m.away.bg};color:${m.away.tc}">${m.away.short}</div>
+          ${inlineBadge({tag:'div', cls:'trn2-po-logo', team:m.away})}
           <div class="trn2-po-tinfo">
             <div class="trn2-po-tname">${m.away.name}</div>
             <div class="trn2-po-flag">${m.away.countryFlag} ${m.away.rank===2||m.away.rank===4||m.away.rank===6?'2.':'1.'} Sıra</div>
@@ -64557,7 +64614,7 @@ function trn2RenderQual(season) {
       const isUser = _utn && t.name === _utn && ck === _utc;
       // 🆕 Yıldız yerine yeşil yazı rengi
       html += `<div class="trn2-qual-team-row ${isUser?'user-row':''}">
-        <div class="trn2-qt-logo" style="background:${t.bg};color:${t.tc}">${t.short}</div>
+        ${inlineBadge({tag:'div', cls:'trn2-qt-logo', team:t})}
         <span class="trn2-qt-name" style="${isUser?'color:#00e676;font-weight:800':''}">${t.name}</span>
         <span class="trn2-qt-pos">${t.rank}.</span>
         <span class="trn2-qt-badge" style="background:${zoneColor}18;color:${zoneColor}">${zoneLabel}</span>
@@ -67483,7 +67540,7 @@ function inboxRenderDetail(msg) {
         <div class="inbox-tc-row" style="align-items:center">
           <span class="inbox-tc-label">Rakip</span>
           <span class="inbox-tc-val" style="display:flex;align-items:center;gap:6px">
-            <span style="width:18px;height:18px;border-radius:50%;background:${fd.opponentBg};color:${fd.opponentTc};display:inline-flex;align-items:center;justify-content:center;font-size:7px;font-weight:900">${fd.opponentShort}</span>
+            ${inlineBadge({cls:'inbox-opp-mini', name:fd.opponent, bg:fd.opponentBg, tc:fd.opponentTc, short:fd.opponentShort})}
             ${fd.opponent}
           </span>
         </div>
@@ -71836,7 +71893,7 @@ function evRaceRender() {
 
     html += `<div class="ev-race-prow${medalClass}${userClass}" ${rowClickAttr} style="cursor:pointer">
       <div class="ev-race-prow-rank">${rank}</div>
-      <div class="ev-race-prow-logo" style="background:${e.teamBg};color:${e.teamTc}">${e.teamShort}</div>
+      ${inlineBadge({tag:'div', cls:'ev-race-prow-logo', name:e.teamName, bg:e.teamBg, tc:e.teamTc, short:e.teamShort})}
       <div class="ev-race-prow-info">
         <div class="ev-race-prow-name">${e.playerName}${e.isUser ? ' <span class="ev-race-you">SEN</span>' : ''}</div>
         <div class="ev-race-prow-meta">${e.countryFlag} ${e.teamName}</div>
@@ -71863,7 +71920,7 @@ function evRaceRender() {
     html += `<div class="ev-race-row-divider">···</div>
       <div class="ev-race-prow is-user" onclick="openPlayerModalSelfFromRanking()" style="cursor:pointer">
         <div class="ev-race-prow-rank">${me.rank}</div>
-        <div class="ev-race-prow-logo" style="background:${me.teamBg};color:${me.teamTc}">${me.teamShort}</div>
+        ${inlineBadge({tag:'div', cls:'ev-race-prow-logo', name:me.teamName, bg:me.teamBg, tc:me.teamTc, short:me.teamShort})}
         <div class="ev-race-prow-info">
           <div class="ev-race-prow-name">${me.playerName} <span class="ev-race-you">SEN</span></div>
           <div class="ev-race-prow-meta">${me.countryFlag} ${me.teamName}</div>
@@ -74284,7 +74341,7 @@ function rkTeamRow(t, rank, isMe){
   // Lig sayfasındaki _statRowHtml ve oyuncu sıralamasındaki rkPlayerRow ile AYNI yapı
   return `<div class="lst-row ${isMe?'is-user':''}" ${clickAttr}>
     <div class="lst-rank ${(typeof _rankClass === 'function') ? _rankClass(rank) : rkNumCls(rank)}">${rank}</div>
-    <div class="lst-team-logo" style="background:${teamBg};color:${teamTc}">${teamShort}</div>
+    ${inlineBadge({tag:'div', cls:'lst-team-logo', name:t.n, bg:teamBg, tc:teamTc, short:teamShort})}
     <div class="lst-info-col">
       <div class="lst-pname ${isMe?'user-mark':''}">${t.n}</div>
       <div class="lst-psub">${t.f} ${t.cn} · ${t.lg}</div>
