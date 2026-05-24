@@ -12955,6 +12955,16 @@ body.lg-myleague-mode .lg2-tier-pills{display:none !important}
   letter-spacing:.5px;
 }
 .toto-cc-row-score.is-pending{color:var(--text3);background:transparent;font-size:11px;font-weight:600}
+.toto-cc-row-score.is-live{
+  color:#fff;
+  background:linear-gradient(135deg,#e53935,#c62828);
+  box-shadow:0 0 8px rgba(229,57,53,.5);
+  animation:totoLiveScorePulse 1.4s ease-in-out infinite;
+}
+@keyframes totoLiveScorePulse{
+  0%,100%{box-shadow:0 0 8px rgba(229,57,53,.5)}
+  50%{box-shadow:0 0 14px rgba(229,57,53,.85)}
+}
 .toto-cc-row-pick{
   width:26px;flex-shrink:0;
   font-weight:900;
@@ -69972,6 +69982,35 @@ function totoSelectLeague(key, el) {
   totoRender();
 }
 
+// 🆕 Popüler kartına tıklayınca ülke flag'ini aktif et (key formatı: "TR_0" → ülke "TR")
+function totoSelectCountryByKey(poolKey) {
+  if (!poolKey || poolKey.startsWith('trn_')) return;
+  const ck = poolKey.split('_')[0];
+  if (!ck) return;
+  _totoSelectedCountry = ck;
+  // DOM aktif state — flag butonunu vurgula
+  setTimeout(() => {
+    document.querySelectorAll('.toto-country-btn').forEach(b => {
+      const onclickStr = b.getAttribute('onclick') || '';
+      if (onclickStr.includes(`'${ck}'`)) b.classList.add('active');
+      else b.classList.remove('active');
+    });
+    // Turnuva butonları pasif olsun
+    document.querySelectorAll('.toto-trn-btn').forEach(b => b.classList.remove('active'));
+  }, 0);
+}
+
+// 🆕 Popüler kartı sonrası lig pill'ini görsel olarak aktive et (render bittikten sonra)
+function _totoActivateLeaguePill(key) {
+  setTimeout(() => {
+    document.querySelectorAll('.toto-lp-pill').forEach(p => {
+      const onclickStr = p.getAttribute('onclick') || '';
+      if (onclickStr.includes(`'${key}'`)) p.classList.add('active');
+      else p.classList.remove('active');
+    });
+  }, 50);
+}
+
 function totoRenderMatches() {
   const el = document.getElementById('totoMatchList');
   if(!el) return;
@@ -70414,10 +70453,12 @@ function totoRenderMyCoupons() {
       const timeCls = isLive ? 'is-live' : '';
       const timeTxt = isFinished ? 'BİTTİ' : (isLive ? 'CANLI' : (m?.kickoffStr || ''));
 
-      // Skor
+      // Skor — bitmiş gerçek skor, canlı ise anlık skor, başlamamış '—'
       const scoreHtml = isFinished
         ? `<span class="toto-cc-row-score">${m.hs}-${m.as}</span>`
-        : `<span class="toto-cc-row-score is-pending">${isLive ? '?' : '—'}</span>`;
+        : (isLive && typeof m.hs === 'number' && typeof m.as === 'number')
+          ? `<span class="toto-cc-row-score is-live">${m.hs}-${m.as}</span>`
+          : `<span class="toto-cc-row-score is-pending">—</span>`;
 
       // Sonuç ikonu
       let iconHtml = '';
@@ -70620,11 +70661,11 @@ function totoRenderPopular() {
                       : rank === 3 ? '🥉'
                       : '#' + rank;
 
-    // Onclick: kupon yap sekmesine git, ligi seç
+    // Onclick: kupon yap sekmesine git, ligi seç + ülke flag'ini aktif et
     const isTrn = p.key.startsWith('trn_');
     const onclickAction = isTrn
       ? `totoTab('coupons',document.querySelectorAll('.toto-top-tab')[0]);totoSelectTrn('${p.key.replace('trn_','')}')`
-      : `totoTab('coupons',document.querySelectorAll('.toto-top-tab')[0]);totoSelectLeague('${p.key}',null)`;
+      : `totoTab('coupons',document.querySelectorAll('.toto-top-tab')[0]);totoSelectCountryByKey('${p.key}');totoSelectLeague('${p.key}',null);_totoActivateLeaguePill('${p.key}')`;
 
     const rankCls = rank <= 3 ? `rank-${rank}` : '';
 
@@ -76328,6 +76369,16 @@ setTimeout(async ()=>{
           }
           // Ana sayfa maç önizleme paneli de güncellensin
           if (typeof renderHomeNextMatch === 'function') renderHomeNextMatch();
+          // 🆕 Toto kuponlarım sayfası açıksa kazanım hesabını tazele (maç bitti → pending→win/lose)
+          const totoMy = document.getElementById('toto-mycoupons');
+          if (totoMy && totoMy.style.display !== 'none' && typeof totoRenderMyCoupons === 'function') {
+            totoRenderMyCoupons();
+          }
+          // 🆕 Toto bülten sayfası açıksa skorları tazele
+          const totoCp = document.getElementById('toto-coupons');
+          if (totoCp && totoCp.style.display !== 'none' && typeof totoRenderMatches === 'function') {
+            totoRenderMatches();
+          }
           console.info('[realtime] match_results güncellendi');
         } catch(e) { console.warn('[realtime] match_results refresh hata:', e); }
       }, 800);
@@ -76348,6 +76399,16 @@ setTimeout(async ()=>{
           const ms = document.getElementById('match-screen');
           if (ms && ms.classList.contains('open') && typeof _resLiveUpdate === 'function') {
             _resLiveUpdate();
+          }
+          // 🆕 Toto kuponlarım sayfası açıksa canlı skoru tazele
+          const totoMy = document.getElementById('toto-mycoupons');
+          if (totoMy && totoMy.style.display !== 'none' && typeof totoRenderMyCoupons === 'function') {
+            totoRenderMyCoupons();
+          }
+          // 🆕 Toto bülten sayfası açıksa maç skorlarını tazele
+          const totoCp = document.getElementById('toto-coupons');
+          if (totoCp && totoCp.style.display !== 'none' && typeof totoRenderMatches === 'function') {
+            totoRenderMatches();
           }
         } catch(e) { console.warn('[realtime] match_state refresh hata:', e); }
       }, 500);
@@ -76414,7 +76475,39 @@ setTimeout(async ()=>{
           .subscribe();
       }
       
-      console.info('[realtime] Subscribe edilen tablolar: match_results, match_state, players, team_data, user_wallet');
+      // 🆕 6) toto_pools — havuzlar değişince (başka kullanıcı kupon yatırdı vb)
+      // Tek dünya: tüm oyuncular anlık güncel havuzları görür
+      const _refreshTotoPools = _rtDebounce(async () => {
+        try {
+          if (!window.sb) return;
+          const { data } = await window.sb.from('toto_pools')
+            .select('pool_key, pool_amount, players_count')
+            .gte('updated_at', new Date(Date.now() - 14 * 86400000).toISOString());
+          const map = {};
+          (data || []).forEach(r => {
+            map[r.pool_key] = { pool: r.pool_amount || 0, players: r.players_count || 0 };
+          });
+          _totoPoolsCache = map;
+          // Eğlence sayfası açıksa toto'yu tazele
+          const ent = document.getElementById('page-entertainment');
+          if (ent && ent.classList.contains('active')) {
+            const totoPop = document.getElementById('toto-popular');
+            if (totoPop && totoPop.style.display !== 'none' && typeof totoRenderPopular === 'function') {
+              totoRenderPopular();
+            }
+            // Bülten sayfası da havuzu prize bar'da gösteriyor, onu da tazele
+            const totoCp = document.getElementById('toto-coupons');
+            if (totoCp && totoCp.style.display !== 'none' && typeof totoRender === 'function') {
+              totoRender();
+            }
+          }
+        } catch(e) { console.warn('[realtime] toto_pools refresh hata:', e); }
+      }, 800);
+      window.sb.channel('rt-toto-pools')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'toto_pools' }, _refreshTotoPools)
+        .subscribe();
+      
+      console.info('[realtime] Subscribe edilen tablolar: match_results, match_state, players, team_data, user_wallet, toto_pools');
     }
   } catch(e) { console.warn('[realtime] subscribe hata:', e); }
   
@@ -76444,7 +76537,17 @@ setTimeout(async ()=>{
     _paidInstallmentsLoadFromServer().catch(e => console.warn('installments load hata:', e)),
     _careerHistoryLoadFromServer().catch(e => console.warn('career_history load hata:', e)),
     _ntJerseyOverridesLoadFromServer().catch(e => console.warn('nt_jersey load hata:', e)),
-    _totoLoadFromServer().catch(e => console.warn('toto load hata:', e)),
+    _totoLoadFromServer().then(() => {
+      // 🆕 Eğlence sayfası açıksa Toto'yu otomatik tazele (cache geldi → liste dolsun)
+      const ent = document.getElementById('page-entertainment');
+      if (ent && ent.classList.contains('active') && typeof totoRender === 'function') {
+        try { totoRender(); } catch(e) {}
+        const totoPop = document.getElementById('toto-popular');
+        if (totoPop && totoPop.style.display !== 'none' && typeof totoRenderPopular === 'function') {
+          try { totoRenderPopular(); } catch(e) {}
+        }
+      }
+    }).catch(e => console.warn('toto load hata:', e)),
     _shopStocksLoadFromServer().catch(e => console.warn('shop_stocks load hata:', e)),
     _tfListLoadFromServer().then(arr => { _tfListCache = arr; }).catch(e => console.warn('tf_list load hata:', e)),
     _achLoadFromServer().catch(e => console.warn('achievements load hata:', e)),
