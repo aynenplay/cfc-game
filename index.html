@@ -41994,38 +41994,32 @@ async function _userMatchLogLoadFromServer() {
     _userTrainLogCache = []; _userRaceClaimedCache = {};
     return;
   }
-  // 🆕 authUser henüz set edilmediyse 8 saniyeye kadar bekle (authInit async, boot sırası)
-  let waited = 0;
-  while ((!authUser || !authUser.id) && waited < 8000) {
-    await new Promise(r => setTimeout(r, 200));
-    waited += 200;
-  }
-  if (!authUser || !authUser.id) {
+  // 🆕 authUser'a bağımlı kalma — user_id'yi Supabase session'dan doğrudan al
+  // (boot sequence'ta authInit henüz tamamlanmamış olabilir, ama session restore edilmiş olur)
+  let userId = null;
+  try {
+    if (authUser && authUser.id) {
+      userId = authUser.id;
+    } else {
+      const { data: sess } = await window.sb.auth.getSession();
+      userId = sess?.session?.user?.id || null;
+    }
+  } catch(e) {}
+  if (!userId) {
     _userMatchLogCache = []; _userXpLogCache = [];
     _userTrainLogCache = []; _userRaceClaimedCache = {};
     return;
   }
   try {
-    const { data, error } = await window.sb.from('user_player')
+    const { data } = await window.sb.from('user_player')
       .select('match_log, xp_log, train_log, race_claimed')
-      .eq('user_id', authUser.id)
+      .eq('user_id', userId)
       .maybeSingle();
-    // 🔧 GEÇİCİ TANI
-    try {
-      alert('LOAD TANI\n' +
-            'user_id: ' + authUser.id.slice(0,8) + '...\n' +
-            'error: ' + (error?.message || 'yok') + '\n' +
-            'satır var mı: ' + (!!data) + '\n' +
-            'train_log tipi: ' + (Array.isArray(data?.train_log) ? 'array' : typeof data?.train_log) + '\n' +
-            'train_log uzunluğu: ' + (Array.isArray(data?.train_log) ? data.train_log.length : '-') + '\n' +
-            'match_log uzunluğu: ' + (Array.isArray(data?.match_log) ? data.match_log.length : '-'));
-    } catch(ee) {}
     _userMatchLogCache = Array.isArray(data?.match_log) ? data.match_log : [];
     _userXpLogCache = Array.isArray(data?.xp_log) ? data.xp_log : [];
     _userTrainLogCache = Array.isArray(data?.train_log) ? data.train_log : [];
     _userRaceClaimedCache = (data?.race_claimed && typeof data.race_claimed === 'object') ? data.race_claimed : {};
   } catch(e) {
-    try { alert('LOAD EXCEPTION:\n' + (e?.message || String(e))); } catch(ee) {}
     _userMatchLogCache = []; _userXpLogCache = [];
     _userTrainLogCache = []; _userRaceClaimedCache = {};
   }
