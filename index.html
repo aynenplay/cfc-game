@@ -69428,15 +69428,24 @@ let _totoPoolsSaveTimer = null;
 
 async function _totoLoadFromServer() {
   if (!window.sb) return;
-  // 1. Kuponlar (kullanıcı bazlı)
-  if (authUser && authUser.id) {
+  // 1. Kuponlar (kullanıcı bazlı) — authUser global geç set edilebilir, session direkt oku
+  let _uid = (authUser && authUser.id) ? authUser.id : null;
+  if (!_uid) {
+    try {
+      const { data: { user } } = await window.sb.auth.getUser();
+      _uid = user?.id || null;
+    } catch(e) {}
+  }
+  if (_uid) {
     try {
       const { data } = await window.sb.from('user_player')
         .select('toto_coupons')
-        .eq('user_id', authUser.id)
+        .eq('user_id', _uid)
         .maybeSingle();
       _totoCouponsCache = Array.isArray(data?.toto_coupons) ? data.toto_coupons : [];
     } catch(e) { _totoCouponsCache = []; }
+  } else {
+    _totoCouponsCache = [];
   }
   // 2. Havuzlar (GLOBAL - shared)
   try {
@@ -69457,16 +69466,24 @@ function totoGetCoupons() {
 }
 function totoSaveCoupons(c) {
   _totoCouponsCache = Array.isArray(c) ? c : [];
-  if (window.sb && authUser && authUser.id) {
-    clearTimeout(_totoCouponsSaveTimer);
-    _totoCouponsSaveTimer = setTimeout(async () => {
+  if (!window.sb) return;
+  clearTimeout(_totoCouponsSaveTimer);
+  _totoCouponsSaveTimer = setTimeout(async () => {
+    // authUser global yoksa session'dan al
+    let _uid = (authUser && authUser.id) ? authUser.id : null;
+    if (!_uid) {
       try {
-        await window.sb.from('user_player').update({
-          toto_coupons: _totoCouponsCache
-        }).eq('user_id', authUser.id);
-      } catch(e) { console.warn('[toto coupons] save hata:', e); }
-    }, 500);
-  }
+        const { data: { user } } = await window.sb.auth.getUser();
+        _uid = user?.id || null;
+      } catch(e) {}
+    }
+    if (!_uid) { console.warn('[toto coupons] save iptal: kullanıcı oturumu yok'); return; }
+    try {
+      await window.sb.from('user_player').update({
+        toto_coupons: _totoCouponsCache
+      }).eq('user_id', _uid);
+    } catch(e) { console.warn('[toto coupons] save hata:', e); }
+  }, 500);
 }
 
 // Havuz: GLOBAL Supabase
