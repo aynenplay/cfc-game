@@ -57487,35 +57487,37 @@ function bergerSchedule(numTeams) {
   const n = numTeams;
   if(n < 2 || n % 2 !== 0) return [];
 
-  const half = n / 2;
-  // Numaralandırma: takım 0 (sabit) + takımlar 1...(n-1) döner
-  // İlk hafta: 0 vs n-1, 1 vs n-2, 2 vs n-3, ...
-  // Sonraki haftalar: takım 0 yerinde kalır, kalanlar saat yönünün tersine kayar
+  // 🆕 DOĞRU BERGER TABLOSU
+  // Önceki implementasyon takım 0 hariç tüm takımlarda dengesiz ev/dep dağılımı veriyordu
+  // (örn. bazı takımlar 15 hafta üst üste deplasman oynuyordu).
+  // Bu implementasyon klasik Berger circle method'unu uygular:
+  // - Sabit takım (arr[0]) hafta paritesiyle ev/dep çevirir
+  // - Diğer eşleşmeler hafta paritesine göre toptan flip edilir
+  // Sonuç: her takım maksimum 2 ardışık aynı taraf, toplam 7-8 ev / 7-8 dep dengeli dağılım
 
-  // Takım listesi (rotasyon için)
+  const half = n / 2;
   let arr = [];
   for(let i = 0; i < n; i++) arr.push(i);
 
   const weeks = [];
   for(let w = 0; w < n - 1; w++) {
     const matches = [];
-    for(let m = 0; m < half; m++) {
-      const home = arr[m];
-      const away = arr[n - 1 - m];
-
-      // 🆕 Daha iyi ev/dep alternation: (hafta + eşleşme indexi) çift/tek
-      // Bu sayede her takım sezon boyunca dengeli ev/dep dağılımı alır
-      // Klasik berger sadece m=0'a flip yapardı → diğer takımlar hep aynı tarafta kalırdı
-      const flip = ((w + m) % 2 === 1);
-      matches.push({
-        homeIdx: flip ? away : home,
-        awayIdx: flip ? home : away,
-      });
+    // İlk eşleşme: sabit takım arr[0] vs gezen arr[n-1]
+    {
+      const sabit = arr[0], gezen = arr[n - 1];
+      if (w % 2 === 0) matches.push({ homeIdx: sabit, awayIdx: gezen });
+      else            matches.push({ homeIdx: gezen, awayIdx: sabit });
+    }
+    // Diğer eşleşmeler: arr[i] vs arr[n-1-i] (i=1..half-1)
+    // Hafta paritesi ile ev/dep flip
+    for(let i = 1; i < half; i++) {
+      const a = arr[i], b = arr[n - 1 - i];
+      if (w % 2 === 0) matches.push({ homeIdx: a, awayIdx: b });
+      else            matches.push({ homeIdx: b, awayIdx: a });
     }
     weeks.push(matches);
 
-    // Rotasyon: takım 0 sabit, kalanlar kayar
-    // arr[1], arr[2], ..., arr[n-1] → saat yönünün tersine 1 kaydır
+    // Rotasyon: arr[0] sabit, kalanları saat yönünün tersine kaydır
     const last = arr[n - 1];
     for(let i = n - 1; i > 1; i--) arr[i] = arr[i - 1];
     arr[1] = last;
