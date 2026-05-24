@@ -69533,43 +69533,69 @@ function totoGenMatches(leagueKey, couponPart) {
     const qual = trn2GetQualifiers(season);
     if(!qual || !qual[trnKey] || !qual[trnKey].length) return [];
     const playoff = trn2BuildPlayoff(qual[trnKey], season, trnKey);
+    if (!playoff || !playoff.length) return [];
     const leagueName = {champ:'Championship League', elite:'Elite League', conv:'Convergence League'}[trnKey] || trnKey;
     const flagStr = {champ:'🏆', elite:'⭐', conv:'🟢'}[trnKey] || '🌍';
+    // 🆕 Server'daki gerçek skorlar — match_results cache'inden oku (tek dünya)
+    let resultsCache = {};
+    try { resultsCache = _matchResultsLoad(); } catch(e) {}
+    // 🆕 Turnuva playoff maç sırası: trn_state.fixture.playoff'tan kickoff_at ile
+    // Önce playoff maçlarını kickoff_at'a göre sırala (server gerçek kickoff)
+    const playoffWithKickoff = playoff.map((m, idx) => {
+      if (!m || !m.home || !m.away) return null;
+      const key = `${season}_0_${m.home.name}_${m.away.name}`;
+      const cached = resultsCache[key] || null;
+      // Kickoff: cache'ten geliyorsa direkt, yoksa playoff metadata'sından
+      let kickoffMs = cached?.playedAt || 0;
+      if (!kickoffMs && m.kickoffMs) kickoffMs = m.kickoffMs;
+      if (!kickoffMs && m.kickoff_at) kickoffMs = new Date(m.kickoff_at).getTime();
+      return { m, idx, kickoffMs, cached };
+    }).filter(Boolean);
+    // Kickoff'a göre sırala (geçmiş + gelecek karışık olabilir)
+    playoffWithKickoff.sort((a, b) => a.kickoffMs - b.kickoffMs);
+    // 🆕 Bültenin günü: bugünden başla, eğer bugünde BAŞLAMIŞ maç varsa yarına geç (lig tarafıyla aynı mantık)
+    let bulletinDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    for (let attempt = 0; attempt < 14; attempt++) {
+      const dayEnd = new Date(bulletinDate.getTime() + 86400000);
+      const dayMatches = playoffWithKickoff.filter(p => p.kickoffMs >= bulletinDate.getTime() && p.kickoffMs < dayEnd.getTime());
+      if (dayMatches.length === 0) {
+        bulletinDate = new Date(bulletinDate.getTime() + 86400000);
+        continue;
+      }
+      const anyStarted = dayMatches.some(p => now.getTime() >= p.kickoffMs);
+      if (!anyStarted) break;
+      bulletinDate = new Date(bulletinDate.getTime() + 86400000);
+    }
+    const bulletinEnd = new Date(bulletinDate.getTime() + 86400000);
+    const dayMatches = playoffWithKickoff.filter(p => p.kickoffMs >= bulletinDate.getTime() && p.kickoffMs < bulletinEnd.getTime());
+    if (!dayMatches.length) return [];
     const offset = part * 8;
+    const slice = dayMatches.slice(offset, offset + 8);
     const matches = [];
-    for(let i = 0; i < 8; i++) {
-      const m = playoff[offset + i];
-      if(!m || !m.home || !m.away) break;
+    slice.forEach(entry => {
+      const m = entry.m;
+      const cached = entry.cached;
       const home = {...m.home, bg: m.home.bg||'#37474f', tc: m.home.tc||'#fff'};
       const away = {...m.away, bg: m.away.bg||'#37474f', tc: m.away.tc||'#fff'};
-      // Skor: generateMatchScore ile gerçek skor
-      const seed = `trn-${trnKey}-s${season}-po-${offset+i}`;
-      let hs = 0, as = 0;
-      try { [hs, as] = generateMatchScore(home.rating || 75, away.rating || 75, seed); } catch(e){}
-      const result = hs > as ? '1' : hs === as ? '0' : '2';
-      // Kickoff: bültenin gününden itibaren 19:00'dan başlayarak
-      // 🆕 Bugün BAŞLAYAN maç varsa yarına kaydır (devam eden maçlara tahmin yok)
-      const turnuvaBulletinDate = new Date(now);
-      // Bugün ilk maç saati: 19:00. Eğer şu an 19:00'ı geçtiyse yarına geç
-      const todayFirstKickoff = new Date(now); todayFirstKickoff.setHours(19, 0, 0, 0);
-      if (now.getTime() >= todayFirstKickoff.getTime()) {
-        turnuvaBulletinDate.setDate(turnuvaBulletinDate.getDate() + 1);
+      // 🆕 Skor: SADECE server'daki gerçek sonuçtan (cache). Yoksa null (henüz oynanmadı).
+      let hs = null, as = null, result = null;
+      if (cached && typeof cached.hs === 'number' && typeof cached.as === 'number') {
+        hs = cached.hs;
+        as = cached.as;
+        result = hs > as ? '1' : (hs === as ? '0' : '2');
       }
-      turnuvaBulletinDate.setHours(0, 0, 0, 0);
-      const kickoff = new Date(turnuvaBulletinDate);
-      kickoff.setHours(19 + Math.floor(i/4) * 2, (i%4) * 15, 0, 0);
-      const finished = now >= new Date(kickoff.getTime() + 90*60*1000);
-      const started  = now >= kickoff;
+      const kickoff = new Date(entry.kickoffMs);
+      const finished = !!cached;
+      const started  = !cached && (now.getTime() >= entry.kickoffMs);
       matches.push({
-        home, away, result, hs, as,
+        home, away,
+        result, hs, as,
         league: leagueName, flag: flagStr,
         kickoff, kickoffStr: kickoff.toTimeString().slice(0,5),
         started, finished
       });
-    }
-    matches._bulletinDate = matches.length && matches[0].kickoff
-      ? new Date(matches[0].kickoff.getFullYear(), matches[0].kickoff.getMonth(), matches[0].kickoff.getDate())
-      : null;
+    });
+    matches._bulletinDate = bulletinDate;
     return matches;
   }
 
@@ -70199,8 +70225,9 @@ function totoSubmit() {
     bilet: _totoBilet,
     pool: pool + _totoBilet,
     picks: {..._totoSelections}, // {0:'1', 1:'0', ...}
-    // 🆕 results: kayıt anında oynanmamış maçlar için null. Her render'da cache'ten taze çekilir.
-    results: matches.map(m => m.result),
+    // 🆕 results: kayıt anında SADECE bitmiş maçlar için sonuç kaydedilir, gerisi null.
+    // totoRenderMyCoupons her render'da cache'ten taze çeker.
+    results: matches.map(m => (m.finished && m.result !== null) ? m.result : null),
     status: 'done', // Anlık hesapla (demo)
     collected: false,
   };
