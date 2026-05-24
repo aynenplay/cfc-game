@@ -38468,6 +38468,19 @@ function showPage(name,btn){
     if(typeof evAutoCheckOnLoad === 'function') evAutoCheckOnLoad();
     if(typeof evRender === 'function') evRender();
     if(typeof evRefreshTabBadges === 'function') evRefreshTabBadges();
+    // 🆕 Server-side race leaderboard preload (train için tüm gerçek kullanıcılar)
+    try {
+      if (typeof _evRacePreloadServerLb === 'function') {
+        const cycle = _evRaceCycleInfo();
+        const cycleStartMs = cycle.start.getTime();
+        const cached = _evRaceServerLbCache.train;
+        if (!cached || cached.cycleStart !== cycleStartMs) {
+          _evRacePreloadServerLb().then(() => {
+            if (typeof evRaceRender === 'function') evRaceRender();
+          });
+        }
+      }
+    } catch(e) {}
     // 🆕 Aktif tab'a göre ilgili render'ı da çağır (boş sayfa fix'i)
     // _evCurrentTab varsayılan 'race', kullanıcı tab değiştirmeden girince
     // evRaceRender çağrılmadığı için sayfa boş kalıyordu.
@@ -53783,6 +53796,27 @@ function renderHomeEventFeed(forceRefresh) {
   const wrap = document.getElementById('hmEventFeed');
   if(!wrap) return;
 
+  // 🆕 Server-side leaderboard preload — train için tüm gerçek kullanıcıların verisi
+  // İlk render'da boş gelir, RPC bitince re-render tetiklenir
+  try {
+    if (typeof _evRacePreloadServerLb === 'function') {
+      const cycle = _evRaceCycleInfo();
+      const cycleStartMs = cycle.start.getTime();
+      const cached = _evRaceServerLbCache.train;
+      if (!cached || cached.cycleStart !== cycleStartMs) {
+        _evRacePreloadServerLb().then(() => {
+          // Cache yüklendi → tekrar render et (bu sefer dolu liste gelir)
+          if (typeof renderHomeEventFeed === 'function') renderHomeEventFeed();
+          // Etkinlik sayfası açıksa onu da tazele
+          const evPage = document.getElementById('page-events');
+          if (evPage && evPage.classList.contains('active') && typeof evRaceRender === 'function') {
+            evRaceRender();
+          }
+        });
+      }
+    }
+  } catch(e) {}
+
   // Build leaderboards (haftalık yarış üreticisi)
   let ratingTop = [], trainTop = [];
   try {
@@ -68870,6 +68904,21 @@ function trCollect(id) {
     saveUserTrainLog(trainLog, /*immediate*/ true);
   }catch(e){}
 
+  // 🆕 Race train leaderboard cache'ini invalidate et — yeni antrenman listede görünmesi için
+  try { _evRaceServerLbCache.train = null; } catch(e) {}
+  // Arka planda yeniden yükle ve ilgili sayfaları tazele
+  try {
+    if (typeof _evRacePreloadServerLb === 'function') {
+      _evRacePreloadServerLb().then(() => {
+        if (typeof renderHomeEventFeed === 'function') renderHomeEventFeed();
+        const evPage = document.getElementById('page-events');
+        if (evPage && evPage.classList.contains('active') && typeof evRaceRender === 'function') {
+          evRaceRender();
+        }
+      });
+    }
+  } catch(e) {}
+
   trRender();
 }
 
@@ -71613,6 +71662,15 @@ async function _evRacePreloadServerLb() {
       _evRaceServerLbCache.rating = { cycleStart: cycleStartMs, data };
     }
   } catch(e) { console.warn('[race lb rating] hata:', e); }
+  // 🆕 Train leaderboard — server-side, tüm gerçek kullanıcıların train_log toplamı
+  try {
+    const { data, error } = await window.sb.rpc('get_race_train_leaderboard', {
+      cycle_start_ms: cycleStartMs
+    });
+    if (!error && Array.isArray(data)) {
+      _evRaceServerLbCache.train = { cycleStart: cycleStartMs, data };
+    }
+  } catch(e) { console.warn('[race lb train] hata:', e); }
 }
 
 // match_results cache'inden rating leaderboard'ı hesapla (cycle filtreli)
@@ -71757,12 +71815,41 @@ function _evRaceGenerateRatingPlayers(weekKey) {
 }
 
 // Bot leaderboard üreteci — OYUNCU bazlı (Antrenman Yıldızı)
-// Her takımın GERÇEK roster'ından en yüksek level'lı oyuncuyu seç (level = antrenman göstergesi).
-// Skor = level'a göre baz enerji + overall katkısı + hafta varyansı.
+// 🆕 Server-side RPC'den gelir — tüm gerçek kullanıcıların train_log toplamı.
+// Cache yoksa boş dönüyor (preload bitmeden render olursa); kullanıcı manuel push'la ekleniyor.
 function _evRaceGenerateTrainPlayers(weekKey) {
-  // Antrenman bot tarafı server'da yok → alfabetik fallback (skor 0)
-  // Gerçek kullanıcı entry'si _evRaceBuildLeaderboard tarafından eklenecek
-  return _evRaceAlphabeticFallback('train');
+  const cycle = _evRaceCycleInfo();
+  const cycleStartMs = cycle.start.getTime();
+  const cached = _evRaceServerLbCache.train;
+  if (!cached || cached.cycleStart !== cycleStartMs || !Array.isArray(cached.data)) {
+    return []; // Henüz yüklenmedi → boş; kullanıcı entry'si _evRaceBuildLeaderboard'da eklenir
+  }
+  const myId = (window.authUser && window.authUser.id) || null;
+  return cached.data.map(row => {
+    // Takım metadata lookup
+    let teamShort = (row.team_name || 'XX').slice(0,3).toUpperCase();
+    let teamBg = '#333', teamTc = '#fff';
+    let countryFlag = '🏳️';
+    try {
+      const country = _cftGetCountry(row.country_code);
+      if (country) {
+        countryFlag = country.flag || '🏳️';
+        for (const lg of (country.leagues || [])) {
+          const t = (lg.teams || []).find(x => x.name === row.team_name);
+          if (t) { teamShort = t.short || teamShort; teamBg = t.bg || teamBg; teamTc = t.tc || teamTc; break; }
+        }
+      }
+    } catch(e) {}
+    return {
+      playerName: row.player_name || 'Oyuncu',
+      teamName: row.team_name || 'Serbest',
+      teamShort, teamBg, teamTc,
+      countryCode: row.country_code || '',
+      countryFlag,
+      score: Number(row.total_energy) || 0,
+      isUser: myId && row.user_id === myId,
+    };
+  });
 }
 
 // Liderlik tablosunu hesapla (kullanıcı + bot'lar)
