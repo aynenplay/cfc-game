@@ -59756,17 +59756,95 @@ function skillColor(val) {
 // Sayfa render
 // 🆕 Ziyaretçi modu helper'ları
 // Başka oyuncunun yetenek seviyelerini overall'a göre tahmin et (gerçek skill saklanmıyor başka oyuncularda)
+// 🆕 Ziyaret edilen gerçek kullanıcıların skill cache'i (user_id → 45 skill levels)
+const _visitorSkillsCache = {};
+
+// 🆕 Gerçek kullanıcının skill'lerini Supabase'ten çek (async, cache'le, sonra render yenile)
+async function _loadVisitorSkills(userId) {
+  if (!userId || !window.sb) return null;
+  if (_visitorSkillsCache[userId]) return _visitorSkillsCache[userId];
+  try {
+    const { data } = await window.sb.from('user_player')
+      .select('skills')
+      .eq('user_id', userId)
+      .maybeSingle();
+    const skills = (data && data.skills && typeof data.skills === 'object') ? data.skills : null;
+    if (skills) {
+      // skills formatı: {GK:{id:{level,points}}, DEF:{...}, MID:{...}, FWD:{...}}
+      // Tüm 4 pos birleştir → flat {id:level} map
+      const flat = {};
+      ['GK','DEF','MID','FWD'].forEach(pos => {
+        const posSkills = skills[pos] || {};
+        Object.keys(posSkills).forEach(id => {
+          const entry = posSkills[id];
+          if (entry && typeof entry.level === 'number') flat[id] = entry.level;
+        });
+      });
+      _visitorSkillsCache[userId] = flat;
+      return flat;
+    }
+  } catch(e) { console.warn('[visitor skills] load hata:', e); }
+  return null;
+}
+
 function _carBuildSkillsForVisitor(vp) {
-  // 🆕 Bot oyuncuların TÜM 45 yeteneği SABİT 10 (meritokrasi kuralı)
-  // Eskiden: ana mevki overall'a yakın + varyans → yüksek değerler geliyordu
-  // Şimdi: hepsi 10, herkes sıfırdan başlar
+  // 🆕 Üç durum:
+  // 1) Gerçek kullanıcı (isBot=false ve user_id var) → Supabase'ten user_player.skills
+  // 2) Bot oyuncu → vp.abilities mevcutsa ana mevki ortalaması, yoksa 10
+  // 3) Veri yoksa → 10 (sabit fallback)
   const lvls = {};
   const cats = SKILL_DEFS.ALL;
+  // İlk: tüm skill'leri 10 ile başlat (fallback)
   cats.forEach(cat => {
-    cat.skills.forEach(s => {
-      lvls[s.id] = 10;
-    });
+    cat.skills.forEach(s => { lvls[s.id] = 10; });
   });
+
+  // Durum 1: Gerçek kullanıcı → cache'ten skills al (async yüklenir)
+  if (vp && vp.isBot === false && vp.user_id) {
+    const cached = _visitorSkillsCache[vp.user_id];
+    if (cached) {
+      // Cache'ten her skill'i set et
+      Object.keys(cached).forEach(id => {
+        if (lvls[id] !== undefined) lvls[id] = cached[id];
+      });
+      return lvls;
+    }
+    // Cache yoksa async yükle, gelince renderPlayerPage tetikle
+    _loadVisitorSkills(vp.user_id).then(skills => {
+      if (skills && typeof renderPlayerPage === 'function') {
+        try { renderPlayerPage(); } catch(e) {}
+      }
+    });
+    // İlk render'da 10'larla dön (sonra cache dolunca yenilenir)
+    return lvls;
+  }
+
+  // Durum 2: Bot → abilities'ten ana mevki ortalaması
+  if (vp && vp.abilities && typeof vp.abilities === 'object') {
+    const ab = vp.abilities;
+    if (ab.GK || ab.DEF || ab.MID || ab.FWD) {
+      // Yeni format: posGroup objeleri
+      const posGroup = (typeof POS_GROUP !== 'undefined' && POS_GROUP[vp.pos]) || vp.posGroup || 'MID';
+      const sub = ab[posGroup] || ab.MID || {};
+      const vals = Object.values(sub).filter(v => typeof v === 'number');
+      if (vals.length) {
+        const avg = Math.round(vals.reduce((a,b)=>a+b,0) / vals.length);
+        cats.forEach(cat => {
+          cat.skills.forEach(s => { lvls[s.id] = avg; });
+        });
+      }
+    } else {
+      // Eski flat format
+      const vals = Object.values(ab).filter(v => typeof v === 'number');
+      if (vals.length) {
+        const avg = Math.round(vals.reduce((a,b)=>a+b,0) / vals.length);
+        cats.forEach(cat => {
+          cat.skills.forEach(s => { lvls[s.id] = avg; });
+        });
+      }
+    }
+  }
+
   return lvls;
 }
 
