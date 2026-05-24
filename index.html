@@ -12245,6 +12245,30 @@ body.lg-myleague-mode .lg2-tier-pills{display:none !important}
   background:#0d1117;
   border-radius:10px;
 }
+
+/* ══ Takım Logosu / Badge — Logo varsa <img>, yoksa renkli short badge ══ */
+.tm-badge{
+  display:inline-flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+  border-radius:50%;
+  overflow:hidden;
+  line-height:1;
+}
+.tm-badge-logo{
+  background:transparent;
+  border-radius:0;
+  overflow:visible;
+}
+.tm-badge-logo img{
+  width:100%;height:100%;
+  object-fit:contain;
+  display:block;
+}
+.tm-badge-text{
+  font-family:'Barlow Condensed',sans-serif;
+  font-weight:900;
+  letter-spacing:.2px;
+}
 .pl-skill-col{
   display:flex;flex-direction:column;
   padding:0 12px;
@@ -35924,25 +35948,9 @@ function showMatchResult() {
   set('mrHomeName', (curHome && curHome.name) || 'Ev Sahibi');
   set('mrAwayName', (curAway && curAway.name) || 'Deplasman');
 
-  // Crest renkleri (teams DB)
-  const setCrest = (id, name, shortTxt) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.textContent = shortTxt;
-    if (false) return;
-    for (const cc of _cftGetCountryCodes()) {
-      for (const lg of (_cftGetCountry(cc).leagues || [])) {
-        const t = (lg.teams || []).find(x => x.name === name);
-        if (t) {
-          el.style.background = t.bg || 'var(--bg3)';
-          el.style.color = t.tc || '#fff';
-          return;
-        }
-      }
-    }
-  };
-  if (curHome) setCrest('mrHomeCrest', curHome.name, curHome.short || '—');
-  if (curAway) setCrest('mrAwayCrest', curAway.name, curAway.short || '—');
+  // Crest renkleri (teams DB) — logo varsa logo, yoksa renkli short badge
+  if (curHome) applyCrestToEl(document.getElementById('mrHomeCrest'), curHome.name, curHome.short || '—');
+  if (curAway) applyCrestToEl(document.getElementById('mrAwayCrest'), curAway.name, curAway.short || '—');
 
   // 🆕 Hava badge — MS._matchCtx.weather varsa veya cache'ten gelirse
   try {
@@ -38462,6 +38470,80 @@ function _cftIsReady() {
 }
 function _cftAllEntries() {
   return _cftDb ? Object.entries(_cftDb) : [];
+}
+
+// ══ TAKIM LOGOLARI ══
+// Logo dosyaları Supabase Storage → 'team-logos' bucket (public)
+// Dosya adı: {cc-lowercase}-{slug}.png   örn: tr-cankiri.png
+// Logo varsa <img> ile gösterilir, yoksa eski renkli badge (short + bg + tc) fallback'i.
+const TEAM_LOGO_BASE = SUPABASE_URL + '/storage/v1/object/public/team-logos/';
+const TEAM_LOGO_SET = new Set([
+  // Türkiye tier 6 (16 takım)
+  'tr-karabuk','tr-erzincan','tr-kirsehir','tr-altinordu','tr-bilecik','tr-sinop',
+  'tr-igdir','tr-bartin','tr-cankiri','tr-artvin','tr-kilis','tr-gumushane',
+  'tr-ardahan','tr-tunceli','tr-bayburt','tr-hopa'
+]);
+// Türkçe → ASCII normalize (ç→c, ğ→g, ı→i, ö→o, ş→s, ü→u, İ→i, vs)
+function _trToAscii(s) {
+  const map = {'ç':'c','Ç':'c','ğ':'g','Ğ':'g','ı':'i','I':'i','İ':'i','ö':'o','Ö':'o','ş':'s','Ş':'s','ü':'u','Ü':'u'};
+  return String(s || '').split('').map(c => map[c] || c).join('').toLowerCase();
+}
+// Takım adından slug (URL-safe)
+function _teamSlug(name) {
+  return _trToAscii(name).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+// Takım için logo key (cc-slug)
+function _teamLogoKey(team) {
+  if (!team) return null;
+  const cc = (team.countryCode || team.cc || team.countryKey || '').toLowerCase();
+  const slug = _teamSlug(team.name || '');
+  if (!cc || !slug) return null;
+  return cc + '-' + slug;
+}
+// Takım için logo URL (varsa) — yoksa null (caller eski badge'i göstermeli)
+function teamLogoUrl(team) {
+  const key = _teamLogoKey(team);
+  if (!key || !TEAM_LOGO_SET.has(key)) return null;
+  return TEAM_LOGO_BASE + key + '.png';
+}
+// Takım badge HTML'i — logo varsa logo, yoksa renkli kısa-isim badge'i.
+// sizePx = badge boyutu (square). Caller container'a yerleştirir.
+function teamBadgeHTML(team, sizePx) {
+  const s = sizePx || 28;
+  const url = teamLogoUrl(team);
+  if (url) {
+    return `<div class="tm-badge tm-badge-logo" style="width:${s}px;height:${s}px"><img src="${url}" alt="" loading="lazy"></div>`;
+  }
+  const bg = (team && team.bg) || '#333';
+  const tc = (team && team.tc) || '#fff';
+  const short = (team && team.short) || '?';
+  const fontSize = Math.max(8, Math.round(s * 0.36));
+  return `<div class="tm-badge tm-badge-text" style="width:${s}px;height:${s}px;background:${bg};color:${tc};font-size:${fontSize}px">${short}</div>`;
+}
+// Mevcut bir crest <div>'inin içeriğini set eder: logo varsa <img>, yoksa renkli short text.
+// Mevcut setCrest local fonksiyonlarının tek doğru implementasyonu.
+function applyCrestToEl(el, name, shortTxt) {
+  if (!el) return;
+  let team = null;
+  for (const cc of _cftGetCountryCodes()) {
+    for (const lg of (_cftGetCountry(cc).leagues || [])) {
+      const t = (lg.teams || []).find(x => x.name === name);
+      if (t) { team = t; break; }
+    }
+    if (team) break;
+  }
+  const logoUrl = team ? teamLogoUrl(team) : null;
+  if (logoUrl) {
+    el.innerHTML = `<img src="${logoUrl}" alt="" style="width:100%;height:100%;object-fit:contain;display:block" loading="lazy">`;
+    el.style.background = 'transparent';
+    el.style.color = '';
+    return;
+  }
+  el.textContent = shortTxt;
+  if (team) {
+    el.style.background = team.bg || 'var(--bg3)';
+    el.style.color = team.tc || '#fff';
+  }
 }
 
 // 🆕 FAZ 5: Sayfa yüklendiğinde önce auto-reset kontrolü, sonra WorldState'i teams DB'ye uygula
@@ -52423,25 +52505,9 @@ function renderHomeNextMatch() {
   setHtml('hmNmHomeForm', formHtml(homeForm, false));
   setHtml('hmNmAwayForm', formHtml(awayForm, true));
 
-  // Crest renkleri (teams DB)
-  const setCrest = (id, name, shortTxt) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.textContent = shortTxt;
-    if (false) return;
-    for (const cc of _cftGetCountryCodes()) {
-      for (const lg of (_cftGetCountry(cc).leagues || [])) {
-        const t = (lg.teams || []).find(x => x.name === name);
-        if (t) {
-          el.style.background = t.bg || 'var(--bg3)';
-          el.style.color = t.tc || '#fff';
-          return;
-        }
-      }
-    }
-  };
-  setCrest('hmNmHomeCrest', homeName, homeShort);
-  setCrest('hmNmAwayCrest', awayName, awayShort);
+  // Crest renkleri (teams DB) — logo varsa logo, yoksa renkli short badge
+  applyCrestToEl(document.getElementById('hmNmHomeCrest'), homeName, homeShort);
+  applyCrestToEl(document.getElementById('hmNmAwayCrest'), awayName, awayShort);
 
   // 🆕 Crest tıklama: kendi takım → showPage('team'), bot takım → viewTeam(cc, name)
   _hmAttachCrestClick('hmNmHomeCrest', home, upcoming);
