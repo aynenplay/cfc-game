@@ -29210,8 +29210,9 @@ function processMatchOutcome(script, userIsHome) {
   if(!script || !script.evs) return;
   if(typeof ROSTER_DATA === 'undefined' || !ROSTER_DATA.length) return;
 
-  // 🆕 Maç tipi tespit — Hazırlık ve Milli Takım maçlarında DİSİPLİN UYGULANMAZ
-  // (sahadan atılır ama sezon sayacına eklenmez, ceza verilmez, sakatlık kaydolmaz)
+  // 🆕 Maç tipi tespit — Hazırlık ve Milli Takım maçlarında KART CEZA UYGULANMAZ
+  // (sahadan atılır ama sezon sayacına eklenmez, ceza verilmez)
+  // ANCAK: Sakatlık her durumda kaydedilir (gerçek fiziksel hasar)
   const isFriendly = !!(typeof MS !== 'undefined' && MS && MS._isFriendly);
   const isNationalTeam = !!(typeof MS !== 'undefined' && MS && (
     (MS._fixtureRef && MS._fixtureRef.tournament_key === 'enc') ||
@@ -29231,10 +29232,26 @@ function processMatchOutcome(script, userIsHome) {
     });
   }
 
-  // 🆕 Hazırlık veya milli takım → disiplin yazılmaz, fonksiyondan çık
-  // (Moral/stamina güncellemesi alt blokta yine çalışır)
+  // 🆕 Hazırlık veya milli takım → KART ve SÜSPANSIYON atlanır
+  //     ANCAK SAKATLIK gerçek fiziksel hasardır, uygulanır.
+  //     (Gerçek futbolda da hazırlık maçında sakatlanan oyuncu gerçekten sakatlanır)
   if (skipDiscipline) {
-    console.info('[discipline] ' + (isFriendly ? 'Hazırlık' : 'Milli Takım') + ' maçı — disiplin atlandı');
+    console.info('[discipline] ' + (isFriendly ? 'Hazırlık' : 'Milli Takım') + ' maçı — kart/ceza atlandı, sakatlık uygulanıyor');
+    // Sakatlık event'leri için top11 (sahaya çıkan 11) gerekli — _matchEventPlayer fallback için
+    const eligible = ROSTER_DATA.filter(p => !isPlayerSuspended(p) && !isPlayerInjured(p));
+    const top11 = eligible.sort((a,b) => (b.overall||0) - (a.overall||0)).slice(0, 11);
+    const userSide = userIsHome ? 'home' : 'away';
+    const userEvs = script.evs.filter(e => e.team === userSide);
+    // SAKATLIKLAR — uygulanır (kart aksine, fiziksel)
+    userEvs.filter(e => e.type === 'injury').forEach(ev => {
+      let p = _matchEventPlayer(ev.player, top11);
+      if (!p && top11.length) p = top11[Math.floor(Math.random() * top11.length)];
+      if (p) applyInjury(p, ev);
+    });
+    // Persist (sakatlık ROSTER_DATA'ya yazıldı, Supabase'e kaydet)
+    if (typeof rosterSavePersist === 'function') {
+      try { rosterSavePersist(); } catch(e) { console.warn('[discipline] persist hata:', e); }
+    }
     // Moral/stamina güncellemesi yine çalışsın
     if (typeof applyMatchMorale === 'function') {
       try { applyMatchMorale(script, userIsHome); } catch(e) {}
