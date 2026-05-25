@@ -2449,10 +2449,23 @@ select.form-input option{background:var(--bg)}
 
 /* 🆕 Maç sonu - iki takım kadro listesi */
 #match-result-overlay .mrp-container{
-  display:grid;grid-template-columns:1fr 1fr;gap:10px;
+  display:grid;grid-template-columns:1fr 1fr;gap:8px;
 }
+/* Mobilde de 2 sütun (kompakt) */
 @media (max-width: 600px) {
-  #match-result-overlay .mrp-container{grid-template-columns:1fr;}
+  #match-result-overlay .mrp-container{gap:5px;}
+  #match-result-overlay .mrp-row{
+    grid-template-columns:18px 22px 1fr auto auto;
+    gap:3px;padding:3px 4px;font-size:10px;
+  }
+  #match-result-overlay .mrp-num{font-size:10px;}
+  #match-result-overlay .mrp-pos{font-size:8px;padding:1px 3px;}
+  #match-result-overlay .mrp-name{font-size:10px;}
+  #match-result-overlay .mrp-rating{font-size:12px;min-width:24px;}
+  #match-result-overlay .mrp-stat{font-size:10px;}
+  #match-result-overlay .mrp-team{padding:5px;}
+  #match-result-overlay .mrp-team-name{font-size:11px;}
+  #match-result-overlay .mrp-team-score{font-size:15px;}
 }
 #match-result-overlay .mrp-team{
   background:rgba(20,30,50,.5);
@@ -34499,6 +34512,23 @@ async function startMatch(){
         }
         if (sh) sh.textContent = visHs;
         if (sa) sa.textContent = visAs;
+        // 🆕 MS.scoreH/scoreA — finalize ve _attachLivePlayerStats için her poll'da güncellenir
+        MS.scoreH = visHs;
+        MS.scoreA = visAs;
+        // 🆕 MS.script.evs — _attachLivePlayerStats reyting/emoji için her poll'da güncellenir
+        // (eski: SADECE maç bitince set ediliyordu, bu yüzden maç esnasında emojiler boştu)
+        MS.script = MS.script || {};
+        MS.script.evs = allEvs;
+        MS.script.homeGoals = visHs;
+        MS.script.awayGoals = visAs;
+        // Live player stats hesaplaması (reyting, gol, asist, kart, sakatlık)
+        if (typeof _attachLivePlayerStats === 'function') {
+          try { _attachLivePlayerStats(); } catch(e) {}
+        }
+        // Kadro sekmesi açıksa yenile (emoji + reyting + giriş dakikası görünsün)
+        if (typeof renderLineup === 'function') {
+          try { renderLineup(); } catch(e) {}
+        }
         // Dakika ve devre arası UI'ı smoothing timer yönetir, poll buna karışmaz.
         // 🆕 Olaylar — Edge Function events jsonb'sini LIVE sekmesinde göster
         // Mevcut .ev-item / .ev-min / .ev-ico / .ev-body / .ev-title / .ev-sub yapısı kullanılıyor
@@ -35631,8 +35661,29 @@ function showMatchResult() {
   if (!overlay) return;
 
   const script = MS.script;
-  const scoreH = MS.scoreH || 0;
-  const scoreA = MS.scoreA || 0;
+  // 🆕 Skor: MS'den oku, 0 ise Edge Function row'undan fallback (poll güncellemesi gecikti olabilir)
+  let scoreH = MS.scoreH || 0;
+  let scoreA = MS.scoreA || 0;
+  if ((scoreH === 0 && scoreA === 0) && typeof _liveMatchCache !== 'undefined' && _liveMatchCache && MS.match_key) {
+    const liveRow = _liveMatchCache[MS.match_key];
+    if (liveRow) {
+      scoreH = liveRow.home_score || scoreH;
+      scoreA = liveRow.away_score || scoreA;
+      // MS'e de yansıt
+      MS.scoreH = scoreH;
+      MS.scoreA = scoreA;
+    }
+  }
+  // Yine 0-0 ise events'ten say (script.evs varsa)
+  if (scoreH === 0 && scoreA === 0 && script && Array.isArray(script.evs)) {
+    for (const ev of script.evs) {
+      if (!ev || ev.type !== 'goal' || ev.cancelled === true) continue;
+      if (ev.team === 'home') scoreH++;
+      else if (ev.team === 'away') scoreA++;
+    }
+    MS.scoreH = scoreH;
+    MS.scoreA = scoreA;
+  }
 
   // Kullanıcı maçta mı?
   const userIsHome = !!(curHome && (curHome.players||[]).some(p => p.isUser))
@@ -35715,8 +35766,17 @@ function showMatchResult() {
         ratingsBox = document.createElement('div');
         ratingsBox.id = 'mrRatings';
         ratingsBox.className = 'ratings-section';
-        if (mrBody.firstChild) mrBody.insertBefore(ratingsBox, mrBody.firstChild);
-        else mrBody.appendChild(ratingsBox);
+        // Ödüller bloğu (mrRewards) varsa onun sonrasına ekle (önce ödüller, sonra kadrolar)
+        const _rew = document.getElementById('mrRewards');
+        if (_rew && _rew.nextSibling) {
+          mrBody.insertBefore(ratingsBox, _rew.nextSibling);
+        } else if (_rew) {
+          mrBody.appendChild(ratingsBox);
+        } else if (mrBody.firstChild) {
+          mrBody.insertBefore(ratingsBox, mrBody.firstChild);
+        } else {
+          mrBody.appendChild(ratingsBox);
+        }
       }
       // Maçtaki tüm event'ler (gol/asist/kart hesap için)
       const allEvs = (script && script.evs) ? script.evs : [];
@@ -35838,6 +35898,13 @@ function showMatchResult() {
   // (SONUÇLAR sayfasından açıldıysa ödülleri gizle — sadece görüntüleme amaçlı)
   const rewardsEl = document.getElementById('mrRewards');
   if (rewardsEl) {
+    // 🆕 Ödüller bloğunu mrBody'nin EN ÜSTÜNE taşı (kadrolar/stats'tan önce görünsün)
+    try {
+      const _mrBody = document.querySelector('#match-result-overlay .mr-body');
+      if (_mrBody && _mrBody.firstChild !== rewardsEl) {
+        _mrBody.insertBefore(rewardsEl, _mrBody.firstChild);
+      }
+    } catch(e) {}
     if (MS._fromResults) {
       rewardsEl.style.display = 'none';
     } else {
