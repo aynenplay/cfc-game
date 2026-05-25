@@ -52080,6 +52080,68 @@ function renderHomeNextMatch() {
     if (_allFm.length > 0) {
       console.info('[hmNextMatch frm DEBUG]', JSON.stringify(_frmDbg), '_userTeam:', _userTeam.teamName);
     }
+
+    // 🆕 YEDEK KAYNAK: match_state cache'ten hazırlık maçları (friendly_matches RLS bypass)
+    //   Bazı durumlarda friendly_matches'ta kaptan satırı diğer takım üyelerine görünmüyor (RLS).
+    //   match_state'te tournament_key='friendly' olarak yazılmış aynı maç herkesin erişimine açık.
+    //   Aynı maçı 2 kez eklemeyelim — friendly_matches kaynağıyla home+away+saat eşleşmesi yapılır.
+    if (_matchStateCache && _matchStateCache.byKey) {
+      const _userTeamName = _userTeam.teamName;
+      const _fmKeys = new Set(); // friendly kaynaklı maçların "home|away|HHMM" anahtarı
+      candidates.forEach(c => {
+        if (c.source !== 'friendly') return;
+        const fm = c.friendly;
+        const _dt = new Date(fm.dateTime);
+        if (isNaN(_dt.getTime())) return;
+        const hm = String(_dt.getUTCHours()).padStart(2,'0') + String(_dt.getUTCMinutes()).padStart(2,'0');
+        _fmKeys.add(`${fm.fromTeam}|${fm.toTeam}|${hm}`);
+        _fmKeys.add(`${fm.toTeam}|${fm.fromTeam}|${hm}`);
+      });
+      for (const ms of Object.values(_matchStateCache.byKey)) {
+        if (!ms || ms.tournament_key !== 'friendly') continue;
+        if (ms.home !== _userTeamName && ms.away !== _userTeamName) continue;
+        if (ms.status === 'finished') continue;
+        const t = ms.matchDateTime ? new Date(ms.matchDateTime).getTime() : NaN;
+        if (isNaN(t)) continue;
+        if (Date.now() > t + 120 * 60 * 1000) continue; // 2 saat geçmişse atla
+        // Duplicate kontrolü
+        const _dt = new Date(t);
+        const _hm = String(_dt.getUTCHours()).padStart(2,'0') + String(_dt.getUTCMinutes()).padStart(2,'0');
+        if (_fmKeys.has(`${ms.home}|${ms.away}|${_hm}`)) continue;
+        // match_state'ten friendly objesine çevir (renderer aynı yapı bekliyor)
+        const _ccFor = (teamName) => {
+          // teams DB'den ülke kodunu bul
+          try {
+            if (typeof _cftGetCountryCodes === 'function') {
+              for (const cc of _cftGetCountryCodes()) {
+                const cty = _cftGetCountry(cc);
+                if (!cty || !cty.leagues) continue;
+                for (const lg of cty.leagues) {
+                  if ((lg.teams || []).some(x => x.name === teamName)) return cc;
+                }
+              }
+            }
+          } catch(e) {}
+          return null;
+        };
+        const _fmStub = {
+          id: ms.matchKey,
+          status: 'accepted',
+          fromTeam: ms.home,
+          toTeam: ms.away,
+          fromCC: _ccFor(ms.home),
+          toCC: _ccFor(ms.away),
+          dateTime: ms.matchDateTime,
+          playedAt: null,
+          _fromMatchState: true
+        };
+        candidates.push({ source: 'friendly', friendly: _fmStub, time: t });
+        _frmDbg.added++;
+      }
+      if (_frmDbg.added > 0) {
+        console.info('[hmNextMatch frm DEBUG +ms]', JSON.stringify(_frmDbg));
+      }
+    }
   }
 
   // 🆕 Turnuva maçları (Avrupa kupası — sezon takviminden hesaplanır)
