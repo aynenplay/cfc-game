@@ -47433,17 +47433,43 @@ function ntCanEditFormation() {
 function ntIsUserCoach() { return ntCanEditFormation(); }
 
 // Storage key — her ülke için ayrı
-function _ntStrategyKey() {
+// _ntStrategyKey kaldırıldı — milli takım stratejisi artık Supabase team_data tablosunda
+// (country_code + team_name=ülke_adı + data_key='strategy')
+
+// 🆕 Milli takım country adı (Supabase team_data'da team_name olarak kullanılır)
+// Edge Function maç başlatınca team_data'dan stratejiyi okur → maça yansır
+function _ntCountryName() {
   const cc = (typeof fedActiveCountry === 'function') ? fedActiveCountry() : 'TR';
-  return 'cft_nt_strategy_' + cc;
+  const c = (typeof _cftGetCountry === 'function') ? _cftGetCountry(cc) : null;
+  return (c && c.name) || cc;
+}
+
+// RAM cache + debounced save (kulüp strategy ile aynı pattern)
+let _ntStrategyCache = null;
+let _ntStrategySaveTimer = null;
+
+async function _ntStrategyLoadFromServer() {
+  if (!window.sb) { _ntStrategyCache = null; return; }
+  const ntName = _ntCountryName();
+  const cc = (typeof fedActiveCountry === 'function') ? fedActiveCountry() : 'TR';
+  try {
+    const { data, error } = await window.sb.from('team_data')
+      .select('data')
+      .eq('country_code', cc)
+      .eq('team_name', ntName)
+      .eq('data_key', 'strategy')
+      .maybeSingle();
+    if (error) { console.warn('[nt_strategy] load hata:', error); _ntStrategyCache = null; return; }
+    _ntStrategyCache = (data && data.data) ? data.data : null;
+  } catch(e) { console.warn('[nt_strategy] load hata:', e); _ntStrategyCache = null; }
 }
 
 function ntLoadStrategy() {
   try {
-    const data = JSON.parse(localStorage.getItem(_ntStrategyKey()) || '{}');
+    const data = _ntStrategyCache || {};
     if(data.strategy) Object.assign(_ntActiveStrategy, data.strategy);
     if(data.formation) _ntCurrentFormation = data.formation;
-    // 🆕 Maç kadrosu yedek listesi
+    // Maç kadrosu yedek listesi
     if (Array.isArray(data.matchBench)) {
       _ntMatchSquadBench = data.matchBench.filter(n => typeof n === 'number');
     }
@@ -47478,13 +47504,30 @@ function ntSaveStrategy() {
     const lineupSnapshot = (Array.isArray(_ntActivePitchPlayers) ? _ntActivePitchPlayers : [])
       .filter(e => e && e.player && typeof e.player.num === 'number')
       .map(e => ({ num: e.player.num, slotIdx: e.slotIdx }));
-    localStorage.setItem(_ntStrategyKey(), JSON.stringify({
+    const blob = {
       strategy: { ..._ntActiveStrategy },
       formation: _ntCurrentFormation,
       lineup: lineupSnapshot,
       matchBench: Array.isArray(_ntMatchSquadBench) ? _ntMatchSquadBench.slice() : [],
       benchUserManaged: !!_ntBenchUserManaged
-    }));
+    };
+    // Anında RAM cache'i güncelle (load'ta tutarlı)
+    _ntStrategyCache = blob;
+    // Debounced Supabase save (500ms)
+    if (_ntStrategySaveTimer) clearTimeout(_ntStrategySaveTimer);
+    _ntStrategySaveTimer = setTimeout(async () => {
+      if (!window.sb) return;
+      const ntName = _ntCountryName();
+      const cc = (typeof fedActiveCountry === 'function') ? fedActiveCountry() : 'TR';
+      try {
+        await window.sb.from('team_data').upsert({
+          country_code: cc,
+          team_name: ntName,
+          data_key: 'strategy',
+          data: blob
+        }, { onConflict: 'country_code,team_name,data_key' });
+      } catch(e) { console.warn('[nt_strategy] save hata:', e); }
+    }, 500);
   } catch(e){}
 }
 
@@ -75835,6 +75878,7 @@ setTimeout(async ()=>{
     _userMatchLogLoadFromServer().catch(e => console.warn('matchLog load hata:', e)),
     _rosterPersistLoadFromServer().catch(e => console.warn('roster_persist load hata:', e)),
     _teamStrategyLoadFromServer().catch(e => console.warn('team_strategy load hata:', e)),
+    _ntStrategyLoadFromServer().catch(e => console.warn('nt_strategy load hata:', e)),
   ]);
   try { authInit(); } catch(e) { console.warn('authInit hata:', e); }
   document.getElementById('splash').classList.add('hide');
