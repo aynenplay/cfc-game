@@ -34473,6 +34473,8 @@ async function startMatch(){
   MS._matchStartedAt = null;
   MS._htShown = false;
   MS.finished = false;
+  // 🆕 Incremental render set'ini reset — yeni maç başlangıcında temiz başla
+  MS._renderedEventKeys = new Set();
   
   if (window._matchScreenSmoothTimer) clearInterval(window._matchScreenSmoothTimer);
   window._matchScreenSmoothTimer = setInterval(() => {
@@ -34664,28 +34666,35 @@ async function startMatch(){
           try { renderLineup(); } catch(e) {}
         }
         // Dakika ve devre arası UI'ı smoothing timer yönetir, poll buna karışmaz.
-        // 🆕 Olaylar — Edge Function events jsonb'sini LIVE sekmesinde göster
-        // Mevcut .ev-item / .ev-min / .ev-ico / .ev-body / .ev-title / .ev-sub yapısı kullanılıyor
-        // Tip-spesifik renkler .ev-goal / .ev-yellow / .ev-red / .ev-corner ... otomatik gelir
+        // 🆕 Olaylar — INCREMENTAL: yeni olayları append, eskiler DOM'da kalır
+        // Bu sayede olaylar TEK TEK animate olur (toplu render'da hepsi aynı anda animate olmuyor)
         try {
           const evList = document.getElementById('evList');
           const allEvents = Array.isArray(liveRow.events) ? liveRow.events : [];
-          // 🆕 Sadece frontend'in GÖSTERDİĞİ dakikaya kadar olan olayları render et
-          // Edge Function ileriye simüle edebilir (örn poll'da 50. dk skoru gelir
-          // ama frontend hâlâ 41.dk gösterir) — bu durumda 41'in üstündeki olayları gizle.
-          // displayMin yoksa Edge Function sim_minute fallback (ilk açılışta smoothing daha çalışmamış olabilir).
+          // 🆕 Sadece frontend'in GÖSTERDİĞİ dakikaya kadar olan olayları göster
           const visibleMin = (MS._displayMin && MS._displayMin > 0)
             ? MS._displayMin
             : (liveRow.sim_minute || 0);
           const events = allEvents.filter(e => ((e.min !== undefined ? e.min : e.minute) || 0) <= visibleMin);
-          if (evList && events.length > 0) {
-            // En son olay en üstte (reverse chronological)
-            const evHtml = events.slice().reverse().map(ev => {
+
+          if (evList) {
+            // Olay key'i: min + type + team + player (unique tanımlayıcı)
+            const evKey = (ev) => {
+              const m = (ev.min !== undefined) ? ev.min : (ev.minute || 0);
+              return `${m}|${ev.type || ''}|${ev.team || ''}|${ev.player || ''}`;
+            };
+            // 🆕 Önceki render'da hangi olaylar yazılmıştı? — Set ile takip et
+            MS._renderedEventKeys = MS._renderedEventKeys || new Set();
+            // Boş başlangıç placeholder'ını ilk olay geldiğinde temizle
+            if (events.length > 0 && MS._renderedEventKeys.size === 0) {
+              evList.innerHTML = '';
+            }
+            // Olay HTML template
+            const _evHtml = (ev) => {
               const min = (ev.min !== undefined) ? ev.min : (ev.minute !== undefined ? ev.minute : 0);
               const rawType = (ev.type || '').toLowerCase();
               const side = ev.team || ev.side || '';
               const player = ev.player || ev.name || '';
-              const teamLbl = side === 'home' ? (curHome && curHome.name) : (side === 'away' ? (curAway && curAway.name) : '');
               // Tip → CSS class + ikon + başlık eşlemesi
               let cls = 'ev-build', ico = '•', title = rawType;
               if (rawType === 'goal') { cls = 'ev-goal'; ico = '⚽'; title = 'GOL'; }
@@ -34704,11 +34713,9 @@ async function startMatch(){
               else if (rawType === 'half' || rawType === 'halftime') { cls = 'ev-half'; ico = '⏸️'; title = 'DEVRE ARASI'; }
               else if (rawType === 'fulltime' || rawType === 'end') { cls = 'ev-fulltime'; ico = '⏱️'; title = 'MAÇ SONU'; }
               else { title = rawType || 'Olay'; }
-              // 🆕 Side class - sol (home) / sağ (away) / orta (neutral - halftime/fulltime)
               let sideCls = 'ev-neutral';
               if (side === 'home') sideCls = 'ev-home';
               else if (side === 'away') sideCls = 'ev-away';
-              // Alt satır (sadece oyuncu - takım gereksiz çünkü sol/sağ konum gösteriyor)
               const subTxt = player || '';
               return `<div class="ev-item ${cls} ${sideCls}">
                 <div class="ev-min">${min}'</div>
@@ -34718,8 +34725,38 @@ async function startMatch(){
                   ${subTxt ? `<div class="ev-sub">${subTxt}</div>` : ''}
                 </div>
               </div>`;
-            }).join('');
-            evList.innerHTML = evHtml;
+            };
+            // 🆕 SADECE YENİ olayları DOM'a prepend et (sondan başa doğru — son olay en üstte)
+            // Yeni olaylar: events listesinde olup _renderedEventKeys'te olmayanlar
+            const newEvents = events.filter(ev => !MS._renderedEventKeys.has(evKey(ev)));
+            if (newEvents.length > 0) {
+              // Sıralı işle: dakikası küçük olan önce DOM'a, sonra büyük olan EN ÜSTE
+              newEvents.sort((a, b) => {
+                const ma = (a.min !== undefined ? a.min : (a.minute || 0));
+                const mb = (b.min !== undefined ? b.min : (b.minute || 0));
+                return ma - mb;
+              });
+              // 🆕 İLK RENDER (set boş + çok olay var) — BULK render, animasyon tetiklenmesin
+              // (kullanıcı maç ortasında ekrana girdi, mevcut tüm olaylar bir kerede görünmeli)
+              const isInitialBulkLoad = (MS._renderedEventKeys.size === 0 && newEvents.length > 3);
+              if (isInitialBulkLoad) {
+                // En yeni üstte (reverse) — innerHTML ile tek seferde yaz
+                evList.innerHTML = newEvents.slice().reverse().map(ev => _evHtml(ev)).join('');
+                for (const ev of newEvents) MS._renderedEventKeys.add(evKey(ev));
+              } else {
+                // Her olayı DOM'un EN ÜSTÜNE ekle (prepend) — tek tek slide-in animasyonu
+                for (const ev of newEvents) {
+                  const tmp = document.createElement('div');
+                  tmp.innerHTML = _evHtml(ev).trim();
+                  const node = tmp.firstChild;
+                  if (node) {
+                    if (evList.firstChild) evList.insertBefore(node, evList.firstChild);
+                    else evList.appendChild(node);
+                  }
+                  MS._renderedEventKeys.add(evKey(ev));
+                }
+              }
+            }
           }
           // 🆕 Gol Timeline render - 0-90 dakika çubuğunda gol işaretleri
           try {
@@ -34752,6 +34789,22 @@ async function startMatch(){
             updateStats(stats, 1);
           }
           if (MS.script) MS.script.stats = stats;
+          // 🆕 Üst skorbord possession bar — İSTATİSTİKLER'deki ile SENKRON
+          // (50-50 nötr kalıyordu, gerçek değerle güncelle)
+          try {
+            const possHEl = document.getElementById('possH');
+            const possAEl = document.getElementById('possA');
+            const barH = document.getElementById('possBarH');
+            const barA = document.getElementById('possBarA');
+            if (stats && stats.possession) {
+              const pH = Math.max(0, Math.min(100, stats.possession[0] || 50));
+              const pA = 100 - pH;
+              if (possHEl) possHEl.textContent = String(pH);
+              if (possAEl) possAEl.textContent = String(pA);
+              if (barH) barH.style.width = pH + '%';
+              if (barA) barA.style.width = pA + '%';
+            }
+          } catch(e) {}
         } catch(e) { console.warn('[stats] hesaplama hatası:', e); }
         // 🆕 Edge Function'ın yaptığı otomatik sub'ları MS.subsHistory'ye yaz
         // → KADRO sekmesinde giren/çıkan dakikası doğru görünür
@@ -54498,6 +54551,22 @@ function _resGetMatchesForDate(targetDate) {
     });
   }
 
+  // 🆕 POST-PROCESS: leagueName "Hazırlık Maçı" olan tüm maçları normalize et
+  //    - competition='friendly' zorla (başka push noktasından geliyorsa override)
+  //    - scheduledTime boşsa playedAt'tan saat çıkar (15:00 SABİT olmasın)
+  merged.forEach(m => {
+    if (m.leagueName === 'Hazırlık Maçı' || m.compClass === 'friendly-comp' || m.isFriendly) {
+      m.competition = 'friendly';
+      m.leagueName = 'Hazırlık Maçı';
+    }
+    // scheduledTime fallback: playedAt'tan saat çıkar
+    if (!m.scheduledTime && m.playedAt) {
+      try {
+        m.scheduledTime = new Date(m.playedAt).toTimeString().slice(0, 5);
+      } catch(e) {}
+    }
+  });
+
   // Saatine göre sırala (saat formatı "HH:MM")
   merged.sort((a, b) => {
     const ta = a.played && a.playedAt ? new Date(a.playedAt).toTimeString().slice(0, 5) : (a.scheduledTime || '99:99');
@@ -54731,16 +54800,19 @@ function _resRenderMatches(matches) {
   // Filtrele
   const filtered = matches.filter(m => {
     const mComp = m.competition || 'league';
+    // 🆕 HAZIRLIK TESPİTİ: leagueName "Hazırlık Maçı" ise her zaman friendly
+    // (competition field set edilmemiş olsa bile)
+    const isFriendly = (mComp === 'friendly') || (m.leagueName === 'Hazırlık Maçı');
     // 🆕 Canlı modu — bu aşamada her şey geçsin, _isLive ile sonradan filtrelenecek
     if (_resState.competitionFilter === 'live') return true;
-    // Üst sekme: Lig / Turnuva / Hazırlık
-    if (_resState.competitionFilter !== 'all') {
-      if (mComp !== _resState.competitionFilter) return false;
+    // HAZIRLIK sekmesi: SADECE hazırlık maçları
+    if (_resState.competitionFilter === 'friendly') {
+      return isFriendly;
     }
-    // Hazırlık sekmesi: alt filtre yok
-    if (_resState.competitionFilter === 'friendly') return true;
-    // Turnuva sekmesi: alt filtre (Championship / Elite / Convergence / EURO)
+    // TURNUVA sekmesi: hazırlık asla görünmez + competition='tournament' olmalı
     if (_resState.competitionFilter === 'tournament') {
+      if (isFriendly) return false;  // hazırlık asla turnuva değil
+      if (mComp !== 'tournament') return false;
       if (_resState.tournamentFilter !== 'all') {
         // tournamentType yoksa leagueName'den infer et — Elite/Champions/Conv/EURO eşleşmesi
         const t = m.tournamentType || (typeof _resTournamentTypeFromComp === 'function'
@@ -54750,7 +54822,16 @@ function _resRenderMatches(matches) {
       }
       return true;
     }
-    // Lig sekmesi: ülke + lig
+    // LİG sekmesi: hazırlık ve turnuva asla görünmez
+    if (_resState.competitionFilter === 'league') {
+      if (isFriendly) return false;
+      if (mComp === 'tournament') return false;
+      // ülke + lig
+      if (_resState.countryFilter !== 'all' && m.countryCode !== _resState.countryFilter) return false;
+      if (_resState.leagueFilter !== 'all' && m.leagueName !== _resState.leagueFilter) return false;
+      return true;
+    }
+    // TÜMÜ: hepsini göster (ama yine country/lig alt filtreleri uygula)
     if (_resState.countryFilter !== 'all' && m.countryCode !== _resState.countryFilter) return false;
     if (_resState.leagueFilter !== 'all' && m.leagueName !== _resState.leagueFilter) return false;
     return true;
