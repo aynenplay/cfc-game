@@ -53767,7 +53767,11 @@ async function _loadAllMatchStateFromServer() {
         homeShort: (m.home_team || '').slice(0, 3).toUpperCase(),
         awayShort: (m.away_team || '').slice(0, 3).toUpperCase(),
         matchKey: m.match_key,
-        scheduledTime: m.kickoff_at ? new Date(m.kickoff_at).toTimeString().slice(0, 5) : '',
+        scheduledTime: m.kickoff_at ? (() => {
+          const d = new Date(m.kickoff_at);
+          if (isNaN(d.getTime())) return '';
+          return String(d.getUTCHours()).padStart(2,'0') + ':' + String(d.getUTCMinutes()).padStart(2,'0');
+        })() : '',
         matchDate: m.kickoff_at ? new Date(m.kickoff_at).toISOString().slice(0, 10) : '',
         matchDateTime: m.kickoff_at,
         competition: m.tournament_key ? 'tournament' : 'league',
@@ -54596,7 +54600,7 @@ function _resRenderMatches(matches) {
         if (hWin) hClass = ' winner';
         if (aWin) aClass = ' winner';
         scoreCell = `<div class="res-match-score">${m.hs} - ${m.as}</div>`;
-        timeStr = m.playedAt ? new Date(m.playedAt).toTimeString().slice(0, 5) : (m.scheduledTime || '—');
+        timeStr = _getMatchHM(m);
       } else if (live) {
         // 🆕 CANLI: pulse animasyonlu skor + dakika
         const ls = _liveScore(m);
@@ -54607,7 +54611,7 @@ function _resRenderMatches(matches) {
       } else {
         // OYNANMAMIŞ: skor yerine "vs" + planlanan saat
         scoreCell = `<div class="res-match-score" style="color:var(--text3);font-weight:700">vs</div>`;
-        timeStr = m.scheduledTime || '—';
+        timeStr = _getMatchHM(m);
       }
 
       let onclickAttr = '';
@@ -56031,14 +56035,14 @@ function renderHomeMatches() {
     let scoreCell, timeStr;
     if (m.played) {
       scoreCell = `<div class="match-score" style="font-size:22px;color:var(--text)">${m.hs} - ${m.as}</div>`;
-      timeStr = m.playedAt ? new Date(m.playedAt).toTimeString().slice(0, 5) : (m.scheduledTime || '—');
+      timeStr = _getMatchHM(m);
     } else if (m.isLive) {
       // CANLI: 🔴 CANLI etiketi
       scoreCell = `<div class="match-score" style="font-size:14px;color:#ef5350;font-weight:900;letter-spacing:1px">🔴 CANLI</div>`;
-      timeStr = m.scheduledTime || '—';
+      timeStr = _getMatchHM(m);
     } else {
       scoreCell = `<div class="match-score" style="font-size:18px;color:var(--text2)">vs</div>`;
-      timeStr = m.scheduledTime || '—';
+      timeStr = _getMatchHM(m);
     }
 
     let dotColor, labelPrefix;
@@ -62477,24 +62481,26 @@ function _trnMatchDateISO(seasonNum, dayInSeason) {
   return `${y}-${m}-${d}`;
 }
 
-// 🆕 Maç saati gösterimi (HH:MM) — scheduledTime cache eksikse matchDateTime'dan üretir.
+// 🆕 Maç saati gösterimi (HH:MM) — UTC bazlı (multiplayer için tutarlı).
+//   DB'deki kickoff_at UTC olarak saklanır; herkes aynı saat görmeli.
+//   Yerel timezone'a çevirmek farklı kullanıcılar için farklı saat doğurur ve karışıklık yaratır.
 //   Eski kodda her yerde `m.scheduledTime || '15:00'` veya `|| '20:00'` fallback'i vardı;
 //   cache stale durumlarda tüm maçlar aynı saatte görünüyordu. Bu fonksiyon hep doğru.
 function _getMatchHM(m) {
   if (!m) return '—';
-  if (m.scheduledTime && /^\d{1,2}:\d{2}/.test(m.scheduledTime)) return m.scheduledTime.slice(0,5);
   if (m.matchDateTime) {
     const d = new Date(m.matchDateTime);
     if (!isNaN(d.getTime())) {
-      return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+      return String(d.getUTCHours()).padStart(2,'0') + ':' + String(d.getUTCMinutes()).padStart(2,'0');
     }
   }
   if (m.kickoff_at) {
     const d = new Date(m.kickoff_at);
     if (!isNaN(d.getTime())) {
-      return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+      return String(d.getUTCHours()).padStart(2,'0') + ':' + String(d.getUTCMinutes()).padStart(2,'0');
     }
   }
+  if (m.scheduledTime && /^\d{1,2}:\d{2}/.test(m.scheduledTime)) return m.scheduledTime.slice(0,5);
   return '—';
 }
 
