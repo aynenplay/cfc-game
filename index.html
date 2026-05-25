@@ -30072,738 +30072,17 @@ function _simReduceToTenDefensive(state, side) {
   state[flagKey] = true;
 }
 
+// 🚫 3D MAÇ MOTORU TAMAMEN KALDIRILDI.
+// _simInitState ve _simStepMinute frontend lokal motorlarıydı (~730 satır).
+// Maçlar artık Supabase Edge Function (tick-matches) tarafından oynanır.
+// API uyumluluğu için boş stub bırakıldı — eski çağrı yerleri patlamasın.
 function _simInitState(homeTeam, awayTeam, seedOverride) {
-  // Match seed (deterministik tekrarlanabilirlik için)
-  // 🆕 Test modunda Date.now() katılır → her test farklı sonuç
-  const testSalt = (typeof MS !== 'undefined' && MS && MS._testMode) ? '|test' + Date.now() : '';
-  const matchSeed = seedOverride || (
-    (homeTeam.name || 'h') + '|' + (awayTeam.name || 'a') + '|' +
-    (typeof getSeasonInfo === 'function' ? getSeasonInfo().dayInSeason : '') + testSalt
-  );
-
-  // ── Match Context (hava + atmosfer + derbi + hakem + T.D.) ──
-  const ctx = (typeof buildMatchContext === 'function')
-    ? buildMatchContext(homeTeam, awayTeam, (typeof MS !== 'undefined' && MS && MS._fixtureRef && MS._fixtureRef.comp) || '', matchSeed)
-    : { weather: { code:'sunny', atk:1, def:1, foul:1, accuracy:1, surprise:1 },
-        atmosphere: { homeAdvantage: 0.08, attendance: 0, fillRate: 0.85 },
-        isDerby: false,
-        derbyMods: { foul: 1.0, surprise: 1.0 } };
-  if (typeof pickReferee === 'function') ctx.referee = pickReferee(matchSeed);
-  if (typeof getCoachProfile === 'function' && typeof fedGetPresident === 'function') {
-    const homeCC = homeTeam.countryCode || homeTeam.cc || 'TR';
-    const awayCC = awayTeam.countryCode || awayTeam.cc || 'TR';
-    const homePres = fedGetPresident(homeCC);
-    const awayPres = fedGetPresident(awayCC);
-    ctx.homeCoach = homePres ? getCoachProfile(homePres.id, !!homePres.isUser) : null;
-    ctx.awayCoach = awayPres ? getCoachProfile(awayPres.id, !!awayPres.isUser) : null;
-  }
-
-  // ── Stratejiler (kullanıcı tarafı activeStrategy, bot tarafı deterministik) ──
-  const isUserHome = !!(typeof _userTeam !== 'undefined' && _userTeam && homeTeam && homeTeam.name === _userTeam.teamName);
-  const isUserAway = !!(typeof _userTeam !== 'undefined' && _userTeam && awayTeam && awayTeam.name === _userTeam.teamName);
-  const homeStrategy = isUserHome ? { ...activeStrategy } :
-    (typeof generateBotStrategy === 'function' ? generateBotStrategy(homeTeam) :
-      { style:'Dengeli', tempo:'Normal', attack:'Dengeli', defense:'Normal', press:'Orta', shoot:'Normal' });
-  const awayStrategy = isUserAway ? { ...activeStrategy } :
-    (typeof generateBotStrategy === 'function' ? generateBotStrategy(awayTeam) :
-      { style:'Dengeli', tempo:'Normal', attack:'Dengeli', defense:'Normal', press:'Orta', shoot:'Normal' });
-  if (typeof MS !== 'undefined' && MS && MS._testForceCaptain && !isUserHome && !isUserAway) {
-    Object.assign(homeStrategy, activeStrategy);
-  }
-
-  // ── Form puanı (son 5 maçtan momentum) ──
-  const hForm = (typeof teamFormScore === 'function') ? teamFormScore(homeTeam) : 0;
-  const aForm = (typeof teamFormScore === 'function') ? teamFormScore(awayTeam) : 0;
-
-  // ── Deterministik RNG (mulberry32) ──
-  let rngState = (function _seedFromStr(s) {
-    let h = 2166136261;
-    s = String(s);
-    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
-    return h >>> 0;
-  })(matchSeed);
-  const rng = () => {
-    rngState = (rngState + 0x6D2B79F5) | 0;
-    let t = rngState;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-
-  // 🆕 KRİTİK: state.home/state.away'i klonla — orijinal homeTeam/awayTeam'a
-  // dokunmuyoruz. players listesi aktif sahadaki oyuncuları temsil eder;
-  // kırmızı kart/sakatlık olunca bu listeden çıkarılır → tüm _maybeXXX fonksiyonları
-  // otomatik aktif kadrodan seçim yapar, takım ortalaması da otomatik düşer.
-
-  // 🆕 Yedek havuzu (bench) hazırla — sakatlık otomatik sub için kullanılır
-  function _buildBench(teamRef, sideIsUser) {
-    // Kullanıcı tarafı: ÖNCE TAKIMIM'in benchPlayers'ı (kaptan/yardımcı seçimi).
-    // benchPlayers boşsa ROSTER_DATA fallback (overall'a göre en iyi 7).
-    if (sideIsUser) {
-      const onPitch = new Set((teamRef.players || []).map(p => p.name));
-      // 1. Önce TAKIMIM benchPlayers (kaydedilmiş yedek listesi)
-      if (typeof benchPlayers !== 'undefined' && Array.isArray(benchPlayers) && benchPlayers.length > 0) {
-        const fromUser = benchPlayers
-          .filter(p => p && !onPitch.has(p.name))
-          .filter(p => !(typeof isPlayerInjured   === 'function' && isPlayerInjured(p)))
-          .filter(p => !(typeof isPlayerSuspended === 'function' && isPlayerSuspended(p)))
-          .slice(0, 7)
-          .map(p => {
-            const grp = (typeof POS_GROUP !== 'undefined' && POS_GROUP[p.pos]) || 'MID';
-            const r = (typeof getPlayerEffectiveRating === 'function')
-              ? getPlayerEffectiveRating(p, grp) : (p.overall || p.rating || 60);
-            return {
-              num: p.num, name: p.name, pos: p.pos, rating: r,
-              level: p.level || 0, isUser: !!p.isUser || (p.role === 'user'),
-            };
-          });
-        if (fromUser.length > 0) return fromUser;
-      }
-      // 2. Fallback: ROSTER_DATA'dan en iyi 7 (TAKIMIM yedek seçilmemişse)
-      if (typeof ROSTER_DATA !== 'undefined' && Array.isArray(ROSTER_DATA)) {
-        return ROSTER_DATA
-          .filter(p => !onPitch.has(p.name))
-          .filter(p => !(typeof isPlayerInjured   === 'function' && isPlayerInjured(p)))
-          .filter(p => !(typeof isPlayerSuspended === 'function' && isPlayerSuspended(p)))
-          .sort((a, b) => (b.overall || b.rating || 0) - (a.overall || a.rating || 0))
-          .slice(0, 7)
-          .map(p => {
-            const grp = (typeof POS_GROUP !== 'undefined' && POS_GROUP[p.pos]) || 'MID';
-            const r = (typeof getPlayerEffectiveRating === 'function')
-              ? getPlayerEffectiveRating(p, grp) : (p.overall || p.rating || 60);
-            return {
-              num: p.num, name: p.name, pos: p.pos, rating: r,
-              level: p.level || 0, isUser: !!p.isUser || (p.role === 'user'),
-            };
-          });
-      }
-    }
-    // Bot tarafı: getOrCreateTeamRoster 15 kişi, ilk 11 sahada → 12-15. oyuncular bench
-    if (typeof getOrCreateTeamRoster === 'function' && teamRef) {
-      try {
-        const fullRoster = getOrCreateTeamRoster(teamRef);
-        if (Array.isArray(fullRoster) && fullRoster.length > 11) {
-          return fullRoster.slice(11, 15).map(bp => {
-            const grp = (typeof POS_GROUP !== 'undefined' && POS_GROUP[bp.pos]) || 'MID';
-            const r = (typeof getPlayerEffectiveRating === 'function')
-              ? getPlayerEffectiveRating(bp, grp) : (bp.rating || bp.overall || 60);
-            return {
-              num: bp.num, name: bp.name, pos: bp.pos, rating: r,
-              level: bp.level || 0,
-            };
-          });
-        }
-      } catch(e) {}
-    }
-    return [];
-  }
-
-  // 🆕 Kontrol: takımı kullanıcı yönetiyor mu (kaptan VEYA yardımcı)? Aksi halde AI otomatik sub yapar.
-  const userCanManage = !!(typeof _userTeam !== 'undefined' && _userTeam &&
-                          (_userTeam.role === 'captain' || _userTeam.role === 'vice'));
-  const homeUserCtl = isUserHome && userCanManage;
-  const awayUserCtl = isUserAway && userCanManage;
-
-  const stateHome = {
-    ...homeTeam,
-    players: (homeTeam.players || []).slice(),
-    bench: _buildBench(homeTeam, isUserHome),
-    subsUsed: 0,
-    userControlled: homeUserCtl,
-  };
-  const stateAway = {
-    ...awayTeam,
-    players: (awayTeam.players || []).slice(),
-    bench: _buildBench(awayTeam, isUserAway),
-    subsUsed: 0,
-    userControlled: awayUserCtl,
-  };
-
-  // 🆕 Yedek havuzu — getOrCreateTeamRoster ile tam kadrodan 11 dışındakiler
-  function _buildBench(team, starters) {
-    try {
-      if (typeof getOrCreateTeamRoster === 'function') {
-        const fullRoster = getOrCreateTeamRoster({
-          name: team.name,
-          countryCode: team.countryCode || team.cc,
-          rank: team.rank,
-          tierIdx: team.tierIdx
-        });
-        if (Array.isArray(fullRoster)) {
-          const starterNums = new Set(starters.map(p => p.num));
-          // Bench: ilk 11 dışındaki maks 7 oyuncu
-          return fullRoster
-            .filter(p => !starterNums.has(p.num))
-            .slice(0, 7)
-            .map(p => ({ ...p, rating: p.overall || p.rating || 70 }));
-        }
-      }
-    } catch(_) {}
-    return [];
-  }
-
-  return {
-    home: stateHome, away: stateAway,
-    homeStrategy, awayStrategy,
-    Mh: compositeStratMods(homeStrategy),
-    Ma: compositeStratMods(awayStrategy),
-    hAvg: _simAvgWithMods(stateHome),
-    aAvg: _simAvgWithMods(stateAway),
-    hForm, aForm,
-    ctx, matchSeed,
-    minute: 0,
-    score: [0, 0],
-    events: [],
-    // 🆕 Disiplin/sakatlık takibi
-    yellowCardCount: {},   // {playerName: count}
-    redPlayers:      new Set(),  // sahadan kırmızı ile çıkarılanlar
-    injuredPlayers:  new Set(),  // sahadan sakatlanarak çıkanlar
-    // 🆕 Bot AI sub için: yedek havuzu + sub sayacı + kullanıcı flag'leri
-    homeBench:    _buildBench(homeTeam, stateHome.players),
-    awayBench:    _buildBench(awayTeam, stateAway.players),
-    homeSubsLeft: 5,
-    awaySubsLeft: 5,
-    isUserHome,
-    isUserAway,
-    // 🆕 10 kişiye düşen takım için bayrak (otomatik defansif geçiş — bir kez)
-    homeReducedToTen: false,
-    awayReducedToTen: false,
-    stats: {
-      possession:    [50, 50],
-      shots:         [0, 0],
-      shotsOnTarget: [0, 0],
-      passes:        [0, 0],
-      passComplete:  [0, 0],   // pass isabet ham sayısı (passAcc hesabı için)
-      passAcc:       [0, 0],
-      corners:       [0, 0],
-      fouls:         [0, 0],
-      yellowCards:   [0, 0],
-      redCards:      [0, 0],
-      offsides:      [0, 0],
-      tackles:       [0, 0],
-      aerials:       [0, 0],
-      injuries:      [0, 0],
-    },
-    cumPoss: [0, 0],   // dakikalık possession share toplamı
-    rng,
-  };
+  return null;
 }
-
 function _simStepMinute(state) {
-  const m = ++state.minute;
-  const newEvents = [];
-
-  // 🆕 Her dakika takım gücünü yeniden hesapla — kart/sakatlık/sub'tan dolayı dinamik düşer/yükselir
-  state.hAvg = _simAvgWithMods(state.home);
-  state.aAvg = _simAvgWithMods(state.away);
-
-  const { rng, ctx, hAvg, aAvg, hForm, aForm } = state;
-
-  // 🆕 Taktik değişikliklerini ANINDA al (live tactic update)
-  if (typeof MS !== 'undefined' && MS.tactic) {
-    if (MS.tactic.home && MS.tactic.home.strategy) {
-      Object.assign(state.homeStrategy, MS.tactic.home.strategy);
-      state.Mh = compositeStratMods(state.homeStrategy);
-    }
-    if (MS.tactic.away && MS.tactic.away.strategy) {
-      Object.assign(state.awayStrategy, MS.tactic.away.strategy);
-      state.Ma = compositeStratMods(state.awayStrategy);
-    }
-  }
-  const Mh = state.Mh, Ma = state.Ma;
-
-  // ─── 1) POSSESSION (bu dakikanın payı) ─────────────────────────
-  const ratingDiff = (hAvg - aAvg) / 60;
-  const tacticDiff = (Mh.atk - Ma.atk) * 0.5;
-  const homeAdv = ctx.atmosphere ? (ctx.atmosphere.homeAdvantage || 0.08) * 0.10 : 0.008;
-  let possShareH = 0.5 + ratingDiff * 0.3 + tacticDiff * 0.05 + homeAdv + (rng() - 0.5) * 0.10;
-  possShareH = Math.max(0.30, Math.min(0.70, possShareH));
-  const possShareA = 1 - possShareH;
-  state.cumPoss[0] += possShareH;
-  state.cumPoss[1] += possShareA;
-  state.stats.possession[0] = Math.round(state.cumPoss[0] / m * 100);
-  state.stats.possession[1] = 100 - state.stats.possession[0];
-
-  // ─── 2) PAS — her dakika ortalama ~10 pas/takım (=900 toplam) ─
-  const tempoMul = state.homeStrategy.tempo === 'Çok Hızlı' || state.awayStrategy.tempo === 'Çok Hızlı' ? 0.92 :
-                    state.homeStrategy.tempo === 'Yavaş Yapılandırma' ? 1.10 : 1.0;
-  const baseTotalPasses = 10 + (Mh.atk + Ma.atk - 2.0) * 1.5;  // güçlü takımlar daha çok pas
-  const totalPassesThisMin = Math.max(4, Math.round(baseTotalPasses * tempoMul + (rng() - 0.5) * 4));
-  const passesH = Math.max(1, Math.round(totalPassesThisMin * possShareH));
-  const passesA = Math.max(1, totalPassesThisMin - passesH);
-  state.stats.passes[0] += passesH;
-  state.stats.passes[1] += passesA;
-  // Pas isabeti — RATING'E BAĞLI (60→73%, 95→87%)
-  const paccBaseH = 0.73 + 0.0040 * (hAvg - 60);
-  const paccBaseA = 0.73 + 0.0040 * (aAvg - 60);
-  const accH = Math.max(0.65, Math.min(0.95, paccBaseH + (rng() - 0.5) * 0.04));
-  const accA = Math.max(0.65, Math.min(0.95, paccBaseA + (rng() - 0.5) * 0.04));
-  state.stats.passComplete[0] += Math.round(passesH * accH);
-  state.stats.passComplete[1] += Math.round(passesA * accA);
-  if (state.stats.passes[0] > 0)
-    state.stats.passAcc[0] = Math.round(100 * state.stats.passComplete[0] / state.stats.passes[0]);
-  if (state.stats.passes[1] > 0)
-    state.stats.passAcc[1] = Math.round(100 * state.stats.passComplete[1] / state.stats.passes[1]);
-
-  // ─── 3) ŞUT — dakikalık olasılık (avg 12 şut/takım/maç = 0.133/dak) ─
-  // Tüm faktörler: atk × shoots × possession × hava
-  // shotsOnTarget, goal SOT'tan türetilir → "gol-bağımsız" şut sayısı
-  const weatherAtkMul = ctx.weather.atk || 1.0;
-  const formMul = (side) => 1.0 + (side === 'home' ? hForm : aForm) * 0.10;
-  const shotProbH = 0.135 * Mh.atk * Mh.shots / Ma.def * (possShareH / 0.5) * weatherAtkMul * formMul('home');
-  const shotProbA = 0.135 * Ma.atk * Ma.shots / Mh.def * (possShareA / 0.5) * weatherAtkMul * formMul('away');
-
-  function _attemptShot(side) {
-    const sideIdx = side === 'home' ? 0 : 1;
-    const team = side === 'home' ? state.home : state.away;
-    const oppTeam = side === 'home' ? state.away : state.home;
-    const oppSideName = side === 'home' ? 'away' : 'home';
-    const sideStrength = side === 'home' ? hAvg : aAvg;
-    const sideMods = side === 'home' ? Mh : Ma;
-
-    state.stats.shots[sideIdx]++;
-
-    // 🆕 Şutu çekecek oyuncuyu BAŞTA seç (off-target/save event'lerinde de kullanılsın)
-    const atkMod = sideMods.attack || ATTACK_MODS['Dengeli'];
-    const scorers = team.players.filter(p => ['FWD','SAK','OS','CAM','DOS'].includes(p.pos));
-    if (!scorers.length) return;
-    const shooter = pickWeighted(scorers, p => {
-      const r = p.rating || p.overall || 70;
-      let posMult = 1.0;
-      if (p.pos === 'FWD') posMult = 3.0 * (atkMod.fwd || 1);
-      else if (p.pos === 'SAK') posMult = 1.8 * (atkMod.sak || 1);
-      else if (p.pos === 'CAM') posMult = 1.4 * (atkMod.cam || 1);
-      else if (p.pos === 'DOS') posMult = 1.0 * (atkMod.dos || 1);
-      return Math.pow(r / 70, 1.8) * posMult;
-    });
-
-    // İsabetli şut oranı: rating-bazlı (60→32%, 95→42%) × accuracy mod × hava
-    const sotBase = 0.34 + 0.0024 * (sideStrength - 60);
-    const accuracyMul = (sideMods.accuracy || 1.0) * (ctx.weather.accuracy || 1.0);
-    const sotChance = Math.max(0.22, Math.min(0.55, sotBase * accuracyMul));
-
-    // 🆕 KEY PASS — şutu hazırlayan oyuncuyu hem şut başarılı hem başarısız tüm durumlarda işaretle
-    // (asist gerektirmeyen — sadece tehlikeli pas)
-    let keyPasser = null;
-    if (rng() < 0.55) {
-      const passers = team.players.filter(p =>
-        p.name !== shooter.name && ['SAK','OS','CAM','DOS','FWD','MID'].includes(p.pos));
-      if (passers.length) {
-        keyPasser = pickWeighted(passers, p => Math.pow((p.rating || p.overall || 70) / 70, 1.4));
-        if (keyPasser) {
-          newEvents.push({ type: 'keyPass', team: side, min: m, player: keyPasser.name, shooter: shooter.name });
-        }
-      }
-    }
-
-    if (rng() >= sotChance) {
-      // 🆕 ISABETSIZ ŞUT — varyant (yan / üst / blokladı)
-      const r2 = rng();
-      const variant = r2 < 0.40 ? 'wide' : (r2 < 0.72 ? 'over' : 'blocked');
-      newEvents.push({ type:'shotOff', variant, team:side, min:m, player: shooter.name });
-
-      // 🆕 BÜYÜK ŞANS KAÇTI — yakın aralıktan kaçan şut (forvet için ek ceza)
-      // Forvet ve key pass varsa, şut konum olarak yakındaysa
-      if (['FWD','SAK','OS'].includes(shooter.pos) && keyPasser && rng() < 0.18) {
-        newEvents.push({ type: 'bigChanceMissed', team: side, min: m, player: shooter.name });
-      }
-      return;
-    }
-
-    state.stats.shotsOnTarget[sideIdx]++;
-
-    // Gol oranı: SOT'un ~30%'u, kaleci kalitesine göre düşer
-    const oppGK = oppTeam.players.find(p => p.pos === 'KL');
-    const gkRating = oppGK ? (oppGK.rating || 70) : 70;
-    const goalBase = 0.30 - 0.005 * (gkRating - 70);
-    const goalChance = Math.max(0.10, Math.min(0.55, goalBase + (rng() - 0.5) * 0.06));
-    if (rng() >= goalChance) {
-      // 🆕 KURTARIŞ — kaleciye olay gönder (rakip takım taraflı)
-      if (oppGK) {
-        // 🆕 GREAT SAVE — yüksek SOT, yüksek kaleci ratingi → süper kurtarış
-        const isGreatSave = (gkRating >= 80) && (rng() < 0.22);
-        newEvents.push({ type:'save', team:oppSideName, min:m, player: oppGK.name, shooter: shooter.name, greatSave: isGreatSave });
-      }
-      return;
-    }
-
-    // GOL!
-    state.score[sideIdx]++;
-    const ev = { type:'goal', team:side, min:m, player:shooter.name, scorer:shooter };
-
-    // Gol alt-tipi (kafa/frikik/korner/uzun şut/ofsayt)
-    if (typeof pickGoalSubtype === 'function') {
-      const subtype = pickGoalSubtype(shooter, ctx.weather, m * (side === 'home' ? 7 : 11));
-      if (subtype !== 'normal') {
-        ev.subtype = subtype;
-        if (typeof NEW_EVENT_TYPES !== 'undefined') {
-          ev.subtypeLabel = (NEW_EVENT_TYPES[subtype] || {}).label || '';
-          ev.subtypeIcon  = (NEW_EVENT_TYPES[subtype] || {}).icon  || '';
-        }
-        if (subtype === 'freekickGoal' && typeof pickSetPieceTaker === 'function') {
-          const fkTaker = pickSetPieceTaker(team, 'freekick');
-          if (fkTaker) { ev.player = fkTaker.name; ev.scorer = fkTaker; }
-        }
-        if (subtype === 'offsideGoal') {
-          state.score[sideIdx]--;
-          ev.type = 'offsideGoal';
-          ev.cancelled = true;
-          newEvents.push(ev);
-          return;
-        }
-      }
-    }
-
-    // Asist
-    const assistChance = ev.subtype === 'longShot' ? 0.10 :
-                         ev.subtype === 'freekickGoal' ? 0.0 :
-                         ev.subtype === 'cornerGoal' ? 0.95 :
-                         ev.subtype === 'headerGoal' ? 0.92 : 0.75;
-    if (rng() < assistChance) {
-      const cands = team.players.filter(p =>
-        p.name !== shooter.name && ['SAK','OS','CAM','DOS','FWD'].includes(p.pos));
-      if (cands.length) {
-        const assist = pickWeighted(cands, p => Math.pow((p.rating || 70) / 70, 1.5));
-        ev.assist = assist.name;
-      }
-    }
-    newEvents.push(ev);
-  }
-
-  if (rng() < shotProbH) _attemptShot('home');
-  if (rng() < shotProbA) _attemptShot('away');
-
-  // ─── 4) KORNER ─────────────────────────────────────────────────
-  // Avg ~5/takım → 0.056/dak, hücum baskısı + possession etkili
-  // 🆕 Olay üret — kornere giden oyuncu (SAK/CAM)
-  function _maybeCorner(side) {
-    const sideIdx = side === 'home' ? 0 : 1;
-    const team = side === 'home' ? state.home : state.away;
-    const sideMods = side === 'home' ? Mh : Ma;
-    const oppMods  = side === 'home' ? Ma : Mh;
-    const possShare = side === 'home' ? possShareH : possShareA;
-    if (rng() >= 0.055 * sideMods.atk / oppMods.def * (possShare / 0.5)) return;
-    state.stats.corners[sideIdx]++;
-    const cands = team.players.filter(p => ['SAK','CAM','OS'].includes(p.pos));
-    if (cands.length) {
-      const taker = cands[Math.floor(rng() * cands.length)];
-      newEvents.push({ type:'corner', team:side, min:m, player: taker.name });
-    }
-  }
-  _maybeCorner('home');
-  _maybeCorner('away');
-
-  // ─── 5) FAUL + SARI KART ───────────────────────────────────────
-  // Avg ~11/takım = 0.122/dak; fauldan sonra %18 ihtimalle sarı
-  const weatherFoulMul = ctx.weather.foul || 1.0;
-  const derbyFoulMul = (ctx.derbyMods && ctx.derbyMods.foul) || 1.0;
-  const refYellowMul = (ctx.referee && ctx.referee.yellowMult) || 1.0;
-  function _maybeFoul(side) {
-    const sideIdx = side === 'home' ? 0 : 1;
-    const team = side === 'home' ? state.home : state.away;
-    const sideMods = side === 'home' ? Mh : Ma;
-    const foulProb = 0.122 * sideMods.foul * weatherFoulMul * derbyFoulMul;
-    if (rng() >= foulProb) return;
-    state.stats.fouls[sideIdx]++;
-    // 🆕 Faul yapan oyuncuyu seç
-    const candFoulers = team.players.filter(p => p.pos !== 'KL');
-    const fouler = candFoulers.length ? candFoulers[Math.floor(rng() * candFoulers.length)] : null;
-    if (!fouler) return;
-
-    const r = rng();
-    if (r < 0.18 * refYellowMul) {
-      // Sarı kart
-      state.stats.yellowCards[sideIdx]++;
-      // 🆕 Sarı kart sayacı (oyuncu bazlı)
-      const prevYC = state.yellowCardCount[fouler.name] || 0;
-      state.yellowCardCount[fouler.name] = prevYC + 1;
-      newEvents.push({ type:'yellow', team:side, min:m, player:fouler.name });
-      // 🆕 İkinci sarı = otomatik kırmızı kart
-      if (prevYC === 1 && team.players.length > 7) {
-        state.stats.redCards[sideIdx]++;
-        newEvents.push({ type:'red', team:side, min:m, player:fouler.name, secondYellow:true });
-        // Sahadan çıkar
-        const idx = team.players.findIndex(pl => pl.name === fouler.name && pl.num === fouler.num);
-        if (idx !== -1) team.players.splice(idx, 1);
-        state.redPlayers.add(fouler.name);
-        // 🆕 10 kişiye düştüyse otomatik defansif geçiş (bot için)
-        if (team.players.length === 10) {
-          _simReduceToTenDefensive(state, side);
-        }
-      }
-    } else if (r < 0.42) {
-      // 🆕 Serbest vuruş — rakip takımın set-piece taker'ı kullanır
-      const oppTeam = side === 'home' ? state.away : state.home;
-      const oppSideName = side === 'home' ? 'away' : 'home';
-      let taker = (typeof pickSetPieceTaker === 'function') ? pickSetPieceTaker(oppTeam, 'freekick') : null;
-      if (!taker) {
-        const fkCands = oppTeam.players.filter(p => ['CAM','SAK','OS','DOS'].includes(p.pos));
-        if (fkCands.length) taker = fkCands[Math.floor(rng() * fkCands.length)];
-      }
-      if (taker) {
-        newEvents.push({ type:'freekick', team:oppSideName, min:m, player: taker.name, foulBy: fouler.name });
-        // 🆕 Faul kazandıran oyuncu (rakip takımda) — küçük rating bonusu
-        const oppCands = oppTeam.players.filter(p => ['SAK','OS','FWD','CAM'].includes(p.pos));
-        if (oppCands.length) {
-          const drawer = oppCands[Math.floor(rng() * oppCands.length)];
-          newEvents.push({ type: 'foulDrawn', team: oppSideName, min: m, player: drawer.name });
-        }
-      } else {
-        newEvents.push({ type:'foul', team:side, min:m, player:fouler.name });
-      }
-    } else {
-      // 🆕 Sıradan faul olayı
-      newEvents.push({ type:'foul', team:side, min:m, player:fouler.name });
-    }
-  }
-  _maybeFoul('home');
-  _maybeFoul('away');
-
-  // ─── 6) KIRMIZI KART (nadir) ───────────────────────────────────
-  // 🆕 Kart yiyen oyuncu sahadan çıkar (state.home/away.players'tan splice).
-  // Takım ortalaması bir sonraki dakika otomatik düşer (eksik adam dezavantajı).
-  // 🆕 10 kişiye düşen bot takım otomatik defansife geçer.
-  const redProbPerMin = {
-    'Defansif Blok':0.0003,'Tiki-Taka':0.0003,'Dengeli':0.0005,
-    'Geç Kalan Baskı':0.0007,'Agresif Baskı':0.0010,'Gegenpressing':0.0011
-  };
-  const refRedMul = (ctx.referee && ctx.referee.redMult) || 1.0;
-  function _maybeRed(side) {
-    const sideIdx = side === 'home' ? 0 : 1;
-    const team = side === 'home' ? state.home : state.away;
-    // 🆕 En az 7 oyuncu kalmalı (futbol kuralı: 7'nin altına düşerse maç tatil)
-    if (team.players.length <= 7) return;
-    const strat = side === 'home' ? state.homeStrategy : state.awayStrategy;
-    if (rng() >= (redProbPerMin[strat.style] || 0.0005) * refRedMul) return;
-    const cands = team.players.filter(p => p.pos !== 'KL');
-    if (!cands.length) return;
-    state.stats.redCards[sideIdx]++;
-    const p = cands[Math.floor(rng() * cands.length)];
-    newEvents.push({ type:'red', team:side, min:m, player:p.name });
-
-    // 🆕 Oyuncuyu sahadan çıkar
-    const idx = team.players.findIndex(pl => pl.name === p.name && pl.num === p.num);
-    if (idx !== -1) team.players.splice(idx, 1);
-    state.redPlayers.add(p.name);
-
-    // 🆕 10 kişiye düştüyse otomatik defansif geçiş (bot için)
-    if (team.players.length === 10) {
-      _simReduceToTenDefensive(state, side);
-    }
-  }
-  _maybeRed('home');
-  _maybeRed('away');
-
-  // ─── 7) OFSAYT ─────────────────────────────────────────────────
-  // 🆕 Olay üret — oyuncu adıyla
-  function _maybeOffside(side) {
-    const sideIdx = side === 'home' ? 0 : 1;
-    const team = side === 'home' ? state.home : state.away;
-    const sideMods = side === 'home' ? Mh : Ma;
-    if (rng() >= 0.022 * (sideMods.ofsides || 1)) return;
-    state.stats.offsides[sideIdx]++;
-    const cands = team.players.filter(p => ['FWD','SAK','OS','CAM'].includes(p.pos));
-    if (cands.length) {
-      const player = pickWeighted(cands, p => Math.pow((p.rating || 70) / 70, 1.5));
-      newEvents.push({ type:'offside', team:side, min:m, player: player.name });
-    }
-  }
-  _maybeOffside('home');
-  _maybeOffside('away');
-
-  // ─── 8) TOP KAPMA ──────────────────────────────────────────────
-  // Avg ~16/takım = 0.18/dak, az possession olan biraz daha fazla
-  if (rng() < 0.18 * (1 + (0.5 - possShareH) * 0.3)) state.stats.tackles[0]++;
-  if (rng() < 0.18 * (1 + (0.5 - possShareA) * 0.3)) state.stats.tackles[1]++;
-
-  // ─── 9) HAVA TOPU ──────────────────────────────────────────────
-  // Avg ~13/takım = 0.15/dak
-  if (rng() < 0.15) state.stats.aerials[0]++;
-  if (rng() < 0.15) state.stats.aerials[1]++;
-
-  // ─── 10) SAKATLIK (çok nadir — kullanıcı talebiyle 4x azaltıldı) ───
-  // 🆕 Sakat oyuncu sahadan çıkar — bot için otomatik sub yok (şimdilik), 10 kişi devam eder.
-  // Kullanıcı kaptansa manuel sub yapabilir; aksi halde takım eksik kalır.
-  // Beklenen oran: ~0.05 sakatlık/maç (yaklaşık her 20 maçta 1) — gerçekçi nadir
-  const injProbPerMin = {
-    'Defansif Blok':0.0002,'Tiki-Taka':0.0002,'Dengeli':0.000275,
-    'Geç Kalan Baskı':0.000325,'Agresif Baskı':0.000425,'Gegenpressing':0.00045
-  };
-  const pressInjMul = { 'Minimal':0.85,'Orta':1.0,'Yüksek':1.15,'Çok Yüksek':1.30 };
-  function _maybeInjury(side) {
-    const sideIdx = side === 'home' ? 0 : 1;
-    const team = side === 'home' ? state.home : state.away;
-    if (team.players.length <= 7) return; // 7 altı maç tatil
-    const strat = side === 'home' ? state.homeStrategy : state.awayStrategy;
-    const prob = (injProbPerMin[strat.style] || 0.0011) * (pressInjMul[strat.press] || 1.0);
-    if (rng() >= prob) return;
-    const cands = team.players.filter(p => p.pos !== 'KL');
-    if (!cands.length) return;
-    state.stats.injuries[sideIdx]++;
-    const p = cands[Math.floor(rng() * cands.length)];
-    const ev = { type:'injury', team:side, min:m, player:p.name };
-    if (typeof generateInjuryEvent === 'function') {
-      const inj = generateInjuryEvent(p, p.pos);
-      ev.severity = inj.severity; ev.severityLabel = inj.severityLabel;
-      ev.bodyPart = inj.bodyPart; ev.matchesOut = inj.matchesOut; ev.daysOut = inj.daysOut;
-    }
-    newEvents.push(ev);
-
-    // 🆕 Sakat oyuncuyu sahadan çıkar
-    const idx = team.players.findIndex(pl => pl.name === p.name && pl.num === p.num);
-    if (idx !== -1) team.players.splice(idx, 1);
-    state.injuredPlayers.add(p.name);
-
-    // 🆕 Otomatik sub: AI kontrolündeyse + sub hakkı varsa + uygun yedek varsa
-    // Kullanıcı kaptansa manuel yapacak — otomatik atla.
-    if (!team.userControlled) {
-      _simAutoSubForInjury(state, side, p, m, newEvents);
-    }
-  }
-  _maybeInjury('home');
-  _maybeInjury('away');
-
-  // ─── 11) PENALTI (sürpriz, %0.07/dak/takım = ~0.06/maç) ────────
-  function _maybePenalty(side) {
-    const sideIdx = side === 'home' ? 0 : 1;
-    const team = side === 'home' ? state.home : state.away;
-    const sideMods = side === 'home' ? Mh : Ma;
-    if (rng() >= 0.0007 * (sideMods.surprise || 1)) return;
-    let p;
-    if (typeof pickSetPieceTaker === 'function') p = pickSetPieceTaker(team, 'penalty');
-    if (!p) {
-      const cands = team.players.filter(pl => ['FWD','SAK','CAM','OS'].includes(pl.pos));
-      if (!cands.length) return;
-      p = pickWeighted(cands, x => (x.rating || 70));
-    }
-    if (rng() < 0.78) {
-      state.score[sideIdx]++;
-      newEvents.push({ type:'goal', team:side, min:m, player:p.name, isPenalty:true });
-    } else {
-      newEvents.push({ type:'penaltyMissed', team:side, min:m, player:p.name });
-    }
-  }
-  _maybePenalty('home');
-  _maybePenalty('away');
-
-  // ─── 12) TAÇ ATIŞI (akış olayı) ────────────────────────────────
-  // 🆕 Avg ~3-5/takım/maç → 0.04/dak (nadir gösterilir)
-  function _maybeThrowin(side) {
-    if (rng() >= 0.04) return;
-    const team = side === 'home' ? state.home : state.away;
-    const cands = team.players.filter(p => ['SB','SAK','DOS'].includes(p.pos));
-    if (!cands.length) return;
-    const taker = cands[Math.floor(rng() * cands.length)];
-    newEvents.push({ type:'throwin', team:side, min:m, player:taker.name });
-  }
-  _maybeThrowin('home');
-  _maybeThrowin('away');
-
-  // ─── 🆕 DEFANSİF AKTİVİTE EVENT'LERİ (rating motoru için) ─────────
-  // Her dakika düşük olasılıkla tackle/interception/block/duel event'i üret.
-  // Topu rakipten alma momenti — defans pozisyonundakilere yönlendirilir.
-  function _maybeDefAction(side) {
-    const sideMods = side === 'home' ? Mh : Ma;
-    const team = side === 'home' ? state.home : state.away;
-    // Olasılık: defans modu × topla buluşma payı
-    const possMul = side === 'home' ? possShareA : possShareH; // rakipte top olunca def aktivite olasılığı artar
-    const baseProb = 0.42 * (sideMods.def || 1.0) * (1.0 + possMul);
-    if (rng() > baseProb) return;
-
-    // Hangi tip aktivite?
-    const r = rng();
-    let type;
-    if (r < 0.40) type = 'tackle';
-    else if (r < 0.65) type = 'interception';
-    else if (r < 0.82) type = 'block';
-    else if (r < 0.94) type = 'clearance';
-    else type = 'duelWon';
-
-    // Olayı yapacak oyuncu — pozisyona göre ağırlıklı
-    let cands;
-    if (type === 'block' || type === 'clearance') {
-      cands = team.players.filter(p => ['STB','SB','DEF','DOS'].includes(p.pos));
-    } else if (type === 'tackle' || type === 'interception') {
-      cands = team.players.filter(p => ['STB','SB','DEF','DOS','OS','SAK'].includes(p.pos));
-    } else { // duelWon
-      cands = team.players.filter(p => p.pos !== 'KL');
-    }
-    if (!cands || !cands.length) return;
-    const actor = pickWeighted(cands, p => (p.rating || p.overall || 70) / 70);
-    if (actor) newEvents.push({ type, team: side, min: m, player: actor.name });
-  }
-  // Her takım için 1-2 deneme/dakika
-  _maybeDefAction('home');
-  _maybeDefAction('away');
-  if (rng() < 0.35) _maybeDefAction('home');
-  if (rng() < 0.35) _maybeDefAction('away');
-
-  // ─── 🆕 İKİLİ MÜCADELE KAYBI (duelLost) — dengelemek için ───
-  function _maybeDuelLost(side) {
-    if (rng() > 0.30) return;
-    const team = side === 'home' ? state.home : state.away;
-    const cands = team.players.filter(p => p.pos !== 'KL');
-    if (!cands.length) return;
-    // Düşük rating oyuncu daha çok ikili mücadele kaybeder
-    const loser = pickWeighted(cands, p => Math.max(0.3, 1.0 - (p.rating || p.overall || 70) / 100));
-    if (loser) newEvents.push({ type: 'duelLost', team: side, min: m, player: loser.name });
-  }
-  _maybeDuelLost('home');
-  _maybeDuelLost('away');
-
-  // ─── 🆕 DRIBBLE (başarılı çalım) — kanat oyuncuları için ───
-  function _maybeDribble(side) {
-    if (rng() > 0.18) return;
-    const team = side === 'home' ? state.home : state.away;
-    const cands = team.players.filter(p => ['SAK','OS','FWD','SB'].includes(p.pos));
-    if (!cands.length) return;
-    const dribbler = pickWeighted(cands, p => (p.rating || p.overall || 70) / 70);
-    if (dribbler) newEvents.push({ type: 'dribble', team: side, min: m, player: dribbler.name });
-  }
-  _maybeDribble('home');
-  _maybeDribble('away');
-
-  // ─── 🆕 HAVA BAĞLI EXTRA OLAYLAR ─────────
-  // Yağmur/Fırtına/Kar → ek slip/faul/topkaybı olayları
-  function _maybeWeatherEvent(side) {
-    const w = ctx.weather && ctx.weather.code;
-    if (w !== 'rain' && w !== 'storm' && w !== 'snow') return;
-    // Olasılık: fırtına > kar > yağmur
-    let prob = 0;
-    if (w === 'storm') prob = 0.025;
-    else if (w === 'snow') prob = 0.018;
-    else if (w === 'rain') prob = 0.012;
-    if (rng() > prob) return;
-
-    const team = side === 'home' ? state.home : state.away;
-    const cands = team.players.filter(p => p.pos !== 'KL');
-    if (!cands.length) return;
-    const player = cands[Math.floor(rng() * cands.length)];
-
-    // Olay tipi: slip (kayma) → faul ya da kontrol kaybı
-    const r = rng();
-    if (r < 0.50) {
-      // Slip → faul
-      state.stats.fouls[side === 'home' ? 0 : 1]++;
-      newEvents.push({
-        type: 'foul', team: side, min: m, player: player.name,
-        weatherCause: w  // banner'da göstermek için
-      });
-    } else {
-      // Slip → top kaybı (interception olayı + ekstra event)
-      const oppSide = side === 'home' ? 'away' : 'home';
-      const oppTeam = oppSide === 'home' ? state.home : state.away;
-      const oppP = oppTeam.players[Math.floor(rng() * oppTeam.players.length)];
-      newEvents.push({ type: 'interception', team: oppSide, min: m, player: oppP.name });
-    }
-  }
-  _maybeWeatherEvent('home');
-  _maybeWeatherEvent('away');
-
-  return newEvents;
+  return [];
 }
 
-// 🆕 Olaylardan oyuncu istatistikleri çıkar (gol/asist sayımı + maç reytingi)
 function _buildPlayerStatsFromEvents(team, events, won, drew, theirScore) {
   if (!team || !team.players) return [];
   const dist = team.players.map(p => ({
@@ -30833,34 +30112,19 @@ function _buildPlayerStatsFromEvents(team, events, won, drew, theirScore) {
 }
 
 function generateScript(homeTeam, awayTeam) {
-  // 🆕 Tek motor — instant mode (90 dakikayı toplu üret, sonucu döner)
-  const state = _simInitState(homeTeam, awayTeam);
-
-  // MS state'e taktik + context yansıt (UI için)
+  // 🚫 generateScript SİLİNDİ. Lokal motor kullanılmıyor.
+  // Maç olayları match_state poll'ünden gelir (Edge Function üretir).
   if (typeof MS !== 'undefined') {
     if (!MS.tactic) MS.tactic = {};
-    const isUserHome = !!(typeof _userTeam !== 'undefined' && _userTeam && homeTeam && homeTeam.name === _userTeam.teamName);
-    MS.tactic.home = {
-      strategy: state.homeStrategy,
-      formation: (isUserHome || (MS && MS._testForceCaptain)) ? (typeof currentFormation !== 'undefined' ? currentFormation : '4-3-3') : '4-3-3'
-    };
-    MS.tactic.away = { strategy: state.awayStrategy, formation: '4-3-3' };
-    MS._matchCtx = state.ctx;
+    MS.tactic.home = { strategy: 'balanced', formation: '4-3-3' };
+    MS.tactic.away = { strategy: 'balanced', formation: '4-3-3' };
   }
-
-  // 90 dakika simüle et — her dakika kararlar fresh alınır
-  for (let m = 1; m <= 90; m++) {
-    const evs = _simStepMinute(state);
-    state.events.push(...evs);
-  }
-  state.events.sort((a, b) => a.min - b.min);
-
   return {
-    homeGoals: state.score[0],
-    awayGoals: state.score[1],
-    evs: state.events,
+    homeGoals: 0,
+    awayGoals: 0,
+    evs: [],
     com: [],
-    stats: state.stats,
+    stats: null
   };
 }
 
@@ -34728,6 +33992,32 @@ async function startMatch(){
     sb.innerHTML = '🔴 CANLI';
   }
   
+  // 🆕 Dakika smoothing — Edge Function her tick'te 7-8 dakika birden atlayabilir.
+  // Hedef dakikayı tutup ekranı her 800ms'de bir +1 göstererek akıcı izlenim veriyoruz.
+  MS._targetMin = MS._targetMin || 0;
+  MS._displayMin = MS._displayMin || 0;
+  if (window._matchScreenSmoothTimer) clearInterval(window._matchScreenSmoothTimer);
+  window._matchScreenSmoothTimer = setInterval(() => {
+    if (!ms || !ms.classList.contains('open')) {
+      clearInterval(window._matchScreenSmoothTimer);
+      window._matchScreenSmoothTimer = null;
+      return;
+    }
+    if (MS._displayMin < MS._targetMin && MS._targetMin <= 90) {
+      MS._displayMin++;
+      const clkS = document.getElementById('matchClock');
+      // 45'te HT, 90'da FT poll içinde set ediliyor; ara dakikalarda buradan yaz
+      if (clkS && !MS.finished && !MS._htShown) {
+        if (MS._displayMin === 45) {
+          // 45'e geldik — HT rozet poll'da set edilecek; smoothing burada da işaretleyebilir
+          clkS.textContent = 'HT';
+        } else if (MS._displayMin < 90) {
+          clkS.textContent = MS._displayMin + "'";
+        }
+      }
+    }
+  }, 800);
+
   // 🆕 match_state poll — her 3 sn'de bir skor + dakika güncelle
   if (window._matchScreenLiveTimer) clearInterval(window._matchScreenLiveTimer);
   window._matchScreenLiveTimer = setInterval(async () => {
@@ -34760,13 +34050,28 @@ async function startMatch(){
         if (sbL) { sbL.className = 'status-badge sb-live'; sbL.innerHTML = '🔴 CANLI'; }
       }
       if (liveRow) {
-        // Skor + dakika UI'a yaz
+        // Skor UI'a yaz (skor anında — sayım yumuşatma yok)
         const sh = document.getElementById('scoreH');
         const sa = document.getElementById('scoreA');
         const clk = document.getElementById('matchClock');
         if (sh) sh.textContent = liveRow.home_score ?? 0;
         if (sa) sa.textContent = liveRow.away_score ?? 0;
-        if (clk && (liveRow.sim_minute || 0) > 0) clk.textContent = liveRow.sim_minute + "'";
+        // 🆕 Dakika: hedef olarak ayarla, smoothing timer akıcı şekilde getirir
+        const newMin = liveRow.sim_minute || 0;
+        if (newMin > MS._targetMin) MS._targetMin = newMin;
+        // 🆕 Devre arası: 45'e gelindiğinde "HT" rozet, 46+ olunca tekrar canlı
+        if (MS._displayMin >= 45 && MS._displayMin < 46 && !MS._htShown) {
+          MS._htShown = true;
+          if (clk) { clk.textContent = 'HT'; clk.className = 'match-clock ht'; }
+          const sbHt = document.getElementById('statusBadge');
+          if (sbHt) { sbHt.className = 'status-badge sb-ht'; sbHt.innerHTML = '⏸ DEVRE ARASI'; }
+        } else if (MS._displayMin >= 46 && MS._htShown) {
+          // Devre arası bitti — CANLI'ya geri dön
+          MS._htShown = false;
+          const sbLive = document.getElementById('statusBadge');
+          if (sbLive) { sbLive.className = 'status-badge sb-live'; sbLive.innerHTML = '<div class="live-dot"></div> CANLI'; }
+          if (clk) { clk.textContent = MS._displayMin + "'"; clk.className = 'match-clock'; }
+        }
         // 🆕 Olaylar — Edge Function events jsonb'sini LIVE sekmesinde göster
         // Mevcut .ev-item / .ev-min / .ev-ico / .ev-body / .ev-title / .ev-sub yapısı kullanılıyor
         // Tip-spesifik renkler .ev-goal / .ev-yellow / .ev-red / .ev-corner ... otomatik gelir
@@ -34818,13 +34123,30 @@ async function startMatch(){
         } catch(e) {}
         // Bittiyse
         if (liveRow.status === 'finished' || liveRow.sim_minute >= 90) {
+          // MS skorları Edge Function'ın son skorlarıyla senkronla (finalize bunları kullanır)
+          MS.scoreH = liveRow.home_score ?? MS.scoreH ?? 0;
+          MS.scoreA = liveRow.away_score ?? MS.scoreA ?? 0;
+          // Olayları MS.script.evs'e yansıt (finalize match_results cache'ine yazar)
+          if (MS.script) {
+            MS.script.evs = Array.isArray(liveRow.events) ? liveRow.events.slice() : [];
+            MS.script.homeGoals = MS.scoreH;
+            MS.script.awayGoals = MS.scoreA;
+            MS.script.stats = liveRow.stats || MS.script.stats || null;
+          }
+          // Bayrakları set et
+          const wasFinished = MS.finished;
           MS.finished = true;
           MS.running = false;
           const sbF = document.getElementById('statusBadge');
           if (sbF) { sbF.className = 'status-badge sb-ft'; sbF.innerHTML = '⏱️ BİTTİ'; }
           if (clk) clk.textContent = 'FT';
+          // Poll'u durdur
           clearInterval(window._matchScreenLiveTimer);
           window._matchScreenLiveTimer = null;
+          // Maç sonu ekranı + cache yazma — sadece bir kere
+          if (!wasFinished && typeof _finalizeMatch === 'function') {
+            try { _finalizeMatch(MS.script); } catch(e) { console.warn('[matchScreen] _finalizeMatch hata:', e); }
+          }
         }
       }
     } catch(e) { console.warn('[matchScreen live] hata:', e); }
@@ -35508,307 +34830,45 @@ async function _startMatchInternal(){
   // 🆕 EN SON: yedek havuzu hazırla — DOM ve state hazır olduktan sonra
   buildSubstitutesList();
 
-  // 🆕 GERÇEK-ZAMANLI motor: olaylar maçtan önce belirlenmez, her dakikada üretilir
-  MS.simState = _simInitState(curHome, curAway);
-  // MS.tactic'i UI için yansıt
+  // 🚫 Lokal motor kurulumu (_simInitState) KALDIRILDI.
+  // Maç ekranı sadece match_state poll'üne dayanır. Skor/dakika/olaylar Edge Function'dan gelir.
+  MS.simState = null;
   if (!MS.tactic) MS.tactic = {};
-  const isUserHome = !!(typeof _userTeam !== 'undefined' && _userTeam && curHome && curHome.name === _userTeam.teamName);
-  MS.tactic.home = {
-    strategy: MS.simState.homeStrategy,
-    formation: (isUserHome || MS._testForceCaptain) ? (typeof currentFormation !== 'undefined' ? currentFormation : '4-3-3') : '4-3-3'
-  };
-  MS.tactic.away = { strategy: MS.simState.awayStrategy, formation: '4-3-3' };
-  MS._matchCtx = MS.simState.ctx;
-  // 🆕 Venue text'e hava bilgisi ekle
-  try {
-    const venueEl = document.getElementById('msVenueTxt');
-    const w = MS._matchCtx && MS._matchCtx.weather;
-    if (venueEl && w && w.label) {
-      const baseText = venueEl.textContent.replace(/\s*·\s*[☀️⛅🌧️⛈️❄️🔥].*$/u, '');
-      venueEl.textContent = `${baseText} · ${w.label}`;
-    }
-  } catch(e) {}
-  // MS.script — backward compat (eski kod buradan okur, biz inkremental dolduracağız)
+  MS.tactic.home = { strategy: 'balanced', formation: '4-3-3' };
+  MS.tactic.away = { strategy: 'balanced', formation: '4-3-3' };
+  MS._matchCtx = MS._matchCtx || null;
+  // MS.script — backward compat: poll dakika dakika doldurur
   MS.script = {
     homeGoals: 0, awayGoals: 0,
     evs: [],
     com: [],
-    stats: MS.simState.stats   // referans paylaşımı: simState.stats güncellendiğinde script.stats da güncellenir
+    stats: null
   };
-  MS.subsLeft = 5;          // 5 değişiklik hakkı
+  MS.subsLeft = 5;
   MS.subsHistory = [];
-  MS.fired = [];            // İşlenmiş event index'leri (sub'lar için)
-  MS._currentEi = 0;        // Geriye dönük uyumluluk
+  MS.fired = [];
+  MS._currentEi = 0;
 
-  // 🆕 Canlı maç desteği: kalan dakikadan başla — geçen dakikaları hızlı simüle et
-  const liveStartMin = (typeof MS._liveStartMinute === 'number' && MS._liveStartMinute > 0)
-    ? MS._liveStartMinute : 0;
-
-  if (liveStartMin > 0 && liveStartMin < 90) {
-    // 🆕 Sessiz hızlı simulate — kullanıcıya "bağlanılıyor" göstermez
-    // 0'dan liveStartMin'e kadar dakikaları aniden simüle et (UI güncellemesi yok)
-    if (MS.simState && typeof _simStepMinute === 'function') {
-      for (let mn = 1; mn <= liveStartMin; mn++) {
-        const events = _simStepMinute(MS.simState);
-        events.forEach(ev => {
-          if (ev.type === 'goal') {
-            if (ev.team === 'home') MS.scoreH = (MS.scoreH || 0) + 1;
-            else MS.scoreA = (MS.scoreA || 0) + 1;
-          }
-          MS.script.evs.push(ev);
-        });
-        MS.minute = mn;
-      }
-      // Skor ve dakikayı UI'a yansıt — direkt CANLI badge'i
-      try {
-        document.getElementById('scoreH').textContent = MS.scoreH || 0;
-        document.getElementById('scoreA').textContent = MS.scoreA || 0;
-        if (typeof updateClock === 'function') updateClock(liveStartMin);
-        const badge = document.getElementById('statusBadge');
-        if (badge) {
-          badge.className = 'status-badge sb-live';
-          badge.innerHTML = '<div class="live-dot"></div> CANLI';
-        }
-      } catch(e) {}
-    }
-
-    // İlk yarı (≤45) içindeyse: kalan ilk-yarı + tam ikinci yarı oynanır
-    if (liveStartMin < 45) {
-      const remaining1 = 45 - liveStartMin;
-      const totalSec1 = Math.round(300 * remaining1 / 45);
-      await runHalfRealtime(liveStartMin, 45, totalSec1);
-      if (!MS.running) { _finalizeMatch(MS.script); return; }
-
-      // Devre arası — kısaltılmış (canlı bağlantıda zaten geç katıldık)
-      MS.minute = 45;
-      updateClock(45);
-      await runHalftimeBreak(20);  // 20 saniye
-      if (!MS.running) { _finalizeMatch(MS.script); return; }
-
-      await runHalfRealtime(45, 90, 300);
-    } else if (liveStartMin === 45) {
-      // Devre arası başlangıcı
-      await runHalftimeBreak(20);
-      if (!MS.running) { _finalizeMatch(MS.script); return; }
-      await runHalfRealtime(45, 90, 300);
-    } else {
-      // İkinci yarı içindeyiz
-      const remaining2 = 90 - liveStartMin;
-      const totalSec2 = Math.round(300 * remaining2 / 45);
-      await runHalfRealtime(liveStartMin, 90, totalSec2);
-    }
-
-    // Cleanup
-    delete MS._liveStartMinute;
-    _finalizeMatch(MS.script);
-    return;
-  }
-
-  // 1. yarı: 300 saniye gerçek zaman, dakika 0→45
-  await runHalfRealtime(0, 45, 300);
-  if (!MS.running) { _finalizeMatch(MS.script); return; }
-
-  // DEVRE ARASI: 100 saniye (bot AI strateji yenile - skor durumuna göre)
-  MS.minute = 45;
-  updateClock(45);
-  const scoreH = MS.scoreH || 0, scoreA = MS.scoreA || 0;
-  const diff = scoreA - scoreH;
-  if (MS.tactic && MS.tactic.away && MS.tactic.away.strategy) {
-    if (diff < -1) {
-      // Geride: hücum stiline geç
-      MS.tactic.away.strategy.style = 'Agresif Baskı';
-      MS.tactic.away.strategy.tempo = 'Hızlı & Direk';
-    } else if (diff > 1) {
-      // Önde: defansif blok
-      MS.tactic.away.strategy.style = 'Defansif Blok';
-      MS.tactic.away.strategy.tempo = 'Yavaş Yapılandırma';
-    }
-    // Sim state'e de yansıt (sonraki dakika fresh okur)
-    if (MS.simState) {
-      Object.assign(MS.simState.awayStrategy, MS.tactic.away.strategy);
-      MS.simState.Ma = compositeStratMods(MS.simState.awayStrategy);
-    }
-  }
-
-  // Devre arası overlay
-  await runHalftimeBreak(100);
-  if (!MS.running) { _finalizeMatch(MS.script); return; }
-
-  // 2. yarı: 300 saniye, dakika 45→90
-  await runHalfRealtime(45, 90, 300);
-
-  _finalizeMatch(MS.script);
+  // 🚫 Lokal yarı motoru (runHalfRealtime + runHalftimeBreak) KALDIRILDI.
+  // Maç ilerlemesi tamamen Edge Function'a bağlı — frontend poll'le match_state'i okuyup
+  // UI'a yansıtır. _finalizeMatch poll içinde status='finished' yakalandığında çağrılır.
+  // Bu fonksiyon yalnızca kurulumu tamamlayıp poll'un başlatılmasını bekler.
+  // (openMatchScreenV2 zaten startMatch çağırıyor, startMatch da _startMatchInternal'ı.)
+  // Poll mekanizması startMatch'in farklı kısmındaki interval'da çalışır.
 }
 
 // 🆕 Devre arası geri sayımı — overlay yok, scoreboard altında belirgin banner
 async function runHalftimeBreak(seconds) {
-  const banner = document.getElementById('halftimeBanner');
-  const sec = document.getElementById('htSeconds');
-  const badge = document.getElementById('statusBadge');
-
-  // 🆕 Olay listesine "DEVRE ARASI" satırı ekle
-  try {
-    if (typeof addEvent === 'function') {
-      addEvent({ type: 'halftime', min: 45 });
-    }
-    if (typeof updateLiveHeader === 'function') {
-      updateLiveHeader(45, 'Devre arası', 50, 50);
-    }
-  } catch(e) {}
-
-  if (banner) banner.classList.remove('ht-banner-hidden');
-  MS.inHalftime = true;
-  MS.halftimeRemaining = seconds;
-
-  for (let s = seconds; s > 0; s--) {
-    if (!MS.running) break;
-    if (sec) sec.textContent = s;
-    if (badge) {
-      badge.className = 'status-badge sb-ht';
-      badge.innerHTML = `⏸ DEVRE ARASI · ${s}s`;
-    }
-    MS.halftimeRemaining = s;
-    await sleep(1000);
-  }
-
-  if (banner) banner.classList.add('ht-banner-hidden');
-  MS.inHalftime = false;
-  // 2. yarı başlamadan önce status badge'i CANLI'ya çevir
-  if (badge) {
-    badge.className = 'status-badge sb-live';
-    badge.innerHTML = '<div class="live-dot"></div> CANLI';
-  }
+  // 🚫 Lokal devre arası KALDIRILDI. Edge Function devre arası dakikalarını match_state'te yönetir.
+  return;
 }
 
-// 🆕 skipHalftime kaldırıldı — kullanıcı devre arasını atlayamaz
-
-// Yarımı gerçek zamanda oynat (300 saniye, dakika startMin→endMin)
-// 🆕 GERÇEK-ZAMANLI: her dakika boundary'sinde simülatör fresh karar verir
-//    Olaylar maçtan önce bilinmez, dakika geldiğinde üretilir.
-//    Taktik değişiklikleri ANINDA etkili (sonraki dakika fresh okur).
 async function runHalfRealtime(startMin, endMin, totalSeconds) {
-  const halfDuration = endMin - startMin;
-  let lastSimulatedMin = startMin;  // Son simüle edilen dakika
-
-  // simState yoksa fallback: scriptten oku (eski davranış)
-  const useNewEngine = !!(MS.simState);
-
-  // SKIP: tüm yarım eventlerini hızlıca üret + işle
-  if (MS.speed >= 50) {
-    if (useNewEngine) {
-      while (lastSimulatedMin < endMin) {
-        if (!MS.running) break;
-        lastSimulatedMin++;
-        const newEvents = _simStepMinute(MS.simState);
-        // Mirror to MS.script
-        for (const ev of newEvents) {
-          ev._fired = true;
-          MS.script.evs.push(ev);
-        }
-        MS.script.homeGoals = MS.simState.score[0];
-        MS.script.awayGoals = MS.simState.score[1];
-        // UI fire
-        for (const ev of newEvents) {
-          await processMatchEvent(ev);
-        }
-        await sleep(20);
-      }
-    } else {
-      // Eski davranış: önceden script edilmiş eventleri sırayla fire
-      MS._currentEi = MS.script.evs.findIndex(e => !e._fired && e.min >= startMin);
-      if (MS._currentEi < 0) MS._currentEi = MS.script.evs.length;
-      while (MS._currentEi < MS.script.evs.length && MS.script.evs[MS._currentEi].min <= endMin) {
-        const ev = MS.script.evs[MS._currentEi];
-        if (!ev._fired) {
-          await processMatchEvent(ev);
-          ev._fired = true;
-        }
-        MS._currentEi++;
-        await sleep(20);
-      }
-    }
-    MS.minute = endMin;
-    updateClock(endMin);
-    updateStats(MS.script.stats, endMin / 90);
-    return;
-  }
-
-  // GERÇEK-ZAMANLI MOD
-  for (let s = 0; s < totalSeconds; s++) {
-    if (!MS.running) break;
-
-    // Dakikayı orantılı ilerlet
-    const matchMin = startMin + (s / totalSeconds) * halfDuration;
-    const flooredMin = Math.floor(matchMin);
-    MS.minute = matchMin;
-    updateClock(flooredMin);
-
-    // 🆕 Yeni dakika geçildiyse simülatörü çalıştır
-    if (useNewEngine) {
-      while (lastSimulatedMin < flooredMin && lastSimulatedMin < endMin) {
-        lastSimulatedMin++;
-        const newEvents = _simStepMinute(MS.simState);
-        for (const ev of newEvents) {
-          ev._fired = true;
-          MS.script.evs.push(ev);
-        }
-        MS.script.homeGoals = MS.simState.score[0];
-        MS.script.awayGoals = MS.simState.score[1];
-        // UI fire (sırayla — gol animasyonu vs. için sequential await)
-        for (const ev of newEvents) {
-          await processMatchEvent(ev);
-        }
-      }
-    } else {
-      // Eski davranış: pre-scripted event'leri zaman geldikçe fire et
-      if (typeof MS._currentEi !== 'number') MS._currentEi = 0;
-      while (MS._currentEi < MS.script.evs.length && MS.script.evs[MS._currentEi].min <= matchMin) {
-        const ev = MS.script.evs[MS._currentEi];
-        if (!ev._fired) {
-          await processMatchEvent(ev);
-          ev._fired = true;
-        }
-        MS._currentEi++;
-      }
-    }
-
-    // İstatistik UI güncelle (3 saniyede bir)
-    if (s % 3 === 0) {
-      if (useNewEngine) {
-        // simState'den canlı possession + tüm istatistikler
-        const livePoss = MS.simState.stats.possession[0];
-        if (typeof updatePoss === 'function') updatePoss(livePoss);
-        // Stats zaten kümülatif (MS.script.stats === MS.simState.stats referansı)
-        // frac=1 — değerler artık ham, ölçeklendirilmemeli
-        updateStats(MS.script.stats, 1);
-      } else {
-        // Eski: aggregate stats × frac
-        if (MS.script.stats && MS.script.stats.possession) {
-          const basePoss = MS.script.stats.possession[0];
-          const wave = Math.round((Math.random() - 0.5) * 6);
-          const livePoss = Math.max(30, Math.min(70, basePoss + wave));
-          updatePoss(livePoss);
-        }
-        updateStats(MS.script.stats, Math.min(1, matchMin / 90));
-      }
-    }
-
-    // 🆕 KADRO sekmesi açıksa canlı reytingi her ~5 saniyede bir güncelle
-    if (s % 5 === 0) {
-      const luTab = document.getElementById('eng-lineup');
-      if (luTab && luTab.style.display !== 'none' && typeof renderLineup === 'function') {
-        try { renderLineup(); } catch(e) {}
-      }
-    }
-
-    // Hız kontrolü: 1x = 1000ms tick, 5x = 200ms, 10x = 100ms
-    const tickMs = MS.speed === 1 ? 1000 : (MS.speed === 5 ? 200 : 100);
-
-    await sleep(tickMs);
-  }
+  // 🚫 Lokal yarı motoru KALDIRILDI. Maç ilerlemesi Edge Function'a bağlı.
+  // Bu fonksiyon eski callsite'lar için bırakılmıştır; herhangi bir şey yapmaz.
+  return;
 }
 
-// Event işleme (ses/UI etkisi)
 async function processMatchEvent(ev) {
   if (!ev) return;
 
@@ -55880,24 +54940,9 @@ function renderHomeLeagueTicker() {
     return { hs: liveHs, as: liveAs };
   }
 
-  // 🆕 Bot maç için final skoru lazy hesapla (cache'e yazma — sadece görüntü amaçlı)
+  // 🚫 _liveBotFinalScore lokal sahte skor üreticiydi.
+  // Artık match_state'ten okuyacak (gerçek skor) — bulunamazsa 0-0 döner.
   function _liveBotFinalScore(m) {
-    try {
-      const country = (true) ? _cftGetCountry(m.countryCode) : null;
-      let homeTeamObj = { name: m.home, short: m.homeShort, rating: 70 };
-      let awayTeamObj = { name: m.away, short: m.awayShort, rating: 70 };
-      if (country && country.leagues && country.leagues[m.tierIdx]) {
-        const teams = country.leagues[m.tierIdx].teams;
-        const ht = teams.find(t => t.name === m.home);
-        const at = teams.find(t => t.name === m.away);
-        if (ht) Object.assign(homeTeamObj, ht);
-        if (at) Object.assign(awayTeamObj, at);
-      }
-      if (typeof generateMatchScore === 'function') {
-        const [hs, as] = generateMatchScore(homeTeamObj.rating || 70, awayTeamObj.rating || 70, m.cacheKey || m.matchKey);
-        return { hs: Math.max(0, hs|0), as: Math.max(0, as|0) };
-      }
-    } catch(e) {}
     return { hs: 0, as: 0 };
   }
 
