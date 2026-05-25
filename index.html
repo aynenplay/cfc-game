@@ -2295,24 +2295,26 @@ select.form-input option{background:var(--bg)}
   align-items:center;gap:8px;
   margin-bottom:6px;
 }
-.mr-team{display:flex;flex-direction:column;align-items:center;gap:4px}
+.mr-team{display:flex;flex-direction:column;align-items:center;gap:6px}
 .mr-crest{
-  width:38px;height:38px;border-radius:8px;
-  background:var(--bg3);border:1px solid var(--border);
+  width:64px;height:64px;border-radius:12px;
+  background:var(--bg3);border:1.5px solid var(--border);
   display:flex;align-items:center;justify-content:center;
   font-family:'Barlow Condensed',sans-serif;
-  font-size:11px;font-weight:900;color:var(--text);
+  font-size:18px;font-weight:900;color:var(--text);
   letter-spacing:.5px;
+  box-shadow:0 4px 12px rgba(0,0,0,.3);
 }
-/* 🆕 Logo varsa çerçeve/bg kaldır + büyüt */
+/* 🆕 Logo varsa çerçeve/bg kaldır + daha büyük */
 .mr-crest.crest-has-logo{
-  width:48px;height:48px;
+  width:78px;height:78px;
   border:none !important;
   background:none !important;
   border-radius:0;
+  box-shadow:none;
 }
 .mr-crest.crest-has-logo img{
-  filter:drop-shadow(0 2px 4px rgba(0,0,0,.5));
+  filter:drop-shadow(0 3px 6px rgba(0,0,0,.6));
 }
 .mr-team-name{
   font-size:10px;font-weight:700;color:var(--text);
@@ -32991,23 +32993,18 @@ function _doMsubSwap(pitchIdx, benchIdx) {
   MS.subsLeft--;
   MS.subsHistory = MS.subsHistory || [];
   // 🆕 Doğru dakika: SKORBORDDAKİ ile birebir aynı olmalı.
-  //    Sim.formatMatchTime() in-game minute (1-90, HT, FT, PRE) döner — scoreboard bunu gösterir.
+  //    Yeni motor: MS._displayMin smoothing timer tarafından her 250ms güncellenir.
+  //    Eski Sim.formatMatchTime ve MS.minute artık çalışmıyor (3D motor silindi).
   let curMin = 0;
   try {
-    if (typeof Sim !== 'undefined' && Sim && typeof Sim.formatMatchTime === 'function') {
-      const formatted = Sim.formatMatchTime();
-      // "5'" → 5, "HT" → 45, "FT" → 90, "0:00" → 0
-      if (formatted === 'HT') curMin = 45;
-      else if (formatted === 'FT') curMin = 90;
-      else if (formatted === '0:00') curMin = 0;
-      else {
-        const m = parseInt(formatted, 10);
-        if (!isNaN(m)) curMin = m;
-      }
-    } else if (MS && typeof MS.minute === 'number') {
+    if (typeof MS !== 'undefined' && MS && typeof MS._displayMin === 'number' && MS._displayMin > 0) {
+      curMin = Math.floor(MS._displayMin);
+    } else if (MS && typeof MS.minute === 'number' && MS.minute > 0) {
       curMin = Math.floor(MS.minute);
     }
-  } catch(e) { curMin = MS.minute || 0; }
+  } catch(e) { curMin = 0; }
+  // Devre arası kontrolü: smoothing 45'e ulaşmış ve henüz 46'ya geçmemişse HT göster
+  if (MS._htShown && curMin === 45) curMin = 45;
   if (curMin < 1) curMin = 1;  // 0 gösterme
 
   // 🆕 outSnapshot: çıkan oyuncunun TAM kopyası (KADROLAR listede kalsın diye)
@@ -33623,26 +33620,24 @@ function renderLineup(){
     const hasRed = !!(p.redCard || p.sentOff);
     let cardMark = '';
     if (hasRed) {
-      cardMark = `<span style="display:inline-block;width:9px;height:13px;background:#ef5350;border-radius:1.5px;box-shadow:0 0 4px rgba(239,83,80,.6)" title="Kırmızı kart — atıldı"></span>`;
+      // 🆕 Kırmızı kart emoji oyuncu satırı solduğunda bile PARLAK kalır (opacity bypass)
+      cardMark = `<span style="display:inline-block;width:9px;height:13px;background:#ef5350;border-radius:1.5px;box-shadow:0 0 6px rgba(239,83,80,.8);opacity:1 !important;filter:none !important" title="Kırmızı kart — atıldı"></span>`;
     } else if (yellowCnt >= 1) {
       // 1 sarı görünür — 2. sarı kırmızıya dönüşmüş olur
-      cardMark = `<span style="display:inline-block;width:9px;height:13px;background:#ffd600;border-radius:1.5px;box-shadow:0 0 4px rgba(255,214,0,.5)" title="Sarı kart"></span>`;
+      cardMark = `<span style="display:inline-block;width:9px;height:13px;background:#ffd600;border-radius:1.5px;box-shadow:0 0 4px rgba(255,214,0,.5);opacity:1 !important;filter:none !important" title="Sarı kart"></span>`;
     }
 
-    // Görsel stiller:
-    // - hasRed: opacity 0.4, grayscale (kırmızı kart - atıldı, soluk)
-    // - isExited: opacity 0.55, grayscale (oyundan çıktı, dondu)
-    // - isBench (girmemiş): opacity 0.65
-    // - isBench + girdiyse: opacity normal
+    // Görsel stiller — opacity KULLANMA (parent opacity child'ı da soldurur, kart emoji görünmez kalır)
+    // Bunun yerine sadece text rengini soldur, kart işaretleri kendi rengini korur
     const isBenchPlayed = opts.isBench && subsIn.has(p.name);
     let rowStyle = '';
     if (hasRed) {
-      // 🆕 Kırmızı kart - soluk + grileşmiş
-      rowStyle = 'opacity:0.40;filter:grayscale(75%);text-decoration:line-through;text-decoration-color:rgba(239,83,80,.6)';
+      // 🆕 Kırmızı kart - text griye dönsün ama kart işareti parlak kalsın
+      rowStyle = 'color:rgba(180,180,180,.5);text-decoration:line-through;text-decoration-color:rgba(239,83,80,.6)';
     } else if (opts.isExited) {
-      rowStyle = 'opacity:0.55;filter:grayscale(45%)';
+      rowStyle = 'color:rgba(180,180,180,.7)';
     } else if (opts.isBench && !isBenchPlayed) {
-      rowStyle = 'opacity:0.65';
+      rowStyle = 'color:rgba(220,220,220,.75)';
     }
     // 🆕 ga (gol/asist/sakatlık) badge — status hücresinde, margin'siz
     const g = p.matchGoals || 0;
@@ -34364,14 +34359,10 @@ async function startMatch(){
       return;
     }
     if (MS.finished) return;
-    // started_at henüz gelmediyse, kickoff veya şu anı kullan (smoothing hep çalışsın)
-    if (!MS._matchStartedAt) {
-      const _now = Date.now();
-      const _kickoff = MS.kickoffMs || _now;
-      // Kickoff geleceğe ise henüz başlamadı, bekle
-      if (_kickoff > _now + 1000) return;
-      MS._matchStartedAt = _kickoff;
-    }
+    // started_at gelene kadar bekle — eğer biz kickoffMs ile başlatırsak,
+    // sonradan server'dan gerçek started_at gelince MS._matchStartedAt değişir ve görsel geriye düşer.
+    // tick_match çağrısı her saniye çalışıyor — started_at en geç 1 saniye içinde gelir.
+    if (!MS._matchStartedAt) return;
     
     const elapsed = Date.now() - MS._matchStartedAt;
     const clkS = document.getElementById('matchClock');
@@ -34505,12 +34496,10 @@ async function startMatch(){
       }
       if (liveRow) {
         // 🆕 started_at sync — smoothing timer bunu kullanır
-        if (liveRow.started_at) {
-          const startedTs = new Date(liveRow.started_at).getTime();
-          // İlk set veya değişmişse güncelle
-          if (!MS._matchStartedAt || Math.abs(MS._matchStartedAt - startedTs) > 1000) {
-            MS._matchStartedAt = startedTs;
-          }
+        // SADECE İLK SET: sonra DEĞİŞMEZ. Aksi takdirde server clock drift ve poll fluctuation
+        // sonucu MS._matchStartedAt sürekli değişir, görsel dakika 5'ten 1'e gibi geri düşer.
+        if (liveRow.started_at && !MS._matchStartedAt) {
+          MS._matchStartedAt = new Date(liveRow.started_at).getTime();
         }
         // 🆕 Skor — events'ten görünür dakikaya kadar hesapla (Edge Function ileri simüle ediyor olabilir)
         const sh = document.getElementById('scoreH');
@@ -35866,7 +35855,6 @@ function showMatchResult() {
         return `<div class="mrp-team">
           <div class="mrp-team-hdr">
             <span class="mrp-team-name">${team.name}</span>
-            <span class="mrp-team-score">${side === 'home' ? scoreH : scoreA}</span>
           </div>
           ${sorted.map(p => _row(p, side)).join('')}
         </div>`;
