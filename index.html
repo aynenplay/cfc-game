@@ -33992,10 +33992,22 @@ async function startMatch(){
     sb.innerHTML = '🔴 CANLI';
   }
   
-  // 🆕 Dakika smoothing — Edge Function her tick'te 7-8 dakika birden atlayabilir.
-  // Hedef dakikayı tutup ekranı her 800ms'de bir +1 göstererek akıcı izlenim veriyoruz.
-  MS._targetMin = MS._targetMin || 0;
-  MS._displayMin = MS._displayMin || 0;
+  // 🆕 DAKİKA SAYAÇ — started_at'tan elapsed/7sn ile akıcı 1,2,3... gider.
+  // Edge Function'a dakika için bağımlı DEĞİL (Edge Function aynı formülü kullanır,
+  // her 7sn'de 1 dakika ilerletip events üretir, frontend de aynı anda gösterir).
+  // 7sn = 1 sim dk, 45dk × 7sn = 5dk 15sn yarı, +100sn devre arası, +5dk 15sn ikinci yarı
+  const MS_PER_SIM_MIN = 7 * 1000;
+  const FIRST_HALF_END_MS = 45 * MS_PER_SIM_MIN;
+  const HT_BREAK_MS = 100 * 1000;
+  const HALFTIME_END_MS = FIRST_HALF_END_MS + HT_BREAK_MS;
+  const FULL_MATCH_END_MS = HALFTIME_END_MS + 45 * MS_PER_SIM_MIN;
+  
+  // _matchStartedAt: poll'dan gelecek (started_at). Bu süre içinde geçici olarak şu anı kullan.
+  // ÖNEMLİ: Önceki maçtan kalan değer varsa sıfırla.
+  MS._matchStartedAt = Date.now();
+  MS._htShown = false;
+  MS.finished = false;
+  
   if (window._matchScreenSmoothTimer) clearInterval(window._matchScreenSmoothTimer);
   window._matchScreenSmoothTimer = setInterval(() => {
     if (!ms || !ms.classList.contains('open')) {
@@ -34003,32 +34015,70 @@ async function startMatch(){
       window._matchScreenSmoothTimer = null;
       return;
     }
-    // 🆕 Devre arası geri sayım — akıcı (poll 3sn'de bir, biz 800ms'de güncelliyoruz)
-    if (MS._htShown && MS._htEndAt) {
-      const secLeft = Math.max(0, Math.ceil((MS._htEndAt - Date.now()) / 1000));
-      if (typeof window.showHalftimeCountdown === 'function') {
-        window.showHalftimeCountdown(secLeft);
-      }
-      if (secLeft <= 0) {
-        // Süre bitti — banner'ı kaldır, durum otomatik 'CANLI'ya dönecek bir sonraki poll'da
-        if (typeof window.hideHalftimeCountdown === 'function') window.hideHalftimeCountdown();
-      }
-      return; // Devre arasında dakika ilerletme
+    if (MS.finished) return;
+    
+    const elapsed = Date.now() - MS._matchStartedAt;
+    const clkS = document.getElementById('matchClock');
+    const badge = document.getElementById('statusBadge');
+    
+    let displayMin, isHalftime = false, halftimeSecLeft = 0;
+    if (elapsed < FIRST_HALF_END_MS) {
+      // İlk yarı: 1 → 45
+      displayMin = Math.min(45, Math.floor(elapsed / MS_PER_SIM_MIN) + 1);
+    } else if (elapsed < HALFTIME_END_MS) {
+      // Devre arası — 100sn geri sayım
+      displayMin = 45;
+      isHalftime = true;
+      halftimeSecLeft = Math.ceil((HALFTIME_END_MS - elapsed) / 1000);
+    } else if (elapsed < FULL_MATCH_END_MS) {
+      // İkinci yarı: 46 → 90
+      const secondHalfElapsed = elapsed - HALFTIME_END_MS;
+      displayMin = Math.min(90, 46 + Math.floor(secondHalfElapsed / MS_PER_SIM_MIN));
+    } else {
+      // 90+ — maç bitti olmalı (poll status'u yakaladığında _finalizeMatch çağrılır)
+      displayMin = 90;
     }
-    if (MS._displayMin < MS._targetMin && MS._targetMin <= 90) {
-      MS._displayMin++;
-      const clkS = document.getElementById('matchClock');
-      // 45'te HT, 90'da FT poll içinde set ediliyor; ara dakikalarda buradan yaz
-      if (clkS && !MS.finished && !MS._htShown) {
-        if (MS._displayMin === 45) {
-          // 45'e geldik — HT rozet poll'da set edilecek; smoothing burada da işaretleyebilir
-          clkS.textContent = 'HT';
-        } else if (MS._displayMin < 90) {
-          clkS.textContent = MS._displayMin + "'";
+    
+    // UI güncelle (sadece değişiklik varsa, gereksiz reflow olmasın)
+    if (isHalftime) {
+      if (!MS._htShown) {
+        MS._htShown = true;
+        if (clkS) { clkS.textContent = 'HT'; clkS.className = 'match-clock ht'; }
+        if (badge) { badge.className = 'status-badge sb-ht'; badge.innerHTML = '⏸ DEVRE ARASI'; }
+        // Banner oluştur
+        if (typeof window.showHalftimeCountdown !== 'function') {
+          window.showHalftimeCountdown = function(secondsLeft) {
+            let el = document.getElementById('htCountdownBanner');
+            if (!el) {
+              el = document.createElement('div');
+              el.id = 'htCountdownBanner';
+              el.style.cssText = 'position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#1a1a1a;padding:14px 28px;border-radius:14px;font-family:Barlow Condensed,sans-serif;font-weight:900;font-size:18px;letter-spacing:2px;text-transform:uppercase;box-shadow:0 8px 24px rgba(0,0,0,0.5);z-index:9999;text-align:center;';
+              document.body.appendChild(el);
+            }
+            el.innerHTML = `⏸ DEVRE ARASI<br><span style="font-size:32px;display:block;margin-top:6px">${secondsLeft}s</span>`;
+            el.style.display = 'block';
+          };
+          window.hideHalftimeCountdown = function() {
+            const el = document.getElementById('htCountdownBanner');
+            if (el) el.style.display = 'none';
+          };
         }
       }
+      window.showHalftimeCountdown && window.showHalftimeCountdown(halftimeSecLeft);
+    } else {
+      // Devre arası bitti veya yok
+      if (MS._htShown) {
+        MS._htShown = false;
+        window.hideHalftimeCountdown && window.hideHalftimeCountdown();
+        if (clkS) clkS.className = 'match-clock';
+        if (badge) { badge.className = 'status-badge sb-live'; badge.innerHTML = '<div class="live-dot"></div> CANLI'; }
+      }
+      if (clkS && clkS.textContent !== displayMin + "'") {
+        clkS.textContent = displayMin + "'";
+      }
     }
-  }, 800);
+    MS._displayMin = displayMin;
+  }, 250);
 
   // 🆕 match_state poll — her 3 sn'de bir skor + dakika güncelle
   if (window._matchScreenLiveTimer) clearInterval(window._matchScreenLiveTimer);
@@ -34062,64 +34112,20 @@ async function startMatch(){
         if (sbL) { sbL.className = 'status-badge sb-live'; sbL.innerHTML = '🔴 CANLI'; }
       }
       if (liveRow) {
-        // Skor UI'a yaz (skor anında — sayım yumuşatma yok)
+        // 🆕 started_at sync — smoothing timer bunu kullanır
+        if (liveRow.started_at) {
+          const startedTs = new Date(liveRow.started_at).getTime();
+          // İlk set veya değişmişse güncelle
+          if (!MS._matchStartedAt || Math.abs(MS._matchStartedAt - startedTs) > 1000) {
+            MS._matchStartedAt = startedTs;
+          }
+        }
+        // Skor UI'a yaz (anında — smoothing yok)
         const sh = document.getElementById('scoreH');
         const sa = document.getElementById('scoreA');
-        const clk = document.getElementById('matchClock');
         if (sh) sh.textContent = liveRow.home_score ?? 0;
         if (sa) sa.textContent = liveRow.away_score ?? 0;
-        // 🆕 Devre arası mantığı — Edge Function 5dk gerçek (=45 sim) sonra 100sn duraksar.
-        // started_at + 5dk → devre arası başlangıcı, +5dk+100sn → ikinci yarı başlar.
-        const startedAt = liveRow.started_at ? new Date(liveRow.started_at).getTime() : 0;
-        const elapsedSec = startedAt ? Math.floor((Date.now() - startedAt) / 1000) : 0;
-        const FIRST_HALF_SEC = 5 * 60;   // 5 gerçek dakika = ilk yarı
-        const HALFTIME_SEC = 100;
-        const HALFTIME_END_SEC = FIRST_HALF_SEC + HALFTIME_SEC;
-        const isHalftimeWindow = elapsedSec >= FIRST_HALF_SEC && elapsedSec < HALFTIME_END_SEC;
-        
-        if (isHalftimeWindow && !MS._htShown) {
-          MS._htShown = true;
-          MS._htEndAt = startedAt + HALFTIME_END_SEC * 1000;
-          const sbHt = document.getElementById('statusBadge');
-          if (sbHt) { sbHt.className = 'status-badge sb-ht'; sbHt.innerHTML = '⏸ DEVRE ARASI'; }
-          if (clk) { clk.textContent = 'HT'; clk.className = 'match-clock ht'; }
-          // 🆕 Devre arası overlay/banner — 100 saniye geri sayım göster
-          if (typeof window.showHalftimeCountdown !== 'function') {
-            // İlk kez — basit overlay oluştur
-            window.showHalftimeCountdown = function(secondsLeft) {
-              let el = document.getElementById('htCountdownBanner');
-              if (!el) {
-                el = document.createElement('div');
-                el.id = 'htCountdownBanner';
-                el.style.cssText = 'position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#1a1a1a;padding:14px 28px;border-radius:14px;font-family:Barlow Condensed,sans-serif;font-weight:900;font-size:18px;letter-spacing:2px;text-transform:uppercase;box-shadow:0 8px 24px rgba(0,0,0,0.5);z-index:9999;text-align:center;';
-                document.body.appendChild(el);
-              }
-              el.innerHTML = `⏸ DEVRE ARASI<br><span style="font-size:32px;display:block;margin-top:6px">${secondsLeft}s</span>`;
-              el.style.display = 'block';
-            };
-            window.hideHalftimeCountdown = function() {
-              const el = document.getElementById('htCountdownBanner');
-              if (el) el.style.display = 'none';
-            };
-          }
-        }
-        if (MS._htShown) {
-          if (isHalftimeWindow) {
-            const secLeft = Math.max(0, Math.ceil((MS._htEndAt - Date.now()) / 1000));
-            window.showHalftimeCountdown && window.showHalftimeCountdown(secLeft);
-          } else {
-            // Devre arası bitti
-            MS._htShown = false;
-            window.hideHalftimeCountdown && window.hideHalftimeCountdown();
-            const sbLive = document.getElementById('statusBadge');
-            if (sbLive) { sbLive.className = 'status-badge sb-live'; sbLive.innerHTML = '<div class="live-dot"></div> CANLI'; }
-            if (clk) { clk.className = 'match-clock'; }
-          }
-        }
-        // 🆕 Dakika: hedef olarak ayarla, smoothing timer akıcı şekilde getirir
-        // Devre arası dışında — devre arasında dakika 45'te donar
-        const newMin = liveRow.sim_minute || 0;
-        if (!MS._htShown && newMin > MS._targetMin) MS._targetMin = newMin;
+        // Dakika ve devre arası UI'ı smoothing timer yönetir, poll buna karışmaz.
         // 🆕 Olaylar — Edge Function events jsonb'sini LIVE sekmesinde göster
         // Mevcut .ev-item / .ev-min / .ev-ico / .ev-body / .ev-title / .ev-sub yapısı kullanılıyor
         // Tip-spesifik renkler .ev-goal / .ev-yellow / .ev-red / .ev-corner ... otomatik gelir
