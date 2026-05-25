@@ -34003,6 +34003,18 @@ async function startMatch(){
       window._matchScreenSmoothTimer = null;
       return;
     }
+    // 🆕 Devre arası geri sayım — akıcı (poll 3sn'de bir, biz 800ms'de güncelliyoruz)
+    if (MS._htShown && MS._htEndAt) {
+      const secLeft = Math.max(0, Math.ceil((MS._htEndAt - Date.now()) / 1000));
+      if (typeof window.showHalftimeCountdown === 'function') {
+        window.showHalftimeCountdown(secLeft);
+      }
+      if (secLeft <= 0) {
+        // Süre bitti — banner'ı kaldır, durum otomatik 'CANLI'ya dönecek bir sonraki poll'da
+        if (typeof window.hideHalftimeCountdown === 'function') window.hideHalftimeCountdown();
+      }
+      return; // Devre arasında dakika ilerletme
+    }
     if (MS._displayMin < MS._targetMin && MS._targetMin <= 90) {
       MS._displayMin++;
       const clkS = document.getElementById('matchClock');
@@ -34056,22 +34068,58 @@ async function startMatch(){
         const clk = document.getElementById('matchClock');
         if (sh) sh.textContent = liveRow.home_score ?? 0;
         if (sa) sa.textContent = liveRow.away_score ?? 0;
-        // 🆕 Dakika: hedef olarak ayarla, smoothing timer akıcı şekilde getirir
-        const newMin = liveRow.sim_minute || 0;
-        if (newMin > MS._targetMin) MS._targetMin = newMin;
-        // 🆕 Devre arası: 45'e gelindiğinde "HT" rozet, 46+ olunca tekrar canlı
-        if (MS._displayMin >= 45 && MS._displayMin < 46 && !MS._htShown) {
+        // 🆕 Devre arası mantığı — Edge Function 5dk gerçek (=45 sim) sonra 100sn duraksar.
+        // started_at + 5dk → devre arası başlangıcı, +5dk+100sn → ikinci yarı başlar.
+        const startedAt = liveRow.started_at ? new Date(liveRow.started_at).getTime() : 0;
+        const elapsedSec = startedAt ? Math.floor((Date.now() - startedAt) / 1000) : 0;
+        const FIRST_HALF_SEC = 5 * 60;   // 5 gerçek dakika = ilk yarı
+        const HALFTIME_SEC = 100;
+        const HALFTIME_END_SEC = FIRST_HALF_SEC + HALFTIME_SEC;
+        const isHalftimeWindow = elapsedSec >= FIRST_HALF_SEC && elapsedSec < HALFTIME_END_SEC;
+        
+        if (isHalftimeWindow && !MS._htShown) {
           MS._htShown = true;
-          if (clk) { clk.textContent = 'HT'; clk.className = 'match-clock ht'; }
+          MS._htEndAt = startedAt + HALFTIME_END_SEC * 1000;
           const sbHt = document.getElementById('statusBadge');
           if (sbHt) { sbHt.className = 'status-badge sb-ht'; sbHt.innerHTML = '⏸ DEVRE ARASI'; }
-        } else if (MS._displayMin >= 46 && MS._htShown) {
-          // Devre arası bitti — CANLI'ya geri dön
-          MS._htShown = false;
-          const sbLive = document.getElementById('statusBadge');
-          if (sbLive) { sbLive.className = 'status-badge sb-live'; sbLive.innerHTML = '<div class="live-dot"></div> CANLI'; }
-          if (clk) { clk.textContent = MS._displayMin + "'"; clk.className = 'match-clock'; }
+          if (clk) { clk.textContent = 'HT'; clk.className = 'match-clock ht'; }
+          // 🆕 Devre arası overlay/banner — 100 saniye geri sayım göster
+          if (typeof window.showHalftimeCountdown !== 'function') {
+            // İlk kez — basit overlay oluştur
+            window.showHalftimeCountdown = function(secondsLeft) {
+              let el = document.getElementById('htCountdownBanner');
+              if (!el) {
+                el = document.createElement('div');
+                el.id = 'htCountdownBanner';
+                el.style.cssText = 'position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#1a1a1a;padding:14px 28px;border-radius:14px;font-family:Barlow Condensed,sans-serif;font-weight:900;font-size:18px;letter-spacing:2px;text-transform:uppercase;box-shadow:0 8px 24px rgba(0,0,0,0.5);z-index:9999;text-align:center;';
+                document.body.appendChild(el);
+              }
+              el.innerHTML = `⏸ DEVRE ARASI<br><span style="font-size:32px;display:block;margin-top:6px">${secondsLeft}s</span>`;
+              el.style.display = 'block';
+            };
+            window.hideHalftimeCountdown = function() {
+              const el = document.getElementById('htCountdownBanner');
+              if (el) el.style.display = 'none';
+            };
+          }
         }
+        if (MS._htShown) {
+          if (isHalftimeWindow) {
+            const secLeft = Math.max(0, Math.ceil((MS._htEndAt - Date.now()) / 1000));
+            window.showHalftimeCountdown && window.showHalftimeCountdown(secLeft);
+          } else {
+            // Devre arası bitti
+            MS._htShown = false;
+            window.hideHalftimeCountdown && window.hideHalftimeCountdown();
+            const sbLive = document.getElementById('statusBadge');
+            if (sbLive) { sbLive.className = 'status-badge sb-live'; sbLive.innerHTML = '<div class="live-dot"></div> CANLI'; }
+            if (clk) { clk.className = 'match-clock'; }
+          }
+        }
+        // 🆕 Dakika: hedef olarak ayarla, smoothing timer akıcı şekilde getirir
+        // Devre arası dışında — devre arasında dakika 45'te donar
+        const newMin = liveRow.sim_minute || 0;
+        if (!MS._htShown && newMin > MS._targetMin) MS._targetMin = newMin;
         // 🆕 Olaylar — Edge Function events jsonb'sini LIVE sekmesinde göster
         // Mevcut .ev-item / .ev-min / .ev-ico / .ev-body / .ev-title / .ev-sub yapısı kullanılıyor
         // Tip-spesifik renkler .ev-goal / .ev-yellow / .ev-red / .ev-corner ... otomatik gelir
