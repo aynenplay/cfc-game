@@ -26474,6 +26474,32 @@ function getPlayerMainOverall(player) {
 
   // 🟢 1) BOT veya yapılı abilities olan oyuncu — ama USER DEĞİL
   if (player.role !== 'user') {
+    // 🆕 GERÇEK USER (başka kullanıcı): cache'ten 45 skill varsa 4 hat ortalaması
+    //   Bu, visitor profil sayfası ile aynı kaynaktan hesap → tutarlılık.
+    //   Cache yoksa async yüklensin; tekrar render edildiğinde doğru gözükür.
+    const otherUid = player.userId || player.user_id;
+    const isOtherUser = !player.isBot && !!otherUid;
+    if (isOtherUser && typeof SKILL_DEFS !== 'undefined' && SKILL_DEFS.ALL &&
+        typeof _visitorSkillsCache !== 'undefined' && _visitorSkillsCache[otherUid]) {
+      const skills = _visitorSkillsCache[otherUid];
+      const _catAvgO = (catSkills) => {
+        if (!catSkills || !catSkills.length) return null;
+        const sum = catSkills.reduce((a, s) => a + (skills[s.id] || 10), 0);
+        return sum / catSkills.length;
+      };
+      const gk = _catAvgO(SKILL_DEFS.ALL[0] && SKILL_DEFS.ALL[0].skills);
+      const df = _catAvgO(SKILL_DEFS.ALL[1] && SKILL_DEFS.ALL[1].skills);
+      const md = _catAvgO(SKILL_DEFS.ALL[2] && SKILL_DEFS.ALL[2].skills);
+      const fw = _catAvgO(SKILL_DEFS.ALL[3] && SKILL_DEFS.ALL[3].skills);
+      if (gk != null && df != null && md != null && fw != null) {
+        return Math.max(1, Math.min(99, Math.round((gk + df + md + fw) / 4)));
+      }
+    }
+    // 🆕 Cache yoksa async yükle — sonraki render'da OVR doğru gelir
+    if (isOtherUser && typeof _loadVisitorSkills === 'function' &&
+        typeof _visitorSkillsCache !== 'undefined' && !_visitorSkillsCache[otherUid]) {
+      try { _loadVisitorSkills(otherUid); } catch(e) {}
+    }
     const fromAb = _ovrFromBag(player.abilities);
     if (fromAb != null) {
       return Math.max(1, Math.min(99, Math.round(fromAb)));
@@ -42936,6 +42962,23 @@ function renderRoster(filter) {
   if (typeof renderForeignBar === 'function') renderForeignBar();
   // 🆕 Squad info bar güncelle
   if (typeof updateSquadInfoBar === 'function') updateSquadInfoBar();
+
+  // 🆕 GERÇEK USER takım arkadaşları için skills cache'i pre-fetch
+  //   Cache dolunca getPlayerMainOverall 4 hat avg ile doğru OVR döner → yeniden render.
+  if (typeof _visitorSkillsCache !== 'undefined' && typeof _loadVisitorSkills === 'function') {
+    const needsLoad = players.filter(p =>
+      p && !p.isBot && p.role !== 'user' && (p.userId || p.user_id) &&
+      !_visitorSkillsCache[p.userId || p.user_id]
+    );
+    if (needsLoad.length > 0) {
+      Promise.all(needsLoad.map(p => _loadVisitorSkills(p.userId || p.user_id)))
+        .then(() => {
+          // En az bir oyuncunun skills'i yüklendiyse listeyi tazele
+          if (typeof renderRoster === 'function') renderRoster(filter);
+        })
+        .catch(() => {});
+    }
+  }
 }
 
 function removeBot(num, btn) {
@@ -43170,6 +43213,14 @@ async function openPlayerModal(player, ctx) {
           if (canonical) player = canonical;
         }
       }
+    }
+    // 🆕 Gerçek user takım arkadaşı için skills cache'i — modal açılmadan önce yükle.
+    //   Cache dolunca getPlayerMainOverall 4 hat avg ile doğru OVR döner.
+    const _ouid = player && (player.userId || player.user_id);
+    if (player && !player.isBot && player.role !== 'user' && _ouid &&
+        typeof _visitorSkillsCache !== 'undefined' && !_visitorSkillsCache[_ouid] &&
+        typeof _loadVisitorSkills === 'function') {
+      await _loadVisitorSkills(_ouid);
     }
   } catch(e) { /* sessizce devam — fallback player kullanılır */ }
 
@@ -51897,6 +51948,23 @@ function renderHomeNextMatch() {
   const panel   = document.getElementById('hmNextMatch');
   const noMatch = document.getElementById('hmNoMatch');
   if (!panel || !noMatch) return;
+
+  // 🆕 FRESH HAZIRLIK MAÇLARI: takımdaki başka kullanıcı (örn. kaptan) yeni
+  //   maç oluşturduysa local cache eski olabilir. 10 saniyede bir yenile.
+  //   Yenileme async; eski cache ile render eder, gelen veri sonrası tekrar render.
+  if (typeof _frmLoadFromServer === 'function') {
+    const _now = Date.now();
+    if (!window._frmLastLoad || (_now - window._frmLastLoad) > 10000) {
+      window._frmLastLoad = _now;
+      _frmLoadFromServer().then(() => {
+        // Yeni veri geldiyse tekrar render — sadece ana sayfa açıksa
+        const _activePg = document.querySelector('.page.active');
+        if (_activePg && _activePg.id === 'page-home') {
+          try { renderHomeNextMatch(); } catch(e) {}
+        }
+      });
+    }
+  }
 
   // 🆕 DEBUG — panel neden gösterilmiyor anlamak için
   console.info('[hmNextMatch] _userTeam:', _userTeam ? _userTeam.teamName + '/' + _userTeam.countryCode : 'YOK',
