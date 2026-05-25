@@ -26459,8 +26459,10 @@ function getPlayerMainOverall(player) {
     if (fromAb != null) {
       return Math.max(1, Math.min(99, Math.round(fromAb)));
     }
-    // Bot abilities yok → skill verisi yok → 10 (stale overall'a düşme)
-    return 10;
+    // Bot abilities elde değil (ROSTER_DATA'ya tam yüklenmemiş olabilir).
+    // Supabase'deki overall'ı kullan — onun cihazında abilities'ten hesaplanmıştı.
+    const ov = Number(player.overall || player.rating || 10);
+    return Math.max(1, Math.min(99, Math.round(ov)));
   }
 
   // 🟢 USER — UI'daki barlar ile aynı kaynaktan hesapla (getSkillLevels, item bonusları dahil).
@@ -58442,10 +58444,31 @@ function renderPlayerPage() {
   // Botlar artık SABİT 10 yetenekli → calcOverall(pos, lvls) → 10
   let overall;
   if (isVisitor) {
-    // 🆕 SADECE SUPABASE: vp.overall (player.overall = user_player.overall'dan geldi)
-    // Lokal SKILL_DEFS hesabı KALDIRILDI
-    overall = Number(vp.overall || vp.rating || 10);
-    overall = Math.max(1, Math.min(99, Math.round(overall)));
+    // 🆕 Visitor OVR = lvls (UI barlarının kaynağı) ile aynı hesaplama.
+    //   Bot: _carBuildSkillsForVisitor abilities'ten 45 skill üretti
+    //   User: _visitorSkillsCache'ten 45 skill geldi
+    //   Her iki durumda da 4 hat ortalamasının ortalamasını alıyoruz.
+    //   Cache yüklenince UI yeniden render olur ve OVR de güncellenir.
+    if (typeof SKILL_DEFS !== 'undefined' && SKILL_DEFS.ALL && lvls) {
+      const _catAvgV = (catSkills) => {
+        if (!catSkills || !catSkills.length) return null;
+        const sum = catSkills.reduce((a, s) => a + (lvls[s.id] || 10), 0);
+        return sum / catSkills.length;
+      };
+      const gk = _catAvgV(SKILL_DEFS.ALL[0] && SKILL_DEFS.ALL[0].skills);
+      const df = _catAvgV(SKILL_DEFS.ALL[1] && SKILL_DEFS.ALL[1].skills);
+      const md = _catAvgV(SKILL_DEFS.ALL[2] && SKILL_DEFS.ALL[2].skills);
+      const fw = _catAvgV(SKILL_DEFS.ALL[3] && SKILL_DEFS.ALL[3].skills);
+      if (gk != null && df != null && md != null && fw != null) {
+        overall = Math.max(1, Math.min(99, Math.round((gk + df + md + fw) / 4)));
+      } else {
+        overall = Number(vp.overall || vp.rating || 10);
+        overall = Math.max(1, Math.min(99, Math.round(overall)));
+      }
+    } else {
+      overall = Number(vp.overall || vp.rating || 10);
+      overall = Math.max(1, Math.min(99, Math.round(overall)));
+    }
   } else if (meRoster && typeof getPlayerMainOverall === 'function') {
     overall = getPlayerMainOverall(meRoster);
   } else {
