@@ -61875,11 +61875,30 @@ function lg2RenderFixture() {
   // Eski buildLeagueFixture (lokal hesap) artık kullanılmıyor — saatler/günler yanlış üretiyordu
   const _tier1based = league.tier;  // teams tablosundaki gerçek tier (1-based)
   const _allFromMs = (_matchStateCache && _matchStateCache.byKey) ? Object.values(_matchStateCache.byKey) : [];
+  // 🔍 DEBUG: cache boş veya filter takılıyorsa neyin yanlış olduğunu görmek için
+  if (!window._lg2FixDebugLogged) {
+    window._lg2FixDebugLogged = true;
+    const _sample = _allFromMs.slice(0, 3).map(m => ({ key: m.matchKey, cc: m.countryCode, tier: m.tier, tk: m.tournament_key, d: m.day }));
+    console.info('[lg2Fixture DEBUG] cache_total=' + _allFromMs.length +
+                 ' filter_cc=' + _lg2Country + ' filter_tier=' + _tier1based +
+                 ' sample=' + JSON.stringify(_sample));
+  }
   const _filtered = _allFromMs.filter(m => 
     m.countryCode === _lg2Country && 
     m.tier === _tier1based &&
     !m.tournament_key
   );
+  // 🆕 Cache boşsa async yükle, yüklendikten sonra tekrar render
+  if (_allFromMs.length === 0 && typeof _loadAllMatchStateFromServer === 'function' && !window._lg2FixLoadingFlag) {
+    window._lg2FixLoadingFlag = true;
+    _loadAllMatchStateFromServer().then(() => {
+      window._lg2FixLoadingFlag = false;
+      const _activePg = document.querySelector('.page.active');
+      if (_activePg && (_activePg.id === 'page-lg2' || _activePg.id === 'page-lig')) {
+        try { lg2RenderFixture(); } catch(e) {}
+      }
+    });
+  }
   
   // _filtered → fixture formatına çevir (eski koda uyumlu)
   // hafta hesabı: SEASON_TEMPLATE'e göre gün 1-15 = hafta 1-15, gün 19-33 = hafta 16-30
