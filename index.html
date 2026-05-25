@@ -62697,24 +62697,22 @@ function trn2BuildGroups(teams32, season, trnKey) {
 
       // 🆕 Bu matchday'in günü = MD_DAYS[trnKey][md-1]
       const mdDay = mdDayArr[md - 1] || 99;
-      // Mevcut sezon ise: maç günü geçmiş mi?
-      // Geçmiş sezon → tüm maçlar oynanmış sayılır
-      // Gelecek sezon → hiç oynanmamış
-      const isPlayed = isPastSeason || (!isFutureSeason && currentDay > mdDay);
+      // Server'da maç sonucu varsa ZATEN oynanmıştır (status='finished'). Bunu önce kontrol et.
+      //   Eski `currentDay > mdDay` mantığı bugünkü maçları "oynanmamış" sayıyordu → skor okunmuyordu.
+      //   Edge Function maçı bitirmişse _groupFromServer'da kayıt var demektir, oynanmış kabul et.
+      const _srvKey = `${home.name}|${away.name}`;
+      const _srvMatch = _groupFromServer[_srvKey];
+      const isPlayed = !!_srvMatch || isPastSeason || (!isFutureSeason && currentDay > mdDay);
 
       let hs = null, as = null, simEvents = null, simStats = null;
 
       // 🚫 Lokal simulate ve hardcoded fallback KALDIRILDI.
-      // Skoru SADECE Supabase match_results'tan al — yoksa null bırak (Edge Function henüz oynatmamış).
-      if (isPlayed) {
-        const _srvKey = `${home.name}|${away.name}`;
-        const _srvMatch = _groupFromServer[_srvKey];
-        if (_srvMatch) {
-          hs = _srvMatch.hs ?? null;
-          as = _srvMatch.as ?? null;
-          simEvents = _srvMatch.events || null;
-          simStats = _srvMatch.stats || null;
-        }
+      // Skoru SADECE Supabase'ten al — yoksa null bırak (Edge Function henüz oynatmamış).
+      if (isPlayed && _srvMatch) {
+        hs = _srvMatch.hs ?? null;
+        as = _srvMatch.as ?? null;
+        simEvents = _srvMatch.events || null;
+        simStats = _srvMatch.stats || null;
         // Cache'te yoksa hs/as null kalır — UI "Bekleniyor" gösterecek
       }
 
