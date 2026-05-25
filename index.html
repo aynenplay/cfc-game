@@ -53793,6 +53793,23 @@ async function _loadAllMatchStateFromServer() {
     
     console.info(`[match_state] yüklendi: ${all.length} maç, ${Object.keys(dayMap).length} gün`);
     _matchStateCache = { dayMap, byKey, loadedAt: Date.now() };
+
+    // 🆕 Cache yüklendikten sonra açık olan sayfa lig fikstürü ise otomatik yeniden render.
+    //   Race condition'da kullanıcı sayfayı açmış ama cache henüz boş olduğu için "maç yok"
+    //   gösterilmiş olabilir. Yükleme bitince re-render ile veri görünür.
+    try {
+      const _activePg = document.querySelector('.page.active');
+      if (_activePg) {
+        const _id = _activePg.id;
+        if ((_id === 'page-lg2' || _id === 'page-lig') && typeof lg2RenderFixture === 'function') {
+          lg2RenderFixture();
+        }
+        if (_id === 'page-home' && typeof renderHomeNextMatch === 'function') {
+          renderHomeNextMatch();
+        }
+      }
+    } catch(e) {}
+
     return _matchStateCache;
   } catch(e) {
     console.warn('[match_state] yükleme hatası:', e);
