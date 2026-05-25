@@ -33358,6 +33358,39 @@ function _doMsubSwap(pitchIdx, benchIdx) {
   // 🆕 KADROLAR sekmesindeki giriş/çıkış işaretleri için lineup da refresh
   try { if (typeof renderLineup === 'function') renderLineup(); } catch(e) {}
 
+  // 🆕 MATCH_STATE LINEUP UPDATE: Edge Function bir sonraki tick'te yeni lineup'la
+  //   simüle etsin. Aksi takdirde manuel sub sadece UI'da görünür, simülasyona yansımaz.
+  //   Lineup verisi: activePitchPlayers (sahadaki 11) ROSTER_DATA'dan zenginleştirilir.
+  if (MS.match_key && typeof window !== 'undefined' && window.sb &&
+      typeof activePitchPlayers !== 'undefined' && Array.isArray(activePitchPlayers)) {
+    const newPlayers = activePitchPlayers.map((entry, i) => {
+      const p = entry.player || {};
+      return {
+        name: p.name, num: p.num, pos: entry.pos || p.pos,
+        rating: p.overall || p.rating || 60,
+        overall: p.overall || p.rating || 60,
+        level: p.level || 0, xp: p.xp || 0,
+        x: entry.x, y: entry.y,
+        abilities: p.abilities || null,
+        userId: p.userId || p.user_id || null,
+        isUser: !!p.isUser || (p.role === 'user'),
+        isBot: !!p.isBot,
+        role: p.role || null
+      };
+    });
+    const lineupCol = userInHome ? 'home_lineup' : 'away_lineup';
+    const _cached = (typeof _liveMatchCache === 'object' && _liveMatchCache && MS.match_key)
+      ? _liveMatchCache[MS.match_key] : null;
+    const oldLineup = (_cached && _cached[lineupCol]) ? _cached[lineupCol] : {};
+    const newLineup = { ...oldLineup, players: newPlayers };
+    window.sb.from('match_state')
+      .update({ [lineupCol]: newLineup })
+      .eq('match_key', MS.match_key)
+      .then(({ error }) => {
+        if (error) console.warn('[manuel sub] match_state update hata:', error);
+      });
+  }
+
   const help = document.getElementById('tacSubsHelp');
   if (help) help.innerHTML = 'Sahadaki bir oyuncuya tıkla → yedeklerden birini seç. Veya yedeği sahaya sürükle.';
 }
@@ -34754,6 +34787,10 @@ async function startMatch(){
           );
         }
       }
+      // 🆕 Bulunan liveRow'un match_key'ini MS'e yaz — manuel sub güncellemesi için referans
+      if (liveRow && liveRow.match_key && !MS.match_key) {
+        MS.match_key = liveRow.match_key;
+      }
       // Live geçişi: scheduled iken running olunca badge'i CANLI yap
       if (liveRow && liveRow.status === 'running' && !MS.running) {
         MS.running = true;
@@ -34831,6 +34868,20 @@ async function startMatch(){
           const serverMin = liveRow.sim_minute || 0;
           const visibleMin = Math.max(smoothMin, serverMin);
           const events = allEvents.filter(e => ((e.min !== undefined ? e.min : e.minute) || 0) <= visibleMin);
+          // 🆕 GOL ANLIK BİLDİRİM: Filter visibleMin'i bekleme — gol Edge Function'da min:X
+          //   ile yazıldığı an, smoothing 250ms timer henüz X'e ulaşmamış olsa bile banner göster.
+          //   Bu sayede gol gerçek zamanlı hissedilir.
+          MS._notifiedGoals = MS._notifiedGoals || new Set();
+          for (const ev of allEvents) {
+            if (!ev || (ev.type || '').toLowerCase() !== 'goal') continue;
+            const _gkey = `${ev.min || ev.minute || 0}|${ev.team || ''}|${ev.player || ''}`;
+            if (MS._notifiedGoals.has(_gkey)) continue;
+            MS._notifiedGoals.add(_gkey);
+            // Anlık banner (skor visibleMin geldiğinde otomatik güncellenir, çifte sayım yok)
+            if (typeof showGoal === 'function') {
+              try { showGoal(ev.player || 'Oyuncu', Math.floor(ev.min || ev.minute || 0)); } catch(e) {}
+            }
+          }
           // 🔍 DEBUG: ilk poll'da bir kez logla (events görünmüyorsa F12'den teşhis)
           if (!MS._evDebugLogged && allEvents.length > 0) {
             MS._evDebugLogged = true;
