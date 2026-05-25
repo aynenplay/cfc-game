@@ -39477,7 +39477,17 @@ function confirmAvatarChange() {
   if(_avatarModalSelected === authUser.avatarId) { closeAvatarChangeModal(); return; }
 
   authUser.avatarId = _avatarModalSelected;
-  /* cft_auth localStorage kaldırıldı - sadece Supabase */
+
+  // 🆕 Supabase'e KALICI yaz — profiles.avatar_id + players.avatar_id
+  //   Eski versiyon sadece RAM'deki authUser'ı değiştiriyordu; sayfa yenilenince
+  //   profiles tablosundan eski avatar geri okunuyordu.
+  (async () => {
+    try {
+      if (!window.sb || !authUser.id) return;
+      await window.sb.from('profiles').update({ avatar_id: _avatarModalSelected }).eq('id', authUser.id);
+      await window.sb.from('players').update({ avatar_id: _avatarModalSelected }).eq('user_id', authUser.id);
+    } catch(e) { console.warn('[avatarChange] Supabase update hata:', e); }
+  })();
 
   // Player sayfasındaki avatarı yenile
   if(typeof renderPlayerPage === 'function') renderPlayerPage();
