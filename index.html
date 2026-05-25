@@ -34172,8 +34172,17 @@ async function startMatch(){
       const secondHalfElapsed = elapsed - HALFTIME_END_MS;
       displayMin = Math.min(90, 46 + Math.floor(secondHalfElapsed / MS_PER_SIM_MIN));
     } else {
-      // 90+ — maç bitti olmalı (poll status'u yakaladığında _finalizeMatch çağrılır)
+      // 90+ → maç bitti, frontend kendi başına finalize tetikler
       displayMin = 90;
+      // 🆕 Frontend kendi başına maç sonu — Edge Function'ı bekleme
+      if (!MS.finished && typeof _finalizeMatch === 'function') {
+        MS.finished = true;
+        MS.running = false;
+        if (clkS) { clkS.textContent = 'FT'; clkS.className = 'match-clock ft'; }
+        if (badge) { badge.className = 'status-badge sb-ft'; badge.innerHTML = '⏱️ BİTTİ'; }
+        try { _finalizeMatch(MS.script); } catch(e) { console.warn('[smooth] _finalizeMatch hata:', e); }
+        return;
+      }
     }
     
     // UI güncelle (sadece değişiklik varsa, gereksiz reflow olmasın)
@@ -34257,18 +34266,36 @@ async function startMatch(){
             MS._matchStartedAt = startedTs;
           }
         }
-        // Skor UI'a yaz (anında — smoothing yok)
+        // 🆕 Skor — events'ten görünür dakikaya kadar hesapla (Edge Function ileri simüle ediyor olabilir)
         const sh = document.getElementById('scoreH');
         const sa = document.getElementById('scoreA');
-        if (sh) sh.textContent = liveRow.home_score ?? 0;
-        if (sa) sa.textContent = liveRow.away_score ?? 0;
+        const visibleMinForScore = MS._displayMin || 0;
+        const allEvs = Array.isArray(liveRow.events) ? liveRow.events : [];
+        let visHs = 0, visAs = 0;
+        for (const ev of allEvs) {
+          if (!ev) continue;
+          const evMin = (ev.min !== undefined ? ev.min : ev.minute) || 0;
+          if (evMin > visibleMinForScore) continue;
+          // Sadece NET gol (iptal değil) sayılır
+          if (ev.type !== 'goal') continue;
+          if (ev.cancelled === true) continue;
+          if (ev.team === 'home') visHs++;
+          else if (ev.team === 'away') visAs++;
+        }
+        if (sh) sh.textContent = visHs;
+        if (sa) sa.textContent = visAs;
         // Dakika ve devre arası UI'ı smoothing timer yönetir, poll buna karışmaz.
         // 🆕 Olaylar — Edge Function events jsonb'sini LIVE sekmesinde göster
         // Mevcut .ev-item / .ev-min / .ev-ico / .ev-body / .ev-title / .ev-sub yapısı kullanılıyor
         // Tip-spesifik renkler .ev-goal / .ev-yellow / .ev-red / .ev-corner ... otomatik gelir
         try {
           const evList = document.getElementById('evList');
-          const events = Array.isArray(liveRow.events) ? liveRow.events : [];
+          const allEvents = Array.isArray(liveRow.events) ? liveRow.events : [];
+          // 🆕 Sadece frontend'in GÖSTERDİĞİ dakikaya kadar olan olayları render et
+          // Edge Function ileriye simüle edebilir (örn poll'da 50. dk skoru gelir
+          // ama frontend hâlâ 41.dk gösterir) — bu durumda 41'in üstündeki olayları gizle.
+          const visibleMin = MS._displayMin || 0;
+          const events = allEvents.filter(e => ((e.min !== undefined ? e.min : e.minute) || 0) <= visibleMin);
           if (evList && events.length > 0) {
             // En son olay en üstte (reverse chronological)
             const evHtml = events.slice().reverse().map(ev => {
@@ -34312,14 +34339,15 @@ async function startMatch(){
             evList.innerHTML = evHtml;
           }
         } catch(e) {}
-        // 🆕 İstatistikleri events'ten hesapla ve UI'a yansıt
+        // 🆕 İstatistikleri görünür dakikaya kadar events'ten hesapla
         try {
-          const events = Array.isArray(liveRow.events) ? liveRow.events : [];
-          const stats = _computeMatchStatsFromEvents(events, liveRow.sim_minute || 0);
+          const allEvs2 = Array.isArray(liveRow.events) ? liveRow.events : [];
+          const visMin = MS._displayMin || 0;
+          const visibleEvs = allEvs2.filter(e => ((e.min !== undefined ? e.min : e.minute) || 0) <= visMin);
+          const stats = _computeMatchStatsFromEvents(visibleEvs, visMin);
           if (typeof updateStats === 'function') {
             updateStats(stats, 1);
           }
-          // MS.script.stats'a da yaz — finalize cache'lemek için
           if (MS.script) MS.script.stats = stats;
         } catch(e) { console.warn('[stats] hesaplama hatası:', e); }
         // Bittiyse
@@ -37634,6 +37662,19 @@ function _finalizeMatch(script) {
       if (typeof showMatchResult === 'function') showMatchResult();
     }, 800);
   } catch(e) { console.warn('showMatchResult hatası:', e); }
+
+  // 🆕 Ana sayfa "Maça Git" butonunu tazele — bitmiş maç butondan düşsün
+  try {
+    if (typeof _liveMatchLoadFromServer === 'function') {
+      _liveMatchLoadFromServer().then(() => {
+        if (typeof frmEnsurePlayed === 'function') { try { frmEnsurePlayed(); } catch(e){} }
+        if (typeof renderHomeNextMatch === 'function') { try { renderHomeNextMatch(); } catch(e){} }
+      });
+    } else {
+      if (typeof frmEnsurePlayed === 'function') { try { frmEnsurePlayed(); } catch(e){} }
+      if (typeof renderHomeNextMatch === 'function') { try { renderHomeNextMatch(); } catch(e){} }
+    }
+  } catch(e) { console.warn('home next match refresh hatası:', e); }
 
   // NOT: _isFriendly ve _fixtureRef'i showMatchResult kullanıyor — temizlemiyoruz
   // Overlay kapatılınca closeMatchScreen çağrılırsa otomatik temizlenir
@@ -51782,6 +51823,11 @@ function renderHomeNextMatch() {
     });
   }
   if (typeof frmGetMatches === 'function' && _userTeam) {
+    // 🆕 match_state'te status='finished' olan hazırlık maçlarını friendly_matches'a yansıt
+    // → butonda görünmesinler
+    if (typeof frmEnsurePlayed === 'function') {
+      try { frmEnsurePlayed(); } catch(e) {}
+    }
     frmGetMatches().forEach(fm => {
       if (fm.status !== 'accepted') return;
       if (fm.fromTeam !== _userTeam.teamName && fm.toTeam !== _userTeam.teamName) return;
