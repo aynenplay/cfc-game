@@ -5504,6 +5504,25 @@ body.team-captain .pr-mv.is-custom:hover{color:#ffe082}
   color:rgba(255,255,255,.65);
 }
 
+/* 🆕 Pitch oyuncu durum badge (sakat/cezalı/sarı kart) */
+.fpn-status{
+  position:absolute;
+  top:-4px; right:-4px;
+  background:rgba(0,0,0,.85);
+  border:1.5px solid rgba(255,255,255,.4);
+  border-radius:50%;
+  width:18px; height:18px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;
+  line-height:1;
+  z-index:5;
+  box-shadow:0 2px 6px rgba(0,0,0,.5);
+}
+.fpn-status.fpn-inj{ border-color:#ef5350; background:rgba(239,83,80,.95); }
+.fpn-status.fpn-susp{ border-color:#fb8c00; background:rgba(251,140,0,.95); }
+.fpn-status.fpn-yc{ border-color:#ffd600; background:rgba(255,214,0,.95); color:#1a1a1a;
+  font-family:'Barlow Condensed',sans-serif; font-weight:800; font-size:10px; }
+
 /* Avatar — büyük, yuvarlak çerçevesiz (kartın içinde serbest) */
 .fpn-avatar{
   width:38px;height:38px;
@@ -5680,6 +5699,21 @@ body.team-captain .pr-mv.is-custom:hover{color:#ffe082}
 }
 .bi-info{flex:1;min-width:0}
 .bi-name{font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.2px;line-height:1.2}
+/* 🆕 Bench oyuncu durum badge (sakat/cezalı/sarı kart) */
+.bi-status{
+  display:inline-block;
+  margin-left:4px;
+  padding:1px 4px;
+  border-radius:4px;
+  font-size:9px;
+  font-weight:800;
+  background:rgba(0,0,0,.6);
+  vertical-align:middle;
+}
+.bi-status.bi-inj{ background:rgba(239,83,80,.85); }
+.bi-status.bi-susp{ background:rgba(251,140,0,.85); }
+.bi-status.bi-yc{ background:rgba(255,214,0,.95); color:#1a1a1a;
+  font-family:'Barlow Condensed',sans-serif; }
 .bi-pos{font-size:8px;color:var(--text3);margin-top:1px;letter-spacing:.3px}
 .bi-ovr{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:900;flex-shrink:0;width:18px;text-align:center}
 
@@ -26763,6 +26797,30 @@ function getMedicalCenterHours() {
 function isPlayerSuspended(p) { return (p && (p.suspendMatches || 0) > 0); }
 function isPlayerInjured(p)   { return (p && (p.injuryUntil   || 0) > Date.now()); }
 
+// 🆕 Bu oyuncu bu maçta oynayabilir mi? (maç tipi duyarlı)
+//   isOfficial=true (lig/turnuva): sakat veya cezalı olmamalı
+//   isOfficial=false (hazırlık/milli takım): SADECE sakat olmamalı
+//     → cezalı oyuncu hazırlık ve milli takım maçında oynayabilir
+function isPlayerEligibleForMatch(p, isOfficial) {
+  if (!p) return false;
+  if (isPlayerInjured(p)) return false;  // sakat hiçbir maçta oynayamaz
+  if (isOfficial && isPlayerSuspended(p)) return false;  // cezalı sadece resmi maçta yok
+  return true;
+}
+
+// 🆕 Maç tipi tespiti — MS objesinden veya parametre olarak verilen referansa göre
+//   true = resmi maç (lig, kupa, turnuva), false = hazırlık veya milli takım
+function isOfficialMatchContext(ms) {
+  ms = ms || (typeof MS !== 'undefined' ? MS : null);
+  if (!ms) return true;  // bilinmiyorsa varsayılan: resmi
+  if (ms._isFriendly === true) return false;
+  if (ms._isNationalTeam === true) return false;
+  if (ms.tournament_key === 'friendly') return false;
+  if (ms.tournament_key === 'enc') return false;
+  if (ms._fixtureRef && (ms._fixtureRef.tournament_key === 'enc')) return false;
+  return true;
+}
+
 // Sakatlık geri sayımı saat cinsinden (yukarı yuvarla, min 1)
 function getInjuryRemainingHours(p) {
   const ms = ((p && p.injuryUntil) || 0) - Date.now();
@@ -26785,6 +26843,28 @@ function applyRedCard(p) {
   if(!p) return;
   p.suspendMatches = (p.suspendMatches || 0) + 1;
   p.suspendReason  = 'red';
+}
+
+// 🆕 Sezon sonu disiplin sıfırlama
+// • seasonYellow sıfırlanır (yeni sezon, yeni sayaç)
+// • suspendMatches devreder (cezalar yeni sezona taşınır)
+// • injuryUntil devreder (sakatlık zamanlı, sezon sınırı yok)
+function resetSeasonDiscipline() {
+  if(typeof ROSTER_DATA === 'undefined' || !ROSTER_DATA.length) return;
+  let changed = 0;
+  ROSTER_DATA.forEach(p => {
+    if(!p) return;
+    if((p.seasonYellow || 0) > 0) {
+      p.seasonYellow = 0;
+      changed++;
+    }
+  });
+  if(changed > 0) {
+    console.info('[discipline] sezon sonu — ' + changed + ' oyuncu sarı kart sayacı sıfırlandı');
+    if (typeof rosterSavePersist === 'function') {
+      try { rosterSavePersist(); } catch(e) {}
+    }
+  }
 }
 
 // Sakatlık uygula (Sağlık Merkezi seviyesine göre süre)
@@ -28915,13 +28995,43 @@ function processMatchOutcome(script, userIsHome) {
   if(!script || !script.evs) return;
   if(typeof ROSTER_DATA === 'undefined' || !ROSTER_DATA.length) return;
 
-  // 1) Mevcut süspansiyonları azalt (oyuncu bu maçı kaçırmış sayılır)
-  ROSTER_DATA.forEach(p => {
-    if((p.suspendMatches || 0) > 0) {
-      p.suspendMatches = Math.max(0, p.suspendMatches - 1);
-      if(p.suspendMatches === 0) p.suspendReason = null;
+  // 🆕 Maç tipi tespit — Hazırlık ve Milli Takım maçlarında DİSİPLİN UYGULANMAZ
+  // (sahadan atılır ama sezon sayacına eklenmez, ceza verilmez, sakatlık kaydolmaz)
+  const isFriendly = !!(typeof MS !== 'undefined' && MS && MS._isFriendly);
+  const isNationalTeam = !!(typeof MS !== 'undefined' && MS && (
+    (MS._fixtureRef && MS._fixtureRef.tournament_key === 'enc') ||
+    (MS.tournament_key === 'enc') ||
+    (MS._isNationalTeam === true)
+  ));
+  const skipDiscipline = isFriendly || isNationalTeam;
+
+  // 1) Mevcut süspansiyonları azalt (oyuncu bu RESMİ maçı kaçırmış sayılır)
+  //    Hazırlık/Milli takım maçında ceza azalmaz (resmi maç sayılmaz)
+  if (!skipDiscipline) {
+    ROSTER_DATA.forEach(p => {
+      if((p.suspendMatches || 0) > 0) {
+        p.suspendMatches = Math.max(0, p.suspendMatches - 1);
+        if(p.suspendMatches === 0) p.suspendReason = null;
+      }
+    });
+  }
+
+  // 🆕 Hazırlık veya milli takım → disiplin yazılmaz, fonksiyondan çık
+  // (Moral/stamina güncellemesi alt blokta yine çalışır)
+  if (skipDiscipline) {
+    console.info('[discipline] ' + (isFriendly ? 'Hazırlık' : 'Milli Takım') + ' maçı — disiplin atlandı');
+    // Moral/stamina güncellemesi yine çalışsın
+    if (typeof applyMatchMorale === 'function') {
+      try { applyMatchMorale(script, userIsHome); } catch(e) {}
     }
-  });
+    if (typeof applyMatchStamina === 'function') {
+      try {
+        const userTeam = userIsHome ? curHome : curAway;
+        if (userTeam) applyMatchStamina(userTeam, script);
+      } catch(e) {}
+    }
+    return;
+  }
 
   // 2) Sahaya çıkan en iyi 11 oyuncu (suspended/injured hariç)
   const eligible = ROSTER_DATA.filter(p => !isPlayerSuspended(p) && !isPlayerInjured(p));
@@ -28953,12 +29063,18 @@ function processMatchOutcome(script, userIsHome) {
     if(p) applyInjury(p, ev);
   });
 
-  // 🆕 6b) Oyuncu morali güncelle
+  // 🆕 7) Supabase'e PERSİST — ROSTER_DATA değişiklikleri kalıcı olsun
+  //     (sayfa yenilense bile cezalar / sakatlıklar korunur)
+  if (typeof rosterSavePersist === 'function') {
+    try { rosterSavePersist(); } catch(e) { console.warn('[discipline] persist hata:', e); }
+  }
+
+  // 🆕 7b) Oyuncu morali güncelle
   if (typeof applyMatchMorale === 'function') {
     applyMatchMorale(script, userIsHome);
   }
 
-  // 🆕 6c) Stamina güncelle (yorgunluk düşüşü + dinlenme)
+  // 🆕 7c) Stamina güncelle (yorgunluk düşüşü + dinlenme)
   if (typeof applyMatchStamina === 'function') {
     try {
       // İlk 11'de sahaya çıkanları al
@@ -33228,7 +33344,8 @@ function _attachLivePlayerStats() {
   if (!curHome || !curAway || !curHome.players || !curAway.players) return;
 
   const evs = MS.script.evs;
-  const minNow = Math.max(0, Math.floor(MS.minute || 0));
+  // 🆕 Smoothing timer'ın gösterdiği dakikayı kullan (MS.minute eski 3D motorundan kalma, 0 olur)
+  const minNow = Math.max(0, Math.floor(MS._displayMin || MS.minute || 0));
   const matchProgress = Math.min(1, minNow / 90);
 
   // Yedek olarak oyuna giren oyuncuların isimleri (matchRating hak edenler)
@@ -33244,13 +33361,14 @@ function _attachLivePlayerStats() {
 
     // İlk 11 — herkes matchRating alır
     team.players.forEach(p => {
-      let goals = 0, assists = 0, yellows = 0, reds = 0;
+      let goals = 0, assists = 0, yellows = 0, reds = 0, injuries = 0;
       evs.forEach(ev => {
         if (!ev || ev.team !== teamId) return;
         if (ev.type === 'goal' && !ev.cancelled && ev.player === p.name) goals++;
         if (ev.assist === p.name) assists++;
         if (ev.type === 'yellow' && ev.player === p.name) yellows++;
         if (ev.type === 'red'    && ev.player === p.name) reds++;
+        if (ev.type === 'injury' && ev.player === p.name) injuries++;
       });
       // Canlı reyting (devre arası ve maç sonu için tutarlı formül)
       let r = 6.5;
@@ -33271,6 +33389,8 @@ function _attachLivePlayerStats() {
       p.yellowCards  = yellows;
       p.redCard      = reds > 0;
       p.sentOff      = reds > 0;
+      // 🆕 Sakatlık — KADRO ekranında 🚑 emojisi için
+      p.matchInjured = injuries > 0;
     });
 
     // 🆕 Yedekler — SADECE sahaya çıkanlara matchRating ver
@@ -33434,11 +33554,12 @@ function renderLineup(){
     } else if (opts.isBench && !isBenchPlayed) {
       rowStyle = 'opacity:0.65';
     }
-    // 🆕 ga (gol/asist) badge — status hücresinde, margin'siz
+    // 🆕 ga (gol/asist/sakatlık) badge — status hücresinde, margin'siz
     const g = p.matchGoals || 0;
     const a = p.matchAssists || 0;
-    const gaBadge = (g + a > 0)
-      ? `<span class="lu-ga" style="margin-left:0">${g > 0 ? '⚽'.repeat(Math.min(g, 3)) : ''}${a > 0 ? '🅰️'.repeat(Math.min(a, 3)) : ''}</span>`
+    const inj = !!p.matchInjured;
+    const gaBadge = (g + a > 0 || inj)
+      ? `<span class="lu-ga" style="margin-left:0">${g > 0 ? '⚽'.repeat(Math.min(g, 3)) : ''}${a > 0 ? '🅰️'.repeat(Math.min(a, 3)) : ''}${inj ? '🚑' : ''}</span>`
       : '';
 
     return `
@@ -34363,6 +34484,26 @@ async function startMatch(){
           }
           if (MS.script) MS.script.stats = stats;
         } catch(e) { console.warn('[stats] hesaplama hatası:', e); }
+        // 🆕 Edge Function'ın yaptığı otomatik sub'ları MS.subsHistory'ye yaz
+        // → KADRO sekmesinde giren/çıkan dakikası doğru görünür
+        try {
+          const allEvs3 = Array.isArray(liveRow.events) ? liveRow.events : [];
+          MS.subsHistory = MS.subsHistory || [];
+          const seen = new Set(MS.subsHistory.map(s => (s.in || '') + '|' + (s.out || '') + '|' + (s.min || 0)));
+          for (const ev of allEvs3) {
+            if (!ev || ev.type !== 'sub') continue;
+            const inName  = ev.player    || '';
+            const outName = ev.playerOut || '';
+            const min     = (ev.min !== undefined ? ev.min : ev.minute) || 0;
+            const key = inName + '|' + outName + '|' + min;
+            if (seen.has(key)) continue;
+            MS.subsHistory.push({
+              in: inName, out: outName, min: min,
+              isAuto: !!ev.isAuto, reason: ev.reason || ''
+            });
+            seen.add(key);
+          }
+        } catch(e) { /* sessizce devam */ }
         // Bittiyse
         if (liveRow.status === 'finished' || liveRow.sim_minute >= 90) {
           // MS skorları Edge Function'ın son skorlarıyla senkronla (finalize bunları kullanır)
@@ -37688,6 +37829,19 @@ function _finalizeMatch(script) {
       if (typeof renderHomeNextMatch === 'function') { try { renderHomeNextMatch(); } catch(e){} }
     }
   } catch(e) { console.warn('home next match refresh hatası:', e); }
+
+  // 🆕 KADRO + DİZİLİŞ sayfaları açıksa yenile (kart/sakatlık durumları taze görünsün)
+  try {
+    if (typeof renderRoster === 'function') {
+      try { renderRoster('all'); } catch(e){}
+    }
+    if (typeof renderPitch === 'function') {
+      try { renderPitch(); } catch(e){}
+    }
+    if (typeof renderBench === 'function') {
+      try { renderBench(); } catch(e){}
+    }
+  } catch(e) { console.warn('roster refresh hatası:', e); }
 
   // NOT: _isFriendly ve _fixtureRef'i showMatchResult kullanıyor — temizlemiyoruz
   // Overlay kapatılınca closeMatchScreen çağrılırsa otomatik temizlenir
@@ -42823,7 +42977,7 @@ function renderRoster(filter) {
     }
     if(injured) {
       const hr = getInjuryRemainingHours(p);
-      statusBadges += `<span class="pr-status-inj" title="Sakatlık iyileşme süresi">🤕 ${hr}s</span>`;
+      statusBadges += `<span class="pr-status-inj" title="Sakatlık iyileşme süresi">🚑 ${hr}s</span>`;
     }
     // 🆕 Düşük moral badge
     const morale = (typeof p.morale === 'number') ? p.morale : 70;
@@ -44776,6 +44930,21 @@ function renderPitch() {
     // Bayrak (uyruk emojisi)
     const flagHtml = p.nation ? `<span class="fpn-flag">${p.nation}</span>` : '';
 
+    // 🆕 Cezalı/sakat durumu — pitch'teki oyuncuda küçük badge
+    let pitchStatus = '';
+    const _yc = p.seasonYellow || 0;
+    const _susp = p.suspendMatches || 0;
+    const _inj = (p.injuryUntil || 0) > Date.now();
+    if (_inj) {
+      const hr = (typeof getInjuryRemainingHours === 'function') ? getInjuryRemainingHours(p) : 0;
+      pitchStatus = `<span class="fpn-status fpn-inj" title="Sakat — ${hr}s iyileşme">🚑</span>`;
+    } else if (_susp > 0) {
+      const icon = p.suspendReason === 'red' ? '🟥' : '🟨';
+      pitchStatus = `<span class="fpn-status fpn-susp" title="Cezalı (${_susp} maç)">${icon}</span>`;
+    } else if (_yc > 0) {
+      pitchStatus = `<span class="fpn-status fpn-yc" title="${_yc}/4 sarı kart">🟨${_yc}</span>`;
+    }
+
     // User/captain class'ları
     const circleClasses = ['fpn-circle', posClass];
     if (isUser) circleClasses.push('is-user');
@@ -44788,6 +44957,7 @@ function renderPitch() {
           <span class="fpn-num-corner">#${p.num}</span>
         </div>
         <div class="fpn-avatar">${avatarInner}</div>
+        ${pitchStatus}
       </div>
       <div class="fpn-name-tag">${displayName}${flagHtml}</div>
     `;
@@ -44898,6 +45068,21 @@ function renderBench() {
         ? `<div class="bi-remove-btn" title="Kadrodan çıkar" onclick="confirmRemoveFromSquad(${p.num}, event)">✕</div>`
         : '';
 
+      // 🆕 Cezalı/sakat durumu — bench oyuncuda mini badge
+      let benchStatus = '';
+      const _byc = p.seasonYellow || 0;
+      const _bsusp = p.suspendMatches || 0;
+      const _binj = (p.injuryUntil || 0) > Date.now();
+      if (_binj) {
+        const hr = (typeof getInjuryRemainingHours === 'function') ? getInjuryRemainingHours(p) : 0;
+        benchStatus = `<span class="bi-status bi-inj" title="Sakat — ${hr}s iyileşme">🚑</span>`;
+      } else if (_bsusp > 0) {
+        const icon = p.suspendReason === 'red' ? '🟥' : '🟨';
+        benchStatus = `<span class="bi-status bi-susp" title="Cezalı (${_bsusp} maç)">${icon}</span>`;
+      } else if (_byc > 0) {
+        benchStatus = `<span class="bi-status bi-yc" title="${_byc}/4 sarı kart">🟨${_byc}</span>`;
+      }
+
       html += `<div class="bench-item" id="bench_${i}"
         data-posgroup="${pgrp}"
         draggable="true"
@@ -44907,7 +45092,7 @@ function renderBench() {
         <div class="bi-num">${p.num}</div>
         ${circleHtml}
         <div class="bi-info">
-          <div class="bi-name">${shortName}</div>
+          <div class="bi-name">${shortName}${benchStatus}</div>
           <div class="bi-pos">${p.nation || ''} <span style="opacity:.55">·</span> ${p.pos}</div>
         </div>
         <div class="bi-ovr" style="color:var(--gold)">${p.overall}</div>
