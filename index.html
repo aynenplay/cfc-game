@@ -36105,7 +36105,9 @@ async function _worldStateLoadFromServer() {
     if (!obj.season_fixtures) obj.season_fixtures = {};
     if (!obj.schemaVersion) obj.schemaVersion = _WORLD_STATE_SCHEMA_VERSION;
     _worldStateCache = obj;
-    // 🆕 SEASON_EPOCH'u server'dan gelen gameStartDate ile senkronize et
+    // 🆕 SEASON_EPOCH'u server'dan gelen gameStartDate ile senkronize et.
+    //   ISO string UTC olarak parse edilir, SEASON_EPOCH UTC midnight kalır.
+    //   getSeasonInfo UTC bazlı hesaplama yapar → tüm dünyada aynı dayInSeason.
     try {
       if (obj.gameStartDate && typeof SEASON_EPOCH !== 'undefined') {
         const d = new Date(obj.gameStartDate);
@@ -36743,24 +36745,21 @@ function saveWorldState(state) {
 // erişiyor. `let` değişkenleri için Temporal Dead Zone'da `typeof` da exception
 // fırlatır, bu yüzden declaration'ı erken yapıyoruz. Default = 16 Mayıs 2026.
 // Kullanıcı sonradan setGameStartDate(d) ile değiştirebilir.
-let SEASON_EPOCH = new Date(2026, 4, 23); // 23 Mayıs 2026 (sezon 1 başlangıcı)
+let SEASON_EPOCH = new Date(Date.UTC(2026, 4, 23)); // 23 Mayıs 2026 UTC midnight (sezon 1 başlangıcı)
 const SEASON_LEN = 40;  // 30 lig (gün 1-15 + 19-33) + 3 ara transfer (16-18) + 7 sezon-sonu/EURO (34-40)
 
 // 🆕 Oyun başlangıç tarihi getter/setter.
 // İlk başlatma: 23.05.2026 (Sezon 1 Gün 1). Admin sonradan değiştirebilir.
+//   getSeasonInfo UTC bazlı hesap yapar — herhangi bir local midnight hizalama gerekmez.
 function getGameStartDate() {
   try {
     const state = loadWorldState();
     if (state.gameStartDate) {
       const d = new Date(state.gameStartDate);
-      if (!isNaN(d.getTime())) {
-        // 🆕 Local midnight'a hizala — UTC ISO string'in timezone ofsetini saf gün olarak indirgemek için.
-        //   Aksi takdirde UTC 00:00 Türkiye 03:00 → 45 saat farkı → diffDays 1 yerine 2 olur.
-        return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-      }
+      if (!isNaN(d.getTime())) return d;
     }
   } catch(e) {}
-  return new Date(2026, 4, 23); // default 23 Mayıs 2026
+  return new Date(Date.UTC(2026, 4, 23)); // default 23 Mayıs 2026 UTC midnight
 }
 
 function setGameStartDate(date) {
@@ -36769,8 +36768,7 @@ function setGameStartDate(date) {
     const state = loadWorldState();
     state.gameStartDate = date.toISOString();
     saveWorldState(state);
-    // SEASON_EPOCH'u runtime'da da güncelle (sayfa yenilenmeden)
-    // Not: SEASON_EPOCH yukarıda declare ediliyor, artık TDZ riski yok.
+    // Runtime SEASON_EPOCH — ham UTC (getSeasonInfo UTC bazlı hesap yapar)
     try { SEASON_EPOCH = new Date(date); } catch(e) {}
     return true;
   } catch(e) { return false; }
@@ -36841,7 +36839,7 @@ function resetGameWorld(startDate) {
     state.gameStartDate = d.toISOString();
     saveWorldState(state);
 
-    // Runtime SEASON_EPOCH override
+    // Runtime SEASON_EPOCH — ham UTC (getSeasonInfo UTC bazlı hesap yapar)
     try { SEASON_EPOCH = new Date(d); } catch(e) {}
 
     // Sezon 0 final standings seed (teams DB popülasyon sıralaması)
@@ -51270,10 +51268,16 @@ function _isMatchLive(kickoffMs) {
 }
 
 function getSeasonInfo() {
-  const today = new Date();
-  // Bugünün tarihini sadece gün bazında karşılaştır (saat ofset bozmasın)
-  const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const diffMs   = todayDay - SEASON_EPOCH;
+  // 🆕 UTC BAZLI HESAP — multiplayer için zorunlu.
+  //   Local timezone kullanılırsa Türkiye'deki (UTC+3) user ile Almanya'daki (UTC+1)
+  //   user farklı "dayInSeason" görür → fikstür çakışır. UTC ile tüm dünya aynı.
+  //   SEASON_EPOCH UTC midnight olarak saklanır (Supabase ISO Z formatında geldiği gibi).
+  const nowMs = Date.now();
+  // UTC midnight'a indirgenmiş bugün (UTC günü)
+  const _t = new Date();
+  const todayUtcMs = Date.UTC(_t.getUTCFullYear(), _t.getUTCMonth(), _t.getUTCDate());
+  const epochUtcMs = Date.UTC(SEASON_EPOCH.getUTCFullYear(), SEASON_EPOCH.getUTCMonth(), SEASON_EPOCH.getUTCDate());
+  const diffMs = todayUtcMs - epochUtcMs;
 
   // Pre-season: sistem henüz başlamadı
   if(diffMs < 0) {
