@@ -26563,47 +26563,9 @@ function generateMatchSquad(teamData, isHome, seed) {
 //   3) Ev sahibi avantajı: +0.3 xG
 //
 // Deterministik (seed ile aynı sonuç).
-function generateMatchScore(homeRating, awayRating, seed) {
-  // Seed string'inden 32-bit integer
-  function seedFromStr(s) {
-    let h = 2166136261;
-    s = String(s);
-    for(let i = 0; i < s.length; i++) {
-      h ^= s.charCodeAt(i);
-      h = Math.imul(h, 16777619);
-    }
-    return h >>> 0;
-  }
-
-  // Mulberry32 PRNG
-  let state = seedFromStr(seed);
-  const rng = () => {
-    state = state + 0x6D2B79F5 | 0;
-    let t = state;
-    t = Math.imul(t ^ t >>> 15, t | 1);
-    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
-
-  // Rating → xG çevrimi
-  // Ortalama 75 → ~1.4 xG, ±10 rating farkı → ±0.5 xG
-  const baseXG = 1.4;
-  const homeXG = Math.max(0.3, baseXG + (homeRating - 75) / 20 + 0.3);
-  const awayXG = Math.max(0.3, baseXG + (awayRating - 75) / 20);
-
-  // Knuth Poisson sampling
-  function poisson(lambda) {
-    const L = Math.exp(-lambda);
-    let k = 0;
-    let p = 1.0;
-    do { k++; p *= rng(); } while(p > L && k < 15);
-    return k - 1;
-  }
-
-  const hs = poisson(homeXG);
-  const as = poisson(awayXG);
-  return [hs, as];
-}
+// 🚫 generateMatchScore SİLİNDİ. Sahte Poisson skor üreticiydi.
+// Frontend skor üretmez. Tüm skorlar Supabase Edge Function (tick-matches) tarafından üretilir.
+function generateMatchScore() { return [null, null]; }
 
 
 
@@ -27083,273 +27045,22 @@ function sendMatchCommand(cmdType, payload) {
 //  Aşama 5: Tüm lig fixtürleri sayfa açılırken otomatik register
 // ═══════════════════════════════════════════════════════════════════
 
-const MatchAuthority = (function() {
-  const STORAGE_KEY = 'cft_authority_matches';
-  const TICK_INTERVAL_MS = 1000;
-  // Gerçek-zaman → in-game dakika eşlemesi: 12dk gerçek = 90dk in-game
-  // → her in-game dakika = 8000ms (~8sn) gerçek zaman
-  const REAL_MS_PER_INGAME_MIN = () => {
-    const dur = (typeof MATCH_PLAY_DURATION_MS === 'number')
-      ? MATCH_PLAY_DURATION_MS : (12 * 60 * 1000);
-    return dur / 90;
-  };
+// 🚫 MatchAuthority frontend lokal motoru TAMAMEN SİLİNDİ.
+// Tüm maç simülasyonu Supabase Edge Function (tick-matches) içinde çalışır.
+// API uyumluluğu için no-op stub bırakıldı — eski çağrı yerleri patlamasın.
+const MatchAuthority = {
+  register: () => null,
+  unregister: () => null,
+  getState: () => null,
+  getAll: () => [],
+  getLive: () => [],
+  tick: () => null,
+  start: () => null,
+  stop: () => null,
+  _matches: {}
+};
+if (typeof window !== 'undefined') window.MatchAuthority = MatchAuthority;
 
-  // matchKey → matchInstance Map
-  const _matches = new Map();
-  let _tickerId = null;
-  let _started = false;
-
-  // PUBLIC: yeni maç kaydet (saati gelmemişse 'scheduled' durumunda bekler)
-  function register(matchKey, homeTeam, awayTeam, kickoffMs, opts) {
-    opts = opts || {};
-    if (!matchKey) { console.warn('[MatchAuthority] register: matchKey gerekli'); return null; }
-    if (_matches.has(matchKey)) {
-      // Zaten kayıtlıysa mevcut instance dön
-      return _matches.get(matchKey);
-    }
-    const m = {
-      matchKey: String(matchKey),
-      homeTeam: homeTeam,
-      awayTeam: awayTeam,
-      kickoffMs: Number(kickoffMs) || Date.now(),
-      status: 'scheduled',          // scheduled | live | finished
-      simState: null,                 // _simInitState() çıktısı (lazy)
-      events: [],                     // birikmiş event listesi
-      currentMinute: 0,
-      scoreH: 0, scoreA: 0,
-      lastTickAt: null,
-      finalScript: null,
-      // Opsiyonel metadata (cache key oluşturma vb.)
-      season: opts.season || null,
-      day: opts.day || null,
-      leagueName: opts.leagueName || null,
-      countryCode: opts.countryCode || null
-    };
-    _matches.set(m.matchKey, m);
-    console.log('[MatchAuthority] register:', m.matchKey, 'kickoff:', new Date(m.kickoffMs).toLocaleTimeString());
-    return m;
-  }
-
-  function unregister(matchKey) {
-    _matches.delete(String(matchKey));
-  }
-
-  function getState(matchKey) {
-    return _matches.get(String(matchKey)) || null;
-  }
-
-  function getAll() {
-    return Array.from(_matches.values());
-  }
-
-  function getLive() {
-    return getAll().filter(m => m.status === 'live');
-  }
-
-  // Manuel tick (test için) — ticker zaten otomatik çağırır
-  function tick() {
-    const now = Date.now();
-    for (const m of _matches.values()) {
-      _tickOne(m, now);
-    }
-  }
-
-  function _tickOne(m, now) {
-    // Saat gelmemişse atla
-    if (now < m.kickoffMs) return;
-    // Bitmişse atla
-    if (m.status === 'finished') return;
-
-    // İlk kez tetikleniyorsa simState'i init et
-    if (m.status === 'scheduled') {
-      if (typeof _simInitState !== 'function') {
-        console.warn('[MatchAuthority] _simInitState yok, motor yüklenmemiş olabilir');
-        return;
-      }
-      try {
-        m.simState = _simInitState(m.homeTeam, m.awayTeam);
-        m.status = 'live';
-        m.currentMinute = 0;
-        console.log('[MatchAuthority] BAŞLADI:', m.matchKey,
-          `${m.homeTeam && m.homeTeam.name} - ${m.awayTeam && m.awayTeam.name}`);
-      } catch(e) {
-        console.warn('[MatchAuthority] init hatası:', e);
-        return;
-      }
-    }
-
-    // Geçen real-time'a göre hedef in-game dakika
-    const msPerMin = REAL_MS_PER_INGAME_MIN();
-    const elapsedMs = now - m.kickoffMs;
-    const targetMin = Math.min(90, Math.floor(elapsedMs / msPerMin));
-
-    // Eksik dakikaları catch-up yap (refresh sonrası bile doğru kalır)
-    let safety = 0;
-    while (m.currentMinute < targetMin && m.currentMinute < 90 && safety < 95) {
-      safety++;
-      try {
-        if (typeof _simStepMinute !== 'function') break;
-        const newEvs = _simStepMinute(m.simState);
-        if (Array.isArray(newEvs)) m.events.push(...newEvs);
-        m.scoreH = (m.simState.score && m.simState.score[0]) || 0;
-        m.scoreA = (m.simState.score && m.simState.score[1]) || 0;
-        m.currentMinute = m.simState.minute;
-
-        // Önemli event'leri logla (gol/kırmızı)
-        for (const ev of (newEvs || [])) {
-          if (ev.type === 'goal' && !ev.cancelled) {
-            console.log(`[MatchAuthority] ⚽ ${m.matchKey} ${ev.min}' GOL:`,
-              ev.team, ev.player, `${m.scoreH}-${m.scoreA}`);
-          } else if (ev.type === 'red') {
-            console.log(`[MatchAuthority] 🟥 ${m.matchKey} ${ev.min}' KIRMIZI:`, ev.player);
-          }
-        }
-      } catch(e) {
-        console.warn('[MatchAuthority] step hatası:', e);
-        break;
-      }
-    }
-
-    m.lastTickAt = now;
-
-    // 🆕 Yeni Live Engine: header güncelle (dakika + atak baskısı)
-    try {
-      if (typeof updateLiveHeader === 'function' && m.simState) {
-        // Atak baskısı: takım gücüne + son olaylara göre tahmin
-        const homeAvg = m.simState.homeAvg || 70;
-        const awayAvg = m.simState.awayAvg || 70;
-        const baseH = (homeAvg / (homeAvg + awayAvg)) * 100;
-        // Son olaylara göre küçük dalga (kim hücumda)
-        const lastEvs = (m.simState.events || []).slice(-3);
-        let homeMomentum = 0;
-        for (const e of lastEvs) {
-          if (e.team === 'home') homeMomentum += 5;
-          else if (e.team === 'away') homeMomentum -= 5;
-        }
-        const ah = Math.max(15, Math.min(85, baseH + homeMomentum));
-        const status = m.currentMinute < 45 ? '1. yarı'
-          : m.currentMinute === 45 ? 'Devre arası'
-          : m.currentMinute < 90 ? '2. yarı'
-          : 'Bitti';
-        updateLiveHeader(m.currentMinute, status, ah, 100 - ah);
-      }
-    } catch(e) {}
-
-    // 90'a ulaştıysa finalize
-    if (m.currentMinute >= 90) {
-      _finalize(m);
-    }
-  }
-
-  function _finalize(m) {
-    m.status = 'finished';
-    m.finalScript = {
-      hs: m.scoreH,
-      as: m.scoreA,
-      evs: m.events,
-      stats: m.simState && m.simState.stats
-    };
-    console.log(`[MatchAuthority] 🏁 BİTTİ: ${m.matchKey} → ${m.scoreH}-${m.scoreA}`);
-
-    // 🆕 Maç sonucunu players tablosuna yaz (RPC idempotent — ilk yazan tetikler)
-    try {
-      const homeTeam = m.homeTeam;
-      const awayTeam = m.awayTeam;
-      const homePlayers = (homeTeam && Array.isArray(homeTeam.players)) ? homeTeam.players : null;
-      const awayPlayers = (awayTeam && Array.isArray(awayTeam.players)) ? awayTeam.players : null;
-      if (homePlayers && awayPlayers && typeof ratePlayers === 'function' && typeof _recordMatchToSupabase === 'function') {
-        const homeWon = (m.scoreH || 0) > (m.scoreA || 0);
-        const awayWon = (m.scoreA || 0) > (m.scoreH || 0);
-        const draw = (m.scoreH || 0) === (m.scoreA || 0);
-        const stats = (m.simState && m.simState.stats) || {};
-        const homeCtx = {
-          teamRating: (homeTeam.rating) || 75, oppRating: (awayTeam.rating) || 75,
-          teamPossession: (stats.possession && stats.possession[0]) || 50,
-          teamPassAcc: (stats.passAcc && stats.passAcc[0]) || 80,
-          teamScored: m.scoreH || 0,
-          oppShotsOnTarget: (stats.shotsOnTarget && stats.shotsOnTarget[1]) || 0,
-        };
-        const awayCtx = {
-          teamRating: (awayTeam.rating) || 75, oppRating: (homeTeam.rating) || 75,
-          teamPossession: (stats.possession && stats.possession[1]) || 50,
-          teamPassAcc: (stats.passAcc && stats.passAcc[1]) || 80,
-          teamScored: m.scoreA || 0,
-          oppShotsOnTarget: (stats.shotsOnTarget && stats.shotsOnTarget[0]) || 0,
-        };
-        const homeRatings = ratePlayers(homePlayers, m.events, 'home',
-          homeWon ? true : (draw ? 'draw' : false), m.scoreA || 0, [], homeCtx);
-        const awayRatings = ratePlayers(awayPlayers, m.events, 'away',
-          awayWon ? true : (draw ? 'draw' : false), m.scoreH || 0, [], awayCtx);
-        const matchId = (m.season && m.day)
-          ? `${m.season}_${m.day}_${homeTeam.name}_${awayTeam.name}`
-          : `${homeTeam.name}_${awayTeam.name}_${m.kickoffMs}`;
-        _recordMatchToSupabase(matchId, homePlayers, awayPlayers, homeRatings, awayRatings, m.events);
-      }
-    } catch(e) { console.warn('[MatchAuthority] rating yazma hatası:', e); }
-
-    // cft_match_results cache'ine yaz (mevcut UI bunu okur)
-    try {
-      const cache = _matchResultsLoad();
-      // Tek bir key dene — season+day varsa onunla, yoksa fallback
-      const homeName = m.homeTeam && m.homeTeam.name;
-      const awayName = m.awayTeam && m.awayTeam.name;
-      const keyA = (m.season && m.day) ? `${m.season}_${m.day}_${homeName}_${awayName}` : null;
-      const keyB = `${homeName}_${awayName}_${m.kickoffMs}`;
-      const writeKey = keyA || keyB;
-      cache[writeKey] = {
-        season: m.season || 1, day: m.day || 0,
-        home: homeName, away: awayName,
-        hs: m.scoreH, as: m.scoreA,
-        comp: m.leagueName || '',
-        playedAt: Date.now(),
-        kickoffMs: m.kickoffMs,
-        byAuthority: true,                          // Authority tarafından oynandı
-        events: m.events,
-        stats: m.simState && m.simState.stats,
-        playerStats: null                            // Aşama 6'da eklenecek
-      };
-      if (typeof _safeSetItem === 'function') {
-        _matchResultsSave(cache);
-      } else {
-        _matchResultsSave(cache);
-      }
-    } catch(e) { console.warn('[MatchAuthority] finalize cache hatası:', e); }
-  }
-
-  // PUBLIC: ticker başlat (otomatik DOMContentLoaded sonrası çağrılır)
-  function start() {
-    if (_started) return;
-    _started = true;
-    _tickerId = setInterval(tick, TICK_INTERVAL_MS);
-    console.log('[MatchAuthority] background ticker başlatıldı (1sn interval)');
-  }
-
-  function stop() {
-    if (_tickerId) clearInterval(_tickerId);
-    _tickerId = null;
-    _started = false;
-  }
-
-  return {
-    register, unregister, getState, getAll, getLive,
-    tick, start, stop,
-    // Debug için iç state'e erişim (sadece geliştirme amaçlı)
-    _matches: _matches
-  };
-})();
-
-// Sayfa hazır olduğunda otomatik başlat
-if (typeof window !== 'undefined') {
-  window.MatchAuthority = MatchAuthority;
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      // Motor fonksiyonları (_simInitState/_simStepMinute) yüklenmesi için bekle
-      setTimeout(() => MatchAuthority.start(), 1500);
-    });
-  } else {
-    setTimeout(() => MatchAuthority.start(), 1500);
-  }
-}
 
 
 // 🆕 QTE (Quick Time Event) sistemi kaldırıldı — kullanıcı etkisi yok, her şey otomatik
@@ -31183,25 +30894,7 @@ function showHistoricalMatchResult(m, fixtureIdx) {
         }
       }
     }
-    // 🆕 Lazy simulate: _quickGenerated cache hit ise → tam simulate yap, cache'i upgrade et
-    if (cacheData && cacheData._quickGenerated && typeof simulateBotMatch === 'function') {
-      try {
-        const homeTeamObj = { ...m.home };
-        const awayTeamObj = { ...m.away };
-        const sim = simulateBotMatch(homeTeamObj, awayTeamObj, cacheKey);
-        // Skoru koru (kullanıcı görüntülemiş olabilir, değişmesin)
-        cacheData = {
-          ...cacheData,
-          events: sim.events || [],
-          stats: sim.stats || null,
-          playerStats: sim.playerStats || null,
-          _quickGenerated: false
-        };
-        // Cache'i upgrade et
-        cache[cacheKey] = cacheData;
-        _matchResultsSave(cache);
-      } catch(e) { /* simulate başarısız — quick skor ile devam */ }
-    }
+    // 🚫 Lazy simulate kaldırıldı — frontend skor üretmez. Edge Function tek motor.
   } catch(e) {}
 
   // Kullanıcının bu maçı oynayıp oynamadığını anla
@@ -52022,14 +51715,9 @@ function pseudoRand(season, day, slot) {
   h = ((h >> 16) ^ h) & 0x7fffffff;
   return h / 0x7fffffff;
 }
-function genScore(season, day, slot) {
-  const r1 = pseudoRand(season, day, slot);
-  const r2 = pseudoRand(season, day, slot+1);
-  const goals = [0,0,1,1,1,2,2,2,3,4];
-  const hs = goals[Math.floor(r1 * goals.length)];
-  const as = goals[Math.floor(r2 * goals.length)];
-  return [hs, as];
-}
+// 🚫 genScore SİLİNDİ. Pseudo-random sahte skor üreticiydi.
+// Tüm skorlar Supabase Edge Function (tick-matches) tarafından üretilir.
+function genScore(season, day, slot) { return [null, null]; }
 
 // ─── Ana hesaplama: sezon ve gün ───
 // 🆕 SEASON_EPOCH ve SEASON_LEN, _autoResetIfNeeded'den ÖNCE init edildi (TDZ önlemi).
@@ -54068,32 +53756,9 @@ function hmOpenNextMatch() {
     return;
   }
 
-  // 🆕 1b. Maç bitti ama cache yok → hızlı simulate + cache'e yaz, sonra geçmiş gösterimi
+  // 🚫 Geç maç simulate bloku kaldırıldı — frontend skor üretmez.
+  // Maç bittiyse ama cache yoksa, Edge Function henüz yazmamış demektir; "henüz oynanmadı" göster.
   if (isFinished && !cachedMatch) {
-    if (typeof simulateBotMatch === 'function') {
-      try {
-        const sim = simulateBotMatch(m.home, m.away, cacheKey);
-        const updated = {
-          season: m.season || 1, day: m.day || 0,
-          home: m.home.name, away: m.away.name,
-          hs: sim.hs, as: sim.as,
-          comp: m.comp || '',
-          round: m.round || '',
-          playedAt: matchEnd,
-          byUser: false,
-          events: sim.events || [],
-          stats: sim.stats || null,
-          playerStats: sim.playerStats || null
-        };
-        cache[cacheKey] = updated;
-        try { _matchResultsSave(cache); } catch(e) {}
-
-        m.hs = sim.hs;
-        m.as = sim.as;
-        m.isPast = true;
-        m.result = m.hs > m.as ? 'home' : (m.hs < m.as ? 'away' : 'draw');
-      } catch(e) { console.warn('Geç maç simulate hatası:', e); }
-    }
     if (typeof openMatchFromFixture === 'function') {
       openMatchFromFixture(idx);
     }
@@ -54676,54 +54341,9 @@ function _resGetMatchesForDate(targetDate) {
   let resultsCache = {};
   try { resultsCache = _matchResultsLoad(); } catch(e) {}
 
-  // 🆕 Saati geçmiş bot maçları için HIZLI skor üretimi (kullanıcı maçı hariç)
-  // Önceden simulateBotMatch çağrıldığında 256+ maç için tam simülasyon yapılıyordu → sayfa donuyordu.
-  // Şimdi skor için hızlı hash, tıklanınca lazy simulate (showHistoricalMatchResult'ta).
-  const userTeamName = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : null;
-  const nowMs = Date.now();
-  let cacheUpdated = false;
-
-  // 🆕 TEK SKOR ÜRETECİ — simulateBotMatch ile uyumlu (Poisson dağılımı).
-  // Aynı seed → aynı skor (deterministik). Tüm yerlerde aynı sonuç → tutarlılık.
-  function _quickScore(homeTeam, awayTeam, key) {
-    const homeRating = homeTeam.rating || 70;
-    const awayRating = awayTeam.rating || 70;
-    try {
-      if (typeof generateMatchScore === 'function') {
-        const [hs, as] = generateMatchScore(homeRating, awayRating, key);
-        return { hs: Math.max(0, hs|0), as: Math.max(0, as|0) };
-      }
-    } catch(e) {}
-    // Fallback: hash bazlı (eski)
-    let h = 2166136261;
-    const s = `${key}|${homeTeam.name}|${awayTeam.name}`;
-    for (let i = 0; i < s.length; i++) {
-      h ^= s.charCodeAt(i);
-      h = Math.imul(h, 16777619);
-    }
-    const r1 = ((h >>> 0) % 1000) / 1000;
-    const r2 = ((Math.imul(h, 7919) >>> 0) % 1000) / 1000;
-    const homeAdv = (homeRating - awayRating + 5) / 100;
-    return {
-      // 🆕 Kullanıcı talebi — ev sahibi-deplasman dengesi düzeltildi
-      // Eski: hs r1*3.5 + homeAdv*1.5 / as r2*3.0 - homeAdv*0.5 (çift taraflı ceza)
-      // Yeni: ikisi de r*3.2 (eşit gol tavanı), homeAdv etkisi azaltıldı
-      hs: Math.max(0, Math.min(5, Math.floor(r1 * 3.2 + homeAdv * 0.6))),
-      as: Math.max(0, Math.min(5, Math.floor(r2 * 3.2 - homeAdv * 0.2)))
-    };
-  }
-
-  allMatches.forEach(m => {
-    const cacheKey = `${m.season}_${m.day}_${m.home}_${m.away}`;
-    if (resultsCache[cacheKey]) return; // zaten match_results'ta var (server'dan geldi)
-    // Maç motoru artık server-side (Supabase Edge Function). Frontend skor üretmez.
-    // Henüz oynanmamış maçlar için cache yok → UI "Bekleniyor" gösterecek.
-  });
-
-  // Cache'i kaydet (yeni simüle edilmişler)
-  if (cacheUpdated) {
-    try { _matchResultsSave(resultsCache); } catch(e) {}
-  }
+  // 🚫 _quickScore sahte skor üreticisi SİLİNDİ. Frontend skor üretmez.
+  // Tüm skorlar Supabase Edge Function (tick-matches) tarafından match_state'e yazılır,
+  // sonra _matchResultsLoad cache'ine yansır.
 
   const merged = allMatches.map(m => {
     const cacheKey = `${m.season}_${m.day}_${m.home}_${m.away}`;
@@ -56104,42 +55724,12 @@ function generateTickerMatches(seed, count) {
       const matchStartMin = hh * 60 + mm;
       const elapsed = nowTotalMin - matchStartMin;
 
-      // CANLI mı? (başlangıçtan sonra 0-12 dk arasında — sıkıştırılmış)
-      // 5dk ilk yarı + 100sn devre arası + 5dk ikinci yarı ≈ 11.67dk; 12dk eşik güvenli
-      const COMPRESSED_MIN = 12;
-      if (elapsed >= 0 && elapsed < COMPRESSED_MIN) {
-        // Skor: simulateBotMatch ile deterministik (final skora kadar)
-        // Şu anki sıkıştırılmış dakikaya göre orantılı skor
-        let hs = 0, as = 0;
-        try {
-          const cacheKey = `${season}_${dayInSeason}_${homeTeam.name}_${awayTeam.name}`;
-          let cache = {};
-          try { cache = _matchResultsLoad(); } catch(e) {}
-          let finalScore = cache[cacheKey];
-          if (!finalScore && typeof simulateBotMatch === 'function') {
-            finalScore = simulateBotMatch(homeTeam, awayTeam, cacheKey);
-          }
-          if (finalScore) {
-            // Sıkıştırılmış: 12.dk'da tam skor, X.dk'da X/12'i
-            const ratio = elapsed / COMPRESSED_MIN;
-            hs = Math.floor(finalScore.hs * ratio);
-            as = Math.floor(finalScore.as * ratio);
-          }
-        } catch(e) {}
-
-        // Maç dakikası (görsel): 12dk gerçek = 90dk maç (orantılı)
-        const matchMinute = Math.max(1, Math.min(90, Math.round((elapsed / COMPRESSED_MIN) * 90)));
-        matches.push({
-          home: homeTeam.name,
-          away: awayTeam.name,
-          homeShort: homeTeam.short || homeTeam.name.slice(0,3).toUpperCase(),
-          awayShort: awayTeam.short || awayTeam.name.slice(0,3).toUpperCase(),
-          flag: country.flag || '',
-          hs, as,
-          isLive: true,
-          minute: matchMinute,
-          league: tier1.name,
-        });
+      // 🚫 CANLI skor uydurucu KALDIRILDI. Frontend skor üretmez.
+      // Canlı maç verisi sadece match_state'ten gelir (Edge Function tarafından doldurulur).
+      // Bu widget şu an match_state poll'unu yapmadığı için canlı maçları göstermiyor.
+      // (Lig Sahnesi widget'ı gelecekte match_state'i okuyup canlıları gösterecek şekilde güncellenecek.)
+      if (false) {
+        // placeholder — bu blok bilinçli olarak devre dışı
       }
     });
   }
@@ -56708,52 +56298,10 @@ function renderHomeMatches() {
     return;
   }
 
-  // 🆕 Otomatik simülasyon — bitmiş maçlar (kullanıcı maçı dahil) için.
-  // Kullanıcı 3D'ye girip oynarsa cache override edilir, oynamazsa bot-vs-bot otomatik.
-  let cacheUpdated = false;
-  todayMatches.forEach(m => {
-    // Canlı maç: kullanıcı tıklayınca live overlay açılır → otomatik motor çalıştırma yok
-    if (m.isLive) return;
-    // Zaten oynanmış: cache'ten geldi
-    if (m.played) return;
-    // Henüz bitmemiş (kickoff + 15 dk dolmamış): atla
-    if (Date.now() < m.kickoffMs + 15 * 60 * 1000) return;
-
-    // Bot vs bot (veya kullanıcı oynamadıysa otomatik), bitmiş, cache yok → simulate ve cache yaz
-    const cacheKey = m.cacheKey;
-    if (resultsCache[cacheKey]) return;
-
-    try {
-      // Roster ekle
-      const userCC2 = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.countryCode)
-        ? _userTeam.countryCode : 'TR';
-      const homeWithRoster = { ...m.home, _roster: (typeof guestGenerateRoster === 'function') ? guestGenerateRoster(userCC2, m.home.name, m.home.rank || 1) : null };
-      const awayWithRoster = { ...m.away, _roster: (typeof guestGenerateRoster === 'function') ? guestGenerateRoster(userCC2, m.away.name, m.away.rank || 1) : null };
-      const sim = simulateBotMatch(homeWithRoster, awayWithRoster, cacheKey);
-      const [hh, mm] = (m.scheduledTime || '15:00').split(':').map(n => parseInt(n) || 0);
-      const playedAt = new Date(today00.getFullYear(), today00.getMonth(), today00.getDate(), hh, mm).getTime();
-      resultsCache[cacheKey] = {
-        season: info.season, day: m.day,
-        home: m.home.name, away: m.away.name,
-        hs: sim.hs, as: sim.as,
-        comp: ((getLeagueFlag(m.leagueName) ? getLeagueFlag(m.leagueName) + ' ' : '') + m.leagueName),
-        playedAt, byBot: true,
-        events: sim.events || [],
-        playerStats: sim.playerStats || null,
-        stats: sim.stats || null
-      };
-      m.played = true;
-      m.isLive = false;
-      m.hs = sim.hs;
-      m.as = sim.as;
-      m.playedAt = playedAt;
-      cacheUpdated = true;
-    } catch(e) {}
-  });
-
-  if (cacheUpdated) {
-    try { _matchResultsSave(resultsCache); } catch(e) {}
-  }
+  // 🚫 Otomatik simülasyon bloku KALDIRILDI.
+  // Frontend bot-bot maçlarını lokal olarak üretmez.
+  // Tüm maçlar Supabase Edge Function (tick-matches) tarafından oynanır,
+  // sonuçlar match_state üzerinden cache'e (match_results) yansır.
 
   // Sıralama:
   //   1. CANLI maçlar en başta (kickoff'u en eski olan üstte)
@@ -56910,31 +56458,8 @@ function hmOpenMatchCard(idx) {
     return;
   }
 
-  // Cache yok ve saat geçmiş → otomatik simulate (kullanıcı maçı dahil)
-  // Günün maçları kartından maç tekrar oynatılmaz, sadece detay gösterilir
-  if (!_existingCached && typeof simulateBotMatch === 'function') {
-    try {
-      const userCC2 = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.countryCode)
-        ? _userTeam.countryCode : 'TR';
-      const homeWithRoster = { ...m.home, _roster: (typeof guestGenerateRoster === 'function') ? guestGenerateRoster(userCC2, m.home.name, m.home.rank || 1) : null };
-      const awayWithRoster = { ...m.away, _roster: (typeof guestGenerateRoster === 'function') ? guestGenerateRoster(userCC2, m.away.name, m.away.rank || 1) : null };
-      const sim = simulateBotMatch(homeWithRoster, awayWithRoster, cacheKey);
-      cache[cacheKey] = {
-        season, day,
-        home: m.home.name, away: m.away.name,
-        hs: sim.hs, as: sim.as,
-        comp: ((getLeagueFlag(m.leagueName) ? getLeagueFlag(m.leagueName) + ' ' : '') + (m.leagueName || '')),
-        round: 'Hafta ' + (m.week || 1),
-        playedAt: kickoff.getTime(),
-        byBot: !m.isUserMatch,
-        byUser: m.isUserMatch,
-        events: sim.events || [],
-        playerStats: sim.playerStats || null,
-        stats: sim.stats || null
-      };
-      _matchResultsSave(cache);
-    } catch(e) {}
-  }
+  // 🚫 Otomatik simulate bloku KALDIRILDI. Frontend skor üretmez.
+  // Cache yoksa, Edge Function maçı oynamamış demektir → cache'te kalmaz, UI "henüz oynanmadı" der.
 
   // Match-screen'i aç + cache'ten detayları yansıt
   const cached = _existingCached || cache[cacheKey];
@@ -57598,72 +57123,13 @@ function buildLeagueFixture(teams, seasonStart, countryCode, tierIdx) {
 
 // Bir ülke için lig sıralamasını simüle et (deterministik)
 // Top takımlar daha önde olacak ama sürpriz de var (rating + jitter)
+// 🚫 simulateLeagueResults SİLİNDİ.
+// Sezon başında sahte lig sıralaması üretiyordu (rastgele W/D/L). 
+// Artık lig sıralaması yalnızca gerçek oynanan maçlardan (match_state) hesaplanır.
+// Maç oynanmadıysa sıralama boştur.
 function simulateLeagueResults(teams, season, countryCode) {
-  // Her takım için "sezon performans skoru" üret (rating + sezon jitter)
-  const seedKey = `lr-${countryCode}-${season}`;
-  let state = (() => {
-    let h = 2166136261;
-    for(let i = 0; i < seedKey.length; i++) {
-      h ^= seedKey.charCodeAt(i);
-      h = Math.imul(h, 16777619);
-    }
-    return h >>> 0;
-  })();
-  const rng = () => {
-    state = state + 0x6D2B79F5 | 0;
-    let t = state;
-    t = Math.imul(t ^ t >>> 15, t | 1);
-    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
-
-  // 🆕 Tüm takımlar 10'dan başlar. Eğer takım nesnesinde players varsa ortalamasını kullan.
-  // Sezon 1'de herkes ~10 → tamamen jitter (sürpriz). Sonra oyuncular geliştikçe ayrışır.
-  const _ratingOf = (t) => {
-    if (t.rating && t.rating > 15) return t.rating; // özel/override edilmiş takımlar
-    if (typeof calcTeamPowerAverage === 'function' && Array.isArray(t.players) && t.players.length) {
-      return calcTeamPowerAverage(t.players);
-    }
-    // Bot takım: getOrCreateTeamRoster ile oluştur, ortalamasını al
-    if (typeof getOrCreateTeamRoster === 'function' && t.name && t.countryCode) {
-      try {
-        const players = getOrCreateTeamRoster(t);
-        if (typeof calcTeamPowerAverage === 'function') return calcTeamPowerAverage(players);
-      } catch(e) {}
-    }
-    return 10;
-  };
-
-  const standings = teams.map((t, idx) => {
-    // Rating temel sıralama: 90 rating ≈ %95 üst sıra şansı
-    const baseScore = _ratingOf(t) * 10;
-    const jitter = (rng() - 0.5) * 60; // ±30 puan jitter (sürpriz)
-    return {
-      ...t,
-      teamIdx: idx,
-      seasonScore: baseScore + jitter,
-    };
-  });
-
-  standings.sort((a, b) => b.seasonScore - a.seasonScore);
-
-  // Sezon sonu istatistik (yaklaşık)
-  return standings.map((t, pos) => {
-    const games = (teams.length - 1) * 2;
-    const winRatio = Math.max(0.05, Math.min(0.85, 0.7 - pos * 0.04));
-    const wins = Math.round(games * winRatio);
-    const draws = Math.round(games * (0.2 - pos * 0.005));
-    const losses = games - wins - draws;
-    return {
-      ...t,
-      position: pos + 1,
-      played: games,
-      wins, draws, losses,
-      points: wins * 3 + draws,
-      goalsFor: Math.round(wins * 1.8 + draws * 1.0 + losses * 0.6),
-      goalsAgainst: Math.round(wins * 0.7 + draws * 1.0 + losses * 1.8),
-    };
-  });
+  // Sezon başında "planlanan sıralama" yok. Maçlar oynandıkça doğal sıralama oluşur.
+  return [];
 }
 
 // Bir ülkenin "lig gücü" — 1. lig en üst takımının rating'i
@@ -58213,25 +57679,18 @@ function buildFixtureData(filter) {
 
           let hs=null, as=null, result=null;
           if(_isLigPast) {
-            // 🆕 Fault-tolerant cache lookup (gerçek oynanan skor önce)
+            // 🆕 SADECE SUPABASE: cache (match_results) ne diyorsa o.
+            // Lokal simulate KALDIRILDI. Edge Function maçı oynamadıysa cache boştur,
+            // skor null kalır ve UI "Bekleniyor" gösterir.
             const _cached = _findMatch(s, day, home.name, away.name);
             if (_cached) {
               hs = _cached.hs;
               as = _cached.as;
-            } else if (typeof simulateBotMatch === 'function') {
-              // simulateBotMatch ile deterministik üret
-              const _scoreKey = `${s}_${day}_${home.name}_${away.name}`;
-              const sim = simulateBotMatch(home, away, _scoreKey);
-              if (sim) { hs = sim.hs; as = sim.as; }
-              else { hs = 0; as = 0; }  // server üretmemiş - "Bekleniyor" gibi
-            } else {
-              // Fallback (eski genScore)
-              [hs, as] = genScore(s, day, slot);
-              if(!userIsHome) [hs, as] = [as, hs];
+              const ankScore = userIsHome ? hs : as;
+              const oppScore = userIsHome ? as : hs;
+              result = ankScore > oppScore ? 'win' : ankScore < oppScore ? 'loss' : 'draw';
             }
-            const ankScore = userIsHome ? hs : as;
-            const oppScore = userIsHome ? as : hs;
-            result = ankScore > oppScore ? 'win' : ankScore < oppScore ? 'loss' : 'draw';
+            // Cache'te yoksa hs/as null kalır (henüz oynanmadı)
           }
 
           // Lig adını dinamik göster (kullanıcının liginden) — başında ülke bayrağı
@@ -58594,44 +58053,11 @@ function _applyBotMatchSuspensions(homeT, awayT, sim, seed) {
   } catch(e) { /* sessizce geç */ }
 }
 
-// 🆕 Bot vs bot maç sonuçlarını lig tablosu için sezon başında üret
-// (Performans: tüm maçları toplu üretir, her açılışta yeniden hesaplanmaz)
+// 🚫 ensureBotMatchResults SİLİNDİ. Sezon başında sahte bot maç skorları üretiyordu.
+// Lig tablosu artık yalnızca gerçekten oynanmış maçlardan (Edge Function → match_state → match_results)
+// hesaplanır. Geçmiş günler için skor yoksa "henüz oynanmadı" gösterilir.
 function ensureBotMatchResults() {
-  if (!_fixtureData) return;
-  let updated = false;
-  let cache = {};
-  try { cache = _matchResultsLoad(); } catch(e) {}
-
-  _fixtureData.forEach(m => {
-    if (m.type !== 'lig') return;
-    if (!m.isPast) return; // Sadece geçmiş maçları doldur
-    if (m.hs !== null && m.hs !== undefined) return; // Zaten skoru var
-
-    const key = `${m.season}_${m.day}_${m.home.name}_${m.away.name}`;
-    if (cache[key]) {
-      m.hs = cache[key].hs;
-      m.as = cache[key].as;
-      m.result = m.hs > m.as ? 'home' : (m.hs < m.as ? 'away' : 'draw');
-      return;
-    }
-
-    // Üret + cache'le
-    const sim = simulateBotMatch(m.home, m.away, key);
-    m.hs = sim.hs;
-    m.as = sim.as;
-    m.result = sim.hs > sim.as ? 'home' : (sim.hs < sim.as ? 'away' : 'draw');
-    cache[key] = {
-      season: m.season, day: m.day,
-      home: m.home.name, away: m.away.name,
-      hs: sim.hs, as: sim.as, comp: m.comp || '',
-      round: m.round || '', playedAt: 0, byBot: true
-    };
-    updated = true;
-  });
-
-  if (updated) {
-    try { _matchResultsSave(cache); } catch(e) {}
-  }
+  return;
 }
 
 function renderFixture() {
@@ -63643,47 +63069,9 @@ function trn2BuildPlayoff(teams, season, trnKey) {
       return { ...m, hs, as, winner, fromServer: true };
     }
     
-    // 2) Server'da yoksa lokal üret (geçici fallback)
-    const seedStr = `${trnKey}_s${season}_PO_${idx}_${m.home.countryKey}-${m.home.name}_${m.away.countryKey}-${m.away.name}`;
-    const seedNum = (m.home.countryKey.charCodeAt(0)*100 + m.away.countryKey.charCodeAt(0)*7 + idx*13 + season*23) & 0xff;
-
-    const homeFull = _fullTeamFromCFTDB(m.home);
-    const awayFull = _fullTeamFromCFTDB(m.away);
-
-    if (!homeFull || !awayFull || typeof simulateBotMatch !== 'function') {
-      const scores = [[2,1],[1,0],[3,1],[2,0],[1,0],[3,2],[2,1],[1,0],[0,0],[2,0]];
-      const [hs, as] = scores[seedNum % scores.length];
-      const winner = hs > as ? m.home : hs < as ? m.away : (seedNum % 2 === 0 ? m.home : m.away);
-      return { ...m, hs, as, winner };
-    }
-
-    let sim = null;
-    try {
-      if (typeof window._simulateKnockoutMatch === 'function') {
-        sim = window._simulateKnockoutMatch(homeFull, awayFull, seedStr, { aggregate: false });
-      } else {
-        sim = simulateBotMatch(homeFull, awayFull, seedStr);
-      }
-    } catch(e) { sim = null; }
-
-    if (!sim) {
-      const fbScores = [[2,1],[1,0],[3,1],[2,0],[1,0],[3,2],[2,1],[1,0],[0,1],[2,0]];
-      const [hs, as] = fbScores[seedNum % fbScores.length];
-      const winner = hs > as ? m.home : (hs < as ? m.away : (seedNum % 2 === 0 ? m.home : m.away));
-      return { ...m, hs, as, winner, et: null, pens: null };
-    }
-
-    return {
-      ...m,
-      hs: sim.hs, as: sim.as,
-      reg90: sim.reg90 || null,
-      winner: sim.winnerSide === 'home' ? m.home : m.away,
-      et: sim.et || null,
-      pens: sim.pens || null,
-      extraTime: !!sim.et,
-      penaltyShootout: !!sim.pens,
-      knockoutPhase: sim.knockoutPhase || 'regulation'
-    };
+    // 🚫 Lokal fallback (simulateBotMatch + hardcoded skorlar) KALDIRILDI.
+    // Server'da skor yoksa skoru boş bırak — Edge Function henüz oynatmamış demektir.
+    return { ...m, hs: null, as: null, winner: null, pending: true };
   });
 
   window._trn2PlayoffCache[_cacheKey] = _results;
@@ -63886,37 +63274,18 @@ function trn2BuildGroups(teams32, season, trnKey) {
 
       let hs = null, as = null, simEvents = null, simStats = null;
 
-      // 🆕 Maç oynandıysa simüle et, yoksa skor null kalır
+      // 🚫 Lokal simulate ve hardcoded fallback KALDIRILDI.
+      // Skoru SADECE Supabase match_results'tan al — yoksa null bırak (Edge Function henüz oynatmamış).
       if (isPlayed) {
-        // 🆕 ÖNCE Supabase match_results'tan ara — her açılışta aynı skor
         const _srvKey = `${home.name}|${away.name}`;
         const _srvMatch = _groupFromServer[_srvKey];
         if (_srvMatch) {
-          hs = _srvMatch.hs ?? 0;
-          as = _srvMatch.as ?? 0;
+          hs = _srvMatch.hs ?? null;
+          as = _srvMatch.as ?? null;
           simEvents = _srvMatch.events || null;
           simStats = _srvMatch.stats || null;
-        } else if (homeFull && awayFull && typeof simulateBotMatch === 'function') {
-          // Server'da yok → lokal motorla üret (geçici fallback)
-          try {
-            const sim = simulateBotMatch(homeFull, awayFull, seedStr);
-            if (sim) {
-              hs = sim.hs;
-              as = sim.as;
-              simEvents = sim.events || null;
-              simStats = sim.stats || null;
-            }
-          } catch(e) { /* fallback below */ }
         }
-        if (typeof hs !== 'number') {
-          // Fallback (motor erişilemezse) - deterministic hash
-          let _h = 2166136261;
-          for (let i = 0; i < seedStr.length; i++) { _h ^= seedStr.charCodeAt(i); _h = Math.imul(_h, 16777619) | 0; }
-          const seedNum = (_h >>> 0) & 0xff;
-          const scores = [[2,1],[1,0],[2,2],[3,1],[0,0],[1,1],[2,0],[3,2],[1,2],[0,1]];
-          const [h, a] = scores[seedNum % scores.length];
-          hs = h; as = a;
-        }
+        // Cache'te yoksa hs/as null kalır — UI "Bekleniyor" gösterecek
       }
 
       // 🆕 Tarih + saat: match_state'ten gerçek kickoff_at (Supabase tek doğruluk)
@@ -65356,24 +64725,19 @@ function encSimMatch(home, away, seed, phase) {
   let result, pens = null, et = null;
   let encKnockoutPhase = 'regulation';
 
-  // ── 90 dk simülasyonu (gerçek 3D motor) ──
+  // 🚫 Lokal motor (simulateBotMatch + fallback) KALDIRILDI.
+  // EURO Cup maçları artık Supabase Edge Function (tick-matches) tarafından oynanır.
+  // Skor match_results cache'inden okunur — yoksa bu fonksiyon null döner ve caller "henüz oynanmadı" gösterir.
   let sim = null;
-  if (teamH && teamA && typeof simulateBotMatch === 'function') {
-    try { sim = simulateBotMatch(teamH, teamA, seedStr); } catch(e) { sim = null; }
-  }
-
-  if (sim) {
-    hg = sim.hs;
-    ag = sim.as;
-    simEvents = sim.events || null;
-    simStats = sim.stats || null;
-  } else {
-    // Fallback (motor erişilemezse) — basit deterministik
-    const r1 = _encSeed(seed * 7 + 1);
-    const r2 = _encSeed(seed * 11 + 2);
-    const powDiff = ((home.power||70) - (away.power||70)) / 30;
-    hg = Math.min(6, Math.round(Math.max(0.3, 1.4 + powDiff + 0.3) * (0.5 + r1 * 0.9)));
-    ag = Math.min(6, Math.round(Math.max(0.3, 1.4 - powDiff) * (0.5 + r2 * 0.9)));
+  hg = null;
+  ag = null;
+  // Eski callsite uyumluluğu — caller'lar null hg/ag bekliyor olabilir, return early
+  if (hg === null) {
+    return {
+      hs: null, as: null, result: null, pens: null, et: null,
+      events: [], stats: null, knockoutPhase: 'regulation',
+      pending: true
+    };
   }
 
   // ── Faz kararı ──
@@ -78290,86 +77654,8 @@ document.addEventListener('keydown', function(e){
   // ────────────────────────────────────────────────────────────
 
   window._simulatePenaltyShootout = function _simulatePenaltyShootout(homeTeam, awayTeam, seed) {
-    const rng = _seedRandom(String(seed) + '|penalties');
-
-    // Penaltı atıcılarını rating'e göre 11'er kişi seç (sudden death için)
-    const homeTakers = _pickPenaltyTakers(homeTeam, 11);
-    const awayTakers = _pickPenaltyTakers(awayTeam, 11);
-    const homeGK = _findGoalkeeper(homeTeam);
-    const awayGK = _findGoalkeeper(awayTeam);
-
-    // Kura: hangi takım önce atar (50/50)
-    const homeFirst = rng() < 0.5;
-
-    const sequence = [];
-    let homeScore = 0, awayScore = 0;
-    let homeIdx = 0, awayIdx = 0;
-    let ended = false;
-
-    // İlk 5 raund: her takım sırayla atar
-    for (let round = 1; round <= 5 && !ended; round++) {
-      // İlk atan
-      if (homeFirst) {
-        const tH = _simulateSinglePenalty(homeTakers[homeIdx++], awayGK, rng);
-        if (tH.scored) homeScore++;
-        sequence.push({ round, team: 'home', ...tH });
-        // Erken bitiş?
-        if (_canEndShootoutEarly(homeScore, awayScore, round * 2 - 1, 10)) { ended = true; break; }
-
-        const tA = _simulateSinglePenalty(awayTakers[awayIdx++], homeGK, rng);
-        if (tA.scored) awayScore++;
-        sequence.push({ round, team: 'away', ...tA });
-        if (_canEndShootoutEarly(homeScore, awayScore, round * 2, 10)) { ended = true; break; }
-      } else {
-        const tA = _simulateSinglePenalty(awayTakers[awayIdx++], homeGK, rng);
-        if (tA.scored) awayScore++;
-        sequence.push({ round, team: 'away', ...tA });
-        if (_canEndShootoutEarly(awayScore, homeScore, round * 2 - 1, 10)) { ended = true; break; }
-
-        const tH = _simulateSinglePenalty(homeTakers[homeIdx++], awayGK, rng);
-        if (tH.scored) homeScore++;
-        sequence.push({ round, team: 'home', ...tH });
-        if (_canEndShootoutEarly(homeScore, awayScore, round * 2, 10)) { ended = true; break; }
-      }
-    }
-
-    // Ani ölüm: eşitlikse her takım birer atar, fark açılana dek
-    let suddenRound = 6;
-    while (homeScore === awayScore && suddenRound <= 11) {
-      if (homeFirst) {
-        const tH = _simulateSinglePenalty(homeTakers[homeIdx++], awayGK, rng);
-        if (tH.scored) homeScore++;
-        sequence.push({ round: suddenRound, team: 'home', sudden: true, ...tH });
-
-        const tA = _simulateSinglePenalty(awayTakers[awayIdx++], homeGK, rng);
-        if (tA.scored) awayScore++;
-        sequence.push({ round: suddenRound, team: 'away', sudden: true, ...tA });
-      } else {
-        const tA = _simulateSinglePenalty(awayTakers[awayIdx++], homeGK, rng);
-        if (tA.scored) awayScore++;
-        sequence.push({ round: suddenRound, team: 'away', sudden: true, ...tA });
-
-        const tH = _simulateSinglePenalty(homeTakers[homeIdx++], awayGK, rng);
-        if (tH.scored) homeScore++;
-        sequence.push({ round: suddenRound, team: 'home', sudden: true, ...tH });
-      }
-      suddenRound++;
-    }
-
-    // Ani ölümde de eşitlik kalırsa (11+ raund), seed bazlı kazanan ata
-    // (Pratikte 11 atıcıyla %100 fark açılmıştır ama defansif)
-    if (homeScore === awayScore) {
-      if (rng() < 0.5) homeScore++; else awayScore++;
-    }
-
-    return {
-      homePens: homeScore,
-      awayPens: awayScore,
-      winnerSide: homeScore > awayScore ? 'home' : 'away',
-      sequence,
-      homeFirst,
-      totalRounds: suddenRound - 1
-    };
+    // 🚫 Lokal penaltı motoru KALDIRILDI. Edge Function knockout maçlarda penaltıları kendisi yönetir.
+    return { homePens: 0, awayPens: 0, winnerSide: 'home', sequence: [] };
   };
 
   // ────────────────────────────────────────────────────────────
@@ -78388,64 +77674,8 @@ document.addEventListener('keydown', function(e){
   }
 
   window._simulateExtraTime = function _simulateExtraTime(homeTeam, awayTeam, seed) {
-    const rng = _seedRandom(String(seed) + '|extratime');
-    const homeRating = _teamAverageRating(homeTeam);
-    const awayRating = _teamAverageRating(awayTeam);
-
-    // Uzatmada oyuncular yorgun: takım başı gol beklentisi ~0.4
-    // Rating farkı ±0.15
-    const baseExp = 0.42;
-    const ratingDelta = (homeRating - awayRating) / 100;
-    const homeLambda = Math.max(0.08, baseExp + ratingDelta * 0.4);
-    const awayLambda = Math.max(0.08, baseExp - ratingDelta * 0.4);
-
-    const homeGoals = _samplePoisson(homeLambda, rng);
-    const awayGoals = _samplePoisson(awayLambda, rng);
-
-    const homeScorers = _pickPenaltyTakers(homeTeam, 5);
-    const awayScorers = _pickPenaltyTakers(awayTeam, 5);
-
-    const events = [];
-
-    for (let i = 0; i < homeGoals; i++) {
-      const minute = 91 + Math.floor(rng() * 30);
-      const half = minute <= 105 ? 'et1' : 'et2';
-      const scorer = homeScorers.length ? homeScorers[Math.floor(rng() * homeScorers.length)] : null;
-      events.push({
-        min: minute,
-        type: 'goal',
-        team: 'home',
-        player: scorer ? scorer.name : '?',
-        playerNum: scorer ? scorer.num : null,
-        extraTime: true,
-        etHalf: half
-      });
-    }
-    for (let i = 0; i < awayGoals; i++) {
-      const minute = 91 + Math.floor(rng() * 30);
-      const half = minute <= 105 ? 'et1' : 'et2';
-      const scorer = awayScorers.length ? awayScorers[Math.floor(rng() * awayScorers.length)] : null;
-      events.push({
-        min: minute,
-        type: 'goal',
-        team: 'away',
-        player: scorer ? scorer.name : '?',
-        playerNum: scorer ? scorer.num : null,
-        extraTime: true,
-        etHalf: half
-      });
-    }
-
-    events.sort((a, b) => a.min - b.min);
-
-    return {
-      hs: homeGoals,
-      as: awayGoals,
-      events,
-      homeRating,
-      awayRating,
-      lambdas: { home: homeLambda, away: awayLambda }
-    };
+    // 🚫 Lokal extra time motoru KALDIRILDI. Edge Function knockout maçlarda uzatmaları kendisi yönetir.
+    return { hs: 0, as: 0, events: [] };
   };
 
   // ────────────────────────────────────────────────────────────
@@ -78463,86 +77693,10 @@ document.addEventListener('keydown', function(e){
   // ────────────────────────────────────────────────────────────
 
   window._simulateKnockoutMatch = function _simulateKnockoutMatch(homeTeam, awayTeam, seed, opts) {
-    opts = opts || {};
-    const isAggregate = !!opts.aggregate;
-    const aggH = opts.aggHomeGoals || 0;
-    const aggA = opts.aggAwayGoals || 0;
-
-    if (typeof simulateBotMatch !== 'function') {
-      console.error('[KO] simulateBotMatch bulunamadı');
-      return null;
-    }
-
-    // 1) Normal 90 dakika simülasyonu
-    const result = simulateBotMatch(homeTeam, awayTeam, seed);
-    if (!result) return null;
-
-    const reg90H = result.hs || 0;
-    const reg90A = result.as || 0;
-    result.reg90 = { hs: reg90H, as: reg90A };
-
-    // 2) Toplam (agg) hesabı
-    let totalH, totalA;
-    if (isAggregate) {
-      totalH = aggH + reg90H;
-      totalA = aggA + reg90A;
-    } else {
-      totalH = reg90H;
-      totalA = reg90A;
-    }
-
-    // 90 dk sonu kazanan belli mi?
-    if (totalH !== totalA) {
-      result.knockoutPhase = 'regulation';
-      result.winnerSide = totalH > totalA ? 'home' : 'away';
-      result.aggHome = totalH;
-      result.aggAway = totalA;
-      return result;
-    }
-
-    // 3) Berabere → UZATMA (15+15 dk)
-    const etResult = window._simulateExtraTime(homeTeam, awayTeam, seed);
-    result.et = etResult;
-
-    // ET event'lerini ana listeye ekle
-    if (Array.isArray(result.events) && Array.isArray(etResult.events)) {
-      result.events = result.events.concat(etResult.events);
-    } else if (Array.isArray(etResult.events)) {
-      result.events = etResult.events.slice();
-    }
-
-    // Skoru güncelle (regulation + ET)
-    const etH = reg90H + etResult.hs;
-    const etA = reg90A + etResult.as;
-    result.hs = etH;
-    result.as = etA;
-
-    if (isAggregate) {
-      totalH = aggH + etH;
-      totalA = aggA + etA;
-    } else {
-      totalH = etH;
-      totalA = etA;
-    }
-
-    // ET sonu eşitlik bozuldu mu?
-    if (totalH !== totalA) {
-      result.knockoutPhase = 'extraTime';
-      result.winnerSide = totalH > totalA ? 'home' : 'away';
-      result.aggHome = totalH;
-      result.aggAway = totalA;
-      return result;
-    }
-
-    // 4) Hala eşit → PENALTILAR
-    const pens = window._simulatePenaltyShootout(homeTeam, awayTeam, seed);
-    result.pens = pens;
-    result.knockoutPhase = 'penalties';
-    result.winnerSide = pens.winnerSide;
-    result.aggHome = totalH;
-    result.aggAway = totalA;
-
-    return result;
+    // 🚫 Lokal knockout motoru KALDIRILDI. simulateBotMatch artık null döndüğü için
+    // bu fonksiyon da null döner — callers "henüz oynanmadı" göstermeli.
+    // Knockout maçlar Edge Function (tick-matches) tarafından oynanır.
+    return null;
   };
 
   // ────────────────────────────────────────────────────────────
@@ -78670,21 +77824,8 @@ document.addEventListener('keydown', function(e){
     const A = fake('Ankara', 80);
     const B = fake('Berlin', 78);
 
-    // Penaltı seri testi
-    const pens = window._simulatePenaltyShootout(A, B, 'test_seed_1');
-    console.log('Penaltılar:', pens.homePens + '-' + pens.awayPens, 'kazanan:', pens.winnerSide, 'raund:', pens.totalRounds);
-
-    // Uzatma testi
-    const et = window._simulateExtraTime(A, B, 'test_seed_1');
-    console.log('Uzatma skoru:', et.hs + '-' + et.as, 'olaylar:', et.events.length);
-
-    // Knockout tam maç (tek maç eleme)
-    if (typeof simulateBotMatch === 'function') {
-      const ko = window._simulateKnockoutMatch(A, B, 'test_seed_99');
-      console.log('KO maç:', ko.hs + '-' + ko.as, 'faz:', ko.knockoutPhase, 'kazanan:', ko.winnerSide);
-    } else {
-      console.warn('simulateBotMatch yok, knockout tam testi atlandı');
-    }
+    // 🚫 Knockout test çağrıları KALDIRILDI. Lokal motor yok artık.
+    console.log('[KO TEST] Lokal motor silindi — gerçek skorlar Edge Function üzerinden gelecek.');
     console.groupEnd();
     return true;
   };
