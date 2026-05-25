@@ -34002,9 +34002,9 @@ async function startMatch(){
   const HALFTIME_END_MS = FIRST_HALF_END_MS + HT_BREAK_MS;
   const FULL_MATCH_END_MS = HALFTIME_END_MS + 45 * MS_PER_SIM_MIN;
   
-  // _matchStartedAt: poll'dan gelecek (started_at). Bu süre içinde geçici olarak şu anı kullan.
+  // _matchStartedAt: poll'dan gerçek started_at gelecek. O zamana kadar timer dakika göstermesin.
   // ÖNEMLİ: Önceki maçtan kalan değer varsa sıfırla.
-  MS._matchStartedAt = Date.now();
+  MS._matchStartedAt = null;
   MS._htShown = false;
   MS.finished = false;
   
@@ -34016,6 +34016,8 @@ async function startMatch(){
       return;
     }
     if (MS.finished) return;
+    // started_at henüz gelmediyse (poll çağrılmadı), bekle
+    if (!MS._matchStartedAt) return;
     
     const elapsed = Date.now() - MS._matchStartedAt;
     const clkS = document.getElementById('matchClock');
@@ -34082,7 +34084,7 @@ async function startMatch(){
 
   // 🆕 match_state poll — her 3 sn'de bir skor + dakika güncelle
   if (window._matchScreenLiveTimer) clearInterval(window._matchScreenLiveTimer);
-  window._matchScreenLiveTimer = setInterval(async () => {
+  const _pollFn = async () => {
     try {
       // match-screen kapatıldıysa timer'ı temizle
       if (!ms || !ms.classList.contains('open')) {
@@ -34204,7 +34206,10 @@ async function startMatch(){
         }
       }
     } catch(e) { console.warn('[matchScreen live] hata:', e); }
-  }, 3000);
+  };
+  // 🆕 İlk çağrı hemen — 3sn beklenmesin (started_at en kısa sürede gelsin)
+  _pollFn();
+  window._matchScreenLiveTimer = setInterval(_pollFn, 3000);
 }
 
 // ═══════════ ESKİ LOKAL MOTOR — ÇAĞRILMAZ (deprecated, dur) ═══════════
@@ -50392,10 +50397,31 @@ function frmSendInvite() {
 // Kullanıcı oynamayı atladıysa (veya hiç başlatmadıysa) bu fonksiyon
 // devreye girer: simulateBotMatch ile skor üretir, played:true yazar.
 function frmEnsurePlayed() {
-  // 🆕 Edge Function (tick-matches) hazırlık maçlarını da match_state üzerinden
-  // simüle eder. Maç bitince status='finished' yazar, skor match_state'te kalır.
-  // Eski lokal simulateBotMatch çağrısı kaldırıldı — lokal sim yok kuralı.
-  return;
+  // 🆕 Edge Function (tick-matches) hazırlık maçlarını match_state üzerinden oynar.
+  // Burada match_state'te status='finished' olan hazırlık maçlarını bulup
+  // friendly_matches.match_data'ya yansıtırız (played, hs, as, events).
+  if (typeof _liveMatchCache !== 'object' || !_liveMatchCache) return;
+  if (!Array.isArray(_frmMatchesCache) || _frmMatchesCache.length === 0) return;
+  let dirty = false;
+  for (const fm of _frmMatchesCache) {
+    if (!fm || fm.played) continue;
+    if (fm.status !== 'accepted') continue;
+    // match_state'te bu hazırlık maçının satırını ara — match_key 'friendly_frm_<id>' formatında
+    const expectedKey = 'friendly_' + fm.id;
+    const ms = _liveMatchCache[expectedKey];
+    if (!ms) continue;
+    if (ms.status !== 'finished') continue;
+    // Bitmiş — friendly_matches'a yansıt
+    fm.played = true;
+    fm.hs = ms.home_score ?? 0;
+    fm.as = ms.away_score ?? 0;
+    fm.events = Array.isArray(ms.events) ? ms.events : [];
+    fm.playedAt = ms.last_tick_at ? new Date(ms.last_tick_at).getTime() : Date.now();
+    dirty = true;
+  }
+  if (dirty) {
+    try { frmSaveMatches(_frmMatchesCache.slice()); } catch(e) { console.warn('[frmEnsurePlayed] save hata:', e); }
+  }
 }
 
 
@@ -53617,23 +53643,39 @@ function _resGetMatchesForDate(targetDate) {
     }
   } catch(e) { console.warn('[Results] EURO Cup okuma hatası:', e); }
 
-  // 🆕 Hazırlık maçları (oynanmış, kullanıcının takımıyla ilgili)
-  // Önce saati geçmiş hazırlık maçlarını otomatik bot-vs-bot ile simulate et
+  // 🆕 Hazırlık maçları — oynanmış VE canlı (kullanıcının takımıyla ilgili)
+  // frmEnsurePlayed match_state'i okuyup played/hs/as set ediyor
   if (typeof frmEnsurePlayed === 'function') {
     try { frmEnsurePlayed(); } catch(e){}
   }
   if (typeof frmGetMatches === 'function' && typeof _userTeam !== 'undefined' && _userTeam) {
     frmGetMatches().forEach(fm => {
-      if (!fm.played) return;
-      const playedAt = fm.playedAt || (fm.dateTime ? new Date(fm.dateTime).getTime() : null);
-      if (!playedAt) return;
-      const playedDate = new Date(playedAt);
-      if (playedDate.toDateString() !== targetDay.toDateString()) return;
       // Sadece kullanıcının dahil olduğu hazırlık maçları
       if (fm.fromTeam !== _userTeam.teamName && fm.toTeam !== _userTeam.teamName) return;
+      if (fm.status !== 'accepted') return;
+      
+      // Maç tarihini bul: oynanmışsa playedAt, değilse dateTime (kickoff)
+      const scheduledMs = fm.dateTime ? new Date(fm.dateTime).getTime() : null;
+      const playedAt = fm.playedAt || scheduledMs;
+      if (!playedAt) return;
+      const matchDate = new Date(playedAt);
+      if (matchDate.toDateString() !== targetDay.toDateString()) return;
+      
+      // Canlı mı? — match_state'te status='running' ise
+      let isLive = false, liveMinute = 0, liveHs = 0, liveAs = 0;
+      if (typeof _liveMatchCache === 'object' && _liveMatchCache) {
+        const ms = _liveMatchCache['friendly_' + fm.id];
+        if (ms && ms.status === 'running') {
+          isLive = true;
+          liveMinute = ms.sim_minute || 0;
+          liveHs = ms.home_score ?? 0;
+          liveAs = ms.away_score ?? 0;
+        }
+      }
+      // Bitmiş veya canlı değilse ve oynanmamışsa — bekleyen maç, listede gösterme
+      if (!fm.played && !isLive) return;
+      
       const homeInfo = _resFindTeamCountry(fm.fromTeam);
-      // 🆕 cft_match_results cache key'i ile uyumlu season/day
-      // Cache yazımı: season:0, day:Math.floor(playedAt/86400000)
       const fmSeason = 0;
       const fmDay = Math.floor(playedAt / 86400000);
       merged.push({
@@ -53644,15 +53686,19 @@ function _resGetMatchesForDate(targetDate) {
         countryCode: fm.fromCC || (homeInfo && homeInfo.cc) || 'XX',
         leagueName: 'Hazırlık Maçı',
         leagueFlag: '⚽',
-        played: true,
-        hs: fm.hs || 0, as: fm.as || 0,
+        played: !!fm.played,
+        isLive,
+        liveMinute,
+        hs: isLive ? liveHs : (fm.hs || 0),
+        as: isLive ? liveAs : (fm.as || 0),
         playedAt: playedAt,
-        scheduledTime: playedDate.toTimeString().slice(0,5),
+        scheduledTime: matchDate.toTimeString().slice(0,5),
         cacheKey: `${fmSeason}_${fmDay}_${fm.fromTeam}_${fm.toTeam}`,
         season: fmSeason,
         day: fmDay,
         byUser: true,
-        competition: 'friendly'
+        competition: 'friendly',
+        matchKey: 'friendly_' + fm.id
       });
     });
   }
