@@ -34226,7 +34226,8 @@ async function startMatch(){
     MS._displayMin = displayMin;
   }, 250);
 
-  // 🆕 match_state poll — her 3 sn'de bir skor + dakika güncelle
+  // 🆕 match_state poll — her saniye skor + dakika güncelle
+  // Edge Function'ı da kendimiz tetikleriz (cron'a güvenmek yerine) → akıcı maç izleme
   if (window._matchScreenLiveTimer) clearInterval(window._matchScreenLiveTimer);
   const _pollFn = async () => {
     try {
@@ -34235,6 +34236,16 @@ async function startMatch(){
         clearInterval(window._matchScreenLiveTimer);
         window._matchScreenLiveTimer = null;
         return;
+      }
+      // 🆕 Edge Function'ı kendi tetikle — cron beklemeden anında tick
+      // (Maç bitince Edge Function action=tick_match çağrılırsa "skipped" döner, zararsız)
+      if (MS.match_key && !MS.finished && typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_KEY !== 'undefined') {
+        try {
+          // fire-and-forget — await etme, sonraki tick'i bekletmesin
+          fetch(`${SUPABASE_URL}/functions/v1/tick-matches?action=tick_match&match_key=${encodeURIComponent(MS.match_key)}`, {
+            headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY }
+          }).catch(() => {});
+        } catch(e) {}
       }
       // match_state'i tazele
       if (typeof _liveMatchLoadFromServer === 'function') {
@@ -34382,7 +34393,7 @@ async function startMatch(){
   };
   // 🆕 İlk çağrı hemen — 3sn beklenmesin (started_at en kısa sürede gelsin)
   _pollFn();
-  window._matchScreenLiveTimer = setInterval(_pollFn, 3000);
+  window._matchScreenLiveTimer = setInterval(_pollFn, 1000);
 }
 
 // ═══════════ ESKİ LOKAL MOTOR — ÇAĞRILMAZ (deprecated, dur) ═══════════
