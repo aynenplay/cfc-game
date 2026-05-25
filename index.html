@@ -50466,6 +50466,18 @@ async function _frmUpsertMatchState(fm) {
       kickoff_at: new Date(kickoffMs).toISOString(),
       events: []
     }, { onConflict: 'match_key' });
+
+    // 🆕 Yazma sonrası: match_state cache'i yenile + günlük cache'i temizle.
+    //   "Hazırlık maçı oluşturunca fikstür ve sonuçlar siliniyor" bug'ı bu adım eksikti.
+    //   Cache yenilenmeden render edilirse stale veri görünür ya da boş gözükür.
+    try {
+      if (typeof _resFixtureDayCache !== 'undefined' && _resFixtureDayCache) {
+        Object.keys(_resFixtureDayCache).forEach(k => delete _resFixtureDayCache[k]);
+      }
+      if (typeof _loadAllMatchStateFromServer === 'function') {
+        await _loadAllMatchStateFromServer();
+      }
+    } catch(e) { console.warn('[frm upsert cache refresh]', e); }
   } catch(e) { console.warn('[frm match_state upsert]', e); }
 }
 
@@ -53884,18 +53896,14 @@ async function _loadAllMatchStateFromServer() {
 }
 
 function _resBuildSeasonFixtures(seasonNum) {
-  const cacheKey = 'S' + seasonNum;
-
-  // 1. Bellek cache (oturum içi)
-  if (_resFixtureSeasonCache[cacheKey]) return _resFixtureSeasonCache[cacheKey];
-
-  // 🆕 match_state cache'inden günleri al
+  // 🆕 Bellek cache LAYER'I KALDIRILDI.
+  //   Eskiden _resFixtureSeasonCache[cacheKey] saklıyordu — _matchStateCache yenilense bile
+  //   eski obje referansı dönüyor, fikstür/sonuçlar sayfası stale veri gösteriyordu.
+  //   Hazırlık maçı oluşturulduktan sonra "fikstür ve sonuçlar siliniyor" şikayeti bu cache'den
+  //   kaynaklanıyordu. Şimdi hep _matchStateCache.dayMap'in mevcut hâlini döner.
   if (_matchStateCache && _matchStateCache.dayMap) {
-    const result = { dayMap: _matchStateCache.dayMap, drawnAt: new Date().toISOString() };
-    _resFixtureSeasonCache[cacheKey] = result;
-    return result;
+    return { dayMap: _matchStateCache.dayMap, drawnAt: new Date().toISOString() };
   }
-
   // Cache yoksa boş döndür (bootstrap henüz tamamlanmamış olabilir)
   return { dayMap: {} };
 }
