@@ -2446,6 +2446,83 @@ select.form-input option{background:var(--bg)}
   font-family:'Barlow Condensed',sans-serif;
   font-size:14px;font-weight:900;min-width:30px;text-align:right;
 }
+
+/* 🆕 Maç sonu - iki takım kadro listesi */
+#match-result-overlay .mrp-container{
+  display:grid;grid-template-columns:1fr 1fr;gap:10px;
+}
+@media (max-width: 600px) {
+  #match-result-overlay .mrp-container{grid-template-columns:1fr;}
+}
+#match-result-overlay .mrp-team{
+  background:rgba(20,30,50,.5);
+  border:1px solid rgba(120,160,255,.15);
+  border-radius:10px;padding:8px;
+}
+#match-result-overlay .mrp-team-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:4px 6px 8px;border-bottom:1px solid rgba(120,160,255,.15);
+  margin-bottom:6px;
+}
+#match-result-overlay .mrp-team-name{
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:13px;font-weight:800;color:var(--text);
+  text-transform:uppercase;letter-spacing:.6px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+#match-result-overlay .mrp-team-score{
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:18px;font-weight:900;color:var(--gold);
+  min-width:24px;text-align:right;
+}
+#match-result-overlay .mrp-row{
+  display:grid;
+  grid-template-columns:22px 26px 1fr auto auto;
+  gap:6px;align-items:center;
+  padding:5px 6px;border-radius:6px;
+  font-size:11px;
+}
+#match-result-overlay .mrp-row.is-user{
+  background:rgba(255,193,7,.08);
+  border-left:2px solid #fbc02d;
+}
+#match-result-overlay .mrp-row.is-mvp{
+  background:linear-gradient(90deg, rgba(255,193,7,.18), rgba(255,193,7,.04));
+  border-left:2px solid #ffd54f;
+  box-shadow:0 0 8px rgba(255,193,7,.15);
+}
+#match-result-overlay .mrp-num{
+  font-family:'Barlow Condensed',sans-serif;
+  font-weight:800;color:rgba(180,200,240,.7);font-size:11px;
+}
+#match-result-overlay .mrp-pos{
+  font-size:9px;font-weight:800;
+  background:rgba(120,160,255,.12);
+  color:rgba(180,200,240,.85);
+  padding:1px 4px;border-radius:3px;
+  text-align:center;letter-spacing:.3px;
+}
+#match-result-overlay .mrp-name{
+  font-size:11px;font-weight:700;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  display:flex;align-items:center;gap:3px;
+}
+#match-result-overlay .mrp-mvp-badge{
+  font-size:13px;margin-left:2px;
+  filter:drop-shadow(0 0 4px rgba(255,213,79,.6));
+}
+#match-result-overlay .mrp-stats{
+  display:flex;gap:2px;align-items:center;
+}
+#match-result-overlay .mrp-stat{
+  font-size:11px;line-height:1;
+}
+#match-result-overlay .mrp-rating{
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:13px;font-weight:900;
+  min-width:28px;text-align:right;
+}
+
 /* ═══ SEZON SONU TÖRENİ ═══ */
 .se-overlay{
   position:fixed;inset:0;
@@ -34403,7 +34480,11 @@ async function startMatch(){
         // 🆕 Skor — events'ten görünür dakikaya kadar hesapla (Edge Function ileri simüle ediyor olabilir)
         const sh = document.getElementById('scoreH');
         const sa = document.getElementById('scoreA');
-        const visibleMinForScore = MS._displayMin || 0;
+        // Görünür dakika: önce frontend smoothing, yoksa Edge Function sim_minute fallback
+        // (Maç ekranı yeni açıldığında smoothing henüz çalışmamış olabilir → 0 kalmasın)
+        const visibleMinForScore = (MS._displayMin && MS._displayMin > 0)
+          ? MS._displayMin
+          : (liveRow.sim_minute || 0);
         const allEvs = Array.isArray(liveRow.events) ? liveRow.events : [];
         let visHs = 0, visAs = 0;
         for (const ev of allEvs) {
@@ -34428,7 +34509,10 @@ async function startMatch(){
           // 🆕 Sadece frontend'in GÖSTERDİĞİ dakikaya kadar olan olayları render et
           // Edge Function ileriye simüle edebilir (örn poll'da 50. dk skoru gelir
           // ama frontend hâlâ 41.dk gösterir) — bu durumda 41'in üstündeki olayları gizle.
-          const visibleMin = MS._displayMin || 0;
+          // displayMin yoksa Edge Function sim_minute fallback (ilk açılışta smoothing daha çalışmamış olabilir).
+          const visibleMin = (MS._displayMin && MS._displayMin > 0)
+            ? MS._displayMin
+            : (liveRow.sim_minute || 0);
           const events = allEvents.filter(e => ((e.min !== undefined ? e.min : e.minute) || 0) <= visibleMin);
           if (evList && events.length > 0) {
             // En son olay en üstte (reverse chronological)
@@ -34476,7 +34560,9 @@ async function startMatch(){
         // 🆕 İstatistikleri görünür dakikaya kadar events'ten hesapla
         try {
           const allEvs2 = Array.isArray(liveRow.events) ? liveRow.events : [];
-          const visMin = MS._displayMin || 0;
+          const visMin = (MS._displayMin && MS._displayMin > 0)
+            ? MS._displayMin
+            : (liveRow.sim_minute || 0);
           const visibleEvs = allEvs2.filter(e => ((e.min !== undefined ? e.min : e.minute) || 0) <= visMin);
           const stats = _computeMatchStatsFromEvents(visibleEvs, visMin);
           if (typeof updateStats === 'function') {
@@ -35620,66 +35706,95 @@ function showMatchResult() {
     if (hdr) hdr.textContent = 'Maç Bitti';
   }
 
-  // MVP gösterimi kaldırıldı (kullanıcı isteği)
-
-  // ── 🆕 Bireysel Maç Notları (Faz 1 ratings) ──
-  // Mevcut DOM'da slot yoksa dinamik olarak ekle
+  // ── 🆕 Maç sonu kadroları (iki takım tam liste) — reyting, gol, asist, kart, MVP yıldız ──
   try {
     const mrBody = document.querySelector('#match-result-overlay .mr-body');
     let ratingsBox = document.getElementById('mrRatings');
-    if (mrBody && MS._playerRatings && (MS._playerRatings.home || MS._playerRatings.away)) {
+    if (mrBody && curHome && curAway) {
       if (!ratingsBox) {
         ratingsBox = document.createElement('div');
         ratingsBox.id = 'mrRatings';
         ratingsBox.className = 'ratings-section';
-        // En başa ekle (stats'tan önce)
-        if (mrBody.firstChild) {
-          mrBody.insertBefore(ratingsBox, mrBody.firstChild);
-        } else {
-          mrBody.appendChild(ratingsBox);
-        }
+        if (mrBody.firstChild) mrBody.insertBefore(ratingsBox, mrBody.firstChild);
+        else mrBody.appendChild(ratingsBox);
       }
-      // 🆕 Kullanıcı maçta değilse ev sahibi takımın oyuncularını göster
-      const userSide = userInMatch ? (finalUserIsHome ? 'home' : 'away') : 'home';
-      const userRatings = (MS._playerRatings[userSide] || []).slice().sort((a, b) => b.rating - a.rating).slice(0, 3);
-      const userPlayerName = (typeof ROSTER_DATA !== 'undefined')
-        ? (ROSTER_DATA.find(p => p.role === 'user') || {}).name
-        : null;
-      const mvpName = MS._matchMVP ? MS._matchMVP.name : null;
-      const userSideName = finalUserIsHome ? (curHome && curHome.name) : (curAway && curAway.name);
-
-      // Olay sayıları için userSide event'leri
-      const ourEvs = (script && script.evs ? script.evs.filter(e => e.team === userSide) : []);
-      const _evsFor = (name) => {
-        const goals   = ourEvs.filter(e => e.type === 'goal' && !e.isOwnGoal && e.player === name).length;
-        const assists = ourEvs.filter(e => e.assist === name).length;
-        const yellows = ourEvs.filter(e => e.type === 'yellow' && e.player === name).length;
-        const reds    = ourEvs.filter(e => e.type === 'red' && e.player === name).length;
-        return { goals, assists, yellows, reds };
+      // Maçtaki tüm event'ler (gol/asist/kart hesap için)
+      const allEvs = (script && script.evs) ? script.evs : [];
+      
+      // Her oyuncu için summary üret
+      const _summarize = (p, side) => {
+        const evs = allEvs.filter(e => e.team === side);
+        const goals = evs.filter(e => e.type === 'goal' && !e.isOwnGoal && !e.cancelled && e.player === p.name).length;
+        const assists = evs.filter(e => e.assist === p.name).length;
+        const yellows = evs.filter(e => e.type === 'yellow' && e.player === p.name).length;
+        const reds = evs.filter(e => e.type === 'red' && e.player === p.name).length;
+        const injured = evs.some(e => e.type === 'injury' && e.player === p.name);
+        return { goals, assists, yellows, reds, injured };
       };
-
+      
+      // Her iki takımdan en yüksek reytingli oyuncuyu (MVP'leri) belirle
+      const _bestRated = (players) => {
+        let best = null, bestR = 0;
+        for (const p of players || []) {
+          const r = (typeof p.matchRating === 'number') ? p.matchRating : 0;
+          if (r > bestR) { bestR = r; best = p; }
+        }
+        return best;
+      };
+      const mvpHome = _bestRated(curHome.players);
+      const mvpAway = _bestRated(curAway.players);
+      // Genel MVP — iki takım arası en yüksek
+      const mvpGlobal = ((mvpHome?.matchRating || 0) >= (mvpAway?.matchRating || 0)) ? mvpHome : mvpAway;
+      const mvpGlobalSide = mvpGlobal === mvpHome ? 'home' : 'away';
+      
+      // Bir oyuncu satırı render et
+      const _row = (p, side, mvpName) => {
+        const isUser = p.role === 'user' || p.isUser;
+        const isMvp = (p.name === (mvpGlobal && mvpGlobal.name));
+        const sum = _summarize(p, side);
+        const rating = (typeof p.matchRating === 'number') ? p.matchRating : null;
+        const ratingTxt = rating != null ? rating.toFixed(1) : '—';
+        const ratingColor = (typeof ratColor === 'function' && rating != null) ? ratColor(rating)
+                          : (rating >= 8 ? '#4caf50' : rating >= 7 ? '#8bc34a' : rating >= 6 ? '#ffc107' : '#ef5350');
+        
+        const badges = [];
+        if (sum.goals > 0)   badges.push(`<span class="mrp-stat mrp-goal">⚽${sum.goals > 1 ? sum.goals : ''}</span>`);
+        if (sum.assists > 0) badges.push(`<span class="mrp-stat mrp-assist">🅰️${sum.assists > 1 ? sum.assists : ''}</span>`);
+        if (sum.yellows > 0) badges.push(`<span class="mrp-stat mrp-yc">🟨</span>`);
+        if (sum.reds > 0)    badges.push(`<span class="mrp-stat mrp-rc">🟥</span>`);
+        if (sum.injured)     badges.push(`<span class="mrp-stat mrp-inj">🚑</span>`);
+        
+        const userMark = isUser ? '<span style="color:#fbc02d">★</span>' : '';
+        const mvpMark = isMvp ? '<span class="mrp-mvp-badge" title="Maçın Adamı">🏆</span>' : '';
+        
+        return `<div class="mrp-row ${isMvp ? 'is-mvp' : ''} ${isUser ? 'is-user' : ''}">
+          <div class="mrp-num">${p.num || '—'}</div>
+          <div class="mrp-pos">${p.pos || ''}</div>
+          <div class="mrp-name">${p.name}${userMark}${mvpMark}</div>
+          <div class="mrp-stats">${badges.join('')}</div>
+          <div class="mrp-rating" style="color:${ratingColor}">${ratingTxt}</div>
+        </div>`;
+      };
+      
+      // Takım listesi - starter + sub (giren yedek)
+      const _teamSection = (team, side) => {
+        const players = team.players || [];
+        // Reytinge göre sırala (yüksekten düşüğe)
+        const sorted = players.slice().sort((a, b) => (b.matchRating || 0) - (a.matchRating || 0));
+        return `<div class="mrp-team">
+          <div class="mrp-team-hdr">
+            <span class="mrp-team-name">${team.name}</span>
+            <span class="mrp-team-score">${side === 'home' ? scoreH : scoreA}</span>
+          </div>
+          ${sorted.map(p => _row(p, side)).join('')}
+        </div>`;
+      };
+      
       ratingsBox.innerHTML = `
-        <div class="ratings-section-title">EN İYİ 3</div>
-        <div class="ratings-list">
-          ${userRatings.map(r => {
-            const isUser = userPlayerName && r.name === userPlayerName;
-            const isMvp = mvpName && r.name === mvpName;
-            const cls = isMvp ? 'is-mvp' : (isUser ? 'is-user' : '');
-            const e = _evsFor(r.name);
-            const stats = [];
-            if (e.goals)   stats.push(`<span class="rs-goal">⚽${e.goals}</span>`);
-            if (e.assists) stats.push(`🅰️${e.assists}`);
-            if (e.yellows) stats.push(`<span class="rs-yel">🟨</span>`);
-            if (e.reds)    stats.push(`<span class="rs-red">🟥</span>`);
-            const color = (typeof ratingColor === 'function') ? ratingColor(r.rating) : '#ffd54f';
-            return `<div class="ratings-row ${cls}">
-              <div class="ratings-num">${r.num || ''}</div>
-              <div class="ratings-pos">${r.pos || ''}</div>
-              <div class="ratings-name">${r.name}${isMvp ? '<span class="ratings-mvp-badge" title="MVP">🏆</span>' : ''}</div>
-              <div class="ratings-stat">${stats.join(' ')}</div>
-              <div class="ratings-val" style="color:${color}">${r.rating.toFixed(1)}</div>
-            </div>`;
-          }).join('')}
+        <div class="ratings-section-title">⚽ KADROLAR & REYTİNGLER</div>
+        <div class="mrp-container">
+          ${_teamSection(curHome, 'home')}
+          ${_teamSection(curAway, 'away')}
         </div>
       `;
       ratingsBox.style.display = 'block';
