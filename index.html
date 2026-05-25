@@ -52066,15 +52066,13 @@ function renderHomeNextMatch() {
       try { frmEnsurePlayed(); } catch(e) {}
     }
     const _allFm = frmGetMatches();
-    const _frmDbg = { total: _allFm.length, rejected:0, otherTeam:0, played:0, dateInvalid:0, expired:0, added:0 };
+    const _frmDbg = { total: _allFm.length, notAccepted:0, otherTeam:0, played:0, dateInvalid:0, expired:0, added:0 };
     _allFm.forEach(fm => {
-      // 'rejected' veya 'cancelled' hariç — pending/accepted ikisi de göster
-      if (fm.status === 'rejected' || fm.status === 'cancelled') { _frmDbg.rejected++; return; }
+      if (fm.status !== 'accepted') { _frmDbg.notAccepted++; return; }
       if (fm.fromTeam !== _userTeam.teamName && fm.toTeam !== _userTeam.teamName) { _frmDbg.otherTeam++; return; }
-      if (fm.playedAt) { _frmDbg.played++; return; } // 🆕 Oynanmış hazırlık maçı — listeden çıkar
+      if (fm.playedAt) { _frmDbg.played++; return; }
       const t = new Date(fm.dateTime).getTime();
       if (isNaN(t)) { _frmDbg.dateInvalid++; return; }
-      // Maç bittikten 30dk sonra (toplam +120dk) listeden çıkar
       if (Date.now() > t + 120 * 60 * 1000) { _frmDbg.expired++; return; }
       candidates.push({ source: 'friendly', friendly: fm, time: t });
       _frmDbg.added++;
@@ -52438,29 +52436,11 @@ function _renderHmFriendlyMatch(fm) {
   _hmAttachCrestClick('hmNmAwayCrest', away, null);
 
   // 🆕 Buton — lig maçıyla aynı: canlı geri sayım + 2dk içinde "Maça Git"
-  //   Pending durumda (henüz karşı taraf yanıt vermedi): "Onay Bekleniyor"
   const btn = document.getElementById('hmNmBtn');
   if (btn) {
     if (window._hmNmBtnTimer) {
       clearInterval(window._hmNmBtnTimer);
       window._hmNmBtnTimer = null;
-    }
-    // 🆕 Pending durumu: maç henüz onaylanmadı → onay bekleyiş bildirimi
-    if (fm.status === 'pending') {
-      btn.innerHTML = '⏳ Onay Bekleniyor';
-      btn.style.background = 'linear-gradient(90deg,#ffa726,#fb8c00)';
-      btn.style.color = '#1a1a1a';
-      btn.disabled = true;
-      panel._nextMatchRef = { isFriendly: true, friendlyData: fm };
-      panel.style.display = 'block';
-      noMatch.style.display = 'none';
-      // 10sn sonra render'ı tekrar tetikle — bot yanıt verdiyse buton güncellenir
-      setTimeout(() => {
-        if (typeof renderHomeNextMatch === 'function') {
-          try { renderHomeNextMatch(); } catch(e) {}
-        }
-      }, 10000);
-      return;
     }
     const kickoffTime = d ? d.getTime() : null;
 
