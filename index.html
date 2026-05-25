@@ -35075,28 +35075,49 @@ async function startMatch(){
         if (sa) sa.textContent = liveRow.away_score ?? 0;
         if (clk && (liveRow.sim_minute || 0) > 0) clk.textContent = liveRow.sim_minute + "'";
         // 🆕 Olaylar — Edge Function events jsonb'sini LIVE sekmesinde göster
+        // Mevcut .ev-item / .ev-min / .ev-ico / .ev-body / .ev-title / .ev-sub yapısı kullanılıyor
+        // Tip-spesifik renkler .ev-goal / .ev-yellow / .ev-red / .ev-corner ... otomatik gelir
         try {
           const evList = document.getElementById('evList');
           const events = Array.isArray(liveRow.events) ? liveRow.events : [];
           if (evList && events.length > 0) {
             // En son olay en üstte (reverse chronological)
             const evHtml = events.slice().reverse().map(ev => {
-              const min = (ev.min !== undefined) ? ev.min : (ev.minute !== undefined ? ev.minute : '');
-              const type = ev.type || '';
+              const min = (ev.min !== undefined) ? ev.min : (ev.minute !== undefined ? ev.minute : 0);
+              const rawType = (ev.type || '').toLowerCase();
               const side = ev.team || ev.side || '';
               const player = ev.player || ev.name || '';
-              let icon = '⚽', label = type;
-              if (type === 'goal') { icon = '⚽'; label = 'GOL'; }
-              else if (type === 'yellow') { icon = '🟨'; label = 'Sarı Kart'; }
-              else if (type === 'red') { icon = '🟥'; label = 'Kırmızı Kart'; }
-              else if (type === 'sub') { icon = '🔄'; label = 'Oyuncu Değişikliği'; }
-              else if (type === 'injury') { icon = '🚑'; label = 'Sakatlık'; }
-              else if (type === 'penalty') { icon = '🎯'; label = 'Penaltı'; }
-              else if (type === 'freekick') { icon = '🦶'; label = 'Serbest Vuruş'; }
-              return `<div class="ev-item ev-${type}" style="padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;gap:10px;align-items:center">
-                <div style="font-size:11px;color:var(--accent);font-weight:900;min-width:32px">${min}'</div>
-                <div style="font-size:16px">${icon}</div>
-                <div style="flex:1;font-size:12px"><span style="font-weight:700">${label}</span>${player ? ' — ' + player : ''}${side ? ' <span style="color:var(--text3);font-size:10px">('+(side==='home'?'Ev':'Dep')+')</span>' : ''}</div>
+              const teamLbl = side === 'home' ? (curHome && curHome.name) : (side === 'away' ? (curAway && curAway.name) : '');
+              // Tip → CSS class + ikon + başlık eşlemesi
+              let cls = 'ev-build', ico = '•', title = rawType;
+              if (rawType === 'goal') { cls = 'ev-goal'; ico = '⚽'; title = 'GOL'; }
+              else if (rawType === 'yellow') { cls = 'ev-yellow'; ico = '🟨'; title = 'Sarı Kart'; }
+              else if (rawType === 'red') { cls = 'ev-red'; ico = '🟥'; title = 'Kırmızı Kart'; }
+              else if (rawType === 'sub') { cls = 'ev-sub-ev'; ico = '🔄'; title = 'Oyuncu Değişikliği'; }
+              else if (rawType === 'injury') { cls = 'ev-injury'; ico = '🚑'; title = 'Sakatlık'; }
+              else if (rawType === 'penalty') { cls = 'ev-chance'; ico = '🎯'; title = 'Penaltı'; }
+              else if (rawType === 'freekick') { cls = 'ev-freekick'; ico = '🦶'; title = 'Serbest Vuruş'; }
+              else if (rawType === 'corner') { cls = 'ev-corner'; ico = '🚩'; title = 'Korner'; }
+              else if (rawType === 'save') { cls = 'ev-save'; ico = '🧤'; title = 'Kurtarış'; }
+              else if (rawType === 'shot' || rawType === 'shot_off') { cls = 'ev-shot-off'; ico = '🎯'; title = 'Şut'; }
+              else if (rawType === 'offside') { cls = 'ev-offside'; ico = '🚫'; title = 'Ofsayt'; }
+              else if (rawType === 'foul') { cls = 'ev-foul'; ico = '⚠️'; title = 'Faul'; }
+              else if (rawType === 'throwin') { cls = 'ev-throwin'; ico = '↪️'; title = 'Taç'; }
+              else if (rawType === 'half' || rawType === 'halftime') { cls = 'ev-half'; ico = '⏸️'; title = 'DEVRE ARASI'; }
+              else if (rawType === 'fulltime' || rawType === 'end') { cls = 'ev-fulltime'; ico = '⏱️'; title = 'MAÇ SONU'; }
+              else { title = rawType || 'Olay'; }
+              // Alt satır (oyuncu + takım)
+              const subParts = [];
+              if (player) subParts.push(player);
+              if (teamLbl) subParts.push(teamLbl);
+              const subTxt = subParts.join(' · ');
+              return `<div class="ev-item ${cls}">
+                <div class="ev-min">${min}'</div>
+                <div class="ev-ico">${ico}</div>
+                <div class="ev-body">
+                  <div class="ev-title">${title}</div>
+                  ${subTxt ? `<div class="ev-sub">${subTxt}</div>` : ''}
+                </div>
               </div>`;
             }).join('');
             evList.innerHTML = evHtml;
