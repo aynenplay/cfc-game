@@ -30415,8 +30415,10 @@ function _resLiveUpdate() {
     }
 
     if (liveRow && (liveRow.status === 'running' || liveRow.status === 'scheduled')) {
-      // 🆕 CANLI: server'dan gelen anlık veri
-      minute = liveRow.sim_minute || 0;
+      // 🆕 CANLI: server'dan gelen anlık veri (dakika smoothing ile hesaplanır)
+      minute = (typeof _computeLiveSimMinute === 'function')
+        ? _computeLiveSimMinute(liveRow)
+        : (liveRow.sim_minute || 0);
       hs = liveRow.home_score || 0;
       as = liveRow.away_score || 0;
       events = Array.isArray(liveRow.events) ? liveRow.events : [];
@@ -53583,6 +53585,30 @@ function _resBuildSeasonFixtures(seasonNum) {
 }
 
 // Tüm ülkelerin/liglerin o güne ait maçlarını topla (oynanmış + oynanmamış)
+// 🆕 Maç ekranındaki smoothing dakika ile aynı formül — match_state row'undan canlı dakika hesaplar.
+// SONUÇLAR sayfasında ve diğer canlı maç listelerinde Edge Function sim_minute yerine bunu kullan.
+//   7sn = 1 sim dk, 45'te 100sn devre arası, 46-90 ikinci yarı
+function _computeLiveSimMinute(ms) {
+  if (!ms || !ms.started_at) return ms?.sim_minute || 0;
+  const MS_PER_SIM_MIN = 7 * 1000;
+  const FIRST_HALF_END_MS = 45 * MS_PER_SIM_MIN;
+  const HT_BREAK_MS = 100 * 1000;
+  const HALFTIME_END_MS = FIRST_HALF_END_MS + HT_BREAK_MS;
+  const FULL_MATCH_END_MS = HALFTIME_END_MS + 45 * MS_PER_SIM_MIN;
+  const elapsed = Date.now() - new Date(ms.started_at).getTime();
+  if (elapsed < 0) return 0;
+  if (elapsed < FIRST_HALF_END_MS) {
+    return Math.min(45, Math.floor(elapsed / MS_PER_SIM_MIN) + 1);
+  }
+  if (elapsed < HALFTIME_END_MS) {
+    return 45; // devre arası
+  }
+  if (elapsed < FULL_MATCH_END_MS) {
+    return Math.min(90, 46 + Math.floor((elapsed - HALFTIME_END_MS) / MS_PER_SIM_MIN));
+  }
+  return 90;
+}
+
 function _resGetMatchesForDate(targetDate) {
   if (false || typeof buildLeagueFixture !== 'function') return [];
 
@@ -53711,7 +53737,7 @@ function _resGetMatchesForDate(targetDate) {
       playedAt: cached ? cached.playedAt : null,
       byUser: cached ? cached.byUser : false,
       isLive: isLive,
-      liveMinute: isLive ? live.sim_minute : null,
+      liveMinute: isLive ? _computeLiveSimMinute(live) : null,
       cacheKey
     };
   });
@@ -53869,7 +53895,9 @@ function _resGetMatchesForDate(targetDate) {
         const ms = _liveMatchCache['friendly_' + fm.id];
         if (ms && ms.status === 'running') {
           isLive = true;
-          liveMinute = ms.sim_minute || 0;
+          // 🆕 Edge Function sim_minute yerine started_at'tan smoothing ile hesapla
+          // (Maç ekranındaki dakika sayacı aynı formülü kullanıyor — uyumlu olsun)
+          liveMinute = _computeLiveSimMinute(ms);
           liveHs = ms.home_score ?? 0;
           liveAs = ms.away_score ?? 0;
         }
@@ -54460,6 +54488,27 @@ function renderResultsPage() {
 
   // Listeyi render et
   _resRenderMatches(matches);
+
+  // 🆕 Sayfada CANLI maç varsa otomatik tazele — her saniyede bir dakika güncellensin
+  // Maç ekranı kapalıyken bile SONUÇLAR sayfasındaki canlı maçlar akıcı dakika gösterir
+  if (window._resLiveTimer) {
+    clearInterval(window._resLiveTimer);
+    window._resLiveTimer = null;
+  }
+  const hasLive = matches.some(m => m && m.isLive);
+  if (hasLive) {
+    window._resLiveTimer = setInterval(() => {
+      // SONUÇLAR sayfası kapatılmışsa timer'ı temizle
+      const page = document.querySelector('.page.active');
+      if (!page || page.id !== 'page-results') {
+        clearInterval(window._resLiveTimer);
+        window._resLiveTimer = null;
+        return;
+      }
+      // Tazele
+      try { renderResultsPage(); } catch(e) {}
+    }, 1000);
+  }
 }
 
 
