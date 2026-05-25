@@ -33058,6 +33058,141 @@ function initStats(){
     </div>`).join('');
 }
 
+// 🆕 Match olaylarından (Edge Function events jsonb) istatistik objesi üretir.
+// updateStats() formatına uyumlu: { possession:[h,a], shots:[h,a], ... }
+// Edge Function (tick-matches) event tipleri:
+//   goal, shotOff, save, corner, foul, foulDrawn, yellow, red, injury, offside,
+//   duelLost, interception, keyPass, dribble, bigChanceMissed, throwin, penaltyMissed,
+//   halftime, fulltime, sub, freekick
+function _computeMatchStatsFromEvents(events, currentMinute) {
+  if (!Array.isArray(events)) events = [];
+  const s = {
+    shots: [0, 0],
+    shotsOnTarget: [0, 0],
+    corners: [0, 0],
+    fouls: [0, 0],
+    passes: [0, 0],
+    aerials: [0, 0],
+    tackles: [0, 0],
+    yellowCards: [0, 0],
+    redCards: [0, 0],
+    injuries: [0, 0],
+    offsides: [0, 0]
+  };
+  // Hâkimiyet hesaplama için ham sayaçlar
+  const actions = [0, 0]; // takım başına aksiyon sayısı (top'a ait olma süresi tahmini)
+  
+  for (const ev of events) {
+    if (!ev) continue;
+    const side = ev.team || ev.side;
+    const i = side === 'home' ? 0 : (side === 'away' ? 1 : -1);
+    if (i < 0) continue;
+    const t = ev.type || '';
+    
+    // ── ŞUTLAR ──
+    // Gol = isabetli şut
+    if (t === 'goal') {
+      s.shots[i]++;
+      s.shotsOnTarget[i]++;
+      actions[i]++;
+    }
+    // shotOff = direkt şut ama isabetsiz (auta gitti veya direkten döndü)
+    else if (t === 'shotOff') {
+      s.shots[i]++;
+      actions[i]++;
+    }
+    // save → karşı takım isabetli şut atıp KALECI tarafından kurtarıldı
+    else if (t === 'save') {
+      const j = 1 - i; // şutu atan: i'nin karşıtı
+      s.shots[j]++;
+      s.shotsOnTarget[j]++;
+      actions[j]++;
+    }
+    // Kaçan penaltı = şut (isabetsiz sayılır)
+    else if (t === 'penaltyMissed') {
+      s.shots[i]++;
+      actions[i]++;
+    }
+    // Iptal edilmiş gol (varCancel/offsideGoal) — varsa, şut olarak say
+    else if (t === 'offsideGoal' || t === 'varCancel') {
+      s.shots[i]++;
+      s.shotsOnTarget[i]++;
+      actions[i]++;
+    }
+    // bigChanceMissed = pozisyon (şut sayılmaz aslında ama yakın)
+    else if (t === 'bigChanceMissed') {
+      actions[i]++;
+    }
+    
+    // ── KORNER ──
+    else if (t === 'corner') {
+      s.corners[i]++;
+      actions[i]++;
+    }
+    
+    // ── FAUL ──
+    else if (t === 'foul') {
+      s.fouls[i]++;
+    }
+    
+    // ── KARTLAR ──
+    else if (t === 'yellow') s.yellowCards[i]++;
+    else if (t === 'red') s.redCards[i]++;
+    
+    // ── SAKATLIK ──
+    else if (t === 'injury') s.injuries[i]++;
+    
+    // ── OFSAYT ──
+    else if (t === 'offside') s.offsides[i]++;
+    
+    // ── TOP KAPMA ──
+    else if (t === 'interception') {
+      s.tackles[i]++;
+      actions[i]++;
+    }
+    
+    // ── HÂKİMİYET KATKILARI ──
+    else if (t === 'keyPass' || t === 'dribble' || t === 'throwin' || t === 'freekick' || t === 'foulDrawn') {
+      actions[i]++;
+    }
+    // duelLost → bu takım topu kaybetti; karşı takıma aksiyon
+    else if (t === 'duelLost') {
+      const j = 1 - i;
+      actions[j]++;
+    }
+  }
+  
+  // ── PAS — yaklaşık (motorda explicit pass event'i yok)
+  // Aksiyon × 7 ≈ pas sayısı (her aksiyon ortalama ~7 pas gerektirir)
+  s.passes[0] = actions[0] * 7;
+  s.passes[1] = actions[1] * 7;
+  // Pas isabeti — yaklaşık (her takımın hâkimiyetine göre %78-88 arası)
+  const totalA = actions[0] + actions[1];
+  if (totalA > 0) {
+    const dom0 = actions[0] / totalA;
+    s.passAcc = [
+      Math.round(78 + dom0 * 12),
+      Math.round(78 + (1 - dom0) * 12)
+    ];
+  } else {
+    s.passAcc = [80, 80];
+  }
+  
+  // ── HÂKİMİYET ──
+  const possession = [50, 50];
+  if (totalA > 0) {
+    possession[0] = Math.round(actions[0] / totalA * 100);
+    possession[1] = 100 - possession[0];
+  }
+  s.possession = possession;
+  
+  // ── HAVA TOPU ── (motorda explicit yok, ofsaytın yarısı + korner ile yaklaşık)
+  s.aerials[0] = Math.round(s.corners[0] * 0.6);
+  s.aerials[1] = Math.round(s.corners[1] * 0.6);
+  
+  return s;
+}
+
 function updateStats(stats,frac){
   const units={possession:'%',passAcc:'%'};
   Object.keys(stats).forEach(key=>{
@@ -34177,6 +34312,16 @@ async function startMatch(){
             evList.innerHTML = evHtml;
           }
         } catch(e) {}
+        // 🆕 İstatistikleri events'ten hesapla ve UI'a yansıt
+        try {
+          const events = Array.isArray(liveRow.events) ? liveRow.events : [];
+          const stats = _computeMatchStatsFromEvents(events, liveRow.sim_minute || 0);
+          if (typeof updateStats === 'function') {
+            updateStats(stats, 1);
+          }
+          // MS.script.stats'a da yaz — finalize cache'lemek için
+          if (MS.script) MS.script.stats = stats;
+        } catch(e) { console.warn('[stats] hesaplama hatası:', e); }
         // Bittiyse
         if (liveRow.status === 'finished' || liveRow.sim_minute >= 90) {
           // MS skorları Edge Function'ın son skorlarıyla senkronla (finalize bunları kullanır)
