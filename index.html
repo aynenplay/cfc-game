@@ -54002,7 +54002,7 @@ function _resGetMatchesForDate(targetDate) {
           countryCode: null,
           tierIdx: -1,
           competition: 'tournament',
-          tournamentType: 'enc',
+          tournamentType: 'euro',
           tournament_key: 'enc',
           tournament_phase: tm.tournament_phase,
           season: tm.season,
@@ -54034,7 +54034,7 @@ function _resGetMatchesForDate(targetDate) {
             countryCode: null,
             tierIdx: -1,
             competition: 'tournament',
-            tournamentType: 'enc',
+            tournamentType: 'euro',
             tournament_key: 'enc',
             tournament_phase: ms.tournament_phase,
             season: ms.season,
@@ -54251,6 +54251,9 @@ function _resGetMatchesForDate(targetDate) {
       const homeInfo = _resFindTeamCountry(fm.fromTeam);
       const fmSeason = 0;
       const fmDay = Math.floor(playedAt / 86400000);
+      // 🆕 scheduledTime: maç oynansa bile ORİJİNAL planlanan saati göster
+      // (playedAt = Date.now() olduğu için yanlış saat veriyor)
+      const origScheduled = fm.dateTime ? new Date(fm.dateTime).toTimeString().slice(0,5) : matchDate.toTimeString().slice(0,5);
       merged.push({
         home: fm.fromTeam,
         away: fm.toTeam,
@@ -54265,7 +54268,7 @@ function _resGetMatchesForDate(targetDate) {
         hs: isLive ? liveHs : (fm.hs || 0),
         as: isLive ? liveAs : (fm.as || 0),
         playedAt: playedAt,
-        scheduledTime: matchDate.toTimeString().slice(0,5),
+        scheduledTime: origScheduled,
         cacheKey: `${fmSeason}_${fmDay}_${fm.fromTeam}_${fm.toTeam}`,
         season: fmSeason,
         day: fmDay,
@@ -54508,14 +54511,27 @@ function _resRenderMatches(matches) {
 
   // Filtrele
   const filtered = matches.filter(m => {
+    const mComp = m.competition || 'league';
     // 🆕 Canlı modu — bu aşamada her şey geçsin, _isLive ile sonradan filtrelenecek
     if (_resState.competitionFilter === 'live') return true;
-    if (_resState.competitionFilter !== 'all' && (m.competition || 'league') !== _resState.competitionFilter) return false;
+    // Üst sekme: Lig / Turnuva / Hazırlık
+    if (_resState.competitionFilter !== 'all') {
+      if (mComp !== _resState.competitionFilter) return false;
+    }
+    // Hazırlık sekmesi: alt filtre yok
     if (_resState.competitionFilter === 'friendly') return true;
+    // Turnuva sekmesi: alt filtre (Championship / Elite / Convergence / EURO)
     if (_resState.competitionFilter === 'tournament') {
-      if (_resState.tournamentFilter !== 'all' && m.tournamentType !== _resState.tournamentFilter) return false;
+      if (_resState.tournamentFilter !== 'all') {
+        // tournamentType yoksa leagueName'den infer et — Elite/Champions/Conv/EURO eşleşmesi
+        const t = m.tournamentType || (typeof _resTournamentTypeFromComp === 'function'
+          ? _resTournamentTypeFromComp(m.leagueName)
+          : null);
+        if (t !== _resState.tournamentFilter) return false;
+      }
       return true;
     }
+    // Lig sekmesi: ülke + lig
     if (_resState.countryFilter !== 'all' && m.countryCode !== _resState.countryFilter) return false;
     if (_resState.leagueFilter !== 'all' && m.leagueName !== _resState.leagueFilter) return false;
     return true;
