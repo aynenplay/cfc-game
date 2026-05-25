@@ -26380,44 +26380,39 @@ function getPlayerMainOverall(player) {
     return (gk + df + md + fw) / 4;
   };
 
-  // 🟢 1) BOT veya yapılı abilities olan herhangi bir oyuncu
-  const fromAb = _ovrFromBag(player.abilities);
-  if (fromAb != null) {
-    return Math.max(1, Math.min(99, Math.round(fromAb)));
+  // 🟢 1) BOT veya yapılı abilities olan oyuncu — ama USER DEĞİL
+  if (player.role !== 'user') {
+    const fromAb = _ovrFromBag(player.abilities);
+    if (fromAb != null) {
+      return Math.max(1, Math.min(99, Math.round(fromAb)));
+    }
+    // Bot: abilities yoksa son çare overall/rating
+    const ov = Number(player.overall || player.rating || 10);
+    return Math.max(1, Math.min(99, Math.round(ov)));
   }
 
-  // 🟢 2) KENDİ KULLANICI OYUNCUSU — _skillsCache global'inden hesapla
-  // (Antrenmanla artan skill cache'i {GK:{...},DEF:{...},MID:{...},FWD:{...}})
-  if (player.role === 'user' && typeof window !== 'undefined' && window._skillsCache) {
-    const fromCache = _ovrFromBag(window._skillsCache);
-    if (fromCache != null) {
-      return Math.max(1, Math.min(99, Math.round(fromCache)));
+  // 🟢 USER — UI'daki barlar ile aynı kaynaktan hesapla (getSkillLevels, item bonusları dahil).
+  //   Bu sayede kartın sağ üstündeki OVR ile 4 hat barlarının ortalaması TUTARLI olur.
+  //   Eski path'ler (_skillsCache yapı uyumsuzluğu + stale player.overall fallback)
+  //   migration'ı self-fulfillingly bozuyordu — KALDIRILDI.
+  if (typeof getSkillLevels === 'function' && typeof SKILL_DEFS !== 'undefined' && SKILL_DEFS.ALL) {
+    const lvls = getSkillLevels(player.pos || 'MID');
+    const _catAvg = (catSkills) => {
+      if (!catSkills || !catSkills.length) return null;
+      const sum = catSkills.reduce((a, s) => a + (lvls[s.id] || 10), 0);
+      return sum / catSkills.length;
+    };
+    const gk = _catAvg(SKILL_DEFS.ALL[0] && SKILL_DEFS.ALL[0].skills);
+    const df = _catAvg(SKILL_DEFS.ALL[1] && SKILL_DEFS.ALL[1].skills);
+    const md = _catAvg(SKILL_DEFS.ALL[2] && SKILL_DEFS.ALL[2].skills);
+    const fw = _catAvg(SKILL_DEFS.ALL[3] && SKILL_DEFS.ALL[3].skills);
+    if (gk != null && df != null && md != null && fw != null) {
+      return Math.max(1, Math.min(99, Math.round((gk + df + md + fw) / 4)));
     }
   }
 
-  // 🟢 3) USER — flat skills/levels objesi + SKILL_DEFS.ALL kategorileri
-  if (player.role === 'user' && typeof SKILL_DEFS !== 'undefined' && SKILL_DEFS.ALL) {
-    const lvls = player.skills || player.levels || null;
-    if (lvls && typeof lvls === 'object') {
-      const _catAvg = (catSkills) => {
-        if (!catSkills || !catSkills.length) return null;
-        const sum = catSkills.reduce((a,s) => a + (lvls[s.id] || 10), 0);
-        return sum / catSkills.length;
-      };
-      const gk = _catAvg(SKILL_DEFS.ALL[0] && SKILL_DEFS.ALL[0].skills);
-      const df = _catAvg(SKILL_DEFS.ALL[1] && SKILL_DEFS.ALL[1].skills);
-      const md = _catAvg(SKILL_DEFS.ALL[2] && SKILL_DEFS.ALL[2].skills);
-      const fw = _catAvg(SKILL_DEFS.ALL[3] && SKILL_DEFS.ALL[3].skills);
-      if (gk != null && df != null && md != null && fw != null) {
-        return Math.max(1, Math.min(99, Math.round((gk + df + md + fw) / 4)));
-      }
-    }
-  }
-
-  // 🟢 4) Son çare: diğer gerçek kullanıcılar (skill verisi bizde yok, Supabase'den gelmiş p.overall).
-  // Onlar kendi cihazlarında 4 mevki ortalamasından hesaplayıp Supabase'e yazıyor.
-  const ov = Number(player.overall || player.rating || 10);
-  return Math.max(1, Math.min(99, Math.round(ov)));
+  // User skiller henüz yüklenmemiş — başlangıç değeri 10 (stale overall'a düşme)
+  return 10;
 }
 
 // Maçta kullanılan effective rating: oyuncu hangi mevkide OYNATILIYORSA
