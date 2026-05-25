@@ -31295,17 +31295,27 @@ function calcLineStrengths(team) {
   const POSGRP = (typeof POS_GROUP !== 'undefined') ? POS_GROUP
     : { KL:'GK', STB:'DEF', SB:'DEF', DOS:'MID', OS:'MID', SAK:'MID', FWD:'FWD' };
 
+  // 🆕 Her oyuncunun GERÇEK overall değeri:
+  //   - Kullanıcı (role='user') → Supabase user_player.overall (skill ortalaması)
+  //   - Bot → abilities tablosundan ana mevkinin yetenek ortalaması
+  //   - Gerçek başka kullanıcı → DB overall
+  // p.overall stale olabilir (cache), bu yüzden TEK KAYNAK getPlayerMainOverall.
+  const _getOvr = (p) => {
+    if (typeof getPlayerMainOverall === 'function') return getPlayerMainOverall(p);
+    return p.overall || p.rating || 10;
+  };
+
   let players = [];
   // Kullanıcı takımı → ROSTER_DATA
   if (isUserTeam && typeof ROSTER_DATA !== 'undefined' && ROSTER_DATA && ROSTER_DATA.length) {
     players = ROSTER_DATA.map(p => ({
       grp: p.posGroup || POSGRP[p.pos] || 'MID',
-      ovr: p.overall || p.rating || 70
+      ovr: _getOvr(p)
     }));
   } else if (team && Array.isArray(team.players) && team.players.length) {
     players = team.players.map(p => ({
       grp: p.posGroup || POSGRP[p.pos] || 'MID',
-      ovr: p.overall || p.rating || 70
+      ovr: _getOvr(p)
     }));
   }
 
@@ -38344,6 +38354,11 @@ function showPage(name,btn){
       renderRoster(rosterCurrentFilter||'all');
       // İlk sekme aktif
       teamTab('roster', document.querySelector('.team-tab'));
+      // 🆕 Anında güncellik: Supabase'den taze ROSTER_DATA çek, fark varsa re-render
+      // (Aynı takımdaki başka bir gerçek kullanıcı seviye atladıysa hat barları taze olur)
+      if(typeof _refreshRosterFromServerAndRerender === 'function') {
+        _refreshRosterFromServerAndRerender();
+      }
     }
   }
   if(name==='player') {
@@ -40527,6 +40542,33 @@ function rosterLoadPersist(){
     if(p.teamKey !== expectedKey) return null; // Başka takıma ait
     return p.data;
   }catch(e){ return null; }
+}
+
+// 🆕 Anında güncellik: Takım sayfası açıldığında Supabase'den taze roster çek,
+// ROSTER_DATA'yı güncelle ve UI'yi yeniden render et. Aynı takımdaki başka bir
+// gerçek kullanıcı seviye atlayıp overall'ını artırmışsa burada anında yansır.
+// Sadece kullanıcı takımı için çalışır (bot takımları için anlamsız — abilities sabit).
+let _refreshRosterInFlight = false;
+async function _refreshRosterFromServerAndRerender(){
+  if(_refreshRosterInFlight) return;
+  if(!window.sb || !_userTeam || !_userTeam.countryCode || !_userTeam.teamName) return;
+  if(typeof _viewingTeam !== 'undefined' && _viewingTeam) return; // başka takım ziyaret ediliyorsa atla
+  _refreshRosterInFlight = true;
+  try {
+    await _rosterPersistLoadFromServer();
+    const fresh = rosterLoadPersist();
+    if(!fresh || !Array.isArray(fresh) || !fresh.length) return;
+    // ROSTER_DATA'yı taze veriyle değiştir (referans korunsun, in-place replace)
+    ROSTER_DATA.length = 0;
+    fresh.forEach(p => ROSTER_DATA.push(p));
+    // UI'yi yeniden render et (hat barları, hero stats, kadro listesi)
+    if(typeof applyUserTeamUI === 'function') applyUserTeamUI();
+    if(typeof renderRoster === 'function') renderRoster(typeof rosterCurrentFilter !== 'undefined' ? (rosterCurrentFilter||'all') : 'all');
+  } catch(e) {
+    console.warn('[refresh roster] hata:', e);
+  } finally {
+    _refreshRosterInFlight = false;
+  }
 }
 
 function rosterClearPersist(){
