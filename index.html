@@ -26413,31 +26413,67 @@ function getPlayerPositionAvg(player, posGroup) {
   return player.overall || player.rating || 10;
 }
 
-// Oyuncunun UI'da gösterilen ana overall'ı (sadece seçtiği mevkinin ortalaması).
-// 🆕 Level bonus KALDIRILDI — skill ortalaması = overall (saf, çift sayım yok).
-// Sebep: Level antrenman yapınca artar, antrenman skill'leri de yükseltir.
-// İkisini birden eklemek aynı katkıyı iki kez saymaktı (lvl 9 + skill 10 = 17 yanlıştı).
+// Oyuncunun OVERALL değeri — TEK KURAL:
+//   OVR = (KL_avg + DF_avg + OS_avg + FW_avg) / 4
+// 4 mevki ortalamasının ortalaması. Başka HİÇBİR yerden overall eklenmez
+// (seviye bonusu yok, maç ödülü overall yok). Yetenekler arttıkça OVR otomatik artar.
 function getPlayerMainOverall(player) {
   if (!player) return 10;
 
-  // 🆕 Kullanıcı: Supabase user_player.overall tek doğruluk kaynağı
-  // (Önceki sürüm SKILL_DEFS'ten hesaplıyordu — yanlış)
-  if (player.role === 'user') {
-    const ov = Number(player.overall || player.rating || 10);
-    return Math.max(1, Math.min(99, Math.round(ov)));
+  // Yetenek ortalama helper'ı (alt obje → ortalama)
+  const _avg = (sub) => {
+    if (!sub || typeof sub !== 'object') return null;
+    const vals = Object.values(sub).filter(v => typeof v === 'number');
+    if (!vals.length) return null;
+    return vals.reduce((a,b) => a+b, 0) / vals.length;
+  };
+
+  // Bir abilities/skills bag'i (yapılı {GK,DEF,MID,FWD}) için OVR
+  const _ovrFromBag = (bag) => {
+    if (!bag || typeof bag !== 'object' || !bag.GK || !bag.DEF || !bag.MID || !bag.FWD) return null;
+    const gk = _avg(bag.GK); const df = _avg(bag.DEF); const md = _avg(bag.MID); const fw = _avg(bag.FWD);
+    if (gk == null || df == null || md == null || fw == null) return null;
+    return (gk + df + md + fw) / 4;
+  };
+
+  // 🟢 1) BOT veya yapılı abilities olan herhangi bir oyuncu
+  const fromAb = _ovrFromBag(player.abilities);
+  if (fromAb != null) {
+    return Math.max(1, Math.min(99, Math.round(fromAb)));
   }
 
-  // 🆕 Gerçek kullanıcı (bot değil, kendisi değil) → DB'den gelen overall'u kullan
-  // (abilities tablosu yok, ama overall sayısı doğru)
-  if (player.isBot === false && player.role !== 'user') {
-    const ov = Number(player.overall || player.rating || 10);
-    return Math.max(1, Math.min(99, Math.round(ov)));
+  // 🟢 2) KENDİ KULLANICI OYUNCUSU — _skillsCache global'inden hesapla
+  // (Antrenmanla artan skill cache'i {GK:{...},DEF:{...},MID:{...},FWD:{...}})
+  if (player.role === 'user' && typeof window !== 'undefined' && window._skillsCache) {
+    const fromCache = _ovrFromBag(window._skillsCache);
+    if (fromCache != null) {
+      return Math.max(1, Math.min(99, Math.round(fromCache)));
+    }
   }
 
-  // Bot: abilities tablosundan ana mevkinin ortalaması (gerçek güç değeri)
-  const posGroup = (typeof POS_GROUP !== 'undefined' && POS_GROUP[player.pos]) || player.posGroup || 'MID';
-  const base = getPlayerPositionAvg(player, posGroup);
-  return Math.max(1, Math.min(99, Math.round(base)));
+  // 🟢 3) USER — flat skills/levels objesi + SKILL_DEFS.ALL kategorileri
+  if (player.role === 'user' && typeof SKILL_DEFS !== 'undefined' && SKILL_DEFS.ALL) {
+    const lvls = player.skills || player.levels || null;
+    if (lvls && typeof lvls === 'object') {
+      const _catAvg = (catSkills) => {
+        if (!catSkills || !catSkills.length) return null;
+        const sum = catSkills.reduce((a,s) => a + (lvls[s.id] || 10), 0);
+        return sum / catSkills.length;
+      };
+      const gk = _catAvg(SKILL_DEFS.ALL[0] && SKILL_DEFS.ALL[0].skills);
+      const df = _catAvg(SKILL_DEFS.ALL[1] && SKILL_DEFS.ALL[1].skills);
+      const md = _catAvg(SKILL_DEFS.ALL[2] && SKILL_DEFS.ALL[2].skills);
+      const fw = _catAvg(SKILL_DEFS.ALL[3] && SKILL_DEFS.ALL[3].skills);
+      if (gk != null && df != null && md != null && fw != null) {
+        return Math.max(1, Math.min(99, Math.round((gk + df + md + fw) / 4)));
+      }
+    }
+  }
+
+  // 🟢 4) Son çare: diğer gerçek kullanıcılar (skill verisi bizde yok, Supabase'den gelmiş p.overall).
+  // Onlar kendi cihazlarında 4 mevki ortalamasından hesaplayıp Supabase'e yazıyor.
+  const ov = Number(player.overall || player.rating || 10);
+  return Math.max(1, Math.min(99, Math.round(ov)));
 }
 
 // Maçta kullanılan effective rating: oyuncu hangi mevkide OYNATILIYORSA
@@ -40111,6 +40147,9 @@ function doLogin(){
         hideAuthScreen();
         if(typeof syncUserToRoster === 'function') syncUserToRoster();
         if(typeof rosterRestoreUserProgress === 'function') rosterRestoreUserProgress();
+        // 🆕 OVR migration: tüm oyuncuların overall'ını yetenek ortalamasından yeniden hesapla
+        // (Kural: OVR = (KL_avg + DF_avg + OS_avg + FW_avg) / 4. Eski/stale değerleri düzeltir.)
+        if(typeof recalcAllPlayerOveralls === 'function') recalcAllPlayerOveralls();
         updateTopbarFromUser();
         if(typeof trsSyncHeader === 'function') trsSyncHeader();
         if(typeof syncEnergyDisplay === 'function') syncEnergyDisplay();
@@ -40482,6 +40521,9 @@ async function _rosterRefreshFromServer(countryCode) {
     console.info('[rosterRefresh]', _userTeam.teamName, '→', ROSTER_DATA.length, 'oyuncu (',
       ROSTER_DATA.filter(p => !p.isBot).length, 'gerçek)');
 
+    // 🆕 OVR migration: tüm oyuncuların overall'ını yetenek ortalamasından yeniden hesapla
+    if (typeof recalcAllPlayerOveralls === 'function') recalcAllPlayerOveralls();
+
     if (typeof renderRoster === 'function') renderRoster('all');
     if (typeof updateHero === 'function') updateHero();
   } catch(e) { console.error('[rosterRefresh] exception:', e); }
@@ -40613,6 +40655,36 @@ async function _rosterPersistLoadFromServer() {
     _rosterPersistCache = (data && data.data) ? data.data : null;
   } catch(e) { console.warn('[roster_persist] load hata:', e); _rosterPersistCache = null; }
 }
+
+// 🆕 OVR migration: ROSTER_DATA'daki tüm oyuncuların overall'ını
+// yetenek ortalamasından YENİDEN hesapla. Kural: (KL+DF+OS+FW)/4.
+// Bot için abilities tablosundan, kullanıcı için skill levels'tan.
+// Persist olarak Supabase'e de yazılır (rosterSavePersist debounced).
+function recalcAllPlayerOveralls() {
+  if (typeof ROSTER_DATA === 'undefined' || !Array.isArray(ROSTER_DATA) || !ROSTER_DATA.length) return 0;
+  if (typeof getPlayerMainOverall !== 'function') return 0;
+  let changed = 0;
+  for (const p of ROSTER_DATA) {
+    if (!p) continue;
+    const oldOvr = p.overall || 0;
+    const newOvr = getPlayerMainOverall(p);
+    if (newOvr !== oldOvr) {
+      p.overall = newOvr;
+      // p.rating de stale ise senkronla (eski kod bazı yerlerde rating okuyor)
+      p.rating = newOvr;
+      changed++;
+    }
+  }
+  if (changed > 0) {
+    console.info('[OVR migration]', changed, 'oyuncunun overall değeri yetenek ortalamasından yeniden hesaplandı.');
+    // Supabase'e debounce'lı kaydet (rosterSavePersist 500ms timer ile yazıyor)
+    if (typeof rosterSavePersist === 'function') {
+      try { rosterSavePersist(); } catch(e) {}
+    }
+  }
+  return changed;
+}
+window.recalcAllPlayerOveralls = recalcAllPlayerOveralls;
 
 function rosterSavePersist(){
   try{
@@ -42529,10 +42601,16 @@ function rosterAwardXp(playerNum, xpAmount) {
   while(p.xp >= rosterXpForLevel(p.level)) {
     p.xp -= rosterXpForLevel(p.level);
     p.level++;
-    // Her seviye overall +1 (10 → 99 cap)
-    if(p.overall < 99) p.overall = Math.min(99, p.overall + 1);
+    // 🆕 KURAL: overall buradan +1 artırılmaz. OVR yalnızca yetenek ortalamasından
+    // hesaplanır (getPlayerMainOverall). Seviye atlamada yetenekler ayrı artıyor
+    // (rosterUserApplyLevelUp vs.), o yüzden bu döngünün sadece görevi level/xp tutmak.
     // Güvenlik: aşırı XP enjeksiyonu durumunda sonsuz döngü engeli
     if(p.level > 9999) break;
+  }
+  // 🆕 Skill'ler değişmiş olabilir (seviye atlamada) → overall'ı YENİDEN HESAPLA
+  // (getPlayerMainOverall 4 mevki ortalamasının ortalamasını döndürür)
+  if (typeof getPlayerMainOverall === 'function') {
+    p.overall = getPlayerMainOverall(p);
   }
   // Kullanıcının kendi roster'ını localStorage'a kaydet (kalıcılık)
   rosterPersistUserProgress();
