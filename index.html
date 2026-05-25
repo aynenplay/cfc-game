@@ -2661,21 +2661,21 @@ select.form-input option{background:var(--bg)}
 
 /* 🆕 İSTATİSTİKLER paneli — kadro modal modeliyle uyumlu */
 #match-result-overlay .mre-stats{
-  display:flex;flex-direction:column;gap:4px;
+  display:flex;flex-direction:column;gap:3px;
 }
 #match-result-overlay .mre-stat-card{
   background:rgba(126,180,255,.05);
   border:1px solid rgba(126,180,255,.12);
-  border-radius:7px;
-  padding:5px 8px;
+  border-radius:6px;
+  padding:3px 6px;
 }
 #match-result-overlay .mre-stat-top{
   display:grid;grid-template-columns:1fr 1.6fr 1fr;
-  align-items:center;gap:6px;margin-bottom:3px;
+  align-items:center;gap:4px;margin-bottom:2px;
 }
 #match-result-overlay .mre-stat-val{
   font-family:'Barlow Condensed',sans-serif;
-  font-weight:900;font-size:13px;color:var(--text);
+  font-weight:900;font-size:11px;color:var(--text);
 }
 #match-result-overlay .mre-stat-val.h{text-align:right;}
 #match-result-overlay .mre-stat-val.a{text-align:left;}
@@ -2684,12 +2684,12 @@ select.form-input option{background:var(--bg)}
 }
 #match-result-overlay .mre-stat-lbl{
   font-family:'Barlow Condensed',sans-serif;
-  font-size:9.5px;font-weight:700;
+  font-size:8.5px;font-weight:700;
   color:rgba(180,200,240,.75);
-  text-align:center;letter-spacing:.5px;text-transform:uppercase;
+  text-align:center;letter-spacing:.3px;text-transform:uppercase;
 }
 #match-result-overlay .mre-stat-bar{
-  display:flex;height:3px;border-radius:2px;
+  display:flex;height:2px;border-radius:2px;
   background:rgba(20,28,48,.6);overflow:hidden;
 }
 #match-result-overlay .mre-stat-bar-h{
@@ -2703,11 +2703,11 @@ select.form-input option{background:var(--bg)}
 @media (max-width:600px){
   #match-result-overlay .mre-tab{font-size:11px;padding:8px 6px;}
   #match-result-overlay .mre-tab-content{min-height:460px;}
-  #match-result-overlay .mre-stat-val{font-size:12px;}
-  #match-result-overlay .mre-stat-lbl{font-size:9px;letter-spacing:.3px;}
-  #match-result-overlay .mre-stat-card{padding:4px 6px;border-radius:6px;}
-  #match-result-overlay .mre-stat-top{gap:4px;margin-bottom:2px;}
-  #match-result-overlay .mre-stats{gap:3px;}
+  #match-result-overlay .mre-stat-val{font-size:10px;}
+  #match-result-overlay .mre-stat-lbl{font-size:8px;letter-spacing:.2px;}
+  #match-result-overlay .mre-stat-card{padding:3px 4px;border-radius:5px;}
+  #match-result-overlay .mre-stat-top{gap:3px;margin-bottom:1px;}
+  #match-result-overlay .mre-stats{gap:2px;}
   #match-result-overlay .mre-stat-bar{height:2px;}
 }
 #match-result-overlay .ratings-list{gap:5px}
@@ -32262,10 +32262,16 @@ function openMatchScreenV2(opts) {
   document.getElementById('awayNameSb').textContent = curAway.name;
   document.getElementById('scoreH').textContent = '0';
   document.getElementById('scoreA').textContent = '0';
-  document.getElementById('homeCrest').textContent = curHome.short;
-  document.getElementById('awayCrest').textContent = curAway.short;
-  document.getElementById('homeCrest').className = 'team-crest ' + (hClass || 'c1');
-  document.getElementById('awayCrest').className = 'team-crest ' + (aClass || 'c2');
+  // 🆕 Logo varsa storage'den çek, yoksa renkli short text fallback
+  if (typeof applyCrestToEl === 'function') {
+    applyCrestToEl(document.getElementById('homeCrest'), curHome.name, curHome.short);
+    applyCrestToEl(document.getElementById('awayCrest'), curAway.name, curAway.short);
+  } else {
+    document.getElementById('homeCrest').textContent = curHome.short;
+    document.getElementById('awayCrest').textContent = curAway.short;
+    document.getElementById('homeCrest').className = 'team-crest ' + (hClass || 'c1');
+    document.getElementById('awayCrest').className = 'team-crest ' + (aClass || 'c2');
+  }
   // Lig adının başında "Ülke - " prefix'i varsa temizle (örn: "Türkiye - Türkiye 5. Lig" → "Türkiye 5. Lig")
   document.getElementById('msLeagueRow').textContent = league.replace(/^[^-·]+?\s*-\s*/, '');
   document.getElementById('msTitleText').textContent = `${curHome.name} - ${curAway.name}`;
@@ -34236,12 +34242,10 @@ function triggerGoalFlash() {
 
 function addEvent(ev){
   // 🆕 Arka plan event'leri (rating motoru için) — UI'da gösterme
-  // 🆕 sub/substitution: üst ticker'da gösteriliyor, evList'te gizle (kullanıcı isteği)
   const HIDDEN_EVENT_TYPES = new Set([
     'tackle', 'interception', 'block', 'clearance',
     'duelWon', 'duelLost', 'dribble',
-    'keyPass', 'bigChanceMissed', 'foulDrawn',
-    'sub', 'substitution'
+    'keyPass', 'bigChanceMissed', 'foulDrawn'
   ]);
   if (ev && HIDDEN_EVENT_TYPES.has(ev.type)) return;
 
@@ -34740,11 +34744,21 @@ async function startMatch(){
         try {
           const evList = document.getElementById('evList');
           const allEvents = Array.isArray(liveRow.events) ? liveRow.events : [];
-          // 🆕 Sadece frontend'in GÖSTERDİĞİ dakikaya kadar olan olayları göster
-          const visibleMin = (MS._displayMin && MS._displayMin > 0)
-            ? MS._displayMin
-            : (liveRow.sim_minute || 0);
+          // 🆕 Frontend'in görmesine izin verilen dakika — smoothing ve server'ın
+          //   büyüğü. Smoothing henüz başlamamışsa (MS._displayMin undefined) server
+          //   kazansın. Server geride kalmışsa (poll gecikmesi) smoothing kazansın.
+          //   İlk dakikalarda events kayıp olmasın diye Math.max ile birleşir.
+          const smoothMin = (MS._displayMin && MS._displayMin > 0) ? MS._displayMin : 0;
+          const serverMin = liveRow.sim_minute || 0;
+          const visibleMin = Math.max(smoothMin, serverMin);
           const events = allEvents.filter(e => ((e.min !== undefined ? e.min : e.minute) || 0) <= visibleMin);
+          // 🔍 DEBUG: ilk poll'da bir kez logla (events görünmüyorsa F12'den teşhis)
+          if (!MS._evDebugLogged && allEvents.length > 0) {
+            MS._evDebugLogged = true;
+            console.log('[ev DEBUG] sim_minute=' + serverMin + ' smoothMin=' + smoothMin +
+                        ' visibleMin=' + visibleMin + ' totalEvents=' + allEvents.length +
+                        ' afterFilter=' + events.length + ' evListFound=' + !!evList);
+          }
 
           if (evList) {
             // Olay key'i: min + type + team + player (unique tanımlayıcı)
