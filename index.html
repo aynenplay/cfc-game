@@ -1365,6 +1365,19 @@ select.form-input option{background:var(--bg)}
   opacity:0;
   animation-fill-mode:forwards;
 }
+.ko-team{display:flex;align-items:center;gap:8px;max-width:170px}
+.ko-team-home{flex-direction:row}
+.ko-team-away{flex-direction:row}
+.ko-team-logo{
+  width:48px;height:48px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,#1976d2 0%,#0d47a1 100%);
+  color:#fff;font-size:14px;font-weight:900;
+  border:2px solid rgba(255,255,255,.25);
+  box-shadow:0 4px 12px rgba(0,0,0,.5);
+  flex-shrink:0;overflow:hidden;
+}
+.ko-team-logo.crest-has-logo{width:48px;height:48px;min-width:48px}
 .ko-vs-pill{
   background:rgba(0,230,118,.15);
   border:1px solid var(--accent);
@@ -1374,8 +1387,8 @@ select.form-input option{background:var(--bg)}
   font-size:14px;
   letter-spacing:1.5px;
 }
-.ko-versus span{max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ko-versus span:first-child{text-align:right}
+.ko-versus #koHome,.ko-versus #koAway{max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ko-team-away #koAway{text-align:right}
 
 /* Kapanış animasyonu */
 #kickoff-overlay.fade-out{
@@ -21804,9 +21817,15 @@ body.drawer-open{overflow:hidden}
       <div class="ko-ball">⚽</div>
     </div>
     <div class="ko-versus">
-      <span id="koHome">Ev Sahibi</span>
+      <div class="ko-team ko-team-home">
+        <div class="ko-team-logo" id="koHomeLogo"></div>
+        <span id="koHome">Ev Sahibi</span>
+      </div>
       <span class="ko-vs-pill">VS</span>
-      <span id="koAway">Deplasman</span>
+      <div class="ko-team ko-team-away">
+        <span id="koAway">Deplasman</span>
+        <div class="ko-team-logo" id="koAwayLogo"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -31951,9 +31970,18 @@ function fillPreMatchPreview(home, away, league, venue, kickoff) {
   if (dateEl) dateEl.textContent = fmtMatchDate(kickoff);
   if (timeEl) timeEl.textContent = fmtMatchTime(kickoff);
 
-  // Takım blokları
-  document.getElementById('mpHomeCrest').textContent = home.short || home.name.substring(0,3).toUpperCase();
-  document.getElementById('mpAwayCrest').textContent = away.short || away.name.substring(0,3).toUpperCase();
+  // Takım blokları - logo varsa storage'dan, yoksa short text fallback
+  const _mpHomeCrest = document.getElementById('mpHomeCrest');
+  const _mpAwayCrest = document.getElementById('mpAwayCrest');
+  const _hShort = home.short || home.name.substring(0,3).toUpperCase();
+  const _aShort = away.short || away.name.substring(0,3).toUpperCase();
+  if (typeof applyCrestToEl === 'function') {
+    applyCrestToEl(_mpHomeCrest, home.name, _hShort);
+    applyCrestToEl(_mpAwayCrest, away.name, _aShort);
+  } else {
+    _mpHomeCrest.textContent = _hShort;
+    _mpAwayCrest.textContent = _aShort;
+  }
   document.getElementById('mpHomeName').textContent = home.name;
   document.getElementById('mpAwayName').textContent = away.name;
 
@@ -32212,6 +32240,13 @@ function showKickoffAnimation(homeName, awayName, callback) {
 
   document.getElementById('koHome').textContent = homeName;
   document.getElementById('koAway').textContent = awayName;
+  // 🆕 Takım logoları storage'den
+  if (typeof applyCrestToEl === 'function') {
+    const _hLogo = document.getElementById('koHomeLogo');
+    const _aLogo = document.getElementById('koAwayLogo');
+    if (_hLogo) applyCrestToEl(_hLogo, homeName, (homeName || '').slice(0,3).toUpperCase());
+    if (_aLogo) applyCrestToEl(_aLogo, awayName, (awayName || '').slice(0,3).toUpperCase());
+  }
 
   ov.classList.remove('fade-out');
   ov.classList.add('active');
@@ -32435,10 +32470,14 @@ function setMatchStrategy(group, value) {
 
   // Maç içi event ekle (canlı feedback)
   if (MS.running) {
+    // 🆕 Dakika: smooth timer veya server sim_minute, 1'e zorla DÜŞME
+    const _tacticMin = (MS._displayMin && MS._displayMin > 0) ? Math.floor(MS._displayMin)
+                     : (MS.minute && MS.minute > 0) ? Math.floor(MS.minute)
+                     : 0;
     addEvent({
       type: 'tactic',
-      team: isUserHome ? 'home' : 'away',
-      min: Math.floor(MS.minute || 1),
+      team: 'neutral',  // 🆕 Taktik kullanıcı eylemi — orta gösterilsin (sağ-sol yok)
+      min: _tacticMin,
       text: `${STRAT_GROUP_NAMES[group]} → ${value}`
     });
 
@@ -34441,7 +34480,10 @@ function addEvent(ev){
   }
 
   const el = document.createElement('div');
-  el.className = 'ev-item ' + cls;
+  // 🆕 Side class — home → sol, away → sağ, neutral → orta tam genişlik
+  const _addSideCls = ev.team === 'home' ? 'ev-home' :
+                      ev.team === 'away' ? 'ev-away' : 'ev-neutral';
+  el.className = 'ev-item ' + cls + ' ' + _addSideCls;
   el.innerHTML = `
     <div class="ev-min">${min}'</div>
     <div class="ev-ico">${icon}</div>
@@ -34699,6 +34741,17 @@ async function startMatch(){
         if (liveRow.started_at && !MS._matchStartedAt) {
           MS._matchStartedAt = new Date(liveRow.started_at).getTime();
         }
+        // 🆕 Crest logoları: henüz uygulanmamışsa storage'den çek
+        if (typeof applyCrestToEl === 'function') {
+          const _hcEl = document.getElementById('homeCrest');
+          const _acEl = document.getElementById('awayCrest');
+          if (_hcEl && !_hcEl.classList.contains('crest-has-logo') && curHome && curHome.name) {
+            applyCrestToEl(_hcEl, curHome.name, curHome.short || curHome.name.slice(0,3).toUpperCase());
+          }
+          if (_acEl && !_acEl.classList.contains('crest-has-logo') && curAway && curAway.name) {
+            applyCrestToEl(_acEl, curAway.name, curAway.short || curAway.name.slice(0,3).toUpperCase());
+          }
+        }
         // 🆕 Skor — events'ten görünür dakikaya kadar hesapla (Edge Function ileri simüle ediyor olabilir)
         const sh = document.getElementById('scoreH');
         const sa = document.getElementById('scoreA');
@@ -34800,13 +34853,20 @@ async function startMatch(){
               else if (rawType === 'keypass') { cls = 'ev-build'; ico = '🪄'; title = 'Anahtar Pas'; }
               else if (rawType === 'dribble') { cls = 'ev-build'; ico = '⚡'; title = 'Çalım'; }
               else if (rawType === 'duellost') { cls = 'ev-build'; ico = '💢'; title = 'Mücadele Kaybı'; }
+              else if (rawType === 'duelwon') { cls = 'ev-build'; ico = '💪'; title = 'Mücadele Kazandı'; }
+              else if (rawType === 'block') { cls = 'ev-build'; ico = '🚧'; title = 'Blok'; }
+              else if (rawType === 'clearance') { cls = 'ev-build'; ico = '🦵'; title = 'Uzaklaştırma'; }
               else if (rawType === 'bigchancemissed') { cls = 'ev-shot-off'; ico = '😱'; title = 'Pozisyon Kaçtı'; }
               else if (rawType === 'break') { cls = 'ev-build'; ico = '💨'; title = 'Hızlı Atak'; }
               else if (rawType === 'special') { cls = 'ev-build'; ico = '⭐'; title = 'Özel An'; }
+              else if (rawType === 'tactic' || rawType === 'tactics' || rawType === 'strategy' || rawType === 'strategychange') { cls = 'ev-build'; ico = '📋'; title = 'Taktik Değişti'; }
+              else if (rawType === 'formation' || rawType === 'formationchange') { cls = 'ev-build'; ico = '📐'; title = 'Diziliş Değişti'; }
+              else if (rawType === 'kickoff') { cls = 'ev-build'; ico = '🏁'; title = 'Başlangıç'; }
+              else if (rawType === 'var') { cls = 'ev-build'; ico = '📺'; title = 'VAR'; }
               else if (rawType === 'error') { return ''; } // hata event'ini gizle
               else if (rawType === 'half' || rawType === 'halftime') { cls = 'ev-half'; ico = '⏸️'; title = 'DEVRE ARASI'; }
               else if (rawType === 'fulltime' || rawType === 'end') { cls = 'ev-fulltime'; ico = '⏱️'; title = 'MAÇ SONU'; }
-              else { title = rawType || 'Olay'; }
+              else { cls = 'ev-build'; ico = '•'; title = (rawType || 'olay').replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase()); }
               let sideCls = 'ev-neutral';
               if (side === 'home') sideCls = 'ev-home';
               else if (side === 'away') sideCls = 'ev-away';
@@ -39142,7 +39202,7 @@ function authInit(){
           if (typeof syncEnergyDisplay === 'function') syncEnergyDisplay();
           // 🆕 Antrenman + oyuncu sayfaları cache dolduktan sonra zorla yenile
           if (typeof trRender === 'function') { try { trRender(); } catch(e){} }
-          if (typeof renderPlayer === 'function') { try { renderPlayer(); } catch(e){} }
+          if (typeof renderPlayerPage === 'function') { try { renderPlayerPage(); } catch(e){} }
           // 🆕 Fikstür cache'i sıfırla ve ana sayfa maç önizleme paneli güncelle
           if (typeof invalidateFixtureCache === 'function') invalidateFixtureCache();
           if (typeof renderHomeNextMatch === 'function') { try { renderHomeNextMatch(); } catch(e){} }
@@ -39553,7 +39613,7 @@ function doLogin(){
         if(typeof updateHero === 'function') updateHero();
         // 🆕 Antrenman + oyuncu sayfaları yetenek verisini cache'ten alsın
         if(typeof trRender === 'function') { try { trRender(); } catch(e){} }
-        if(typeof renderPlayer === 'function') { try { renderPlayer(); } catch(e){} }
+        if(typeof renderPlayerPage === 'function') { try { renderPlayerPage(); } catch(e){} }
         // 🆕 Inbox badge'i güncelle (login sonrası okunmamış mesaj göstergesi)
         if(typeof inboxUpdateBadge === 'function') { try { inboxUpdateBadge(); } catch(e){} }
         // 🆕 Fikstür cache + ana sayfa maç önizleme
