@@ -36747,16 +36747,20 @@ let SEASON_EPOCH = new Date(2026, 4, 23); // 23 Mayıs 2026 (sezon 1 başlangıc
 const SEASON_LEN = 40;  // 30 lig (gün 1-15 + 19-33) + 3 ara transfer (16-18) + 7 sezon-sonu/EURO (34-40)
 
 // 🆕 Oyun başlangıç tarihi getter/setter.
-// İlk başlatma: 16.05.2026. Admin sonradan değiştirebilir.
+// İlk başlatma: 23.05.2026 (Sezon 1 Gün 1). Admin sonradan değiştirebilir.
 function getGameStartDate() {
   try {
     const state = loadWorldState();
     if (state.gameStartDate) {
       const d = new Date(state.gameStartDate);
-      if (!isNaN(d.getTime())) return d;
+      if (!isNaN(d.getTime())) {
+        // 🆕 Local midnight'a hizala — UTC ISO string'in timezone ofsetini saf gün olarak indirgemek için.
+        //   Aksi takdirde UTC 00:00 Türkiye 03:00 → 45 saat farkı → diffDays 1 yerine 2 olur.
+        return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      }
     }
   } catch(e) {}
-  return new Date(2026, 5, 1); // default 01 Haziran 2026
+  return new Date(2026, 4, 23); // default 23 Mayıs 2026
 }
 
 function setGameStartDate(date) {
@@ -36827,15 +36831,17 @@ function resetGameWorld(startDate) {
 
     // Yeni boş WorldState
     const state = _emptyWorldState();
-    // 🆕 DEFAULT TARİH: 01.06.2026 (Haziran ayı = month index 5)
-    const d = (startDate instanceof Date && !isNaN(startDate.getTime()))
-      ? startDate
-      : new Date(2026, 5, 1);
+    // 🆕 startDate ZORUNLU — caller bir tarih vermek zorunda.
+    //   Hardcoded fallback yok (eski 01.06.2026 / 16.05.2026 çöpü temizlendi).
+    if (!(startDate instanceof Date) || isNaN(startDate.getTime())) {
+      console.warn('[resetGameWorld] startDate eksik veya geçersiz — reset iptal edildi.');
+      return false;
+    }
+    const d = startDate;
     state.gameStartDate = d.toISOString();
     saveWorldState(state);
 
     // Runtime SEASON_EPOCH override
-    // Not: SEASON_EPOCH yukarıda declare ediliyor, artık TDZ riski yok.
     try { SEASON_EPOCH = new Date(d); } catch(e) {}
 
     // Sezon 0 final standings seed (teams DB popülasyon sıralaması)
@@ -36870,32 +36876,8 @@ function resetGameWorld(startDate) {
   }
 }
 
-// 🆕 Otomatik reset: bu sürümde ilk açılışta tetiklenir.
-// _CURRENT_RESET_VERSION yenilendikçe (kod güncellemeleri için) bir kez sıfırlama yapılır.
-const _CURRENT_RESET_VERSION = 'v10-2026-05-16-clear-rosters';  // Bu değer değiştiğinde otomatik reset olur
-function _autoResetIfNeeded() {
-  try {
-    const lastVersion = localStorage.getItem('cft_reset_version');
-    if (lastVersion === _CURRENT_RESET_VERSION) return; // zaten resetlenmiş
-    resetGameWorld(new Date(2026, 4, 16));  // 16.05.2026 = Sezon 1, Gün 1
-
-    // 🆕 Tüm bot roster cache'lerini sil — eski abilities/overall yüksek olabilir
-    try {
-      const toRemove = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith('cft_r3_')) toRemove.push(k);
-      }
-      toRemove.forEach(k => localStorage.removeItem(k));
-    } catch(e) {}
-
-    localStorage.setItem('cft_reset_version', _CURRENT_RESET_VERSION);
-  } catch(e) { console.warn('[AutoReset] Hata:', e); }
-}
-
-// WorldState'ten SEASON_EPOCH override — kullanıcı setGameStartDate ile değiştirdiyse
-// veya _autoResetIfNeeded sonrası state'ten gerçek tarihi okur.
-// Bu kod _autoResetIfNeeded'den sonra çağrılırsa override her durumda doğru olur.
+// 🆕 WorldState'ten SEASON_EPOCH override — gameStartDate'i kullanıcı setGameStartDate ile
+//   değiştirdiyse veya world_state tablosundaki değer farklıysa.
 try {
   const _wsDate = getGameStartDate();
   if (_wsDate instanceof Date && !isNaN(_wsDate.getTime())) {
@@ -38332,10 +38314,7 @@ function applyCrestToEl(el, name, shortTxt) {
   }
 }
 
-// 🆕 FAZ 5: Sayfa yüklendiğinde önce auto-reset kontrolü, sonra WorldState'i teams DB'ye uygula
-// (Bu online multi-server bir oyun — state bir kez başladığında admin müdahalesi
-// olmadan sonsuza dek devam eder. localStorage şu an mock, ileride backend API olur.)
-try { if (typeof _autoResetIfNeeded === 'function') _autoResetIfNeeded(); } catch(e) { console.warn('[AutoReset] at init hatası:', e); }
+// 🆕 Sayfa yüklendiğinde WorldState'i teams DB'ye uygula
 try { if (typeof applyWorldStateToCFTDB === 'function') applyWorldStateToCFTDB(); } catch(e) { console.warn('[WorldState] Apply at init hatası:', e); }
 
 // ──────── Lig adından ülke bayrağı bulma ────────
@@ -70909,7 +70888,7 @@ function _evIsBeforeFirstWeekComplete() {
   try {
     const gameStart = (typeof getGameStartDate === 'function')
       ? getGameStartDate()
-      : new Date(2026, 5, 1);
+      : new Date(2026, 4, 23);
     const now = new Date();
     const diffDays = (now - gameStart) / 86400000;
     return diffDays < 7;
