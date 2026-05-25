@@ -34460,11 +34460,27 @@ async function startMatch(){
       // (Maç bitince Edge Function action=tick_match çağrılırsa "skipped" döner, zararsız)
       if (MS.match_key && !MS.finished && typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_KEY !== 'undefined') {
         try {
-          // fire-and-forget — await etme, sonraki tick'i bekletmesin
+          // 🔍 DEBUG: hataları console'a yaz (sessiz failure → tick atmadan yağıyordu)
           fetch(`${SUPABASE_URL}/functions/v1/tick-matches?action=tick_match&match_key=${encodeURIComponent(MS.match_key)}`, {
             headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY }
-          }).catch(() => {});
-        } catch(e) {}
+          }).then(async r => {
+            if (!r.ok) {
+              const txt = await r.text().catch(() => '');
+              console.warn(`[tick_match] HTTP ${r.status}: ${txt.slice(0, 200)}`);
+            } else {
+              // İlk başarılı çağrıda bir kez log (her saniye spam olmasın)
+              if (!window._tickMatchLoggedOk) {
+                window._tickMatchLoggedOk = true;
+                const data = await r.json().catch(() => null);
+                console.log('[tick_match] OK', data);
+              }
+            }
+          }).catch(err => {
+            console.warn('[tick_match] NETWORK HATA:', err && err.message);
+          });
+        } catch(e) {
+          console.warn('[tick_match] CATCH:', e && e.message);
+        }
       }
       // match_state'i tazele
       if (typeof _liveMatchLoadFromServer === 'function') {
