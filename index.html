@@ -54003,8 +54003,16 @@ function _resGetMatchesForDate(targetDate) {
     const isFriendly = ms.tournament_key === 'friendly';
     const leagueName = isFriendly ? 'Hazırlık Maçı'
                      : (ms.league_name || ms.tournament_key || 'Maç');
-    const leagueFlag = isFriendly ? '🤝'
-                     : (ms.tournament_key ? '🏆' : (ms.countryCode ? '' : ''));
+    // 🆕 leagueFlag: önce ms.leagueFlag (mapping'te _cftDb'den alındı), yoksa ülke bayrağı
+    let leagueFlag = '';
+    if (isFriendly) leagueFlag = '🤝';
+    else if (ms.tournament_key) leagueFlag = '🏆';
+    else if (ms.leagueFlag) leagueFlag = ms.leagueFlag;
+    else if (ms.countryCode && typeof _cftGetCountry === 'function') {
+      const c = _cftGetCountry(ms.countryCode);
+      if (c && c.flag) leagueFlag = c.flag;
+    }
+    if (!leagueFlag) leagueFlag = '🏳️';
 
     out.push({
       home: ms.home,
@@ -54075,27 +54083,41 @@ function _resBuildFilters(allMatches) {
   // 🆕 Lig listesi: seçili ülkenin teams DB tier'larından (tüm klasmanlar)
   // "Tüm Ülkeler" seçiliyse → o günün maçlarında geçen ligler (yine de boş kalmaması için fallback)
   _resLeagueItems = [{ value: 'all', label: 'Tüm Ligler', flag: '⚽' }];
-  let leagues = [];
+  // leagueName → flag haritası (bayrak göstermek için)
+  const _leagueFlagMap = {};
 
   if (_resState.countryFilter !== 'all' && true && _cftGetCountry(_resState.countryFilter)) {
-    // Seçili ülkenin tüm tier'larını listele
+    // Seçili ülkenin tüm tier'larını listele — bayrak ülkenin bayrağı
     const country = _cftGetCountry(_resState.countryFilter);
+    const ccFlag = (country && country.flag) || '🏳️';
     (country.leagues || []).forEach(lg => {
-      if (lg && lg.name) leagues.push(lg.name);
+      if (lg && lg.name) {
+        _leagueFlagMap[lg.name] = ccFlag;
+      }
+    });
+    const leaguesArr = Object.keys(_leagueFlagMap);
+    leaguesArr.sort((a, b) => a.localeCompare(b, 'tr')).forEach(lg => {
+      _resLeagueItems.push({ value: lg, label: lg, flag: _leagueFlagMap[lg] });
     });
   } else {
-    // "Tüm Ülkeler": o günün maçlarından lig isimleri (eski davranış)
+    // "Tüm Ülkeler": o günün maçlarından lig isimleri + bayraklar
     const leaguesSet = new Set();
-    allMatches.forEach(m => { if (m.leagueName) leaguesSet.add(m.leagueName); });
-    leagues = Array.from(leaguesSet);
+    allMatches.forEach(m => {
+      if (m.leagueName) {
+        leaguesSet.add(m.leagueName);
+        if (!_leagueFlagMap[m.leagueName] && m.leagueFlag) {
+          _leagueFlagMap[m.leagueName] = m.leagueFlag;
+        }
+      }
+    });
+    Array.from(leaguesSet).sort((a, b) => a.localeCompare(b, 'tr')).forEach(lg => {
+      _resLeagueItems.push({ value: lg, label: lg, flag: _leagueFlagMap[lg] || '⚽' });
+    });
   }
 
-  leagues.sort((a, b) => a.localeCompare(b, 'tr')).forEach(lg => {
-    _resLeagueItems.push({ value: lg, label: lg, flag: '⚽' });
-  });
-
   // Seçili lig artık listede yoksa "all"a sıfırla
-  if (_resState.leagueFilter !== 'all' && !leagues.includes(_resState.leagueFilter)) {
+  const _availableLeagues = _resLeagueItems.filter(i => i.value !== 'all').map(i => i.value);
+  if (_resState.leagueFilter !== 'all' && !_availableLeagues.includes(_resState.leagueFilter)) {
     _resState.leagueFilter = 'all';
   }
 
