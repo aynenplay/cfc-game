@@ -56596,35 +56596,50 @@ function fullSeasonSchedule(numTeams) {
 //   Gün 16-18: transfer/turnuva arası
 //   Hafta 16-30: Gün 19-33 (2. yarı)
 //   Gün 34-38: turnuva play-off + sezon arası transfer dönemi
+//
+// 🆕 SUPABASE TEK KAYNAK: match_state cache'inden lig maçlarını okur.
+//   Eski fullSeasonSchedule + getSimpleMatchTime lokal hesabı KALDIRILDI; bunlar match_state
+//   ile çakışıp saatler/günler tutarsız oluyordu. Frontend artık asla lokal lig fikstürü
+//   üretmez — Supabase ne yazdıysa onu döner.
+//
+// Çıktı formatı (geriye dönük uyumlu): [{ week, match, date, homeTeam, awayTeam, matchKey, matchTime }]
+//   week  = day_in_season (1-15 ise ilk yarı, 19-33 ise ikinci yarı; eski numaralama tarihle uyumlu)
+//   date  = kickoff_at (saatsiz tarih objesi)
+//   matchTime = "HH:MM" (UTC, _getMatchHM ile)
 function buildLeagueFixture(teams, seasonStart, countryCode, tierIdx) {
-  const n = teams.length;
-  const schedule = fullSeasonSchedule(n);
+  if (!_matchStateCache || !_matchStateCache.byKey) return [];
+  // tier 0-based → 1-based (Supabase 1-based saklar)
+  const tier1 = tierIdx + 1;
+  // Bu ligin maçlarını filtrele — sezon henüz parametresi yoktu, mevcut sezonu varsayar
+  const info = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : null;
+  const seasonNum = info ? info.season : 1;
+
+  // İsme göre team objesi haritası — match_state.home_team string olarak gelir
+  const teamMap = {};
+  (teams || []).forEach(t => { if (t && t.name) teamMap[t.name] = t; });
+
   const fixture = [];
-  const halfWeeks = n - 1; // 15 hafta her yarı
-
-  schedule.forEach((week, wIdx) => {
-    let dayOffset;
-    if(wIdx < halfWeeks) dayOffset = wIdx;
-    else dayOffset = wIdx + 3;
-
-    const date = new Date(seasonStart);
-    date.setDate(seasonStart.getDate() + dayOffset);
-
-    week.forEach((match, mIdx) => {
-      const homeTeam = teams[match.homeIdx];
-      const awayTeam = teams[match.awayIdx];
-      const matchKey = `${countryCode}-${tierIdx}-w${wIdx+1}-m${mIdx+1}`;
-      const matchTime = (typeof getSimpleMatchTime === 'function')
-        ? getSimpleMatchTime('league', matchKey)
-        : '15:00';
-
-      fixture.push({
-        week: wIdx + 1, match: mIdx + 1, date,
-        homeTeam, awayTeam, matchKey, matchTime,
-      });
+  for (const ms of Object.values(_matchStateCache.byKey)) {
+    if (!ms) continue;
+    if (ms.tournament_key) continue;          // sadece lig
+    if (ms.countryCode !== countryCode) continue;
+    if (ms.tier !== tier1) continue;
+    if (ms.season !== seasonNum) continue;
+    if (!ms.matchDateTime) continue;
+    const homeTeam = teamMap[ms.home] || { name: ms.home, short: (ms.home||'').slice(0,3).toUpperCase() };
+    const awayTeam = teamMap[ms.away] || { name: ms.away, short: (ms.away||'').slice(0,3).toUpperCase() };
+    fixture.push({
+      week: ms.day,
+      match: 0,
+      date: new Date(ms.matchDateTime),
+      homeTeam,
+      awayTeam,
+      matchKey: ms.matchKey,
+      matchTime: _getMatchHM(ms)
     });
-  });
-
+  }
+  // Day'e göre sırala
+  fixture.sort((a, b) => (a.week - b.week) || (a.date - b.date));
   return fixture;
 }
 
