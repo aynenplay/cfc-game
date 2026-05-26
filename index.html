@@ -70506,34 +70506,8 @@ function _evRaceCountdownStr() {
   return `${mins}dk`;
 }
 
-// Kullanıcı reyting puanı: bu hafta yapılan maçların ortalama reytingi
-// (Cycle'ın 4. gününden sonra min 4 maç şartı uygulanır)
-function _evRaceUserRatingScore() {
-  try {
-    const cycle = _evRaceCycleInfo();
-    const log = getUserMatchLog();
-    const weekStart = cycle.start.getTime();
-    const recent = log.filter(m => {
-      let t = (typeof m.playedAt === 'number') ? m.playedAt
-            : (typeof m.ts === 'number') ? m.ts : 0;
-      if (!t && m.date) {
-        const parsed = new Date(m.date).getTime();
-        if (!isNaN(parsed)) t = parsed;
-      }
-      return t >= weekStart;
-    });
-    let total = 0, count = 0;
-    recent.forEach(m => {
-      if (typeof m.userRating === 'number') { total += m.userRating; count++; }
-      else if (typeof m.rating === 'number') { total += m.rating; count++; }
-    });
-    if (!count) return 0;
-    // Cycle'ın 4 günü geçtiyse min 4 maç şartı devreye girer
-    const daysSinceStart = (Date.now() - weekStart) / 86400000;
-    if (daysSinceStart >= 4 && count < 4) return 0;
-    return Math.round((total / count) * 100) / 100;
-  } catch(e) { return 0; }
-}
+// _evRaceUserRatingScore SİLİNDİ — kullanıcı stats'i artık match_state events'ten
+// _evRaceCalcLeaderboardFromCache içinde herkesle aynı şekilde okunuyor.
 
 // Kullanıcı antrenman puanı: bu hafta harcanan toplam enerji
 function _evRaceUserTrainScore() {
@@ -70638,9 +70612,18 @@ async function _evRacePreloadServerLb() {
 // match_results cache'inden rating leaderboard'ı hesapla (cycle filtreli)
 // Lig sayfasındaki "Sezon Reytingi" ile aynı veri kaynağı, sadece cycle başlangıcı sonrası
 function _evRaceCalcLeaderboardFromCache(cycleStartMs) {
-  const cache = (typeof _matchResultsLoad === 'function') ? _matchResultsLoad() : {};
+  // 🆕 GERÇEK VERİ: match_state events'ten scorer.rating okur.
+  //   Eski _distributeMatchStats uydurma dağıtımı SİLİNDİ.
+  //   Kullanıcı/bot/kaptan ayrımı YOK — herkes aynı kaynaktan.
+  if (typeof _matchEventsCache === 'undefined' || !_matchEventsCache || !_matchEventsCache.byKey) {
+    return []; // Events henüz yüklenmedi
+  }
+  if (typeof _matchStateCache === 'undefined' || !_matchStateCache || !_matchStateCache.byKey) {
+    return [];
+  }
+
   const stats = {};
-  // Takım → ülke/renk lookup
+  // Takım metadata lookup
   const teamLookup = {};
   try {
     _cftAllEntries().forEach(([cc, country]) => {
@@ -70656,19 +70639,6 @@ function _evRaceCalcLeaderboardFromCache(cycleStartMs) {
       });
     });
   } catch(e) {}
-
-  // Roster cache (deterministic dağıtım için)
-  const rosterCache = {};
-  function _getRoster(cc, teamName, rank) {
-    const k = `${cc}_${teamName}`;
-    if (!rosterCache[k]) {
-      try {
-        rosterCache[k] = (typeof guestGenerateRoster === 'function')
-          ? guestGenerateRoster(cc, teamName, rank || 1) : [];
-      } catch(e) { rosterCache[k] = []; }
-    }
-    return rosterCache[k];
-  }
 
   function _accum(teamName, playerName, rating) {
     const info = teamLookup[teamName] || {};
@@ -70688,38 +70658,37 @@ function _evRaceCalcLeaderboardFromCache(cycleStartMs) {
     stats[sk].matches += 1;
   }
 
-  Object.entries(cache).forEach(([key, m]) => {
-    if (!m || m.hs === undefined || m.hs === null) return;
-    if (m.comp === 'Hazırlık Maçı') return;  // Hazırlık maçları hariç
-    const ts = m.playedAt || m.kickoffMs || 0;
+  // match_state cache'ten finished maçları al
+  Object.entries(_matchStateCache.byKey).forEach(([key, ms]) => {
+    if (!ms || ms.status !== 'finished') return;
+    // Hazırlık maçları sıralamaya katılmaz
+    if (ms.tournament_key === 'friendly' || (key && key.startsWith('friendly_'))) return;
+
+    // Cycle filtresi: kickoff cycleStart'tan sonra olmalı
+    const ts = ms.matchDateTime ? new Date(ms.matchDateTime).getTime() : 0;
     if (ts < cycleStartMs) return;
 
-    // playerStats varsa direkt kullan
-    if (m.playerStats && typeof m.playerStats === 'object') {
-      Object.entries(m.playerStats).forEach(([teamName, players]) => {
-        if (!Array.isArray(players)) return;
-        players.forEach(d => {
-          if (!d || !d.name) return;
-          _accum(teamName, d.name, typeof d.rating === 'number' ? d.rating : 6.5);
-        });
-      });
-      return;
+    const events = _matchEventsCache.byKey[key];
+    if (!Array.isArray(events) || events.length === 0) return;
+
+    // Bu maçta her oyuncunun en son scorer.rating'ini topla
+    const homeTeam = ms.home;
+    const awayTeam = ms.away;
+    const matchPlayers = {}; // 'team|name' → en son rating
+
+    for (const ev of events) {
+      if (!ev || ev.type !== 'goal' || ev.cancelled) continue;
+      const teamName = ev.team === 'home' ? homeTeam : (ev.team === 'away' ? awayTeam : null);
+      if (!teamName || !ev.player) continue;
+      if (ev.scorer && typeof ev.scorer.rating === 'number') {
+        matchPlayers[`${teamName}|${ev.player}`] = ev.scorer.rating;
+      }
     }
 
-    // Fallback: deterministik dağıtım (bot vs bot maçları)
-    const homeInfo = teamLookup[m.home];
-    const awayInfo = teamLookup[m.away];
-    if (!homeInfo || !awayInfo) return;
-    const homePlayers = _getRoster(homeInfo.cc, m.home, homeInfo.rank);
-    const awayPlayers = _getRoster(awayInfo.cc, m.away, awayInfo.rank);
-    if (!homePlayers.length || !awayPlayers.length) return;
-
-    if (typeof _distributeMatchStats === 'function') {
-      const homeDist = _distributeMatchStats(homePlayers, m.hs, m.as, `${key}_h`);
-      const awayDist = _distributeMatchStats(awayPlayers, m.as, m.hs, `${key}_a`);
-      homeDist.forEach(d => { if (d && d.name) _accum(m.home, d.name, d.rating || 6.5); });
-      awayDist.forEach(d => { if (d && d.name) _accum(m.away, d.name, d.rating || 6.5); });
-    }
+    Object.entries(matchPlayers).forEach(([k, r]) => {
+      const [teamName, playerName] = k.split('|');
+      _accum(teamName, playerName, r);
+    });
   });
 
   return Object.values(stats).map(s => ({
@@ -70847,16 +70816,13 @@ function _evRaceBuildLeaderboard(metric) {
     }
   } catch(e) {}
 
-  let bots, userScore;
-  // Her render'da yeniden hesapla (match_results güncellendikçe sıralama değişsin)
+  let bots;
+  // Her render'da yeniden hesapla (match_state güncellendikçe sıralama değişsin)
   if (metric === 'rating') {
     bots = _evRaceGenerateRatingPlayers(weekKey);
   } else {
     bots = _evRaceGenerateTrainPlayers(weekKey);
   }
-  // Kullanıcı skoru her zaman canlı
-  userScore = (metric === 'rating') ? _evRaceUserRatingScore() : _evRaceUserTrainScore();
-
   // Bots içinde kullanıcı varsa (gerçek maç verisinden) onu user olarak işaretle
   let userInList = false;
   bots.forEach(b => {
@@ -70866,7 +70832,8 @@ function _evRaceBuildLeaderboard(metric) {
     }
   });
 
-  // Yoksa manuel ekle (cycle'da hiç oynamamış)
+  // Yoksa score=0 ile ekle (cycle'da hiç oynamamış veya veri yok)
+  // ÖNEMLİ: Kullanıcı/bot ayrımı yok. Listedeyse oradan, değilse 0.
   if (!userInList) {
     bots.push({
       playerName: userPlayerName,
@@ -70876,7 +70843,7 @@ function _evRaceBuildLeaderboard(metric) {
       teamTc,
       countryCode: userCC,
       countryFlag: userFlag,
-      score: userScore,
+      score: 0,
       isUser: true,
     });
   }
