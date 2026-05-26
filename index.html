@@ -35957,13 +35957,13 @@ function mrGoHome() {
 
 // Lig sıralamasını gerçek maç sonuçlarından hesapla
 function computeLeagueStandings(countryCode, tierIdx, seasonNum) {
-  if (false) return [];
+  // 🆕 SUPABASE TEK KAYNAK — _matchResultsLoad cache çağrısı kaldırıldı.
   const country = _cftGetCountry(countryCode);
   if (!country || !country.leagues || !country.leagues[tierIdx]) return [];
   const league = country.leagues[tierIdx];
   const teams = (league.teams || []).slice();
+  const tier1 = tierIdx + 1;
 
-  // Her takıma puan/gol verisi başlat
   const stats = {};
   teams.forEach(t => {
     stats[t.name] = {
@@ -35973,26 +35973,29 @@ function computeLeagueStandings(countryCode, tierIdx, seasonNum) {
     };
   });
 
-  // cft_match_results'tan oynanan maçları al
-  let results = {};
-  try { results = _matchResultsLoad(); } catch(e) {}
+  if (_matchStateCache && _matchStateCache.byKey) {
+    for (const ms of Object.values(_matchStateCache.byKey)) {
+      if (!ms) continue;
+      if (ms.tournament_key) continue;
+      if (ms.countryCode !== countryCode) continue;
+      if (ms.tier !== tier1) continue;
+      if (ms.season !== seasonNum) continue;
+      if (ms.status !== 'finished') continue;
+      const h = stats[ms.home], a = stats[ms.away];
+      if (!h || !a) continue;
+      const hs = Number(ms.home_score) || 0;
+      const as_ = Number(ms.away_score) || 0;
+      h.games++; a.games++;
+      h.goalsFor += hs; h.goalsAgainst += as_;
+      a.goalsFor += as_; a.goalsAgainst += hs;
+      if (hs > as_) { h.wins++; a.losses++; h.points += 3; }
+      else if (hs < as_) { a.wins++; h.losses++; a.points += 3; }
+      else { h.draws++; a.draws++; h.points += 1; a.points += 1; }
+    }
+  }
 
-  Object.values(results).forEach(r => {
-    if (r.season !== seasonNum) return;
-    if (!stats[r.home] || !stats[r.away]) return; // farklı lig
-    const h = stats[r.home], a = stats[r.away];
-    h.games++; a.games++;
-    h.goalsFor += r.hs; h.goalsAgainst += r.as;
-    a.goalsFor += r.as; a.goalsAgainst += r.hs;
-    if (r.hs > r.as) { h.wins++; a.losses++; h.points += 3; }
-    else if (r.hs < r.as) { a.wins++; h.losses++; a.points += 3; }
-    else { h.draws++; a.draws++; h.points += 1; a.points += 1; }
-  });
-
-  // Goal diff hesapla
   Object.values(stats).forEach(s => { s.goalDiff = s.goalsFor - s.goalsAgainst; });
 
-  // Sırala: puan, averaj, atılan gol
   const sorted = Object.values(stats).sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points;
     if (b.goalDiff !== a.goalDiff) return b.goalDiff - a.goalDiff;
@@ -61053,16 +61056,16 @@ function renderStatList(countryCode, tierIdx, statType) {
 // Sezon ilerlemesine orantılı: gün 1 → 0 puan, gün 33+ → tam puanlar.
 // opts: {season, progress} ile override edilebilir (örn. önceki sezonun final tablosunu çekmek için).
 function calcLeagueStandings(countryCode, tierIdx, opts) {
-  if(false) return [];
+  // 🆕 SUPABASE TEK KAYNAK — eski _matchResultsLoad cache + lokal fikstür hesabı kaldırıldı.
+  //   _matchStateCache.byKey'den ülke+tier'a uyan finished maçları okur, puan tablosu üretir.
   const country = _cftGetCountry(countryCode);
-  if(!country) return [];
+  if (!country) return [];
   const league = country.leagues[tierIdx];
-  if(!league) return [];
+  if (!league) return [];
 
-  const info = getSeasonInfo();
+  const info = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : { season: 1 };
   const season = (opts && typeof opts.season === 'number') ? opts.season : info.season;
-  const todayDayInSeason = info.dayInSeason || 0;
-  const seasonStart = info.seasonStart || SEASON_EPOCH;
+  const tier1 = tierIdx + 1; // 0-based → 1-based
 
   // Tüm takımlar için sıfır istatistik başlat
   const stats = {};
@@ -61070,100 +61073,49 @@ function calcLeagueStandings(countryCode, tierIdx, opts) {
     stats[t.name] = { ...t, idx, played:0, g:0, b:0, m:0, ag:0, ay:0, gd:0, pts:0 };
   });
 
-  // Bu ligin fikstürünü üret
-  let fixture = [];
-  try {
-    if (typeof buildLeagueFixture === 'function') {
-      fixture = buildLeagueFixture(league.teams, seasonStart, countryCode, tierIdx);
-    }
-  } catch(e) {}
-
-  // Cache'i bir kez oku
-  let cache = {};
-  try { cache = _matchResultsLoad(); } catch(e) {}
-
-  let cacheUpdated = false;
-  const halfWeeks = league.teams.length - 1; // her yarı bu kadar hafta
-
-  fixture.forEach(f => {
-    // Maçın gün numarası (1-indexed dayInSeason)
-    const dayOffset = (f.week <= halfWeeks) ? (f.week - 1) : (f.week + 2);
-    const matchDay = dayOffset + 1;
-
-    // Henüz oynanma günü gelmediyse atla
-    if (matchDay > todayDayInSeason) return;
-
-    const home = f.homeTeam.name;
-    const away = f.awayTeam.name;
-    const key = `${season}_${matchDay}_${home}_${away}`;
-    const keyReverse = `${season}_${matchDay}_${away}_${home}`;
-
-    // 🆕 SADECE SUPABASE: cache (= match_results) ne diyorsa o
-    // Lokal simulate KALDIRILDI — yalnızca Supabase'te bitmiş maçlar puana sayılır
-    // Sıra duyarsız arama: home-away veya away-home eşleşebilir
-    let entry = cache[key] || cache[keyReverse];
-    
-    // 🆕 Suffix varyantları (turnuva _trn) ve esnek arama
-    if (!entry) {
-      entry = cache[key + '_trn'] || cache[keyReverse + '_trn'];
-    }
-    if (!entry) {
-      for (const k in cache) {
-        const v = cache[k];
-        if (v && v.season === season && v.day === matchDay &&
-            ((v.home === home && v.away === away) || (v.home === away && v.away === home))) {
-          entry = v;
-          break;
-        }
+  // match_state'ten finished maçları çek
+  if (_matchStateCache && _matchStateCache.byKey) {
+    for (const ms of Object.values(_matchStateCache.byKey)) {
+      if (!ms) continue;
+      if (ms.tournament_key) continue;            // sadece lig
+      if (ms.countryCode !== countryCode) continue;
+      if (ms.tier !== tier1) continue;
+      if (ms.season !== season) continue;
+      if (ms.status !== 'finished') continue;     // sadece bitmiş
+      const hs = Number(ms.home_score) || 0;
+      const as_ = Number(ms.away_score) || 0;
+      const home = ms.home;
+      const away = ms.away;
+      if (stats[home]) {
+        stats[home].played++;
+        stats[home].ag += hs;
+        stats[home].ay += as_;
+        if (hs > as_) { stats[home].g++; stats[home].pts += 3; }
+        else if (hs === as_) { stats[home].b++; stats[home].pts += 1; }
+        else { stats[home].m++; }
+      }
+      if (stats[away]) {
+        stats[away].played++;
+        stats[away].ag += as_;
+        stats[away].ay += hs;
+        if (as_ > hs) { stats[away].g++; stats[away].pts += 3; }
+        else if (as_ === hs) { stats[away].b++; stats[away].pts += 1; }
+        else { stats[away].m++; }
       }
     }
-    
-    if (!entry) return; // Maç henüz oynanmamış (veya Supabase'e yazılmamış) — atla
-
-    // 🆕 Skoru, fikstürdeki home/away'e göre yorumla
-    // Eğer DB satırı ters sırada ise (Giresun-Rize ama fikstür Rize-Giresun)
-    const dbIsReversed = entry.home === away && entry.away === home;
-    const hs = Number(dbIsReversed ? entry.as : entry.hs) || 0;
-    const as_ = Number(dbIsReversed ? entry.hs : entry.as) || 0;
-
-    // Ev sahibi istatistik
-    if (stats[home]) {
-      stats[home].played++;
-      stats[home].ag += hs;
-      stats[home].ay += as_;
-      if (hs > as_) { stats[home].g++; stats[home].pts += 3; }
-      else if (hs === as_) { stats[home].b++; stats[home].pts += 1; }
-      else { stats[home].m++; }
-    }
-    // Deplasman istatistik
-    if (stats[away]) {
-      stats[away].played++;
-      stats[away].ag += as_;
-      stats[away].ay += hs;
-      if (as_ > hs) { stats[away].g++; stats[away].pts += 3; }
-      else if (as_ === hs) { stats[away].b++; stats[away].pts += 1; }
-      else { stats[away].m++; }
-    }
-  });
-
-  // Cache'i kaydet (yeni simüle edilenler varsa)
-  if (cacheUpdated) {
-    try { _matchResultsSave(cache); } catch(e) {}
   }
 
-  // Sırala: puan → averaj → atılan gol
+  const halfWeeks = league.teams.length - 1;
   const arr = Object.values(stats).map(t => ({
     ...t,
     gd: t.ag - t.ay,
-    total: halfWeeks * 2 // tam sezon maç sayısı
+    total: halfWeeks * 2
   }));
   arr.sort((a, b) => {
     if (b.pts !== a.pts) return b.pts - a.pts;
     if (b.gd !== a.gd) return b.gd - a.gd;
     return b.ag - a.ag;
   });
-
-  // Pozisyon ekle
   return arr.map((t, i) => ({ ...t, pos: i + 1 }));
 }
 
