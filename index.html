@@ -31136,7 +31136,7 @@ function resCloseLiveMatch() {
 }
 
 // 🆕 BİTEN MAÇ MODALI — beyaz tema, skor + goller + maçın adamı
-function resOpenFinishedMatch(matchKey) {
+async function resOpenFinishedMatch(matchKey) {
   // Modal'ı body'ye taşı (page kapalıyken de görünür olsun)
   const overlay = document.getElementById('resFmOverlay');
   if (overlay && overlay.parentNode !== document.body) {
@@ -31152,23 +31152,10 @@ function resOpenFinishedMatch(matchKey) {
   const m = (window._resCurrentMatches && window._resCurrentMatches[key]) || null;
   if (!m) return;
 
-  // match_state cache'ten events çek
-  let events = [];
-  let homeLineup = [];
-  let awayLineup = [];
-  try {
-    const entry = (typeof _matchEventsCache !== 'undefined' && _matchEventsCache && _matchEventsCache.byKey)
-      ? _matchEventsCache.byKey[key] : null;
-    if (entry) {
-      events = Array.isArray(entry.events) ? entry.events : [];
-      homeLineup = (entry.home_lineup && Array.isArray(entry.home_lineup.players))
-        ? entry.home_lineup.players : (Array.isArray(entry.home_lineup) ? entry.home_lineup : []);
-      awayLineup = (entry.away_lineup && Array.isArray(entry.away_lineup.players))
-        ? entry.away_lineup.players : (Array.isArray(entry.away_lineup) ? entry.away_lineup : []);
-    }
-  } catch(e) {}
+  // 🆕 Önce modal'ı aç ve "yükleniyor" göster — sonra veriyi çek
+  if (overlay) overlay.classList.add('open');
 
-  // Modal alanlarını doldur
+  // Skor + takım adları — anında
   const comp = m.leagueName || m.tournamentName || 'Maç';
   const compEl = document.getElementById('resFmComp');
   if (compEl) compEl.textContent = `${m.leagueFlag || ''} ${comp}`.trim();
@@ -31190,6 +31177,45 @@ function resOpenFinishedMatch(matchKey) {
   const aShortEl = document.getElementById('resFmAwayShort');
   if (hShortEl) hShortEl.textContent = m.homeShort || (m.home || '').slice(0,3).toUpperCase();
   if (aShortEl) aShortEl.textContent = m.awayShort || (m.away || '').slice(0,3).toUpperCase();
+
+  // Loading state — goller + maçın adamı
+  const goalsElLoading = document.getElementById('resFmGoals');
+  if (goalsElLoading) goalsElLoading.innerHTML = '<div class="res-fm-no-goals">Yükleniyor…</div>';
+  const motmLoading = document.getElementById('resFmMotmWrap');
+  if (motmLoading) motmLoading.innerHTML = '<div class="res-fm-no-motm">Yükleniyor…</div>';
+
+  // 🆕 Lazy fetch: cache'te yoksa o maçı tek satır çek (44MB transfer YOK)
+  let events = [];
+  let homeLineup = [];
+  let awayLineup = [];
+  let entry = (typeof _matchEventsCache !== 'undefined' && _matchEventsCache && _matchEventsCache.byKey)
+    ? _matchEventsCache.byKey[key] : null;
+  if (!entry && window.sb) {
+    try {
+      const { data, error } = await window.sb.from('match_state')
+        .select('events,home_lineup,away_lineup')
+        .eq('match_key', key)
+        .maybeSingle();
+      if (!error && data) {
+        entry = {
+          events: data.events,
+          home_lineup: data.home_lineup,
+          away_lineup: data.away_lineup
+        };
+        // Cache'e koy ki bir daha çekmesin
+        if (typeof _matchEventsCache !== 'undefined' && _matchEventsCache && _matchEventsCache.byKey) {
+          _matchEventsCache.byKey[key] = entry;
+        }
+      }
+    } catch(e) { console.warn('[fm] events fetch hata:', e); }
+  }
+  if (entry) {
+    events = Array.isArray(entry.events) ? entry.events : [];
+    homeLineup = (entry.home_lineup && Array.isArray(entry.home_lineup.players))
+      ? entry.home_lineup.players : (Array.isArray(entry.home_lineup) ? entry.home_lineup : []);
+    awayLineup = (entry.away_lineup && Array.isArray(entry.away_lineup.players))
+      ? entry.away_lineup.players : (Array.isArray(entry.away_lineup) ? entry.away_lineup : []);
+  }
 
   // Goller listesi — sadece type=goal, cancelled hariç
   const goals = events.filter(e => e && e.type === 'goal' && !e.cancelled)
@@ -31220,7 +31246,6 @@ function resOpenFinishedMatch(matchKey) {
   }
 
   // Maçın Adamı — lineup'ta en yüksek match_rating'li oyuncuyu bul
-  // calcPlayerRating ile events üzerinden hesapla (lig sıralamasıyla aynı mantık)
   let motm = null;
   let motmTeam = null;
   let motmRating = 0;
@@ -31256,7 +31281,6 @@ function resOpenFinishedMatch(matchKey) {
     if (motm && motmRating > 0) {
       const teamShort = motmTeam === m.home ? (m.homeShort || m.home.slice(0,3).toUpperCase())
                                             : (m.awayShort || m.away.slice(0,3).toUpperCase());
-      // Bu oyuncu kaç gol, kaç asist
       const playerGoals = goals.filter(g => g.player === motm.name).length;
       const playerAssists = goals.filter(g => g.assist === motm.name).length;
       const statLine = [];
@@ -31279,14 +31303,11 @@ function resOpenFinishedMatch(matchKey) {
     }
   }
 
-  // Status — uzatma vs bilgi
+  // Status
   const statusEl = document.getElementById('resFmStatus');
   if (statusEl) {
     statusEl.innerHTML = `⚽ Maç tamamlandı · <b>90'</b>`;
   }
-
-  // Aç (overlay yukarıda body'ye taşındı)
-  if (overlay) overlay.classList.add('open');
 }
 
 function resCloseFinishedMatch() {
