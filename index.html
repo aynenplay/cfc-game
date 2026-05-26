@@ -53423,75 +53423,25 @@ function hmOpenNextMatch() {
     return;
   }
 
-  if (!_fixtureData) return;
-  const idx = _fixtureData.indexOf(m);
-  if (idx < 0) return;
-
-  // 🆕 Maç saati durumu — simülasyon ~12 dk sürer, 15 dk güvenli sınır
+  // 🆕 Lig maçı — doğrudan openMatchScreenV2 ile aç (_fixtureData artık kullanılmıyor)
+  //   Önceki versiyon _fixtureData.indexOf(m) bekliyor; m artık match_state cache'inden
+  //   geldiği için referans uyuşmuyor → idx<0 → fonksiyon sessizce return ediyordu.
   const kickoff = m.date instanceof Date ? m.date : new Date(m.date);
-  const now = Date.now();
-  const diffMs = kickoff.getTime() - now;
-  const matchEnd = kickoff.getTime() + 15 * 60 * 1000;
-  const isLive = (now >= kickoff.getTime() && now < matchEnd);
-  const isFinished = (now >= matchEnd);
-
-  // 🆕 1. Cache kontrolü — maç **gerçekten bitmiş** mi? Sadece o zaman geçmiş gösterimi
-  let cache = {};
-  try { cache = _matchResultsLoad(); } catch(e) {}
-  const cacheKey = `${m.season}_${m.day}_${m.home.name}_${m.away.name}`;
-  const cachedMatch = cache[cacheKey];
-
-  if (cachedMatch && isFinished) {
-    // Maç oynandı VE saati bitti → geçmiş gösterimi
-    m.hs = cachedMatch.hs;
-    m.as = cachedMatch.as;
-    m.isPast = true;
-    m.result = m.hs > m.as ? 'home' : (m.hs < m.as ? 'away' : 'draw');
-    if (typeof openMatchFromFixture === 'function') {
-      openMatchFromFixture(idx);
-    }
-    return;
-  }
-
-  // 🚫 Geç maç simulate bloku kaldırıldı — frontend skor üretmez.
-  // Maç bittiyse ama cache yoksa, Edge Function henüz yazmamış demektir; "henüz oynanmadı" göster.
-  if (isFinished && !cachedMatch) {
-    if (typeof openMatchFromFixture === 'function') {
-      openMatchFromFixture(idx);
-    }
-    return;
-  }
-
-  // 🆕 2. Maç saati kontrolü — 2 dakika öncesinden itibaren açılır
-  if (diffMs > 2 * 60 * 1000) {
-    const dateStr = (typeof fmtMatchDate === 'function') ? fmtMatchDate(kickoff) : kickoff.toLocaleDateString('tr-TR');
-    const timeStr = (typeof fmtMatchTime === 'function') ? fmtMatchTime(kickoff) : kickoff.toTimeString().slice(0,5);
-    if (typeof showJoinToast === 'function') {
-      showJoinToast(`⏰ Maç ${dateStr} · ${timeStr}'de başlayacak`);
-    } else {
-      alert(`Maç ${dateStr} ${timeStr}'de başlayacak`);
-    }
-    return;
-  }
-
-  // 🆕 3. Canlı maç → kalan dakikadan başla (cache varsa onu temizle, motor canlı simülasyon yapacak)
-  if (isLive && cachedMatch) {
-    // Cache'i sil — maç motoru canlı oynayacak, sonunda yeniden yazacak
-    try {
-      delete cache[cacheKey];
-      _matchResultsSave(cache);
-    } catch(e) {}
-  }
-
-  // 🆕 4. Maç ekranını aç — canlıysa kalan süreden başlat
-  if (typeof openMatchFromFixture === 'function') {
-    if (isLive) {
-      // Geçen dakika kadar atlat (örn: 30 dk geç başlatıldıysa 30. dakikadan canlı izle)
-      const elapsedMin = Math.floor((now - kickoff.getTime()) / 60000);
-      // Window'da sakla — openMatchScreenV2 MS'i reset ettikten sonra geri yüklenir
-      window._pendingLiveStartMin = Math.max(1, Math.min(89, elapsedMin));
-    }
-    openMatchFromFixture(idx);
+  const venue = (m.home && m.home.name) ? `${m.home.name} Stadyumu` : 'Stadyum';
+  const leagueLabel = m.leagueName ? `⚽ ${m.leagueName}` : '⚽ Lig Maçı';
+  if (typeof openMatchScreenV2 === 'function') {
+    openMatchScreenV2({
+      home: m.home,
+      away: m.away,
+      league: leagueLabel,
+      venue: venue,
+      kickoff: kickoff,
+      hClass: 'c1',
+      aClass: 'c2',
+      season: m.season,
+      day: m.day,
+      matchKey: m.matchKey
+    });
   }
 }
 
