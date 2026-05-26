@@ -53947,358 +53947,67 @@ function _computeLiveSimMinute(ms) {
   return 90;
 }
 
+// 🆕 SUPABASE TEK KAYNAK — lokal fikstür hesabı KALDIRILDI.
+//   Eski versiyon buildLeagueFixture + _resFixtureDayCache + _resFixtureSeasonCache +
+//   _matchResultsLoad + encLoad gibi 4-5 ayrı kaynaktan veri topluyordu; bunlar
+//   match_state ile çakışıp tutarsızlık yaratıyordu. Tek doğruluk: _matchStateCache.byKey.
+//   Aksiyon: bu fonksiyon yalnızca _matchStateCache'ten okur. Hazırlık, lig, turnuva, EURO Cup
+//   hepsi tek tabloda (match_state) duruyor — filter ile ayrılır.
 function _resGetMatchesForDate(targetDate) {
-  if (false || typeof buildLeagueFixture !== 'function') return [];
-
+  if (!_matchStateCache || !_matchStateCache.byKey) return [];
   const targetDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
-  // 🆕 Aktif sezon — cache key'e ekle (sezon geçince stale data temizlenir)
-  const seasonInfo = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : null;
-  const activeSeasonNum = seasonInfo ? (seasonInfo.season || 1) : 1;
-  const dayKey = targetDay.toISOString().slice(0, 10) + '_S' + activeSeasonNum;
+  const targetMidnight = targetDay.getTime();
+  const dayEndMs = targetMidnight + 86400000;
 
-  // Cache hit: bu günün fikstürünü tekrar hesaplama
-  let allMatches = _resFixtureDayCache[dayKey];
-  if (!allMatches) {
-    const seasonStart = (typeof SEASON_EPOCH !== 'undefined') ? SEASON_EPOCH : new Date();
-    const diffDays = Math.floor((targetDay - new Date(seasonStart.getFullYear(), seasonStart.getMonth(), seasonStart.getDate())) / 86400000);
-    if (diffDays < 0) {
-      _resFixtureDayCache[dayKey] = [];
-      return [];
-    }
-    const SEASON_LEN_LOCAL = (typeof SEASON_LEN !== 'undefined') ? SEASON_LEN : 40;
-    const season = Math.floor(diffDays / SEASON_LEN_LOCAL) + 1;
-    const dayInSeason = (diffDays % SEASON_LEN_LOCAL) + 1; // 1-indexed
+  const out = [];
+  for (const ms of Object.values(_matchStateCache.byKey)) {
+    if (!ms || !ms.matchDateTime) continue;
+    const t = new Date(ms.matchDateTime).getTime();
+    if (isNaN(t) || t < targetMidnight || t >= dayEndMs) continue;
 
-    // 🆕 Sezon-seviyesi cache'den oku (kalıcı/bellek)
-    const seasonCache = _resBuildSeasonFixtures(season);
-    allMatches = (seasonCache.dayMap[dayInSeason] || []).slice();
+    // Kullanıcı takımıyla ilgili filter YOK — Sonuçlar sayfası tüm dünyayı gösterir.
+    const isFinished = ms.status === 'finished';
+    const isLive = ms.status === 'running';
+    const isFriendly = ms.tournament_key === 'friendly';
+    const leagueName = isFriendly ? 'Hazırlık Maçı'
+                     : (ms.league_name || ms.tournament_key || 'Maç');
+    const leagueFlag = isFriendly ? '🤝'
+                     : (ms.tournament_key ? '🏆' : (ms.countryCode ? '' : ''));
 
-    // 🆕 Bu güne ait TURNUVA maçlarını ekle — sadece EURO Nations Cup (enc)
-    // Saatler match_state'ten gelir (edge function'ın yazdığı kickoff_at)
-    try {
-      const _resCache = (typeof _matchResultsLoad === 'function') ? _matchResultsLoad() : {};
-      // 1) match_results'tan oynanmış enc maçları (geçmiş)
-      for (const k in _resCache) {
-        const tm = _resCache[k];
-        if (!tm || tm.tournament_key !== 'enc') continue;
-        if (tm.season !== season) continue;
-        if (tm.day !== dayInSeason) continue;
-        const playedTime = tm.playedAt ? new Date(tm.playedAt).toTimeString().slice(0,5) : '14:00';
-        allMatches.push({
-          home: tm.home,
-          away: tm.away,
-          homeShort: tm.home.slice(0,3).toUpperCase(),
-          awayShort: tm.away.slice(0,3).toUpperCase(),
-          matchKey: `T-enc-${tm.season}-${tm.day}-${tm.home}-${tm.away}`,
-          matchDate: targetDay.toISOString().slice(0, 10),
-          scheduledTime: playedTime,
-          leagueName: 'EURO Nations Cup',
-          leagueFlag: '🏆',
-          countryCode: null,
-          tierIdx: -1,
-          competition: 'tournament',
-          tournamentType: 'euro',
-          tournament_key: 'enc',
-          tournament_phase: tm.tournament_phase,
-          season: tm.season,
-          day: tm.day,
-          week: tm.day
-        });
-      }
-      // 2) match_state'ten henüz oynanmamış enc maçları (planlanmış) — saatlerle
-      if (typeof _liveMatchCache === 'object' && _liveMatchCache) {
-        for (const k in _liveMatchCache) {
-          const ms = _liveMatchCache[k];
-          if (!ms || ms.tournament_key !== 'enc') continue;
-          if (ms.season !== season || ms.day_in_season !== dayInSeason) continue;
-          // Zaten match_results'ta varsa atla (yukarıda eklendi)
-          const cacheKey = `${ms.season}_${ms.day_in_season}_${ms.home_team}_${ms.away_team}`;
-          if (_resCache[cacheKey]) continue;
-          const kickoff = ms.kickoff_at ? new Date(ms.kickoff_at) : null;
-          const scheduledTime = kickoff ? kickoff.toTimeString().slice(0,5) : '14:00';
-          allMatches.push({
-            home: ms.home_team,
-            away: ms.away_team,
-            homeShort: ms.home_team.slice(0,3).toUpperCase(),
-            awayShort: ms.away_team.slice(0,3).toUpperCase(),
-            matchKey: ms.match_key,
-            matchDate: targetDay.toISOString().slice(0, 10),
-            scheduledTime,
-            leagueName: 'EURO Nations Cup',
-            leagueFlag: '🏆',
-            countryCode: null,
-            tierIdx: -1,
-            competition: 'tournament',
-            tournamentType: 'euro',
-            tournament_key: 'enc',
-            tournament_phase: ms.tournament_phase,
-            season: ms.season,
-            day: ms.day_in_season,
-            week: ms.day_in_season
-          });
-        }
-      }
-    } catch(e) { console.warn('[res] turnuva ekleme hata:', e); }
-
-    _resFixtureDayCache[dayKey] = allMatches;
-  }
-
-  // Cache'ten skorları okuyup birleştir
-  let resultsCache = {};
-  try { resultsCache = _matchResultsLoad(); } catch(e) {}
-
-  // 🚫 _quickScore sahte skor üreticisi SİLİNDİ. Frontend skor üretmez.
-  // Tüm skorlar Supabase Edge Function (tick-matches) tarafından match_state'e yazılır,
-  // sonra _matchResultsLoad cache'ine yansır.
-
-  const merged = allMatches.map(m => {
-    const cacheKey = `${m.season}_${m.day}_${m.home}_${m.away}`;
-    const cached = resultsCache[cacheKey];
-    // 🆕 Canlı maç durumu (match_state'ten) — season+day+home+away ile ara
-    // _liveMatchCache match_key ile indexli, bizim format farklı → tüm değerleri tara
-    let live = null;
-    if (typeof _liveMatchCache === 'object' && _liveMatchCache) {
-      for (const k in _liveMatchCache) {
-        const r = _liveMatchCache[k];
-        if (r && r.season === m.season && r.day_in_season === m.day &&
-            r.home_team === m.home && r.away_team === m.away) {
-          live = r; break;
-        }
-      }
-    }
-    const isLive = !!(live && live.status === 'running');
-    return {
-      ...m,
-      played: !!cached,
-      hs: cached ? cached.hs : (isLive ? live.home_score : null),
-      as: cached ? cached.as : (isLive ? live.away_score : null),
-      playedAt: cached ? cached.playedAt : null,
-      byUser: cached ? cached.byUser : false,
+    out.push({
+      home: ms.home,
+      away: ms.away,
+      homeShort: (ms.home || '').slice(0,3).toUpperCase(),
+      awayShort: (ms.away || '').slice(0,3).toUpperCase(),
+      matchKey: ms.matchKey,
+      season: ms.season,
+      day: ms.day,
+      week: ms.day,
+      countryCode: ms.countryCode || null,
+      tierIdx: typeof ms.tier === 'number' ? (ms.tier - 1) : -1,
+      leagueName: leagueName,
+      leagueFlag: leagueFlag,
+      tournament_key: ms.tournament_key || null,
+      tournament_phase: ms.tournament_phase || null,
+      competition: ms.tournament_key ? 'tournament' : 'league',
+      matchDate: targetDay.toISOString().slice(0,10),
+      scheduledTime: _getMatchHM(ms),
+      played: isFinished,
+      hs: (isFinished || isLive) ? (ms.home_score ?? null) : null,
+      as: (isFinished || isLive) ? (ms.away_score ?? null) : null,
+      playedAt: isFinished ? t : null,
       isLive: isLive,
-      liveMinute: isLive ? _computeLiveSimMinute(live) : null,
-      cacheKey
-    };
-  });
-
-  // 🆕 Turnuva maçları (cache'den, oynanmış olanlar) — comp alanı turnuva ismi içeriyorsa
-  Object.entries(resultsCache).forEach(([key, cache]) => {
-    if (!cache || !cache.playedAt) return;
-    const playedDate = new Date(cache.playedAt);
-    if (playedDate.toDateString() !== targetDay.toDateString()) return;
-    const compStr = String(cache.comp || '');
-    // Turnuva tespiti: comp'da "Champions"/"Elite"/"Convergence"/"Conv" geçiyorsa
-    if (!/(Champion|Elite|Convergence|Conv\b|🏆)/i.test(compStr)) return;
-    // Aynı maç zaten merged'de var mı? (key benzeri)
-    if (merged.some(m => m.cacheKey === key)) return;
-    // Takım renkleri/ülkesi için teams DB tara
-    let homeInfo = _resFindTeamCountry(cache.home);
-    let awayInfo = _resFindTeamCountry(cache.away);
-    merged.push({
-      home: cache.home,
-      away: cache.away,
-      homeShort: (cache.home || '').slice(0,3).toUpperCase(),
-      awayShort: (cache.away || '').slice(0,3).toUpperCase(),
-      countryCode: (homeInfo && homeInfo.cc) || 'XX',
-      leagueName: compStr.replace(/^[^A-Za-zÇĞİÖŞÜçğıöşü]+/, '').trim() || 'Turnuva',
-      leagueFlag: '🏆',
-      played: true,
-      hs: cache.hs, as: cache.as,
-      playedAt: cache.playedAt,
-      scheduledTime: playedDate.toTimeString().slice(0,5),
-      cacheKey: key,
-      season: cache.season, day: cache.day,
-      competition: 'tournament',
-      tournamentType: _resTournamentTypeFromComp(compStr) || 'championship'
-    });
-  });
-
-  // 🆕 EURO Cup maçları — encEnsureState'ten dinamik oku (cft_match_results'a yazılmıyor, ayrı state'te)
-  // Maç günleri: Gün 34-36 grup (m.day 1/2/3), Gün 37 Son 16, Gün 38 Çeyrek, Gün 39 Yarı, Gün 40 Final
-  try {
-    if (typeof encLoad === 'function') {
-      // targetDay → season ve dayInSeason hesapla (cache bloğunun dışında olduğumuz için tekrar)
-      const _sStart = (typeof SEASON_EPOCH !== 'undefined') ? SEASON_EPOCH : new Date();
-      const _diff = Math.floor((targetDay - new Date(_sStart.getFullYear(), _sStart.getMonth(), _sStart.getDate())) / 86400000);
-      const _slen = (typeof SEASON_LEN !== 'undefined') ? SEASON_LEN : 38;
-      const _encSeason = _diff >= 0 ? Math.floor(_diff / _slen) + 1 : 0;
-      const _encDayInSeason = _diff >= 0 ? (_diff % _slen) + 1 : 0;
-
-      // Sadece state ZATEN VARSA oku, üretme (kura günü gelmeden çağırma)
-      const _encState = _encSeason > 0 ? encLoad(_encSeason) : null;
-      if (_encState && _encState.groups) {
-        // Maç günü → SEASON_TEMPLATE eşleştirmesi
-        const ENC_DAY_MAP = {
-          34: { phase:'group', mday: 1 },
-          35: { phase:'group', mday: 2 },
-          36: { phase:'group', mday: 3 },
-          37: { phase:'r16'   },
-          38: { phase:'qf'    },
-          39: { phase:'sf'    },
-          40: { phase:'final' },
-        };
-        const encInfo = ENC_DAY_MAP[_encDayInSeason];
-        if (encInfo) {
-          // 🆕 Maç saatlerini 16:00-21:00 arasına dağıt
-          // Faza göre maç sayısı: group=16, r16=8, qf=4, sf=2, final=1
-          const PHASE_COUNTS = { group: 16, r16: 8, qf: 4, sf: 2, final: 1 };
-          const totalMatches = PHASE_COUNTS[encInfo.phase] || 16;
-
-          // Phase'e göre saat dağılım stratejisi (gerçek UEFA tarzı)
-          function _encScheduleSlot(idx) {
-            if (encInfo.phase === 'final') return { hour: 21, min: 0 };
-            if (encInfo.phase === 'sf')    return idx === 0 ? { hour: 19, min: 0 } : { hour: 21, min: 0 };
-            if (encInfo.phase === 'qf') {
-              // 4 maç → 16:00, 18:00, 19:00, 21:00
-              return { hour: [16, 18, 19, 21][idx], min: 0 };
-            }
-            // group ve r16: 16:00-21:00 arası eşit dağıt
-            const startHour = 16, endHour = 21;
-            const totalMin = (endHour - startHour) * 60; // 300dk
-            const gap = totalMatches > 1 ? Math.floor(totalMin / (totalMatches - 1)) : 0;
-            const offsetMin = idx * gap;
-            const totalAt = startHour * 60 + offsetMin;
-            return { hour: Math.floor(totalAt / 60), min: totalAt % 60 };
-          }
-
-          let matchIdx = 0;
-          const addEncMatch = (m, label) => {
-            const slot = _encScheduleSlot(matchIdx);
-            const playedAt = new Date(targetDay.getFullYear(), targetDay.getMonth(), targetDay.getDate(), slot.hour, slot.min).getTime();
-            const scheduledTime = `${String(slot.hour).padStart(2,'0')}:${String(slot.min).padStart(2,'0')}`;
-            merged.push({
-              home: m.homeName || m.home || '?',
-              away: m.awayName || m.away || '?',
-              homeShort: (m.home || '').toUpperCase().slice(0,3),
-              awayShort: (m.away || '').toUpperCase().slice(0,3),
-              countryCode: 'EU',
-              leagueName: `EURO Cup — ${label}`,
-              leagueFlag: '🏆',
-              played: true,
-              hs: m.hg, as: m.ag,
-              playedAt, scheduledTime,
-              cacheKey: `enc_s${_encSeason}_${label}_${m.home}_${m.away}`,
-              season: _encSeason, day: _encDayInSeason,
-              competition: 'tournament',
-              tournamentType: 'euro',
-              encPens: m.pens || null,
-              encEt: m.et || null,
-              homeFlag: m.homeFlag || '🏳️',
-              awayFlag: m.awayFlag || '🏳️',
-            });
-            matchIdx++;
-          };
-
-          if (encInfo.phase === 'group') {
-            _encState.groups.forEach(g => {
-              if (!Array.isArray(g.matches)) return;
-              g.matches.filter(m => m.day === encInfo.mday).forEach(m => {
-                addEncMatch(m, `Grup ${g.id || g.letter} · ${encInfo.mday}. M.`);
-              });
-            });
-          } else if (encInfo.phase === 'r16' && _encState.knockout && Array.isArray(_encState.knockout.r16)) {
-            _encState.knockout.r16.forEach((m, i) => addEncMatch(m, `Son 16 · M${i+1}`));
-          } else if (encInfo.phase === 'qf' && _encState.knockout && Array.isArray(_encState.knockout.qf)) {
-            _encState.knockout.qf.forEach((m, i) => addEncMatch(m, `Çeyrek F · M${i+1}`));
-          } else if (encInfo.phase === 'sf' && _encState.knockout && Array.isArray(_encState.knockout.sf)) {
-            _encState.knockout.sf.forEach((m, i) => addEncMatch(m, `Yarı F · M${i+1}`));
-          } else if (encInfo.phase === 'final' && _encState.knockout && _encState.knockout.final) {
-            addEncMatch(_encState.knockout.final, `🏆 Final`);
-          }
-        }
-      }
-    }
-  } catch(e) { console.warn('[Results] EURO Cup okuma hatası:', e); }
-
-  // 🆕 Hazırlık maçları — oynanmış VE canlı (kullanıcının takımıyla ilgili)
-  // frmEnsurePlayed match_state'i okuyup played/hs/as set ediyor
-  if (typeof frmEnsurePlayed === 'function') {
-    try { frmEnsurePlayed(); } catch(e){}
-  }
-  if (typeof frmGetMatches === 'function' && typeof _userTeam !== 'undefined' && _userTeam) {
-    frmGetMatches().forEach(fm => {
-      // Sadece kullanıcının dahil olduğu hazırlık maçları
-      if (fm.fromTeam !== _userTeam.teamName && fm.toTeam !== _userTeam.teamName) return;
-      if (fm.status !== 'accepted') return;
-      
-      // Maç tarihini bul: oynanmışsa playedAt, değilse dateTime (kickoff)
-      const scheduledMs = fm.dateTime ? new Date(fm.dateTime).getTime() : null;
-      const playedAt = fm.playedAt || scheduledMs;
-      if (!playedAt) return;
-      const matchDate = new Date(playedAt);
-      if (matchDate.toDateString() !== targetDay.toDateString()) return;
-      
-      // Canlı mı? — match_state'te status='running' ise
-      let isLive = false, liveMinute = 0, liveHs = 0, liveAs = 0;
-      if (typeof _liveMatchCache === 'object' && _liveMatchCache) {
-        const ms = _liveMatchCache['friendly_' + fm.id];
-        if (ms && ms.status === 'running') {
-          isLive = true;
-          // 🆕 Edge Function sim_minute yerine started_at'tan smoothing ile hesapla
-          // (Maç ekranındaki dakika sayacı aynı formülü kullanıyor — uyumlu olsun)
-          liveMinute = _computeLiveSimMinute(ms);
-          liveHs = ms.home_score ?? 0;
-          liveAs = ms.away_score ?? 0;
-        }
-      }
-      // Bitmiş veya canlı değilse ve oynanmamışsa — bekleyen maç, listede gösterme
-      if (!fm.played && !isLive) return;
-      
-      const homeInfo = _resFindTeamCountry(fm.fromTeam);
-      const fmSeason = 0;
-      const fmDay = Math.floor(playedAt / 86400000);
-      // 🆕 scheduledTime: maç oynansa bile ORİJİNAL planlanan saati göster
-      // (playedAt = Date.now() olduğu için yanlış saat veriyor)
-      const origScheduled = fm.dateTime ? new Date(fm.dateTime).toTimeString().slice(0,5) : matchDate.toTimeString().slice(0,5);
-      merged.push({
-        home: fm.fromTeam,
-        away: fm.toTeam,
-        homeShort: (fm.fromTeam || '').slice(0,3).toUpperCase(),
-        awayShort: (fm.toShort || (fm.toTeam || '').slice(0,3).toUpperCase()),
-        countryCode: fm.fromCC || (homeInfo && homeInfo.cc) || 'XX',
-        leagueName: 'Hazırlık Maçı',
-        leagueFlag: '⚽',
-        played: !!fm.played,
-        isLive,
-        liveMinute,
-        hs: isLive ? liveHs : (fm.hs || 0),
-        as: isLive ? liveAs : (fm.as || 0),
-        playedAt: playedAt,
-        scheduledTime: origScheduled,
-        cacheKey: `${fmSeason}_${fmDay}_${fm.fromTeam}_${fm.toTeam}`,
-        season: fmSeason,
-        day: fmDay,
-        byUser: true,
-        competition: 'friendly',
-        matchKey: 'friendly_' + fm.id
-      });
+      liveMinute: isLive ? _computeLiveSimMinute(ms) : null,
+      cacheKey: ms.matchKey,
+      _raw: ms
     });
   }
 
-  // 🆕 POST-PROCESS: leagueName "Hazırlık Maçı" olan tüm maçları normalize et
-  //    - competition='friendly' zorla (başka push noktasından geliyorsa override)
-  //    - scheduledTime boşsa playedAt'tan saat çıkar (15:00 SABİT olmasın)
-  merged.forEach(m => {
-    if (m.leagueName === 'Hazırlık Maçı' || m.compClass === 'friendly-comp' || m.isFriendly) {
-      m.competition = 'friendly';
-      m.leagueName = 'Hazırlık Maçı';
-    }
-    // scheduledTime fallback: playedAt'tan saat çıkar
-    if (!m.scheduledTime && m.playedAt) {
-      try {
-        m.scheduledTime = new Date(m.playedAt).toTimeString().slice(0, 5);
-      } catch(e) {}
-    }
-  });
-
-  // Saatine göre sırala (saat formatı "HH:MM")
-  merged.sort((a, b) => {
-    const ta = a.played && a.playedAt ? new Date(a.playedAt).toTimeString().slice(0, 5) : (a.scheduledTime || '99:99');
-    const tb = b.played && b.playedAt ? new Date(b.playedAt).toTimeString().slice(0, 5) : (b.scheduledTime || '99:99');
-    return ta.localeCompare(tb);
-  });
-
-  return merged;
+  // Saatine göre sırala
+  out.sort((a, b) => (a.scheduledTime || '99:99').localeCompare(b.scheduledTime || '99:99'));
+  return out;
 }
+
 
 // ════ Custom Dropdown State (Country / League) ════
 let _resDDMode = null;        // 'country' | 'league'
