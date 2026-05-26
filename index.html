@@ -53806,14 +53806,14 @@ let _matchStateCache = null;  // { dayMap: { 1: [...], 2: [...] }, byKey: { '1_1
 let _matchEventsCache = null;  // { byKey: { match_key: events_array } } — stats için ayrı
 
 async function _loadFinishedMatchEvents() {
-  // Sadece status='finished' maçlardan events çek. Index sayesinde hızlı.
-  // Events'i ana cache'e koymuyoruz çünkü 44 MB → timeout.
+  // Sadece status='finished' maçlardan events + lineup çek.
+  // Lineup'lar 11'er oyuncu — küçük JSON. events ile birlikte çekiyoruz.
   if (!window.sb) return null;
   const PAGE = 500;
   let all = [];
   for (let from = 0; from < 100000; from += PAGE) {
     const { data, error } = await window.sb.from('match_state')
-      .select('match_key,events')
+      .select('match_key,events,home_lineup,away_lineup')
       .eq('status', 'finished')
       .range(from, from + PAGE - 1);
     if (error) { console.warn('[events] hata:', error.message); break; }
@@ -53823,10 +53823,16 @@ async function _loadFinishedMatchEvents() {
   }
   const byKey = {};
   for (const m of all) {
-    if (m && m.match_key) byKey[m.match_key] = m.events;
+    if (m && m.match_key) {
+      byKey[m.match_key] = {
+        events: m.events,
+        home_lineup: m.home_lineup,
+        away_lineup: m.away_lineup
+      };
+    }
   }
   _matchEventsCache = { byKey, loadedAt: Date.now() };
-  console.info(`[events] yüklendi: ${all.length} finished maç`);
+  console.info(`[events] yüklendi: ${all.length} finished maç (lineup dahil)`);
   // Stats kullanılan sayfa açıksa yeniden render
   try {
     const _activePg = document.querySelector('.page.active');
@@ -70612,8 +70618,8 @@ async function _evRacePreloadServerLb() {
 // match_results cache'inden rating leaderboard'ı hesapla (cycle filtreli)
 // Lig sayfasındaki "Sezon Reytingi" ile aynı veri kaynağı, sadece cycle başlangıcı sonrası
 function _evRaceCalcLeaderboardFromCache(cycleStartMs) {
-  // 🆕 GERÇEK 10'LUK RATING: events'ten her oyuncuya calcPlayerRating uygula.
-  //   Kullanıcı/bot/kaptan ayrımı YOK — herkes aynı kaynaktan.
+  // 🆕 GERÇEK 10'LUK RATING: lineup'tan 22 oyuncu + events ile calcPlayerRating.
+  //   Kullanıcı/bot/kaptan ayrımı YOK. Uydurma dağıtım YOK.
   if (typeof _matchEventsCache === 'undefined' || !_matchEventsCache || !_matchEventsCache.byKey) {
     return [];
   }
@@ -70663,7 +70669,9 @@ function _evRaceCalcLeaderboardFromCache(cycleStartMs) {
     const ts = ms.matchDateTime ? new Date(ms.matchDateTime).getTime() : 0;
     if (ts < cycleStartMs) return;
 
-    const events = _matchEventsCache.byKey[key];
+    const entry = _matchEventsCache.byKey[key];
+    if (!entry) return;
+    const events = entry.events;
     if (!Array.isArray(events) || events.length === 0) return;
 
     const homeTeam = ms.home;
@@ -70671,45 +70679,35 @@ function _evRaceCalcLeaderboardFromCache(cycleStartMs) {
     const hs = ms.home_score || 0;
     const as = ms.away_score || 0;
 
-    // Bu maçta ismi geçen tüm oyuncuları topla (hem player hem assist)
-    const playerSide = {}; // name → 'home'|'away'
-    for (const ev of events) {
-      if (!ev || ev.type === 'fulltime') continue;
-      if (ev.player && ev.team) playerSide[ev.player] = ev.team;
-      if (ev.assist && ev.team) playerSide[ev.assist] = ev.team;
+    // Her takımın lineup'u (11 oyuncu)
+    const homeLineup = Array.isArray(entry.home_lineup) ? entry.home_lineup : [];
+    const awayLineup = Array.isArray(entry.away_lineup) ? entry.away_lineup : [];
+
+    function _processLineup(lineup, sideTeam, teamName, scored, conceded) {
+      const teamWon = scored > conceded ? 'win' : scored < conceded ? 'loss' : 'draw';
+      lineup.forEach(p => {
+        if (!p || !p.name) return;
+        // Bu oyuncuya ait olaylar
+        const playerEvents = events.filter(e =>
+          e && e.team === sideTeam && (e.player === p.name || e.assist === p.name)
+        );
+        let r;
+        try {
+          r = calcPlayerRating(
+            { name: p.name, pos: p.pos || 'MID' },
+            playerEvents,
+            teamWon,
+            90,
+            conceded,
+            { teamScored: scored, side: sideTeam }
+          );
+        } catch(e) { r = 6.5; }
+        _accum(teamName, p.name, r);
+      });
     }
 
-    // Her oyuncu için events filtrele ve calcPlayerRating'e ver
-    Object.entries(playerSide).forEach(([playerName, side]) => {
-      const teamName = side === 'home' ? homeTeam : awayTeam;
-      // Bu oyuncunun olayları: player VEYA assist field'ı bu oyuncu
-      const playerEvents = events.filter(e =>
-        e && (e.player === playerName || e.assist === playerName)
-      );
-      // Oyuncunun pos'unu scorer içinden bul (varsa)
-      let pos = 'MID';
-      for (const ev of playerEvents) {
-        if (ev.scorer && ev.scorer.pos) { pos = ev.scorer.pos; break; }
-      }
-      const teamWon = side === 'home'
-        ? (hs > as ? 'win' : hs < as ? 'loss' : 'draw')
-        : (as > hs ? 'win' : as < hs ? 'loss' : 'draw');
-      const teamConceded = side === 'home' ? as : hs;
-      const teamScored = side === 'home' ? hs : as;
-
-      let r;
-      try {
-        r = calcPlayerRating(
-          { name: playerName, pos },
-          playerEvents,
-          teamWon,
-          90,
-          teamConceded,
-          { teamScored, side }
-        );
-      } catch(e) { r = 6.5; }
-      _accum(teamName, playerName, r);
-    });
+    _processLineup(homeLineup, 'home', homeTeam, hs, as);
+    _processLineup(awayLineup, 'away', awayTeam, as, hs);
   });
 
   return Object.values(stats).map(s => ({
@@ -70725,45 +70723,14 @@ function _evRaceCalcLeaderboardFromCache(cycleStartMs) {
   })).sort((a, b) => b.score - a.score).slice(0, 200);
 }
 
-// Teams DB'den alfabetik fallback — gerçek veri yoksa veya cycle yeni başladıysa
-function _evRaceAlphabeticFallback(metric) {
-  const teams = [];
-  try {
-    _cftAllEntries().forEach(([cc, country]) => {
-      (country.leagues || []).forEach((lg, lgIdx) => {
-        (lg.teams || []).forEach((t, teamIdx) => {
-          teams.push({
-            name: t.name,
-            short: t.short || t.name.slice(0,3).toUpperCase(),
-            bg: t.bg || '#333',
-            tc: t.tc || '#fff',
-            countryCode: cc,
-            countryFlag: country.flag || '🏳️',
-          });
-        });
-      });
-    });
-  } catch(e) {}
-  // Takım adına göre alfabetik
-  teams.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'));
-  return teams.slice(0, 50).map(t => ({
-    playerName: t.name,  // Yıldız henüz yok, takım adı göster
-    teamName: t.name,
-    teamShort: t.short,
-    teamBg: t.bg,
-    teamTc: t.tc,
-    countryCode: t.countryCode,
-    countryFlag: t.countryFlag,
-    score: 0,
-  }));
-}
+// _evRaceAlphabeticFallback fonksiyonu SİLİNDİ (uydurma alfabetik liste,
+//   gerçek veri yokken yer doldurma amaçlıydı, artık kullanılmıyor).
 
 function _evRaceGenerateRatingPlayers(weekKey) {
+  // Sadece gerçek match_state verisinden. Veri yoksa boş liste.
+  // (Uydurma alfabetik fallback SİLİNDİ.)
   const cycle = _evRaceCycleInfo();
-  const players = _evRaceCalcLeaderboardFromCache(cycle.start.getTime());
-  if (players && players.length > 0) return players;
-  // Veri yok → alfabetik fallback
-  return _evRaceAlphabeticFallback('rating');
+  return _evRaceCalcLeaderboardFromCache(cycle.start.getTime()) || [];
 }
 
 // Bot leaderboard üreteci — OYUNCU bazlı (Antrenman Yıldızı)
@@ -72393,178 +72360,85 @@ function _distributeMatchStats(players, ourScore, theirScore, seed, actualEvents
 let _psCachedStats = null;
 let _psCachedKey = null;
 
-// Tüm cached maçları gezerek oyuncu istatistiklerini topla
-// Döner: { "TeamName_PlayerName": { goals, assists, ratingSum, matches } }
+// 🆕 Sıfırdan yazıldı: lineup + events + calcPlayerRating.
+//   Eski uydurma roster + _distributeMatchStats zinciri SİLİNDİ.
+//   Kullanıcı/bot/kaptan ayrımı YOK — herkes aynı sistemden.
 function _calcPlayerStatsFromCache(teamFilter) {
-  // 🆕 teamFilter: takım adı (string) veya takım adı dizisi (array). Verilirse
-  //    sadece o takımların maçları taranır → çok daha hızlı. Verilmezse hepsi.
-  const cache = _matchResultsLoad() || {};
-  
-  // Filter aktif ise hangi takımları arayacağımızı belirle
+  if (typeof _matchEventsCache === 'undefined' || !_matchEventsCache || !_matchEventsCache.byKey) {
+    return {};
+  }
+  if (typeof _matchStateCache === 'undefined' || !_matchStateCache || !_matchStateCache.byKey) {
+    return {};
+  }
+  if (typeof calcPlayerRating !== 'function') return {};
+
   let filterSet = null;
   if (teamFilter) {
     filterSet = new Set(Array.isArray(teamFilter) ? teamFilter : [teamFilter]);
   }
-  
-  // Cache key — filter dahil
-  const keys = Object.keys(cache);
+
+  // Cache key — events cache loadedAt + filter
+  const eventsLoadedAt = _matchEventsCache.loadedAt || 0;
   const filterKey = filterSet ? Array.from(filterSet).sort().join(',') : 'ALL';
-  const cacheKey = keys.length + '|' + filterKey + '|' + (keys[0] || '') + '|' + (keys[keys.length-1] || '');
+  const cacheKey = eventsLoadedAt + '|' + filterKey;
   if (_psCachedStats && _psCachedKey === cacheKey) return _psCachedStats;
 
   const stats = {};
 
-  // Roster üretimi pahalı — takım bazlı cache
-  const rosterCache = {};
-  function _getRoster(cc, teamName, rank) {
-    const k = `${cc}_${teamName}`;
-    if (!rosterCache[k]) {
-      try {
-        rosterCache[k] = (typeof guestGenerateRoster === 'function')
-          ? guestGenerateRoster(cc, teamName, rank || 1)
-          : [];
-      } catch(e) { rosterCache[k] = []; }
-    }
-    return rosterCache[k];
-  }
+  Object.entries(_matchStateCache.byKey).forEach(([key, ms]) => {
+    if (!ms || ms.status !== 'finished') return;
+    if (ms.tournament_key === 'friendly' || (key && key.startsWith('friendly_'))) return;
+    if (filterSet && !filterSet.has(ms.home) && !filterSet.has(ms.away)) return;
 
-  // Takım adından ülke + rank bul (teams DB üzerinde) — filter aktifse sadece o takımlar için
-  const teamLookup = {};
-  if (true) {
-    for (const cc of _cftGetCountryCodes()) {
-      const country = _cftGetCountry(cc);
-      (country.leagues || []).forEach((lg, ti) => {
-        (lg.teams || []).forEach(t => {
-          if (filterSet && !filterSet.has(t.name)) return;
-          teamLookup[t.name] = { cc, tierIdx: ti, rank: t.rank || 1 };
-        });
-      });
-    }
-  }
+    const entry = _matchEventsCache.byKey[key];
+    if (!entry) return;
+    const events = entry.events;
+    if (!Array.isArray(events) || events.length === 0) return;
 
-  Object.entries(cache).forEach(([key, m]) => {
-    if (!m || m.hs === undefined || m.hs === null) return;
-    
-    // 🆕 Filter aktif — sadece ev veya deplasman filter set'inde varsa işle
-    if (filterSet && !filterSet.has(m.home) && !filterSet.has(m.away)) return;
+    const homeTeam = ms.home;
+    const awayTeam = ms.away;
+    const hs = ms.home_score || 0;
+    const as = ms.away_score || 0;
+    const homeLineup = Array.isArray(entry.home_lineup) ? entry.home_lineup : [];
+    const awayLineup = Array.isArray(entry.away_lineup) ? entry.away_lineup : [];
 
-    // 🆕 ÖNCELİK 1: match_state events'ten gerçek gol/asist say
-    //   _matchEventsCache.byKey[key] = events array (Edge function'ın yazdığı format)
-    //   Format: [{min, type:'goal', player, assist, scorer:{...}, team:'home'|'away'}, ...]
-    const events = (typeof _matchEventsCache !== 'undefined' && _matchEventsCache && _matchEventsCache.byKey)
-      ? _matchEventsCache.byKey[key]
-      : null;
-
-    if (Array.isArray(events) && events.length > 0) {
-      // Hangi takım hangi tarafta?
-      const homeTeam = m.home;
-      const awayTeam = m.away;
-
-      // Her oyuncuyu görmek için maç bazlı kontrol — her takımdan oynayan tüm oyuncuları say
-      const playedInMatch = new Set(); // 'teamName_playerName'
-
-      for (const ev of events) {
-        if (!ev || ev.type === 'fulltime') continue;
-        const teamName = ev.team === 'home' ? homeTeam : (ev.team === 'away' ? awayTeam : null);
-        if (!teamName) continue;
-        if (filterSet && !filterSet.has(teamName)) continue;
-
-        // Oyuncu olayda mı?
-        if (ev.player) {
-          const sk = `${teamName}_${ev.player}`;
-          if (!stats[sk]) stats[sk] = { goals:0, assists:0, ratingSum:0, matches:0 };
-          playedInMatch.add(sk);
-
-          // Gol (ofsayttan iptal değilse)
+    function _processLineup(lineup, sideTeam, teamName, scored, conceded) {
+      if (filterSet && !filterSet.has(teamName)) return;
+      const teamWon = scored > conceded ? 'win' : scored < conceded ? 'loss' : 'draw';
+      lineup.forEach(p => {
+        if (!p || !p.name) return;
+        const sk = `${teamName}_${p.name}`;
+        if (!stats[sk]) stats[sk] = { goals:0, assists:0, ratingSum:0, matches:0 };
+        // Bu oyuncunun events'leri
+        const playerEvents = events.filter(e =>
+          e && e.team === sideTeam && (e.player === p.name || e.assist === p.name)
+        );
+        // Gol & asist say (cancelled hariç)
+        playerEvents.forEach(ev => {
           if (ev.type === 'goal' && !ev.cancelled) {
-            stats[sk].goals += 1;
+            if (ev.player === p.name) stats[sk].goals += 1;
+            if (ev.assist === p.name) stats[sk].assists += 1;
           }
-        }
-
-        // Asist
-        if (ev.type === 'goal' && !ev.cancelled && ev.assist) {
-          const sk = `${teamName}_${ev.assist}`;
-          if (!stats[sk]) stats[sk] = { goals:0, assists:0, ratingSum:0, matches:0 };
-          stats[sk].assists += 1;
-          playedInMatch.add(sk);
-        }
-
-        // Scorer rating
-        if (ev.type === 'goal' && ev.scorer && typeof ev.scorer.rating === 'number') {
-          const sk = `${teamName}_${ev.player}`;
-          if (stats[sk]) {
-            // Rating'i tek sefer ekle (en son gol rating'i baz alınır — basit yaklaşım)
-            // Daha doğrusu: oyuncunun maç sonu rating'i ayrı bir kayıttan gelmeli ama events'te
-            // her gol scorer.rating'i veriyor. Sonuncuyu kullan.
-            stats[sk]._lastRating = ev.scorer.rating;
-          }
-        }
-      }
-
-      // Bu maçta oynayan her oyuncu için matches +1 (ve varsa rating ekle)
-      playedInMatch.forEach(sk => {
-        stats[sk].matches += 1;
-        if (typeof stats[sk]._lastRating === 'number') {
-          stats[sk].ratingSum += stats[sk]._lastRating;
-          delete stats[sk]._lastRating;
-        } else {
-          stats[sk].ratingSum += 6.5; // varsayılan
-        }
-      });
-      return;
-    }
-
-    // 🆕 ÖNCELİK 2: Cache'teki eski playerStats (legacy)
-    if (m.playerStats && typeof m.playerStats === 'object') {
-      Object.entries(m.playerStats).forEach(([teamName, players]) => {
-        if (filterSet && !filterSet.has(teamName)) return;
-        if (!Array.isArray(players)) return;
-        players.forEach(d => {
-          const sk = `${teamName}_${d.name}`;
-          if (!stats[sk]) stats[sk] = { goals:0, assists:0, ratingSum:0, matches:0 };
-          stats[sk].goals    += (d.goals || 0);
-          stats[sk].assists  += (d.assists || 0);
-          stats[sk].ratingSum += (d.rating || 6.5);
-          stats[sk].matches  += 1;
         });
-      });
-      return;
-    }
-
-    // Fallback: eski deterministik dağıtım (eski cached maçlar için)
-    const homeInfo = teamLookup[m.home];
-    const awayInfo = teamLookup[m.away];
-    if (!homeInfo || !awayInfo) return;
-
-    const homePlayers = _getRoster(homeInfo.cc, m.home, homeInfo.rank);
-    const awayPlayers = _getRoster(awayInfo.cc, m.away, awayInfo.rank);
-    if (!homePlayers.length || !awayPlayers.length) return;
-
-    const seedH = `${key}_h`;
-    const seedA = `${key}_a`;
-    const homeDist = _distributeMatchStats(homePlayers, m.hs, m.as, seedH);
-    const awayDist = _distributeMatchStats(awayPlayers, m.as, m.hs, seedA);
-
-    if (!filterSet || filterSet.has(m.home)) {
-      homeDist.forEach(d => {
-        const sk = `${m.home}_${d.name}`;
-        if (!stats[sk]) stats[sk] = { goals:0, assists:0, ratingSum:0, matches:0 };
-        stats[sk].goals += d.goals;
-        stats[sk].assists += d.assists;
-        stats[sk].ratingSum += d.rating;
+        // Rating hesabı
+        let r;
+        try {
+          r = calcPlayerRating(
+            { name: p.name, pos: p.pos || 'MID' },
+            playerEvents,
+            teamWon,
+            90,
+            conceded,
+            { teamScored: scored, side: sideTeam }
+          );
+        } catch(e) { r = 6.5; }
+        stats[sk].ratingSum += r;
         stats[sk].matches += 1;
       });
     }
-    if (!filterSet || filterSet.has(m.away)) {
-      awayDist.forEach(d => {
-        const sk = `${m.away}_${d.name}`;
-        if (!stats[sk]) stats[sk] = { goals:0, assists:0, ratingSum:0, matches:0 };
-        stats[sk].goals += d.goals;
-        stats[sk].assists += d.assists;
-        stats[sk].ratingSum += d.rating;
-        stats[sk].matches += 1;
-      });
-    }
+
+    _processLineup(homeLineup, 'home', homeTeam, hs, as);
+    _processLineup(awayLineup, 'away', awayTeam, as, hs);
   });
 
   _psCachedStats = stats;
