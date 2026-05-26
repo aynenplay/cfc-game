@@ -50645,9 +50645,10 @@ function frmSendInvite() {
   setTimeout(() => frmBotRespond(id), delayMs);
 }
 
-// 🆕 Saati geçmiş hazırlık maçlarını otomatik bot-vs-bot ile sonuçlandır
-// Kullanıcı oynamayı atladıysa (veya hiç başlatmadıysa) bu fonksiyon
-// devreye girer: simulateBotMatch ile skor üretir, played:true yazar.
+// 🆕 Hazırlık maçı sonuçlarını match_state'ten (Supabase) friendly_matches'a senkron et
+// Kullanıcı maç ekranını kapattıysa bile (cron tick maçı bitirdi):
+// Bu fonksiyon _matchStateCache'ten finished friendly maçlarını bulup
+// friendly_matches.match_data'ya played/hs/as/events yansıtır.
 function frmEnsurePlayed() {
   // 🆕 Edge Function (tick-matches) hazırlık maçlarını match_state üzerinden oynar.
   // Burada match_state'te status='finished' olan hazırlık maçlarını bulup
@@ -62865,426 +62866,20 @@ function trn2Tab(key, btn) {
 
 
 // ═══════════════════════════════════════════════════════════════
-//   EURO NATIONAL CUP — Turnuva Motoru
+//   EURO NATIONAL CUP — Frontend render (motor server-side)
 // ═══════════════════════════════════════════════════════════════
 //
 // 32 ülke • 8 grup × 4 takım • Tek maç round-robin grup
 // Top 2 → Son 16 → Çeyrek → Yarı → Final (tek maç eleme)
+//
+// ⚠️ Lokal motor (kura, maç sim, knockout) SİLİNDİ. Tek doğruluk Supabase:
+//   • Edge function: setupEuroNationCup + setupEncKnockout + setupEncKnockoutNext
+//   • Frontend sadece tournament_state.fixture + match_results okur (encEnsureState)
+// Silinen fonksiyonlar: encDrawGroups, encMakePots, encShufflePot, encSimMatch,
+//   encGenGroupMatches, encBuildKnockout, encGenPlayerName, _encToKnockoutTeam,
+//   _encGetCachedTeam, _encSeed, encGetCountries, ENC_NAME_POOLS, ENC_GENERIC_FN/LN
 // ─────────────────────────────────────────────────────────────
 
-const ENC_GROUP_LETTERS = ['A','B','C','D','E','F','G','H'];
-
-// Uluslararası oyuncu isim havuzu (ülke koduna göre seçilen alt küme)
-const ENC_NAME_POOLS = {
-  TR: { fn:['Cenk','Hakan','Burak','Arda','Çağlar','Merih','Yusuf','Kaan','Salih','İrfan','Orkun','Kerem','Barış','Eren','Mert','Berke','Doğan','Halil','Ozan','Kenan'],
-        ln:['Tosun','Çalhanoğlu','Yılmaz','Güler','Söyüncü','Demiral','Yazıcı','Ayhan','Özcan','Kahveci','Kökçü','Aktürkoğlu','Yılmaz','Tolga','Ülker','Toker','Demir','Dervişoğlu','Tufan','Karaman'] },
-  DE: { fn:['Manuel','Joshua','Toni','İlkay','Leon','Kai','Timo','Serge','Marc','Antonio','Jamal','Niklas','Florian','Robin','Pascal','Julian','Thomas','Mats','Leroy','David'],
-        ln:['Neuer','Kimmich','Kroos','Gündoğan','Goretzka','Havertz','Werner','Gnabry','Reus','Rüdiger','Musiala','Süle','Wirtz','Gosens','Groß','Brandt','Müller','Hummels','Sané','Raum'] },
-  FR: { fn:['Hugo','Kylian','Antoine','Olivier','Karim','Ousmane','Theo','Aurélien','Eduardo','Kingsley','Adrien','Wesley','Marcus','Lucas','Jules','Ibrahima','Christopher','Mike','Randal','Dayot'],
-        ln:['Lloris','Mbappé','Griezmann','Giroud','Benzema','Dembélé','Hernández','Tchouaméni','Camavinga','Coman','Rabiot','Fofana','Thuram','Digne','Koundé','Konaté','Nkunku','Maignan','Kolo Muani','Upamecano'] },
-  ES: { fn:['Unai','Dani','Sergio','Jordi','Pedri','Gavi','Ferran','Alvaro','Marco','Rodri','Aymeric','Mikel','Nico','Yeremy','Pablo','Ansu','Carlos','Joselu','Robin','Lamine'],
-        ln:['Simón','Carvajal','Busquets','Alba','González','Fernández','Torres','Morata','Asensio','Hernández','Laporte','Oyarzabal','Williams','Pino','Sarabia','Fati','Soler','Mato','Le Normand','Yamal'] },
-  IT: { fn:['Gianluigi','Giovanni','Leonardo','Federico','Lorenzo','Manuel','Nicolò','Alessandro','Domenico','Ciro','Marco','Bryan','Matteo','Andrea','Sandro','Davide','Mattia','Francesco','Stephan','Wilfried'],
-        ln:['Donnarumma','Di Lorenzo','Bonucci','Chiesa','Pellegrini','Locatelli','Barella','Bastoni','Berardi','Immobile','Verratti','Cristante','Politano','Belotti','Tonali','Frattesi','Zaccagni','Acerbi','El Shaarawy','Gnonto'] },
-  EN: { fn:['Jordan','Kyle','John','Harry','Bukayo','Phil','Mason','Declan','Jude','Marcus','Raheem','Jack','Reece','Trent','Conor','Kalvin','Luke','Aaron','Jadon','Tammy'],
-        ln:['Pickford','Walker','Stones','Kane','Saka','Foden','Mount','Rice','Bellingham','Rashford','Sterling','Grealish','James','Alexander-Arnold','Gallagher','Phillips','Shaw','Ramsdale','Sancho','Abraham'] },
-  NL: { fn:['Memphis','Virgil','Frenkie','Matthijs','Denzel','Cody','Steven','Donyell','Wout','Justin','Tijjani','Daley','Davy','Stefan','Andries','Teun','Mats','Jurriën','Bart','Quincy'],
-        ln:['Depay','van Dijk','de Jong','de Ligt','Dumfries','Gakpo','Bergwijn','Malen','Weghorst','Kluivert','Reijnders','Blind','Klaassen','de Vrij','Noppert','Koopmeiners','Wieffer','Timber','Verbruggen','Promes'] },
-  BE: { fn:['Thibaut','Kevin','Romelu','Eden','Jan','Toby','Axel','Youri','Dries','Yannick','Leander','Hans','Yannick','Charles','Thomas','Timothy','Michy','Jeremy','Alexis','Wout'],
-        ln:['Courtois','De Bruyne','Lukaku','Hazard','Vertonghen','Alderweireld','Witsel','Tielemans','Mertens','Carrasco','Dendoncker','Vanaken','Ferreira','De Ketelaere','Meunier','Castagne','Batshuayi','Doku','Saelemaekers','Faes'] },
-  PT: { fn:['Cristiano','Bruno','Bernardo','João','Diogo','Rafael','Ruben','Pepe','Renato','Joao','Goncalo','Otavio','Vitinha','Rafael','Matheus','Diogo','Antonio','William','Joao','Andre'],
-        ln:['Ronaldo','Fernandes','Silva','Cancelo','Jota','Leão','Dias','Pepe','Sanches','Félix','Ramos','Otávio','Vitinha','Leão','Nunes','Costa','Silva','Carvalho','Mário','Silva'] }
-};
-const ENC_GENERIC_FN = ['Aleksandar','Andrej','Marko','Luka','Stefan','Nikola','Filip','Petar','Jakub','Tomas','Lukas','Marek','Robert','Piotr','Krzysztof','Mihai','Ion','Vasile','Robert','Daniel','Dmitri','Ivan','Sergey','Mikhail','Alexandr','Olexandr','Yuriy','Andriy','Lasse','Mikael','Erik','Joel','Jonas','Mathias','Ole','Gunnar','Sven','Thomas','Petros','Giorgos','Christos','Kostas'];
-const ENC_GENERIC_LN = ['Ivanović','Marković','Petrović','Nikolić','Stojković','Vidić','Mitrović','Modrić','Rakitić','Perišić','Kovačić','Lovren','Krychowiak','Lewandowski','Glik','Piszczek','Krzanowski','Hagi','Stoichkov','Mutu','Dragos','Popa','Stanciu','Tatarusanu','Akinfeev','Dzyuba','Cherchesov','Kokorin','Yarmolenko','Zinchenko','Malinovskyi','Tsyhankov','Hojbjerg','Eriksen','Schmeichel','Dolberg','Lindelöf','Forsberg','Berg','Kjær','Solbakken','Sørloth','Haaland','Ødegaard','King','Pavlidis','Tsimikas','Mavropanos'];
-
-function _encSeed(s) {
-  let h = (s | 0) ^ 0x9e3779b9;
-  h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
-  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
-  h ^= h >>> 16;
-  return ((h >>> 0) % 100000) / 100000;
-}
-
-// 32 ülkeyi gücüne göre sırala (teams DB'den)
-function encGetCountries() {
-  if(false) return [];
-  const codes = _cftGetCountryCodes();
-  const list = codes.map(cc => {
-    const c = _cftGetCountry(cc);
-    const tier1 = c.leagues[0];
-    // Power: tier 1 ortalama oz değeri (stadion oz/200) + averaj rank tersi
-    const sumOz = tier1.teams.reduce((s,t) => s + (t.oz||500), 0);
-    const avgOz = sumOz / tier1.teams.length;
-    // Total takım sayısı bonus (büyük ülkeler güçlü)
-    const sizeBonus = Math.min(1.3, c.total / 64);
-    const power = Math.round((avgOz / 18) * sizeBonus);
-    return { code:cc, name:c.name, flag:c.flag, power };
-  });
-  // En güçlü → en zayıf
-  list.sort((a,b) => b.power - a.power);
-  return list;
-}
-
-// 4 pot: ilk 8 → pot1, 9-16 → pot2, ...
-function encMakePots(countries) {
-  return [countries.slice(0,8), countries.slice(8,16), countries.slice(16,24), countries.slice(24,32)];
-}
-
-// Pot karıştırma (seed deterministik)
-function encShufflePot(pot, seed) {
-  const a = pot.slice();
-  for(let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(_encSeed(seed * 31 + i) * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-// Grup kurası: 4 pot, her potu shuffle, her grup her pottan 1 ülke alır
-function encDrawGroups(season) {
-  const countries = encGetCountries();
-  if(countries.length < 32) return [];
-  const pots = encMakePots(countries);
-  const seed = season * 9337 + 1771;
-  const shuffled = pots.map((p, i) => encShufflePot(p, seed + i * 17));
-  const groups = [];
-  for(let g = 0; g < 8; g++) {
-    groups.push({
-      id: ENC_GROUP_LETTERS[g],
-      teams: [shuffled[0][g], shuffled[1][g], shuffled[2][g], shuffled[3][g]],
-      matches: [],
-      standings: []
-    });
-  }
-  return groups;
-}
-
-// Türkçe-merkezli ya da ülke-spesifik isim üret
-function encGenPlayerName(countryCode, seed) {
-  const pool = ENC_NAME_POOLS[countryCode];
-  let fn, ln;
-  if(pool) {
-    fn = pool.fn[Math.floor(_encSeed(seed * 13) * pool.fn.length)];
-    ln = pool.ln[Math.floor(_encSeed(seed * 17) * pool.ln.length)];
-  } else {
-    fn = ENC_GENERIC_FN[Math.floor(_encSeed(seed * 13) * ENC_GENERIC_FN.length)];
-    ln = ENC_GENERIC_LN[Math.floor(_encSeed(seed * 17) * ENC_GENERIC_LN.length)];
-  }
-  return fn + ' ' + ln;
-}
-
-// FAZ 3.5: EURO Cup milli takım obj'ini Faz 1 motoruna uygun forma çevir
-// EURO Cup: {code, name, flag, power} — players listesi YOK
-// Faz 1 motoru: {name, players: [{pos, abilities, rating}]} bekler
-// 🆕 FAZ 3.7: Milli takım için fake roster (3D motor için lazım — players + abilities + isimler)
-// Gerçek isim havuzlarından (ENC_NAME_POOLS) deterministik 11 oyuncu üret
-function _encToKnockoutTeam(team) {
-  if (!team) return null;
-  const base = Math.max(50, Math.min(95, team.power || 70));
-  const code = team.code || 'XX';
-  const codeNum = code.charCodeAt(0) * 7 + (code.charCodeAt(1) || 65) * 13;
-
-  // Pozisyon dağılımı: 1 GK + 4 DEF + 3 MID + 3 FWD = 11
-  const POS_TEMPLATE = ['GK','DEF','DEF','DEF','DEF','MID','MID','MID','FWD','FWD','FWD'];
-  // Pozisyon kodları (motor için detaylı pos kodu, _simInitState uyumu)
-  const POS_DETAIL = ['GK','CB','CB','LB','RB','CDM','CM','CAM','LW','ST','RW'];
-
-  return {
-    name: team.name,
-    short: code,
-    rating: base,
-    players: POS_TEMPLATE.map((pos, i) => {
-      const variation = ((codeNum + i * 17) % 11) - 5; // -5..+5
-      const r = Math.max(50, Math.min(95, base + variation));
-      // Gerçek isim havuzundan seçim (deterministik)
-      let pname = code + ' #' + (i + 1);
-      try {
-        if (typeof encGenPlayerName === 'function') {
-          pname = encGenPlayerName(code, codeNum * 31 + i * 7);
-        }
-      } catch(e) {}
-      return {
-        num: i + 1,
-        name: pname,
-        pos: POS_DETAIL[i],
-        posGroup: pos,
-        rating: r,
-        // Motor'un beklediği yetenek alanları
-        finishing: r,
-        composure: r,
-        reflexes: r,
-        passing: r,
-        dribbling: r,
-        defending: r,
-        pace: r,
-        shooting: r,
-        abilities: {
-          finishing: r,
-          composure: r,
-          diving: r,
-          shooting: r,
-          passing: r,
-          defending: r
-        },
-        suspendMatches: 0,
-        injuryUntil: 0
-      };
-    })
-  };
-}
-
-// 🆕 EURO Cup roster cache (her takım için bir kere üret, tekrar kullan)
-const _encRosterCache = {};
-function _encGetCachedTeam(team) {
-  if (!team || !team.code) return null;
-  if (_encRosterCache[team.code]) return _encRosterCache[team.code];
-  const full = _encToKnockoutTeam(team);
-  _encRosterCache[team.code] = full;
-  return full;
-}
-
-// 🆕 FAZ 3.7: TEK MOTOR — encSimMatch artık simulateBotMatch çağırıyor
-// Eski xG formülü kaldırıldı — tüm istatistikler (events, stats, gol/asist) gerçek 3D motordan
-// phase: 'group' | 'r16' | 'qf' | 'sf' | 'final'
-function encSimMatch(home, away, seed, phase) {
-  const teamH = _encGetCachedTeam(home);
-  const teamA = _encGetCachedTeam(away);
-  const seedStr = 'enc_s' + seed + '_' + (home.code||'?') + '_' + (away.code||'?') + '_' + phase;
-
-  let hg, ag, simEvents = null, simStats = null;
-  let result, pens = null, et = null;
-  let encKnockoutPhase = 'regulation';
-
-  // 🚫 Lokal motor (simulateBotMatch + fallback) KALDIRILDI.
-  // EURO Cup maçları artık Supabase Edge Function (tick-matches) tarafından oynanır.
-  // Skor match_results cache'inden okunur — yoksa bu fonksiyon null döner ve caller "henüz oynanmadı" gösterir.
-  let sim = null;
-  hg = null;
-  ag = null;
-  // Eski callsite uyumluluğu — caller'lar null hg/ag bekliyor olabilir, return early
-  if (hg === null) {
-    return {
-      hs: null, as: null, result: null, pens: null, et: null,
-      events: [], stats: null, knockoutPhase: 'regulation',
-      pending: true
-    };
-  }
-
-  // ── Faz kararı ──
-  if(phase === 'group') {
-    if(hg > ag) result = 'home';
-    else if(ag > hg) result = 'away';
-    else result = 'draw';
-  } else {
-    // Knockout: 90 dk eşitse → Faz 1 (uzatma + gerekirse pen)
-    if(hg === ag && teamH && teamA) {
-      let etResult = null;
-      if (typeof window._simulateExtraTime === 'function') {
-        try { etResult = window._simulateExtraTime(teamH, teamA, seedStr); } catch(e) { etResult = null; }
-      }
-      if (etResult) {
-        et = etResult;
-        hg += etResult.hs;
-        ag += etResult.as;
-      }
-
-      if (hg === ag) {
-        // ET sonu hala eşit → penaltı (Faz 1)
-        let penResult = null;
-        if (typeof window._simulatePenaltyShootout === 'function') {
-          try { penResult = window._simulatePenaltyShootout(teamH, teamA, seedStr); } catch(e) { penResult = null; }
-        }
-        if (penResult) {
-          pens = [penResult.homePens, penResult.awayPens];
-          result = penResult.winnerSide;
-        } else {
-          // Fallback
-          const pHome = 3 + Math.floor(_encSeed(seed * 31) * 3);
-          let pAway = 3 + Math.floor(_encSeed(seed * 37) * 3);
-          if(pHome === pAway) pAway = pHome === 5 ? 4 : pHome + 1;
-          pens = [pHome, pAway];
-          result = pHome > pAway ? 'home' : 'away';
-        }
-        encKnockoutPhase = 'penalties';
-      } else {
-        result = hg > ag ? 'home' : 'away';
-        encKnockoutPhase = 'extraTime';
-      }
-    } else {
-      result = hg > ag ? 'home' : 'away';
-    }
-  }
-
-  // ── Event'leri eski UI formatına çevir (encRenderKnockout/encStats için) ──
-  let events = [];
-  if (simEvents && Array.isArray(simEvents)) {
-    events = simEvents
-      .filter(e => e.type === 'goal' && !e.isOwnGoal)
-      .map(e => ({
-        team: e.team,
-        minute: e.min || e.minute || 0,
-        scorer: e.player || '?',
-        assist: e.assist || null
-      }));
-  } else {
-    // Fallback (motor yoksa) — isim havuzundan rastgele
-    for(let i = 0; i < hg; i++) {
-      const ms = seed * 200 + i + 1;
-      events.push({
-        team:'home', minute: 1 + Math.floor(_encSeed(ms) * 90),
-        scorer: encGenPlayerName(home.code, ms * 3),
-        assist: _encSeed(ms * 5) > 0.45 ? encGenPlayerName(home.code, ms * 7) : null
-      });
-    }
-    for(let i = 0; i < ag; i++) {
-      const ms = seed * 200 + 50 + i + 1;
-      events.push({
-        team:'away', minute: 1 + Math.floor(_encSeed(ms) * 90),
-        scorer: encGenPlayerName(away.code, ms * 3),
-        assist: _encSeed(ms * 5) > 0.45 ? encGenPlayerName(away.code, ms * 7) : null
-      });
-    }
-  }
-  events.sort((a,b) => a.minute - b.minute);
-
-  // ── Top 3 rating (her takım) — eskiyle uyum ──
-  const ratings = [];
-  for(let i = 0; i < 3; i++) {
-    const sH = seed * 300 + i;
-    const sA = seed * 400 + i;
-    const baseH = (result === 'home' ? 7.5 : 6.5) + (i === 0 ? 1 : 0);
-    const baseA = (result === 'away' ? 7.5 : 6.5) + (i === 0 ? 1 : 0);
-    ratings.push({
-      team:'home', player: encGenPlayerName(home.code, sH),
-      rating: Math.round((baseH + _encSeed(sH * 7) * 1.5) * 10) / 10
-    });
-    ratings.push({
-      team:'away', player: encGenPlayerName(away.code, sA),
-      rating: Math.round((baseA + _encSeed(sA * 7) * 1.5) * 10) / 10
-    });
-  }
-
-  return {
-    home: home.code, away: away.code,
-    homeFlag: home.flag, awayFlag: away.flag,
-    homeName: home.name, awayName: away.name,
-    hg, ag, pens, et, knockoutPhase: encKnockoutPhase, result, events, ratings, phase,
-    // Bonus: motor stat'ları (top scorer/assist hesabı için)
-    motorEvents: simEvents, motorStats: simStats
-  };
-}
-
-// Bir grupta 4 takım için 6 maç (round-robin)
-function encGenGroupMatches(group, season) {
-  const t = group.teams;
-  // Standart 4-team round-robin sıralı: 1-2, 3-4, 1-3, 2-4, 1-4, 2-3
-  const pairs = [[0,1],[2,3],[0,2],[1,3],[0,3],[1,2]];
-  const matchday = [1,1,2,2,3,3];  // 3 maç günü
-  const matches = [];
-  pairs.forEach((pr, idx) => {
-    const seed = season * 1000 + group.id.charCodeAt(0) * 13 + idx;
-    const m = encSimMatch(t[pr[0]], t[pr[1]], seed, 'group');
-    m.day = matchday[idx];
-    matches.push(m);
-  });
-  return matches;
-}
-
-// Grup tablosunu hesapla (P, W, D, L, GF, GA, GD, Pts)
-function encCalcStandings(group) {
-  const stats = group.teams.map(t => ({
-    code:t.code, name:t.name, flag:t.flag, power:t.power,
-    P:0, W:0, D:0, L:0, GF:0, GA:0, GD:0, Pts:0
-  }));
-  function find(code) { return stats.find(s => s.code === code); }
-  group.matches.forEach(m => {
-    // 🆕 Sadece oynanmış maçlar (hg/ag null değilse)
-    if (typeof m.hg !== 'number' || typeof m.ag !== 'number') return;
-    const h = find(m.home), a = find(m.away);
-    if(!h || !a) return;
-    h.P++; a.P++;
-    h.GF += m.hg; h.GA += m.ag;
-    a.GF += m.ag; a.GA += m.hg;
-    // 🆕 result yerine skora bakarak hesapla (backend henüz result field yazmıyor)
-    const result = m.result || (m.hg > m.ag ? 'home' : m.hg < m.ag ? 'away' : 'draw');
-    if(result === 'home') { h.W++; h.Pts += 3; a.L++; }
-    else if(result === 'away') { a.W++; a.Pts += 3; h.L++; }
-    else { h.D++; a.D++; h.Pts++; a.Pts++; }
-  });
-  stats.forEach(s => s.GD = s.GF - s.GA);
-  // Sıralama: Pts → GD → GF → power
-  stats.sort((a,b) => b.Pts - a.Pts || b.GD - a.GD || b.GF - a.GF || b.power - a.power);
-  return stats;
-}
-
-// Eleme bracket'i: modern WC formatı, cross-bracket (1A-2B vs 1B-2A vs final)
-// 8 grup → 16 takım çıkar
-// R16 eşleşmeleri (modern WC):
-//   M1: 1A vs 2B    M2: 1C vs 2D
-//   M3: 1E vs 2F    M4: 1G vs 2H
-//   M5: 1B vs 2A    M6: 1D vs 2C
-//   M7: 1F vs 2E    M8: 1H vs 2G
-// QF: M1-M2, M3-M4, M5-M6, M7-M8
-// SF: (QF1-QF2), (QF3-QF4)
-// Final: SF1-SF2
-function encBuildKnockout(groups, season) {
-  // Grupları haritaya al
-  const gMap = {};
-  groups.forEach(g => { gMap[g.id] = encCalcStandings(g); });
-  function w(letter, idx) { return gMap[letter][idx]; } // idx=0:1st, 1:2nd
-
-  const teamOf = (s) => ({ code:s.code, name:s.name, flag:s.flag, power:s.power });
-
-  // R16 eşleşmeleri
-  const r16Pairs = [
-    [w('A',0), w('B',1)],   // M1
-    [w('C',0), w('D',1)],   // M2
-    [w('E',0), w('F',1)],   // M3
-    [w('G',0), w('H',1)],   // M4
-    [w('B',0), w('A',1)],   // M5
-    [w('D',0), w('C',1)],   // M6
-    [w('F',0), w('E',1)],   // M7
-    [w('H',0), w('G',1)],   // M8
-  ];
-  const r16 = r16Pairs.map((p, idx) => {
-    const seed = season * 7777 + 100 + idx;
-    return encSimMatch(teamOf(p[0]), teamOf(p[1]), seed, 'r16');
-  });
-
-  // QF: r16 kazananları
-  function winnerOf(m) {
-    const team = m.result === 'home' ? { code:m.home, name:m.homeName, flag:m.homeFlag } : { code:m.away, name:m.awayName, flag:m.awayFlag };
-    // power'ı bul
-    const list = encGetCountries();
-    const c = list.find(x => x.code === team.code);
-    return { ...team, power: c ? c.power : 50 };
-  }
-  const qfPairs = [
-    [winnerOf(r16[0]), winnerOf(r16[1])],
-    [winnerOf(r16[2]), winnerOf(r16[3])],
-    [winnerOf(r16[4]), winnerOf(r16[5])],
-    [winnerOf(r16[6]), winnerOf(r16[7])],
-  ];
-  const qf = qfPairs.map((p, idx) => {
-    const seed = season * 7777 + 200 + idx;
-    return encSimMatch(p[0], p[1], seed, 'qf');
-  });
-
-  const sfPairs = [
-    [winnerOf(qf[0]), winnerOf(qf[1])],
-    [winnerOf(qf[2]), winnerOf(qf[3])],
-  ];
-  const sf = sfPairs.map((p, idx) => {
-    const seed = season * 7777 + 300 + idx;
-    return encSimMatch(p[0], p[1], seed, 'sf');
-  });
-
-  const finalPair = [winnerOf(sf[0]), winnerOf(sf[1])];
-  const final = encSimMatch(finalPair[0], finalPair[1], season * 7777 + 400, 'final');
-
-  return { r16, qf, sf, final };
-}
 
 // Tüm istatistikleri topla (gol kralı, asist kralı, en iyi rating)
 function encCalcAllStats(state) {
@@ -63340,9 +62935,6 @@ function encCalcAllStats(state) {
   return { scorers, assisters, ratings };
 }
 
-// State yönetimi - Supabase tournament_state tabanlı (localStorage YOK)
-function encStateKey(season) { return 'cft_eurocup_s' + season; }
-
 // 🆕 RAM cache: { sezon: state } - bootstrapta server'dan yüklenir
 const _encStateCache = {};
 
@@ -63364,34 +62956,12 @@ async function _encLoadFromServer(season) {
   return null;
 }
 
-// Server'a yaz (debounced)
-let _encSaveTimers = {};
-async function _encSaveToServer(season, state) {
-  if (!window.sb) return;
-  // Debounce: 1 sn sonra yaz
-  if (_encSaveTimers[season]) clearTimeout(_encSaveTimers[season]);
-  _encSaveTimers[season] = setTimeout(async () => {
-    try {
-      await window.sb.from('tournament_state').upsert({
-        tournament_key: 'enc',
-        season,
-        phase: 'group',
-        fixture: state,
-        qualified_teams: state.groups ? state.groups.flatMap(g => g.teams || []) : [],
-        results: state.stats || {},
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'tournament_key,season' });
-    } catch(e) { console.warn('[enc] save hata:', e); }
-  }, 1000);
-}
+// ⚠️ Write path (encSave, _encSaveToServer, _encSaveTimers, encStateKey) SİLİNDİ.
+// Edge function ENC state'ini doğrudan yazıyor; frontend READ-ONLY.
 
 // Sync API - cache'ten döner
 function encLoad(season) {
   return _encStateCache[season] || null;
-}
-function encSave(season, state) {
-  _encStateCache[season] = state;
-  _encSaveToServer(season, state);  // arka plan
 }
 
 // Sezon turnuvasını oluştur (Supabase'ten yükle, yoksa null)
@@ -73036,7 +72606,7 @@ function rkCalcNational() {
       state.groups.forEach(g => {
         if(!Array.isArray(g.matches)) return;
         g.matches.forEach(m => {
-          // 🆕 encSimMatch field formatı: { home, away, hg, ag, pens, result, phase }
+          // Maç formatı: { home, away, hg, ag, pens, result, phase } — backend match_results'tan adapt edilir
           if(!m) return;
           if(typeof m.hg !== 'number' || typeof m.ag !== 'number') return;
           const round = m.round || 'Grup';
