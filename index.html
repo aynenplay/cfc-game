@@ -61474,80 +61474,41 @@ function lg2RenderFixture() {
     });
   }
 
-  // 🆕 cft_match_results cache'inden skor okuma (kullanıcı oynadığı maçlar dahil)
-  let _cache = {};
-  try { _cache = _matchResultsLoad(); } catch(e) {}
-  let _cacheUpdated = false;
-
-  // Bugünün sezonunu hesapla (cache key için)
-  const _currentSeason = (typeof getSeasonInfo === 'function') ? getSeasonInfo().season : 1;
-
-  // Hangi gün (1-40) hangi haftaya denk geliyor — SEASON_TEMPLATE ile aynı
-  const _weekToDay = (w) => (w <= 15) ? w : (w + 3); // 1-15 → 1-15, 16-30 → 19-33
+  // 🆕 SUPABASE TEK KAYNAK — _matchResultsLoad cache referansı kaldırıldı.
+  //   f objesi zaten match_state'ten home_score/away_score/status taşıyor (yukarıda set edildi).
 
   const matches = fixture.map(f => {
-    // 🆕 Gerçek kickoff zamanı (gün + matchTime) ile maç bitti mi kontrol et
+    // Gerçek kickoff zamanı ile maç bitti mi kontrol et
     const _mt = f.matchTime || '15:00';
     const [_hh, _mm] = _mt.split(':').map(n => parseInt(n)||0);
     const _matchKickoff = new Date(f.date);
     _matchKickoff.setHours(_hh, _mm, 0, 0);
-    // isPast SADECE maç tam bittiğinde (kickoff + ~12dk) true olur
-    const isPast   = _isMatchEnded(_matchKickoff.getTime());
-    const isToday  = f.date.toDateString() === today.toDateString();
+
+    // Status: 'finished' = bitmiş, 'running' = canlı
+    const isFinished = (f.status === 'finished');
+    const isLive = (f.status === 'running');
+    const isPast = isFinished;
+    const isToday = f.date.toDateString() === today.toDateString();
 
     let hs = null, as2 = null, result = null;
-    if(isPast) {
-      // 🆕 SADECE SUPABASE: cache (= match_results) ne diyorsa o
-      // Lokal simulate KALDIRILDI
-      const day = _weekToDay(f.week);
-      const key = `${_currentSeason}_${day}_${f.homeTeam.name}_${f.awayTeam.name}`;
-      const keyReverse = `${_currentSeason}_${day}_${f.awayTeam.name}_${f.homeTeam.name}`;
-      
-      // Sıra duyarsız arama
-      let cached = _cache[key] || _cache[keyReverse];
-      if (!cached) {
-        cached = _cache[key + '_trn'] || _cache[keyReverse + '_trn'];
-      }
-      if (!cached) {
-        for (const k in _cache) {
-          const v = _cache[k];
-          if (v && v.season === _currentSeason && v.day === day &&
-              ((v.home === f.homeTeam.name && v.away === f.awayTeam.name) ||
-               (v.home === f.awayTeam.name && v.away === f.homeTeam.name))) {
-            cached = v;
-            break;
-          }
-        }
-      }
-
-      if (cached) {
-        // DB'de ters sırada yazılmış olabilir, skoru fikstüre göre yorumla
-        const dbIsReversed = cached.home === f.awayTeam.name && cached.away === f.homeTeam.name;
-        hs = dbIsReversed ? cached.as : cached.hs;
-        as2 = dbIsReversed ? cached.hs : cached.as;
+    if (isFinished || isLive) {
+      hs = (typeof f.home_score === 'number') ? f.home_score : null;
+      as2 = (typeof f.away_score === 'number') ? f.away_score : null;
+      if (isFinished && hs !== null && as2 !== null) {
         result = hs > as2 ? 'w' : hs < as2 ? 'l' : 'd';
       }
-      // Cache'te yoksa skor null kalır (henüz Supabase'e yazılmamış)
     }
+
+    // Hafta → gün (SEASON_TEMPLATE ile aynı: 1-15 → 1-15, 16-30 → 19-33)
+    const dayInSeason = (f.week <= 15) ? f.week : (f.week + 3);
 
     return {
       week: f.week, match: f.match, date: f.date,
       homeTeam: f.homeTeam, awayTeam: f.awayTeam,
-      hs, as: as2, result, isPast, isToday,
+      hs, as: as2, result, isPast, isLive, isToday,
       matchTime: f.matchTime,
+      dayInSeason
     };
-  });
-
-  // Cache'i kaydet (yeni üretilen bot maçları varsa)
-  if (_cacheUpdated) {
-    try { _matchResultsSave(_cache); } catch(e) {}
-  }
-
-  // Her maç için sezon günü hesapla (matchTime artık match_state'ten geliyor)
-  const SEASON_LEN_LOCAL = (typeof SEASON_LEN !== 'undefined') ? SEASON_LEN : 38;
-  matches.forEach(mt => {
-    // matchTime artık match_state.kickoff_at'ten gelir, override etme
-    mt.dayInSeason = _weekToDay(mt.week);
   });
 
   // Bugünün sezon günü
