@@ -51215,8 +51215,8 @@ const LIG_MATCHES = [
 // 🆕 NİHAİ FORMAT (3 turnuva: CHM/ELI/CON, hepsi 48 takım × 8 grup × 6 takım, tek devre)
 // PO tek maç (Gün 2 paralel), Grup MD'ler ayrı günlerde, Eleme S16+ paralel, Finaller ayrı günlerde.
 const SEASON_TEMPLATE = {
-  1:  [{type:'lig', week:1},  {type:'con', round:'Grup 1. Maç'}, {type:'fed', round:'Seçim Günü 🗳️'}],
-  2:  [{type:'lig', week:2},  {type:'chm', round:'Play-off 🎯'}, {type:'eli', round:'Play-off 🎯'}, {type:'con', round:'Play-off 🎯'}, {type:'fed', round:'Seçim Günü 🗳️'}],
+  1:  [{type:'lig', week:1},  {type:'chm', round:'Play-off 🎯'}, {type:'eli', round:'Play-off 🎯'}, {type:'con', round:'Play-off 🎯'}, {type:'fed', round:'Seçim Günü 🗳️'}],
+  2:  [{type:'lig', week:2},  {type:'con', round:'Grup 1. Maç'}, {type:'fed', round:'Seçim Günü 🗳️'}],
   3:  [{type:'lig', week:3},  {type:'eli', round:'Grup 1. Maç'}, {type:'fed', round:'Seçim Sonuçları 🏛️'}],
   4:  [{type:'lig', week:4},  {type:'chm', round:'Grup 1. Maç'}],
   5:  [{type:'lig', week:5},  {type:'con', round:'Grup 2. Maç'}],
@@ -61479,59 +61479,53 @@ let _trn2ActiveTab     = 'champ';
 let _trn2ActiveSubTab  = {}; // {champ:'groups', elite:'groups', conv:'groups'}
 
 // ── Hak kazanan takımları belirle ──
-// Turnuva katılımcıları her zaman BİR ÖNCEKİ sezonun final puan tablosundan gelir.
-// İlk sezon (season=1) içindeyken henüz hiçbir sezon tamamlanmadığı için boş döner.
-// Sezon ≥ 2 olduğunda, season-1'in final tablosu (progress=1) kullanılır.
-// Tier 1: 1-2 = Championship, 3-4 = Elite, 5-6 = Convergence
+// 🆕 NİHAİ FORMAT: Her ülkeden 6 takım → 3 turnuvaya direct+PO ikilisi:
+//   1 → CHM direct,  2 → CHM PO
+//   3 → ELI direct,  4 → ELI PO
+//   5 → CON direct,  6 → CON PO
+// Çıktı: qualifiers[trnKey] hem Array (tüm 64, eski iter uyumu) hem .direct/.po (yeni).
+// Sezon 1: teams DB sırası. Sezon ≥ 2: önceki sezon final standings.
 function trn2GetQualifiers(currentSeason) {
-  const qualifiers = { champ: [], elite: [], conv: [] };
+  function _mkQ() { const a = []; a.direct = []; a.po = []; return a; }
+  const qualifiers = { champ: _mkQ(), elite: _mkQ(), conv: _mkQ() };
   const prevSeason = currentSeason - 1;
 
-  // 🆕 SEZON 1 ÖZEL: Henüz hiç lig sezonu oynanmadı.
-  // Her ülkenin Süper Lig'inden ilk 6 popüler takımı al → playoff'a yaz.
-  // teams DB'deki sıralama = takım gücü/popülerliği sırası (zaten oluşturuluştan sıralı).
-  // Sonraki sezonlar gerçek lig sonuçlarına göre.
+  function _push(bucket, team, rank) {
+    const enriched = { ...team, rank };
+    bucket.push(enriched);
+    if (rank % 2 === 1) bucket.direct.push(enriched);
+    else bucket.po.push(enriched);
+  }
+
   if (currentSeason === 1) {
     for (const [ck, country] of _cftAllEntries()) {
       const tier1 = country.leagues && country.leagues[0];
       if (!tier1 || !tier1.teams || tier1.teams.length < 6) continue;
-
-      // Süper Lig'in ilk 6 takımı — popülerlik/güç bazlı (zaten sıralı geliyor)
-      const top6 = tier1.teams.slice(0, 6);
-      const enrich = top6.map(t => ({
+      const top6 = tier1.teams.slice(0, 6).map(t => ({
         ...t, countryKey: ck, countryName: country.name, countryFlag: country.flag
       }));
-      // 1+2 → Champions, 3+4 → Elite, 5+6 → Convergence
-      if (enrich[0]) qualifiers.champ.push({ ...enrich[0], rank: 1 });
-      if (enrich[1]) qualifiers.champ.push({ ...enrich[1], rank: 2 });
-      if (enrich[2]) qualifiers.elite.push({ ...enrich[2], rank: 3 });
-      if (enrich[3]) qualifiers.elite.push({ ...enrich[3], rank: 4 });
-      if (enrich[4]) qualifiers.conv.push({  ...enrich[4], rank: 5 });
-      if (enrich[5]) qualifiers.conv.push({  ...enrich[5], rank: 6 });
+      if (top6[0]) _push(qualifiers.champ, top6[0], 1);
+      if (top6[1]) _push(qualifiers.champ, top6[1], 2);
+      if (top6[2]) _push(qualifiers.elite, top6[2], 3);
+      if (top6[3]) _push(qualifiers.elite, top6[3], 4);
+      if (top6[4]) _push(qualifiers.conv,  top6[4], 5);
+      if (top6[5]) _push(qualifiers.conv,  top6[5], 6);
     }
     return qualifiers;
   }
 
-  // 🆕 FAZ 5+: Önce sezon sonu snapshot'ını dene (bot promosyon teams DB'yi
-  // mutate ettikten sonra bile doğru sıralama bu snapshot'tan gelir)
   const snap = (typeof readFinalStandings === 'function')
     ? readFinalStandings(prevSeason) : null;
 
-  for(const [ck, country] of _cftAllEntries()) {
+  for (const [ck, country] of _cftAllEntries()) {
     const tier1 = country.leagues && country.leagues[0];
-    if(!tier1) continue;
+    if (!tier1) continue;
 
     let ranked = null;
-
-    // Snapshot varsa: takım isimlerinden takım objelerini bul
-    // (Takım objesi şu an Süper Lig'de ya da 1. Lig'de olabilir — her ikisinde de ara)
     if (snap && Array.isArray(snap[ck])) {
-      // Ülkenin tüm tier'larında takım isim → obje haritası kur
       const allTeams = {};
       for (const lg of (country.leagues || [])) {
-        for (const t of (lg.teams || [])) {
-          allTeams[t.name] = t;
-        }
+        for (const t of (lg.teams || [])) allTeams[t.name] = t;
       }
       const arr = [];
       for (const name of snap[ck]) {
@@ -61539,23 +61533,19 @@ function trn2GetQualifiers(currentSeason) {
       }
       if (arr.length >= 6) ranked = arr;
     }
-
-    // Snapshot yoksa veya eksikse: canlı hesapla (fallback — eski davranış)
-    if (!ranked) {
-      ranked = calcLeagueStandings(ck, 0, { season: prevSeason, progress: 1 });
-    }
+    if (!ranked) ranked = calcLeagueStandings(ck, 0, { season: prevSeason, progress: 1 });
 
     const enrich = ranked.map(t => ({
       ...t, countryKey: ck, countryName: country.name, countryFlag: country.flag
     }));
-    if(enrich[0]) qualifiers.champ.push({ ...enrich[0], rank: 1 });
-    if(enrich[1]) qualifiers.champ.push({ ...enrich[1], rank: 2 });
-    if(enrich[2]) qualifiers.elite.push({ ...enrich[2], rank: 3 });
-    if(enrich[3]) qualifiers.elite.push({ ...enrich[3], rank: 4 });
-    if(enrich[4]) qualifiers.conv.push({  ...enrich[4], rank: 5 });
-    if(enrich[5]) qualifiers.conv.push({  ...enrich[5], rank: 6 });
+    if (enrich[0]) _push(qualifiers.champ, enrich[0], 1);
+    if (enrich[1]) _push(qualifiers.champ, enrich[1], 2);
+    if (enrich[2]) _push(qualifiers.elite, enrich[2], 3);
+    if (enrich[3]) _push(qualifiers.elite, enrich[3], 4);
+    if (enrich[4]) _push(qualifiers.conv,  enrich[4], 5);
+    if (enrich[5]) _push(qualifiers.conv,  enrich[5], 6);
   }
-  return qualifiers; // Sezon ≥ 2 ise: 64 champ, 64 elite, 64 conv
+  return qualifiers; // her trnKey: 64 (32 direct + 32 po)
 }
 
 // ── Play-Off: 64 → 32 (1. vs 2., farklı ülke) ──
@@ -61772,20 +61762,27 @@ function _trnMatchTimeStr(trnKey, season, groupIdx, matchday, homeIdx, awayIdx) 
 }
 
 // ── 8 grup × 4 takım (32 takımdan) — UEFA klasik çift round-robin (12 maç/grup, 6 maç/takım) ──
-function trn2BuildGroups(teams32, season, trnKey) {
-  // 🆕 ÖNCE Supabase tournament_state'ten grup yapısını al (tek doğruluk kaynağı)
-  // Server'da fixture varsa onu kullan, lokal kura çekmeyi atla
-  const _srvState = (typeof _tournamentStateGet === 'function') ? _tournamentStateGet(trnKey, season) : null;
-  const _srvGroups = _srvState && _srvState.fixture && Array.isArray(_srvState.fixture.groups) ? _srvState.fixture.groups : null;
+function trn2BuildGroups(teams48, season, trnKey) {
+  // 🆕 NİHAİ FORMAT — Server tek doğruluk kaynağı (Supabase tournament_state).
+  // 8 grup × 6 takım × tek devre (5 MD). Lokal kura/FIXTURE YOK — fixture.groupMatches'tan okur.
+  const _srvState  = (typeof _tournamentStateGet === 'function') ? _tournamentStateGet(trnKey, season) : null;
+  const _srvGroups = _srvState && _srvState.fixture && Array.isArray(_srvState.fixture.groups)       ? _srvState.fixture.groups       : null;
+  const _srvMatches= _srvState && _srvState.fixture && Array.isArray(_srvState.fixture.groupMatches) ? _srvState.fixture.groupMatches : [];
 
-  // teams DB'den takım bilgilerini hidrat: server fixture sadece countryCode+name+rank verir,
-  // bg/tc/short gibi UI alanları için teams DB lookup gerek
+  const letters = ['A','B','C','D','E','F','G','H'];
+
+  // Server fixture yoksa boş 8 grup iskeleti
+  if (!_srvGroups || _srvGroups.length !== 8) {
+    return Array.from({length:8}, (_, gi) => ({ letter: letters[gi], teams: [], matches: [] }));
+  }
+
+  // teams DB'den takımı hidrat (UI alanları için)
   function _hydrateTeam(srvTeam) {
-    if (!srvTeam || !srvTeam.name || !srvTeam.countryCode) return null;
-    const cc = srvTeam.countryCode;
-    const country = _cftGetCountry(cc);
-    const countryFlag = country ? country.flag : '🏳️';
-    if (true && country && country.leagues) {
+    if (!srvTeam || !srvTeam.name) return null;
+    const cc = srvTeam.countryCode || srvTeam.countryKey;
+    const country = cc ? _cftGetCountry(cc) : null;
+    const countryFlag = (country && country.flag) || '🏳️';
+    if (country && country.leagues) {
       for (const lg of country.leagues) {
         const found = (lg.teams || []).find(x => x.name === srvTeam.name);
         if (found) return { ...found, countryKey: cc, countryFlag, rank: srvTeam.rank || 0 };
@@ -61794,231 +61791,116 @@ function trn2BuildGroups(teams32, season, trnKey) {
     return { name: srvTeam.name, countryKey: cc, countryFlag, rank: srvTeam.rank || 0 };
   }
 
-  const groups = Array.from({length:8}, () => []);
-
-  if (_srvGroups && _srvGroups.length === 8) {
-    // Server kurasını kullan
-    _srvGroups.forEach((sg, gi) => {
-      for (const srvT of (sg.teams || [])) {
-        const hyd = _hydrateTeam(srvT);
-        if (hyd) groups[gi].push(hyd);
-      }
-    });
-  } else {
-    // Server'da yok → eski lokal kura mantığı (fallback)
-    function h(s) { return (s * 1664525 + 1013904223) & 0x7fffffff; }
-    let drawSeed = season * 777 + trnKey.charCodeAt(0) * 31;
-
-    const shuffled = [...teams32].sort((a,b) => {
-      drawSeed = h(drawSeed + a.countryKey.charCodeAt(0));
-      return (drawSeed & 1) ? 1 : -1;
-    });
-
-    shuffled.forEach((t, i) => {
-      let placed = false;
-      for(let gi = 0; gi < 8; gi++) {
-        if(groups[gi].length < 4 && !groups[gi].some(g => g.countryKey === t.countryKey)) {
-          groups[gi].push(t);
-          placed = true;
-          break;
-        }
-      }
-      if(!placed) {
-        const gi = groups.reduce((mi, g, gi2) => g.length < groups[mi].length ? gi2 : mi, 0);
-        groups[gi].push(t);
-      }
-    });
-  }
-
-  // 🆕 Tam takım nesnesi çıkar (simulateBotMatch için players + rating lazım)
-  function _fullTeamForSim(t) {
-    if (!t || !t.countryKey || !t.name) return null;
-    if (false || !_cftGetCountry(t.countryKey)) return null;
-    const country = _cftGetCountry(t.countryKey);
-    for (const lg of (country.leagues || [])) {
-      const found = (lg.teams || []).find(x => x.name === t.name);
-      if (found) {
-        const full = { ...found, countryCode: t.countryKey };
-        if (true /* guestGenerateRoster silindi */) {
-          try {
-            full._roster = getOrCreateTeamRoster({ countryCode: t.countryKey, name: t.name, rank: found.rank || 1 });
-            if (full._roster && !full.players) full.players = full._roster;
-          } catch(e){}
-        }
-        return full;
-      }
-    }
-    return null;
-  }
-
-  // 🆕 Cache (perf: 8 grup × 12 maç × 3 turnuva ≈ 288 maç sim per sezon)
-  // 🆕 Cache key güncel günü içerir — gün ilerledikçe yeni maç günleri açılır, tablo değişir
-  window._trn2GroupsCache = window._trn2GroupsCache || {};
-  const _seasonInfoForCache = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : null;
-  const _currentDayForCache = _seasonInfoForCache ? (_seasonInfoForCache.dayInSeason || 1) : 1;
-  const _currentSeasonForCache = _seasonInfoForCache ? (_seasonInfoForCache.season || 1) : 1;
-  // Sezon farklıysa gün eklemeye gerek yok (geçmiş/gelecek = sabit), aynı sezonsa gün dahil
-  const _dayPart = (season === _currentSeasonForCache) ? ('_d' + _currentDayForCache) : '';
-  const _cacheKey = `${trnKey}_s${season}${_dayPart}_groups_v4_${groups.map(g=>g.map(t=>t.name+'@'+t.countryKey).join('-')).join('|')}`;
-  if (window._trn2GroupsCache[_cacheKey]) return window._trn2GroupsCache[_cacheKey];
-
-  // 🆕 UEFA klasik çift round-robin fixture (4 takım, 6 maç günü, her ikili 2 kez)
-  // İlk yarı (MD 1-3): her ikili 1 kez
-  // İkinci yarı (MD 4-6): aynı eşleşmeler, ters yön (ev/dep değişir)
-  const FIXTURE = [
-    [1, 0, 1], [1, 2, 3],   // MD1
-    [2, 0, 2], [2, 3, 1],   // MD2
-    [3, 0, 3], [3, 1, 2],   // MD3
-    [4, 1, 0], [4, 3, 2],   // MD4 (MD1 ters)
-    [5, 2, 0], [5, 1, 3],   // MD5 (MD2 ters)
-    [6, 3, 0], [6, 2, 1]    // MD6 (MD3 ters)
-  ];
-
-  const letters = ['A','B','C','D','E','F','G','H'];
-
-  // 🆕 match_results'tan turnuva grup maçlarını al (server tek doğruluk kaynağı)
+  // Skor lookup: match_results + match_state finished (tek kaynak Supabase)
   const _grpMrCache = (typeof _matchResultsLoad === 'function') ? _matchResultsLoad() : {};
-  const _groupFromServer = {};
+  const _scoreFromServer = {};
   for (const k in _grpMrCache) {
     const m = _grpMrCache[k];
     if (!m || m.season !== season) continue;
     if (m.tournament_key !== trnKey || m.tournament_phase !== 'group') continue;
-    _groupFromServer[`${m.home}|${m.away}`] = m;
+    _scoreFromServer[`${m.home}|${m.away}`] = m;
   }
-  // 🆕 Yedek kaynak: match_state cache (Edge Function match_results'a yazmadıysa puan tablosu boş kalır)
-  //   match_state.status='finished' olan grup maçları buraya eklenir; match_results'taki varsa o öncelikli.
   if (_matchStateCache && _matchStateCache.byKey) {
     for (const m of Object.values(_matchStateCache.byKey)) {
       if (!m || m.season !== season) continue;
       if (m.tournament_key !== trnKey || m.tournament_phase !== 'group') continue;
       if (m.status !== 'finished') continue;
       const _k = `${m.home}|${m.away}`;
-      if (_groupFromServer[_k]) continue; // match_results öncelikli
-      _groupFromServer[_k] = {
-        home: m.home, away: m.away,
-        hs: m.home_score, as: m.away_score,
-        season: m.season,
-        tournament_key: m.tournament_key,
-        tournament_phase: m.tournament_phase,
-        events: m.events || null,
-        stats: null
+      if (_scoreFromServer[_k]) continue;
+      _scoreFromServer[_k] = {
+        home: m.home, away: m.away, hs: m.home_score, as: m.away_score,
+        events: m.events || null, stats: null
       };
     }
   }
 
-  const result = groups.map((grp, gi) => {
-    // Her takıma boş stat objesi
-    const stats = grp.map(t => ({
-      ...t,
-      gp: 0, dp: 0, mp: 0, pts: 0, gf: 0, ga: 0
-    }));
+  // Cache (sezon + gün)
+  window._trn2GroupsCache = window._trn2GroupsCache || {};
+  const _sInfo = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : null;
+  const _curDay = _sInfo ? (_sInfo.dayInSeason || 1) : 1;
+  const _curSeason = _sInfo ? (_sInfo.season || 1) : 1;
+  const _dayPart = (season === _curSeason) ? ('_d' + _curDay) : '';
+  const _cacheKey = `${trnKey}_s${season}${_dayPart}_groups_v5_${_srvGroups.map(g => (g.teams||[]).map(t=>t.name).join('-')).join('|')}`;
+  if (window._trn2GroupsCache[_cacheKey]) return window._trn2GroupsCache[_cacheKey];
 
-    // Cache: tam takım nesnelerini bir kere çıkar (guestGenerateRoster pahalı)
-    const fullTeams = grp.map(t => _fullTeamForSim(t));
+  // Grup map (letter → { gi, teams })
+  const groupMap = {};
+  _srvGroups.forEach((sg, gi) => {
+    const letter = sg.letter || letters[gi];
+    groupMap[letter] = { gi, letter, teams: (sg.teams || []).map(_hydrateTeam).filter(x => x) };
+  });
 
-    // 🆕 Şu anki sezon + gün bilgisi — maç günü mantığı için
-    const seasonInfo = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : null;
-    const currentSeason = seasonInfo ? (seasonInfo.season || 1) : 1;
-    const currentDay = seasonInfo ? (seasonInfo.dayInSeason || 1) : 1;
-    const isPastSeason = (season < currentSeason); // tüm maçlar oynandı sayılır
-    const isFutureSeason = (season > currentSeason); // hiç oynanmadı
+  // Server maçlarını grup harfine göre dağıt
+  const grpMatchesByLetter = {};
+  for (const m of _srvMatches) {
+    const letter = m.group;
+    if (!groupMap[letter]) continue;
+    const grp = groupMap[letter];
+    const home = _hydrateTeam(m.home);
+    const away = _hydrateTeam(m.away);
+    if (!home || !away) continue;
+    const hi = grp.teams.findIndex(t => t.name === home.name);
+    const ai = grp.teams.findIndex(t => t.name === away.name);
 
-    // 🆕 Hangi günlerde hangi matchday oynanır — sezon takvimine göre
-    // Convergence: 2,4,6,8,10,12 | Elite: 3,5,7,9,11,13 | Champions: 4,6,8,10,12,14
-    const MD_DAYS = {
-      conv:  [2, 4, 6, 8, 10, 12],
-      elite: [3, 5, 7, 9, 11, 13],
-      champ: [4, 6, 8, 10, 12, 14],
-    };
-    const mdDayArr = MD_DAYS[trnKey] || MD_DAYS.conv;
+    const _srvScore = _scoreFromServer[`${home.name}|${away.name}`];
+    const hs = _srvScore ? (_srvScore.hs ?? null) : (m.hg ?? null);
+    const as = _srvScore ? (_srvScore.as ?? null) : (m.ag ?? null);
+    const isPlayed = (typeof hs === 'number') && (typeof as === 'number');
 
-    // 12 maçı (FIXTURE) tam 3D motorla simüle et
-    const matches = [];
-    FIXTURE.forEach(([md, hi, ai]) => {
-      if (hi >= grp.length || ai >= grp.length) return; // grup eksikse atla
-      const home = grp[hi];
-      const away = grp[ai];
-      const homeFull = fullTeams[hi];
-      const awayFull = fullTeams[ai];
-      const seedStr = `${trnKey}_s${season}_G${gi}_MD${md}_${home.countryKey}-${home.name}_vs_${away.countryKey}-${away.name}`;
-
-      // 🆕 Bu matchday'in günü = MD_DAYS[trnKey][md-1]
-      const mdDay = mdDayArr[md - 1] || 99;
-      // Server'da maç sonucu varsa ZATEN oynanmıştır (status='finished'). Bunu önce kontrol et.
-      //   Eski `currentDay > mdDay` mantığı bugünkü maçları "oynanmamış" sayıyordu → skor okunmuyordu.
-      //   Edge Function maçı bitirmişse _groupFromServer'da kayıt var demektir, oynanmış kabul et.
-      const _srvKey = `${home.name}|${away.name}`;
-      const _srvMatch = _groupFromServer[_srvKey];
-      const isPlayed = !!_srvMatch || isPastSeason || (!isFutureSeason && currentDay > mdDay);
-
-      let hs = null, as = null, simEvents = null, simStats = null;
-
-      // 🚫 Lokal simulate ve hardcoded fallback KALDIRILDI.
-      // Skoru SADECE Supabase'ten al — yoksa null bırak (Edge Function henüz oynatmamış).
-      if (isPlayed && _srvMatch) {
-        hs = _srvMatch.hs ?? null;
-        as = _srvMatch.as ?? null;
-        simEvents = _srvMatch.events || null;
-        simStats = _srvMatch.stats || null;
-        // Cache'te yoksa hs/as null kalır — UI "Bekleniyor" gösterecek
+    // Kickoff time — match_state'ten gerçek değer
+    let _matchDateTimeISO = null, _scheduledTime = null, _matchDateISO = null;
+    if (_matchStateCache && _matchStateCache.byKey) {
+      const _msFound = Object.values(_matchStateCache.byKey).find(mm =>
+        mm.tournament_key === trnKey &&
+        mm.tournament_phase === 'group' &&
+        mm.home === home.name &&
+        mm.away === away.name &&
+        mm.season === season
+      );
+      if (_msFound && _msFound.matchDateTime) {
+        const _d = new Date(_msFound.matchDateTime);
+        _matchDateISO = _d.toISOString().slice(0, 10);
+        _scheduledTime = String(_d.getHours()).padStart(2,'0') + ':' + String(_d.getMinutes()).padStart(2,'0');
+        _matchDateTimeISO = _msFound.matchDateTime;
       }
+    }
+    if (!_scheduledTime && m.day) {
+      _matchDateISO = _trnMatchDateISO(season, m.day);
+      _scheduledTime = _trnMatchTimeStr(trnKey, season, grp.gi, m.week || 1, hi, ai);
+      _matchDateTimeISO = _matchDateISO + 'T' + _scheduledTime + ':00';
+    }
 
-      // 🆕 Tarih + saat: match_state'ten gerçek kickoff_at (Supabase tek doğruluk)
-      // Lokal _trnMatchTimeStr/_trnMatchDateISO hesabı KULLANILMIYOR
-      let _matchDateISO = null;
-      let _scheduledTime = null;
-      let _matchDateTimeISO = null;
-      if (_matchStateCache && _matchStateCache.byKey) {
-        const _msFound = Object.values(_matchStateCache.byKey).find(mm =>
-          mm.tournament_key === trnKey &&
-          mm.tournament_phase === 'group' &&
-          mm.home === home.name &&
-          mm.away === away.name &&
-          mm.season === season
-        );
-        if (_msFound && _msFound.matchDateTime) {
-          const _d = new Date(_msFound.matchDateTime);
-          _matchDateISO = _d.toISOString().slice(0, 10);
-          _scheduledTime = String(_d.getHours()).padStart(2,'0') + ':' + String(_d.getMinutes()).padStart(2,'0');
-          _matchDateTimeISO = _msFound.matchDateTime;
-        }
-      }
-      // Fallback (match_state'te yoksa — sezon henüz kurulmamış)
-      if (!_scheduledTime) {
-        _matchDateISO = _trnMatchDateISO(season, mdDay);
-        _scheduledTime = _trnMatchTimeStr(trnKey, season, gi, md, hi, ai);
-        _matchDateTimeISO = _matchDateISO + 'T' + _scheduledTime + ':00';
-      }
-      
-      matches.push({
-        matchday: md, homeIdx: hi, awayIdx: ai, home, away, hs, as,
-        events: simEvents, stats: simStats, played: isPlayed,
-        matchDate: _matchDateISO,
-        scheduledTime: _scheduledTime,
-        matchDateTime: _matchDateTimeISO,
-      });
-
-      // 🆕 Stat güncellemesi SADECE oynanan maçlar için
-      if (isPlayed && typeof hs === 'number' && typeof as === 'number') {
-        const hStat = stats[hi];
-        const aStat = stats[ai];
-        hStat.gf += hs; hStat.ga += as;
-        aStat.gf += as; aStat.ga += hs;
-        if (hs > as) {
-          hStat.gp += 1; hStat.pts += 3;
-          aStat.mp += 1;
-        } else if (as > hs) {
-          aStat.gp += 1; aStat.pts += 3;
-          hStat.mp += 1;
-        } else {
-          hStat.dp += 1; hStat.pts += 1;
-          aStat.dp += 1; aStat.pts += 1;
-        }
-      }
+    if (!grpMatchesByLetter[letter]) grpMatchesByLetter[letter] = [];
+    grpMatchesByLetter[letter].push({
+      matchday: m.week, day: m.day, homeIdx: hi, awayIdx: ai,
+      home, away, hs, as,
+      events: _srvScore ? _srvScore.events : null,
+      stats:  _srvScore ? _srvScore.stats  : null,
+      played: isPlayed,
+      matchDate: _matchDateISO,
+      scheduledTime: _scheduledTime,
+      matchDateTime: _matchDateTimeISO
     });
+  }
 
-    // Sıralama: pts → averaj → gf → countryKey (deterministik tiebreaker)
-    // (Puanlar tümü 0 ise teams DB sırası korunur — anlamlı bir gösterim)
+  // Final result + puan tablosu hesapla
+  const result = Object.values(groupMap).sort((a,b) => a.gi - b.gi).map(grp => {
+    const stats = grp.teams.map(t => ({ ...t, gp: 0, dp: 0, mp: 0, pts: 0, gf: 0, ga: 0 }));
+    const matches = grpMatchesByLetter[grp.letter] || [];
+
+    for (const mc of matches) {
+      if (!mc.played) continue;
+      const hStat = stats[mc.homeIdx];
+      const aStat = stats[mc.awayIdx];
+      if (!hStat || !aStat) continue;
+      hStat.gf += mc.hs; hStat.ga += mc.as;
+      aStat.gf += mc.as; aStat.ga += mc.hs;
+      if (mc.hs > mc.as)      { hStat.gp += 1; hStat.pts += 3; aStat.mp += 1; }
+      else if (mc.as > mc.hs) { aStat.gp += 1; aStat.pts += 3; hStat.mp += 1; }
+      else                    { hStat.dp += 1; hStat.pts += 1; aStat.dp += 1; aStat.pts += 1; }
+    }
+
+    // Tiebreaker: pts → averaj → gf → countryKey
     stats.sort((a, b) => {
       if (b.pts !== a.pts) return b.pts - a.pts;
       const avA = (a.gf||0) - (a.ga||0);
@@ -62028,7 +61910,7 @@ function trn2BuildGroups(teams32, season, trnKey) {
       return (a.countryKey || '').localeCompare(b.countryKey || '');
     });
 
-    return { letter: letters[gi], teams: stats, matches };
+    return { letter: grp.letter, teams: stats, matches };
   });
 
   window._trn2GroupsCache[_cacheKey] = result;
@@ -62094,7 +61976,10 @@ function trn2BuildBracket(groups, season, trnKey) {
   // Server'da r16/qf/sf/final fixture varsa, lokal hesaplamayı atla
   const _srvState = (typeof _tournamentStateGet === 'function') ? _tournamentStateGet(trnKey, season) : null;
   const _srvFix = _srvState && _srvState.fixture ? _srvState.fixture : null;
-  const _hasSrvR16 = _srvFix && Array.isArray(_srvFix.r16) && _srvFix.r16.length > 0;
+  // 🆕 NİHAİ FORMAT: CHM = r16'dan başlar; ELI/CON = r32'den başlar.
+  // İlk faz fixture'ı varsa bracket kurulur.
+  const _startPhase = (trnKey === 'champ') ? 'r16' : 'r32';
+  const _hasSrvStart = _srvFix && Array.isArray(_srvFix[_startPhase]) && _srvFix[_startPhase].length > 0;
 
   // match_results lookup: home+away → skor
   const _mrAll = (typeof _matchResultsLoad === 'function') ? _matchResultsLoad() : {};
@@ -62102,7 +61987,7 @@ function trn2BuildBracket(groups, season, trnKey) {
   for (const k in _mrAll) {
     const m = _mrAll[k];
     if (!m || m.season !== season || m.tournament_key !== trnKey) continue;
-    if (!['r16','qf','sf','final'].includes(m.tournament_phase || '')) continue;
+    if (!['r32','r16','qf','sf','final'].includes(m.tournament_phase || '')) continue;
     const phase = m.tournament_phase;
     if (!_knockoutFromServer[phase]) _knockoutFromServer[phase] = {};
     _knockoutFromServer[phase][`${m.home}|${m.away}`] = m;
@@ -62131,14 +62016,23 @@ function trn2BuildBracket(groups, season, trnKey) {
   }
 
   // 🆕 SERVER YOLU: tournament_state.fixture'tan tur tur bracket oluştur
-  if (_hasSrvR16) {
+  if (_hasSrvStart) {
     const _bracket = [];
-    const _phaseInfo = [
-      { phase: 'r16', name: 'Son 16', twoLeg: true },
-      { phase: 'qf',  name: 'Çeyrek Final', twoLeg: true },
-      { phase: 'sf',  name: 'Yarı Final', twoLeg: true },
-      { phase: 'final', name: 'Final 🏆', twoLeg: false }
-    ];
+    // CHM: r16'dan; ELI/CON: r32'den. Final tek maç, diğerleri çift.
+    const _phaseInfo = (trnKey === 'champ')
+      ? [
+          { phase: 'r16',   name: 'Son 16',        twoLeg: true },
+          { phase: 'qf',    name: 'Çeyrek Final',  twoLeg: true },
+          { phase: 'sf',    name: 'Yarı Final',    twoLeg: true },
+          { phase: 'final', name: 'Final 🏆',      twoLeg: false }
+        ]
+      : [
+          { phase: 'r32',   name: 'Son 32',        twoLeg: true },
+          { phase: 'r16',   name: 'Son 16',        twoLeg: true },
+          { phase: 'qf',    name: 'Çeyrek Final',  twoLeg: true },
+          { phase: 'sf',    name: 'Yarı Final',    twoLeg: true },
+          { phase: 'final', name: 'Final 🏆',      twoLeg: false }
+        ];
 
     for (const info of _phaseInfo) {
       const pairs = _srvFix[info.phase];
@@ -69799,8 +69693,8 @@ function calFormatDayDate(day) {
 }
 
 function calDayLabel(day) {
-  if(day === 1)  return 'Sezon Başı · Seçim';
-  if(day === 2)  return 'Avrupa Play-off Günü';
+  if(day === 1)  return 'Avrupa Play-off · Sezon Başı';
+  if(day === 2)  return 'Federasyon Seçimi · CON MD1';
   if(day === 3)  return 'Seçim Sonuçları (19:00)';
   if(day === 15) return 'CON/ELI Grup Aşaması Sonu';
   if(day === 16 || day === 17 || day === 18) return 'Ara Dönem';
