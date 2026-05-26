@@ -50823,7 +50823,10 @@ function frmEnsurePlayed() {
   // 🆕 Edge Function (tick-matches) hazırlık maçlarını match_state üzerinden oynar.
   // Burada match_state'te status='finished' olan hazırlık maçlarını bulup
   // friendly_matches.match_data'ya yansıtırız (played, hs, as, events).
-  if (typeof _liveMatchCache !== 'object' || !_liveMatchCache) return;
+  //
+  // ⚠️ BUG FIX: _liveMatchCache sadece running+scheduled+enc çekiyor; finished maçlar yok.
+  //   Bu yüzden bitmiş hazırlık maçları sonuçlar sayfasında görünmüyordu.
+  //   Çözüm: _matchStateCache'i (genel cache, tüm statüler var) öncelikli kaynak yap.
   if (!Array.isArray(_frmMatchesCache) || _frmMatchesCache.length === 0) return;
   let dirty = false;
   for (const fm of _frmMatchesCache) {
@@ -50831,15 +50834,26 @@ function frmEnsurePlayed() {
     if (fm.status !== 'accepted') continue;
     // match_state'te bu hazırlık maçının satırını ara — match_key 'friendly_frm_<id>' formatında
     const expectedKey = 'friendly_' + fm.id;
-    const ms = _liveMatchCache[expectedKey];
+    // Öncelik: _matchStateCache (finished dahil tüm statüler)
+    let ms = null;
+    if (typeof _matchStateCache === 'object' && _matchStateCache && _matchStateCache.byKey) {
+      ms = _matchStateCache.byKey[expectedKey] || null;
+    }
+    // Yedek: _liveMatchCache (eski canlı cache; sadece running+scheduled)
+    if (!ms && typeof _liveMatchCache === 'object' && _liveMatchCache) {
+      ms = _liveMatchCache[expectedKey] || null;
+    }
     if (!ms) continue;
     if (ms.status !== 'finished') continue;
-    // Bitmiş — friendly_matches'a yansıt
+    // Bitmiş — friendly_matches'a yansıt.
+    //   Not: _matchStateCache.byKey içindeki obje home_score/away_score değil hs/as taşıyor
+    //   olabilir (mapping farklı). Her iki alanı da kontrol et.
     fm.played = true;
-    fm.hs = ms.home_score ?? 0;
-    fm.as = ms.away_score ?? 0;
+    fm.hs = (ms.home_score ?? ms.hs ?? 0);
+    fm.as = (ms.away_score ?? ms.as ?? 0);
     fm.events = Array.isArray(ms.events) ? ms.events : [];
-    fm.playedAt = ms.last_tick_at ? new Date(ms.last_tick_at).getTime() : Date.now();
+    fm.playedAt = ms.last_tick_at ? new Date(ms.last_tick_at).getTime()
+                  : (ms.kickoff_at ? new Date(ms.kickoff_at).getTime() : Date.now());
     dirty = true;
   }
   if (dirty) {
