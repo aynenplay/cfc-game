@@ -54054,14 +54054,17 @@ let _resDDMode = null;        // 'country' | 'league'
 let _resDDItems = [];         // [{ value, label, flag }]
 let _resCountryItems = [];    // cached
 let _resLeagueItems = [];     // cached
+let _resTournamentItems = []; // cached (dinamik, match_state'ten)
 let _resAllMatches = [];      // last allMatches for filter rebuilding
 
 // Filtre listelerini hazırla + trigger label'larını güncelle
+// 🆕 KAYNAK: _matchStateCache.byKey (Supabase tek doğruluk).
+//   Lig listesi: o ülkenin match_state'te bulunan tüm benzersiz leagueName'leri (tüm sezon)
+//   Turnuva listesi: match_state'te bulunan tüm tournament_key değerleri (dinamik, hardcoded değil)
 function _resBuildFilters(allMatches) {
   _resAllMatches = allMatches;
 
-  // 🆕 Ülke listesi: teams DB'deki TÜM ülkeler (o günün maçlarına bağlı değil)
-  // Bu sayede maç olmayan günlerde de dropdown dolu gelir.
+  // Ülke listesi: teams DB'deki TÜM ülkeler (her zaman dolu, maç olmasa bile)
   _resCountryItems = [{ value: 'all', label: 'Tüm Ülkeler', flag: '🌍' }];
   if (_cftIsReady()) {
     const allCountries = _cftGetCountryCodes().sort((a, b) => {
@@ -54080,45 +54083,69 @@ function _resBuildFilters(allMatches) {
     });
   }
 
-  // 🆕 Lig listesi: seçili ülkenin teams DB tier'larından (tüm klasmanlar)
-  // "Tüm Ülkeler" seçiliyse → o günün maçlarında geçen ligler (yine de boş kalmaması için fallback)
+  // Lig listesi: _matchStateCache'ten benzersiz leagueName'ler (lig maçları için, sezon boyu)
   _resLeagueItems = [{ value: 'all', label: 'Tüm Ligler', flag: '⚽' }];
-  // leagueName → flag haritası (bayrak göstermek için)
-  const _leagueFlagMap = {};
-
-  if (_resState.countryFilter !== 'all' && true && _cftGetCountry(_resState.countryFilter)) {
-    // Seçili ülkenin tüm tier'larını listele — bayrak ülkenin bayrağı
-    const country = _cftGetCountry(_resState.countryFilter);
-    const ccFlag = (country && country.flag) || '🏳️';
-    (country.leagues || []).forEach(lg => {
-      if (lg && lg.name) {
-        _leagueFlagMap[lg.name] = ccFlag;
-      }
-    });
-    const leaguesArr = Object.keys(_leagueFlagMap);
-    leaguesArr.sort((a, b) => a.localeCompare(b, 'tr')).forEach(lg => {
-      _resLeagueItems.push({ value: lg, label: lg, flag: _leagueFlagMap[lg] });
-    });
-  } else {
-    // "Tüm Ülkeler": o günün maçlarından lig isimleri + bayraklar
-    const leaguesSet = new Set();
-    allMatches.forEach(m => {
-      if (m.leagueName) {
-        leaguesSet.add(m.leagueName);
-        if (!_leagueFlagMap[m.leagueName] && m.leagueFlag) {
-          _leagueFlagMap[m.leagueName] = m.leagueFlag;
+  const _leaguesMap = {}; // leagueName → { flag, countryCode }
+  if (_matchStateCache && _matchStateCache.byKey) {
+    for (const ms of Object.values(_matchStateCache.byKey)) {
+      if (!ms) continue;
+      if (ms.tournament_key) continue; // sadece lig maçları
+      if (!ms.leagueName) continue;
+      // Ülke filtresi varsa sadece o ülke
+      if (_resState.countryFilter !== 'all' && ms.countryCode !== _resState.countryFilter) continue;
+      if (!_leaguesMap[ms.leagueName]) {
+        let flag = ms.leagueFlag;
+        if (!flag && ms.countryCode && typeof _cftGetCountry === 'function') {
+          const c = _cftGetCountry(ms.countryCode);
+          if (c && c.flag) flag = c.flag;
         }
+        _leaguesMap[ms.leagueName] = { flag: flag || '🏳️', countryCode: ms.countryCode };
       }
-    });
-    Array.from(leaguesSet).sort((a, b) => a.localeCompare(b, 'tr')).forEach(lg => {
-      _resLeagueItems.push({ value: lg, label: lg, flag: _leagueFlagMap[lg] || '⚽' });
-    });
+    }
   }
+  Object.keys(_leaguesMap).sort((a, b) => a.localeCompare(b, 'tr')).forEach(lg => {
+    _resLeagueItems.push({ value: lg, label: lg, flag: _leaguesMap[lg].flag });
+  });
 
   // Seçili lig artık listede yoksa "all"a sıfırla
   const _availableLeagues = _resLeagueItems.filter(i => i.value !== 'all').map(i => i.value);
   if (_resState.leagueFilter !== 'all' && !_availableLeagues.includes(_resState.leagueFilter)) {
     _resState.leagueFilter = 'all';
+  }
+
+  // Turnuva listesi: _matchStateCache'ten benzersiz tournament_key'ler (friendly hariç)
+  // Eski hardcoded RES_TOURNAMENT_OPTIONS yerine dinamik üret — match_state'te ne varsa o gözükür.
+  _resTournamentItems = [{ value: 'all', label: 'Tüm Turnuvalar', flag: '🏆' }];
+  const _tournamentKeysSet = new Set();
+  const _tournamentLabelMap = {
+    'championship': 'Championship League',
+    'champ':        'Championship League',
+    'elite':        'Elite League',
+    'conv':         'Convergence League',
+    'convergence':  'Convergence League',
+    'enc':          'EURO Nations Cup',
+    'euro':         'EURO Cup',
+    'natcup':       'EURO Nations Cup'
+  };
+  if (_matchStateCache && _matchStateCache.byKey) {
+    for (const ms of Object.values(_matchStateCache.byKey)) {
+      if (!ms || !ms.tournament_key) continue;
+      if (ms.tournament_key === 'friendly') continue;
+      _tournamentKeysSet.add(ms.tournament_key);
+    }
+  }
+  Array.from(_tournamentKeysSet).sort().forEach(tk => {
+    _resTournamentItems.push({
+      value: tk,
+      label: _tournamentLabelMap[tk] || tk,
+      flag: '🏆'
+    });
+  });
+
+  // Seçili turnuva listede yoksa "all"a sıfırla
+  const _availableTournaments = _resTournamentItems.filter(i => i.value !== 'all').map(i => i.value);
+  if (_resState.tournamentFilter !== 'all' && !_availableTournaments.includes(_resState.tournamentFilter)) {
+    _resState.tournamentFilter = 'all';
   }
 
   // Trigger label'larını güncelle
@@ -54127,15 +54154,15 @@ function _resBuildFilters(allMatches) {
   const lgTrig = document.getElementById('resLeagueTrigger');
   const cIcon = document.getElementById('resCountryTrigger') && document.getElementById('resCountryTrigger').querySelector('.res-dd-icon');
 
-  // 🆕 Competition='tournament' ise sol dropdown turnuva label'ı, sağ pasif
+  // Competition='tournament' ise sol dropdown turnuva, sağ pasif gizlenebilir
   if (_resState.competitionFilter === 'tournament') {
     if (cIcon) cIcon.textContent = '🏆';
     if (ccLbl) {
-      const sel = RES_TOURNAMENT_OPTIONS.find(t => t.value === _resState.tournamentFilter);
+      const sel = _resTournamentItems.find(t => t.value === _resState.tournamentFilter);
       ccLbl.textContent = (sel && sel.value !== 'all') ? sel.label : 'Turnuva';
     }
-    if (lgLbl) lgLbl.textContent = 'Klasman';
-    if (lgTrig) lgTrig.style.display = '';
+    if (lgLbl) lgLbl.textContent = '—';
+    if (lgTrig) lgTrig.style.display = 'none'; // turnuvada lig dropdown gerekmiyor
     return;
   }
 
@@ -54156,16 +54183,16 @@ function _resBuildFilters(allMatches) {
       lgLbl.textContent = sel ? sel.label : 'Klasman';
     }
   }
-  // 🆕 Klasman butonu her zaman göster (teams DB'den dolu olduğundan boş kalma riski yok)
+  // Klasman butonu her zaman göster
   if (lgTrig) lgTrig.style.display = '';
 }
 
 // Dropdown aç
 function resOpenDropdown(mode) {
   _resDDMode = mode;
-  // 🆕 Sol dropdown competition='tournament' iken turnuva listesi
+  // 🆕 Sol dropdown competition='tournament' iken turnuva listesi (dinamik, match_state'ten)
   if (mode === 'country' && _resState.competitionFilter === 'tournament') {
-    _resDDItems = RES_TOURNAMENT_OPTIONS;
+    _resDDItems = _resTournamentItems;
   } else {
     _resDDItems = (mode === 'country') ? _resCountryItems : _resLeagueItems;
   }
@@ -54295,16 +54322,13 @@ function _resRenderMatches(matches) {
     if (_resState.competitionFilter === 'friendly') {
       return isFriendly;
     }
-    // TURNUVA sekmesi: hazırlık asla görünmez + competition='tournament' olmalı
+    // TURNUVA sekmesi: hazırlık asla görünmez + tournament_key olmalı
     if (_resState.competitionFilter === 'tournament') {
-      if (isFriendly) return false;  // hazırlık asla turnuva değil
-      if (mComp !== 'tournament') return false;
+      if (isFriendly) return false;
+      if (!m.tournament_key) return false;
       if (_resState.tournamentFilter !== 'all') {
-        // tournamentType yoksa leagueName'den infer et — Elite/Champions/Conv/EURO eşleşmesi
-        const t = m.tournamentType || (typeof _resTournamentTypeFromComp === 'function'
-          ? _resTournamentTypeFromComp(m.leagueName)
-          : null);
-        if (t !== _resState.tournamentFilter) return false;
+        // 🆕 Direkt tournament_key eşleştirmesi (match_state'tekiyle aynı format)
+        if (m.tournament_key !== _resState.tournamentFilter) return false;
       }
       return true;
     }
