@@ -56989,228 +56989,124 @@ function ensureBotMatchResults() {
 }
 
 function renderFixture() {
-  const info = getSeasonInfo();
-  const { season, dayInSeason, preSeason, daysToStart } = info;
-  _fixCurrentDay = dayInSeason;
-
-  // 🆕 Bot vs bot maç sonuçlarını üret (cache'lendi)
-  if (typeof ensureBotMatchResults === 'function') ensureBotMatchResults();
-
   const list = document.getElementById('fixtureList');
-  if(!list) return;
+  if (!list) return;
 
-  // Sezon henüz başlamadıysa placeholder göster
-  if(preSeason) {
-    const hdr = document.getElementById('fixSeasonHdr');
-    if(hdr) {
-      const sNum = document.getElementById('fixSeasonNum'); if(sNum) sNum.textContent = 'Sezon 1';
-      const sDay = document.getElementById('fixSeasonDay'); if(sDay) sDay.textContent = `${daysToStart} gün sonra`;
-      const sFill = document.getElementById('fixSeasonFill'); if(sFill) sFill.style.width = '0%';
-    }
-    list.innerHTML = `<div style="text-align:center;padding:40px 16px;color:var(--text2)">
-      <div style="font-size:48px;margin-bottom:12px">⏳</div>
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:900;color:var(--text);margin-bottom:8px">Sezon Henüz Başlamadı</div>
-      <div style="font-size:12px;line-height:1.5">Sezon 1 başlangıcına <b>${daysToStart} gün</b>.<br>Lig maçları ve turnuva fikstürü sezon başında oluşturulacak.</div>
-    </div>`;
+  const info = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : { season: 1, dayInSeason: 1 };
+  const { season, dayInSeason } = info;
+  const SEASON_LEN_L = (typeof SEASON_LEN !== 'undefined') ? SEASON_LEN : 40;
+
+  // Sezon header
+  const hdr = document.getElementById('fixSeasonHdr');
+  if (hdr) {
+    const sNum = document.getElementById('fixSeasonNum'); if (sNum) sNum.textContent = 'Sezon ' + season;
+    const sDay = document.getElementById('fixSeasonDay'); if (sDay) sDay.textContent = 'Gün ' + dayInSeason + ' / ' + SEASON_LEN_L;
+    const sFill = document.getElementById('fixSeasonFill'); if (sFill) sFill.style.width = (dayInSeason / SEASON_LEN_L * 100).toFixed(0) + '%';
+  }
+
+  // Veri yoksa info mesajı
+  if (!_matchStateCache || !_matchStateCache.byKey || !_userTeam) {
+    list.innerHTML = '<div style="text-align:center;padding:32px;color:var(--text3)">Yükleniyor...</div>';
     return;
   }
 
-  _fixtureData = buildFixtureData(_fixFilter);
-
-  // 🆕 Oynanmış hazırlık maçlarını fixture listesine inject et (sonuçlarda görünsün)
-  try {
-    if (typeof frmGetMatches === 'function' && _userTeam) {
-      const _findTeam = (cc, name) => {
-        if (false || !_cftGetCountry(cc)) return null;
-        for (const lg of (_cftGetCountry(cc).leagues || [])) {
-          const t = (lg.teams || []).find(x => x.name === name);
-          if (t) return t;
-        }
-        return null;
-      };
-      const friendlyPlayed = frmGetMatches().filter(fm =>
-        fm.played && (fm.fromTeam === _userTeam.teamName || fm.toTeam === _userTeam.teamName)
-      );
-      friendlyPlayed.forEach(fm => {
-        const homeT = _findTeam(fm.fromCC, fm.fromTeam) || { name: fm.fromTeam, short: fm.fromTeam.slice(0,3).toUpperCase(), bg:'#37474f', tc:'#fff' };
-        const awayT = _findTeam(fm.toCC,   fm.toTeam)   || { name: fm.toTeam,   short: fm.toShort || fm.toTeam.slice(0,3).toUpperCase(), bg: fm.toBg || '#37474f', tc: fm.toTc || '#fff' };
-        const isUserHome = fm.fromTeam === _userTeam.teamName;
-        const homeWon = (fm.hs||0) > (fm.as||0);
-        const awayWon = (fm.as||0) > (fm.hs||0);
-        const userWon = isUserHome ? homeWon : awayWon;
-        const userLost = isUserHome ? awayWon : homeWon;
-        const userResult = userWon ? 'win' : (userLost ? 'loss' : 'draw');
-        const d = new Date(fm.dateTime);
-        _fixtureData.push({
-          date: d,
-          isPast: true,
-          isCurrentDay: false,
-          isFuture: false,
-          home: { ...homeT, user: isUserHome },
-          away: { ...awayT, user: !isUserHome },
-          hs: fm.hs || 0,
-          as: fm.as || 0,
-          result: userResult,
-          comp: '⚽ Hazırlık',
-          compClass: 'friendly-comp',
-          round: 'Hazırlık Maçı',
-          hour: d.getHours(),
-          minute: d.getMinutes(),
-          type: 'friendly',
-          isFriendly: true,
-          friendlyId: fm.id
-        });
-      });
-      // Tarihe göre yeniden sırala
-      _fixtureData.sort((a, b) => {
-        const ta = a.date instanceof Date ? a.date.getTime() : new Date(a.date).getTime();
-        const tb = b.date instanceof Date ? b.date.getTime() : new Date(b.date).getTime();
-        return ta - tb;
-      });
-    }
-  } catch(e) { console.warn('Hazırlık maçı inject hatası:', e); }
-
-  const DAYS_TR   = ['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
+  const userTeamName = _userTeam.teamName;
+  const DAYS_TR = ['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
   const MONTHS_TR = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
 
-  // Sezon progress barı
-  const hdr = document.getElementById('fixSeasonHdr');
-  if(hdr) {
-    document.getElementById('fixSeasonNum').textContent = 'Sezon ' + season;
-    document.getElementById('fixSeasonDay').textContent = 'Gün ' + dayInSeason + ' / ' + SEASON_LEN;
-    document.getElementById('fixSeasonFill').style.width = (dayInSeason/SEASON_LEN*100).toFixed(0) + '%';
+  // Kullanıcının tüm lig + turnuva maçlarını match_state'ten topla
+  const matches = [];
+  for (const ms of Object.values(_matchStateCache.byKey)) {
+    if (!ms || !ms.matchDateTime) continue;
+    if (ms.home !== userTeamName && ms.away !== userTeamName) continue;
+    if (ms.tournament_key === 'friendly') continue;
+    const t = new Date(ms.matchDateTime).getTime();
+    if (isNaN(t)) continue;
+    matches.push(ms);
+  }
+  matches.sort((a, b) => new Date(a.matchDateTime).getTime() - new Date(b.matchDateTime).getTime());
+
+  if (matches.length === 0) {
+    list.innerHTML = '<div style="text-align:center;padding:32px;color:var(--text3)">Henüz fikstür yok</div>';
+    return;
   }
 
-  // Tüm maçları tarihe göre sıralanmış al (buildFixtureData zaten sıralı)
-  const all = _fixtureData;
+  // Render
+  let html = '';
+  for (const ms of matches) {
+    const d = new Date(ms.matchDateTime);
+    const dayNum = d.getDate();
+    const wday = DAYS_TR[d.getDay()];
+    const mon = MONTHS_TR[d.getMonth()];
+    const hh = String(d.getHours()).padStart(2,'0');
+    const mm = String(d.getMinutes()).padStart(2,'0');
+    const timeStr = hh + ':' + mm;
 
-  // "Bugünkü" (ya da en yakın geçmiş) kartın indexini bul
-  let todayIdx = all.findIndex(m => m.isCurrentDay);
-  if(todayIdx === -1) {
-    // Bugün maç yoksa en son geçmiş maçı bul
-    for(let i = all.length-1; i >= 0; i--) {
-      if(all[i].isPast) { todayIdx = i; break; }
-    }
-    if(todayIdx === -1) todayIdx = 0; // hepsi gelecek
-  }
+    const isFinished = (ms.status === 'finished');
+    const isLive = (ms.status === 'running');
+    const isCurrentDay = (ms.day === dayInSeason);
+    const isUserHome = (ms.home === userTeamName);
 
-  function makeCard(m, idx) {
-    const day  = m.date.getDate();
-    const wday = DAYS_TR[m.date.getDay()];
-    const mon  = MONTHS_TR[m.date.getMonth()];
+    // Yarışma etiketi
+    const TRN_LBL = {
+      championship:'Champ.League', champ:'Champ.League',
+      elite:'Elite League', conv:'Conv.League', convergence:'Conv.League',
+      enc:'EURO Nations', euro:'EURO Cup', natcup:'EURO Nations'
+    };
+    const compLabel = ms.tournament_key
+      ? ('🏆 ' + (TRN_LBL[ms.tournament_key] || ms.tournament_key))
+      : ('⚽ ' + (ms.leagueName || 'Lig'));
 
-    // 🆕 Saat (her zaman göster — geçmiş, bugün, gelecek)
-    const hh = String(m.hour || (m.date.getHours()) || 19).padStart(2,'0');
-    const mm = String(m.minute || (m.date.getMinutes()) || 0).padStart(2,'0');
-    const timeStr = `${hh}:${mm}`;
+    // Card class
+    const cardCls = isLive ? 'lg2-fix-card today-card'
+                  : isCurrentDay ? 'lg2-fix-card today-card'
+                  : isFinished ? 'lg2-fix-card is-past-card'
+                  : 'lg2-fix-card';
 
-    // Lig sayfasıyla AYNI lg2-fix-* class yapısı
-    const cardCls = m.isCurrentDay ? 'lg2-fix-card today-card'
-                  : m.isPast       ? 'lg2-fix-card is-past-card'
-                  :                  'lg2-fix-card';
-
-    // Sonuç → lg2 sınıfına çevir (win→w, draw→d, loss→l)
-    const lg2Result = m.result === 'win' ? 'w' : m.result === 'loss' ? 'l' : m.result === 'draw' ? 'd' : '';
-
+    // Skor / saat kısmı
     let scorePart;
-    if(m.isPast && m.hs !== null) {
-      // 🆕 Geçmiş maçta: skor + altında saat
-      scorePart = `<div class="lg2-fix-sc">
-        <div class="lg2-fix-scv ${lg2Result}">${m.hs}–${m.as}</div>
-        <div class="lg2-fix-time" style="font-size:9px;color:var(--text3);margin-top:1px">${timeStr}</div>
-      </div>`;
-    } else if(m.isCurrentDay) {
-      // 🆕 Bugün ama henüz kickoff olmadıysa "BUGÜN saat", olduysa "●CANLI"
-      const _kickoffMs = (m.date instanceof Date ? m.date.getTime() : new Date(m.date).getTime());
-      const _isLive = (Date.now() >= _kickoffMs) && (m.hs === null || m.hs === undefined);
-      if(_isLive){
-        scorePart = `<div class="lg2-fix-sc"><div class="lg2-fix-time" style="color:var(--accent);font-weight:900">●&nbsp;CANLI</div></div>`;
-      } else {
-        scorePart = `<div class="lg2-fix-sc">
-          <div class="lg2-fix-time" style="color:var(--accent);font-weight:900;letter-spacing:.5px;font-size:10px">BUGÜN</div>
-          <div class="lg2-fix-time" style="color:var(--accent);font-weight:700;font-size:11px;margin-top:1px">${timeStr}</div>
-        </div>`;
-      }
+    if (isFinished) {
+      const hs = ms.home_score ?? 0;
+      const as_ = ms.away_score ?? 0;
+      const userScore = isUserHome ? hs : as_;
+      const oppScore = isUserHome ? as_ : hs;
+      const resultCls = (userScore > oppScore) ? 'w' : (userScore < oppScore ? 'l' : 'd');
+      scorePart = '<div class="lg2-fix-sc"><div class="lg2-fix-scv ' + resultCls + '">' + hs + '–' + as_ + '</div>'
+                + '<div class="lg2-fix-time" style="font-size:9px;color:var(--text3);margin-top:1px">' + timeStr + '</div></div>';
+    } else if (isLive) {
+      const hs = ms.home_score ?? 0;
+      const as_ = ms.away_score ?? 0;
+      const min = ms.sim_minute || 0;
+      scorePart = '<div class="lg2-fix-sc"><div class="lg2-fix-scv" style="color:var(--accent)">' + hs + '–' + as_ + '</div>'
+                + '<div class="lg2-fix-time" style="color:var(--accent);font-weight:900;font-size:10px">●' + min + "'</div></div>";
+    } else if (isCurrentDay) {
+      scorePart = '<div class="lg2-fix-sc"><div class="lg2-fix-time" style="color:var(--accent);font-weight:900;font-size:10px">BUGÜN</div>'
+                + '<div class="lg2-fix-time" style="color:var(--accent);font-weight:700;font-size:11px">' + timeStr + '</div></div>';
     } else {
-      // 🆕 Gelecek maçta saat
-      scorePart = `<div class="lg2-fix-sc"><div class="lg2-fix-time" style="font-size:12px;font-weight:700">${timeStr}</div></div>`;
+      scorePart = '<div class="lg2-fix-sc"><div class="lg2-fix-time" style="font-size:12px;font-weight:700">' + timeStr + '</div></div>';
     }
 
-    return `<div class="${cardCls}" onclick="openMatchFromFixture(${idx})" style="cursor:pointer">
-      <div class="lg2-fix-date">
-        <div class="lg2-fix-d">${day}</div>
-        <div class="lg2-fix-w">${mon}</div>
-        <div class="lg2-fix-w" style="font-size:9px;color:var(--text3);margin-top:-1px">${wday}</div>
-      </div>
-      <div class="lg2-fix-mid">
-        <div class="lg2-fix-week ${m.compClass||''}">${m.comp} · ${m.round}</div>
-        <div class="lg2-fix-teams">
-          <div class="lg2-fix-tm">
-            ${inlineBadge({tag:'div', cls:'lg2-fix-ball', team:m.home})}
-            <span class="lg2-fix-tmn ${m.home.user?'user-t':''}">${m.home.name}</span>
-          </div>
-          ${scorePart}
-          <div class="lg2-fix-tm away-tm">
-            ${inlineBadge({tag:'div', cls:'lg2-fix-ball', team:m.away})}
-            <span class="lg2-fix-tmn ${m.away.user?'user-t':''}">${m.away.name}</span>
-          </div>
-        </div>
-      </div>
-    </div>`;
+    html += '<div class="' + cardCls + '">'
+          + '<div class="lg2-fix-date">'
+          +   '<div class="lg2-fix-d">' + dayNum + '</div>'
+          +   '<div class="lg2-fix-w">' + mon + '</div>'
+          +   '<div class="lg2-fix-w" style="font-size:9px;color:var(--text3);margin-top:-1px">' + wday + '</div>'
+          + '</div>'
+          + '<div class="lg2-fix-mid">'
+          +   '<div class="lg2-fix-week">' + compLabel + ' · Hafta ' + ms.day + '</div>'
+          +   '<div class="lg2-fix-teams">'
+          +     '<div class="lg2-fix-tm">'
+          +       '<span class="lg2-fix-tmn' + (isUserHome ? ' user-t' : '') + '">' + ms.home + '</span>'
+          +     '</div>'
+          +     scorePart
+          +     '<div class="lg2-fix-tm away-tm">'
+          +       '<span class="lg2-fix-tmn' + (!isUserHome ? ' user-t' : '') + '">' + ms.away + '</span>'
+          +     '</div>'
+          +   '</div>'
+          + '</div>'
+          + '</div>';
   }
-
-  // Başlangıçta: bugün ± 5 pencere göster
-  // Geçmişler = todayIdx'ten öncekiler (yukarıda)
-  // Gelecekler = todayIdx'ten sonrakiler (aşağıda)
-
-  const INITIAL_PAST   = 5;  // başlangıçta kaç geçmiş
-  const INITIAL_FUTURE = 5;  // başlangıçta kaç gelecek
-  const LOAD_MORE = 10;      // her yüklemede kaç ek maç
-
-  let pastShown   = Math.min(INITIAL_PAST, todayIdx);
-  let futureShown = Math.min(INITIAL_FUTURE, all.length - todayIdx - 1);
-
-  function rebuild() {
-    const pastStart  = todayIdx - pastShown;
-    const futureEnd  = todayIdx + futureShown + 1;
-
-    let html = '';
-
-    // "Daha fazla geçmiş" butonu
-    if(pastStart > 0) {
-      html += `<div class="fix-load-btn" id="fixLoadPast" onclick="fixLoadMore('past')">
-        ▲ ${pastStart} önceki maç daha
-      </div>`;
-    } else if(todayIdx > 0) {
-      html += `<div class="fix-no-more">— Tüm geçmiş maçlar yüklendi —</div>`;
-    }
-
-    // Maç kartları
-    for(let i = pastStart; i < Math.min(futureEnd, all.length); i++) {
-      html += makeCard(all[i], i);
-    }
-
-    // "Daha fazla gelecek" butonu
-    if(futureEnd < all.length) {
-      html += `<div class="fix-load-btn" id="fixLoadFuture" onclick="fixLoadMore('future')">
-        ▼ ${all.length - futureEnd} sonraki maç daha
-      </div>`;
-    }
-
-    list.innerHTML = '<div class="lg2-fix-container">' + html + '</div>';
-
-    // NOT: Bugünkü karta otomatik scroll kaldırıldı — diğer sekmelerle tutarlı,
-    // sayfa konumu sekme değişiminde sabit kalır. Kullanıcı manuel scroll edebilir.
-  }
-
-  // Dış erişim için fonksiyon
-  window._fixLoadMore = function(dir) {
-    if(dir === 'past')   pastShown   = Math.min(pastShown   + LOAD_MORE, todayIdx);
-    if(dir === 'future') futureShown = Math.min(futureShown + LOAD_MORE, all.length - todayIdx - 1);
-    rebuild();
-  };
-
-  rebuild();
+  list.innerHTML = '<div class="lg2-fix-container">' + html + '</div>';
 }
 
 function fixLoadMore(dir) {
