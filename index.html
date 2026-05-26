@@ -37734,38 +37734,10 @@ function _finalizeMatch(script) {
     }
   } catch(e) { console.warn('Lig fikstür güncellemesi başarısız:', e); }
 
-  // 🆕 KULLANICI MAÇ LOG'u — son 5 maç için (form puanı hesaplaması)
-  // Hazırlık maçları sayılmaz (test butonu); geçmiş maç görüntülemesinde tekrar yazma
-  try {
-    if (userInMatch && curHome && curAway && !MS._isFriendly && !MS._isHistorical) {
-      const myScore = userIsHome ? (MS.scoreH || 0) : (MS.scoreA || 0);
-      const oppScore = userIsHome ? (MS.scoreA || 0) : (MS.scoreH || 0);
-      const result = myScore > oppScore ? 'W' : (myScore < oppScore ? 'L' : 'D');
-      const log = getUserMatchLog();
-      log.push({
-        date: new Date().toISOString(),
-        playedAt: Date.now(),
-        home: curHome.name,
-        away: curAway.name,
-        hs: MS.scoreH || 0,
-        as: MS.scoreA || 0,
-        userIsHome,
-        result,
-        league: (MS._fixtureRef && MS._fixtureRef.comp) || 'Maç',
-        // 🆕 Kullanıcı bireysel istatistikleri (varsa MS.userStats'ten gelir)
-        goals: (MS._userStats && MS._userStats.goals) || 0,
-        assists: (MS._userStats && MS._userStats.assists) || 0,
-        yellowCards: (MS._userStats && MS._userStats.yellowCards) || 0,
-        redCards: (MS._userStats && MS._userStats.redCards) || 0,
-        played: (MS._userStats && MS._userStats.played) !== undefined ? !!MS._userStats.played : true,
-        rating: (MS._userStats && MS._userStats.rating) || null,
-        xpEarned: (MS._userStats && MS._userStats.xpEarned) || 0,
-      });
-      // Son 30 maçı tut (yer tasarrufu)
-      const trimmed = log.slice(-30);
-      saveUserMatchLog(trimmed);
-    }
-  } catch(e) { console.warn('Match log yazımı başarısız:', e); }
+  // Lokal match_log yazım bloğu SİLİNDİ.
+  //   Supabase match_state zaten kullanıcının olduğu maçların events'ini kayıtlı tutuyor.
+  //   Profil/form puanı match_state'ten beslenmeli.
+
 
   // 🆕 Hazırlık maçı sonucunu cft_friendly_matches'a yaz (skor + tarih + result)
   try {
@@ -37785,107 +37757,9 @@ function _finalizeMatch(script) {
     }
   } catch(e) { console.warn('Hazırlık maçı kaydı başarısız:', e); }
 
-  // 🆕 cft_match_results — TÜM maç sonuçları (lig tablosu + SONUÇLAR sayfası için)
-  // Geçmiş maç görüntülemeleri hariç. 🆕 Hazırlık maçları da yazılır (istatistik için).
-  try {
-    if (!MS._isHistorical && curHome && curAway) {
-      // _fixtureRef yoksa hazırlık veya genel fallback ile sentetik fr inşa et
-      let fr = MS._fixtureRef;
-      if (!fr) {
-        // Hazırlık veya bilinmeyen maç — sentetik fr ile yine de cache'le
-        fr = {
-          season: MS._isFriendly ? 0 : 1,
-          day: Math.floor(Date.now() / 86400000),
-          comp: MS._isFriendly ? 'Hazırlık Maçı' : 'Maç',
-          round: ''
-        };
-      }
-
-      // Anahtar: sezon-gün-ev-deplasman (unique)
-      const key = `${fr.season || 1}_${fr.day || 0}_${curHome.name}_${curAway.name}`;
-      const results = _matchResultsLoad();
-
-      // 🆕 Maç motorundan gerçek istatistik + olayları kaydet (yeniden açıldığında görünsün)
-      let _stats = null;
-      let _events = [];
-      let _playerStats = null;
-      try {
-        if (MS.script) {
-          // 🔧 Stats deep copy — referans paylaşımı sebebiyle simState değişikliklerinden korumak için
-          if (MS.script.stats) {
-            try { _stats = JSON.parse(JSON.stringify(MS.script.stats)); }
-            catch(e) { _stats = MS.script.stats; }
-          }
-          if (Array.isArray(MS.script.evs)) {
-            // 🆕 Sadece UI'da görünen önemli olayları kaydet — depolama tasarrufu
-            // 🆕 Motor format desteği (Fix 8): yellow/red + sub + tactic event'leri eklendi
-            const VISIBLE_TYPES = new Set([
-              'goal','penaltyMissed','penaltyGoal','varCancel','offside',
-              'yellowCard','redCard','yellow','red',  // motor: yellow/red
-              'foul','injury','substitution','sub',    // motor: substitution
-              'corner','throwin','save','tactic'
-            ]);
-            _events = MS.script.evs
-              .filter(e => VISIBLE_TYPES.has(e.type))
-              .map(e => ({
-                type: e.type, team: e.team, min: e.min,
-                player: e.player || null, assist: e.assist || null,
-                playerOut: e.playerOut || null,  // sub için
-                text: e.text || null
-              }));
-          }
-        }
-        // Oyuncu reytingleri — gerçek roster + skor üzerinden üret
-        if (typeof _distributeMatchStats === 'function' && curHome.players && curAway.players) {
-          const hsFinal = MS.scoreH || 0;
-          const asFinal = MS.scoreA || 0;
-          // 🆕 Motor olaylarını (gerçek gol/asist) geçir — random yerine gerçek veri
-          // MS.script.evs 3D motorun emitEvent'lerinden geliyor (goal events with player+assist)
-          const allEvs = (MS.script && Array.isArray(MS.script.evs)) ? MS.script.evs : [];
-          const homeDist = _distributeMatchStats(curHome.players, hsFinal, asFinal, key + '_h', allEvs, 'home');
-          const awayDist = _distributeMatchStats(curAway.players, asFinal, hsFinal, key + '_a', allEvs, 'away');
-          _playerStats = {
-            [curHome.name]: homeDist,
-            [curAway.name]: awayDist
-          };
-          // Live takımdaki oyunculara da matchRating bağla → KADRO sekmesi için
-          const _attach = (players, dist) => {
-            const m = {};
-            dist.forEach(d => { m[d.name] = d.rating; });
-            players.forEach(p => { p.matchRating = m[p.name] || null; });
-          };
-          _attach(curHome.players, homeDist);
-          _attach(curAway.players, awayDist);
-        }
-      } catch(e) { console.warn('Stats/events derleme hatası:', e); }
-
-      results[key] = {
-        season: fr.season || 1,
-        day: fr.day || 0,
-        home: curHome.name,
-        away: curAway.name,
-        hs: MS.scoreH || 0,
-        as: MS.scoreA || 0,
-        comp: fr.comp || '',
-        round: fr.round || '',
-        playedAt: Date.now(),
-        byUser: userInMatch,
-        friendly: !!MS._isFriendly,
-        // 🆕 Hava bilgisi (maç sonu ekranında gösterim için)
-        weather: (MS._matchCtx && MS._matchCtx.weather) ? {
-          code: MS._matchCtx.weather.code,
-          label: MS._matchCtx.weather.label
-        } : null,
-        events: _events,
-        stats: _stats,
-        playerStats: _playerStats
-      };
-      _matchResultsSave(results);
-
-      // KADRO sekmesini reyting ile yeniden çiz
-      try { if (typeof renderLineup === 'function') renderLineup(); } catch(e) {}
-    }
-  } catch(e) { console.warn('Maç sonuç kayıt hatası:', e); }
+  // Lokal motor maç sonu lokal stat kayıt bloğu SİLİNDİ.
+  //   Supabase Edge function (tick-matches) zaten her maçı match_state'e
+  //   events + lineup ile birlikte yazıyor. Lokal kopyaya gerek yok.
 
   // 🆕 UI tazele — lig sayfası + ana sayfa next match
   try {
@@ -42072,23 +41946,11 @@ async function _userMatchLogLoadFromServer() {
   }
 }
 
-function getUserMatchLog() {
-  return Array.isArray(_userMatchLogCache) ? _userMatchLogCache : [];
-}
-
-function saveUserMatchLog(list) {
-  _userMatchLogCache = Array.isArray(list) ? list.slice(-30) : [];  // son 30
-  if (window.sb && authUser && authUser.id) {
-    clearTimeout(_userMatchLogSaveTimer);
-    _userMatchLogSaveTimer = setTimeout(async () => {
-      try {
-        await window.sb.from('user_player').update({
-          match_log: _userMatchLogCache
-        }).eq('user_id', authUser.id);
-      } catch(e) { console.warn('[match_log] save hata:', e); }
-    }, 1000);
-  }
-}
+// getUserMatchLog/saveUserMatchLog SİLİNDİ — match_state events tek kaynak.
+//   Stub'lar boş array döner ki eski 7 çağıran kod kırılmasın; sonraki round'larda
+//   o çağrı yerleri tamamen sökülecek.
+function getUserMatchLog() { return []; }
+function saveUserMatchLog(list) { /* no-op */ }
 
 function getUserXpLog() {
   return Array.isArray(_userXpLogCache) ? _userXpLogCache : [];
@@ -72226,128 +72088,8 @@ let _rkPlayerListCacheKey = null;
 // ═══════════════════════════════════════════════════════════════════════════
 
 // Pos bazlı gol/asist olasılık ağırlıkları
-const _PS_POS_WEIGHTS = {
-  ST:5.0, FWD:4.5, LW:3.0, RW:3.0,
-  AM:2.5, CM:1.5, MID:1.5, DM:0.6,
-  LB:0.4, RB:0.4, CB:0.25, DEF:0.4,
-  GK:0.05
-};
-
-// Tek maç için deterministik gol/asist/rating dağıtımı
-// 🆕 İSTEĞE BAĞLI: actualEvents parametresi verilirse motor verisinden gerçek gol/asist
-//    çıkarılır, random dağıtım sadece rating + ek istatistik için yapılır.
-//    (Aşama 1, Fix 3 — kullanıcı maçında 3D motor olayları doğru oyunculara yazılsın)
-function _distributeMatchStats(players, ourScore, theirScore, seed, actualEvents, teamSide) {
-  // Deterministik RNG
-  let state = 2166136261;
-  const s = String(seed);
-  for (let i = 0; i < s.length; i++) {
-    state ^= s.charCodeAt(i);
-    state = Math.imul(state, 16777619);
-  }
-  const rng = () => {
-    state = (state + 0x6D2B79F5) | 0;
-    let t = state;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-
-  const dist = players.map(p => ({
-    name: p.name, pos: p.pos, num: p.num,
-    goals: 0, assists: 0, rating: 6.5
-  }));
-
-  // ═══ GERÇEK MOTOR VERİSİ KULLANIMI (Aşama 1, Fix 3) ═══
-  // Eğer actualEvents verildiyse motor olaylarından gol/asist çıkar
-  // İsim eşleştirme: tam eşleşme öncelik, sonra ilk harf/soyad eşleştirmesi
-  let realGoalsUsed = 0;
-  if (Array.isArray(actualEvents) && actualEvents.length > 0) {
-    // Bu takımın gol event'leri (teamSide: 'home' | 'away')
-    const teamGoals = actualEvents.filter(ev =>
-      ev && ev.type === 'goal' && ev.team === teamSide && !ev.isOwnGoal
-    );
-    // Yardımcı: oyuncu adı eşleştirici (kısaltma toleranslı)
-    function _findPlayerIdx(name) {
-      if (!name) return -1;
-      const lowName = String(name).toLowerCase();
-      // Tam eşleşme
-      let idx = dist.findIndex(p => p.name.toLowerCase() === lowName);
-      if (idx !== -1) return idx;
-      // İlk harf "A. Soyad" → "Ahmet Soyad" varyantı
-      // Sadece soyada bak (son kelime)
-      const lastWord = lowName.split(' ').slice(-1)[0];
-      idx = dist.findIndex(p => {
-        const pLast = p.name.toLowerCase().split(' ').slice(-1)[0];
-        return pLast === lastWord;
-      });
-      return idx;
-    }
-    // Motor gol/asist verilerini dağıt
-    for (const goalEv of teamGoals) {
-      const scorerIdx = _findPlayerIdx(goalEv.player);
-      if (scorerIdx !== -1) {
-        dist[scorerIdx].goals += 1;
-        realGoalsUsed++;
-      }
-      if (goalEv.assist) {
-        const assistIdx = _findPlayerIdx(goalEv.assist);
-        if (assistIdx !== -1 && assistIdx !== scorerIdx) {
-          dist[assistIdx].assists += 1;
-        }
-      }
-    }
-  }
-
-  // Gol dağıtımı — sadece motor verisi YETMİYORSA (eski/random davranış)
-  // Motor 3 gol attığını söylüyor, CFC 3 gol biliyor → tam eşleşme, random'a girme
-  // Motor 1 gol verisi var ama CFC 3 gol diyor → eksik 2'yi random dağıt
-  const remainingGoals = Math.max(0, ourScore - realGoalsUsed);
-  for (let i = 0; i < remainingGoals; i++) {
-    const weights = dist.map(p => _PS_POS_WEIGHTS[p.pos] || 0.5);
-    const totalW = weights.reduce((a, b) => a + b, 0);
-    let r = rng() * totalW;
-    let scorerIdx = 0;
-    for (let j = 0; j < weights.length; j++) {
-      r -= weights[j];
-      if (r <= 0) { scorerIdx = j; break; }
-    }
-    dist[scorerIdx].goals += 1;
-
-    // Asist (~%70 olasılıkla, farklı oyuncu)
-    if (rng() < 0.72 && dist.length > 1) {
-      const aWeights = dist.map((p, idx) => idx === scorerIdx ? 0 : (_PS_POS_WEIGHTS[p.pos] || 0.5));
-      const totalAW = aWeights.reduce((a, b) => a + b, 0);
-      if (totalAW > 0) {
-        let r2 = rng() * totalAW;
-        let assistIdx = 0;
-        for (let j = 0; j < aWeights.length; j++) {
-          r2 -= aWeights[j];
-          if (r2 <= 0) { assistIdx = j; break; }
-        }
-        dist[assistIdx].assists += 1;
-      }
-    }
-  }
-
-  // Rating dağıtımı (sonuç + bireysel performans)
-  const won = ourScore > theirScore;
-  const drew = ourScore === theirScore;
-  const teamMod = won ? 0.6 : (drew ? 0.0 : -0.4);
-
-  dist.forEach(p => {
-    let r = 6.5 + teamMod;
-    r += p.goals * 0.55;        // her gol +0.55
-    r += p.assists * 0.35;       // her asist +0.35
-    if (theirScore >= 3 && p.pos === 'GK') r -= 0.4;   // çok gol yiyen GK
-    if (theirScore === 0 && p.pos === 'GK') r += 0.5;  // gol yemeyen GK
-    if (theirScore === 0 && (p.pos === 'CB' || p.pos === 'DEF')) r += 0.2; // clean sheet defender
-    r += (rng() - 0.5) * 0.6;    // ±0.3 rastgele varyasyon
-    p.rating = Math.max(4.0, Math.min(10.0, r));
-  });
-
-  return dist;
-}
+// _PS_POS_WEIGHTS ve _distributeMatchStats fonksiyonu SİLİNDİ
+//   (lokal motor stat dağıtımı için kullanılıyordu, Supabase events ile artık gereksiz)
 
 // In-memory cache (cache key = match results uzunluk + ilk 200 kar hash)
 let _psCachedStats = null;
