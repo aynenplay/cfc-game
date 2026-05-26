@@ -36297,13 +36297,48 @@ async function _matchResultsLoadDetail(matchKey) {
   }
 }
 
-// Sync API — RAM cache döner
-// 🆕 LOKAL CACHE SİLİNDİ — Supabase match_state tek doğruluk kaynağı.
-//   Eski versiyon lokal _matchResultsCache tutuyor + Supabase'e debounced flush yapıyordu.
-//   Şu an tüm bilgi match_state tablosunda; ayrı bir match_results gerekmiyor.
-//   26+ çağrı yerinde boş cache döner, kullanıcılar _matchStateCache fallback'ine düşer.
+// Sync API — match_state cache'i match_results uyumlu formata çevirir.
+// 🆕 SUPABASE TEK KAYNAK — match_results tablosu silindi; tüm bilgi match_state'te.
+//   20 çağrı yeri eski match_results formatını bekliyor:
+//     key: "SEASON_DAY_HOME_AWAY"
+//     value: { season, day, home, away, hs, as, comp, kickoffMs, playedAt, events?, stats? }
+//   Bu wrapper match_state'teki finished maçları o formata dönüştürür.
+//   Her çağrıda yeniden hesaplar (cache invalidation derdi yok) — match_state zaten cache.
+let _mrWrapperCache = null;
+let _mrWrapperCacheLoadedAt = 0;
 function _matchResultsLoad() {
-  return {};
+  if (!_matchStateCache || !_matchStateCache.byKey) return {};
+  // Match_state cache son güncelleme zamanı değişmediyse aynı wrapper'ı dön
+  if (_mrWrapperCache && _matchStateCache.loadedAt === _mrWrapperCacheLoadedAt) {
+    return _mrWrapperCache;
+  }
+  const out = {};
+  for (const ms of Object.values(_matchStateCache.byKey)) {
+    if (!ms) continue;
+    if (ms.status !== 'finished') continue; // sadece bitmiş maçlar
+    const key = `${ms.season}_${ms.day}_${ms.home}_${ms.away}`;
+    const kickoffMs = ms.matchDateTime ? new Date(ms.matchDateTime).getTime() : 0;
+    out[key] = {
+      season: ms.season,
+      day: ms.day,
+      home: ms.home,
+      away: ms.away,
+      hs: Number(ms.home_score) || 0,
+      as: Number(ms.away_score) || 0,
+      comp: ms.tournament_key ? 'tournament' : 'league',
+      tournament_key: ms.tournament_key,
+      tournament_phase: ms.tournament_phase,
+      countryCode: ms.countryCode,
+      tier: ms.tier,
+      matchKey: ms.matchKey,
+      kickoffMs: kickoffMs,
+      playedAt: kickoffMs,
+      events: Array.isArray(ms.events) ? ms.events : null
+    };
+  }
+  _mrWrapperCache = out;
+  _mrWrapperCacheLoadedAt = _matchStateCache.loadedAt;
+  return out;
 }
 
 function _matchResultsSave(newCache) {
