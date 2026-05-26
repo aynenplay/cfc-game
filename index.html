@@ -50493,58 +50493,44 @@ async function _frmDeleteMatchState(fmId) {
   } catch(e) { console.warn('[frm match_state delete]', e); }
 }
 
-// 🆕 Verilen takımın gerçek lig fikstür maçlarının zamanları (datetime ms array)
+// 🆕 Verilen takımın gerçek lig + turnuva maçlarının zamanları (datetime ms array)
+//   KAYNAK: SADECE _matchStateCache (Supabase). Eski buildLeagueFixture lokal hesabı kaldırıldı.
 function frmGetTeamBusyTimes(teamName, cc, lg) {
   const out = [];
-  if (!teamName || !cc || !lg) return out;
-
-  // Lig fikstürünü hesapla
-  if (typeof buildLeagueFixture === 'function' && typeof getSeasonInfo === 'function' && true) {
-    try {
-      const info = getSeasonInfo();
-      const seasonStart = info && info.seasonStart;
-      if (seasonStart) {
-        // tier index'i teams DB'deki ligler dizisinden bul
-        const country = _cftGetCountry(cc);
-        const tierIdx = (country && country.leagues || []).findIndex(l => l.tier === lg.tier);
-        if (tierIdx >= 0) {
-          const fixture = buildLeagueFixture(country.leagues[tierIdx].teams, new Date(seasonStart), cc, tierIdx);
-          fixture.forEach(f => {
-            if (!f.homeTeam || !f.awayTeam) return;
-            if (f.homeTeam.name !== teamName && f.awayTeam.name !== teamName) return;
-            // Tarih + saati birleştir
-            const d = new Date(f.date);
-            if (f.matchTime) {
-              const [hh, mm] = String(f.matchTime).split(':').map(Number);
-              if (!isNaN(hh)) d.setHours(hh, mm || 0, 0, 0);
-            }
-            const t = d.getTime();
-            if (!isNaN(t)) out.push({ t, kind: 'league', label: f.homeTeam.name + ' vs ' + f.awayTeam.name });
-          });
-        }
-      }
-    } catch(e) {}
+  if (!teamName || !_matchStateCache || !_matchStateCache.byKey) return out;
+  for (const ms of Object.values(_matchStateCache.byKey)) {
+    if (!ms || !ms.matchDateTime) continue;
+    if (ms.home !== teamName && ms.away !== teamName) continue;
+    if (ms.tournament_key === 'friendly') continue;
+    const t = new Date(ms.matchDateTime).getTime();
+    if (isNaN(t)) continue;
+    out.push({
+      t,
+      kind: ms.tournament_key ? 'tournament' : 'league',
+      label: (ms.home || '') + ' vs ' + (ms.away || '')
+    });
   }
   return out;
 }
 
-// Kullanıcının takımının gerçek lig fikstür maçlarının zamanları
+// Kullanıcının takımının gerçek lig + turnuva maçlarının zamanları (hazırlık planlama çakışma kontrol için)
+//   🆕 KAYNAK: SADECE _matchStateCache (Supabase). Eski buildFixtureData lokal hesabı kaldırıldı.
 function frmGetUserBusyTimes() {
   const times = [];
-  if (!_userTeam) return times;
-  // _fixtureData kullanıcının tüm rekabetlerini (lig + turnuva) birleştirir
-  let fixtureSrc = (typeof _fixtureData !== 'undefined') ? _fixtureData : null;
-  if (!fixtureSrc && typeof buildFixtureData === 'function') {
-    try { fixtureSrc = buildFixtureData(null); } catch(e) {}
-  }
-  if (Array.isArray(fixtureSrc)) {
-    fixtureSrc.forEach(m => {
-      if (!m || !m.date) return;
-      const t = new Date(m.date).getTime();
-      if (isNaN(t)) return;
-      const home = (m.home && m.home.name) || '';
-      const away = (m.away && m.away.name) || '';
-      times.push({ t, kind: 'league', label: home + ' vs ' + away });
+  if (!_userTeam || !_matchStateCache || !_matchStateCache.byKey) return times;
+  const userTeamName = _userTeam.teamName;
+  for (const ms of Object.values(_matchStateCache.byKey)) {
+    if (!ms || !ms.matchDateTime) continue;
+    // Sadece kullanıcının takımının maçları
+    if (ms.home !== userTeamName && ms.away !== userTeamName) continue;
+    // Hazırlık maçları çakışma kontrolüne dahil DEĞİL (zaten _frmMatchesCache'ten ayrı handle ediliyor)
+    if (ms.tournament_key === 'friendly') continue;
+    const t = new Date(ms.matchDateTime).getTime();
+    if (isNaN(t)) continue;
+    times.push({
+      t,
+      kind: ms.tournament_key ? 'tournament' : 'league',
+      label: (ms.home || '') + ' vs ' + (ms.away || '')
     });
   }
   return times;
@@ -52067,23 +52053,69 @@ function renderHomeNextMatch() {
     return;
   }
 
-  // _fixtureData yoksa oluştur
-  if (!_fixtureData) {
-    if (typeof buildFixtureData === 'function') {
-      _fixtureData = buildFixtureData(null);
-    }
-  }
-
   // 🆕 Adaylar: lig fikstürü + onaylı hazırlık maçları (kullanıcının takımıyla ilgili)
+  //   Lig maçları artık SADECE _matchStateCache'ten (Supabase) okunuyor.
+  //   Eski buildFixtureData çağrısı kaldırıldı — saatler/günler lokal hesabıyla
+  //   match_state'tekilerle çakışıyor, tutarsızlık yaratıyordu.
   const candidates = [];
-  if (_fixtureData && _fixtureData.length) {
-    _fixtureData.forEach(m => {
-      if (m.isPast) return;
-      const t = m.date ? new Date(m.date).getTime() : (Date.now() + 7*24*60*60*1000);
-      // 🆕 Maç bitti mi? (kickoff + 15dk geçti) — simülasyon ~12 dk sürer, 15 dk güvenli sınır
-      if (!isNaN(t) && Date.now() > t + 15 * 60 * 1000) return;
-      candidates.push({ source: 'league', league: m, time: isNaN(t) ? Infinity : t });
-    });
+  if (_matchStateCache && _matchStateCache.byKey && _userTeam) {
+    const userTeamName = _userTeam.teamName;
+    const _resolveTeam = (name, cc) => {
+      if (!name) return { name: '?', short: '???', rating: 70 };
+      try {
+        if (cc && typeof _cftGetCountry === 'function') {
+          const country = _cftGetCountry(cc);
+          if (country && country.leagues) {
+            for (const lg of country.leagues) {
+              const t = (lg.teams || []).find(x => x.name === name);
+              if (t) return { ...t, countryCode: cc };
+            }
+          }
+        }
+        // CC yok veya bulunamadı — tüm ülkelerde ara
+        if (typeof _cftGetCountryCodes === 'function') {
+          for (const code of _cftGetCountryCodes()) {
+            const country = _cftGetCountry(code);
+            if (!country || !country.leagues) continue;
+            for (const lg of country.leagues) {
+              const t = (lg.teams || []).find(x => x.name === name);
+              if (t) return { ...t, countryCode: code };
+            }
+          }
+        }
+      } catch(e) {}
+      return { name, short: name.slice(0,3).toUpperCase(), rating: 70 };
+    };
+
+    for (const ms of Object.values(_matchStateCache.byKey)) {
+      if (!ms || !ms.matchDateTime) continue;
+      // Sadece lig maçları (turnuva ve hazırlık ayrı candidate kaynakları)
+      if (ms.tournament_key) continue;
+      // Kullanıcının takımıyla ilgili olmalı
+      if (ms.home !== userTeamName && ms.away !== userTeamName) continue;
+      // Bitmişler atlanır
+      if (ms.status === 'finished') continue;
+      const t = new Date(ms.matchDateTime).getTime();
+      if (isNaN(t)) continue;
+      // Kickoff + 15dk geçtiyse (simülasyon ~12dk) atla
+      if (Date.now() > t + 15 * 60 * 1000) continue;
+      // home/away team objelerini teams DB'den çöz
+      const homeTeam = _resolveTeam(ms.home, ms.countryCode);
+      const awayTeam = _resolveTeam(ms.away, ms.countryCode);
+      const leagueObj = {
+        home: homeTeam,
+        away: awayTeam,
+        date: new Date(t).toISOString(),
+        leagueName: ms.league_name || '',
+        countryCode: ms.countryCode || null,
+        tier: ms.tier,
+        season: ms.season,
+        day: ms.day,
+        matchKey: ms.matchKey,
+        isPast: false
+      };
+      candidates.push({ source: 'league', league: leagueObj, time: t });
+    }
   }
   if (typeof frmGetMatches === 'function' && _userTeam) {
     // 🆕 match_state'te status='finished' olan hazırlık maçlarını friendly_matches'a yansıt
