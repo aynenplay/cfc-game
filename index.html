@@ -53803,6 +53803,39 @@ const _resFixtureSeasonCache = {}; // key: "S{seasonNum}" → { dayMap: {1:[...]
 // 🆕 match_state tablosundan fixture cache (RAM)
 // Tüm scheduled+running+finished maçlar burada — bootstrap'ta yüklenir
 let _matchStateCache = null;  // { dayMap: { 1: [...], 2: [...] }, byKey: { '1_1_X_Y': {...} } }
+let _matchEventsCache = null;  // { byKey: { match_key: events_array } } — stats için ayrı
+
+async function _loadFinishedMatchEvents() {
+  // Sadece status='finished' maçlardan events çek. Index sayesinde hızlı.
+  // Events'i ana cache'e koymuyoruz çünkü 44 MB → timeout.
+  if (!window.sb) return null;
+  const PAGE = 500;
+  let all = [];
+  for (let from = 0; from < 100000; from += PAGE) {
+    const { data, error } = await window.sb.from('match_state')
+      .select('match_key,events')
+      .eq('status', 'finished')
+      .range(from, from + PAGE - 1);
+    if (error) { console.warn('[events] hata:', error.message); break; }
+    if (!Array.isArray(data) || data.length === 0) break;
+    all = all.concat(data);
+    if (data.length < PAGE) break;
+  }
+  const byKey = {};
+  for (const m of all) {
+    if (m && m.match_key) byKey[m.match_key] = m.events;
+  }
+  _matchEventsCache = { byKey, loadedAt: Date.now() };
+  console.info(`[events] yüklendi: ${all.length} finished maç`);
+  // Stats kullanılan sayfa açıksa yeniden render
+  try {
+    const _activePg = document.querySelector('.page.active');
+    if (_activePg && typeof renderStatsPage === 'function' && _activePg.id === 'page-stats') {
+      renderStatsPage();
+    }
+  } catch(e) {}
+  return _matchEventsCache;
+}
 
 async function _loadAllMatchStateFromServer() {
   if (!window.sb) return null;
@@ -53869,6 +53902,9 @@ async function _loadAllMatchStateFromServer() {
     
     console.info(`[match_state] yüklendi: ${all.length} maç, ${Object.keys(dayMap).length} gün`);
     _matchStateCache = { dayMap, byKey, loadedAt: Date.now() };
+
+    // 🆕 Stats için events ayrı sorguyla — sadece finished maçlar, daha küçük data
+    _loadFinishedMatchEvents().catch(e => console.warn('[events] yükleme hata:', e));
 
     // 🆕 Cache yüklendikten sonra açık olan sayfa lig fikstürü ise otomatik yeniden render.
     //   Race condition'da kullanıcı sayfayı açmış ama cache henüz boş olduğu için "maç yok"
@@ -60815,16 +60851,8 @@ function computePlayerStats(countryCode, tierIdx) {
   let allStats = {};
   try { allStats = (typeof _calcPlayerStatsFromCache === 'function') ? _calcPlayerStatsFromCache(teamNames) : {}; } catch(e) {}
 
-  // Kullanıcı oyuncusu için cft_user_match_log
-  let userMatchLog = [];
-  try { userMatchLog = getUserMatchLog(); } catch(e) {}
-  const userTotals = userMatchLog.reduce((acc, m) => {
-    acc.goals    += m.goals    || 0;
-    acc.assists  += m.assists  || 0;
-    acc.ratingSum += (m.rating || 0);
-    acc.matches  += 1;
-    return acc;
-  }, { goals:0, assists:0, ratingSum:0, matches:0 });
+  // Tüm oyuncu stats'i tek kaynaktan: _calcPlayerStatsFromCache (match_state events).
+  // Kullanıcı/bot/kaptan ayrımı YOK — herkes aynı şekilde okunur.
 
   const players = [];
   teams.forEach(team => {
@@ -60856,44 +60884,18 @@ function computePlayerStats(countryCode, tierIdx) {
     });
   });
 
-  // Kullanıcıyı dahil et — kendi takımındaki bot ile değiştir
+  // Kullanıcı/bot ayrımı yok — herkes aynı şekilde match_state'ten okunur.
+  // isUser bayrağı sadece UI rengini değiştirmek için, ayrı stats kaynağı YOK.
   try {
-    if(typeof _userTeam !== 'undefined' && _userTeam && _userTeam.countryCode === countryCode) {
+    if (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.countryCode === countryCode) {
       const userTeamName = _userTeam.teamName;
-      const userPlayer = (typeof ROSTER_DATA !== 'undefined') ? ROSTER_DATA.find(r => r.role === 'user') : null;
-      const userName = userPlayer?.name || (window.authUser && authUser.name) || 'Sen';
-      const userPos = userPlayer?.pos || 'MID';
-      const userTeamObj = teams.find(t => t.name === userTeamName);
-
-      if (userTeamObj) {
-        // Kullanıcının takımında aynı pozisyonda bir oyuncu bul, onun yerine geç
-        const slotIdx = players.findIndex(pl => pl.teamName === userTeamName && pl.pos === userPos);
-        const userEntry = {
-          name: userName,
-          pos: userPos,
-          teamName: userTeamName,
-          teamShort: userTeamObj.short || (userTeamObj.name || '').slice(0, 3).toUpperCase(),
-          teamBg: userTeamObj.bg || 'rgba(255,255,255,.08)',
-          teamTc: userTeamObj.tc || '#90caf9',
-          countryCode,
-          flag: country.flag,
-          goals: userTotals.goals,
-          assists: userTotals.assists,
-          rating: userTotals.matches > 0
-            ? Math.round((userTotals.ratingSum / userTotals.matches) * 10) / 10
-            : 6.5,
-          matches: userTotals.matches,
-          isUser: true,
-        };
-
-        if (slotIdx >= 0) {
-          players[slotIdx] = userEntry;
-        } else {
-          players.push(userEntry);
-        }
-      }
+      const userIdx = players.findIndex(pl =>
+        pl.teamName === userTeamName &&
+        pl.name === (window.authUser && authUser.name || '')
+      );
+      if (userIdx >= 0) players[userIdx].isUser = true;
     }
-  } catch(e) { console.warn('Kullanıcı stats hatası:', e); }
+  } catch(e) {}
 
   return players;
 }
@@ -72458,7 +72460,73 @@ function _calcPlayerStatsFromCache(teamFilter) {
     // 🆕 Filter aktif — sadece ev veya deplasman filter set'inde varsa işle
     if (filterSet && !filterSet.has(m.home) && !filterSet.has(m.away)) return;
 
-    // 🆕 ÖNCELİK: Cache'teki gerçek playerStats varsa onu kullan
+    // 🆕 ÖNCELİK 1: match_state events'ten gerçek gol/asist say
+    //   _matchEventsCache.byKey[key] = events array (Edge function'ın yazdığı format)
+    //   Format: [{min, type:'goal', player, assist, scorer:{...}, team:'home'|'away'}, ...]
+    const events = (typeof _matchEventsCache !== 'undefined' && _matchEventsCache && _matchEventsCache.byKey)
+      ? _matchEventsCache.byKey[key]
+      : null;
+
+    if (Array.isArray(events) && events.length > 0) {
+      // Hangi takım hangi tarafta?
+      const homeTeam = m.home;
+      const awayTeam = m.away;
+
+      // Her oyuncuyu görmek için maç bazlı kontrol — her takımdan oynayan tüm oyuncuları say
+      const playedInMatch = new Set(); // 'teamName_playerName'
+
+      for (const ev of events) {
+        if (!ev || ev.type === 'fulltime') continue;
+        const teamName = ev.team === 'home' ? homeTeam : (ev.team === 'away' ? awayTeam : null);
+        if (!teamName) continue;
+        if (filterSet && !filterSet.has(teamName)) continue;
+
+        // Oyuncu olayda mı?
+        if (ev.player) {
+          const sk = `${teamName}_${ev.player}`;
+          if (!stats[sk]) stats[sk] = { goals:0, assists:0, ratingSum:0, matches:0 };
+          playedInMatch.add(sk);
+
+          // Gol (ofsayttan iptal değilse)
+          if (ev.type === 'goal' && !ev.cancelled) {
+            stats[sk].goals += 1;
+          }
+        }
+
+        // Asist
+        if (ev.type === 'goal' && !ev.cancelled && ev.assist) {
+          const sk = `${teamName}_${ev.assist}`;
+          if (!stats[sk]) stats[sk] = { goals:0, assists:0, ratingSum:0, matches:0 };
+          stats[sk].assists += 1;
+          playedInMatch.add(sk);
+        }
+
+        // Scorer rating
+        if (ev.type === 'goal' && ev.scorer && typeof ev.scorer.rating === 'number') {
+          const sk = `${teamName}_${ev.player}`;
+          if (stats[sk]) {
+            // Rating'i tek sefer ekle (en son gol rating'i baz alınır — basit yaklaşım)
+            // Daha doğrusu: oyuncunun maç sonu rating'i ayrı bir kayıttan gelmeli ama events'te
+            // her gol scorer.rating'i veriyor. Sonuncuyu kullan.
+            stats[sk]._lastRating = ev.scorer.rating;
+          }
+        }
+      }
+
+      // Bu maçta oynayan her oyuncu için matches +1 (ve varsa rating ekle)
+      playedInMatch.forEach(sk => {
+        stats[sk].matches += 1;
+        if (typeof stats[sk]._lastRating === 'number') {
+          stats[sk].ratingSum += stats[sk]._lastRating;
+          delete stats[sk]._lastRating;
+        } else {
+          stats[sk].ratingSum += 6.5; // varsayılan
+        }
+      });
+      return;
+    }
+
+    // 🆕 ÖNCELİK 2: Cache'teki eski playerStats (legacy)
     if (m.playerStats && typeof m.playerStats === 'object') {
       Object.entries(m.playerStats).forEach(([teamName, players]) => {
         if (filterSet && !filterSet.has(teamName)) return;
