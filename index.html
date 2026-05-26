@@ -36156,73 +36156,12 @@ function _emptyWorldState() {
 // _matchResultsLoadFromServer() → bootstrap'te bir kere çağrılır
 // ═══════════════════════════════════════════════════════════════════
 
-let _matchResultsCache = {};
-let _matchResultsDirty = new Set();   // Yazılması gereken key'ler
-let _matchResultsSaveTimer = null;
+// _matchResultsLoadFromServer fonksiyonu ve _matchResultsCache/_mrKey/_matchResultsDirty/
+//   _matchResultsSaveTimer global'leri SİLİNDİ. match_results tablosundan ayrı yükleme
+//   yapılmıyor — tüm bilgi match_state tablosunda, _loadAllMatchStateFromServer çekiyor.
+//   Wrapper _matchResultsLoad() aşağıda match_state cache'i eski formata çeviriyor.
 
-function _mrKey(m) {
-  return `${m.season || 1}_${m.day || 0}_${m.home}_${m.away}`;
-}
 
-async function _matchResultsLoadFromServer() {
-  try {
-    if (!window.sb) { _matchResultsCache = {}; return; }
-    // 🆕 Performance: data JSONB hariç sadece skor + key alanları çek (her maç ~50 byte)
-    // 4500 maç × 50 byte = ~225 KB, hızlı yüklenir. data alanı maç detayına tıklayınca lazy çekilir.
-    const PAGE = 1000;
-    let all = [];
-    for (let from = 0; from < 100000; from += PAGE) {
-      const { data, error } = await window.sb.from('match_results')
-        .select('season,day_in_season,country_code,tier,home_team,away_team,home_score,away_score,tournament_key,tournament_phase,created_at,kickoff_at')
-        .order('season', { ascending: true })
-        .order('day_in_season', { ascending: true })
-        .order('home_team', { ascending: true })
-        .order('away_team', { ascending: true })
-        .range(from, from + PAGE - 1);
-      if (error) { console.warn('[match_results] load hata:', error.message); break; }
-      if (!Array.isArray(data) || data.length === 0) break;
-      all = all.concat(data);
-      if (data.length < PAGE) break;
-    }
-    const cache = {};
-    // SEASON_EPOCH (gerçek dünya başlangıcı) + (season-1)*SEASON_LEN + (day-1) gün → maç tarihi
-    const _epoch = (typeof SEASON_EPOCH !== 'undefined') ? SEASON_EPOCH : null;
-    const _slen = (typeof SEASON_LEN !== 'undefined') ? SEASON_LEN : 40;
-    for (const r of all) {
-      // 🆕 Gerçek maç tarih + saati: season+day + competition tipine göre saat
-      let realPlayedAt = 0;
-      if (r.kickoff_at) {
-        // 🆕 Edge function gerçek kickoff_at yazdı → direkt kullan (HASH HESABI YOK)
-        realPlayedAt = new Date(r.kickoff_at).getTime();
-      } else if (_epoch && r.season && r.day_in_season) {
-        // Yedek: kickoff_at yoksa season+day'den tarih, saat=15:00 (sabit)
-        const matchDate = new Date(_epoch.getFullYear(), _epoch.getMonth(), _epoch.getDate());
-        matchDate.setDate(matchDate.getDate() + (r.season - 1) * _slen + (r.day_in_season - 1));
-        matchDate.setHours(15, 0, 0, 0);
-        realPlayedAt = matchDate.getTime();
-      } else if (r.created_at) {
-        realPlayedAt = new Date(r.created_at).getTime();
-      }
-      const m = {
-        season: r.season,
-        day: r.day_in_season,
-        home: r.home_team,
-        away: r.away_team,
-        hs: r.home_score,
-        as: r.away_score,
-        countryCode: r.country_code,
-        tier: r.tier,
-        tournament_key: r.tournament_key || null,
-        tournament_phase: r.tournament_phase || null,
-        playedAt: realPlayedAt,
-        _hasDetail: false  // data jsonb henüz çekilmedi
-      };
-      cache[_mrKey(m)] = m;
-    }
-    _matchResultsCache = cache;
-    console.info('[match_results] yüklendi (özet):', all.length, 'maç');
-  } catch(e) { console.warn('[match_results] load hata:', e); _matchResultsCache = {}; }
-}
 
 // ═══════════════════════════════════════════════════════════════
 // tournament_state RAM cache — turnuva fixture'ları (gruplar + maçlar)
@@ -36266,36 +36205,9 @@ function _tournamentStateGet(trnKey, season) {
   return _tournamentStateCache[`${trnKey}_s${season}`] || null;
 }
 
-// 🆕 Tek maçın detayını (data jsonb: events, stats, playerStats, comp) lazy çek
-async function _matchResultsLoadDetail(matchKey) {
-  if (!matchKey || !window.sb) return null;
-  const existing = _matchResultsCache[matchKey];
-  if (existing && existing._hasDetail) return existing;
-  // Key'i parse et: "season_day_home_away"
-  const parts = String(matchKey).split('_');
-  if (parts.length < 4) return null;
-  const season = parseInt(parts[0], 10);
-  const day = parseInt(parts[1], 10);
-  const home = parts[2];
-  const away = parts.slice(3).join('_');  // takım adında _ olabilir
-  try {
-    const { data, error } = await window.sb.from('match_results')
-      .select('data')
-      .eq('season', season).eq('day_in_season', day)
-      .eq('home_team', home).eq('away_team', away)
-      .maybeSingle();
-    if (error || !data) return existing || null;
-    const merged = {
-      ...(existing || {}),
-      ...(data.data || {}),
-      _hasDetail: true
-    };
-    _matchResultsCache[matchKey] = merged;
-    return merged;
-  } catch(e) {
-    return existing || null;
-  }
-}
+// _matchResultsLoadDetail SİLİNDİ — match_state.events ana cache veya
+//   _matchEventsCache içinde zaten var, ayrı detay yüklemeye gerek yok.
+
 
 // Sync API — match_state cache'i match_results uyumlu formata çevirir.
 // 🆕 SUPABASE TEK KAYNAK — match_results tablosu silindi; tüm bilgi match_state'te.
@@ -74743,7 +74655,7 @@ setTimeout(async ()=>{
   await Promise.all([
     _worldStateLoadFromServer().catch(e => console.warn('worldState load hata:', e)),
     _loadAllMatchStateFromServer().catch(e => console.warn('match_state load hata:', e)),
-    _matchResultsLoadFromServer().catch(e => console.warn('matchResults load hata:', e)),
+    // _matchResultsLoadFromServer SİLİNDİ — match_state tek kaynak
     _tournamentStateLoadFromServer().catch(e => console.warn('tournamentState load hata:', e)),
     _frmLoadFromServer().catch(e => console.warn('friendly load hata:', e)),
     userTeamLoadFromServer().catch(e => console.warn('userTeamLoadFromServer hata:', e)),
@@ -74779,42 +74691,10 @@ setTimeout(async ()=>{
         return () => { if (t) clearTimeout(t); t = setTimeout(fn, ms); };
       };
       
-      // 1) match_results — biten maçlar → puan tablosu + fikstür güncelle
-      const _refreshMatchResults = _rtDebounce(async () => {
-        try {
-          if (typeof _matchResultsLoadFromServer === 'function') {
-            await _matchResultsLoadFromServer();
-          }
-          // Açık ligler sayfasındaysa puan tablosunu/fikstürü tazele
-          const lgPage = document.getElementById('page-leagues');
-          if (lgPage && lgPage.classList.contains('active')) {
-            if (window._lg2ViewTab === 'fixture' && typeof lg2RenderFixture === 'function') {
-              lg2RenderFixture();
-            } else if (typeof lg2RenderTable === 'function') {
-              lg2RenderTable();
-            }
-          }
-          // Ana sayfa maç önizleme paneli de güncellensin
-          if (typeof renderHomeNextMatch === 'function') renderHomeNextMatch();
-          // 🆕 Toto kuponlarım sayfası açıksa kazanım hesabını tazele (maç bitti → pending→win/lose)
-          const totoMy = document.getElementById('toto-mycoupons');
-          if (totoMy && totoMy.style.display !== 'none' && typeof totoRenderMyCoupons === 'function') {
-            totoRenderMyCoupons();
-          }
-          // 🆕 Toto bülten sayfası açıksa skorları tazele
-          const totoCp = document.getElementById('toto-coupons');
-          if (totoCp && totoCp.style.display !== 'none' && typeof totoRenderMatches === 'function') {
-            totoRenderMatches();
-          }
-          console.info('[realtime] match_results güncellendi');
-        } catch(e) { console.warn('[realtime] match_results refresh hata:', e); }
-      }, 800);
-      
-      window.sb.channel('rt-match-results')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'match_results' }, _refreshMatchResults)
-        .subscribe();
-      
-      // 2) match_state — canlı maç skorları (dakika, gol vb)
+      // match_results realtime subscription SİLİNDİ — match_state subscription
+      //   (aşağıda 'rt-match-state') tüm güncellemeleri kapsıyor.
+
+
       const _refreshMatchState = _rtDebounce(async () => {
         try {
           if (typeof _loadAllMatchStateFromServer === 'function') {
