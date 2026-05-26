@@ -53881,6 +53881,10 @@ async function _loadAllMatchStateFromServer() {
         if (_id === 'page-home' && typeof renderHomeNextMatch === 'function') {
           renderHomeNextMatch();
         }
+        // 🆕 Sonuçlar sayfası — match_state yenilenince re-render et
+        if (_id === 'page-results' && typeof renderResultsPage === 'function') {
+          renderResultsPage();
+        }
       }
     } catch(e) {}
 
@@ -53889,6 +53893,17 @@ async function _loadAllMatchStateFromServer() {
     console.warn('[match_state] yükleme hatası:', e);
     return null;
   }
+}
+
+// 🆕 PERIYODIK YENİLEME — Edge Function her 30 saniyede maçları ilerletiyor.
+//   Frontend cache'ini de aynı kadansla yenile, böylece canlı maçlar/skorlar/statüler güncel kalır.
+//   İlk yükleme bootstrap'tan; bu sadece sonraki tazelemeler için.
+if (typeof window._matchStateAutoRefreshTimer === 'undefined' || !window._matchStateAutoRefreshTimer) {
+  window._matchStateAutoRefreshTimer = setInterval(() => {
+    if (typeof _loadAllMatchStateFromServer === 'function') {
+      _loadAllMatchStateFromServer().catch(e => console.warn('[match_state auto-refresh] hata:', e));
+    }
+  }, 30000);
 }
 
 function _resBuildSeasonFixtures(seasonNum) {
@@ -54568,6 +54583,13 @@ function resSetLeagueFilter(lg) {
 
 // Ana render
 function renderResultsPage() {
+  // 🆕 Sonuçlar sayfası açıldığında match_state cache'i fresh çek.
+  //   Edge Function her 30sn yeni canlı maçlar ekliyor; cache stale ise kullanıcı
+  //   maçları göremez. Async — boşken render edilir, gelince re-render olur.
+  if (typeof _loadAllMatchStateFromServer === 'function') {
+    _loadAllMatchStateFromServer().catch(e => console.warn('[results refresh]', e));
+  }
+
   // İlk açılışta bugünü seç
   if (!_resState.selectedDate) {
     const today = new Date();
