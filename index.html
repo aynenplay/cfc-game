@@ -60845,60 +60845,53 @@ function _migrateMatchPlayerStats() {
 }
 
 function computePlayerStats(countryCode, tierIdx) {
-  // 🆕 GERÇEK MAÇLARDAN HESAPLA — cft_match_results cache + cft_user_match_log
-  if(false) return [];
+  // 🆕 GERÇEK OYUNCULAR — _calcPlayerStatsFromCache lineup'tan gerçek 22 oyuncuyu okur.
+  //   Eski guestGenerateRoster (uydurma roster) SİLİNDİ.
   const country = _cftGetCountry(countryCode);
   if(!country || !country.leagues || !country.leagues[tierIdx]) return [];
   const teams = country.leagues[tierIdx].teams || [];
-
-  // Tüm cached maçlardan oyuncu bazlı stats topla (events / playerStats okur, fallback eski dağıtım)
-  // 🆕 Performance: Sadece bu ligin takımlarının maçlarını tara (tüm 4500 maçı değil)
   const teamNames = teams.map(t => t.name);
+  const teamMap = {};
+  teams.forEach(t => { teamMap[t.name] = t; });
+
   let allStats = {};
   try { allStats = (typeof _calcPlayerStatsFromCache === 'function') ? _calcPlayerStatsFromCache(teamNames) : {}; } catch(e) {}
 
-  // Tüm oyuncu stats'i tek kaynaktan: _calcPlayerStatsFromCache (match_state events).
-  // Kullanıcı/bot/kaptan ayrımı YOK — herkes aynı şekilde okunur.
-
   const players = [];
-  teams.forEach(team => {
-    if(typeof guestGenerateRoster !== 'function') return;
-    const roster = guestGenerateRoster(countryCode, team.name, team.rank || 1);
-
-    roster.forEach(p => {
-      const sk = `${team.name}_${p.name}`;
-      const s = allStats[sk] || { goals:0, assists:0, ratingSum:0, matches:0 };
-      const rating = s.matches > 0
-        ? Math.round((s.ratingSum / s.matches) * 10) / 10
-        : 6.5;
-
-      players.push({
-        name: p.name,
-        pos: p.pos,
-        teamName: team.name,
-        teamShort: team.short || (team.name || '').slice(0, 3).toUpperCase(),
-        teamBg: team.bg || 'rgba(255,255,255,.08)',
-        teamTc: team.tc || '#90caf9',
-        countryCode,
-        flag: country.flag,
-        goals: s.goals,
-        assists: s.assists,
-        rating,
-        matches: s.matches,
-        isUser: false,
-      });
+  Object.entries(allStats).forEach(([sk, s]) => {
+    // sk = "TeamName_PlayerName"
+    const idx = sk.indexOf('_');
+    if (idx <= 0) return;
+    const teamName = sk.slice(0, idx);
+    const playerName = sk.slice(idx + 1);
+    const team = teamMap[teamName];
+    if (!team) return; // bu tier'de değilse atla
+    const rating = s.matches > 0
+      ? Math.round((s.ratingSum / s.matches) * 10) / 10
+      : 0;
+    players.push({
+      name: playerName,
+      pos: s.pos || '',
+      teamName,
+      teamShort: team.short || (teamName || '').slice(0, 3).toUpperCase(),
+      teamBg: team.bg || 'rgba(255,255,255,.08)',
+      teamTc: team.tc || '#90caf9',
+      countryCode,
+      flag: country.flag,
+      goals: s.goals,
+      assists: s.assists,
+      rating,
+      matches: s.matches,
+      isUser: false,
     });
   });
 
-  // Kullanıcı/bot ayrımı yok — herkes aynı şekilde match_state'ten okunur.
-  // isUser bayrağı sadece UI rengini değiştirmek için, ayrı stats kaynağı YOK.
+  // Kullanıcı işaretle (UI rengi için, ayrı veri yok)
   try {
     if (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.countryCode === countryCode) {
       const userTeamName = _userTeam.teamName;
-      const userIdx = players.findIndex(pl =>
-        pl.teamName === userTeamName &&
-        pl.name === (window.authUser && authUser.name || '')
-      );
+      const userName = (window.authUser && authUser.name) || '';
+      const userIdx = players.findIndex(pl => pl.teamName === userTeamName && pl.name === userName);
       if (userIdx >= 0) players[userIdx].isUser = true;
     }
   } catch(e) {}
@@ -72408,7 +72401,7 @@ function _calcPlayerStatsFromCache(teamFilter) {
       lineup.forEach(p => {
         if (!p || !p.name) return;
         const sk = `${teamName}_${p.name}`;
-        if (!stats[sk]) stats[sk] = { goals:0, assists:0, ratingSum:0, matches:0 };
+        if (!stats[sk]) stats[sk] = { goals:0, assists:0, ratingSum:0, matches:0, pos: p.pos || 'MID' };
         // Bu oyuncunun events'leri
         const playerEvents = events.filter(e =>
           e && e.team === sideTeam && (e.player === p.name || e.assist === p.name)
