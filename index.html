@@ -36295,57 +36295,20 @@ async function _matchResultsLoadDetail(matchKey) {
 }
 
 // Sync API — RAM cache döner
+// 🆕 LOKAL CACHE SİLİNDİ — Supabase match_state tek doğruluk kaynağı.
+//   Eski versiyon lokal _matchResultsCache tutuyor + Supabase'e debounced flush yapıyordu.
+//   Şu an tüm bilgi match_state tablosunda; ayrı bir match_results gerekmiyor.
+//   26+ çağrı yerinde boş cache döner, kullanıcılar _matchStateCache fallback'ine düşer.
 function _matchResultsLoad() {
-  return _matchResultsCache || {};
+  return {};
 }
 
-// Cache obje'sini set et + Supabase'e debounced yaz
-// newCache: ya tüm cache (obj), ya da değişen key'leri içerebilir
 function _matchResultsSave(newCache) {
-  if (!newCache || typeof newCache !== 'object') return;
-  // Diff hesapla: hangi key'ler değişmiş?
-  for (const k of Object.keys(newCache)) {
-    const oldVal = _matchResultsCache[k];
-    const newVal = newCache[k];
-    if (!oldVal || JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
-      _matchResultsDirty.add(k);
-    }
-  }
-  _matchResultsCache = newCache;
-  // Debounce 1sn
-  if (_matchResultsSaveTimer) clearTimeout(_matchResultsSaveTimer);
-  _matchResultsSaveTimer = setTimeout(_matchResultsFlush, 1000);
+  // no-op — Supabase tek kaynak, frontend yazmaz
 }
 
 async function _matchResultsFlush() {
-  if (!window.sb || _matchResultsDirty.size === 0) return;
-  const dirtyKeys = Array.from(_matchResultsDirty);
-  _matchResultsDirty.clear();
-  const rows = dirtyKeys.map(k => {
-    const m = _matchResultsCache[k];
-    if (!m) return null;
-    return {
-      season: m.season || 1,
-      day_in_season: m.day || 0,
-      home_team: m.home,
-      away_team: m.away,
-      home_score: m.hs ?? 0,
-      away_score: m.as ?? 0,
-      country_code: m.countryCode || null,
-      tier: (typeof m.tier === 'number') ? m.tier : null,
-      data: {
-        comp: m.comp, playedAt: m.playedAt, kickoffMs: m.kickoffMs,
-        events: m.events, stats: m.stats, playerStats: m.playerStats,
-        byAuthority: m.byAuthority
-      }
-    };
-  }).filter(Boolean);
-  if (rows.length === 0) return;
-  try {
-    const { error } = await window.sb.from('match_results')
-      .upsert(rows, { onConflict: 'season,day_in_season,home_team,away_team' });
-    if (error) console.warn('[match_results] flush hata:', error.message);
-  } catch(e) { console.warn('[match_results] flush hata:', e); }
+  // no-op — frontend match_results tablosuna yazmaz, Edge Function her şeyi match_state'e yazar
 }
 
 
@@ -56576,12 +56539,8 @@ function bergerSchedule(numTeams) {
 
 // Tam sezon fikstürü (30 hafta = 15 hafta 1.yarı + 15 hafta 2.yarı, 2.yarı ev/depl. ters)
 function fullSeasonSchedule(numTeams) {
-  const firstHalf = bergerSchedule(numTeams);
-  const secondHalf = firstHalf.map(week => week.map(m => ({
-    homeIdx: m.awayIdx,  // 2. yarıda ev/deplasman tersine
-    awayIdx: m.homeIdx,
-  })));
-  return [...firstHalf, ...secondHalf];
+  // 🆕 LOKAL TAKVİM HESABI SİLİNDİ — Supabase match_state tek kaynak.
+  return [];
 }
 
 // Bir lig için tam fikstür (teams DB takımları + tarih + saat ile birlikte)
@@ -56651,328 +56610,52 @@ function buildLeagueFixture(teams, seasonStart, countryCode, tierIdx) {
 //
 // Format: "HH:MM" string döner
 function getSimpleMatchTime(kind, matchKey) {
-  // 🆕 1. öncelik: match_state'ten gerçek kickoff_at'i bul
-  // matchKey format: "{cc}-{tier}-w{week}-m{match}"
-  if (kind !== 'tournament' && kind !== 'special' && _matchStateCache) {
-    const parsed = matchKey && matchKey.match(/^([A-Z]+)-(\d+)-w(\d+)-m(\d+)$/);
-    if (parsed) {
-      const [, cc, tierStr, weekStr] = parsed;
-      const week = parseInt(weekStr, 10);
-      const tier1based = parseInt(tierStr, 10) + 1; // matchKey tier 0-based, table 1-based
-      // SEASON_TEMPLATE: week 1-15 → day 1-15, week 16-30 → day 19-33
-      const day = (week <= 15) ? week : (week + 3);
-      // _matchStateCache.dayMap[day] içinde bu lig'in maçlarını ara
-      const dayMatches = _matchStateCache.dayMap[day] || [];
-      const found = dayMatches.find(m => 
-        m.countryCode === cc && m.tier === tier1based && !m.tournament_key
-      );
-      if (found && found.matchDateTime) {
-        const d = new Date(found.matchDateTime);
-        return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
-      }
-    }
-  }
-  // 2. Yedek: hash (sadece match_state cache hazır değilse)
-  let h = 2166136261;
-  for(let i = 0; i < matchKey.length; i++) {
-    h ^= matchKey.charCodeAt(i);
-    h = Math.imul(h, 16777619) | 0;
-  }
-  h = (h ^ (h >>> 16)) >>> 0;
-  const minutes = [0, 15, 30, 45];
-  const min = minutes[h & 3];
-  const hbits = (h >>> 2);
-  let hour;
-  if(kind === 'tournament') hour = 19 + (hbits % 4);
-  else if(kind === 'special') hour = 12 + (hbits % 11);
-  else hour = 12 + (hbits % 7);
-  return String(hour).padStart(2, '0') + ':' + String(min).padStart(2, '0');
+  // 🆕 LOKAL HASH-BAZLI SAAT HESABI SİLİNDİ — Supabase match_state tek kaynak.
+  return '--:--';
 }
 
 function buildFixtureData(filter) {
-  // 🆕 Takımsız kullanıcı için kullanıcı maçları üretme (sahte Ankara vs İstanbul önler)
-  if (typeof userHasTeam === 'function' && !userHasTeam()) {
-    return [];
-  }
-  const { season, dayInSeason, seasonStart, SEASON_LEN } = getSeasonInfo();
+  // 🆕 LOKAL FİKSTÜR HESABI SİLİNDİ — Supabase match_state tek kaynak.
+  //   Eski 285 satırlık fonksiyon lokal RNG + cache + saat hash + bot stat üretimi yapıyordu.
+  //   Şimdi sadece _matchStateCache'i geriye dönük uyumlu formata çevirir.
+  if (!_matchStateCache || !_matchStateCache.byKey) return [];
+  if (typeof userHasTeam === 'function' && !userHasTeam()) return [];
+  const userTeamName = (_userTeam && _userTeam.teamName) || null;
+  if (!userTeamName) return [];
+
   const items = [];
-  const usedSlots = {}; // çakışma engelleme cache'i
+  for (const ms of Object.values(_matchStateCache.byKey)) {
+    if (!ms || !ms.matchDateTime) continue;
+    // Sadece kullanıcının takımının maçları
+    if (ms.home !== userTeamName && ms.away !== userTeamName) continue;
+    // Hazırlık ayrı kaynaktan (frmGetMatches)
+    if (ms.tournament_key === 'friendly') continue;
 
-  // 🆕 Maç sonuçları cache (localStorage'dan)
-  let _matchResultsCache = {};
-  try {
-    _matchResultsCache = _matchResultsLoad();
-  } catch(e) {}
+    const t = new Date(ms.matchDateTime).getTime();
+    if (isNaN(t)) continue;
 
-  // 🆕 Fault-tolerant cache lookup — suffix farkı / format dalgalanmaları için
-  // Önce exact key, bulamazsa cache'i tara → sezon+gün+takım çifti eşleşen kaydı bul
-  function _findMatch(season, day, homeName, awayName){
-    if(!_matchResultsCache) return null;
-    // 1) Exact key (en hızlı)
-    const exact = `${season}_${day}_${homeName}_${awayName}`;
-    if(_matchResultsCache[exact]) return _matchResultsCache[exact];
-    // 2) Suffix varyantları (turnuva _trn vs lig)
-    if(_matchResultsCache[exact+'_trn']) return _matchResultsCache[exact+'_trn'];
-    // 3) Esnek arama: aynı sezon+gün+takımlar (key formatı bozuk olsa bile)
-    for(const k in _matchResultsCache){
-      const v = _matchResultsCache[k];
-      if(v && v.season===season && v.day===day && v.home===homeName && v.away===awayName) return v;
-    }
-    return null;
+    const isPast = (ms.status === 'finished');
+    const isLive = (ms.status === 'running');
+
+    items.push({
+      season: ms.season,
+      day: ms.day,
+      date: new Date(t).toISOString(),
+      matchDateTime: ms.matchDateTime,
+      home: { name: ms.home, short: (ms.home||'').slice(0,3).toUpperCase() },
+      away: { name: ms.away, short: (ms.away||'').slice(0,3).toUpperCase() },
+      leagueName: ms.leagueName || '',
+      countryCode: ms.countryCode,
+      tier: ms.tier,
+      matchKey: ms.matchKey,
+      tournament_key: ms.tournament_key,
+      isPast,
+      isLive,
+      hs: (isPast || isLive) ? ms.home_score : null,
+      as: (isPast || isLive) ? ms.away_score : null
+    });
   }
-
-  // Kaç sezon gösterelim: mevcut + 1 önceki (preSeason'da sadece bu sezon)
-  const startSeason = Math.max(1, season - 1);
-
-  for(let s = startSeason; s <= season; s++) {
-    const sStart = new Date(seasonStart);
-    sStart.setDate(seasonStart.getDate() - (season - s) * SEASON_LEN);
-
-    for(let day = 1; day <= SEASON_LEN; day++) {
-      const date = new Date(sStart);
-      date.setDate(sStart.getDate() + day - 1);
-
-      const isCurrentDay = (s === season && day === dayInSeason);
-      const isPastDay = (s < season) || (s === season && day < dayInSeason);
-      const isFutureDay = !isPastDay && !isCurrentDay;
-
-      const events = SEASON_TEMPLATE[day] || [];
-
-      events.forEach((ev, slot) => {
-        if(ev.type === 'break') return; // transfer dönemleri listede gösterme
-
-        // Filtre
-        if(filter === 'lig' && ev.type !== 'lig') return;
-        if(filter === 'trn' && !['chm','eli','con'].includes(ev.type)) return;
-        
-        // Lig maçı
-        if(ev.type === 'lig') {
-          const weekIdx = ev.week - 1; // 0-indexed
-
-          // 🆕 BUG FIX: LIG_MATCHES yerine buildLeagueFixture kullan (lig sayfasıyla AYNI fikstür)
-          // Bu sayede kullanıcı maçları + bot vs bot maçları çift sayılmaz
-          const homeCountry = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.countryCode)
-            ? _userTeam.countryCode
-            : ((authUser && authUser.nationality) ? authUser.nationality : 'TR');
-          
-          // 🆕 tierIdx — _userTeam'deki değer yanlış olabilir, takımın GERÇEK liginden bul
-          const userTeamNameForTier = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : null;
-          let userTierIdx = -1;
-          const _countryObj = _cftGetCountry(homeCountry);
-          if (_countryObj && _countryObj.leagues && userTeamNameForTier) {
-            for (let li = 0; li < _countryObj.leagues.length; li++) {
-              const lg = _countryObj.leagues[li];
-              if (lg && lg.teams && lg.teams.some(t => t.name === userTeamNameForTier)) {
-                userTierIdx = li;
-                break;
-              }
-            }
-          }
-          // Bulunamadıysa _userTeam.tierIdx'e düş (geriye uyumlu)
-          if (userTierIdx < 0) {
-            userTierIdx = (typeof _userTeam !== 'undefined' && _userTeam && typeof _userTeam.tierIdx === 'number')
-              ? _userTeam.tierIdx : 0;
-          }
-
-          if (false || !_cftGetCountry(homeCountry)) return;
-          const userLg = _cftGetCountry(homeCountry).leagues[userTierIdx];
-          if (!userLg || !userLg.teams || userLg.teams.length < 2) return;
-
-          // Sezon başını hesapla
-          const _sStart = new Date(seasonStart);
-          _sStart.setDate(seasonStart.getDate() - (season - s) * SEASON_LEN);
-
-          // Bu sezonun lig fikstürünü üret (cache'le)
-          const _fxKey = `${homeCountry}-${userTierIdx}-${s}`;
-          if (!buildFixtureData._lgCache) buildFixtureData._lgCache = {};
-          if (!buildFixtureData._lgCache[_fxKey]) {
-            buildFixtureData._lgCache[_fxKey] = (typeof buildLeagueFixture === 'function')
-              ? buildLeagueFixture(userLg.teams, _sStart, homeCountry, userTierIdx)
-              : [];
-          }
-          const fullFixture = buildFixtureData._lgCache[_fxKey];
-
-          // Bu haftadaki maçlardan kullanıcının takımının olduğunu bul
-          const userTeamName = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : null;
-          if (!userTeamName) return;
-
-          const weekMatches = fullFixture.filter(f => f.week === ev.week);
-          const myMatch = weekMatches.find(f =>
-            f.homeTeam.name === userTeamName || f.awayTeam.name === userTeamName
-          );
-          if (!myMatch) return;
-
-          const userIsHome = (myMatch.homeTeam.name === userTeamName);
-          // Takım nesnelerini buildFixtureData formatına çevir + 'user' işareti
-          const home = { ...myMatch.homeTeam, user: userIsHome };
-          const away = { ...myMatch.awayTeam, user: !userIsHome };
-
-          // 🆕 Saat: match_state'ten gerçek kickoff_at (Supabase)
-          // Eski getSimpleMatchTime/hash hesabı KULLANILMIYOR
-          let matchDate = new Date(date);
-          let hour = 15, minute = 0;
-          if (_matchStateCache && _matchStateCache.byKey) {
-            // tier 0-based → tier 1-based
-            const tier1 = userTierIdx + 1;
-            const userTeamName2 = userTeamName;
-            const found = Object.values(_matchStateCache.byKey).find(mm =>
-              mm.season === s &&
-              mm.day === day &&
-              mm.countryCode === homeCountry &&
-              mm.tier === tier1 &&
-              (mm.home === userTeamName2 || mm.away === userTeamName2)
-            );
-            if (found && found.matchDateTime) {
-              matchDate = new Date(found.matchDateTime);
-              hour = matchDate.getHours();
-              minute = matchDate.getMinutes();
-            }
-          }
-
-          // 🆕 isPast'i SAAT bazlı yeniden hesapla (kickoff + ~12dk geçti mi)
-          // Üst seviye gün-bazlı isPast bugün maçı için yanılır; saat-aware override
-          const _isLigPast = (s < season) || _isMatchEnded(matchDate.getTime());
-          const _isLigCurrentDay = (s === season && day === dayInSeason) && !_isLigPast;
-          const _isLigFuture = !_isLigPast && !_isLigCurrentDay;
-
-          let hs=null, as=null, result=null;
-          if(_isLigPast) {
-            // 🆕 SADECE SUPABASE: cache (match_results) ne diyorsa o.
-            // Lokal simulate KALDIRILDI. Edge Function maçı oynamadıysa cache boştur,
-            // skor null kalır ve UI "Bekleniyor" gösterir.
-            const _cached = _findMatch(s, day, home.name, away.name);
-            if (_cached) {
-              hs = _cached.hs;
-              as = _cached.as;
-              const ankScore = userIsHome ? hs : as;
-              const oppScore = userIsHome ? as : hs;
-              result = ankScore > oppScore ? 'win' : ankScore < oppScore ? 'loss' : 'draw';
-            }
-            // Cache'te yoksa hs/as null kalır (henüz oynanmadı)
-          }
-
-          // Lig adını dinamik göster (kullanıcının liginden) — başında ülke bayrağı
-          const _ctx = (typeof getUserLeagueContext === 'function') ? getUserLeagueContext() : null;
-          const _flag = (_ctx && _ctx.country && _ctx.country.flag) ? _ctx.country.flag : '🇹🇷';
-          const _ligLabel = _ctx ? `${_flag} ${_ctx.leagueName}` : '🇹🇷 Süper Lig';
-
-        items.push({ date:matchDate, season:s, day, type:'lig', round:`Hafta ${ev.week}`,
-            compClass:'lig', comp:_ligLabel,
-            home, away, hs, as, result, isPast:_isLigPast, isCurrentDay:_isLigCurrentDay, isFuture:_isLigFuture,
-            hour, minute, tz:TZ_OFFSETS[homeCountry]||3 });
-        }
-        
-        // Turnuva maçı (SADECE grup maçları — eleme maçları gruptan çıkınca eklenir)
-        if(['chm','eli','con'].includes(ev.type)) {
-          if(ev.type !== getUserTurnuva()) return; // sadece katıldığımız turnuva
-          // 🆕 Sadece grup maçlarını işle — eleme maçları (Son 16, Çeyrek, Yarı, Final)
-          // gruptan çıkış garantileninceye kadar fikstüre EKLENMEZ.
-          // Bu maçlar takım gruptan çıkarsa daha sonra dinamik olarak eklenir.
-          const roundLower = (ev.round||'').toLowerCase();
-          if (!roundLower.includes('grup')) return;
-
-          const compMap = {
-            chm: {label: _cupLogoInline('champ',14)+'Championship', cls:'trn-champ'},
-            eli: {label: _cupLogoInline('elite',14)+'Elite Ligi',   cls:'trn-elite'},
-            con: {label: _cupLogoInline('conv',14)+'Convergence',   cls:'trn-conv'},
-          };
-          const { label, cls } = compMap[ev.type];
-
-          // 🆕 Grup maçı numarası — "Grup 1. Maç" / "Grup 2. Maç" / ... / "Grup 6. Maç"
-          const mdMatch = ev.round.match(/(\d+)/);
-          const matchdayNum = mdMatch ? parseInt(mdMatch[1], 10) : 1;
-
-          // 🆕 GERÇEK GRUP EŞLEŞMESİ — trn2BuildGroups'tan kullanıcının grubunu çek
-          const TRN_KEY_MAP = { chm: 'champ', eli: 'elite', con: 'conv' };
-          const trnKey = TRN_KEY_MAP[ev.type];
-          if (!trnKey || typeof trn2GetQualifiers !== 'function' ||
-              typeof trn2BuildPlayoff !== 'function' || typeof trn2BuildGroups !== 'function') return;
-
-          let userMatchInfo = null;
-          try {
-            const qual = trn2GetQualifiers(s);
-            if (!qual || !qual[trnKey] || qual[trnKey].length === 0) return;
-            const playoff = trn2BuildPlayoff(qual[trnKey], s, trnKey);
-            if (!playoff || playoff.length === 0) return;
-            const winners = playoff.map(pm => pm.winner).filter(Boolean);
-            if (winners.length === 0) return;
-            const groups = trn2BuildGroups(winners, s, trnKey);
-            if (!groups || groups.length === 0) return;
-
-            // Kullanıcının takım adı
-            const userTeamName = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : null;
-            if (!userTeamName) return;
-
-            // Kullanıcının grubunu bul
-            const userGroup = groups.find(g => g.teams && g.teams.some(t => t.name === userTeamName));
-            if (!userGroup || !userGroup.matches) return;
-
-            // Bu matchday'in kullanıcının olduğu maçını bul
-            const userMatch = userGroup.matches.find(mm =>
-              mm.matchday === matchdayNum &&
-              ((mm.home && mm.home.name === userTeamName) || (mm.away && mm.away.name === userTeamName))
-            );
-            if (!userMatch) return;
-            userMatchInfo = userMatch;
-          } catch(e) { return; }
-
-          if (!userMatchInfo) return;
-
-          // 🆕 Gerçek rakip — sahte FIX_TEAMS yok
-          const userTeamName = _userTeam.teamName;
-          const userIsHome = (userMatchInfo.home && userMatchInfo.home.name === userTeamName);
-          // home/away takım nesnesini teams DB'den tam haliyle çıkar (forma rengi, kısa ad)
-          function _resolveFullTeam(name, cc) {
-            if (!name || !cc || false || !_cftGetCountry(cc)) {
-              return { name: name||'?', short: (name||'?').slice(0,3).toUpperCase(), bg:'#37474f', tc:'#fff' };
-            }
-            const country = _cftGetCountry(cc);
-            for (const lg of (country.leagues || [])) {
-              const found = (lg.teams || []).find(t => t.name === name);
-              if (found) return { ...found, countryCode: cc };
-            }
-            return { name, short: name.slice(0,3).toUpperCase(), bg:'#37474f', tc:'#fff' };
-          }
-          const _homeFull = _resolveFullTeam(userMatchInfo.home.name, userMatchInfo.home.countryKey);
-          const _awayFull = _resolveFullTeam(userMatchInfo.away.name, userMatchInfo.away.countryKey);
-          const home = { ..._homeFull, user: userIsHome, countryFlag: userMatchInfo.home.countryFlag };
-          const away = { ..._awayFull, user: !userIsHome, countryFlag: userMatchInfo.away.countryFlag };
-
-          // Saat — turnuva için trn2BuildGroups zaten _trnMatchTimeStr ile üretmişti
-          // userMatchInfo.scheduledTime varsa onu kullan
-          const trnTimeStr = _getMatchHM(userMatchInfo);
-          const [hour, minute] = trnTimeStr.split(':').map(Number);
-          const matchDate = new Date(date);
-          matchDate.setHours(hour, minute, 0, 0);
-
-          // 🆕 isPast'i SAAT bazlı yeniden hesapla
-          const _isTrnPast = (s < season) || _isMatchEnded(matchDate.getTime());
-          const _isTrnCurrentDay = (s === season && day === dayInSeason) && !_isTrnPast;
-          const _isTrnFuture = !_isTrnPast && !_isTrnCurrentDay;
-
-          // 🆕 Skor: SADECE oynanmış maçlar için (trn2BuildGroups zaten played:true/false işaretliyor)
-          let hs = null, as = null, result = null;
-          if (_isTrnPast && userMatchInfo.played &&
-              typeof userMatchInfo.hs === 'number' && typeof userMatchInfo.as === 'number') {
-            hs = userMatchInfo.hs;
-            as = userMatchInfo.as;
-            const userScore = userIsHome ? hs : as;
-            const oppScore  = userIsHome ? as : hs;
-            result = userScore > oppScore ? 'win' : userScore < oppScore ? 'loss' : 'draw';
-          }
-
-          // homeCountry — saatlik dilim için ev sahibinin ülke kodu
-          const homeCountry = userMatchInfo.home.countryKey || 'TR';
-
-          items.push({ date:matchDate, season:s, day, type:ev.type, round:ev.round,
-            comp:label, compClass:cls,
-            home, away, hs, as, result, isPast:_isTrnPast, isCurrentDay:_isTrnCurrentDay, isFuture:_isTrnFuture,
-            hour, minute, tz:TZ_OFFSETS[homeCountry]||1 });
-        }
-      });
-    }
-  }
-  
+  items.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   return items;
 }
 
