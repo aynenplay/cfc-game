@@ -36286,13 +36286,15 @@ function getUserFinalRank(seasonNum) {
   };
 }
 
-// Sezon sonu durumunu localStorage'da işaretle (tekrar tetiklenmesin)
-function _seasonEndKey(seasonNum) { return `cft_season_end_${seasonNum}`; }
+// Sezon sonu UI gösterimini session içinde tekrar tetiklenmemek için işaretle
+// (RAM cache — refresh'te tekrar görünebilir, session boyunca bir kez)
+// localStorage YOK — kullanıcı kuralı + backend tek doğruluk kaynağı.
 function isSeasonEndProcessed(seasonNum) {
-  try { return !!localStorage.getItem(_seasonEndKey(seasonNum)); } catch(e) { return false; }
+  return !!(window._seasonEndShown && window._seasonEndShown[seasonNum]);
 }
 function markSeasonEndProcessed(seasonNum) {
-  try { localStorage.setItem(_seasonEndKey(seasonNum), '1'); } catch(e) {}
+  window._seasonEndShown = window._seasonEndShown || {};
+  window._seasonEndShown[seasonNum] = true;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -36321,8 +36323,7 @@ function markSeasonEndProcessed(seasonNum) {
 //   saveWorldState(state)         → state'i persist et (mock: localStorage,
 //                                  ileride: POST /api/world/state)
 //   applyWorldStateToCFTDB()      → sayfa açılınca teams DB'ye uygula
-//   recordTierSwap(cc, tier, ...) → bot promosyon kaydı
-//   recordFinalStandings(s, snap) → sezon sonu sıralama kaydı
+//   recordFinalStandings(s, snap) → sezon sonu sıralama kaydı (UI cache)
 //   readFinalStandings(season)    → sezon sıralamasını oku
 //
 // STATE ŞEMASI:
@@ -37094,24 +37095,8 @@ function applyWorldStateToCFTDB() {
   } catch(e) { console.warn('[WorldState] Apply hatası:', e); }
 }
 
-// Bir sezonun bot tier düzenlemesini state'e kaydet
-function recordTierSwap(seasonNum) {
-  try {
-    if (false) return;
-    const snap = {};
-    for (const cc of _cftGetCountryCodes()) {
-      const country = _cftGetCountry(cc);
-      if (!country || !Array.isArray(country.leagues)) continue;
-      snap[cc] = country.leagues.map(lg => ({
-        tier: lg.tier,
-        teamNames: (lg.teams || []).map(t => t.name)
-      }));
-    }
-    const state = loadWorldState();
-    state.bot_promrel[seasonNum] = snap;
-    saveWorldState(state);
-  } catch(e) { console.warn('[WorldState] recordTierSwap hatası:', e); }
-}
+// ⚠️ recordTierSwap silindi — backend artık teams.tier'ı doğrudan güncelliyor (Supabase)
+// Frontend'in CFT_DB snapshot kaydetmesine gerek yok, tek doğruluk kaynağı Supabase.
 
 // Sezon sonu standings snapshot'ı (Champ 1-2, Elite 3-4, Conv 5-6 için)
 function recordFinalStandings(seasonNum) {
@@ -37149,131 +37134,19 @@ function readFinalStandings(seasonNum) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  FAZ 5 — BOT TAKIMLARI İÇİN PROMOSYON / DÜŞME
+// ⚠️ ESKİ FAZ 5 — Lokal bot/kullanıcı promosyon/düşme mekanizması SİLİNDİ
 // ═══════════════════════════════════════════════════════════════════
-// Kural:
-//   - Her ülkenin her lig çiftinde (tier N ↔ tier N+1) yer değiştirme
-//   - Üst tier'in son 4'ü düşer, alt tier'in ilk 4'ü çıkar
-//   - Kullanıcı takımı bu süreçten ETKİLENMEZ
-//   - Sonuçlar WorldState'e kaydedilir
+// Artık server-side: edge function `applySeasonEndPromotionRelegation`
+//   • Süper Lig (tier 1) son 4 düşer
+//   • Orta tier'ler ilk 4 çıkar, son 4 düşer
+//   • En alt tier ilk 4 çıkar, düşme yok
+//   • teams.tier ve teams.rank Supabase'de güncellenir
+// Frontend yeniden okuduğunda yeni tier'lar otomatik gelir.
+//
+// SİLİNEN FONKSİYONLAR:
+//   _swapBotTiers, applyBotPromotionRelegationAll, applyPromotionRelegation
+// (Lokal CFT_DB'yi değiştiriyorlardı → server'la çakışma + multi-user uyumsuzdu)
 // ═══════════════════════════════════════════════════════════════════
-
-// Bir ülkenin tier N ile tier N+1 arasında promosyon/düşme uygula
-function _swapBotTiers(countryCode, upperTierIdx, seasonNum) {
-  const country = _cftGetCountry(countryCode);
-  if (!country || !Array.isArray(country.leagues)) return;
-  const upper = country.leagues[upperTierIdx];
-  const lower = country.leagues[upperTierIdx + 1];
-  if (!upper || !lower || !upper.teams || !lower.teams) return;
-  if (upper.teams.length < 4 || lower.teams.length < 4) return;
-
-  // Kullanıcı takımı bu tier'larda mı? (varsa o takım yer değiştirmesin)
-  const userTeamName = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : null;
-  const userCountry = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.countryCode : null;
-  const userInThisCountry = (userCountry === countryCode);
-
-  let upperStandings = [];
-  try {
-    if (typeof calcLeagueStandings === 'function') {
-      upperStandings = calcLeagueStandings(countryCode, upperTierIdx, { season: seasonNum, progress: 1 });
-    }
-  } catch(e) {}
-  if (!upperStandings.length) upperStandings = upper.teams.map((t, i) => ({ ...t, idx: i }));
-
-  let lowerStandings = [];
-  try {
-    if (typeof calcLeagueStandings === 'function') {
-      lowerStandings = calcLeagueStandings(countryCode, upperTierIdx + 1, { season: seasonNum, progress: 1 });
-    }
-  } catch(e) {}
-  if (!lowerStandings.length) lowerStandings = lower.teams.map((t, i) => ({ ...t, idx: i }));
-
-  // Düşecekler: üst lig son 4
-  const relegating = [];
-  for (let i = upperStandings.length - 1; i >= 0 && relegating.length < 4; i--) {
-    const teamName = upperStandings[i].name;
-    if (userInThisCountry && teamName === userTeamName) continue;
-    const teamObj = upper.teams.find(t => t.name === teamName);
-    if (teamObj) relegating.push(teamObj);
-  }
-
-  // Çıkacaklar: alt lig ilk 4
-  const promoting = [];
-  for (let i = 0; i < lowerStandings.length && promoting.length < 4; i++) {
-    const teamName = lowerStandings[i].name;
-    if (userInThisCountry && teamName === userTeamName) continue;
-    const teamObj = lower.teams.find(t => t.name === teamName);
-    if (teamObj) promoting.push(teamObj);
-  }
-
-  if (relegating.length === 0 || promoting.length === 0) return;
-  const swapCount = Math.min(relegating.length, promoting.length);
-  const downTeams = relegating.slice(0, swapCount);
-  const upTeams = promoting.slice(0, swapCount);
-
-  upper.teams = upper.teams.filter(t => !downTeams.includes(t)).concat(upTeams);
-  lower.teams = lower.teams.filter(t => !upTeams.includes(t)).concat(downTeams);
-}
-
-// Tüm ülkeler için tüm tier çiftlerinde swap uygula
-function applyBotPromotionRelegationAll(seasonNum) {
-  if (false) return;
-
-  for (const cc of _cftGetCountryCodes()) {
-    const country = _cftGetCountry(cc);
-    if (!country || !Array.isArray(country.leagues)) continue;
-    const tierCount = country.leagues.length;
-    for (let t = 0; t < tierCount - 1; t++) {
-      try {
-        _swapBotTiers(cc, t, seasonNum);
-      } catch(e) {
-        console.warn(`[Faz5] Swap hatası ${cc} tier ${t}:`, e);
-      }
-    }
-  }
-
-  // Merkezi state'e kaydet
-  recordTierSwap(seasonNum);
-
-  // Cache temizleme
-  try {
-    if (typeof window !== 'undefined') {
-      window._trn2PlayoffCache = {};
-      window._trn2GroupsCache = {};
-      window._trn2BracketCache = {};
-    }
-    if (typeof invalidateFixtureCache === 'function') invalidateFixtureCache();
-  } catch(e) {}
-}
-
-// Promosyon/Düşme uygula (sadece kullanıcı takımı için)
-// Tier 0 = en üst (Süper Lig) - sadece düşme
-// Tier 5 = en alt (6. Lig) - sadece çıkma
-function applyPromotionRelegation(userRankInfo) {
-  if (!userRankInfo || typeof _userTeam === 'undefined' || !_userTeam) return null;
-  const { rank, tierIdx, leagueName } = userRankInfo;
-
-  // Son 4: düşme (en alt lig için sadece kalır)
-  // İlk 4: çıkma (en üst lig için sadece kalır)
-  let newTierIdx = tierIdx;
-  let action = 'stay';
-
-  if (rank >= 13 && tierIdx < 5) {
-    newTierIdx = tierIdx + 1; // Bir alt lige düş
-    action = 'relegated';
-  } else if (rank <= 4 && tierIdx > 0) {
-    newTierIdx = tierIdx - 1; // Bir üst lige çık
-    action = 'promoted';
-  }
-
-  if (newTierIdx !== tierIdx) {
-    _userTeam.tierIdx = newTierIdx;
-    // Persist
-    try { userTeamSave(); } catch(e) {}
-  }
-
-  return { action, newTierIdx, oldTierIdx: tierIdx, rank };
-}
 
 // Avrupa kupası kalifikasyonu (sadece üst ligden, Türkiye için)
 // 1-2: Championship League, 3-4: Elite League, 5-6: Confergence League
@@ -37311,20 +37184,18 @@ function processSeasonEnd(seasonNum) {
     prize = awardLeagueSeasonPrize(tierIdx, rank, leagueName);
   }
 
-  // Promosyon/Düşme
-  const movement = applyPromotionRelegation(userRankInfo);
+  // 🆕 Promosyon/düşme artık server-side (edge function applySeasonEndPromotionRelegation).
+  // Frontend sadece kullanıcının final durumunu okuyup UI'da gösterir.
+  // Hareket hesabı UI bildirimi için (gerçek tier değişikliği Supabase'de).
+  let movement = null;
+  if (rank >= 13 && tierIdx < 5) movement = { action: 'relegated', oldTierIdx: tierIdx, newTierIdx: tierIdx + 1, rank };
+  else if (rank <= 4 && tierIdx > 0) movement = { action: 'promoted', oldTierIdx: tierIdx, newTierIdx: tierIdx - 1, rank };
+  else movement = { action: 'stay', oldTierIdx: tierIdx, newTierIdx: tierIdx, rank };
 
-  // 🆕 FAZ 5+: Bot promosyondan ÖNCE sezon sonu standings snapshot'ı al
-  // (Play-off qualifier'ları bu snapshot'tan okuyacak — teams DB swap'ından etkilenmez)
+  // 🆕 FAZ 5+: Sezon sonu standings snapshot'ı (UI cache — qualifier listesi için)
   try {
     recordFinalStandings(seasonNum);
   } catch(e) { console.warn('[Faz5+] recordFinalStandings hatası:', e); }
-
-  // 🆕 FAZ 5: Tüm bot takımları için de promosyon/düşme uygula
-  // (Kullanıcı zaten yukarıda işlendi, bot swap'larında atlanır)
-  try {
-    applyBotPromotionRelegationAll(seasonNum);
-  } catch(e) { console.warn('[Faz5] applyBotPromotionRelegationAll hatası:', e); }
 
   // Avrupa kupası
   const europeanCup = qualifyForEuropeanCups(userRankInfo);
@@ -37639,51 +37510,9 @@ function checkSeasonEndTrigger() {
   const info = getSeasonInfo();
   if (info.preSeason) return;
 
-  // 🆕 FAZ 5: Gün 39 — "Yeni Sezon Fikstürleri Belirleniyor" özel günü
-  // SEASON_TEMPLATE[39]'da bu etiket var. Gün 39'da:
-  //   - Lig (gün 30'da bitti) ✓ tamamlandı
-  //   - Kulüp turnuvaları (gün 33'te bitti) ✓ tamamlandı
-  //   - EURO Cup hala sürüyor (gün 40'ta biter) — yeni sezon fikstürünü etkilemiyor
-  // Yani gün 39'da sezon sonu işlemini ERKEN tetikleyebiliriz → yeni sezon
-  // fikstürü gün 39'da hazır olur. Kullanıcı sezon 2'nin maçlarını gün 39'da
-  // önceden görebilir. Bot rotasyonu da gün 39'da uygulanır.
-  if (info.dayInSeason === 39 && info.season >= 1) {
-    const prepKey = `cft_season_prep_s${info.season}`;
-    let alreadyPrepped = false;
-    try { alreadyPrepped = !!localStorage.getItem(prepKey); } catch(e) {}
-    if (!alreadyPrepped) {
-      try {
-        // 1) MEVCUT sezonun sonunu erken işle (bot promosyon/düşme + kullanıcı)
-        //    Bu, processSeasonEnd'in normalde sezon 2 gün 1'inde yaptığı her şeyi
-        //    sezon 1 gün 39'unda yapar. Sonra "isSeasonEndProcessed" ile işaretlenir
-        //    → checkSeasonEndTrigger sezon geçişinde tekrar çalıştırmaz.
-        if (!isSeasonEndProcessed(info.season)) {
-          const result = processSeasonEnd(info.season);
-          if (result && typeof showSeasonEndCeremony === 'function') {
-            setTimeout(() => showSeasonEndCeremony(result), 600);
-          }
-        }
-
-        // 2) Cache'leri sıfırla — yeni sezon için yeniden üretim
-        if (typeof invalidateFixtureCache === 'function') invalidateFixtureCache();
-        if (typeof window !== 'undefined') {
-          window._trn2PlayoffCache = {};
-          window._trn2GroupsCache = {};
-          window._trn2BracketCache = {};
-        }
-
-        // 3) İşaretle (gün 39 boyunca tekrar tetiklenmesin)
-        localStorage.setItem(prepKey, '1');
-        console.info(`[Faz5] Sezon ${info.season} gün 39: sezon sonu işlendi, yeni sezon fikstürleri hazır`);
-      } catch(e) { console.warn('[Faz5] Gün 39 hazırlık hatası:', e); }
-    }
-    // Gün 39 hook'u çalıştıktan sonra, aşağıdaki "sezon > 1 trigger"a düşmeden çık
-    // (çünkü önceki sezon zaten işlendi)
-    return;
-  }
-
-  // 🆕 dayInSeason 1-40 arasında, asla SEASON_LEN+1 (41) olamaz.
-  // Yeni sezona geçildiyse (season > 1), önceki sezonu işle (eğer henüz işlenmediyse).
+  // 🆕 Sezon-sonu promosyon/küme-düşme artık server-side (edge function).
+  // Frontend sadece sezon geçişinde UI gösterimi yapar (kupa töreni, inbox bildirimi).
+  // dayInSeason 1-40 arasında, asla SEASON_LEN+1 (41) olamaz.
   if (info.season > 1) {
     const lastSeason = info.season - 1;
     if (!isSeasonEndProcessed(lastSeason)) {
@@ -37694,7 +37523,7 @@ function checkSeasonEndTrigger() {
           if (typeof showSeasonEndCeremony === 'function') showSeasonEndCeremony(result);
         }, 600);
       }
-      // 🆕 v4: Sezon geçişinde eski maç sonuçlarını temizle (storage tasarrufu)
+      // Sezon geçişinde eski maç sonuçlarını temizle (storage tasarrufu)
       try { _cftCleanupOldSeasonData(info.season); } catch(e) { console.warn('cleanup err', e); }
     }
   }
@@ -63619,11 +63448,70 @@ function encEnsureState(season) {
         });
       }
     });
+    // 🆕 Knockout adapter: fixture.r16/qf/sf/final + match_results skorları → render formatı
+    // Server: fixture.r16 = [{home:{name}, away:{name}}, ...]; skorlar match_results'ta
+    // Frontend bekliyor: ko.r16 = [{homeName, home, homeFlag, awayName, away, awayFlag, hg, ag, result, pens, et}]
+    const _mrAll = (typeof _matchResultsLoad === 'function') ? _matchResultsLoad() : {};
+    const _encResultsByPhase = { r16: {}, qf: {}, sf: {}, final: {} };
+    for (const k in _mrAll) {
+      const m = _mrAll[k];
+      if (!m || m.season !== season || m.tournament_key !== 'enc') continue;
+      const ph = m.tournament_phase;
+      if (!_encResultsByPhase[ph]) continue;
+      _encResultsByPhase[ph][`${m.home}|${m.away}`] = m;
+    }
+
+    function _encConvKnockoutMatch(pair, phase) {
+      if (!pair || !pair.home || !pair.away) return null;
+      const homeName = pair.home.name;
+      const awayName = pair.away.name;
+      // Server'da takım objesi sadece {name} içeriyor — code/flag CFT_DB'den hidrat
+      const _findCC = (name) => {
+        for (const cc of Object.keys(_cftGetCountry ? (typeof CFT_DB !== 'undefined' ? CFT_DB : {}) : {})) {
+          const c = _cftGetCountry(cc);
+          if (c && c.name === name) return cc;
+        }
+        return null;
+      };
+      const homeCC = pair.home.code || _findCC(homeName);
+      const awayCC = pair.away.code || _findCC(awayName);
+      const homeFlag = pair.home.flag || (homeCC && _cftGetCountry(homeCC) && _cftGetCountry(homeCC).flag) || '🏳️';
+      const awayFlag = pair.away.flag || (awayCC && _cftGetCountry(awayCC) && _cftGetCountry(awayCC).flag) || '🏳️';
+
+      const srv = _encResultsByPhase[phase][`${homeName}|${awayName}`];
+      const hg = srv ? srv.hs : null;
+      const ag = srv ? srv.as : null;
+      const played = typeof hg === 'number' && typeof ag === 'number';
+      let result = null;
+      if (played) {
+        if (hg > ag) result = 'home';
+        else if (ag > hg) result = 'away';
+        else result = null;  // beraber → uzatma/penaltı backend tarafında çözülmüş, kazanan match_results'ta yok
+      }
+      return {
+        homeName, home: homeCC || homeName.slice(0,3).toUpperCase(), homeFlag,
+        awayName, away: awayCC || awayName.slice(0,3).toUpperCase(), awayFlag,
+        hg, ag, result,
+        pens: srv?.pens || null,
+        et: srv?.et || false
+      };
+    }
+
+    const _ko = {
+      r16:   Array.isArray(serverState.r16)   ? serverState.r16.map(p => _encConvKnockoutMatch(p, 'r16')).filter(x => x)   : [],
+      qf:    Array.isArray(serverState.qf)    ? serverState.qf.map(p => _encConvKnockoutMatch(p, 'qf')).filter(x => x)     : [],
+      sf:    Array.isArray(serverState.sf)    ? serverState.sf.map(p => _encConvKnockoutMatch(p, 'sf')).filter(x => x)     : [],
+      final: Array.isArray(serverState.final) && serverState.final[0]
+             ? _encConvKnockoutMatch(serverState.final[0], 'final')
+             : null
+    };
+    const _hasKnockout = _ko.r16.length > 0 || _ko.qf.length > 0 || _ko.sf.length > 0 || _ko.final;
+
     const adapted = {
       season: serverState.season || season,
       groups: Object.values(groupMap),
       groupMatches: serverState.groupMatches,
-      knockout: serverState.knockout || null,
+      knockout: _hasKnockout ? _ko : (serverState.knockout || null),
       phase: serverState.phase || 'group'
     };
     return adapted;
