@@ -61550,9 +61550,13 @@ function trn2GetQualifiers(currentSeason) {
 
 // ── Play-Off: 64 → 32 (1. vs 2., farklı ülke) ──
 function trn2BuildPlayoff(teams, season, trnKey) {
-  // 🆕 ÖNCE Supabase tournament_state'ten playoff fixture'ını al (tek doğruluk kaynağı)
+  // 🆕 SERVER-ONLY: Tüm playoff fikstürü Supabase tournament_state'ten gelir.
+  // Lokal seededShuffle/eşleştirme YOK — yeni format (çift sıralar birbiri arasında)
+  // edge function tarafında buildPlayoffMatches ile hesaplanır.
   const _srvState = (typeof _tournamentStateGet === 'function') ? _tournamentStateGet(trnKey, season) : null;
   const _srvPlayoff = _srvState && _srvState.fixture && Array.isArray(_srvState.fixture.playoff) ? _srvState.fixture.playoff : null;
+
+  if (!_srvPlayoff || _srvPlayoff.length === 0) return [];
 
   // match_results'tan playoff skor lookup
   const _mrAll = (typeof _matchResultsLoad === 'function') ? _matchResultsLoad() : {};
@@ -61564,12 +61568,12 @@ function trn2BuildPlayoff(teams, season, trnKey) {
     _playoffFromServer[`${m.home}|${m.away}`] = m;
   }
 
-  // teams DB hidrat
+  // teams DB'den hidrat
   function _hydratePlayoffTeam(srvTeam) {
     if (!srvTeam || !srvTeam.name) return null;
     const cc = srvTeam.countryCode || srvTeam.countryKey;
     if (!cc) return { name: srvTeam.name, rank: srvTeam.rank || 0 };
-    if (true && _cftGetCountry(cc) && _cftGetCountry(cc).leagues) {
+    if (_cftGetCountry(cc) && _cftGetCountry(cc).leagues) {
       for (const lg of _cftGetCountry(cc).leagues) {
         const found = (lg.teams || []).find(x => x.name === srvTeam.name);
         if (found) return { ...found, countryKey: cc, countryCode: cc, rank: srvTeam.rank || 0 };
@@ -61578,127 +61582,25 @@ function trn2BuildPlayoff(teams, season, trnKey) {
     return { name: srvTeam.name, countryKey: cc, countryCode: cc, rank: srvTeam.rank || 0 };
   }
 
-  // 🆕 SERVER YOLU: Playoff fixture'ı serverdan
-  if (_srvPlayoff && _srvPlayoff.length > 0) {
-    const _results = _srvPlayoff.map((pm, idx) => {
-      const home = _hydratePlayoffTeam(pm.home);
-      const away = _hydratePlayoffTeam(pm.away);
-      if (!home || !away) return null;
+  const _results = _srvPlayoff.map((pm, idx) => {
+    const home = _hydratePlayoffTeam(pm.home);
+    const away = _hydratePlayoffTeam(pm.away);
+    if (!home || !away) return null;
 
-      const srv = _playoffFromServer[`${home.name}|${away.name}`];
-      const hs = srv ? srv.hs : 0;
-      const as = srv ? srv.as : 0;
-      const winner = srv
-        ? (hs > as ? home : hs < as ? away : (idx % 2 === 0 ? home : away))
-        : null;
-
-      return { home, away, hs, as, winner, fromServer: true };
-    }).filter(x => x);
-
-    // Cache'e koy (UI tutarlılığı için)
-    window._trn2PlayoffCache = window._trn2PlayoffCache || {};
-    window._trn2PlayoffCache[`${trnKey}_s${season}`] = _results;
-    return _results;
-  }
-
-  // 🆕 YEDEK: server'da playoff yoksa eski lokal mantık
-  // 1'ler ve 2'ler
-  const ones = teams.filter(t => t.rank % 2 === 1); // 1. veya 5. sıralar (tek)
-  const twos = teams.filter(t => t.rank % 2 === 0); // 2. veya 6. sıralar (çift)
-
-  // Kura: 1. × 2.'yi farklı ülke şartıyla eşleştir
-  // Deterministik seed bazlı karıştır
-  function seededShuffle(arr, seed) {
-    const a = [...arr];
-    for(let i = a.length-1; i > 0; i--) {
-      const j = ((seed * (i+1) * 1103515245 + 12345) & 0x7fffffff) % (i+1);
-      [a[i], a[j]] = [a[j], a[i]];
-      seed = (seed * 1664525 + 1013904223) & 0x7fffffff;
+    const srv = _playoffFromServer[`${home.name}|${away.name}`];
+    if (!srv) {
+      // Server'da skor yoksa pending (Edge Function henüz oynatmamış)
+      return { home, away, hs: null, as: null, winner: null, pending: true, fromServer: true };
     }
-    return a;
-  }
+    const hs = srv.hs ?? 0;
+    const as = srv.as ?? 0;
+    const winner = hs > as ? home : hs < as ? away : (idx % 2 === 0 ? home : away);
+    return { home, away, hs, as, winner, fromServer: true };
+  }).filter(x => x);
 
-  const shuffledOnes = seededShuffle(ones, season * 1000 + trnKey.charCodeAt(0));
-  const shuffledTwos = seededShuffle(twos, season * 2000 + trnKey.charCodeAt(0) * 3);
-
-  // Eşleştir: aynı ülkeden olamaz
-  const matches = [];
-  const usedTwos = new Set();
-
-  shuffledOnes.forEach((one, i) => {
-    let found = null;
-    for(let j = 0; j < shuffledTwos.length; j++) {
-      if(!usedTwos.has(j) && shuffledTwos[j].countryKey !== one.countryKey) {
-        found = j;
-        break;
-      }
-    }
-    if(found === null) {
-      for(let j = 0; j < shuffledTwos.length; j++) {
-        if(!usedTwos.has(j)) { found = j; break; }
-      }
-    }
-    if(found !== null) {
-      usedTwos.add(found);
-      matches.push({ home: one, away: shuffledTwos[found] });
-    }
-  });
-
-  // Helper: countryKey+name'den teams DB tam takım objesi
-  function _fullTeamFromCFTDB(t) {
-    if (!t || !t.countryKey || !t.name) return null;
-    if (false || !_cftGetCountry(t.countryKey)) return null;
-    const country = _cftGetCountry(t.countryKey);
-    for (const lg of (country.leagues || [])) {
-      const found = (lg.teams || []).find(x => x.name === t.name);
-      if (found) {
-        const full = { ...found, countryCode: t.countryKey };
-        if (true /* guestGenerateRoster silindi */) {
-          try { full._roster = getOrCreateTeamRoster({ countryCode: t.countryKey, name: t.name, rank: found.rank || 1 }); } catch(e){}
-        }
-        return full;
-      }
-    }
-    return null;
-  }
-
-  // Cache (deterministik, performans için)
+  // UI tutarlılığı için cache
   window._trn2PlayoffCache = window._trn2PlayoffCache || {};
-  const _cacheKey = `${trnKey}_s${season}`;
-  if (window._trn2PlayoffCache[_cacheKey]) {
-    const _cached = window._trn2PlayoffCache[_cacheKey];
-    if (_cached.length === matches.length) {
-      let _allMatch = true;
-      for (let i = 0; i < matches.length; i++) {
-        const cm = _cached[i];
-        if (cm.home.name !== matches[i].home.name || cm.away.name !== matches[i].away.name) {
-          _allMatch = false; break;
-        }
-      }
-      if (_allMatch) return _cached;
-    }
-  }
-
-  // match_results'tan playoff maçlarını lookup için index'le
-  const _playoffMrLookup = _playoffFromServer;
-
-  const _results = matches.map((m, idx) => {
-    // 1) Önce match_results'tan ara
-    const _srvKey = `${m.home.name}|${m.away.name}`;
-    const _srvMatch = _playoffMrLookup[_srvKey];
-    if (_srvMatch) {
-      const hs = _srvMatch.hs ?? 0;
-      const as = _srvMatch.as ?? 0;
-      const winner = hs > as ? m.home : hs < as ? m.away : (idx % 2 === 0 ? m.home : m.away);
-      return { ...m, hs, as, winner, fromServer: true };
-    }
-    
-    // 🚫 Lokal fallback (simulateBotMatch + hardcoded skorlar) KALDIRILDI.
-    // Server'da skor yoksa skoru boş bırak — Edge Function henüz oynatmamış demektir.
-    return { ...m, hs: null, as: null, winner: null, pending: true };
-  });
-
-  window._trn2PlayoffCache[_cacheKey] = _results;
+  window._trn2PlayoffCache[`${trnKey}_s${season}`] = _results;
   return _results;
 }
 
@@ -61761,7 +61663,7 @@ function _trnMatchTimeStr(trnKey, season, groupIdx, matchday, homeIdx, awayIdx) 
   return String(hour).padStart(2, '0') + ':' + String(min).padStart(2, '0');
 }
 
-// ── 8 grup × 4 takım (32 takımdan) — UEFA klasik çift round-robin (12 maç/grup, 6 maç/takım) ──
+// ── 8 grup × 6 takım (48 takımdan) — tek devre Berger (15 maç/grup, 5 MD/takım) ──
 function trn2BuildGroups(teams48, season, trnKey) {
   // 🆕 NİHAİ FORMAT — Server tek doğruluk kaynağı (Supabase tournament_state).
   // 8 grup × 6 takım × tek devre (5 MD). Lokal kura/FIXTURE YOK — fixture.groupMatches'tan okur.
@@ -62645,23 +62547,41 @@ function trn2BuildGroupsHtml(groups, trnKey, season) {
   const isAnk = t => t && _userTeamName && t.name === _userTeamName && t.countryKey === _userCC;
   const LETTERS = ['A','B','C','D','E','F','G','H'];
 
-  // Şema modu: 8 boş grup (kura öncesi) — EURO Cup ile bire bir aynı
-  // trn2BuildGroups her zaman 8 grup objesi döner ama Sezon 1'de hepsi boş teams ile.
+  // 🆕 Sıra → durum (renk + tooltip) — YENİ FORMAT
+  // 1-2: yeşil (kendi turnuvasında r16/r32'ye yükselir)
+  // 3-4 CHM: turuncu (ELI r32'ye düşer)
+  // 3-4 ELI: turuncu (CON r32'ye düşer)
+  // 3-4 CON: kırmızı (elenir — alt turnuva yok)
+  // 5-6 hepsi: kırmızı (elenir)
+  function _rowStatus(ti, tk) {
+    if (ti < 2) return { color:'#00e676', label:'Üst tura yükselir', cls:'enc-qualified' };
+    if (ti < 4) {
+      if (tk === 'champ') return { color:'#ff9800', label:'ELI Son 32\'ye düşer', cls:'enc-dropped' };
+      if (tk === 'elite') return { color:'#ff9800', label:'CON Son 32\'ye düşer', cls:'enc-dropped' };
+      return { color:'#f44336', label:'Elenir', cls:'enc-eliminated' };
+    }
+    return { color:'#f44336', label:'Elenir', cls:'enc-eliminated' };
+  }
+
+  // Şema modu: 8 boş grup (kura öncesi)
   const allEmpty = !groups || groups.length === 0 || groups.every(g => !g.teams || g.teams.length === 0);
   if (allEmpty) {
     return '<div class="enc-body">' + LETTERS.map((letter, idx) => {
-      const emptyRows = [1,2,3,4].map(i => `
-        <tr class="enc-st-row">
-          <td class="enc-st-pos">${i}</td>
+      const emptyRows = [1,2,3,4,5,6].map(i => {
+        const st = _rowStatus(i-1, trnKey);
+        return `
+        <tr class="enc-st-row ${st.cls}" style="border-left:3px solid ${st.color}" title="${st.label}">
+          <td class="enc-st-pos" style="color:${st.color};font-weight:700">${i}</td>
           <td class="enc-st-team"><span class="enc-st-flag">🏳️</span><span class="enc-st-name" style="color:var(--text3)">Henüz belli değil</span></td>
           <td>0</td><td class="enc-w">0</td><td>0</td><td class="enc-l">0</td>
           <td class="enc-gd">0:0</td><td class="enc-pts">0</td>
         </tr>
-      `).join('');
-      const emptyMatches = [1,2,3,4,5,6].map(d => `
+      `;
+      }).join('');
+      const emptyMatches = [1,2,3,4,5].map(d => `
         <div class="enc-md-block">
           <div class="enc-md-lbl">${d}. Maç Günü</div>
-          ${[1,2].map(() => `
+          ${[1,2,3].map(() => `
             <div class="enc-match-row">
               <div class="enc-mr-team enc-mr-home">
                 <span style="color:var(--text3)">—</span><span class="enc-mr-flag">🏳️</span>
@@ -62678,7 +62598,7 @@ function trn2BuildGroupsHtml(groups, trnKey, season) {
         <div class="enc-group-card${idx===0?' open':''}" id="grp_${trnKey}_${idx}">
           <div class="enc-group-head" onclick="encGroupToggle('grp_${trnKey}_${idx}')">
             <div class="enc-group-letter">Grup ${letter}</div>
-            <div class="enc-group-meta">4 takım · 12 maç</div>
+            <div class="enc-group-meta">6 takım · 15 maç</div>
             <div class="enc-group-arr">›</div>
           </div>
           <div class="enc-group-body">
@@ -62695,18 +62615,19 @@ function trn2BuildGroupsHtml(groups, trnKey, season) {
     }).join('') + '</div>';
   }
 
-  // Veri modu: gerçek 8 grup — EURO Cup ile bire bir aynı yapı
+  // Veri modu: gerçek 8 grup × 6 takım, tek devre 5 MD
   return '<div class="enc-body">' + groups.map((g, gi) => {
     const letter = g.letter || LETTERS[gi] || '?';
     const rowsHtml = g.teams.map((t, ti) => {
-      const isQ = ti < 2, isU = isAnk(t);
+      const st = _rowStatus(ti, trnKey);
+      const isU = isAnk(t);
       const tot = (t.gp||0) + (t.dp||0) + Math.max(0, t.mp||0);
       const gf = t.gf||0, ga = t.ga||0;
-      // 🆕 Kullanıcı takımı: yıldız yerine yeşil yazı rengi
+      // 🆕 Kullanıcı takımı: yeşil yazı rengi
       const nameStyle = isU ? 'color:#00e676;font-weight:800' : '';
       return `
-        <tr class="enc-st-row${isQ?' enc-qualified':''}${isU?' user-row':''}">
-          <td class="enc-st-pos">${ti+1}</td>
+        <tr class="enc-st-row ${st.cls}${isU?' user-row':''}" style="border-left:3px solid ${st.color}" title="${st.label}">
+          <td class="enc-st-pos" style="color:${st.color};font-weight:700">${ti+1}</td>
           <td class="enc-st-team">
             <span class="trn2-team-logo" style="background:${t.bg||'#37474f'};color:${t.tc||'#fff'}">${t.short||(t.name||'?').slice(0,3).toUpperCase()}</span>
             <span class="enc-st-flag">${t.countryFlag||'🏳️'}</span>
@@ -62722,10 +62643,10 @@ function trn2BuildGroupsHtml(groups, trnKey, season) {
       `;
     }).join('');
 
-    // Maç günleri — EURO Cup match-row ile bire bir
+    // Maç günleri — tek devre 5 MD
     let matchHtml = '';
     if (Array.isArray(g.matches) && g.matches.length) {
-      const matchesByDay = [1,2,3,4,5,6].map(d => g.matches.filter(m => m.matchday === d));
+      const matchesByDay = [1,2,3,4,5].map(d => g.matches.filter(m => m.matchday === d));
 
       // 🆕 Maç günü için tarih formatı: "17 May Paz"
       const DAYS_TR_S = ['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
@@ -62739,7 +62660,6 @@ function trn2BuildGroupsHtml(groups, trnKey, season) {
 
       matchHtml = matchesByDay.map((dayM, di) => {
         if (!dayM.length) return '';
-        // 🆕 Maç günü etiketine tarih ekle: "1. Maç Günü · 17 May Paz"
         const mdDateLabel = _fmtDateLabel(dayM[0].matchDate);
         const mdLabelFull = mdDateLabel ? `${di+1}. Maç Günü · ${mdDateLabel}` : `${di+1}. Maç Günü`;
 
@@ -62751,13 +62671,11 @@ function trn2BuildGroupsHtml(groups, trnKey, season) {
               const time = _getMatchHM(m);
               let scoreHtml;
               if (isPlayed) {
-                // 🆕 Oynanmış: skor + altında saat
                 scoreHtml = `<div class="enc-mr-score">
                   <div>${m.hs} - ${m.as}</div>
                   <div style="font-size:9px;color:var(--text3);font-weight:600;margin-top:1px">${time}</div>
                 </div>`;
               } else {
-                // 🆕 Oynanmamış: saat göster
                 scoreHtml = `<div class="enc-mr-score" style="color:var(--text2);font-weight:700;font-size:13px">
                   ${time}
                 </div>`;
@@ -62787,7 +62705,7 @@ function trn2BuildGroupsHtml(groups, trnKey, season) {
       <div class="enc-group-card${gi===0?' open':''}" id="grp_${trnKey}_${gi}">
         <div class="enc-group-head" onclick="encGroupToggle('grp_${trnKey}_${gi}')">
           <div class="enc-group-letter">Grup ${letter}</div>
-          <div class="enc-group-meta">${g.teams.length} takım · 12 maç</div>
+          <div class="enc-group-meta">${g.teams.length} takım · 15 maç</div>
           <div class="enc-group-arr">›</div>
         </div>
         <div class="enc-group-body">
@@ -62821,12 +62739,21 @@ function trn2BuildBracketHtml(bracket, trnKey) {
   
   // 🆕 BOŞ BRACKET — server'da henüz knockout kurulmamış (gruplar bitmedi)
   if (!Array.isArray(bracket) || bracket.length === 0) {
-    const PHASES = [
-      { name: 'Son 16', count: 8 },
-      { name: 'Çeyrek Final', count: 4 },
-      { name: 'Yarı Final', count: 2 },
-      { name: 'Final 🏆', count: 1 }
-    ];
+    // 🆕 NİHAİ FORMAT: CHM r16'dan (4 faz), ELI/CON r32'den (5 faz) başlar
+    const PHASES = (trnKey === 'champ')
+      ? [
+          { name: 'Son 16',       count: 8 },
+          { name: 'Çeyrek Final', count: 4 },
+          { name: 'Yarı Final',   count: 2 },
+          { name: 'Final 🏆',     count: 1 }
+        ]
+      : [
+          { name: 'Son 32',       count: 16 },
+          { name: 'Son 16',       count: 8 },
+          { name: 'Çeyrek Final', count: 4 },
+          { name: 'Yarı Final',   count: 2 },
+          { name: 'Final 🏆',     count: 1 }
+        ];
     let html = `<div style="padding:0 10px 6px;font-size:10px;color:var(--text3)">Eleme turu fikstürü, grup aşaması tamamlandığında otomatik oluşturulacak.</div>
     <div class="trn2-bracket-wrap"><div class="trn2-bracket">`;
     PHASES.forEach(ph => {
@@ -62880,7 +62807,13 @@ function trn2BuildBracketHtml(bracket, trnKey) {
     return '';
   }
 
-  let html = `<div style="padding:0 10px 6px;font-size:10px;color:var(--text3)">Her gruptan 1. ve 2. sıra eleme turuna geçer. Final hariç tüm turlar çift maçlıdır (ev+deplasman, toplam skor).</div>
+  // 🆕 Bilgi metni trnKey'e göre dinamik
+  const _bracketInfo = (trnKey === 'champ')
+    ? '8 grubun 1. ve 2.\'leri Son 16\'ya yükselir (16 takım). Final hariç tüm turlar çift maçlıdır (ev+deplasman, toplam skor).'
+    : (trnKey === 'elite')
+    ? 'ELI grupların 1-2\'leri (16) + CHM gruplarının 3-4\'leri (16) = 32 takım Son 32\'de buluşur. Final hariç tüm turlar çift maçlıdır.'
+    : 'CON grupların 1-2\'leri (16) + ELI gruplarının 3-4\'leri (16) = 32 takım Son 32\'de buluşur. Final hariç tüm turlar çift maçlıdır.';
+  let html = `<div style="padding:0 10px 6px;font-size:10px;color:var(--text3)">${_bracketInfo}</div>
   <div class="trn2-bracket-wrap"><div class="trn2-bracket">`;
 
   bracket.forEach(round => {
