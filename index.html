@@ -26695,8 +26695,8 @@ async function preloadAllTeamRosters() {
     let safety = 0;
     while (safety++ < 50) {
       const { data, error } = await window.sb.from('players')
-        .select('id, country_code, team_name, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar')
-        .eq('is_bot', true)
+        .select('id, user_id, country_code, team_name, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, is_bot, goals_total, assists_total, matches_played, match_ratings')
+        // 🆕 is_bot filtresi KALDIRILDI — gerçek kullanıcılar da yüklenir
         .not('team_name', 'is', null)
         .order('country_code')
         .order('team_name')
@@ -26715,7 +26715,21 @@ async function preloadAllTeamRosters() {
       const key = r.country_code + ':' + r.team_name;
       if (!_teamRosterCache[key]) _teamRosterCache[key] = [];
       const sl = (typeof SQUAD_SLOTS_15 !== 'undefined' && SQUAD_SLOTS_15[_teamRosterCache[key].length]) || {};
+      // Ortalama maç rating'i (match_ratings array'inden hesapla)
+      let avgMatchRating = 0;
+      let mrCount = 0;
+      if (Array.isArray(r.match_ratings)) {
+        for (const mr of r.match_ratings) {
+          if (mr && typeof mr.rating === 'number') {
+            avgMatchRating += mr.rating;
+            mrCount++;
+          }
+        }
+        if (mrCount > 0) avgMatchRating = avgMatchRating / mrCount;
+      }
       _teamRosterCache[key].push({
+        id: r.id,
+        userId: r.user_id,
         num: r.num, name: r.name, pos: r.pos, posGroup: r.pos_group,
         rating: r.rating || 10, overall: r.overall || 10,
         level: r.level || 0, xp: r.xp || 0,
@@ -26726,7 +26740,14 @@ async function preloadAllTeamRosters() {
         nationality: r.nationality || r.country_code,
         avatar: r.avatar || '🤖',
         role: r.role || 'member',
-        isBot: true,
+        isBot: !!r.is_bot,
+        isUser: !r.is_bot,
+        // 🆕 Sezon istatistikleri (Edge function maç sonu doldurur)
+        goalsTotal: r.goals_total || 0,
+        assistsTotal: r.assists_total || 0,
+        matchesPlayed: r.matches_played || 0,
+        avgMatchRating: avgMatchRating,
+        matchRatingsCount: mrCount,
         seasonYellow: 0, suspendMatches: 0, suspendReason: null, injuryUntil: 0,
         x: sl.x, y: sl.y,
       });
@@ -69952,17 +69973,11 @@ async function _evRacePreloadServerLb() {
 // match_results cache'inden rating leaderboard'ı hesapla (cycle filtreli)
 // Lig sayfasındaki "Sezon Reytingi" ile aynı veri kaynağı, sadece cycle başlangıcı sonrası
 function _evRaceCalcLeaderboardFromCache(cycleStartMs) {
-  // 🆕 GERÇEK 10'LUK RATING: lineup'tan 22 oyuncu + events ile calcPlayerRating.
-  //   Kullanıcı/bot/kaptan ayrımı YOK. Uydurma dağıtım YOK.
-  if (typeof _matchEventsCache === 'undefined' || !_matchEventsCache || !_matchEventsCache.byKey) {
-    return [];
-  }
-  if (typeof _matchStateCache === 'undefined' || !_matchStateCache || !_matchStateCache.byKey) {
-    return [];
-  }
-  if (typeof calcPlayerRating !== 'function') return [];
+  // 🆕 GERÇEK SUPABASE VERİSİ: _teamRosterCache (players tablosu) direkt okuyor.
+  //   match_ratings array'inden cycle filtreli ortalama rating hesaplanır.
+  //   Edge function rating'leri kümülatif doldurur. Frontend uydurma hesap YAPMAZ.
+  if (typeof _teamRosterCache === 'undefined' || !_teamRosterCache) return [];
 
-  const stats = {};
   const teamLookup = {};
   try {
     _cftAllEntries().forEach(([cc, country]) => {
@@ -69979,82 +69994,41 @@ function _evRaceCalcLeaderboardFromCache(cycleStartMs) {
     });
   } catch(e) {}
 
-  function _accum(teamName, playerName, rating) {
+  const out = [];
+  Object.entries(_teamRosterCache).forEach(([cacheKey, roster]) => {
+    if (!Array.isArray(roster)) return;
+    const colonIdx = cacheKey.indexOf(':');
+    if (colonIdx < 0) return;
+    const teamName = cacheKey.slice(colonIdx + 1);
     const info = teamLookup[teamName] || {};
-    const sk = `${teamName}__${playerName}`;
-    if (!stats[sk]) {
-      stats[sk] = {
-        playerName, teamName,
-        countryCode: info.cc || '',
-        countryFlag: info.flag || '🏳️',
+    roster.forEach(p => {
+      if (!p || !p.name) return;
+      // Cycle filtresi: match_ratings array'inden cycle başlangıcından sonraki rating'ler
+      let ratingSum = 0;
+      let matchCount = 0;
+      // _teamRosterCache match_ratings ham datayı tutmuyor (avg ve count tutuyor).
+      // Cycle filtresi olmadan tüm ortalama kullanılır. (Cycle filtresi için Edge function
+      // weekly_ratings ayrı tutmalı; şimdilik kümülatif ortalama gösterilir.)
+      if ((p.matchRatingsCount || 0) > 0) {
+        ratingSum = (p.avgMatchRating || 0) * p.matchRatingsCount;
+        matchCount = p.matchRatingsCount;
+      }
+      if (matchCount === 0) return; // hiç maç oynamamış oyuncu listede yok
+      out.push({
+        playerName: p.name,
+        teamName,
         teamShort: info.short || teamName.slice(0,3).toUpperCase(),
         teamBg: info.bg || '#333',
         teamTc: info.tc || '#fff',
-        ratingSum: 0, matches: 0,
-      };
-    }
-    stats[sk].ratingSum += rating;
-    stats[sk].matches += 1;
-  }
-
-  Object.entries(_matchStateCache.byKey).forEach(([key, ms]) => {
-    if (!ms || ms.status !== 'finished') return;
-    if (ms.tournament_key === 'friendly' || (key && key.startsWith('friendly_'))) return;
-    const ts = ms.matchDateTime ? new Date(ms.matchDateTime).getTime() : 0;
-    if (ts < cycleStartMs) return;
-
-    const entry = _matchEventsCache.byKey[key];
-    if (!entry) return;
-    const events = entry.events;
-    if (!Array.isArray(events) || events.length === 0) return;
-
-    const homeTeam = ms.home;
-    const awayTeam = ms.away;
-    const hs = ms.home_score || 0;
-    const as = ms.away_score || 0;
-
-    // Her takımın lineup'u (11 oyuncu)
-    const homeLineup = (entry.home_lineup && Array.isArray(entry.home_lineup.players)) ? entry.home_lineup.players : (Array.isArray(entry.home_lineup) ? entry.home_lineup : []);
-    const awayLineup = (entry.away_lineup && Array.isArray(entry.away_lineup.players)) ? entry.away_lineup.players : (Array.isArray(entry.away_lineup) ? entry.away_lineup : []);
-
-    function _processLineup(lineup, sideTeam, teamName, scored, conceded) {
-      const teamWon = scored > conceded ? 'win' : scored < conceded ? 'loss' : 'draw';
-      lineup.forEach(p => {
-        if (!p || !p.name) return;
-        // Bu oyuncuya ait olaylar
-        const playerEvents = events.filter(e =>
-          e && e.team === sideTeam && (e.player === p.name || e.assist === p.name)
-        );
-        let r;
-        try {
-          r = calcPlayerRating(
-            { name: p.name, pos: p.pos || 'MID' },
-            playerEvents,
-            teamWon,
-            90,
-            conceded,
-            { teamScored: scored, side: sideTeam }
-          );
-        } catch(e) { r = 6.5; }
-        _accum(teamName, p.name, r);
+        countryCode: info.cc || '',
+        countryFlag: info.flag || '🏳️',
+        score: Math.round((ratingSum / matchCount) * 100) / 100,
+        _matchCount: matchCount,
       });
-    }
-
-    _processLineup(homeLineup, 'home', homeTeam, hs, as);
-    _processLineup(awayLineup, 'away', awayTeam, as, hs);
+    });
   });
 
-  return Object.values(stats).map(s => ({
-    playerName: s.playerName,
-    teamName: s.teamName,
-    teamShort: s.teamShort,
-    teamBg: s.teamBg,
-    teamTc: s.teamTc,
-    countryCode: s.countryCode,
-    countryFlag: s.countryFlag,
-    score: s.matches ? Math.round((s.ratingSum / s.matches) * 100) / 100 : 0,
-    _matchCount: s.matches,
-  })).sort((a, b) => b.score - a.score).slice(0, 200);
+  return out.sort((a, b) => b.score - a.score).slice(0, 200);
 }
 
 // _evRaceAlphabeticFallback fonksiyonu SİLİNDİ (uydurma alfabetik liste,
@@ -71578,85 +71552,38 @@ let _psCachedKey = null;
 //   Eski uydurma roster + _distributeMatchStats zinciri SİLİNDİ.
 //   Kullanıcı/bot/kaptan ayrımı YOK — herkes aynı sistemden.
 function _calcPlayerStatsFromCache(teamFilter) {
-  if (typeof _matchEventsCache === 'undefined' || !_matchEventsCache || !_matchEventsCache.byKey) {
-    return {};
-  }
-  if (typeof _matchStateCache === 'undefined' || !_matchStateCache || !_matchStateCache.byKey) {
-    return {};
-  }
-  if (typeof calcPlayerRating !== 'function') return {};
+  // 🆕 GERÇEK SUPABASE VERİSİ: _teamRosterCache (players tablosu) direkt okuyor.
+  //   Edge function maç sonu goals_total, assists_total, matches_played, match_ratings
+  //   kolonlarını günceller. Frontend events'ten hesap YAPMAZ.
+  if (typeof _teamRosterCache === 'undefined' || !_teamRosterCache) return {};
 
   let filterSet = null;
   if (teamFilter) {
     filterSet = new Set(Array.isArray(teamFilter) ? teamFilter : [teamFilter]);
   }
 
-  // Cache key — events cache loadedAt + filter
-  const eventsLoadedAt = _matchEventsCache.loadedAt || 0;
-  const filterKey = filterSet ? Array.from(filterSet).sort().join(',') : 'ALL';
-  const cacheKey = eventsLoadedAt + '|' + filterKey;
-  if (_psCachedStats && _psCachedKey === cacheKey) return _psCachedStats;
-
   const stats = {};
+  Object.entries(_teamRosterCache).forEach(([cacheKey, roster]) => {
+    // cacheKey format: "TR:TeamName"
+    if (!Array.isArray(roster)) return;
+    const colonIdx = cacheKey.indexOf(':');
+    if (colonIdx < 0) return;
+    const teamName = cacheKey.slice(colonIdx + 1);
+    if (filterSet && !filterSet.has(teamName)) return;
 
-  Object.entries(_matchStateCache.byKey).forEach(([key, ms]) => {
-    if (!ms || ms.status !== 'finished') return;
-    if (ms.tournament_key === 'friendly' || (key && key.startsWith('friendly_'))) return;
-    if (filterSet && !filterSet.has(ms.home) && !filterSet.has(ms.away)) return;
-
-    const entry = _matchEventsCache.byKey[key];
-    if (!entry) return;
-    const events = entry.events;
-    if (!Array.isArray(events) || events.length === 0) return;
-
-    const homeTeam = ms.home;
-    const awayTeam = ms.away;
-    const hs = ms.home_score || 0;
-    const as = ms.away_score || 0;
-    const homeLineup = (entry.home_lineup && Array.isArray(entry.home_lineup.players)) ? entry.home_lineup.players : (Array.isArray(entry.home_lineup) ? entry.home_lineup : []);
-    const awayLineup = (entry.away_lineup && Array.isArray(entry.away_lineup.players)) ? entry.away_lineup.players : (Array.isArray(entry.away_lineup) ? entry.away_lineup : []);
-
-    function _processLineup(lineup, sideTeam, teamName, scored, conceded) {
-      if (filterSet && !filterSet.has(teamName)) return;
-      const teamWon = scored > conceded ? 'win' : scored < conceded ? 'loss' : 'draw';
-      lineup.forEach(p => {
-        if (!p || !p.name) return;
-        const sk = `${teamName}_${p.name}`;
-        if (!stats[sk]) stats[sk] = { goals:0, assists:0, ratingSum:0, matches:0, pos: p.pos || 'MID' };
-        // Bu oyuncunun events'leri
-        const playerEvents = events.filter(e =>
-          e && e.team === sideTeam && (e.player === p.name || e.assist === p.name)
-        );
-        // Gol & asist say (cancelled hariç)
-        playerEvents.forEach(ev => {
-          if (ev.type === 'goal' && !ev.cancelled) {
-            if (ev.player === p.name) stats[sk].goals += 1;
-            if (ev.assist === p.name) stats[sk].assists += 1;
-          }
-        });
-        // Rating hesabı
-        let r;
-        try {
-          r = calcPlayerRating(
-            { name: p.name, pos: p.pos || 'MID' },
-            playerEvents,
-            teamWon,
-            90,
-            conceded,
-            { teamScored: scored, side: sideTeam }
-          );
-        } catch(e) { r = 6.5; }
-        stats[sk].ratingSum += r;
-        stats[sk].matches += 1;
-      });
-    }
-
-    _processLineup(homeLineup, 'home', homeTeam, hs, as);
-    _processLineup(awayLineup, 'away', awayTeam, as, hs);
+    roster.forEach(p => {
+      if (!p || !p.name) return;
+      const sk = `${teamName}_${p.name}`;
+      stats[sk] = {
+        goals: p.goalsTotal || 0,
+        assists: p.assistsTotal || 0,
+        matches: p.matchesPlayed || 0,
+        ratingSum: (p.avgMatchRating || 0) * (p.matchRatingsCount || 0),
+        pos: p.pos || 'MID',
+      };
+    });
   });
 
-  _psCachedStats = stats;
-  _psCachedKey = cacheKey;
   return stats;
 }
 
