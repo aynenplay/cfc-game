@@ -22963,11 +22963,11 @@ body.drawer-open{overflow:hidden}
     <!-- EKİPMAN -->
     <div id="pl-equipment" style="display:none">
 
-      <!-- 🆕 Boş dolap bilgilendirme kartı (renderEquipment tarafından dinamik yönetilir) -->
-      <div id="eqEmptyBanner" class="eq-empty-banner" style="display:none">
+      <!-- 🆕 Ekipman bilgilendirme bandı — başlık dinamik (boş dolap / daha fazla yetenek) -->
+      <div id="eqEmptyBanner" class="eq-empty-banner">
         <div class="eq-empty-banner-icon">🎒</div>
         <div class="eq-empty-banner-text">
-          <div class="eq-empty-banner-title">Dolabın Boş</div>
+          <div class="eq-empty-banner-title" id="eqEmptyBannerTitle">Dolabın Boş</div>
           <div class="eq-empty-banner-msg">Gücünüzü artırmak için ekipman kullanın. Maçlarda yetenek bonusu sağlayan itemleri mağazadan satın alıp slotlara kuşanın.</div>
         </div>
         <button class="eq-empty-banner-btn" onclick="eqGoToShop()">🏪 Mağaza İtemler</button>
@@ -23090,7 +23090,7 @@ body.drawer-open{overflow:hidden}
     <div class="pos-modal-overlay" id="avatarModal" onclick="if(event.target===this)closeAvatarChangeModal()">
       <div class="pos-modal">
         <div class="pos-modal-title">🎭 Avatar Değiştir</div>
-        <div class="pos-modal-sub">Profilinde görünecek avatarı seç</div>
+        <div class="pos-modal-sub">Profilinde görünecek avatarı seç · <b style="color:#5fb8ff">100 💎</b></div>
 
         <div class="avatar-grid" id="avatarModalGrid" style="margin-top:14px"></div>
 
@@ -39698,6 +39698,27 @@ function confirmAvatarChange() {
   if(!_avatarModalSelected || !authUser) return;
   if(_avatarModalSelected === authUser.avatarId) { closeAvatarChangeModal(); return; }
 
+  // 🆕 Avatar değişim ücreti — CÜZDAN (user_wallet)
+  const AVATAR_CHANGE_COST = 100;
+  const _wlBal = (typeof wlGetData === 'function') ? (wlGetData().dia || 0) : 0;
+  if (_wlBal < AVATAR_CHANGE_COST) {
+    if (typeof cftConfirm === 'function') {
+      cftConfirm({
+        title: 'Yetersiz Diamond',
+        message: `Avatar değişimi için ${AVATAR_CHANGE_COST} 💎 gerekli ama sende sadece ${_wlBal.toLocaleString('tr')} 💎 var.`,
+        confirmText: 'Tamam',
+        cancelText: '',
+        danger: true,
+        onConfirm: () => {}
+      });
+    }
+    return;
+  }
+  const _wlOk = (typeof wlDeduct === 'function')
+    ? wlDeduct('dia', AVATAR_CHANGE_COST, `Avatar Değişimi`)
+    : false;
+  if (!_wlOk) return;
+
   authUser.avatarId = _avatarModalSelected;
 
   // 🆕 Supabase'e KALICI yaz — profiles.avatar_id + players.avatar_id
@@ -40830,7 +40851,7 @@ function tbmGoBackToCountries() {
 }
 
 function tbmRenderBudget() {
-  const bal = (typeof trsGetBalance === 'function') ? trsGetBalance('dia') : 0;
+  const bal = (typeof wlGetData === 'function') ? (wlGetData().dia || 0) : 0;
   const el = document.getElementById('tbmBudget');
   if(el) el.textContent = bal.toLocaleString('tr');
 }
@@ -40842,7 +40863,7 @@ function tbmRenderCountryGrid() {
   if(!grid || false) return;
 
   const userCC = (authUser && authUser.nationality) ? authUser.nationality : null;
-  const myBudget = (typeof trsGetBalance === 'function') ? trsGetBalance('dia') : 0;
+  const myBudget = (typeof wlGetData === 'function') ? (wlGetData().dia || 0) : 0;
 
   // Tüm ülkeleri topla, en ucuz takım fiyatını hesapla
   const countries = _cftGetCountryCodes().map(cc => {
@@ -41018,7 +41039,7 @@ function tbmRenderList() {
   }
 
   // Önce karşılayabildiklerini üste, sonra fiyata göre azalan
-  const myBudget = (typeof trsGetBalance === 'function') ? trsGetBalance('dia') : 0;
+  const myBudget = (typeof wlGetData === 'function') ? (wlGetData().dia || 0) : 0;
   filtered.sort((a, b) => {
     const aAfford = myBudget >= a.price;
     const bAfford = myBudget >= b.price;
@@ -41064,7 +41085,7 @@ function tbmRenderList() {
 }
 
 function showNeedMoreDiamondToast(price) {
-  const bal = (typeof trsGetBalance === 'function') ? trsGetBalance('dia') : 0;
+  const bal = (typeof wlGetData === 'function') ? (wlGetData().dia || 0) : 0;
   const need = price - bal;
   showNeedTeamToast(`💎 Yetersiz elmas! ${need.toLocaleString('tr')} 💎 daha gerekli.`);
 }
@@ -41100,7 +41121,7 @@ function tbmShowBuyConfirm(countryCode, tierIdx, teamName) {
   document.getElementById('tbcRating').textContent = `★ ${team.rating}/100`;
   document.getElementById('tbcPrice').textContent = price.toLocaleString('tr');
 
-  const myBudget = (typeof trsGetBalance === 'function') ? trsGetBalance('dia') : 0;
+  const myBudget = (typeof wlGetData === 'function') ? (wlGetData().dia || 0) : 0;
   const after = myBudget - price;
   document.getElementById('tbcAfter').textContent = after.toLocaleString('tr');
 
@@ -41126,14 +41147,22 @@ function confirmTeamBuy() {
   if(!_tbmBuyTarget) return;
   const t = _tbmBuyTarget;
 
-  // Diamond düşür
-  if(typeof trsCanAfford !== 'function' || !trsCanAfford('dia', t.price)) {
+  // Diamond düşür — CÜZDAN (user_wallet)
+  const _wlBal = (typeof wlGetData === 'function') ? (wlGetData().dia || 0) : 0;
+  if (_wlBal < t.price) {
     closeTeamBuyConfirm();
     showNeedTeamToast('Yetersiz elmas — bütçen değişti.');
     return;
   }
 
-  trsDeduct('dia', t.price, `Takım Satın Alma: ${t.teamName}`);
+  const _wlOk = (typeof wlDeduct === 'function')
+    ? wlDeduct('dia', t.price, `Takım Satın Alma: ${t.teamName}`)
+    : false;
+  if (!_wlOk) {
+    closeTeamBuyConfirm();
+    showNeedTeamToast('Bakiye düşülemedi (cüzdan hatası).');
+    return;
+  }
 
   // ── Yeni takım için kasaya başlangıç sermayesi enjekte et ──
   // Takım kalitesi/popülasyonuna bağlı: 20K€ - 200K€ aralığı
@@ -58779,14 +58808,21 @@ async function confirmPosChange() {
   const newPos = _selectedNewPos;
   if(newPos === oldPos) { closePosModal(); return; }
 
-  // Diamond kontrolü ve düşürme — kasa modülü
-  if(typeof trsCanAfford !== 'function' || !trsCanAfford('dia', 500)) {
+  // Diamond kontrolü ve düşürme — CÜZDAN (user_wallet)
+  const _wlBal = (typeof wlGetData === 'function') ? (wlGetData().dia || 0) : 0;
+  if (_wlBal < 500) {
     closePosModal();
-    const bal = (typeof trsGetBalance==='function' ? trsGetBalance('dia') : 0).toLocaleString('tr');
-    showPosToast(`❌ Yetersiz Diamond! Gerekli: 500 💎 · Mevcut: ${bal} 💎`, '#ef5350');
+    showPosToast(`❌ Yetersiz Diamond! Gerekli: 500 💎 · Mevcut: ${_wlBal.toLocaleString('tr')} 💎`, '#ef5350');
     return;
   }
-  trsDeduct('dia', 500, `Mevki Değişimi: ${oldPos}→${newPos}`);
+  const _wlOk = (typeof wlDeduct === 'function')
+    ? wlDeduct('dia', 500, `Mevki Değişimi: ${oldPos}→${newPos}`)
+    : false;
+  if (!_wlOk) {
+    closePosModal();
+    showPosToast('❌ Bakiye düşülemedi (cüzdan hatası).', '#ef5350');
+    return;
+  }
 
   // Eski mevkinin yetenek değerlerini kaydet
   const oldLevels = getSkillLevels(oldPos);
@@ -58943,11 +58979,11 @@ let _slotToPlace = null;
 
 function renderEquipment() {
   _eqData = getEqData();
-  // 🆕 Boş dolap bilgilendirme bandı — dolap (slot kuşanmış dahil) tamamen boşsa göster
-  const banner = document.getElementById('eqEmptyBanner');
-  if (banner) {
+  // 🆕 Bilgilendirme bandı — başlık dolap durumuna göre değişir; her zaman görünür
+  const bannerTitle = document.getElementById('eqEmptyBannerTitle');
+  if (bannerTitle) {
     const totalOwned = Array.isArray(_eqData.wardrobe) ? _eqData.wardrobe.length : 0;
-    banner.style.display = totalOwned === 0 ? 'flex' : 'none';
+    bannerTitle.textContent = totalOwned === 0 ? 'Dolabın Boş' : 'Daha Fazla Yetenek';
   }
   renderSlots();
   renderWardrobe();
