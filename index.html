@@ -10882,6 +10882,72 @@ html.eq-drag-lock body{
   padding:16px
 }
 .buy-modal-overlay.open{opacity:1;pointer-events:all}
+
+/* 🆕 Item Info Modal — sadece görüntüleme amaçlı, satın alma yok */
+.item-info-overlay{
+  position:fixed;inset:0;
+  background:rgba(0,0,0,.78);
+  backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);
+  z-index:7600;
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;transition:opacity .18s;
+  padding:16px
+}
+.item-info-overlay.open{opacity:1;pointer-events:all}
+.item-info-modal{
+  position:relative;
+  background:linear-gradient(180deg,#101529 0%,#070b1a 100%);
+  border:1px solid rgba(95,184,255,.22);
+  border-radius:14px;
+  padding:18px 16px 14px;
+  width:300px;max-width:92vw;
+  transform:scale(.92);transition:transform .2s cubic-bezier(.34,1.56,.64,1);
+  box-shadow:0 18px 50px rgba(0,0,0,.65), 0 0 30px rgba(95,184,255,.1);
+  overflow:hidden
+}
+.item-info-overlay.open .item-info-modal{transform:scale(1)}
+.item-info-rarity-bar{
+  position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,transparent,var(--rarity-color,#5fb8ff),transparent);
+  opacity:.9
+}
+.item-info-close{
+  position:absolute;top:8px;right:10px;
+  background:transparent;border:none;color:rgba(255,255,255,.55);
+  font-size:22px;line-height:1;cursor:pointer;padding:2px 6px;
+  border-radius:6px;transition:all .15s
+}
+.item-info-close:hover{background:rgba(255,255,255,.08);color:#fff}
+.item-info-head{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.item-info-icon{font-size:38px;flex-shrink:0;filter:drop-shadow(0 3px 6px rgba(0,0,0,.4))}
+.item-info-head-text{flex:1;min-width:0}
+.item-info-name{
+  font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;
+  color:#fff;letter-spacing:.2px;line-height:1.1
+}
+.item-info-meta{display:flex;gap:6px;margin-top:5px;flex-wrap:wrap}
+.item-info-rarity,.item-info-type{
+  font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;
+  text-transform:uppercase;letter-spacing:.3px
+}
+.item-info-rarity{background:rgba(95,184,255,.13);color:var(--rarity-color,#5fb8ff);border:1px solid var(--rarity-color,#5fb8ff)33}
+.item-info-type{background:rgba(255,255,255,.05);color:var(--text2);border:1px solid rgba(255,255,255,.08)}
+.item-info-section-title{
+  font-size:10px;font-weight:700;color:var(--text3);
+  text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px
+}
+.item-info-stats{display:flex;flex-direction:column;gap:5px}
+.item-info-stat{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:7px 11px;background:rgba(255,255,255,.03);
+  border:1px solid rgba(255,255,255,.06);border-radius:8px
+}
+.item-info-stat-name{font-size:12px;color:var(--text2);font-weight:600}
+.item-info-stat-val{font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:900;color:#00e676}
+.item-info-foot{
+  margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.05);
+  font-size:10px;color:var(--text3);text-align:center;font-style:italic
+}
 .buy-modal{
   position:relative;
   background:linear-gradient(180deg,#0d1f44 0%,#050d22 100%);
@@ -58837,9 +58903,9 @@ function renderSlots() {
     }
 
     if(item) {
-      // Dolu slot — drag ile çıkartılır, drop hedefi olur, swap olabilir
+      // Dolu slot — tıklama: bilgi modalı; drag ile çıkartılır, drop hedefi olur, swap olabilir
       const rarCol = RARITY_COLORS[item.rarity] || '#78909c';
-      return `<div class="eq-slot" onclick="_eqSlotHint('filled')" data-eq-drop="slot" data-eq-idx="${i}" data-eq-drag="slot" data-eq-item-id="${item.id}">
+      return `<div class="eq-slot" onclick="openItemInfoModal('${item.id}', 'slot')" data-eq-drop="slot" data-eq-idx="${i}" data-eq-drag="slot" data-eq-item-id="${item.id}">
         <div class="eq-slot-box slot-filled" style="background:${rarCol}18;border:2px solid ${rarCol}55">
           <div class="eq-slot-num" style="color:${rarCol}">${slotNum}</div>
           <span class="eq-slot-item-icon">${item.icon}</span>
@@ -58918,10 +58984,10 @@ function openSlotModal(slotIdx) {
   }
 
   const cost = SLOT_COSTS[slotIdx];
-  const bal = (typeof trsGetBalance === 'function') ? trsGetBalance('dia') : 0;
+  const bal = (typeof wlGetData === 'function') ? (wlGetData().dia || 0) : 0;
 
   // Yetersiz diamond — direkt uyarı (modal'a girmeden)
-  if (typeof trsCanAfford !== 'function' || !trsCanAfford('dia', cost)) {
+  if (bal < cost) {
     showEqToast(`Yetersiz Diamond! Gerekli: ${cost} 💎 · Mevcut: ${bal.toLocaleString('tr')} 💎`, '#ef5350');
     return;
   }
@@ -58943,12 +59009,18 @@ function openSlotModal(slotIdx) {
 
 function _doUnlockSlot(slotIdx) {
   const cost = SLOT_COSTS[slotIdx];
-  if (typeof trsCanAfford !== 'function' || !trsCanAfford('dia', cost)) {
-    const bal = (typeof trsGetBalance === 'function' ? trsGetBalance('dia') : 0).toLocaleString('tr');
-    showEqToast(`Yetersiz Diamond! Gerekli: ${cost} 💎 · Mevcut: ${bal} 💎`, '#ef5350');
+  const bal = (typeof wlGetData === 'function') ? (wlGetData().dia || 0) : 0;
+  if (bal < cost) {
+    showEqToast(`Yetersiz Diamond! Gerekli: ${cost} 💎 · Mevcut: ${bal.toLocaleString('tr')} 💎`, '#ef5350');
     return;
   }
-  if (typeof trsDeduct === 'function') trsDeduct('dia', cost, `Slot ${slotIdx + 1} açma`);
+  const deducted = (typeof wlDeduct === 'function')
+    ? wlDeduct('dia', cost, `Slot ${slotIdx + 1} açma`)
+    : false;
+  if (!deducted) {
+    showEqToast('❌ Bakiye düşülemedi.', '#ef5350');
+    return;
+  }
   _eqData.unlockedSlots[slotIdx] = true;
   saveEqData(_eqData);
   showEqToast('Slot ' + (slotIdx + 1) + ' kilidi açıldı!', 'var(--accent)');
@@ -58985,20 +59057,86 @@ function openPlaceModal(slotIdx) { _eqSlotHint(slotIdx != null && _eqData && _eq
 function closePlaceModal() {}
 function placeItemInSlot(itemId) {}
 
-function wardrobeItemClick(itemId) {
-  // 🆕 Tıklayarak kuşanma kaldırıldı — sadece sürükle-bırak ile kuşan
-  // Tıklama: satışa çıkar (veya satıştan kaldır)
-  const item = _eqData.wardrobe.find(w => w.id === itemId);
+// 🆕 Item bilgi modali — slot veya dolap üstüne tıkla → tüm yetenek bonuslarını gör
+// source: 'slot' | 'wardrobe'  (footer eylem butonu gösterimi için)
+function openItemInfoModal(itemId, source) {
+  if (typeof _eqData === 'undefined' || !_eqData) _eqData = getEqData();
+  // Önce dolap, sonra SHOP_ITEMS (yedek)
+  let item = (_eqData.wardrobe || []).find(w => w.id === itemId);
+  if (!item && typeof SHOP_ITEMS !== 'undefined') {
+    item = SHOP_ITEMS.find(i => i.id === itemId);
+  }
   if (!item) return;
 
-  // Slottaki itemler tıklanırsa (dolapta görünüyor olabilir? Hayır, slottaki ayrı render).
-  // Bu fonksiyon sadece dolap render'ından çağrılıyor.
+  const overlay = document.getElementById('itemInfoOverlay');
+  if (!overlay) return;
 
-  // Item satışta mı? cft_market'tan kontrol et
+  const rarCol = (typeof RARITY_COLORS !== 'undefined' && RARITY_COLORS[item.rarity]) || '#5fb8ff';
+  const RAR_LBL = { common: 'Common', pro: 'Pro', elit: 'Elit', rare: 'Rare', epic: 'Epic', legend: 'Legend' };
+
+  // Rarity bar rengi (CSS var)
+  document.getElementById('itemInfoModal').style.setProperty('--rarity-color', rarCol);
+
+  document.getElementById('itemInfoIcon').textContent = item.icon || '🎯';
+  document.getElementById('itemInfoName').textContent = item.name || 'Item';
+  document.getElementById('itemInfoRarity').textContent = RAR_LBL[item.rarity] || item.rarity || '—';
+  document.getElementById('itemInfoType').textContent = item.type || item.catLabel || '—';
+
+  // Bonuslar listesi
+  const statsEl = document.getElementById('itemInfoStats');
+  const stats = Array.isArray(item.stats) ? item.stats : [];
+  if (stats.length === 0) {
+    statsEl.innerHTML = '<div style="font-size:11px;color:var(--text3);font-style:italic;text-align:center;padding:8px">Yetenek bonusu yok</div>';
+  } else {
+    statsEl.innerHTML = stats.map(s => {
+      const m = String(s).match(/^(.+?)\s*\+(\d+)%/);
+      if (m) {
+        return `<div class="item-info-stat">
+          <span class="item-info-stat-name">${m[1].trim()}</span>
+          <span class="item-info-stat-val">+${m[2]}%</span>
+        </div>`;
+      }
+      return `<div class="item-info-stat">
+        <span class="item-info-stat-name">${s}</span>
+        <span class="item-info-stat-val">—</span>
+      </div>`;
+    }).join('');
+  }
+
+  // Footer: eylem butonu (sadece dolaptan açıldıysa satış)
+  const footEl = document.getElementById('itemInfoFoot');
+  if (source === 'wardrobe') {
+    const onSale = (typeof _isItemOnSale === 'function') ? _isItemOnSale(item.id) : false;
+    const btnLabel = onSale ? '↩️ Satıştan Kaldır' : '💰 Satışa Çıkar';
+    footEl.innerHTML = `<button class="cft-confirm-btn confirm" style="padding:8px 18px;font-size:12px" onclick="itemActionSellOrCancel('${item.id}')">${btnLabel}</button>`;
+  } else if (source === 'slot') {
+    footEl.innerHTML = '<span>🎒 Aktif slot · maçlarda yetenek bonusu aktif</span>';
+  } else {
+    footEl.innerHTML = '';
+  }
+
+  overlay.classList.add('open');
+}
+
+function closeItemInfoModal() {
+  const overlay = document.getElementById('itemInfoOverlay');
+  if (overlay) overlay.classList.remove('open');
+}
+
+function wardrobeItemClick(itemId) {
+  // 🆕 Tek tıklama: item bilgi modali (bonuslar görünür).
+  //   Satış / satıştan kaldır eylemleri info modal içindeki butondan tetiklenir.
+  openItemInfoModal(itemId, 'wardrobe');
+}
+
+// Item satış akışı (eskiden wardrobeItemClick tarafından yapılan iş — şimdi info modal butonundan)
+function itemActionSellOrCancel(itemId) {
+  if (typeof _eqData === 'undefined' || !_eqData) _eqData = getEqData();
+  const item = _eqData.wardrobe.find(w => w.id === itemId);
+  if (!item) return;
+  closeItemInfoModal();
   const onSale = (typeof _isItemOnSale === 'function') ? _isItemOnSale(itemId) : false;
-
   if (onSale) {
-    // Satıştan kaldır onayı
     if (typeof cftConfirm === 'function') {
       cftConfirm({
         title: 'Satıştan Kaldır?',
@@ -59015,11 +59153,7 @@ function wardrobeItemClick(itemId) {
     }
     return;
   }
-
-  // Satış quick modal aç
-  if (typeof itemSellQuickOpen === 'function') {
-    itemSellQuickOpen(item);
-  }
+  if (typeof itemSellQuickOpen === 'function') itemSellQuickOpen(item);
 }
 
 function showEqToast(msg, color) {
@@ -59981,7 +60115,10 @@ function renderDiamondPacks() {
 function buyDiamondPack(idx) {
   const p   = DIAMOND_PACKS[idx];
   const total = p.amount + (p.bonus || 0);
-  trsAddIncome('dia', total, `Diamond Paketi: ${p.amount}`);
+  // CÜZDANA yatır (user_wallet) — header diamond display otomatik güncellenir
+  if (typeof wlAddIncome === 'function') {
+    wlAddIncome('dia', total, `Diamond Paketi: ${p.amount}`);
+  }
   showShopToast('💎 ' + total + ' Diamond hesabına eklendi!', 'var(--accent)');
 }
 
@@ -60122,8 +60259,8 @@ function openShopBuyModal(itemId) {
   if(priceEl) priceEl.textContent = item.price.toLocaleString('tr');
   if(rarityBar) rarityBar.style.setProperty('--rarity-color', r.color);
 
-  // 🆕 Bakiye göster
-  const bal = (typeof trsGetBalance === 'function') ? trsGetBalance('dia') : 0;
+  // 🆕 Bakiye göster — CÜZDANDAN (user_wallet)
+  const bal = (typeof wlGetData === 'function') ? (wlGetData().dia || 0) : 0;
   const after = bal - item.price;
   if(balEl) {
     if(after < 0) {
@@ -60150,10 +60287,11 @@ function confirmBuy() {
       return;
     }
 
-    // Para kontrolü
-    if(typeof trsCanAfford !== 'function' || !trsCanAfford('dia', _buyTarget.price)) {
+    // Para kontrolü — CÜZDANDAN (Supabase user_wallet)
+    const wlBal = (typeof wlGetData === 'function') ? (wlGetData().dia || 0) : 0;
+    if (wlBal < _buyTarget.price) {
       closeBuyModal();
-      const bal = (typeof trsGetBalance==='function' ? trsGetBalance('dia') : 0).toLocaleString('tr');
+      const bal = wlBal.toLocaleString('tr');
       if(typeof cftConfirm === 'function') {
         cftConfirm({
           title: 'Yetersiz Diamond',
@@ -60201,8 +60339,15 @@ function confirmBuy() {
       return;
     }
 
-    // Para düş
-    trsDeduct('dia', _buyTarget.price, 'Mağaza: ' + (_buyTarget.itemName || item.name));
+    // Para düş — CÜZDAN (user_wallet) — header diamond gösterimi otomatik güncellenir
+    const deducted = (typeof wlDeduct === 'function')
+      ? wlDeduct('dia', _buyTarget.price, 'Mağaza: ' + (_buyTarget.itemName || item.name))
+      : false;
+    if (!deducted) {
+      closeBuyModal();
+      showShopToast('❌ Bakiye düşülemedi (cüzdan hatası).', '#ef5350');
+      return;
+    }
 
     // Stok artır (mağaza item'i)
     if(_buyTarget.fromShop && typeof incrShopStock === 'function') incrShopStock(_buyTarget.itemId);
@@ -74804,6 +74949,27 @@ document.addEventListener('keydown', function(e){
       <button class="buy-cancel" onclick="closeBuyModal()">İptal</button>
       <button class="buy-confirm" id="buyModalConfirmBtn" onclick="confirmBuy()">Satın Al ✓</button>
     </div>
+  </div>
+</div>
+
+<!-- 🆕 Item Info Modal — kart üstüne tek tıkla bonus detayları -->
+<div class="item-info-overlay" id="itemInfoOverlay" onclick="if(event.target===this)closeItemInfoModal()">
+  <div class="item-info-modal" id="itemInfoModal">
+    <div class="item-info-rarity-bar" id="itemInfoRarityBar"></div>
+    <button class="item-info-close" onclick="closeItemInfoModal()" title="Kapat">×</button>
+    <div class="item-info-head">
+      <div class="item-info-icon" id="itemInfoIcon">🎯</div>
+      <div class="item-info-head-text">
+        <div class="item-info-name" id="itemInfoName">Item Adı</div>
+        <div class="item-info-meta">
+          <span class="item-info-rarity" id="itemInfoRarity">—</span>
+          <span class="item-info-type" id="itemInfoType">—</span>
+        </div>
+      </div>
+    </div>
+    <div class="item-info-section-title">⚡ Yetenek Bonusları</div>
+    <div class="item-info-stats" id="itemInfoStats"></div>
+    <div class="item-info-foot" id="itemInfoFoot"></div>
   </div>
 </div>
 
