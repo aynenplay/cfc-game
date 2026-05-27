@@ -27737,11 +27737,13 @@ let curHome=HOME_TEAM, curAway=AWAY_TEAM;
 //   p.suspendReason     — 'yellow' | 'red' | null
 //   p.injuryUntil       — sakatlık bitiş timestamp (ms), 0 = sakat değil
 
-// Sağlık Merkezi seviyesinden iyileşme süresini hesapla (saat cinsinden)
-function getMedicalCenterHours() {
+// Sağlık Merkezi seviyesinden sakatlık iyileşme çarpanı.
+// Sv 1 → 1.00 (orijinal süre), Sv 2 → 0.95, ..., Sv 10 → 0.55 (%45 indirim).
+// Bot takımların kendi cihazlarında simüle edilmediği için bu sadece kullanıcı takımı için anlamlı.
+function getMedicalRecoveryMultiplier() {
   const lvl = (typeof FAC_LEVELS !== 'undefined' && FAC_LEVELS && FAC_LEVELS.medical)
     ? FAC_LEVELS.medical : 1;
-  return Math.max(5, (11 - lvl) * 5);  // lvl 1=50s, lvl 10=5s
+  return Math.max(0.5, 1 - (lvl - 1) * 0.05);
 }
 
 function isPlayerSuspended(p) { return (p && (p.suspendMatches || 0) > 0); }
@@ -27820,14 +27822,22 @@ function resetSeasonDiscipline() {
 // Sakatlık uygula (Sağlık Merkezi seviyesine göre süre)
 function applyInjury(p, eventData) {
   if(!p) return;
-  // Faz 3: sakatlık tipi varsa süreyi event'ten al, yoksa medical center'dan
+  // 🆕 Sağlık Merkezi seviyesi sakatlık süresini kısaltır (Sv 1 → 1.00, Sv 10 → 0.55).
+  // Frontend tarafında uygulanır — Edge tarafında sakatlık event'i yaratılmıyor,
+  // sadece frontend simülasyonu sırasında applyInjury çağrılıyor.
+  const mult = (typeof getMedicalRecoveryMultiplier === 'function')
+    ? getMedicalRecoveryMultiplier() : 1.0;
   if (eventData && eventData.daysOut) {
-    p.injuryUntil = Date.now() + eventData.daysOut * 24 * 3600000;
+    const adjustedDays = Math.max(1, Math.round(eventData.daysOut * mult));
+    p.injuryUntil = Date.now() + adjustedDays * 24 * 3600000;
     p.injurySeverity = eventData.severity;
     p.injuryBodyPart = eventData.bodyPart;
-    p.injuryMatchesOut = eventData.matchesOut;
+    // matchesOut da orantılı kısaltılsın (1'in altına düşmesin)
+    p.injuryMatchesOut = Math.max(1, Math.round((eventData.matchesOut || 1) * mult));
   } else {
-    p.injuryUntil = Date.now() + getMedicalCenterHours() * 3600000;
+    // Eski event formatı fallback — 50 saatlik standart sakatlık
+    const adjustedHours = Math.round(50 * mult);
+    p.injuryUntil = Date.now() + adjustedHours * 3600000;
   }
 }
 
@@ -36385,10 +36395,10 @@ function showMatchResult() {
         set('mrRewTotal', _fmtMatchEUR(rewards.total));
         rewardsEl.style.display = 'block';
 
-        // Kasaya yatır (geçmiş maç görüntülemesinde tekrar yatırma)
-        if (!MS._isHistorical && rewards.total > 0 && typeof trsAddIncome === 'function') {
-          trsAddIncome('eur', rewards.total, `Maç Geliri: ${(curHome && curHome.name)||''} - ${(curAway && curAway.name)||''}`);
-        }
+        // 🆕 Kasaya yatırma artık Edge function _finalizeMatchRevenue tarafından yapılır.
+        // Frontend sadece UI gösterimi yapar — çift yatırmaya neden olmamak için kasaya
+        // yazma kaldırıldı. Maç sonuçları Edge'ten tick_match yanıtında alınır,
+        // kasa bakiyesi bir sonraki _trsLoadFromServer ile güncellenir.
       } else {
         rewardsEl.style.display = 'none';
       }
@@ -57647,16 +57657,16 @@ const FAC_DATA = [
   },
   {
     id:'medical', icon:'🏥', name:'Sağlık Merkezi',
-    desc:'Her sakatlık 50 saattir. Merkez seviyesi iyileşme süresini kısaltır.',
-    effectLabel: lvl => `${55-lvl*5} saat iyileşme`,
-    nextLabel:   lvl => lvl < 10 ? `→ ${55-(lvl+1)*5} saat` : null,
+    desc:'Sakatlık iyileşme süresini kısaltır. Her seviye %5 daha hızlı iyileşme sağlar.',
+    effectLabel: lvl => lvl === 1 ? 'Standart iyileşme süresi' : `Sakatlık süresi −%${(lvl - 1) * 5}`,
+    nextLabel:   lvl => lvl < 10 ? `→ −%${lvl * 5} iyileşme` : null,
     cost: lvl => lvl * 100,
     levels: [
-      {lvl:1,effect:'50 saat'},{lvl:2,effect:'45 saat'},
-      {lvl:3,effect:'40 saat'},{lvl:4,effect:'35 saat'},
-      {lvl:5,effect:'30 saat'},{lvl:6,effect:'25 saat'},
-      {lvl:7,effect:'20 saat'},{lvl:8,effect:'15 saat'},
-      {lvl:9,effect:'10 saat'},{lvl:10,effect:'5 saat'},
+      {lvl:1,effect:'Standart'},{lvl:2,effect:'−%5'},
+      {lvl:3,effect:'−%10'},{lvl:4,effect:'−%15'},
+      {lvl:5,effect:'−%20'},{lvl:6,effect:'−%25'},
+      {lvl:7,effect:'−%30'},{lvl:8,effect:'−%35'},
+      {lvl:9,effect:'−%40'},{lvl:10,effect:'−%45'},
     ]
   },
   {
