@@ -29508,6 +29508,151 @@ async function captainDecideRenewalRequest(msgId, decision) {
 }
 // ═══════════════════════════════════════════════════════════════════
 
+function acceptContractRenewal() {
+  const offer = _currentRenewalOffer;
+  if(!offer) { closeContractRenewalModal(); return; }
+  if(typeof _userTeam === 'undefined' || !_userTeam || !_userTeam.contract) { closeContractRenewalModal(); return; }
+  if(typeof getSeasonInfo !== 'function') { closeContractRenewalModal(); return; }
+
+  const info = getSeasonInfo();
+  const c = _userTeam.contract;
+
+  // 🆕 Yeni şartları uygula — sistem hesaplı sezon maaşı
+  c.seasonSalary    = offer.seasonSalary;
+  c.yearlySalary    = offer.seasonSalary;   // backward compat
+  c.signingBonus    = 0;
+  c.signingDiamond  = 0;
+  c.durationSeasons = (c.durationSeasons || 1) + 1;
+  c.endsSeason      = info.season + 1;       // bir sonraki sezon sonu
+  c.canLeaveFreely  = false;                  // yenilendi → ayrılma yetkisi sıfırlanır
+  c.unpaidInstallments = 0;                   // borç sıfırlanır (yeni dönem başlıyor)
+  c.lastPayKey      = null;                   // yeni sezonda cron tekrar ödeyecek
+  c.renewalWarnedSeason = null;
+  c.renewedAt       = Date.now();
+  c.renewedSeason   = info.season;
+  c.renewalStatus   = 'accepted';
+
+  if(typeof userTeamSave === 'function') userTeamSave();
+
+  // Inbox onay bildirimi
+  try {
+    const msgs = (typeof getInboxMsgs === 'function') ? getInboxMsgs() : null;
+    if(msgs) {
+      const teamName = _userTeam.teamName || '';
+      const flag = (true && _cftGetCountry(_userTeam.countryCode))
+        ? (_cftGetCountry(_userTeam.countryCode).flag || '') : '';
+      const _f = v => v >= 1000000 ? (v/1000000).toFixed(1)+'M €' : v > 0 ? Math.round(v/1000)+'K €' : '0 €';
+      msgs.unshift({
+        id: 'contract_renewed_' + Date.now(),
+        from: '📋 Sözleşme Yönetimi',
+        fromAvatar: '✅',
+        type: 'system',
+        subject: `Sözleşmen Yenilendi — ${teamName}`,
+        body: `${flag} ${teamName} ile sözleşmen başarıyla yenilendi.\n\n• Yeni yıllık maaş: ${_f(offer.yearlySalary)}\n• İmza primi: ${_f(offer.signingBonus)}\n• Yeni bitiş: ${c.endsSeason}. sezon sonu\n\nİyi maçlar!`,
+        time: new Date().toLocaleDateString('tr'),
+        read: false,
+        thread: [],
+      });
+      if(typeof saveInboxMsgs === 'function') saveInboxMsgs(msgs);
+      if(typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
+    }
+  } catch(e){}
+
+  // Mevcut "yenileme teklifi" inbox mesajını "kabul edildi" olarak işaretle
+  try {
+    const msgs = (typeof getInboxMsgs === 'function') ? getInboxMsgs() : null;
+    if(msgs) {
+      msgs.forEach(m => {
+        if(m.type === 'contract_renewal' && !m.renewalStatus) m.renewalStatus = 'accepted';
+      });
+      if(typeof saveInboxMsgs === 'function') saveInboxMsgs(msgs);
+    }
+  } catch(e){}
+
+  // Toast
+  try {
+    const t = document.createElement('div');
+    t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--accent);color:#000;padding:12px 22px;border-radius:24px;font-size:13px;font-weight:700;z-index:9999;font-family:"Barlow Condensed",sans-serif;letter-spacing:.4px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:90vw;text-align:center';
+    t.textContent = `✅ Sözleşmen yenilendi!`;
+    document.body.appendChild(t);
+    setTimeout(() => { try{ t.remove(); }catch(e){} }, 3500);
+  } catch(e){}
+
+  closeContractRenewalModal();
+}
+
+function rejectContractRenewal() {
+  // 🆕 YENİ DAVRANIŞ — Reddetmek sözleşmeyi bitirmez, oyuncu firstSalary'ye düşer.
+  //   • seasonSalary → firstSalary (ilk imzalanan maaş)
+  //   • endsSeason++ (bir sezon daha bağlı)
+  //   • canLeaveFreely = true (acımasız: oyuncu istediği an ayrılabilir)
+  //   • unpaidInstallments = 0 (yeni dönem temiz başlasın)
+  //   • lastPayKey = null (yeni sezonda cron öder)
+  if(typeof _userTeam !== 'undefined' && _userTeam && _userTeam.contract && typeof getSeasonInfo === 'function') {
+    const info = getSeasonInfo();
+    const c = _userTeam.contract;
+    const oldSalary = Number(c.seasonSalary || c.yearlySalary || 0);
+    const firstSalary = Number(c.firstSalary || oldSalary);
+
+    c.seasonSalary    = firstSalary;
+    c.yearlySalary    = firstSalary;   // backward compat
+    c.durationSeasons = (c.durationSeasons || 1) + 1;
+    c.endsSeason      = info.season + 1;
+    c.canLeaveFreely  = true;          // 🆕 reddedildi → ayrılma serbest
+    c.unpaidInstallments = 0;
+    c.lastPayKey      = null;
+    c.renewalWarnedSeason = null;
+    c.renewalStatus   = 'rejected';
+    c.renewedAt       = Date.now();
+
+    if(typeof userTeamSave === 'function') userTeamSave();
+
+    // Inbox: red bildirimi (acımasız mesaj)
+    try {
+      const msgs = (typeof getInboxMsgs === 'function') ? getInboxMsgs() : null;
+      if(msgs){
+        const teamName = _userTeam.teamName || '';
+        const flag = (true && _cftGetCountry(_userTeam.countryCode))
+          ? (_cftGetCountry(_userTeam.countryCode).flag || '') : '';
+        const _f = v => v >= 1000000 ? (v/1000000).toFixed(1)+'M €' : v > 0 ? Math.round(v/1000)+'K €' : '0 €';
+        msgs.unshift({
+          id: 'contract_reject_' + Date.now(),
+          from: '📋 Sözleşme Yönetimi',
+          fromAvatar: '⚠️',
+          type: 'system',
+          subject: `Yenileme Reddedildi — ${teamName}`,
+          body: `${flag} ${teamName} ile sözleşmeni yenilemedin.\n\n• Yeni sezon maaşın: ${_f(firstSalary)} (ilk imzaladığın maaş — büyüme yansıtılmadı)\n• Sözleşme bir sezon daha uzadı: ${info.season + 1}. sezon sonu\n• Artık takımdan istediğin an ayrılabilirsin (Finans/Profil sayfasından)\n\nDaha iyi bir teklif arıyorsan transfer yapabilirsin.`,
+          time: new Date().toLocaleDateString('tr'),
+          read: false,
+          thread: [],
+        });
+        if(typeof saveInboxMsgs === 'function') saveInboxMsgs(msgs);
+        if(typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
+      }
+    } catch(e){}
+
+    // Toast
+    try {
+      const t = document.createElement('div');
+      t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#ff5722;color:#fff;padding:12px 22px;border-radius:24px;font-size:13px;font-weight:700;z-index:9999;font-family:"Barlow Condensed",sans-serif;letter-spacing:.4px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:90vw;text-align:center';
+      t.textContent = `⚠️ Yenileme reddedildi — Maaşın eski seviyeye düştü`;
+      document.body.appendChild(t);
+      setTimeout(() => { try{ t.remove(); }catch(e){} }, 4000);
+    } catch(e){}
+  }
+
+  // Inbox mesajını "reddedildi" işaretle
+  try {
+    const msgs = (typeof getInboxMsgs === 'function') ? getInboxMsgs() : null;
+    if(msgs) {
+      msgs.forEach(m => {
+        if(m.type === 'contract_renewal' && !m.renewalStatus) m.renewalStatus = 'rejected';
+      });
+      if(typeof saveInboxMsgs === 'function') saveInboxMsgs(msgs);
+    }
+  } catch(e){}
+  closeContractRenewalModal();
+}
 
 // ── 🆕 Sözleşme süresi dolma kontrolü ──
 // Sözleşmenin bitiş sezonu mevcut sezonun gerisinde ise:
@@ -31616,29 +31761,11 @@ async function resOpenFinishedMatch(matchKey) {
     }
   }
 
-  // 🆕 Maçın Adamı — Edge maç sonu lineup'a yazdığı matchRating'i kullan.
-  //   Fallback: lineup'ta rating yoksa events'ten hesapla.
+  // Maçın Adamı — lineup'ta en yüksek match_rating'li oyuncuyu bul
   let motm = null;
   let motmTeam = null;
   let motmRating = 0;
-
-  // 🆕 ÖNCELİK 1: Edge'in yazdığı lineup.matchRating
-  function _scanLineupForMOTM(lineup, teamName) {
-    lineup.forEach(p => {
-      if (!p || !p.name) return;
-      const r = (typeof p.matchRating === 'number') ? p.matchRating : 0;
-      if (r > motmRating) {
-        motmRating = r;
-        motm = p;
-        motmTeam = teamName;
-      }
-    });
-  }
-  _scanLineupForMOTM(homeLineup, m.home);
-  _scanLineupForMOTM(awayLineup, m.away);
-
-  // 🆕 FALLBACK: Edge henüz lineup'a rating yazmadıysa events'ten hesapla
-  if (!motm && typeof calcPlayerRating === 'function' && events.length > 0) {
+  if (typeof calcPlayerRating === 'function' && events.length > 0) {
     const hs = m.hs || 0, as = m.as || 0;
     function _scoreLineup(lineup, sideTeam, teamName, scored, conceded) {
       const teamWon = scored > conceded ? 'win' : scored < conceded ? 'loss' : 'draw';
@@ -40356,53 +40483,9 @@ async function _rosterRefreshFromServer(countryCode) {
       });
     }
 
-    // Cache güncelle — normalize format (loadTeamRoster/preloadAllTeamRosters ile aynı)
-    // 🆕 BUG FIX: önceden ham DB verisi (snake_case) cache'e yazılıyordu →
-    //   _teamRosterCache[key] = data → field'lar match_ratings, goals_total vs.
-    //   Diğer fonksiyonlar p.matchRatings, p.goalsTotal arayınca undefined dönüyordu.
-    //   Sonuç: Haftanın Yıldızı listesinde kullanıcının takım oyuncuları görünmüyordu.
+    // Cache güncelle
     const key = countryCode + ':' + _userTeam.teamName;
-    const normalized = data.map((r, i) => {
-      const sl = (typeof SQUAD_SLOTS_15 !== 'undefined' && SQUAD_SLOTS_15[i]) || {};
-      // matchRatings array → avgMatchRating + count önhesap
-      let avgMatchRating = 0, mrCount = 0;
-      if (Array.isArray(r.match_ratings)) {
-        for (const mr of r.match_ratings) {
-          if (mr && typeof mr.rating === 'number') { avgMatchRating += mr.rating; mrCount++; }
-        }
-        if (mrCount > 0) avgMatchRating /= mrCount;
-      }
-      return {
-        id: r.id,
-        userId: r.user_id,
-        num: r.num, name: r.name, pos: r.pos, posGroup: r.pos_group,
-        rating: r.rating || 10, overall: r.overall || 10,
-        level: r.level || 0, xp: r.xp || 0,
-        age: 18 + (r.num % 17),
-        starter: !!sl.starter,
-        abilities: r.abilities,
-        nation: r.nation || '🏳️',
-        nationality: r.nationality || r.country_code || countryCode,
-        avatar: r.avatar || (r.is_bot ? '🤖' : '👤'),
-        avatar_id: r.avatar_id || null,
-        role: r.role || 'member',
-        isBot: !!r.is_bot,
-        isUser: !r.is_bot,
-        lastSeen: r.last_seen || null,
-        goalsTotal: r.goals_total || 0,
-        assistsTotal: r.assists_total || 0,
-        matchesPlayed: r.matches_played || 0,
-        statsByComp: (r.stats_by_comp && typeof r.stats_by_comp === 'object') ? r.stats_by_comp : {},
-        matchRatings: Array.isArray(r.match_ratings) ? r.match_ratings : [],
-        avgMatchRating, matchRatingsCount: mrCount,
-        seasonYellow:   r.season_yellow   || 0,
-        suspendMatches: r.suspend_matches || 0,
-        suspendReason:  r.suspend_reason  || null,
-        injuryUntil:    Number(r.injury_until) || 0,
-        x: sl.x, y: sl.y,
-      };
-    });
-    _teamRosterCache[key] = normalized;
+    _teamRosterCache[key] = data;
 
     // ROSTER_DATA'yı yeniden inşa et
     ROSTER_DATA = _buildRosterFromPlayers(data, countryCode);
@@ -70673,51 +70756,47 @@ function _evIsBeforeFirstWeekComplete() {
 }
 
 // Yarış döngüsü bilgisi
-// 🆕 UTC BAZLI — multi-user tutarlılığı için zorunlu.
-//   Türkiye saatiyle Cuma 17:00 = Cuma 14:00 UTC (UTC+3 referans, TR DST yok).
-//   Yarış: Cuma 14:00 UTC → bir sonraki Cuma 04:00 UTC (= Cuma 07:00 TR)
-//   Ödül penceresi: Cuma 04:00 UTC → Cuma 14:00 UTC (10 saat)
+// Friday 17:00 → Friday 07:00 (skor toplama 6g 14s)
+// Friday 07:00 → Friday 17:00 (ödül penceresi 10s)
 function _evRaceCycleInfo() {
   const now = new Date();
   const FRIDAY = 5; // 0=Sun, 5=Fri
-  const RACE_START_HOUR_UTC = 14; // Cuma 14:00 UTC = Cuma 17:00 TR
-  const RACE_END_HOUR_UTC   = 4;  // Cuma 04:00 UTC = Cuma 07:00 TR
 
-  // Bu hafta Cuma 14:00 UTC'yi bul
-  const thisFriday14 = new Date(now);
-  const dayDiff = (FRIDAY - now.getUTCDay() + 7) % 7;
-  thisFriday14.setUTCDate(now.getUTCDate() + dayDiff);
-  thisFriday14.setUTCHours(RACE_START_HOUR_UTC, 0, 0, 0);
+  // Bu hafta Cuma 17:00'ı bul
+  const thisFriday17 = new Date(now);
+  const dayDiff = (FRIDAY - now.getDay() + 7) % 7;
+  thisFriday17.setDate(now.getDate() + dayDiff);
+  thisFriday17.setHours(17, 0, 0, 0);
 
-  // Yarış başlangıcı: en son Cuma 14:00 UTC (geçmiş)
-  let startFri14 = new Date(thisFriday14);
-  if (now < thisFriday14) {
-    // Henüz bu Cuma 14:00 UTC olmadı → başlangıç önceki Cuma 14:00 UTC
-    startFri14.setUTCDate(startFri14.getUTCDate() - 7);
+  // Eğer "bu hafta Cuma" geçmişse veya bugün Cuma'dan sonraysa, hesabı düzelt
+  // Yarış başlangıcı: en son Cuma 17:00 (geçmiş)
+  let startFri17 = new Date(thisFriday17);
+  if (now < thisFriday17) {
+    // Henüz bu Cuma 17:00 olmadı → başlangıç önceki Cuma 17:00
+    startFri17.setDate(startFri17.getDate() - 7);
   }
 
-  // Yarış bitişi: başlangıçtan 6 gün 14 saat sonra (sonraki Cuma 04:00 UTC)
-  const endFri04 = new Date(startFri14);
-  endFri04.setUTCDate(endFri04.getUTCDate() + 7);
-  endFri04.setUTCHours(RACE_END_HOUR_UTC, 0, 0, 0);
+  // Yarış bitişi: başlangıçtan 6 gün 14 saat sonra (sonraki Cuma 07:00)
+  const endFri07 = new Date(startFri17);
+  endFri07.setDate(endFri07.getDate() + 7);
+  endFri07.setHours(7, 0, 0, 0);
 
-  // Ödül penceresi bitişi: bitişten 10 saat sonra (Cuma 14:00 UTC)
-  const rewardEndFri14 = new Date(endFri04);
-  rewardEndFri14.setUTCHours(RACE_START_HOUR_UTC, 0, 0, 0);
+  // Ödül penceresi bitişi: bitişten 10 saat sonra (Cuma 17:00)
+  const rewardEndFri17 = new Date(endFri07);
+  rewardEndFri17.setHours(17, 0, 0, 0);
 
   // Faz tespiti
   let phase;
-  if (now < endFri04) phase = 'racing';             // Yarış devam ediyor (skor topla)
-  else if (now < rewardEndFri14) phase = 'rewards'; // Ödül penceresi
-  else phase = 'racing';                             // Cuma 14:00 UTC sonrası → yeni döngünün başlangıcı
+  if (now < endFri07) phase = 'racing';      // Yarış devam ediyor (skor topla)
+  else if (now < rewardEndFri17) phase = 'rewards'; // Ödül penceresi
+  else phase = 'racing'; // Cuma 17:00 sonrası → yeni döngünün başlangıcı
 
-  // startKey: UTC bazlı format (tüm dünyada aynı)
-  const startKey = `${startFri14.getUTCFullYear()}-${String(startFri14.getUTCMonth()+1).padStart(2,'0')}-${String(startFri14.getUTCDate()).padStart(2,'0')}`;
+  const startKey = `${startFri17.getFullYear()}-${String(startFri17.getMonth()+1).padStart(2,'0')}-${String(startFri17.getDate()).padStart(2,'0')}`;
 
   return {
-    start: startFri14,
-    raceEnd: endFri04,
-    rewardEnd: rewardEndFri14,
+    start: startFri17,
+    raceEnd: endFri07,
+    rewardEnd: rewardEndFri17,
     phase,
     startKey
   };
@@ -70852,7 +70931,7 @@ async function _evRacePreloadServerLb() {
 // Lig sayfasındaki "Sezon Reytingi" ile aynı veri kaynağı, sadece cycle başlangıcı sonrası
 function _evRaceCalcLeaderboardFromCache(cycleStartMs) {
   // 🆕 GERÇEK SUPABASE VERİSİ: _teamRosterCache (players tablosu) direkt okuyor.
-  //   matchRatings array'inden CYCLE FİLTRELİ ortalama rating hesaplanır.
+  //   match_ratings array'inden cycle filtreli ortalama rating hesaplanır.
   //   Edge function rating'leri kümülatif doldurur. Frontend uydurma hesap YAPMAZ.
   if (typeof _teamRosterCache === 'undefined' || !_teamRosterCache) return [];
 
@@ -70881,23 +70960,18 @@ function _evRaceCalcLeaderboardFromCache(cycleStartMs) {
     const info = teamLookup[teamName] || {};
     roster.forEach(p => {
       if (!p || !p.name) return;
-      // 🆕 CYCLE FİLTRELİ: matchRatings array'inden sadece cycleStartMs sonrası rating'ler.
-      //    Her rating kaydında ts (Date.now()) var → filtreyi onunla yapıyoruz.
+      // Cycle filtresi: match_ratings array'inden cycle başlangıcından sonraki rating'ler
       let ratingSum = 0;
       let matchCount = 0;
-      if (Array.isArray(p.matchRatings)) {
-        for (const mr of p.matchRatings) {
-          if (!mr || typeof mr.rating !== 'number') continue;
-          const ts = Number(mr.ts) || 0;
-          if (ts < cycleStartMs) continue;  // bu hafta dışı, atla
-          ratingSum += mr.rating;
-          matchCount++;
-        }
+      // _teamRosterCache match_ratings ham datayı tutmuyor (avg ve count tutuyor).
+      // Cycle filtresi olmadan tüm ortalama kullanılır. (Cycle filtresi için Edge function
+      // weekly_ratings ayrı tutmalı; şimdilik kümülatif ortalama gösterilir.)
+      if ((p.matchRatingsCount || 0) > 0) {
+        ratingSum = (p.avgMatchRating || 0) * p.matchRatingsCount;
+        matchCount = p.matchRatingsCount;
       }
-      if (matchCount === 0) return; // bu cycle'da hiç maç oynamamış → listeye girmez
+      if (matchCount === 0) return; // hiç maç oynamamış oyuncu listede yok
       out.push({
-        // 🆕 userId ile eşleştirme (isim string'i değil, ZWS/boşluk bug'larına karşı)
-        userId: p.userId || null,
         playerName: p.name,
         teamName,
         teamShort: info.short || teamName.slice(0,3).toUpperCase(),
@@ -71002,54 +71076,27 @@ function _evRaceBuildLeaderboard(metric) {
   } else {
     bots = _evRaceGenerateTrainPlayers(weekKey);
   }
-  // 🆕 Bots içinde kullanıcı varsa onu user olarak işaretle.
-  //    userId tabanlı eşleştirme (isim string karşılaştırma bug'larına karşı).
-  const myUserId = (window.authUser && window.authUser.id) || null;
+  // Bots içinde kullanıcı varsa (gerçek maç verisinden) onu user olarak işaretle
   let userInList = false;
   bots.forEach(b => {
-    const isMe = (myUserId && b.userId && b.userId === myUserId)
-              || (b.teamName === userTeamName && b.playerName === userPlayerName);
-    if (isMe) {
+    if (b.teamName === userTeamName && b.playerName === userPlayerName) {
       b.isUser = true;
       userInList = true;
     }
   });
 
-  // 🆕 Kullanıcı listede yoksa: 3 maç oynamadığı için filtrelendi DEMEK.
-  //    Bunu açıkça göstermek için score=0 + matchCount info ile alta ekle.
+  // Yoksa score=0 ile ekle (cycle'da hiç oynamamış veya veri yok)
+  // ÖNEMLİ: Kullanıcı/bot ayrımı yok. Listedeyse oradan, değilse 0.
   if (!userInList) {
-    // Kullanıcının kendi maç sayısını _teamRosterCache'ten oku — UI'da bilgilendirme için
-    let myMatchCount = 0;
-    let myAvgRating = 0;
-    try {
-      const cycleStartMs = _evRaceCycleInfo().start.getTime();
-      const rosterKey = userCC + ':' + userTeamName;
-      const roster = _teamRosterCache && _teamRosterCache[rosterKey];
-      if (Array.isArray(roster)) {
-        const me = roster.find(p =>
-          (myUserId && p.userId === myUserId) || (p.name === userPlayerName)
-        );
-        if (me && Array.isArray(me.matchRatings)) {
-          let sum = 0;
-          for (const mr of me.matchRatings) {
-            if (!mr || typeof mr.rating !== 'number') continue;
-            const ts = Number(mr.ts) || 0;
-            if (ts < cycleStartMs) continue;
-            sum += mr.rating; myMatchCount++;
-          }
-          if (myMatchCount > 0) myAvgRating = Math.round((sum / myMatchCount) * 100) / 100;
-        }
-      }
-    } catch(e) {}
     bots.push({
-      userId: myUserId,
       playerName: userPlayerName,
       teamName: userTeamName,
-      teamShort, teamBg, teamTc,
+      teamShort,
+      teamBg,
+      teamTc,
       countryCode: userCC,
       countryFlag: userFlag,
-      score: myAvgRating,  // gerçek ortalama (0 ise hiç oynamamış)
-      _matchCount: myMatchCount,
+      score: 0,
       isUser: true,
     });
   }
