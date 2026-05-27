@@ -70629,47 +70629,51 @@ function _evIsBeforeFirstWeekComplete() {
 }
 
 // Yarış döngüsü bilgisi
-// Friday 17:00 → Friday 07:00 (skor toplama 6g 14s)
-// Friday 07:00 → Friday 17:00 (ödül penceresi 10s)
+// 🆕 UTC BAZLI — multi-user tutarlılığı için zorunlu.
+//   Türkiye saatiyle Cuma 17:00 = Cuma 14:00 UTC (UTC+3 referans, TR DST yok).
+//   Yarış: Cuma 14:00 UTC → bir sonraki Cuma 04:00 UTC (= Cuma 07:00 TR)
+//   Ödül penceresi: Cuma 04:00 UTC → Cuma 14:00 UTC (10 saat)
 function _evRaceCycleInfo() {
   const now = new Date();
   const FRIDAY = 5; // 0=Sun, 5=Fri
+  const RACE_START_HOUR_UTC = 14; // Cuma 14:00 UTC = Cuma 17:00 TR
+  const RACE_END_HOUR_UTC   = 4;  // Cuma 04:00 UTC = Cuma 07:00 TR
 
-  // Bu hafta Cuma 17:00'ı bul
-  const thisFriday17 = new Date(now);
-  const dayDiff = (FRIDAY - now.getDay() + 7) % 7;
-  thisFriday17.setDate(now.getDate() + dayDiff);
-  thisFriday17.setHours(17, 0, 0, 0);
+  // Bu hafta Cuma 14:00 UTC'yi bul
+  const thisFriday14 = new Date(now);
+  const dayDiff = (FRIDAY - now.getUTCDay() + 7) % 7;
+  thisFriday14.setUTCDate(now.getUTCDate() + dayDiff);
+  thisFriday14.setUTCHours(RACE_START_HOUR_UTC, 0, 0, 0);
 
-  // Eğer "bu hafta Cuma" geçmişse veya bugün Cuma'dan sonraysa, hesabı düzelt
-  // Yarış başlangıcı: en son Cuma 17:00 (geçmiş)
-  let startFri17 = new Date(thisFriday17);
-  if (now < thisFriday17) {
-    // Henüz bu Cuma 17:00 olmadı → başlangıç önceki Cuma 17:00
-    startFri17.setDate(startFri17.getDate() - 7);
+  // Yarış başlangıcı: en son Cuma 14:00 UTC (geçmiş)
+  let startFri14 = new Date(thisFriday14);
+  if (now < thisFriday14) {
+    // Henüz bu Cuma 14:00 UTC olmadı → başlangıç önceki Cuma 14:00 UTC
+    startFri14.setUTCDate(startFri14.getUTCDate() - 7);
   }
 
-  // Yarış bitişi: başlangıçtan 6 gün 14 saat sonra (sonraki Cuma 07:00)
-  const endFri07 = new Date(startFri17);
-  endFri07.setDate(endFri07.getDate() + 7);
-  endFri07.setHours(7, 0, 0, 0);
+  // Yarış bitişi: başlangıçtan 6 gün 14 saat sonra (sonraki Cuma 04:00 UTC)
+  const endFri04 = new Date(startFri14);
+  endFri04.setUTCDate(endFri04.getUTCDate() + 7);
+  endFri04.setUTCHours(RACE_END_HOUR_UTC, 0, 0, 0);
 
-  // Ödül penceresi bitişi: bitişten 10 saat sonra (Cuma 17:00)
-  const rewardEndFri17 = new Date(endFri07);
-  rewardEndFri17.setHours(17, 0, 0, 0);
+  // Ödül penceresi bitişi: bitişten 10 saat sonra (Cuma 14:00 UTC)
+  const rewardEndFri14 = new Date(endFri04);
+  rewardEndFri14.setUTCHours(RACE_START_HOUR_UTC, 0, 0, 0);
 
   // Faz tespiti
   let phase;
-  if (now < endFri07) phase = 'racing';      // Yarış devam ediyor (skor topla)
-  else if (now < rewardEndFri17) phase = 'rewards'; // Ödül penceresi
-  else phase = 'racing'; // Cuma 17:00 sonrası → yeni döngünün başlangıcı
+  if (now < endFri04) phase = 'racing';             // Yarış devam ediyor (skor topla)
+  else if (now < rewardEndFri14) phase = 'rewards'; // Ödül penceresi
+  else phase = 'racing';                             // Cuma 14:00 UTC sonrası → yeni döngünün başlangıcı
 
-  const startKey = `${startFri17.getFullYear()}-${String(startFri17.getMonth()+1).padStart(2,'0')}-${String(startFri17.getDate()).padStart(2,'0')}`;
+  // startKey: UTC bazlı format (tüm dünyada aynı)
+  const startKey = `${startFri14.getUTCFullYear()}-${String(startFri14.getUTCMonth()+1).padStart(2,'0')}-${String(startFri14.getUTCDate()).padStart(2,'0')}`;
 
   return {
-    start: startFri17,
-    raceEnd: endFri07,
-    rewardEnd: rewardEndFri17,
+    start: startFri14,
+    raceEnd: endFri04,
+    rewardEnd: rewardEndFri14,
     phase,
     startKey
   };
