@@ -12831,7 +12831,6 @@ body.lg-myleague-mode .lg2-tier-pills{display:none !important}
 }
 .tr-skill-mini:hover{border-color:rgba(0,230,118,.3);transform:translateY(-1px)}
 .tr-skill-mini.training-active{border-color:rgba(0,230,118,.5);background:rgba(0,230,118,.05)}
-.tr-skill-mini.maxed{opacity:.7;border-color:rgba(255,214,0,.3);background:rgba(255,214,0,.04)}
 .tr-sm-icon{font-size:22px;line-height:1;margin-top:2px}
 .tr-sm-name{font-size:10px;font-weight:800;color:rgba(255,255,255,.92);text-transform:uppercase;letter-spacing:.3px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%}
 .tr-sm-level{font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:900;line-height:1;letter-spacing:.5px}
@@ -12862,7 +12861,6 @@ body.lg-myleague-mode .lg2-tier-pills{display:none !important}
   border-radius:6px;
   line-height:1;
 }
-.tr-sm-badge.maxed{background:rgba(255,214,0,.12);color:#ffd600;border:1px solid rgba(255,214,0,.25)}
 .tr-sm-badge.active{background:rgba(0,230,118,.12);color:var(--accent);border:1px solid rgba(0,230,118,.25);animation:pulse 1.5s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:.7}50%{opacity:1}}
 
@@ -18371,10 +18369,6 @@ body.drawer-open{overflow:hidden}
 #page-training .tr-skill-mini.training-active{
   border-color:rgba(0,230,118,.5);
   background:rgba(0,230,118,.05);
-}
-#page-training .tr-skill-mini.maxed{
-  opacity:.65;border-color:rgba(255,213,79,.3);
-  background:rgba(255,213,79,.04);
 }
 
 /* Aktif antrenman kartı premium */
@@ -66532,8 +66526,14 @@ const TR_SKILLS = {
   ],
 };
 
-// Seviye → sonraki seviye için gereken puan: (seviye-9)*50
-function trPointsNeeded(level) { return (level - 9) * 50; }
+// Seviye → sonraki seviye için gereken puan: ÜSTEL formül
+// Sv 10 → 11: 100 puan (başlangıç)
+// Her sonraki seviye için kümülatif × 1,035 (her seviyede %3,5 artış)
+// Sv 99 → 100: ~2.139 puan, Sv 150 → 151: ~12.000 puan, Sv 200 → 201: ~68.000 puan
+// YETENEK SINIRI KALDIRILDI — sonsuza kadar artabilir.
+function trPointsNeeded(level) {
+  return Math.max(1, Math.round(100 * Math.pow(1.035, level - 10)));
+}
 
 // Antrenman maliyeti: seviye+4 base, ×1/2/3 süreye göre
 function trCost(level, mins) {
@@ -67139,22 +67139,20 @@ function trRenderSkills() {
     const d = data[sk.id] || { level: 10, points: 0 };
     const needed   = trPointsNeeded(d.level);
     const pct      = Math.min(100, Math.round(d.points / needed * 100));
-    const isMax    = d.level >= 100;
     const isActive = active.some(a => a.pos === _trPos && a.skillId === sk.id);
 
+    // Seviye renk eşiği: 80+ altın, 60+ accent, 40+ accent2, beyaz
     const lvColor = d.level >= 80 ? '#ffd600' : d.level >= 60 ? 'var(--accent)' : d.level >= 40 ? 'var(--accent2)' : '#fff';
 
-    return `<div class="tr-skill-mini ${isActive?'training-active':''} ${isMax?'maxed':''}" title="${sk.desc}">
+    return `<div class="tr-skill-mini ${isActive?'training-active':''}" title="${sk.desc}">
       <div class="tr-sm-icon">${sk.icon}</div>
       <div class="tr-sm-name">${sk.name}</div>
       <div class="tr-sm-level" style="color:${lvColor}">${d.level}</div>
-      <div class="tr-sm-bar-wrap"><div class="tr-sm-bar" style="width:${isMax?100:pct}%;background:${barColor}"></div></div>
-      <div class="tr-sm-pct">${isMax?'MAX':d.points+' / '+needed}</div>
-      ${isMax
-        ? '<div class="tr-sm-badge maxed">🏆</div>'
-        : isActive
-          ? '<div class="tr-sm-badge active">⏱</div>'
-          : `<button class="tr-sm-btn" onclick="trOpenModal('${_trPos}','${sk.id}')">💪 Çalış</button>`
+      <div class="tr-sm-bar-wrap"><div class="tr-sm-bar" style="width:${pct}%;background:${barColor}"></div></div>
+      <div class="tr-sm-pct">${d.points} / ${needed}</div>
+      ${isActive
+        ? '<div class="tr-sm-badge active">⏱</div>'
+        : `<button class="tr-sm-btn" onclick="trOpenModal('${_trPos}','${sk.id}')">💪 Çalış</button>`
       }
     </div>`;
   }).join('') + '</div>';
@@ -67341,8 +67339,8 @@ function trCollect(id) {
   let leveledUp = false;
   let oldLevel  = sk.level;
 
-  // Seviye atla (yetenek)
-  while(sk.points >= trPointsNeeded(sk.level) && sk.level < 100) {
+  // Seviye atla (yetenek) — SINIR YOK, points yeterli olduğu sürece atlar
+  while(sk.points >= trPointsNeeded(sk.level)) {
     sk.points -= trPointsNeeded(sk.level);
     sk.level++;
     leveledUp = true;
