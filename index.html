@@ -8556,6 +8556,31 @@ body.team-captain .pr-mv.is-custom:hover{color:#ffe082}
 .car-stat-value.red{color:#ef5350}
 .car-stat-label{font-size:9px;color:var(--text3);font-weight:700;letter-spacing:.3px;margin-top:3px;text-transform:uppercase}
 
+/* Yarışmalara göre dağılım (stats_by_comp) */
+.car-comp-pills{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}
+.car-comp-pill{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);color:var(--text2);font-size:10px;font-weight:700;padding:5px 10px;border-radius:14px;cursor:pointer;letter-spacing:.2px;transition:all .15s ease}
+.car-comp-pill:hover{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.15)}
+.car-comp-pill.active{background:rgba(255,214,0,.12);border-color:rgba(255,214,0,.35);color:#ffd54f}
+.car-comp-grid{display:flex;flex-direction:column;gap:6px}
+.car-comp-row{display:flex;align-items:center;gap:10px;padding:9px 11px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:8px;border-left:3px solid var(--brand)}
+.car-comp-row.is-lig{border-left-color:#42a5f5}
+.car-comp-row.is-chm{border-left-color:#1976d2}
+.car-comp-row.is-eli{border-left-color:#2e7d32}
+.car-comp-row.is-con{border-left-color:#e65100}
+.car-comp-row.is-enc{border-left-color:#8e24aa}
+.car-comp-row.is-empty{opacity:.4}
+.car-comp-icon{font-size:18px;flex-shrink:0;width:24px;text-align:center}
+.car-comp-info{flex:1;min-width:0}
+.car-comp-name{font-size:12px;font-weight:800;color:var(--text);line-height:1.2}
+.car-comp-sub{font-size:9px;color:var(--text3);margin-top:2px}
+.car-comp-nums{display:flex;gap:10px;flex-shrink:0;align-items:center}
+.car-comp-num-box{text-align:center;min-width:32px}
+.car-comp-num-val{font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:900;line-height:1;color:var(--text)}
+.car-comp-num-val.gr{color:#00e676}
+.car-comp-num-val.ye{color:#ffd54f}
+.car-comp-num-lbl{font-size:8px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-top:1px;letter-spacing:.2px}
+.car-comp-empty{padding:14px;text-align:center;color:var(--text3);font-size:11px;font-style:italic}
+
 /* Form (G/B/M kutuları) */
 .car-form{display:flex;gap:5px;align-items:center}
 .car-form-cell{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:900;color:#fff;flex-shrink:0}
@@ -22834,6 +22859,12 @@ body.drawer-open{overflow:hidden}
       <div class="car-section">
         <div class="car-section-title">📅 Bu Sezon</div>
         <div class="car-stats-grid car-stats-grid-season" id="carSeasonStatsGrid"></div>
+      </div>
+
+      <!-- YARIŞMALARA GÖRE DAĞILIM (stats_by_comp) -->
+      <div class="car-section">
+        <div class="car-section-title">🏟️ Yarışmalara Göre</div>
+        <div class="car-comp-grid" id="carCompGrid"></div>
       </div>
 
       <!-- FORM — Son 5 maç -->
@@ -42093,6 +42124,52 @@ function getUserMatchLog() {
 }
 function saveUserMatchLog(list) { /* no-op — Edge function tek yazar */ }
 
+// ─────────────────────────────────────────────────────────────
+// statsByComp v2 reader — sezon kırılımlı yapıdan değer okuma
+// Yapı: { lig: { s1: {g,a,m}, s2: {g,a,m} }, chm: { s1: {g,a,m} } }
+// statsByCompGetSeason(sbc, bucket, season) → {g,a,m}    tek sezon
+// statsByCompGetTotal(sbc, bucket)          → {g,a,m}    tüm sezonlar toplamı
+// ─────────────────────────────────────────────────────────────
+function statsByCompGetSeason(sbc, bucket, season) {
+  if (!sbc || typeof sbc !== 'object') return { g: 0, a: 0, m: 0 };
+  const b = sbc[bucket];
+  if (!b || typeof b !== 'object') return { g: 0, a: 0, m: 0 };
+  const s = b['s' + season];
+  if (!s || typeof s !== 'object') return { g: 0, a: 0, m: 0 };
+  return { g: s.g || 0, a: s.a || 0, m: s.m || 0 };
+}
+function statsByCompGetTotal(sbc, bucket) {
+  if (!sbc || typeof sbc !== 'object') return { g: 0, a: 0, m: 0 };
+  const b = sbc[bucket];
+  if (!b || typeof b !== 'object') return { g: 0, a: 0, m: 0 };
+  let g = 0, a = 0, m = 0;
+  for (const k in b) {
+    if (!k.startsWith('s')) continue;
+    const s = b[k];
+    if (s && typeof s === 'object') {
+      g += s.g || 0; a += s.a || 0; m += s.m || 0;
+    }
+  }
+  return { g, a, m };
+}
+// Hangi sezonlar var? (oyuncu hangi sezonlarda oynamış)
+function statsByCompGetSeasons(sbc) {
+  if (!sbc || typeof sbc !== 'object') return [];
+  const seasonSet = new Set();
+  for (const bucket in sbc) {
+    const b = sbc[bucket];
+    if (b && typeof b === 'object') {
+      for (const k in b) {
+        if (k.startsWith('s')) {
+          const n = parseInt(k.substring(1), 10);
+          if (Number.isFinite(n)) seasonSet.add(n);
+        }
+      }
+    }
+  }
+  return [...seasonSet].sort((x, y) => x - y);
+}
+
 function getUserXpLog() {
   return Array.isArray(_userXpLogCache) ? _userXpLogCache : [];
 }
@@ -54956,6 +55033,13 @@ function _carRecordMarketValue(value) {
   } catch(e) {}
 }
 
+// Yarışmalara Göre kartı için sezon görünümü değiştirici
+// view: 'all' | sezon numarası (int)
+function carCompSetView(view) {
+  window._carCompSeasonView = view;
+  if (typeof renderCareerPage === 'function') renderCareerPage();
+}
+
 // Ana render fonksiyonu
 function renderCareerPage() {
   // ─── Verileri topla ───
@@ -55051,18 +55135,23 @@ function renderCareerPage() {
     }
   }
 
-  // ─── TOPLAM İSTATİSTİKLER ───
+  // ─── KARİYER ÖZETİ (kümülatif — DB'den goals_total/assists_total/matches_played) ───
+  // log array son 50 maçla sınırlı; bu yüzden kazanma/beraberlik/mağlubiyet için son 50'yi kullanırız,
+  // toplam Maç/Gol/Asist için ise users tablosundaki kümülatif total alanlarını okuruz.
+  const careerMatches = (userPlayer && userPlayer.matchesPlayed) || 0;
+  const careerGoals   = (userPlayer && userPlayer.goalsTotal) || 0;
+  const careerAssists = (userPlayer && userPlayer.assistsTotal) || 0;
   const stats = {
-    matches: log.length,
-    wins: log.filter(m => m.result === 'W').length,
+    matches: careerMatches,
+    wins: log.filter(m => m.result === 'W').length,    // son 50 maç W/D/L
     draws: log.filter(m => m.result === 'D').length,
     losses: log.filter(m => m.result === 'L').length,
-    goals: log.reduce((s, m) => s + (m.goals || 0), 0),
-    assists: log.reduce((s, m) => s + (m.assists || 0), 0),
+    goals: careerGoals,
+    assists: careerAssists,
     yellowCards: log.reduce((s, m) => s + (m.yellowCards || 0), 0),
     redCards: log.reduce((s, m) => s + (m.redCards || 0), 0),
   };
-  const winRate = stats.matches > 0 ? Math.round((stats.wins / stats.matches) * 100) : 0;
+  const winRate = stats.matches > 0 ? Math.round((stats.wins / Math.max(log.length, 1)) * 100) : 0;
   const goalAvg = stats.matches > 0 ? (stats.goals / stats.matches).toFixed(2) : '0.00';
 
   const statsEl = document.getElementById('carStatsGrid');
@@ -55107,6 +55196,87 @@ function renderCareerPage() {
       <div class="car-stat-card"><div class="car-stat-value" style="color:#ffc107">${seasonStats.yellowCards}</div><div class="car-stat-label">Sarı Kart</div></div>
       <div class="car-stat-card"><div class="car-stat-value red">${seasonStats.redCards}</div><div class="car-stat-label">Kırmızı</div></div>
     `;
+  }
+
+  // ─── YARIŞMALARA GÖRE DAĞILIM (stats_by_comp v2 — sezon kırılımlı) ───
+  // Veri kaynağı: userPlayer.statsByComp — Edge function maç sonu her bucket'ın aktif sezonuna yazıyor.
+  // Yapı: { lig: { s1: {g,a,m}, s2: {g,a,m} }, chm: { s1: {g,a,m} } }
+  // Görünüm modları: "Tüm Zamanlar" (toplam) veya seçilen tek sezon (s1, s2, ...)
+  // Her zaman 5 satır gösterilir (oynanmamış yarışmalar opak).
+  const compGridEl = document.getElementById('carCompGrid');
+  if (compGridEl) {
+    const sbc = (userPlayer && userPlayer.statsByComp && typeof userPlayer.statsByComp === 'object')
+      ? userPlayer.statsByComp : {};
+    const COMPS = [
+      { key: 'lig', icon: '🏟️', name: 'Lig',                cls: 'is-lig' },
+      { key: 'chm', icon: '🏆', name: 'Şampiyonlar Ligi',    cls: 'is-chm' },
+      { key: 'eli', icon: '🥈', name: 'Elit Lig',            cls: 'is-eli' },
+      { key: 'con', icon: '🥉', name: 'Konferans Ligi',      cls: 'is-con' },
+      { key: 'enc', icon: '🌍', name: 'EURO Nations Cup',    cls: 'is-enc' },
+    ];
+    const playedSeasons = statsByCompGetSeasons(sbc);
+    const activeSeason = (typeof getSeasonInfo === 'function') ? (getSeasonInfo().season || 1) : 1;
+    // View modu: 'all' | sezon numarası (int). Default = 'all'
+    if (typeof window._carCompSeasonView === 'undefined') window._carCompSeasonView = 'all';
+    const view = window._carCompSeasonView;
+
+    // Veri çekici (view'a göre)
+    const readStat = (bucket) => {
+      if (view === 'all') return statsByCompGetTotal(sbc, bucket);
+      return statsByCompGetSeason(sbc, bucket, view);
+    };
+
+    const totalMatches = COMPS.reduce((s, c) => s + readStat(c.key).m, 0);
+
+    // Sezon seçici header
+    let pillsHtml = '';
+    if (playedSeasons.length > 0) {
+      const allActive = view === 'all' ? ' active' : '';
+      pillsHtml += `<button class="car-comp-pill${allActive}" onclick="carCompSetView('all')">Tüm Zamanlar</button>`;
+      playedSeasons.forEach(sn => {
+        const sActive = (view !== 'all' && view === sn) ? ' active' : '';
+        const label = (sn === activeSeason) ? `Sezon ${sn} (Aktif)` : `Sezon ${sn}`;
+        pillsHtml += `<button class="car-comp-pill${sActive}" onclick="carCompSetView(${sn})">${label}</button>`;
+      });
+    }
+
+    let rowsHtml = '';
+    if (totalMatches === 0) {
+      rowsHtml = '<div class="car-comp-empty">Bu görünümde maç bulunmuyor</div>';
+    } else {
+      rowsHtml = COMPS.map(c => {
+        const s = readStat(c.key);
+        const m = s.m, g = s.g, a = s.a;
+        const gpm = m > 0 ? (g / m).toFixed(2) : '—';
+        const emptyCls = m === 0 ? ' is-empty' : '';
+        const sub = m === 0 ? 'Bu görünümde maç yok' : `${m} maç · ortalama ${gpm} gol`;
+        return `
+          <div class="car-comp-row ${c.cls}${emptyCls}">
+            <div class="car-comp-icon">${c.icon}</div>
+            <div class="car-comp-info">
+              <div class="car-comp-name">${c.name}</div>
+              <div class="car-comp-sub">${sub}</div>
+            </div>
+            <div class="car-comp-nums">
+              <div class="car-comp-num-box">
+                <div class="car-comp-num-val">${m}</div>
+                <div class="car-comp-num-lbl">Maç</div>
+              </div>
+              <div class="car-comp-num-box">
+                <div class="car-comp-num-val gr">${g}</div>
+                <div class="car-comp-num-lbl">Gol</div>
+              </div>
+              <div class="car-comp-num-box">
+                <div class="car-comp-num-val ye">${a}</div>
+                <div class="car-comp-num-lbl">Asist</div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    compGridEl.innerHTML = (pillsHtml ? `<div class="car-comp-pills">${pillsHtml}</div>` : '') + rowsHtml;
   }
 
   // ─── FORM (son 5 maç) ───
