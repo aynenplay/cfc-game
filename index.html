@@ -62458,15 +62458,29 @@ function trn2BuildGroupsHtml(groups, trnKey, season) {
     }).join('') + '</div>';
   }
 
-  // Veri modu: gerçek 8 grup × 6 takım, tek devre 5 MD
+  // Veri modu: 8 grup (kısmen veya tamamen dolu). Her grupta her zaman 6 satır
+  // (eksik takım slotları "Henüz belirlenmedi" placeholder) + 5 maç günü iskeleti
+  // (g.matches boşsa veya eksikse boş slot)
   return '<div class="enc-body">' + groups.map((g, gi) => {
     const letter = g.letter || LETTERS[gi] || '?';
-    const rowsHtml = g.teams.map((t, ti) => {
+    // 🆕 Her zaman 6 satır — eksikler "Henüz belirlenmedi"
+    const rowsHtml = [0,1,2,3,4,5].map(ti => {
+      const t = g.teams[ti];
       const st = _rowStatus(ti, trnKey);
+      if (!t) {
+        // Placeholder satır (PO kazananı henüz belli değil)
+        return `
+        <tr class="enc-st-row ${st.cls}" style="border-left:3px solid ${st.color};opacity:.55" title="${st.label}">
+          <td class="enc-st-pos" style="color:${st.color};font-weight:700">${ti+1}</td>
+          <td class="enc-st-team"><span class="enc-st-flag">🏳️</span><span class="enc-st-name" style="color:var(--text3);font-style:italic">Henüz belirlenmedi</span></td>
+          <td>0</td><td class="enc-w">0</td><td>0</td><td class="enc-l">0</td>
+          <td class="enc-gd">0:0</td><td class="enc-pts">0</td>
+        </tr>`;
+      }
       const isU = isAnk(t);
       const tot = (t.gp||0) + (t.dp||0) + Math.max(0, t.mp||0);
       const gf = t.gf||0, ga = t.ga||0;
-      // 🆕 Kullanıcı takımı: yeşil yazı rengi
+      // Kullanıcı takımı: yeşil yazı rengi
       const nameStyle = isU ? 'color:#00e676;font-weight:800' : '';
       return `
         <tr class="enc-st-row ${st.cls}${isU?' user-row':''}" style="border-left:3px solid ${st.color}" title="${st.label}">
@@ -62486,12 +62500,13 @@ function trn2BuildGroupsHtml(groups, trnKey, season) {
       `;
     }).join('');
 
-    // Maç günleri — tek devre 5 MD
+    // 🆕 Maç günleri — gerçek varsa render, yoksa 5 MD iskeleti (3 boş maç/gün)
     let matchHtml = '';
-    if (Array.isArray(g.matches) && g.matches.length) {
+    const hasRealMatches = Array.isArray(g.matches) && g.matches.length > 0;
+    if (hasRealMatches) {
       const matchesByDay = [1,2,3,4,5].map(d => g.matches.filter(m => m.matchday === d));
 
-      // 🆕 Maç günü için tarih formatı: "17 May Paz"
+      // Maç günü için tarih formatı: "17 May Paz"
       const DAYS_TR_S = ['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
       const MONTHS_TR_S = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
       function _fmtDateLabel(isoStr) {
@@ -62542,13 +62557,33 @@ function trn2BuildGroupsHtml(groups, trnKey, season) {
           </div>
         `;
       }).join('');
+    } else {
+      // PO öncesi: gerçek maç yok. 5 MD × 3 maç placeholder iskelet.
+      matchHtml = [1,2,3,4,5].map(d => `
+        <div class="enc-md-block" style="opacity:.55">
+          <div class="enc-md-lbl">${d}. Maç Günü</div>
+          ${[1,2,3].map(() => `
+            <div class="enc-match-row">
+              <div class="enc-mr-team enc-mr-home">
+                <span style="color:var(--text3);font-style:italic">Henüz belirlenmedi</span>
+                <span class="enc-mr-flag">🏳️</span>
+              </div>
+              <div class="enc-mr-score" style="color:var(--text3)">- - -</div>
+              <div class="enc-mr-team enc-mr-away">
+                <span class="enc-mr-flag">🏳️</span>
+                <span style="color:var(--text3);font-style:italic">Henüz belirlenmedi</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `).join('');
     }
 
     return `
       <div class="enc-group-card${gi===0?' open':''}" id="grp_${trnKey}_${gi}">
         <div class="enc-group-head" onclick="encGroupToggle('grp_${trnKey}_${gi}')">
           <div class="enc-group-letter">Grup ${letter}</div>
-          <div class="enc-group-meta">${g.teams.length} takım · 15 maç</div>
+          <div class="enc-group-meta">6 takım · 15 maç</div>
           <div class="enc-group-arr">›</div>
         </div>
         <div class="enc-group-body">
