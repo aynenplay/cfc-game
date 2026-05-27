@@ -51943,8 +51943,6 @@ function renderHomeNextMatch() {
       if (ms.status === 'finished') continue;
       const t = new Date(ms.matchDateTime).getTime();
       if (isNaN(t)) continue;
-      // Kickoff + 15dk geçtiyse (simülasyon ~12dk) atla
-      if (Date.now() > t + 15 * 60 * 1000) continue;
       // home/away team objelerini teams DB'den çöz
       const homeTeam = _resolveTeam(ms.home, ms.countryCode);
       const awayTeam = _resolveTeam(ms.away, ms.countryCode);
@@ -51970,14 +51968,13 @@ function renderHomeNextMatch() {
       try { frmEnsurePlayed(); } catch(e) {}
     }
     const _allFm = frmGetMatches();
-    const _frmDbg = { total: _allFm.length, notAccepted:0, otherTeam:0, played:0, dateInvalid:0, expired:0, added:0 };
+    const _frmDbg = { total: _allFm.length, notAccepted:0, otherTeam:0, played:0, dateInvalid:0, added:0 };
     _allFm.forEach(fm => {
       if (fm.status !== 'accepted') { _frmDbg.notAccepted++; return; }
       if (fm.fromTeam !== _userTeam.teamName && fm.toTeam !== _userTeam.teamName) { _frmDbg.otherTeam++; return; }
       if (fm.playedAt) { _frmDbg.played++; return; }
       const t = new Date(fm.dateTime).getTime();
       if (isNaN(t)) { _frmDbg.dateInvalid++; return; }
-      if (Date.now() > t + 120 * 60 * 1000) { _frmDbg.expired++; return; }
       candidates.push({ source: 'friendly', friendly: fm, time: t });
       _frmDbg.added++;
     });
@@ -52007,7 +52004,6 @@ function renderHomeNextMatch() {
         if (ms.status === 'finished') continue;
         const t = ms.matchDateTime ? new Date(ms.matchDateTime).getTime() : NaN;
         if (isNaN(t)) continue;
-        if (Date.now() > t + 120 * 60 * 1000) continue; // 2 saat geçmişse atla
         // Duplicate kontrolü
         const _dt = new Date(t);
         const _hm = String(_dt.getHours()).padStart(2,'0') + String(_dt.getMinutes()).padStart(2,'0');
@@ -53212,7 +53208,21 @@ function renderTrophyShelf() {
 function hmOpenNextMatch() {
   const panel = document.getElementById('hmNextMatch');
   const m = panel && panel._nextMatchRef;
-  if (!m) return;
+  if (!m) {
+    // _nextMatchRef yok = render hiç çalışmamış veya temizlenmiş.
+    // Cache'i yenile + tekrar render et — bir sonraki tıklamada çalışır.
+    if (typeof showToast === 'function') {
+      showToast('Maç verisi yükleniyor, lütfen tekrar dene…');
+    }
+    if (typeof _loadAllMatchStateFromServer === 'function') {
+      _loadAllMatchStateFromServer().then(() => {
+        if (typeof renderHomeNextMatch === 'function') renderHomeNextMatch();
+      });
+    } else if (typeof renderHomeNextMatch === 'function') {
+      renderHomeNextMatch();
+    }
+    return;
+  }
 
   // 🆕 Milli takım maçı — kadroda ise oynat (canlı), değilse milli takım sayfasına yönlendir (izleyici)
   if (m && m.isNational && m.nationalData) {
