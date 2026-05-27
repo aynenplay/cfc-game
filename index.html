@@ -63109,6 +63109,34 @@ function encSetSubTab(tab) {
   trn2RenderEuroNation(getSeasonInfo().season);
 }
 
+// Grup puan tablosu — encRenderGroups, navigasyon, milli takım kart vb. yerlerden çağrılır.
+// ⚠️ Bu fonksiyon ölü kod silimi sırasında yanlışlıkla kaldırılmıştı; backup'tan restore.
+function encCalcStandings(group) {
+  const stats = group.teams.map(t => ({
+    code:t.code, name:t.name, flag:t.flag, power:t.power,
+    P:0, W:0, D:0, L:0, GF:0, GA:0, GD:0, Pts:0
+  }));
+  function find(code) { return stats.find(s => s.code === code); }
+  group.matches.forEach(m => {
+    // Sadece oynanmış maçlar (hg/ag null değilse)
+    if (typeof m.hg !== 'number' || typeof m.ag !== 'number') return;
+    const h = find(m.home), a = find(m.away);
+    if(!h || !a) return;
+    h.P++; a.P++;
+    h.GF += m.hg; h.GA += m.ag;
+    a.GF += m.ag; a.GA += m.hg;
+    // result yoksa skora bakarak hesapla (backend henüz result alanı yazmıyor)
+    const result = m.result || (m.hg > m.ag ? 'home' : m.hg < m.ag ? 'away' : 'draw');
+    if(result === 'home') { h.W++; h.Pts += 3; a.L++; }
+    else if(result === 'away') { a.W++; a.Pts += 3; h.L++; }
+    else { h.D++; a.D++; h.Pts++; a.Pts++; }
+  });
+  stats.forEach(s => s.GD = s.GF - s.GA);
+  // Sıralama: Pts → GD → GF → power
+  stats.sort((a,b) => b.Pts - a.Pts || b.GD - a.GD || b.GF - a.GF || b.power - a.power);
+  return stats;
+}
+
 // EURO Cup için takvim render (diğer turnuvaların trn2BuildScheduleHtml muadili)
 function encRenderSchedule(state) {
   const info = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : { preSeason: false };
