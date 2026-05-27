@@ -27149,7 +27149,7 @@ async function _loadTeamRosterFromServer(cc, teamName) {
   _teamRosterLoading[key] = (async () => {
     try {
       const { data, error } = await window.sb.from('players')
-        .select('id, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, is_bot, user_id, last_seen, goals_total, assists_total, matches_played, match_ratings, stats_by_comp')
+        .select('id, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, is_bot, user_id, last_seen, goals_total, assists_total, matches_played, match_ratings, stats_by_comp, season_yellow, suspend_matches, suspend_reason, injury_until')
         .eq('country_code', cc)
         .eq('team_name', teamName)
         .order('num');
@@ -27221,7 +27221,7 @@ async function preloadAllTeamRosters() {
     let safety = 0;
     while (safety++ < 50) {
       const { data, error } = await window.sb.from('players')
-        .select('id, user_id, country_code, team_name, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, is_bot, last_seen, goals_total, assists_total, matches_played, match_ratings, stats_by_comp')
+        .select('id, user_id, country_code, team_name, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, is_bot, last_seen, goals_total, assists_total, matches_played, match_ratings, stats_by_comp, season_yellow, suspend_matches, suspend_reason, injury_until')
         // is_bot filtresi yok — gerçek kullanıcılar da yüklenir
         .not('team_name', 'is', null)
         .order('country_code')
@@ -39460,7 +39460,6 @@ function authInit(){
           await Promise.all([
             _loadStep('_loadRealCaptainsFromServer', typeof _loadRealCaptainsFromServer === 'function' ? _loadRealCaptainsFromServer : null),
             _loadStep('_teamStrategyLoadFromServer', typeof _teamStrategyLoadFromServer === 'function' ? _teamStrategyLoadFromServer : null),
-            _loadStep('_rosterPersistLoadFromServer', typeof _rosterPersistLoadFromServer === 'function' ? _rosterPersistLoadFromServer : null),
             _loadStep('_facLevelsLoadFromServer', typeof _facLevelsLoadFromServer === 'function' ? _facLevelsLoadFromServer : null),
             _loadStep('_trsLoadFromServer', typeof _trsLoadFromServer === 'function' ? _trsLoadFromServer : null),
             _loadStep('_mfsLoadFromServer', typeof _mfsLoadFromServer === 'function' ? _mfsLoadFromServer : null),
@@ -39903,7 +39902,6 @@ function doLogin(){
       try { await userTeamLoadFromServer(); } catch(e){}
       try { if (typeof _loadRealCaptainsFromServer === 'function') await _loadRealCaptainsFromServer(); } catch(e){}
       try { if (typeof _teamStrategyLoadFromServer === 'function') await _teamStrategyLoadFromServer(); } catch(e){}
-      try { if (typeof _rosterPersistLoadFromServer === 'function') await _rosterPersistLoadFromServer(); } catch(e){}
       try { if (typeof _facLevelsLoadFromServer === 'function') await _facLevelsLoadFromServer(); } catch(e){}
       try { if (typeof _trsLoadFromServer === 'function') await _trsLoadFromServer(); } catch(e){}
       try { if (typeof _mfsLoadFromServer === 'function') await _mfsLoadFromServer(); } catch(e){}
@@ -40186,7 +40184,11 @@ function _buildRosterFromPlayers(playersList, countryCode) {
       matchesPlayed: p.matches_played || 0,
       statsByComp: (p.stats_by_comp && typeof p.stats_by_comp === 'object') ? p.stats_by_comp : {},
       matchRatings: Array.isArray(p.match_ratings) ? p.match_ratings : [],
-      seasonYellow: 0, suspendMatches: 0, suspendReason: null, injuryUntil: 0,
+      // 🆕 Disiplin alanları artık players tablosundan (önceden team_data.roster'da idi)
+      seasonYellow:   p.season_yellow   || 0,
+      suspendMatches: p.suspend_matches || 0,
+      suspendReason:  p.suspend_reason  || null,
+      injuryUntil:    Number(p.injury_until) || 0,
       x: sl.x, y: sl.y,
     };
   });
@@ -40201,7 +40203,7 @@ async function _rosterRefreshFromServer(countryCode) {
   if (!window.sb || !_userTeam || !_userTeam.teamName) return;
   try {
     const { data, error } = await window.sb.from('players')
-      .select('id, user_id, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, is_bot, last_seen, goals_total, assists_total, matches_played, match_ratings, stats_by_comp')
+      .select('id, user_id, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, is_bot, last_seen, goals_total, assists_total, matches_played, match_ratings, stats_by_comp, season_yellow, suspend_matches, suspend_reason, injury_until')
       .eq('country_code', countryCode)
       .eq('team_name', _userTeam.teamName)
       .order('num');
@@ -40340,31 +40342,12 @@ async function _rosterRefreshRealMembers(countryCode) {
 function rosterClearTeam() {
   const user = ROSTER_DATA.find(p => p.role === 'user');
   ROSTER_DATA = user ? [user] : [];
-  rosterClearPersist();
 }
 
-// ── Roster Persistence (kov/atama değişikliklerini sakla) — Supabase team_data tablosunda ──
-// 🆕 RAM cache - bootstrap'ta server'dan doldurulur
-let _rosterPersistCache = null;
+// ── Roster Persistence — Disiplin Alanları (Supabase players tablosu) ──
+// Disiplin alanları (seasonYellow, suspendMatches, suspendReason, injuryUntil)
+// artık doğrudan players tablosunda. Eski team_data.roster cache yapısı kaldırıldı.
 let _rosterPersistSaveTimer = null;
-
-// Server'dan roster verisini yükle (bootstrap ve takım değişimi sonrası)
-async function _rosterPersistLoadFromServer() {
-  if (!window.sb || !_userTeam || !_userTeam.countryCode || !_userTeam.teamName) {
-    _rosterPersistCache = null;
-    return;
-  }
-  try {
-    const { data, error } = await window.sb.from('team_data')
-      .select('data')
-      .eq('country_code', _userTeam.countryCode)
-      .eq('team_name', _userTeam.teamName)
-      .eq('data_key', 'roster')
-      .maybeSingle();
-    if (error) { console.warn('[roster_persist] load hata:', error); _rosterPersistCache = null; return; }
-    _rosterPersistCache = (data && data.data) ? data.data : null;
-  } catch(e) { console.warn('[roster_persist] load hata:', e); _rosterPersistCache = null; }
-}
 
 // 🆕 OVR migration: ROSTER_DATA'daki tüm oyuncuların overall'ını
 // yetenek ortalamasından YENİDEN hesapla. Kural: (KL+DF+OS+FW)/4.
@@ -40396,58 +40379,35 @@ function recalcAllPlayerOveralls() {
 }
 window.recalcAllPlayerOveralls = recalcAllPlayerOveralls;
 
+// 🆕 Disiplin alanlarını players tablosuna yazar (önceden team_data.roster idi).
+// ROSTER_DATA'daki bot ve user oyuncuları için seasonYellow, suspendMatches, suspendReason, injuryUntil
+// alanları players tablosuna toplu (per-team) update edilir.
 function rosterSavePersist(){
   try{
     if(!_userTeam) return;
-    const payload = {
-      teamKey: _userTeam.countryCode + ':' + _userTeam.teamName,
-      data: ROSTER_DATA,
-      savedAt: Date.now()
-    };
-    // RAM cache anında güncelle
-    _rosterPersistCache = payload;
-    // Debounced Supabase write (500 ms)
-    if (window.sb && _userTeam.countryCode && _userTeam.teamName) {
-      clearTimeout(_rosterPersistSaveTimer);
-      _rosterPersistSaveTimer = setTimeout(async () => {
-        try {
-          await window.sb.from('team_data').upsert({
-            country_code: _userTeam.countryCode,
-            team_name: _userTeam.teamName,
-            data_key: 'roster',
-            data: payload,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'country_code,team_name,data_key' });
-        } catch(e) { console.warn('[roster_persist] save hata:', e); }
-      }, 500);
-    }
+    if (!window.sb || !_userTeam.countryCode || !_userTeam.teamName) return;
+    if (!Array.isArray(ROSTER_DATA) || ROSTER_DATA.length === 0) return;
+
+    // Debounced (500 ms): hızla peş peşe çağrılırsa tek istek
+    clearTimeout(_rosterPersistSaveTimer);
+    _rosterPersistSaveTimer = setTimeout(async () => {
+      try {
+        // Her oyuncu için num'a göre update — Promise.all ile paralel
+        const updates = ROSTER_DATA
+          .filter(p => p && typeof p.num === 'number')
+          .map(p => window.sb.from('players').update({
+            season_yellow:   p.seasonYellow   || 0,
+            suspend_matches: p.suspendMatches || 0,
+            suspend_reason:  p.suspendReason  || null,
+            injury_until:    p.injuryUntil    || 0
+          })
+          .eq('country_code', _userTeam.countryCode)
+          .eq('team_name', _userTeam.teamName)
+          .eq('num', p.num));
+        await Promise.all(updates);
+      } catch(e) { console.warn('[discipline_persist] save hata:', e); }
+    }, 500);
   }catch(e){}
-}
-
-function rosterLoadPersist(){
-  // Mevcut takım için kaydedilmiş roster varsa yükler (cache'ten), yoksa null
-  try{
-    if(!_userTeam) return null;
-    const p = _rosterPersistCache;
-    if(!p) return null;
-    const expectedKey = _userTeam.countryCode + ':' + _userTeam.teamName;
-    if(p.teamKey !== expectedKey) return null; // Başka takıma ait
-    return p.data;
-  }catch(e){ return null; }
-}
-
-function rosterClearPersist(){
-  // RAM cache temizle ve server'dan da sil
-  _rosterPersistCache = null;
-  if (!window.sb || !_userTeam || !_userTeam.countryCode || !_userTeam.teamName) return;
-  try {
-    window.sb.from('team_data')
-      .delete()
-      .eq('country_code', _userTeam.countryCode)
-      .eq('team_name', _userTeam.teamName)
-      .eq('data_key', 'roster')
-      .then(()=>{}, e => console.warn('[roster_persist] clear hata:', e));
-  } catch(e) {}
 }
 
 // ── Kaptan eylemleri ──
@@ -41286,16 +41246,12 @@ function confirmTeamBuy() {
 
   // 🆕 Yeni takıma geçildi - eski strategy cache temizle, yeni takımın stratejisini server'dan yükle
   _teamStrategyCache = null;
-  _rosterPersistCache = null;
   FAC_LEVELS = {};
   _trsCache = null;
   _trsLogCache = null;
   _mfsCache = null;
   if (typeof _teamStrategyLoadFromServer === 'function') {
     _teamStrategyLoadFromServer().catch(()=>{});
-  }
-  if (typeof _rosterPersistLoadFromServer === 'function') {
-    _rosterPersistLoadFromServer().catch(()=>{});
   }
   if (typeof _facLevelsLoadFromServer === 'function') {
     _facLevelsLoadFromServer().catch(()=>{});
@@ -41311,7 +41267,6 @@ function confirmTeamBuy() {
   }
 
   // ROSTER_DATA'yı yeniden inşa et + kullanıcının rolünü kaptan yap
-  rosterClearPersist(); // Önceki takımdan kalan roster verisini temizle
   syncUserToRoster();
   rosterBuildTeam(t.countryCode); // Yeni takım için fresh roster (kullanıcı kaptan, eski captain bot member)
   rosterSavePersist();
@@ -50552,7 +50507,6 @@ function joinTeamDirect(countryCode, teamName, opts) {
   }
 
   // ROSTER_DATA'yı yeni takıma göre yeniden inşa et
-  if(typeof rosterClearPersist === 'function') rosterClearPersist();
   if(typeof syncUserToRoster === 'function') syncUserToRoster();
   if(typeof rosterBuildTeam === 'function') rosterBuildTeam(countryCode);
   if(typeof rosterSavePersist === 'function') rosterSavePersist();
@@ -60198,7 +60152,6 @@ function tmConfirmBuy(){
 
   // Yeni takım için fresh roster oluştur (kullanıcı kaptan)
   try{
-    rosterClearPersist();
     if(typeof rosterBuildTeam === 'function') rosterBuildTeam(listing.countryCode);
     rosterSavePersist();
   }catch(e){ console.warn('Roster build hatası:', e); }
@@ -65667,7 +65620,6 @@ async function _inboxLoadFromServer() {
         if (typeof _loadRealCaptainsFromServer === 'function') await _loadRealCaptainsFromServer();
         // UI tazele
         if (_userTeam && _userTeam.countryCode) {
-          if (typeof rosterClearPersist === 'function') rosterClearPersist();
           if (typeof syncUserToRoster === 'function') syncUserToRoster();
           if (typeof rosterBuildTeam === 'function') rosterBuildTeam(_userTeam.countryCode);
           if (typeof rosterSavePersist === 'function') rosterSavePersist();
@@ -65759,7 +65711,6 @@ async function _inboxProcessApprovedJoinRequests() {
       }
 
       // ROSTER_DATA yeniden inşa et
-      if (typeof rosterClearPersist === 'function') rosterClearPersist();
       if (typeof syncUserToRoster === 'function') syncUserToRoster();
       if (typeof rosterBuildTeam === 'function') rosterBuildTeam(meta.countryCode);
       if (typeof rosterSavePersist === 'function') rosterSavePersist();
@@ -71861,6 +71812,12 @@ function trsDonate(){
     return;
   }
 
+  // 🆕 Yetki kontrolü: sadece kaptan ve yardımcı kaptan bağış yapabilir
+  if(typeof userCanMakeOffer === 'function' && !userCanMakeOffer()){
+    trsToast('🔒 Sadece kaptan ve yardımcı kaptan bağış yapabilir.', 'var(--red)');
+    return;
+  }
+
   // Cüzdan bakiyesi yeterli mi?
   if(!wlCanAfford(cur, amount)){
     const lbl = cur==='dia' ? 'elmas' : 'euro';
@@ -71959,6 +71916,31 @@ function trsRender(){
 
   // Kullanıcı bakiyesi
   trsUpdateMyBalance();
+
+  // 🆕 Bağış yetkisi: sadece kaptan/yardımcı kaptan UI butonlarını aktifleştir
+  const canDonate = (typeof userCanMakeOffer === 'function') ? userCanMakeOffer() : true;
+  const donBtn   = document.querySelector('.trs-donate-btn');
+  const donInput = document.getElementById('trsDonateAmount');
+  const donQuick = document.querySelectorAll('#trsQuickAmounts .trs-qa-btn');
+  const donTabs  = document.querySelectorAll('.trs-dt-btn');
+  if (donBtn)   donBtn.disabled   = !canDonate;
+  if (donInput) donInput.disabled = !canDonate;
+  donQuick.forEach(b => b.disabled = !canDonate);
+  donTabs.forEach(b => b.disabled = !canDonate);
+  // Kilit notu (üyeler için)
+  let donLockEl = document.getElementById('trsDonateLockNote');
+  const donSection = document.querySelector('.trs-section');
+  if (!canDonate) {
+    if (!donLockEl && donSection) {
+      donLockEl = document.createElement('div');
+      donLockEl.id = 'trsDonateLockNote';
+      donLockEl.style.cssText = 'margin-top:8px;padding:8px 12px;background:rgba(179,157,219,.10);border:1px solid rgba(179,157,219,.25);border-radius:8px;font-size:10.5px;color:var(--text2);line-height:1.5';
+      donLockEl.innerHTML = '🔒 Bağış yetkisi sadece <b>kaptan</b> ve <b>yardımcı kaptan</b>a ait.';
+      donSection.appendChild(donLockEl);
+    }
+  } else if (donLockEl) {
+    donLockEl.remove();
+  }
 
   // Log render
   const logEl = document.getElementById('trsLog');
@@ -74883,7 +74865,6 @@ setTimeout(async ()=>{
     _trsLoadFromServer().catch(e => console.warn('treasury load hata:', e)),
     _mfsLoadFromServer().catch(e => console.warn('manifesto load hata:', e)),
     _userMatchLogLoadFromServer().catch(e => console.warn('matchLog load hata:', e)),
-    _rosterPersistLoadFromServer().catch(e => console.warn('roster_persist load hata:', e)),
     _teamStrategyLoadFromServer().catch(e => console.warn('team_strategy load hata:', e)),
     _ntStrategyLoadFromServer().catch(e => console.warn('nt_strategy load hata:', e)),
   ]);
