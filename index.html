@@ -26980,7 +26980,7 @@ async function _loadTeamRosterFromServer(cc, teamName) {
   _teamRosterLoading[key] = (async () => {
     try {
       const { data, error } = await window.sb.from('players')
-        .select('id, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, is_bot, user_id, last_seen, goals_total, assists_total, matches_played, match_ratings')
+        .select('id, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, is_bot, user_id, last_seen, goals_total, assists_total, matches_played, match_ratings, stats_by_comp')
         .eq('country_code', cc)
         .eq('team_name', teamName)
         .order('num');
@@ -27024,6 +27024,7 @@ async function _loadTeamRosterFromServer(cc, teamName) {
           goalsTotal: r.goals_total || 0,
           assistsTotal: r.assists_total || 0,
           matchesPlayed: r.matches_played || 0,
+          statsByComp: (r.stats_by_comp && typeof r.stats_by_comp === 'object') ? r.stats_by_comp : {},
           avgMatchRating, matchRatingsCount: mrCount,
           seasonYellow: 0,
           suspendMatches: 0,
@@ -27050,7 +27051,7 @@ async function preloadAllTeamRosters() {
     let safety = 0;
     while (safety++ < 50) {
       const { data, error } = await window.sb.from('players')
-        .select('id, user_id, country_code, team_name, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, is_bot, last_seen, goals_total, assists_total, matches_played, match_ratings')
+        .select('id, user_id, country_code, team_name, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, is_bot, last_seen, goals_total, assists_total, matches_played, match_ratings, stats_by_comp')
         // is_bot filtresi yok — gerçek kullanıcılar da yüklenir
         .not('team_name', 'is', null)
         .order('country_code')
@@ -27105,6 +27106,7 @@ async function preloadAllTeamRosters() {
         goalsTotal: r.goals_total || 0,
         assistsTotal: r.assists_total || 0,
         matchesPlayed: r.matches_played || 0,
+        statsByComp: (r.stats_by_comp && typeof r.stats_by_comp === 'object') ? r.stats_by_comp : {},
         avgMatchRating: avgMatchRating,
         matchRatingsCount: mrCount,
         seasonYellow: 0, suspendMatches: 0, suspendReason: null, injuryUntil: 0,
@@ -39895,11 +39897,16 @@ function _buildRosterFromPlayers(playersList, countryCode) {
       avatar: p.avatar || (p.is_bot ? '🤖' : '👤'),
       avatar_id: p.avatar_id || null,
       role: isMe ? 'user' : (p.role || 'member'),
-      isUser: isMe,                     // 🆕 Maç motoru için tutarlı flag
+      isUser: isMe,                     // Maç motoru için tutarlı flag
       isBot: !!p.is_bot,
       userId: p.user_id || null,
       isOnline: !!isOnline,
       lastSeen: p.last_seen || null,
+      // Sezon istatistikleri (Edge function maç sonu doldurur)
+      goalsTotal: p.goals_total || 0,
+      assistsTotal: p.assists_total || 0,
+      matchesPlayed: p.matches_played || 0,
+      statsByComp: (p.stats_by_comp && typeof p.stats_by_comp === 'object') ? p.stats_by_comp : {},
       seasonYellow: 0, suspendMatches: 0, suspendReason: null, injuryUntil: 0,
       x: sl.x, y: sl.y,
     };
@@ -39915,7 +39922,7 @@ async function _rosterRefreshFromServer(countryCode) {
   if (!window.sb || !_userTeam || !_userTeam.teamName) return;
   try {
     const { data, error } = await window.sb.from('players')
-      .select('id, user_id, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, is_bot, last_seen, goals_total, assists_total, matches_played, match_ratings')
+      .select('id, user_id, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, is_bot, last_seen, goals_total, assists_total, matches_played, match_ratings, stats_by_comp')
       .eq('country_code', countryCode)
       .eq('team_name', _userTeam.teamName)
       .order('num');
