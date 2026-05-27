@@ -51327,43 +51327,63 @@ function guestRenderRoster() {
 }
 
 // Ziyaretçi modunda tesis sayfasını göster (yetkisiz)
-function guestRenderFacilities() {
+// Ziyaret edilen takımın team_data.facilities verisini Supabase'ten çeker ve FAC_DATA üzerinden render eder.
+async function guestRenderFacilities() {
   if(!_viewingTeam) return;
   const v = _viewingTeam;
   const wrap = document.getElementById('team-facility');
   if(!wrap) return;
 
-  // Sezon 1 başlangıcı: TÜM takımların TÜM tesisleri seviye 1.
-  // İlerleyen sezonlarda Avrupa kupalarındaki performansa göre artabilir (TODO).
-  const FACS = [
-    {icon:'🏟️', name:'Stadyum',           lvl: 1},
-    {icon:'🏋️', name:'Antrenman Tesisi',  lvl: 1},
-    {icon:'🩺', name:'Sağlık Merkezi',    lvl: 1},
-    {icon:'🎓', name:'Genç Akademi',      lvl: 1},
-    {icon:'📊', name:'Analiz Merkezi',    lvl: 1},
-    {icon:'🛏️', name:'Yatakhane',         lvl: 1},
-    {icon:'⚙️', name:'Yönetim Ofisi',     lvl: 1},
-  ];
+  // Loading state
+  wrap.innerHTML = `
+    <div style="margin:10px 12px;padding:18px;text-align:center;color:var(--text3);font-size:11px">
+      ⏳ Tesisler yükleniyor...
+    </div>
+  `;
+
+  // Ziyaret edilen takımın tesis seviyelerini Supabase'ten çek
+  let visitedFacLevels = {};
+  try {
+    if (window.sb && v.countryCode && v.teamRef && v.teamRef.name) {
+      const { data } = await window.sb.from('team_data')
+        .select('data')
+        .eq('country_code', v.countryCode)
+        .eq('team_name', v.teamRef.name)
+        .eq('data_key', 'facilities')
+        .maybeSingle();
+      if (data && data.data) visitedFacLevels = data.data;
+    }
+  } catch(e) { console.warn('[guestFacilities] load hata:', e); }
+
+  // Render (FAC_DATA tek doğruluk kaynağı; seviye yoksa 1 default)
+  const facsData = (typeof FAC_DATA !== 'undefined') ? FAC_DATA : [];
 
   wrap.innerHTML = `
     <div style="margin:10px 12px 14px;padding:14px;background:var(--card);border:1px solid var(--border);border-radius:var(--r)">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-        <div style="font-size:28px">${TEAM_AV_BY_COUNTRY[v.countryCode]||'🏟️'}</div>
+        <div style="font-size:28px">${(typeof TEAM_AV_BY_COUNTRY !== 'undefined' && TEAM_AV_BY_COUNTRY[v.countryCode]) || '🏟️'}</div>
         <div style="flex:1">
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900">${v.teamRef.name} · Tesisleri</div>
           <div style="font-size:10px;color:var(--text3)">Yetkisiz görüntüleme — değişiklik yapamazsın</div>
         </div>
       </div>
-      ${FACS.map(f => `
-        <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.04)">
-          <div style="font-size:22px;width:28px;text-align:center">${f.icon}</div>
-          <div style="flex:1;font-size:12px;font-weight:600">${f.name}</div>
-          <div style="display:flex;gap:3px;align-items:center">
-            ${Array.from({length:10}, (_,i) => `<div style="width:7px;height:14px;border-radius:2px;background:${i < f.lvl ? 'var(--gold)' : 'rgba(255,255,255,.08)'}"></div>`).join('')}
+      ${facsData.map(f => {
+        const lvl = (visitedFacLevels[f.id] && visitedFacLevels[f.id] >= 1) ? visitedFacLevels[f.id] : 1;
+        const effectTxt = (typeof f.effectLabel === 'function') ? f.effectLabel(lvl) : '';
+        return `
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.04)">
+            <div style="font-size:22px;width:28px;text-align:center">${f.icon}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:12px;font-weight:600">${f.name}</div>
+              <div style="font-size:9px;color:var(--text3);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${effectTxt}</div>
+            </div>
+            <div style="display:flex;gap:3px;align-items:center;flex-shrink:0">
+              ${Array.from({length:10}, (_,i) => `<div style="width:7px;height:14px;border-radius:2px;background:${i < lvl ? 'var(--gold)' : 'rgba(255,255,255,.08)'}"></div>`).join('')}
+            </div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:900;color:var(--gold);width:38px;text-align:right;flex-shrink:0">Sv.${lvl}</div>
           </div>
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:900;color:var(--gold);width:32px;text-align:right">Sv.${f.lvl}</div>
-        </div>
-      `).join('')}
+        `;
+      }).join('')}
     </div>
     <div style="margin:0 12px 14px;padding:10px 12px;background:rgba(179,157,219,.08);border:1px solid rgba(179,157,219,.25);border-radius:var(--r);font-size:10.5px;color:var(--text2);line-height:1.5">
       🔒 Bu takıma <b>üye değilsin</b>. Tesis seviyelerini görebilirsin ama yükseltme veya bağış yapamazsın.
