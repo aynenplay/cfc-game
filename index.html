@@ -27779,23 +27779,8 @@ function getInjuryRemainingHours(p) {
   return ms > 0 ? Math.max(1, Math.ceil(ms / 3600000)) : 0;
 }
 
-// Sarı kart uygula (4 olunca süspansiyon)
-function applyYellowCard(p) {
-  if(!p) return;
-  p.seasonYellow = (p.seasonYellow || 0) + 1;
-  if(p.seasonYellow >= 4) {
-    p.suspendMatches = (p.suspendMatches || 0) + 1;
-    p.suspendReason  = 'yellow';
-    p.seasonYellow   = 0;  // birikim sıfırlanır
-  }
-}
-
-// Kırmızı kart uygula (anında 1 maç ceza)
-function applyRedCard(p) {
-  if(!p) return;
-  p.suspendMatches = (p.suspendMatches || 0) + 1;
-  p.suspendReason  = 'red';
-}
+// 🆕 Sarı/kırmızı kart uygulamaları (applyYellowCard/applyRedCard) Edge function
+// _processMatchDiscipline tarafından yapılır — frontend in-memory uygulama kaldırıldı.
 
 // 🆕 Sezon sonu disiplin sıfırlama
 // • seasonYellow sıfırlanır (yeni sezon, yeni sayaç)
@@ -27819,27 +27804,9 @@ function resetSeasonDiscipline() {
   }
 }
 
-// Sakatlık uygula (Sağlık Merkezi seviyesine göre süre)
-function applyInjury(p, eventData) {
-  if(!p) return;
-  // 🆕 Sağlık Merkezi seviyesi sakatlık süresini kısaltır (Sv 1 → 1.00, Sv 10 → 0.55).
-  // Frontend tarafında uygulanır — Edge tarafında sakatlık event'i yaratılmıyor,
-  // sadece frontend simülasyonu sırasında applyInjury çağrılıyor.
-  const mult = (typeof getMedicalRecoveryMultiplier === 'function')
-    ? getMedicalRecoveryMultiplier() : 1.0;
-  if (eventData && eventData.daysOut) {
-    const adjustedDays = Math.max(1, Math.round(eventData.daysOut * mult));
-    p.injuryUntil = Date.now() + adjustedDays * 24 * 3600000;
-    p.injurySeverity = eventData.severity;
-    p.injuryBodyPart = eventData.bodyPart;
-    // matchesOut da orantılı kısaltılsın (1'in altına düşmesin)
-    p.injuryMatchesOut = Math.max(1, Math.round((eventData.matchesOut || 1) * mult));
-  } else {
-    // Eski event formatı fallback — 50 saatlik standart sakatlık
-    const adjustedHours = Math.round(50 * mult);
-    p.injuryUntil = Date.now() + adjustedHours * 3600000;
-  }
-}
+// 🆕 applyInjury (frontend in-memory uygulama) Edge _processMatchDiscipline tarafından
+// devralındı. Medical bonusu Edge'de team._facilities.medical'den hesaplanır
+// (getMedicalRecoveryMultiplier ile aynı formül).
 
 // applyBotMatchOutcome SİLİNDİ — bot maç sonu Edge function'da işleniyor.
 
@@ -29918,131 +29885,26 @@ function applyMatchMorale(script, userIsHome) {
 
 
 
-// İsim kısaltıcı (generateMatchSquad ile aynı: 14+ karakter olunca "B. Soyad")
-function shortenPlayerName(n) {
-  if(!n) return '';
-  if(n.length <= 14) return n;
-  return n.split(' ').map((s,i) => i===0 ? s.charAt(0)+'.' : s).join(' ');
-}
+// 🆕 shortenPlayerName eski isim kısaltma yardımcısı — kart event eşleştirmesi Edge'e
+// taşındığı için artık kullanılmıyor (event.player adı doğrudan players tablosuyla eşleşir).
 
-// Maçta üretilen player ismi → ROSTER_DATA'da eşleştir
-function _matchEventPlayer(eventName, candidates) {
-  if(!eventName || !candidates || !candidates.length) return null;
-  // Tam eşleşme
-  let m = candidates.find(r => r.name === eventName);
-  if(m) return m;
-  // Kısaltılmış eşleşme
-  m = candidates.find(r => shortenPlayerName(r.name) === eventName);
-  if(m) return m;
-  // Soyad eşleşme (son kelime)
-  const evLast = eventName.split(' ').pop();
-  m = candidates.find(r => r.name.split(' ').pop() === evLast);
-  return m || null;
-}
+// 🆕 _matchEventPlayer — eski isim eşleştirme yardımcısı, Edge function _processMatchDiscipline
+// kullanmıyor (direkt name eşleşmesi). Frontend processMatchOutcome'tan da çıkarıldı.
 
-// Maç sonu: kart/sakatlık event'lerini ROSTER_DATA'ya işle
-// userIsHome: kullanıcının takımı home tarafında mı (curHome.isUser veya isim eşleşmesi)
+// Maç sonu: oyuncu istatistiklerini güncelle (moral, stamina, ratings)
+// 🆕 Disiplin (kart/sakatlık) Edge function _processMatchDiscipline tarafından işlenir.
+// Frontend tarafında ROSTER_DATA in-memory güncellemesi gerekmiyor — bir sonraki
+// _loadTeamRosterFromServer ile yeni veri çekilir (sayfa açıldığında veya bootstrap'ta).
 function processMatchOutcome(script, userIsHome) {
   if(!script || !script.evs) return;
   if(typeof ROSTER_DATA === 'undefined' || !ROSTER_DATA.length) return;
 
-  // 🆕 Maç tipi tespit — Hazırlık ve Milli Takım maçlarında KART CEZA UYGULANMAZ
-  // (sahadan atılır ama sezon sayacına eklenmez, ceza verilmez)
-  // ANCAK: Sakatlık her durumda kaydedilir (gerçek fiziksel hasar)
-  const isFriendly = !!(typeof MS !== 'undefined' && MS && MS._isFriendly);
-  const isNationalTeam = !!(typeof MS !== 'undefined' && MS && (
-    (MS._fixtureRef && MS._fixtureRef.tournament_key === 'enc') ||
-    (MS.tournament_key === 'enc') ||
-    (MS._isNationalTeam === true)
-  ));
-  const skipDiscipline = isFriendly || isNationalTeam;
-
-  // 1) Mevcut süspansiyonları azalt (oyuncu bu RESMİ maçı kaçırmış sayılır)
-  //    Hazırlık/Milli takım maçında ceza azalmaz (resmi maç sayılmaz)
-  if (!skipDiscipline) {
-    ROSTER_DATA.forEach(p => {
-      if((p.suspendMatches || 0) > 0) {
-        p.suspendMatches = Math.max(0, p.suspendMatches - 1);
-        if(p.suspendMatches === 0) p.suspendReason = null;
-      }
-    });
-  }
-
-  // 🆕 Hazırlık veya milli takım → KART ve SÜSPANSIYON atlanır
-  //     ANCAK SAKATLIK gerçek fiziksel hasardır, uygulanır.
-  //     (Gerçek futbolda da hazırlık maçında sakatlanan oyuncu gerçekten sakatlanır)
-  if (skipDiscipline) {
-    console.info('[discipline] ' + (isFriendly ? 'Hazırlık' : 'Milli Takım') + ' maçı — kart/ceza atlandı, sakatlık uygulanıyor');
-    // Sakatlık event'leri için top11 (sahaya çıkan 11) gerekli — _matchEventPlayer fallback için
-    const eligible = ROSTER_DATA.filter(p => !isPlayerSuspended(p) && !isPlayerInjured(p));
-    const top11 = eligible.sort((a,b) => (b.overall||0) - (a.overall||0)).slice(0, 11);
-    const userSide = userIsHome ? 'home' : 'away';
-    const userEvs = script.evs.filter(e => e.team === userSide);
-    // SAKATLIKLAR — uygulanır (kart aksine, fiziksel)
-    userEvs.filter(e => e.type === 'injury').forEach(ev => {
-      let p = _matchEventPlayer(ev.player, top11);
-      if (!p && top11.length) p = top11[Math.floor(Math.random() * top11.length)];
-      if (p) applyInjury(p, ev);
-    });
-    // Persist (sakatlık ROSTER_DATA'ya yazıldı, Supabase'e kaydet)
-    if (typeof rosterSavePersist === 'function') {
-      try { rosterSavePersist(); } catch(e) { console.warn('[discipline] persist hata:', e); }
-    }
-    // Moral/stamina güncellemesi yine çalışsın
-    if (typeof applyMatchMorale === 'function') {
-      try { applyMatchMorale(script, userIsHome); } catch(e) {}
-    }
-    if (typeof applyMatchStamina === 'function') {
-      try {
-        const userTeam = userIsHome ? curHome : curAway;
-        if (userTeam) applyMatchStamina(userTeam, script);
-      } catch(e) {}
-    }
-    return;
-  }
-
-  // 2) Sahaya çıkan en iyi 11 oyuncu (suspended/injured hariç)
-  const eligible = ROSTER_DATA.filter(p => !isPlayerSuspended(p) && !isPlayerInjured(p));
-  const top11 = eligible.sort((a,b) => (b.overall||0) - (a.overall||0)).slice(0, 11);
-
-  // 3) Kullanıcının takımının event'lerini ayır
-  const userSide = userIsHome ? 'home' : 'away';
-  const userEvs = script.evs.filter(e => e.team === userSide);
-
-  // 4) Sarı kartlar
-  userEvs.filter(e => e.type === 'yellow').forEach(ev => {
-    let p = _matchEventPlayer(ev.player, top11);
-    // Eşleşmediyse rastgele bir oyuncuya ata (top 11'den)
-    if(!p && top11.length) p = top11[Math.floor(Math.random() * top11.length)];
-    if(p) applyYellowCard(p);
-  });
-
-  // 5) Kırmızı kartlar
-  userEvs.filter(e => e.type === 'red').forEach(ev => {
-    let p = _matchEventPlayer(ev.player, top11);
-    if(!p && top11.length) p = top11[Math.floor(Math.random() * top11.length)];
-    if(p) applyRedCard(p);
-  });
-
-  // 6) Sakatlıklar
-  userEvs.filter(e => e.type === 'injury').forEach(ev => {
-    let p = _matchEventPlayer(ev.player, top11);
-    if(!p && top11.length) p = top11[Math.floor(Math.random() * top11.length)];
-    if(p) applyInjury(p, ev);
-  });
-
-  // 🆕 7) Supabase'e PERSİST — ROSTER_DATA değişiklikleri kalıcı olsun
-  //     (sayfa yenilense bile cezalar / sakatlıklar korunur)
-  if (typeof rosterSavePersist === 'function') {
-    try { rosterSavePersist(); } catch(e) { console.warn('[discipline] persist hata:', e); }
-  }
-
-  // 🆕 7b) Oyuncu morali güncelle
+  // Oyuncu morali güncelle
   if (typeof applyMatchMorale === 'function') {
-    applyMatchMorale(script, userIsHome);
+    try { applyMatchMorale(script, userIsHome); } catch(e) {}
   }
 
-  // 🆕 7c) Stamina güncelle (yorgunluk düşüşü + dinlenme)
+  // Stamina güncelle (yorgunluk düşüşü + dinlenme)
   if (typeof applyMatchStamina === 'function') {
     try {
       // İlk 11'de sahaya çıkanları al
@@ -38088,6 +37950,16 @@ function _finalizeMatch(script) {
                  || !!(typeof _userTeam !== 'undefined' && _userTeam && curAway && curAway.name === _userTeam.teamName);
       if(userInMatch && !MS._isHistorical) {
         processMatchOutcome(MS.script, userIsHome);
+        // 🆕 Edge maç bitiminde players tablosuna kart/sakatlık yazdı.
+        //   ROSTER_DATA in-memory cache'i tazeleyip yeni disiplin verisini görelim.
+        //   Asenkron — UI'yi blok etmesin.
+        try {
+          if (typeof _loadTeamRosterFromServer === 'function') {
+            _loadTeamRosterFromServer().then(() => {
+              if (typeof renderRoster === 'function') renderRoster('all');
+            }).catch(()=>{});
+          }
+        } catch(e) {}
       }
     }
   } catch(e) { console.warn('Match outcome processing failed:', e); }
