@@ -4645,6 +4645,52 @@ body:not(.team-captain):not(.team-vice) #page-team:not(.guest-mode) #team-treasu
 .salary-sum-sub{font-size:9.5px;color:var(--text3);margin-top:3px;font-weight:600}
 
 .salary-list{display:flex;flex-direction:column;gap:6px;margin-top:6px;max-height:340px;overflow-y:auto;scrollbar-width:thin}
+
+/* 🆕 Maaş ödeme takvimi — 4 taksit */
+.salary-calendar{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:6px;
+  margin:0 0 12px;
+}
+.salary-cal-cell{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:10px;padding:8px 6px;
+  text-align:center;line-height:1.3;
+  transition:all .15s;
+}
+.salary-cal-cell.salary-cal-past{
+  opacity:.55;
+  background:rgba(0,230,118,.03);border-color:rgba(0,230,118,.18);
+}
+.salary-cal-cell.salary-cal-today{
+  border-color:var(--gold);
+  background:rgba(255,213,79,.06);
+  box-shadow:0 2px 12px rgba(255,213,79,.15);
+}
+.salary-cal-cell.salary-cal-next{
+  border-color:rgba(255,176,0,.45);
+  background:rgba(255,176,0,.04);
+}
+.salary-cal-icon{font-size:16px;margin-bottom:2px;line-height:1}
+.salary-cal-no{
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:9.5px;font-weight:800;letter-spacing:.5px;
+  color:var(--text3);
+}
+.salary-cal-day{
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:13px;font-weight:900;color:var(--text);
+  margin-top:1px;
+}
+.salary-cal-date{
+  font-size:9.5px;color:var(--text2);margin-top:2px;
+}
+.salary-cal-amount{
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:11px;font-weight:800;color:var(--gold);
+  margin-top:4px;letter-spacing:.2px;
+}
+.salary-cal-cell.salary-cal-past .salary-cal-amount{color:var(--accent)}
+
 .salary-row{display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;transition:all .15s}
 .salary-row:hover{border-color:var(--accent2)}
 .salary-row.is-user{border-left:3px solid var(--accent);background:rgba(0,230,118,.04)}
@@ -23961,7 +24007,7 @@ body.drawer-open{overflow:hidden}
       <!-- 🆕 OYUNCU MAAŞLARI -->
       <div class="trs-section">
         <div class="trs-section-title">💼 Oyuncu Maaşları</div>
-        <div class="trs-section-sub">Maaşlar 2 taksitte ödenir: <b>1. taksit (sezonun 19. günü)</b> + <b>2. taksit (sezonun 38. günü)</b></div>
+        <div class="trs-section-sub">Maaşlar 4 taksitte ödenir: sezonun <b>10., 20., 30. ve 40. günleri</b>. Bot oyuncularının maaşı yoktur.</div>
 
         <div class="salary-summary">
           <div class="salary-sum-card">
@@ -23974,6 +24020,9 @@ body.drawer-open{overflow:hidden}
             <div class="salary-sum-sub" id="salaryNextDay">—</div>
           </div>
         </div>
+
+        <!-- 🆕 4 TAKSİT TAKVİMİ — sezon günü + gerçek tarih -->
+        <div class="salary-calendar" id="salaryCalendar"></div>
 
         <div class="salary-list" id="salaryList">
           <div class="trs-log-empty">Oyuncu listesi yükleniyor...</div>
@@ -43285,6 +43334,44 @@ function getPlayerContract(player, teamName) {
   if(player && player.role === 'user' && !player.isBot) {
     return { type: 'owner', label: '👑 Takım Sahibi · Kontrat Yok' };
   }
+
+  // 🆕 KULLANICININ KENDİ KONTRATI — _userTeam.contract'tan oku (gerçek tarih + sezon günü)
+  //    Bu, oyuncu kartı ile finans sayfasını senkronlar.
+  //    `player.role === 'user'` (kullanıcı kendi oyuncusu) ise üstte 'owner' döndü.
+  //    Bu blok ROSTER_DATA içinde kullanıcının kendisini (bir başkasının takım sayfasında değil)
+  //    veya kendi takımındaki kontratlı oyuncuyu kapsar — ama o "user" demek değil.
+  //    Buradaki kontrol: takım adı kullanıcının takımı + player.userId === authUser.id
+  try {
+    const uid = (player && (player.userId || player.user_id)) || null;
+    const myUid = (typeof authUser !== 'undefined' && authUser && authUser.id) || null;
+    const myTeam = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName) || null;
+    if (uid && myUid && uid === myUid && teamName && teamName === myTeam &&
+        _userTeam.contract && _userTeam.contract.endsSeason) {
+      const c = _userTeam.contract;
+      const info = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : null;
+      const isThisSeason = info && info.season === c.endsSeason;
+      // Sezon sonu tarihi (Gün 40)
+      const endDate = (typeof seasonDayToDate === 'function') ? seasonDayToDate(40) : null;
+      const dateStr = endDate
+        ? `${endDate.getUTCDate()} ${_MONTHS_TR_FULL[endDate.getUTCMonth()]} ${endDate.getUTCFullYear()}`
+        : null;
+      const label = isThisSeason
+        ? (dateStr ? `Sezon ${c.endsSeason} Sonu (Gün 40) · ${dateStr}` : `Sezon ${c.endsSeason} Sonu (Gün 40)`)
+        : `Sezon ${c.endsSeason} Sonu`;
+      // Son 5 gün → expiring
+      const daysLeft = info ? Math.max(0, 40 - (info.dayInSeason||0)) : 99;
+      return {
+        type: 'active',
+        endDate: endDate || null,
+        label,
+        expiring: isThisSeason && daysLeft <= 5,
+        monthsLeft: Math.round(daysLeft / 30),
+        contract: c  // ham sözleşme objesi (UI başka detaylar için kullanabilir)
+      };
+    }
+  } catch(e) {}
+
+  // 🤖 Bot oyuncular ve diğer kullanıcılar: seed-based label (mevcut sistem)
   const seed = _hashStr((player.name||'') + '|' + (teamName||''));
   // %12 boşta
   if((seed % 100) < 12) {
@@ -72024,19 +72111,54 @@ function trsToast(msg, color){
   setTimeout(()=>t.remove(),2500);
 }
 
-// 🆕 Oyuncu sezonluk maaşı: haftalık × 6 (sezon ~6 hafta)
-// Sezonluk ödeme 2 taksitte: 19. gün ve 38. gün — yarısı yarısı
+// 🆕 Oyuncu sezonluk maaşı — sistemce hesaplanır (bot'lara 0, kullanıcılara seviye bazlı).
+//   Sözleşmede kayıtlı seasonSalary varsa onu kullanır (kontrat aktiftir),
+//   yoksa anlık hesap yapar (UI önizleme için).
 function getPlayerSeasonWage(p){
   if(!p) return 0;
-  const weekly = (typeof getPlayerWage === 'function') ? getPlayerWage(p) : 0;
-  return Math.round(weekly * 6);
+  // Bot oyuncular: maaş yok
+  if (p.isBot) return 0;
+  if (!p.userId && !p.user_id) return 0;
+  // Kullanıcı oyuncu (kendisi): kontrat varsa kontrattaki maaş
+  if (p.role === 'user' && _userTeam && _userTeam.contract) {
+    const c = _userTeam.contract;
+    return Number(c.seasonSalary || c.yearlySalary || 0);
+  }
+  // Diğer kullanıcı oyuncuları (takım arkadaşı): sistemce hesapla (preview)
+  if (typeof getSystemPlayerSalary === 'function') {
+    return getSystemPlayerSalary(p);
+  }
+  return 0;
 }
+
 function getTeamSeasonWageBill(){
   if(typeof ROSTER_DATA === 'undefined' || !ROSTER_DATA.length) return 0;
   return ROSTER_DATA.reduce((s,p) => s + getPlayerSeasonWage(p), 0);
 }
 
-// 🆕 Finans sayfası maaş paneli render
+// 🆕 Sezon gününü gerçek tarihe çevir
+//   seasonStart + (day-1) gün → Date objesi
+function seasonDayToDate(day) {
+  try {
+    const info = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : null;
+    if (!info || !info.seasonStart) return null;
+    const d = new Date(info.seasonStart);
+    d.setUTCDate(d.getUTCDate() + (day - 1));
+    return d;
+  } catch(e) { return null; }
+}
+
+// Kısa tarih formatı: "5 Tem"
+function _fmtShortDate(d) {
+  if (!d) return '—';
+  const months = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+  return `${d.getUTCDate()} ${months[d.getUTCMonth()]}`;
+}
+
+// Maaş ödeme günleri (sistem sabiti — Edge ile aynı)
+const SALARY_PAY_DAYS = [10, 20, 30, 40];
+
+// 🆕 Finans sayfası maaş paneli render — 4 taksit + gerçek tarih
 function renderSalaryPanel(){
   const list = document.getElementById('salaryList');
   const totalEl = document.getElementById('salaryTotalSeason');
@@ -72052,9 +72174,9 @@ function renderSalaryPanel(){
     return;
   }
 
-  // Sezonluk toplam
+  // Sezonluk toplam (sadece kullanıcı oyuncular)
   const totalSeason = getTeamSeasonWageBill();
-  const halfBill = Math.round(totalSeason / 2);
+  const taksit = Math.round(totalSeason / 4);
   if(totalEl) totalEl.textContent = totalSeason.toLocaleString('tr') + ' €';
 
   // Sonraki taksit (sezon gününe göre)
@@ -72065,21 +72187,45 @@ function renderSalaryPanel(){
       dayInSeason = info.dayInSeason || 1;
     }
   } catch(e){}
-  const SEASON_LEN = 38;
-  let nextLbl, nextDay;
-  if(dayInSeason < 19){
-    nextLbl = '1. TAKSİT (19. GÜN)';
-    nextDay = `${19 - dayInSeason} gün sonra`;
-  } else if(dayInSeason < 38){
-    nextLbl = '2. TAKSİT (38. GÜN)';
-    nextDay = `${38 - dayInSeason} gün sonra`;
+
+  // Sıradaki ödeme günü
+  const nextPayDay = SALARY_PAY_DAYS.find(d => d >= dayInSeason);
+  if (nextPayDay) {
+    const idx = SALARY_PAY_DAYS.indexOf(nextPayDay) + 1; // 1-4
+    const realDate = seasonDayToDate(nextPayDay);
+    const daysLeft = nextPayDay - dayInSeason;
+    if(nextLblEl) nextLblEl.textContent = `${idx}/4 TAKSİT (GÜN ${nextPayDay})`;
+    if(nextAmtEl) nextAmtEl.textContent = taksit.toLocaleString('tr') + ' €';
+    if(nextDayEl) {
+      const dateStr = realDate ? ` · ${_fmtShortDate(realDate)}` : '';
+      nextDayEl.textContent = daysLeft === 0 ? `Bugün${dateStr}` : `${daysLeft} gün sonra${dateStr}`;
+    }
   } else {
-    nextLbl = 'SEZON BİTTİ';
-    nextDay = 'Yeni sezon başlayacak';
+    if(nextLblEl) nextLblEl.textContent = 'SEZON BİTTİ';
+    if(nextAmtEl) nextAmtEl.textContent = '—';
+    if(nextDayEl) nextDayEl.textContent = 'Yeni sezon başlayacak';
   }
-  if(nextLblEl) nextLblEl.textContent = nextLbl;
-  if(nextAmtEl) nextAmtEl.textContent = halfBill.toLocaleString('tr') + ' €';
-  if(nextDayEl) nextDayEl.textContent = nextDay;
+
+  // 🆕 Maaş ödeme takvimi — 4 taksit (sezon günü + gerçek tarih)
+  const calEl = document.getElementById('salaryCalendar');
+  if (calEl) {
+    calEl.innerHTML = SALARY_PAY_DAYS.map((d, i) => {
+      const realDate = seasonDayToDate(d);
+      const dateStr = realDate ? _fmtShortDate(realDate) : '—';
+      const isPast = d < dayInSeason;
+      const isToday = d === dayInSeason;
+      const isNext = d === nextPayDay && !isToday;
+      const cls = isPast ? 'salary-cal-past' : (isToday ? 'salary-cal-today' : (isNext ? 'salary-cal-next' : ''));
+      const icon = isPast ? '✅' : (isToday ? '💰' : (isNext ? '⏳' : '📅'));
+      return `<div class="salary-cal-cell ${cls}">
+        <div class="salary-cal-icon">${icon}</div>
+        <div class="salary-cal-no">${i+1}/4</div>
+        <div class="salary-cal-day">Gün ${d}</div>
+        <div class="salary-cal-date">${dateStr}</div>
+        <div class="salary-cal-amount">${taksit.toLocaleString('tr')} €</div>
+      </div>`;
+    }).join('');
+  }
 
   // Pozisyon rengi (saha ile uyum)
   const _posColor = (pos) => {
@@ -72087,25 +72233,34 @@ function renderSalaryPanel(){
     return {bg:'#37474f', tc:'#b0bec5'};
   };
 
-  // Oyuncu listesi (overall'a göre büyükten küçüğe)
-  const sorted = [...ROSTER_DATA].sort((a,b) => (b.overall||0) - (a.overall||0));
+  // Oyuncu listesi — sadece maaş alanlar (kullanıcılar) önce, sonra bot'lar (0€)
+  const sorted = [...ROSTER_DATA].sort((a,b) => {
+    const wa = getPlayerSeasonWage(a);
+    const wb = getPlayerSeasonWage(b);
+    if (wa !== wb) return wb - wa;  // maaş yüksek olan önce
+    return (b.overall||0) - (a.overall||0);
+  });
+
   list.innerHTML = sorted.map(p => {
     const seasonWage = getPlayerSeasonWage(p);
-    const halfWage = Math.round(seasonWage / 2);
+    const installment = Math.round(seasonWage / 4);
     const isUser = p.role === 'user';
+    const isBot = p.isBot;
     const pos = (p.pos || '').toUpperCase();
     const c = _posColor(pos);
     const displayName = (p.name || '').replace(/^Bot_/, '').split('_').pop() || p.name || 'Oyuncu';
+    const wageStr = seasonWage > 0
+      ? `<div class="salary-row-season">${seasonWage.toLocaleString('tr')} €</div>
+         <div class="salary-row-tax">4× ${installment.toLocaleString('tr')} €</div>`
+      : `<div class="salary-row-season" style="color:var(--text3)">Ücretsiz</div>
+         <div class="salary-row-tax" style="color:var(--text3)">${isBot?'(bot)':'(maaşsız)'}</div>`;
     return `<div class="salary-row ${isUser?'is-user':''}">
       <div class="salary-row-num">#${p.num||'-'}</div>
       <div class="salary-row-info">
         <div class="salary-row-name">${displayName}${isUser?' ★':''}</div>
         <div class="salary-row-meta"><span class="salary-row-pos" style="background:${c.bg};color:${c.tc}">${pos}</span>Yetenek ${p.overall||50}</div>
       </div>
-      <div class="salary-row-amount">
-        <div class="salary-row-season">${seasonWage.toLocaleString('tr')} €</div>
-        <div class="salary-row-tax">2× ${halfWage.toLocaleString('tr')} €</div>
-      </div>
+      <div class="salary-row-amount">${wageStr}</div>
     </div>`;
   }).join('');
 }
