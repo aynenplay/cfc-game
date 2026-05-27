@@ -33392,6 +33392,7 @@ function openMatchScreenV2(opts) {
   // 🆕 İZLEYİCİ BEAT — match-screen açıldıktan sonra her 15sn beat at.
   //   match_key opts.matchKey'den veya MS.match_key'den okunur.
   //   Edge action=viewer_beat → match_viewers tablosu + viewer_count günceller.
+  //   Response içinde 'viewers' (kullanıcı listesi) gelir — modal için cache'lenir.
   try {
     if (window._viewerBeatTimer) {
       clearInterval(window._viewerBeatTimer);
@@ -33402,7 +33403,14 @@ function openMatchScreenV2(opts) {
     if (_beatMatchKey && window.authUser && window.authUser.id &&
         typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_KEY !== 'undefined') {
       window._viewerBeatMatchKey = _beatMatchKey;
-      if (_badgeEl) _badgeEl.classList.add('is-visible');
+      if (_badgeEl) {
+        _badgeEl.classList.add('is-visible');
+        // Tıklanabilir — listeyi modal'da göster
+        _badgeEl.style.cursor = 'pointer';
+        _badgeEl.onclick = () => {
+          if (typeof showViewersModal === 'function') showViewersModal();
+        };
+      }
       const _doBeat = () => {
         const mk = window._viewerBeatMatchKey;
         if (!mk) return;
@@ -33413,6 +33421,14 @@ function openMatchScreenV2(opts) {
             if (d && typeof d.viewer_count === 'number') {
               const el = document.getElementById('msViewerCount');
               if (el) el.textContent = d.viewer_count;
+            }
+            // 🆕 İzleyici listesini cache'le (modal için)
+            if (d && Array.isArray(d.viewers)) {
+              window._viewersListCache = d.viewers;
+              // Modal açıksa anında refresh et
+              if (document.getElementById('viewersModal')) {
+                _renderViewersModalList();
+              }
             }
           }).catch(() => {});
       };
@@ -34458,6 +34474,15 @@ function closeMatchScreen(){
   // İzleyici modu işaretini temizle
   if (typeof MS !== 'undefined' && MS) {
     MS._spectatorMode = false;
+    // 🆕 Sonraki maça karışmasın diye event/goal cache state'lerini de temizle
+    MS._notifiedGoals = null;
+    MS._renderedEventKeys = null;
+    MS._serverSimMin = 0;
+    MS._matchStartedAt = null;
+    MS._displayMin = 0;
+    MS._htShown = false;
+    MS._evDebugLogged = false;
+    MS.match_key = null;
   }
   // Maç sonu overlay'i kapat
   const ov = document.getElementById('match-result-overlay');
@@ -35754,6 +35779,23 @@ async function startMatch(){
         return;
       }
     }
+
+    // 🆕 SERVER SİNK — matchClock asla server sim_minute'tan ileri gitmesin.
+    //   Aynı zamanda server geride kalmışsa smoothing kademeli yakalansın
+    //   (max +1 dk farkına izin ver — server poll gecikmesi için tolerans).
+    //   serverSim'i MS.script.serverSim'den oku (poll'da güncellenir).
+    const serverSim = MS._serverSimMin || 0;
+    if (serverSim > 0) {
+      // Devre arası dışında: server'ı geçemez
+      if (!isHalftime && displayMin > serverSim) {
+        displayMin = serverSim;
+      }
+      // Server bizden 2+ dakika ileride ise: kademeli yakalama (anti-jitter)
+      // Smoothing'i server'ın 1 dakika gerisinde tut, sonra normal hıza dön
+      if (!isHalftime && displayMin < serverSim - 1) {
+        displayMin = serverSim - 1;
+      }
+    }
     
     // UI güncelle (sadece değişiklik varsa, gereksiz reflow olmasın)
     if (isHalftime) {
@@ -35849,6 +35891,10 @@ async function startMatch(){
         if (liveRow.started_at && !MS._matchStartedAt) {
           MS._matchStartedAt = new Date(liveRow.started_at).getTime();
         }
+        // 🆕 Server sim_minute → smoothing timer'a feed (clamp + kademeli yakalama için)
+        if (typeof liveRow.sim_minute === 'number') {
+          MS._serverSimMin = liveRow.sim_minute;
+        }
         // 🆕 Crest logoları: henüz uygulanmamışsa storage'den çek
         if (typeof applyCrestToEl === 'function') {
           const _hcEl = document.getElementById('homeCrest');
@@ -35916,13 +35962,19 @@ async function startMatch(){
           // 🆕 GOL ANLIK BİLDİRİM: Filter visibleMin'i bekleme — gol Edge Function'da min:X
           //   ile yazıldığı an, smoothing 250ms timer henüz X'e ulaşmamış olsa bile banner göster.
           //   Bu sayede gol gerçek zamanlı hissedilir.
+          // 🆕 İLK POLL'DA banner ÇAKIŞMAYI ÖNLE: izleyici maç ortasında girdiyse mevcut
+          //   tüm goller _notifiedGoals'a sessizce eklenir (banner gösterilmez).
+          //   Yeni goller (poll'dan sonra Edge'in eklediği) sadece bunlar banner çıkarır.
+          const _isFirstGoalScan = !MS._notifiedGoals;
           MS._notifiedGoals = MS._notifiedGoals || new Set();
           for (const ev of allEvents) {
             if (!ev || (ev.type || '').toLowerCase() !== 'goal') continue;
             const _gkey = `${ev.min || ev.minute || 0}|${ev.team || ''}|${ev.player || ''}`;
             if (MS._notifiedGoals.has(_gkey)) continue;
             MS._notifiedGoals.add(_gkey);
-            // Anlık banner (skor visibleMin geldiğinde otomatik güncellenir, çifte sayım yok)
+            // İlk tarama: sessizce kaydet, banner gösterme (geçmiş goller)
+            if (_isFirstGoalScan) continue;
+            // Sonraki tarama: gerçekten yeni gol — banner göster
             if (typeof showGoal === 'function') {
               try { showGoal(ev.player || 'Oyuncu', Math.floor(ev.min || ev.minute || 0)); } catch(e) {}
             }
@@ -36012,9 +36064,11 @@ async function startMatch(){
                 const mb = (b.min !== undefined ? b.min : (b.minute || 0));
                 return ma - mb;
               });
-              // 🆕 İLK RENDER (set boş + çok olay var) — BULK render, animasyon tetiklenmesin
+              // 🆕 İLK RENDER (set boş) — BULK render, animasyon tetiklenmesin
               // (kullanıcı maç ortasında ekrana girdi, mevcut tüm olaylar bir kerede görünmeli)
-              const isInitialBulkLoad = (MS._renderedEventKeys.size === 0 && newEvents.length > 3);
+              // Eşiği 1'e indirdik: set boş + 2+ olay = bulk. Maç ortasında giren izleyici
+              // 60 dakikalık olayları arka arkaya slide-in olarak görmesin (görsel kaos).
+              const isInitialBulkLoad = (MS._renderedEventKeys.size === 0 && newEvents.length >= 2);
               if (isInitialBulkLoad) {
                 // En yeni üstte (reverse) — innerHTML ile tek seferde yaz
                 evList.innerHTML = newEvents.slice().reverse().map(ev => _evHtml(ev)).join('');
@@ -52509,6 +52563,130 @@ function showOnlinePlayersModal() {
 // Sayfa açılışında ilk fetch + 60sn'de bir tekrar (heartbeat + sayaç tazeleme)
 setTimeout(() => { fetchOnlineStats(); pingLastSeen(); }, 5000);
 setInterval(() => { fetchOnlineStats(); pingLastSeen(); }, 60000);
+
+// 🆕 ═══════════════════════════════════════════════════════════════════
+// MAÇ İZLEYİCİLERİ MODALI
+// Online players modal ile aynı tasarım, _viewersListCache'ten beslenir.
+// Beat her 15sn'de çalışır → cache otomatik güncel kalır.
+// ═══════════════════════════════════════════════════════════════════
+function showViewersModal() {
+  const existing = document.getElementById('viewersModal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'viewersModal';
+  modal.innerHTML = `
+    <style>
+      #viewersModal{position:fixed;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(4px);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;animation:vwmFadeIn .2s ease}
+      @keyframes vwmFadeIn{from{opacity:0}to{opacity:1}}
+      .vwm-box{background:linear-gradient(180deg,#1a1f2e 0%,#0f1320 100%);border-radius:16px;max-width:440px;width:100%;max-height:82vh;display:flex;flex-direction:column;border:1px solid #2a3349;box-shadow:0 20px 60px rgba(0,0,0,.6),0 0 0 1px rgba(80,140,255,.08) inset;overflow:hidden}
+      .vwm-header{position:relative;padding:18px 18px 14px;background:linear-gradient(135deg,rgba(80,140,255,.12),rgba(0,176,255,.08));border-bottom:1px solid rgba(255,255,255,.06)}
+      .vwm-title{font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;letter-spacing:1px;color:#fff;text-transform:uppercase;display:flex;align-items:center;gap:10px}
+      .vwm-title-eye{font-size:18px;animation:vwmEyeBlink 3.5s ease-in-out infinite}
+      @keyframes vwmEyeBlink{0%,92%,100%{opacity:1;transform:scale(1)}95%{opacity:.3;transform:scale(.85)}97%{opacity:1;transform:scale(1.05)}}
+      .vwm-subtitle{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:#7eb4ff;letter-spacing:.5px;margin-top:2px;font-weight:700}
+      .vwm-close{position:absolute;top:14px;right:14px;background:rgba(255,255,255,.06);border:none;color:#fff;width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;transition:all .2s}
+      .vwm-close:hover{background:rgba(255,255,255,.14);transform:rotate(90deg)}
+      .vwm-list{overflow-y:auto;flex:1;padding:8px 8px 12px}
+      .vwm-list::-webkit-scrollbar{width:6px}
+      .vwm-list::-webkit-scrollbar-thumb{background:#2a3349;border-radius:3px}
+      .vwm-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;margin:4px 4px;transition:background .15s;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04)}
+      .vwm-row:hover{background:rgba(80,140,255,.06);border-color:rgba(80,140,255,.18)}
+      .vwm-row.is-me{background:rgba(255,214,0,.08);border-color:rgba(255,214,0,.25)}
+      .vwm-avatar-wrap{position:relative;flex-shrink:0}
+      .vwm-avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#1e293b,#0f172a);display:flex;align-items:center;justify-content:center;font-size:22px;border:2px solid #2a3349;overflow:hidden}
+      .vwm-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+      .vwm-dot{position:absolute;bottom:0;right:0;width:12px;height:12px;border-radius:50%;background:#7eb4ff;border:2px solid #0f1320;box-shadow:0 0 8px rgba(80,140,255,.7)}
+      .vwm-info{flex:1;min-width:0}
+      .vwm-top{display:flex;align-items:center;gap:6px;margin-bottom:3px}
+      .vwm-flag{font-size:16px;flex-shrink:0}
+      .vwm-name{font-weight:700;color:#fff;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+      .vwm-bottom{display:flex;align-items:center;gap:8px;font-size:12px}
+      .vwm-team{font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.4px;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .vwm-uname{color:#7eb4ff;font-size:11px;font-weight:600}
+      .vwm-me-tag{background:#ffd600;color:#000;font-size:9px;font-weight:800;padding:2px 5px;border-radius:3px;letter-spacing:.4px}
+    </style>
+    <div class="vwm-box">
+      <div class="vwm-header">
+        <div class="vwm-title"><span class="vwm-title-eye">👁️</span>İzleyiciler</div>
+        <div class="vwm-subtitle" id="vwmSubtitle">— maçı izliyor</div>
+        <button class="vwm-close" id="viewersModalClose">✕</button>
+      </div>
+      <div class="vwm-list" id="vwmList"></div>
+    </div>`;
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+  modal.querySelector('#viewersModalClose').addEventListener('click', () => modal.remove());
+  document.body.appendChild(modal);
+  _renderViewersModalList();
+}
+
+// İzleyici listesi render (modal açıkken beat geldiğinde de çağrılır)
+function _renderViewersModalList() {
+  const listEl = document.getElementById('vwmList');
+  const subEl = document.getElementById('vwmSubtitle');
+  if (!listEl) return;
+  const list = Array.isArray(window._viewersListCache) ? window._viewersListCache : [];
+  const myId = (window.authUser && window.authUser.id) || null;
+
+  if (subEl) {
+    subEl.textContent = list.length === 0
+      ? '— maçı izleyen yok'
+      : `${list.length} kişi maçı izliyor`;
+  }
+
+  function avatarHtml(p) {
+    if (typeof getAvatarEmoji === 'function') {
+      return getAvatarEmoji(p.avatar_id, p.position);
+    }
+    return '🧑';
+  }
+  function posBadge(pos) {
+    if (!pos) return '';
+    const colors = { GK:'#f59e0b', DEF:'#3b82f6', MID:'#22c55e', FWD:'#ef4444' };
+    const c = colors[pos] || '#888';
+    return `<span style="background:${c};color:#fff;font-size:9px;font-weight:800;padding:2px 5px;border-radius:3px;letter-spacing:.4px">${pos}</span>`;
+  }
+
+  if (list.length === 0) {
+    listEl.innerHTML = `<div style="text-align:center;padding:40px 20px;color:#666">
+      <div style="font-size:36px;opacity:.4;margin-bottom:8px">👁️</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;letter-spacing:.5px">HENÜZ KİMSE İZLEMİYOR</div>
+    </div>`;
+    return;
+  }
+
+  // Beni en üste taşı, diğerleri sırayla
+  const sorted = list.slice().sort((a, b) => {
+    if (myId && a.user_id === myId) return -1;
+    if (myId && b.user_id === myId) return 1;
+    return 0;
+  });
+
+  listEl.innerHTML = sorted.map(p => {
+    const isMe = myId && p.user_id === myId;
+    const team = p.team_name || 'SERBEST';
+    const teamColor = p.team_name ? '#fff' : '#ff6d00';
+    const uname = p.username ? `@${p.username}` : '';
+    return `<div class="vwm-row ${isMe ? 'is-me' : ''}">
+      <div class="vwm-avatar-wrap">
+        <div class="vwm-avatar">${avatarHtml(p)}</div>
+        <span class="vwm-dot"></span>
+      </div>
+      <div class="vwm-info">
+        <div class="vwm-top">
+          <span class="vwm-flag">${p.nation || '🏳️'}</span>
+          <span class="vwm-name">${p.name || 'Oyuncu'}</span>
+          ${isMe ? '<span class="vwm-me-tag">SEN</span>' : ''}
+          ${posBadge(p.position)}
+        </div>
+        <div class="vwm-bottom">
+          <span class="vwm-team" style="color:${teamColor}">${team}</span>
+          ${uname ? `<span class="vwm-uname">${uname}</span>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
 
 // Online sayım pill'ine tıklanınca modal aç
 document.addEventListener('click', (e) => {
