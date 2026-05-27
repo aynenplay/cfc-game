@@ -2009,6 +2009,37 @@ select.form-input option{background:var(--bg)}
 .sb-ft{background:rgba(255,255,255,.06);color:rgba(180,200,240,.7);border:1px solid rgba(255,255,255,.1)}
 .sb-pre{background:linear-gradient(135deg,rgba(80,140,255,.2),rgba(40,90,200,.15));color:#7eb4ff;border:1px solid rgba(80,140,255,.35)}
 
+/* 🆕 İzleyici sayacı (canlı maç) */
+.viewer-badge{
+  display:none;
+  align-items:center;
+  gap:4px;
+  margin-top:4px;
+  padding:2px 8px;
+  border-radius:10px;
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.1);
+  font-size:10px;
+  color:rgba(180,200,240,.85);
+  font-family:'Barlow Condensed',sans-serif;
+  letter-spacing:.4px;
+}
+.viewer-badge.is-visible{display:inline-flex}
+.viewer-eye{
+  font-size:11px;
+  animation:viewerEyeBlink 3.5s ease-in-out infinite;
+}
+@keyframes viewerEyeBlink{
+  0%, 92%, 100% { opacity:1; transform:scale(1); }
+  95% { opacity:.3; transform:scale(.85); }
+  97% { opacity:1; transform:scale(1.05); }
+}
+.viewer-count{
+  font-weight:700;
+  color:#fff;
+  font-variant-numeric:tabular-nums;
+}
+
 /* possession — PL style ince */
 .poss-wrap{padding:0 14px 8px;background:linear-gradient(180deg,#0e1a36 0%,#0a1430 100%)}
 .poss-labels{display:flex;justify-content:space-between;align-items:center;font-size:10px;color:rgba(180,200,240,.7);margin-bottom:4px}
@@ -8185,6 +8216,50 @@ body.team-captain .pr-mv.is-custom:hover{color:#ffe082}
   background:rgba(239,83,80,.15);
   color:#ef5350;
   border-color:#ef5350;
+}
+/* 🆕 Maçı İzle butonu — hareketli TV emoji */
+.res-lm-watch{
+  margin-left:auto;
+  margin-right:8px;
+  background:linear-gradient(135deg, rgba(52,211,153,.18), rgba(16,185,129,.12));
+  border:1px solid rgba(52,211,153,.4);
+  border-radius:18px;
+  padding:5px 12px 5px 8px;
+  color:#34d399;
+  font-size:12px;font-weight:700;
+  cursor:pointer;
+  display:flex;align-items:center;gap:6px;
+  transition:all .2s;
+  font-family:inherit;
+}
+.res-lm-watch:hover{
+  background:linear-gradient(135deg, rgba(52,211,153,.28), rgba(16,185,129,.2));
+  border-color:#34d399;
+  color:#fff;
+  transform:translateY(-1px);
+  box-shadow:0 4px 12px rgba(52,211,153,.25);
+}
+.res-lm-watch:active{transform:translateY(0)}
+.res-lm-watch-icon{
+  font-size:16px;
+  display:inline-block;
+  animation:resLmTvWiggle 1.6s ease-in-out infinite;
+  transform-origin:center;
+}
+@keyframes resLmTvWiggle{
+  0%, 100% { transform:scale(1) rotate(0deg); }
+  20% { transform:scale(1.15) rotate(-8deg); }
+  40% { transform:scale(1.1) rotate(8deg); }
+  60% { transform:scale(1.15) rotate(-4deg); }
+  80% { transform:scale(1.05) rotate(2deg); }
+}
+.res-lm-watch-label{
+  white-space:nowrap;
+  letter-spacing:.3px;
+}
+@media (max-width:380px){
+  .res-lm-watch-label{ display:none; }
+  .res-lm-watch{ padding:5px 9px; }
 }
 .res-lm-comp{
   text-align:center;
@@ -21950,6 +22025,11 @@ body.drawer-open{overflow:hidden}
           <span class="score-a" id="scoreA">0</span>
         </div>
         <div class="status-badge sb-pre" id="statusBadge">⏳ Başlamadı</div>
+        <!-- 🆕 İzleyici sayısı (canlı maç) -->
+        <div class="viewer-badge" id="msViewerBadge" title="Canlı izleyici sayısı">
+          <span class="viewer-eye">👁️</span>
+          <span class="viewer-count" id="msViewerCount">0</span>
+        </div>
       </div>
       <div class="team-block">
         <div class="team-crest c2" id="awayCrest">—</div>
@@ -25319,6 +25399,11 @@ body.drawer-open{overflow:hidden}
             <span class="res-lm-live-dot"></span>
             CANLI YAYIN
           </div>
+          <!-- 🆕 Maçı İzle (izleyici modunda match-screen aç) -->
+          <button class="res-lm-watch" onclick="resLmOpenFullScreen()" aria-label="Maçı İzle" title="Maçı tam ekranda izle">
+            <span class="res-lm-watch-icon">📺</span>
+            <span class="res-lm-watch-label">Maçı İzle</span>
+          </button>
           <button class="res-lm-close" onclick="resCloseLiveMatch()" aria-label="Kapat">✕</button>
         </div>
         <div class="res-lm-comp" id="resLmComp">—</div>
@@ -27496,6 +27581,32 @@ function _buildUserMatchSquadFromCurrent() {
       role: p.role || ''
     };
   });
+}
+
+// 🆕 İzleyici modu: sunucu (match_state) lineup'ından squad obje üret.
+// Uydurma kadro üretmek yerine Edge'in yazdığı gerçek lineup'ı doğrudan kullanır.
+// serverLineup yapısı: { players: [{num,name,pos,...}], bench: [...], name, countryCode }
+function _buildSquadFromServerLineup(teamData, serverLineup, isHome) {
+  const lineupPlayers = Array.isArray(serverLineup && serverLineup.players) ? serverLineup.players : [];
+  const players = lineupPlayers.map((p, i) => ({
+    num:    p.num || (i + 1),
+    name:   p.name || ('Player ' + (i + 1)),
+    pos:    p.pos || 'MID',
+    rating: p.rating || p.overall || 60,
+    level:  p.level || 0,
+    overall: p.overall || p.rating || 60,
+    abilities: p.abilities || null,
+    matchRating: typeof p.matchRating === 'number' ? p.matchRating : undefined,
+    isUser: false,  // izleyici modu — kimse "user" değil
+    x: p.x, y: p.y,
+  }));
+  return {
+    id:     isHome ? 'home' : 'away',
+    name:   teamData.name,
+    short:  teamData.short || (teamData.name || '').slice(0, 3).toUpperCase(),
+    rating: (typeof calcTeamPowerAverage === 'function') ? calcTeamPowerAverage(players) : 60,
+    players,
+  };
 }
 
 function generateMatchSquad(teamData, isHome, seed) {
@@ -31651,6 +31762,91 @@ function resCloseLiveMatch() {
   window._resLiveModalAutoClose = false;
 }
 
+// 🆕 MAÇI İZLE — Mini overlay'ı kapat, izleyici modunda match-screen aç.
+// Sunucu lineup'ını kullanır (uydurma kadro yok), kontroller kapalıdır.
+async function resLmOpenFullScreen() {
+  const m = window._resLiveMatchData;
+  if (!m) {
+    if (typeof showToast === 'function') showToast('Maç verisi bulunamadı');
+    return;
+  }
+  // match_key — _resLiveMatchData'da yoksa _liveMatchCache'ten ara
+  let matchKey = m.matchKey || m.match_key || null;
+  if (!matchKey && typeof _liveMatchCache === 'object' && _liveMatchCache) {
+    const found = Object.values(_liveMatchCache).find(r =>
+      r && r.home_team === m.home && r.away_team === m.away
+    );
+    if (found) matchKey = found.match_key;
+  }
+  if (!matchKey) {
+    if (typeof showToast === 'function') showToast('Maç anahtarı bulunamadı');
+    return;
+  }
+
+  // Sunucu lineup'ını çek (uydurma kadro üretme, gerçek match_state'i kullan)
+  let serverRow = null;
+  try {
+    if (window.sb) {
+      const { data } = await window.sb.from('match_state')
+        .select('match_key,home_team,away_team,country_code,tier,league_name,home_score,away_score,status,sim_minute,started_at,kickoff_at,events,home_lineup,away_lineup,tournament_key,tournament_phase,viewer_count')
+        .eq('match_key', matchKey)
+        .maybeSingle();
+      serverRow = data || null;
+    }
+  } catch(e) { console.warn('[resLmOpenFullScreen] match_state çek hata:', e); }
+
+  if (!serverRow) {
+    if (typeof showToast === 'function') showToast('Maç sunucuda bulunamadı');
+    return;
+  }
+
+  // İzleyici modu işareti — initTacticControls bunu kullanır
+  if (typeof MS !== 'undefined' && MS) {
+    MS._spectatorMode = true;
+    MS._matchActive = false;
+    MS.match_key = matchKey;
+  }
+  window._spectatorMatchKey = matchKey;
+
+  // Mini overlay'ı kapat
+  resCloseLiveMatch();
+
+  // Match-screen'i aç — skipPreview, kickoff zaten geçti
+  const hClass = 'c1', aClass = 'c2';
+  const league = m.leagueName || serverRow.league_name || 'Maç';
+  const venue = (m.home || serverRow.home_team) + ' Stadyumu';
+  const kickoffMs = serverRow.kickoff_at ? new Date(serverRow.kickoff_at).getTime() : Date.now();
+
+  if (typeof openMatchScreenV2 === 'function') {
+    // Sunucu lineup'ından home/away data inşa et
+    const homeData = {
+      name: serverRow.home_team,
+      short: (m.homeShort) || (serverRow.home_team || '').slice(0,3).toUpperCase(),
+      rating: 74,
+      countryCode: serverRow.country_code || 'TR',
+      _serverLineup: serverRow.home_lineup || null,
+    };
+    const awayData = {
+      name: serverRow.away_team,
+      short: (m.awayShort) || (serverRow.away_team || '').slice(0,3).toUpperCase(),
+      rating: 74,
+      countryCode: serverRow.country_code || 'TR',
+      _serverLineup: serverRow.away_lineup || null,
+    };
+    openMatchScreenV2({
+      home: homeData,
+      away: awayData,
+      league,
+      venue,
+      hClass, aClass,
+      kickoff: kickoffMs,
+      skipPreview: true,    // 🆕 maç çoktan başlamış, preview gösterme
+      spectator: true,      // 🆕 izleyici modu
+      matchKey: matchKey,
+    });
+  }
+}
+
 // 🆕 BİTEN MAÇ MODALI — beyaz tema, skor + goller + maçın adamı
 async function resOpenFinishedMatch(matchKey) {
   // Modal'ı body'ye taşı (page kapalıyken de görünür olsun)
@@ -33066,6 +33262,18 @@ function openMatchScreenV2(opts) {
   // Reset state
   MS = { running:false, minute:0, scoreH:0, scoreA:0, speed:1, script:null, finished:false };
 
+  // 🆕 İZLEYİCİ MODU — opts.spectator true ise:
+  //   • Maç ekranı kontrolleri pasif (initTacticControls bunu okur)
+  //   • Match_key ile sunucu lineup'ı kullanılır (uydurma kadro yok)
+  //   • Skipreview otomatik (maç çoktan başlamış)
+  if (opts.spectator) {
+    MS._spectatorMode = true;
+    MS.match_key = opts.matchKey || null;
+  }
+  if (opts.matchKey) {
+    MS.match_key = opts.matchKey;
+  }
+
   // 🆕 SERVER-TIME: Maç kickoff zamanı (Date veya ms olarak gelebilir)
   // Hedef: maç saat geldiğinde başlar, elle başlatılamaz, bitmişse izlenemez,
   //        izlemeden çıkıp dönünce kalan dakikadan devam eder.
@@ -33083,10 +33291,15 @@ function openMatchScreenV2(opts) {
     delete window._pendingLiveStartMin;
   }
 
-  // Squad üret (her iki takım için)
-  const matchSeed = `${home.name}-${away.name}-${league}`;
-  curHome = generateMatchSquad(home, true,  matchSeed + '-H');
-  curAway = generateMatchSquad(away, false, matchSeed + '-A');
+  // 🆕 Squad üret — izleyici modunda SUNUCU lineup'ı kullan (uydurma yok)
+  if (opts.spectator && home._serverLineup && away._serverLineup) {
+    curHome = _buildSquadFromServerLineup(home, home._serverLineup, true);
+    curAway = _buildSquadFromServerLineup(away, away._serverLineup, false);
+  } else {
+    const matchSeed = `${home.name}-${away.name}-${league}`;
+    curHome = generateMatchSquad(home, true,  matchSeed + '-H');
+    curAway = generateMatchSquad(away, false, matchSeed + '-A');
+  }
 
   // Update scoreboard UI
   document.getElementById('homeNameSb').textContent = curHome.name;
@@ -33175,6 +33388,40 @@ function openMatchScreenV2(opts) {
       if (typeof startMatch === 'function') startMatch();
     }
   } catch(e) { console.warn('[openMatchScreenV2] live auto-start hata:', e); }
+
+  // 🆕 İZLEYİCİ BEAT — match-screen açıldıktan sonra her 15sn beat at.
+  //   match_key opts.matchKey'den veya MS.match_key'den okunur.
+  //   Edge action=viewer_beat → match_viewers tablosu + viewer_count günceller.
+  try {
+    if (window._viewerBeatTimer) {
+      clearInterval(window._viewerBeatTimer);
+      window._viewerBeatTimer = null;
+    }
+    const _badgeEl = document.getElementById('msViewerBadge');
+    const _beatMatchKey = (opts && opts.matchKey) || (MS && MS.match_key) || null;
+    if (_beatMatchKey && window.authUser && window.authUser.id &&
+        typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_KEY !== 'undefined') {
+      window._viewerBeatMatchKey = _beatMatchKey;
+      if (_badgeEl) _badgeEl.classList.add('is-visible');
+      const _doBeat = () => {
+        const mk = window._viewerBeatMatchKey;
+        if (!mk) return;
+        fetch(`${SUPABASE_URL}/functions/v1/tick-matches?action=viewer_beat&match_key=${encodeURIComponent(mk)}&user_id=${encodeURIComponent(window.authUser.id)}`, {
+          headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY }
+        }).then(r => r.ok ? r.json() : null)
+          .then(d => {
+            if (d && typeof d.viewer_count === 'number') {
+              const el = document.getElementById('msViewerCount');
+              if (el) el.textContent = d.viewer_count;
+            }
+          }).catch(() => {});
+      };
+      _doBeat(); // ilk beat hemen
+      window._viewerBeatTimer = setInterval(_doBeat, 15000);
+    } else if (_badgeEl) {
+      _badgeEl.classList.remove('is-visible');
+    }
+  } catch(e) { console.warn('[openMatchScreenV2] viewer beat hata:', e); }
 }
 
 
@@ -33393,18 +33640,23 @@ function initTacticControls() {
   if (!MS.tactic) MS.tactic = {};
   MS.tactic.home = MS.tactic.home || { mentality: 'balanced', formation: '4-3-3' };
 
+  // 🆕 İzleyici modu — kullanıcı yabancı maça izleyici olarak girdi.
+  //   Hiçbir kontrol açılmaz, hiçbir takım kontrolü atanmaz.
+  const isSpectator = !!(MS && MS._spectatorMode);
+
   // Kullanıcı bu maçta mı?
-  const userInHome = !!(curHome && (curHome.players||[]).some(p => p.isUser))
-                  || !!(typeof _userTeam !== 'undefined' && _userTeam && curHome && curHome.name === _userTeam.teamName);
-  const userInAway = !!(curAway && (curAway.players||[]).some(p => p.isUser))
-                  || !!(typeof _userTeam !== 'undefined' && _userTeam && curAway && curAway.name === _userTeam.teamName);
+  const userInHome = !isSpectator && (!!(curHome && (curHome.players||[]).some(p => p.isUser))
+                  || !!(typeof _userTeam !== 'undefined' && _userTeam && curHome && curHome.name === _userTeam.teamName));
+  const userInAway = !isSpectator && (!!(curAway && (curAway.players||[]).some(p => p.isUser))
+                  || !!(typeof _userTeam !== 'undefined' && _userTeam && curAway && curAway.name === _userTeam.teamName));
 
   // Kaptan/yardımcı mı?
   const isCaptain = (typeof _userTeam !== 'undefined' && _userTeam &&
                      (_userTeam.role === 'captain' || _userTeam.role === 'vice'));
 
   // 🎯 Test modu: forceCaptain açıksa kontroller her durumda aktif
-  const forceCaptain = !!(MS && MS._testForceCaptain);
+  // ❌ İzleyici modunda forceCaptain de geçersiz
+  const forceCaptain = !isSpectator && !!(MS && MS._testForceCaptain);
   const canControl = forceCaptain || ((userInHome || userInAway) && isCaptain);
 
   const cap = document.getElementById('tacCaptainPanel');
@@ -34184,6 +34436,29 @@ function showTacticFlash(msg) {
 function closeMatchScreen(){
   // Pre-match auto-start zamanlayıcısını temizle
   if (window._mpAutoStartTimer) { clearInterval(window._mpAutoStartTimer); window._mpAutoStartTimer = null; }
+  // 🆕 İzleyici beat timer temizle + leave sinyali gönder
+  if (window._viewerBeatTimer) {
+    clearInterval(window._viewerBeatTimer);
+    window._viewerBeatTimer = null;
+  }
+  try {
+    if (window._viewerBeatMatchKey && window.authUser && window.authUser.id &&
+        typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_KEY !== 'undefined') {
+      fetch(`${SUPABASE_URL}/functions/v1/tick-matches?action=viewer_leave&match_key=${encodeURIComponent(window._viewerBeatMatchKey)}&user_id=${encodeURIComponent(window.authUser.id)}`, {
+        headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY }
+      }).catch(() => {});
+    }
+  } catch(e) {}
+  window._viewerBeatMatchKey = null;
+  // İzleyici badge'i gizle
+  try {
+    const _vb = document.getElementById('msViewerBadge');
+    if (_vb) _vb.classList.remove('is-visible');
+  } catch(e) {}
+  // İzleyici modu işaretini temizle
+  if (typeof MS !== 'undefined' && MS) {
+    MS._spectatorMode = false;
+  }
   // Maç sonu overlay'i kapat
   const ov = document.getElementById('match-result-overlay');
   if (ov) ov.classList.remove('show');
@@ -35784,8 +36059,15 @@ async function startMatch(){
           const visMin = (MS._displayMin && MS._displayMin > 0)
             ? MS._displayMin
             : (liveRow.sim_minute || 0);
-          const visibleEvs = allEvs2.filter(e => ((e.min !== undefined ? e.min : e.minute) || 0) <= visMin);
-          const stats = _computeMatchStatsFromEvents(visibleEvs, visMin);
+          // 🆕 ÖNCELİK: Edge'in canlı yazdığı liveRow.stats kullanılır (gerçek server hesap).
+          //   Yoksa fallback: events'ten frontend hesabı (eski).
+          let stats;
+          if (liveRow.stats && typeof liveRow.stats === 'object' && Array.isArray(liveRow.stats.possession)) {
+            stats = liveRow.stats;
+          } else {
+            const visibleEvs = allEvs2.filter(e => ((e.min !== undefined ? e.min : e.minute) || 0) <= visMin);
+            stats = _computeMatchStatsFromEvents(visibleEvs, visMin);
+          }
           if (typeof updateStats === 'function') {
             updateStats(stats, 1);
           }
@@ -37047,7 +37329,7 @@ async function _liveMatchLoadFromServer() {
   try {
     // 🆕 1) running olan TÜM maçları yükle (zaman sınırı yok — şu an canlı olanlar)
     const { data: runningData, error: e1 } = await window.sb.from('match_state')
-      .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,events,started_at,kickoff_at,tournament_key,tournament_phase')
+      .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,events,stats,started_at,kickoff_at,tournament_key,tournament_phase,viewer_count')
       .eq('status', 'running')
       .order('kickoff_at', { ascending: false })
       .limit(500);
@@ -37055,7 +37337,7 @@ async function _liveMatchLoadFromServer() {
     
     // 🆕 2) scheduled — yakın gelecek (önümüzdeki 4 saat)
     const { data: schedData, error: e2 } = await window.sb.from('match_state')
-      .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,events,started_at,kickoff_at,tournament_key,tournament_phase')
+      .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,events,stats,started_at,kickoff_at,tournament_key,tournament_phase,viewer_count')
       .eq('status', 'scheduled')
       .gte('kickoff_at', new Date(Date.now() - 30 * 60 * 1000).toISOString())
       .lte('kickoff_at', new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString())
@@ -37065,7 +37347,7 @@ async function _liveMatchLoadFromServer() {
     
     // 🆕 3) Tüm EURO Nations Cup planlanmış maçları (gün 34+ için)
     const { data: encData, error: e3 } = await window.sb.from('match_state')
-      .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,events,started_at,kickoff_at,tournament_key,tournament_phase')
+      .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,events,stats,started_at,kickoff_at,tournament_key,tournament_phase,viewer_count')
       .eq('tournament_key', 'enc')
       .order('day_in_season', { ascending: true })
       .limit(500);
@@ -67318,11 +67600,28 @@ async function _loadVisitedTeamTrophies(countryCode, teamName) {
   // pagehide: mobile Safari + bazı tarayıcılarda beforeunload yerine bu fire eder
   window.addEventListener('pagehide', () => {
     try { if (typeof trFlushPendingSaves === 'function') trFlushPendingSaves(); } catch(e) {}
+    try { _viewerLeaveBeacon(); } catch(e) {}
   });
   // beforeunload: yenileme / kapatma / link tıklama
   window.addEventListener('beforeunload', () => {
     try { if (typeof trFlushPendingSaves === 'function') trFlushPendingSaves(); } catch(e) {}
+    try { _viewerLeaveBeacon(); } catch(e) {}
   });
+  // 🆕 Match-screen açıkken sekme/pencere kapanırsa izleyici listesinden düş.
+  //   navigator.sendBeacon ile tarayıcı kapanırken bile fire eder (fetch güvensiz).
+  function _viewerLeaveBeacon() {
+    const mk = window._viewerBeatMatchKey;
+    if (!mk || !window.authUser || !window.authUser.id) return;
+    if (typeof SUPABASE_URL === 'undefined' || typeof SUPABASE_KEY === 'undefined') return;
+    const url = `${SUPABASE_URL}/functions/v1/tick-matches?action=viewer_leave&match_key=${encodeURIComponent(mk)}&user_id=${encodeURIComponent(window.authUser.id)}`;
+    try {
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(url);
+      } else {
+        fetch(url, { method: 'GET', keepalive: true, headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY } }).catch(() => {});
+      }
+    } catch(e) {}
+  }
 })();
 
 // Supabase'ten energy çek
@@ -75235,6 +75534,18 @@ setTimeout(async ()=>{
           if (ms && ms.classList.contains('open') && typeof _resLiveUpdate === 'function') {
             _resLiveUpdate();
           }
+          // 🆕 İzleyici sayısı senkronu — başka kullanıcı bağlanınca anında güncel
+          try {
+            const mk = (typeof MS !== 'undefined' && MS && MS.match_key) ? MS.match_key
+                     : (window._viewerBeatMatchKey || null);
+            if (mk && typeof _liveMatchCache === 'object' && _liveMatchCache && _liveMatchCache[mk]) {
+              const vc = _liveMatchCache[mk].viewer_count;
+              if (typeof vc === 'number') {
+                const el = document.getElementById('msViewerCount');
+                if (el) el.textContent = vc;
+              }
+            }
+          } catch(e) {}
           // 🆕 Toto kuponlarım sayfası açıksa canlı skoru tazele
           const totoMy = document.getElementById('toto-mycoupons');
           if (totoMy && totoMy.style.display !== 'none' && typeof totoRenderMyCoupons === 'function') {
