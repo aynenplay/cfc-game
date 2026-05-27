@@ -29132,7 +29132,7 @@ function openContractRenewalModal() {
         <div class="crm-row"><span class="crm-label">Yeni Bitiş</span><span class="crm-val" style="color:var(--gold)">${state.info.season + 1}. sezon sonu</span></div>
       </div>
 
-      <div class="crm-note">⚠️ Reddedersen sözleşme bir sezon daha uzar ama maaşın <b>${_f(firstSalary)}</b> ilk imza maaşına düşer (4× ${_f(rejectInst)}). Ayrıca takımdan istediğin an ayrılma yetkisi kazanırsın.</div>
+      <div class="crm-note">📨 Talep göndereceksin. Kaptan onaylarsa yeni maaş aktif olur. <b>Reddederse</b>: maaşın <b>${_f(firstSalary)}</b> ilk imza maaşına düşer (4× ${_f(rejectInst)}) + takımdan ayrılma serbestliği kazanırsın.</div>
     `;
   }
 
@@ -29146,25 +29146,157 @@ function closeContractRenewalModal() {
   _currentRenewalOffer = null;
 }
 
-function acceptContractRenewal() {
+// ═══════════════════════════════════════════════════════════════════
+// 🆕 OYUNCU → KAPTAN: Sözleşme Yenileme Talebi
+// ═══════════════════════════════════════════════════════════════════
+// Akış:
+//   1. Oyuncu sezon son 5 günde "Yenileme Talebi Gönder" butonuna basar
+//   2. Bot kaptan ise → frontend otomatik karar verir (kasa + overall'a göre)
+//   3. User kaptan ise → kaptanın inbox'una "Kabul/Red" butonlu mesaj gider
+//   4. Kararın geri dönüşü oyuncuya inbox bildirimi ile gelir + contract update
+//
+// Kaptan bot karar mantığı:
+//   • Kasa yetersizse → RED (yeni maaşın 4x'i kasada yoksa)
+//   • Oyuncu overall < 30 → RED (yedek seviye)
+//   • Aksi → KABUL
+async function sendContractRenewalRequest() {
   const offer = _currentRenewalOffer;
-  if(!offer) { closeContractRenewalModal(); return; }
-  if(typeof _userTeam === 'undefined' || !_userTeam || !_userTeam.contract) { closeContractRenewalModal(); return; }
-  if(typeof getSeasonInfo !== 'function') { closeContractRenewalModal(); return; }
+  if (!offer) { closeContractRenewalModal(); return; }
+  if (typeof _userTeam === 'undefined' || !_userTeam || !_userTeam.contract) {
+    closeContractRenewalModal(); return;
+  }
+  if (!_userTeam.countryCode || !_userTeam.teamName) {
+    closeContractRenewalModal(); return;
+  }
+
+  // Kaptanı bul
+  const cc = _userTeam.countryCode;
+  const tn = _userTeam.teamName;
+  const key = cc + ':' + tn;
+
+  // Cache fresh değilse yenile
+  if (typeof _loadRealCaptainsFromServer === 'function') {
+    try { await _loadRealCaptainsFromServer(); } catch(e) {}
+  }
+
+  const teamEntry = (typeof _realCaptainsCache !== 'undefined' && _realCaptainsCache[key])
+    ? _realCaptainsCache[key] : null;
+  const captainUserId = teamEntry && teamEntry.captainUserId;
+  const captainName = (teamEntry && teamEntry.captainName) || _userTeam.contract.capName || 'Kaptan';
+
+  // Modal'ı kapat — sonuç toast/inbox ile gelir
+  closeContractRenewalModal();
+
+  // 🤖 BOT KAPTAN — otomatik karar
+  if (!captainUserId) {
+    await _autoDecideRenewalByBotCaptain(offer);
+    return;
+  }
+
+  // 👤 USER KAPTAN — inbox mesajı gönder
+  const me = (authUser||{}).name || 'Oyuncu';
+  const myUserId = (authUser||{}).id || null;
+  const _f = v => v >= 1000000 ? (v/1000000).toFixed(1)+'M €' : v > 0 ? Math.round(v/1000)+'K €' : '0 €';
+  const c = _userTeam.contract;
+  const oldSalary = Number(c.seasonSalary || c.yearlySalary || 0);
+  const firstSal = Number(c.firstSalary || oldSalary);
+  const raiseSign = offer.raisePercent >= 0 ? '+' : '';
+
+  const ok = await inboxSendToUser(captainUserId, {
+    from: me,
+    fromAvatar: '📋',
+    type: 'contract_renewal_request',
+    subject: `Sözleşme Yenileme Talebi — ${me}`,
+    body: `${me} sözleşmesini yenilemek istiyor.\n\n📊 Sistemce hesaplanan yeni maaş:\n• Sezon maaşı: ${_f(offer.seasonSalary)} (${raiseSign}%${offer.raisePercent})\n• Mevcut maaş: ${_f(oldSalary)}\n• İlk imza maaşı: ${_f(firstSal)}\n• Taksit: ${_f(Math.round(offer.seasonSalary/4))} × 4 (gün 10/20/30/40)\n• Yeni bitiş: ${_currentRenewalOffer ? '' : ''}1 sezon uzatma\n\n• Onaylarsan: yeni maaşla devam\n• Reddedersen: oyuncu ${_f(firstSal)} ilk maaşa düşer + ayrılma serbestliği kazanır`,
+    renewalRequest: {
+      playerUserId: myUserId,
+      playerName: me,
+      teamCC: cc,
+      teamName: tn,
+      seasonSalary: offer.seasonSalary,
+      oldSalary,
+      firstSalary: firstSal,
+      raisePercent: offer.raisePercent,
+      status: 'pending',                // 'pending' | 'accepted' | 'rejected'
+      sentAt: Date.now(),
+    },
+  });
+
+  if (!ok) {
+    if (typeof tfShowToast === 'function')
+      tfShowToast('❌ Talep gönderilemedi', 'var(--red)');
+    return;
+  }
+
+  // Oyuncunun kendi inbox'una "gönderildi" kaydı
+  try {
+    const msgs = getInboxMsgs();
+    msgs.unshift({
+      id: 'cr_sent_' + Date.now(),
+      from: me,
+      to: captainName,
+      fromAvatar: '📤',
+      type: 'system',
+      subject: `Yenileme Talebi Gönderildi — ${tn}`,
+      body: `Kaptan ${captainName}'a sözleşme yenileme talebi gönderdin.\n\n• Yeni maaş: ${_f(offer.seasonSalary)} (${raiseSign}%${offer.raisePercent})\n• Karar verildiğinde inbox'una bildirim gelir.`,
+      time: new Date().toLocaleDateString('tr'),
+      read: true,
+      sent: true,
+      thread: [],
+    });
+    saveInboxMsgs(msgs);
+    if(typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
+  } catch(e){}
+
+  if (typeof tfShowToast === 'function')
+    tfShowToast(`✅ Talep gönderildi: ${captainName}`, 'var(--accent2)');
+}
+
+// 🤖 Bot kaptan otomatik karar
+async function _autoDecideRenewalByBotCaptain(offer) {
+  // Kasa kontrolü
+  const treasury = (typeof trsGetBalance === 'function') ? trsGetBalance('eur') : 0;
+  const yearCost = offer.seasonSalary; // 1 sezonluk
+  const canAfford = treasury >= yearCost; // kasada en az 1 sezonluk varsa kabul
+
+  // Oyuncu overall
+  let ovr = 50;
+  try {
+    if(typeof ROSTER_DATA !== 'undefined' && Array.isArray(ROSTER_DATA)) {
+      const u = ROSTER_DATA.find(p => p && p.role === 'user');
+      if(u) ovr = (typeof getPlayerMainOverall === 'function')
+        ? getPlayerMainOverall(u) : (u.overall || 50);
+    }
+  } catch(e){}
+
+  // Karar: kasa yetersiz veya overall < 30 → RED, aksi → KABUL
+  const accept = canAfford && ovr >= 30;
+
+  if (accept) {
+    _applyRenewalAccept(offer);
+  } else {
+    const reason = !canAfford ? 'Kasa Yetersiz' : 'Oyuncu Seviyesi Yetersiz';
+    _applyRenewalReject(offer, reason);
+  }
+}
+
+// 👤 Kaptanın kararını oyuncu sözleşmesine uygula — KABUL
+function _applyRenewalAccept(offer) {
+  if(typeof _userTeam === 'undefined' || !_userTeam || !_userTeam.contract) return;
+  if(typeof getSeasonInfo !== 'function') return;
 
   const info = getSeasonInfo();
   const c = _userTeam.contract;
 
-  // 🆕 Yeni şartları uygula — sistem hesaplı sezon maaşı
   c.seasonSalary    = offer.seasonSalary;
-  c.yearlySalary    = offer.seasonSalary;   // backward compat
+  c.yearlySalary    = offer.seasonSalary;
   c.signingBonus    = 0;
   c.signingDiamond  = 0;
   c.durationSeasons = (c.durationSeasons || 1) + 1;
-  c.endsSeason      = info.season + 1;       // bir sonraki sezon sonu
-  c.canLeaveFreely  = false;                  // yenilendi → ayrılma yetkisi sıfırlanır
-  c.unpaidInstallments = 0;                   // borç sıfırlanır (yeni dönem başlıyor)
-  c.lastPayKey      = null;                   // yeni sezonda cron tekrar ödeyecek
+  c.endsSeason      = info.season + 1;
+  c.canLeaveFreely  = false;
+  c.unpaidInstallments = 0;
+  c.lastPayKey      = null;
   c.renewalWarnedSeason = null;
   c.renewedAt       = Date.now();
   c.renewedSeason   = info.season;
@@ -29174,37 +29306,24 @@ function acceptContractRenewal() {
 
   // Inbox onay bildirimi
   try {
-    const msgs = (typeof getInboxMsgs === 'function') ? getInboxMsgs() : null;
-    if(msgs) {
-      const teamName = _userTeam.teamName || '';
-      const flag = (true && _cftGetCountry(_userTeam.countryCode))
-        ? (_cftGetCountry(_userTeam.countryCode).flag || '') : '';
-      const _f = v => v >= 1000000 ? (v/1000000).toFixed(1)+'M €' : v > 0 ? Math.round(v/1000)+'K €' : '0 €';
-      msgs.unshift({
-        id: 'contract_renewed_' + Date.now(),
-        from: '📋 Sözleşme Yönetimi',
-        fromAvatar: '✅',
-        type: 'system',
-        subject: `Sözleşmen Yenilendi — ${teamName}`,
-        body: `${flag} ${teamName} ile sözleşmen başarıyla yenilendi.\n\n• Yeni yıllık maaş: ${_f(offer.yearlySalary)}\n• İmza primi: ${_f(offer.signingBonus)}\n• Yeni bitiş: ${c.endsSeason}. sezon sonu\n\nİyi maçlar!`,
-        time: new Date().toLocaleDateString('tr'),
-        read: false,
-        thread: [],
-      });
-      if(typeof saveInboxMsgs === 'function') saveInboxMsgs(msgs);
-      if(typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
-    }
-  } catch(e){}
-
-  // Mevcut "yenileme teklifi" inbox mesajını "kabul edildi" olarak işaretle
-  try {
-    const msgs = (typeof getInboxMsgs === 'function') ? getInboxMsgs() : null;
-    if(msgs) {
-      msgs.forEach(m => {
-        if(m.type === 'contract_renewal' && !m.renewalStatus) m.renewalStatus = 'accepted';
-      });
-      if(typeof saveInboxMsgs === 'function') saveInboxMsgs(msgs);
-    }
+    const msgs = getInboxMsgs();
+    const teamName = _userTeam.teamName || '';
+    const flag = (typeof _cftGetCountry === 'function' && _cftGetCountry(_userTeam.countryCode))
+      ? (_cftGetCountry(_userTeam.countryCode).flag || '') : '';
+    const _f = v => v >= 1000000 ? (v/1000000).toFixed(1)+'M €' : v > 0 ? Math.round(v/1000)+'K €' : '0 €';
+    msgs.unshift({
+      id: 'cr_accepted_' + Date.now(),
+      from: '📋 ' + (c.capName || 'Kaptan'),
+      fromAvatar: '✅',
+      type: 'system',
+      subject: `Yenileme Onaylandı — ${teamName}`,
+      body: `${flag} ${teamName} kaptanı yenileme talebini ONAYLADI.\n\n• Yeni sezon maaşı: ${_f(offer.seasonSalary)}\n• Taksit: ${_f(Math.round(offer.seasonSalary/4))} × 4 (gün 10/20/30/40)\n• Yeni bitiş: ${c.endsSeason}. sezon sonu\n\nİyi maçlar!`,
+      time: new Date().toLocaleDateString('tr'),
+      read: false,
+      thread: [],
+    });
+    saveInboxMsgs(msgs);
+    if(typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
   } catch(e){}
 
   // Toast
@@ -29215,82 +29334,180 @@ function acceptContractRenewal() {
     document.body.appendChild(t);
     setTimeout(() => { try{ t.remove(); }catch(e){} }, 3500);
   } catch(e){}
-
-  closeContractRenewalModal();
 }
 
-function rejectContractRenewal() {
-  // 🆕 YENİ DAVRANIŞ — Reddetmek sözleşmeyi bitirmez, oyuncu firstSalary'ye düşer.
-  //   • seasonSalary → firstSalary (ilk imzalanan maaş)
-  //   • endsSeason++ (bir sezon daha bağlı)
-  //   • canLeaveFreely = true (acımasız: oyuncu istediği an ayrılabilir)
-  //   • unpaidInstallments = 0 (yeni dönem temiz başlasın)
-  //   • lastPayKey = null (yeni sezonda cron öder)
-  if(typeof _userTeam !== 'undefined' && _userTeam && _userTeam.contract && typeof getSeasonInfo === 'function') {
-    const info = getSeasonInfo();
-    const c = _userTeam.contract;
-    const oldSalary = Number(c.seasonSalary || c.yearlySalary || 0);
-    const firstSalary = Number(c.firstSalary || oldSalary);
+// 👤 Kaptanın kararını oyuncu sözleşmesine uygula — RED
+function _applyRenewalReject(offer, reason) {
+  if(typeof _userTeam === 'undefined' || !_userTeam || !_userTeam.contract) return;
+  if(typeof getSeasonInfo !== 'function') return;
 
-    c.seasonSalary    = firstSalary;
-    c.yearlySalary    = firstSalary;   // backward compat
+  const info = getSeasonInfo();
+  const c = _userTeam.contract;
+  const firstSalary = Number(c.firstSalary || c.seasonSalary || c.yearlySalary || 0);
+
+  c.seasonSalary    = firstSalary;
+  c.yearlySalary    = firstSalary;
+  c.durationSeasons = (c.durationSeasons || 1) + 1;
+  c.endsSeason      = info.season + 1;
+  c.canLeaveFreely  = true;
+  c.unpaidInstallments = 0;
+  c.lastPayKey      = null;
+  c.renewalWarnedSeason = null;
+  c.renewalStatus   = 'rejected';
+  c.renewedAt       = Date.now();
+
+  if(typeof userTeamSave === 'function') userTeamSave();
+
+  // Inbox red bildirimi
+  try {
+    const msgs = getInboxMsgs();
+    const teamName = _userTeam.teamName || '';
+    const flag = (typeof _cftGetCountry === 'function' && _cftGetCountry(_userTeam.countryCode))
+      ? (_cftGetCountry(_userTeam.countryCode).flag || '') : '';
+    const _f = v => v >= 1000000 ? (v/1000000).toFixed(1)+'M €' : v > 0 ? Math.round(v/1000)+'K €' : '0 €';
+    const reasonStr = reason ? ` (Gerekçe: ${reason})` : '';
+    msgs.unshift({
+      id: 'cr_rejected_' + Date.now(),
+      from: '📋 ' + (c.capName || 'Kaptan'),
+      fromAvatar: '⚠️',
+      type: 'system',
+      subject: `Yenileme Reddedildi — ${teamName}`,
+      body: `${flag} ${teamName} kaptanı yenileme talebini REDDETTİ.${reasonStr}\n\n• Yeni sezon maaşın: ${_f(firstSalary)} (ilk imza maaşı)\n• Sözleşme bir sezon daha uzadı: ${c.endsSeason}. sezon sonu\n• Artık takımdan istediğin an ayrılabilirsin\n\nDaha iyi bir teklif arıyorsan transfer yapabilirsin.`,
+      time: new Date().toLocaleDateString('tr'),
+      read: false,
+      thread: [],
+    });
+    saveInboxMsgs(msgs);
+    if(typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
+  } catch(e){}
+
+  // Toast
+  try {
+    const t = document.createElement('div');
+    t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#ff5722;color:#fff;padding:12px 22px;border-radius:24px;font-size:13px;font-weight:700;z-index:9999;font-family:"Barlow Condensed",sans-serif;letter-spacing:.4px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:90vw;text-align:center';
+    t.textContent = `⚠️ Yenileme reddedildi — Maaşın düştü`;
+    document.body.appendChild(t);
+    setTimeout(() => { try{ t.remove(); }catch(e){} }, 4000);
+  } catch(e){}
+}
+
+// 👑 KAPTAN TARAFI: Inbox mesajındaki "Onayla/Reddet" butonlarından çağrılır
+// Oyuncunun players.user_team_data.contract'ını günceller + ona bildirim gönderir.
+async function captainDecideRenewalRequest(msgId, decision) {
+  if (!window.sb) return;
+  // Mevcut inbox mesajını bul
+  const msgs = getInboxMsgs();
+  const msg = msgs.find(m => m.id === msgId);
+  if (!msg || !msg.renewalRequest) {
+    if (typeof tfShowToast === 'function') tfShowToast('❌ Mesaj bulunamadı', 'var(--red)');
+    return;
+  }
+  const req = msg.renewalRequest;
+  if (req.status !== 'pending') {
+    if (typeof tfShowToast === 'function') tfShowToast('⚠️ Bu talep zaten karar verilmiş', '#ff9800');
+    return;
+  }
+  if (!req.playerUserId) {
+    if (typeof tfShowToast === 'function') tfShowToast('❌ Oyuncu kimliği eksik', 'var(--red)');
+    return;
+  }
+
+  // Oyuncunun mevcut user_team_data + contract'ını çek
+  let playerUT = null;
+  try {
+    const { data: pRow } = await window.sb.from('players')
+      .select('user_team_data')
+      .eq('user_id', req.playerUserId)
+      .maybeSingle();
+    playerUT = pRow && pRow.user_team_data;
+  } catch(e) {
+    if (typeof tfShowToast === 'function') tfShowToast('❌ Oyuncu çekme hatası', 'var(--red)');
+    return;
+  }
+  if (!playerUT || !playerUT.contract) {
+    if (typeof tfShowToast === 'function') tfShowToast('❌ Oyuncunun aktif sözleşmesi yok', 'var(--red)');
+    msg.renewalRequest.status = 'invalid';
+    saveInboxMsgs(msgs);
+    return;
+  }
+
+  const c = playerUT.contract;
+  const info = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : { season: 1 };
+
+  if (decision === 'accept') {
+    c.seasonSalary    = req.seasonSalary;
+    c.yearlySalary    = req.seasonSalary;
     c.durationSeasons = (c.durationSeasons || 1) + 1;
     c.endsSeason      = info.season + 1;
-    c.canLeaveFreely  = true;          // 🆕 reddedildi → ayrılma serbest
+    c.canLeaveFreely  = false;
+    c.unpaidInstallments = 0;
+    c.lastPayKey      = null;
+    c.renewalWarnedSeason = null;
+    c.renewedAt       = Date.now();
+    c.renewedSeason   = info.season;
+    c.renewalStatus   = 'accepted';
+  } else {
+    const firstSalary = Number(c.firstSalary || c.seasonSalary || c.yearlySalary || 0);
+    c.seasonSalary    = firstSalary;
+    c.yearlySalary    = firstSalary;
+    c.durationSeasons = (c.durationSeasons || 1) + 1;
+    c.endsSeason      = info.season + 1;
+    c.canLeaveFreely  = true;
     c.unpaidInstallments = 0;
     c.lastPayKey      = null;
     c.renewalWarnedSeason = null;
     c.renewalStatus   = 'rejected';
     c.renewedAt       = Date.now();
+  }
+  playerUT.contract = c;
 
-    if(typeof userTeamSave === 'function') userTeamSave();
-
-    // Inbox: red bildirimi (acımasız mesaj)
-    try {
-      const msgs = (typeof getInboxMsgs === 'function') ? getInboxMsgs() : null;
-      if(msgs){
-        const teamName = _userTeam.teamName || '';
-        const flag = (true && _cftGetCountry(_userTeam.countryCode))
-          ? (_cftGetCountry(_userTeam.countryCode).flag || '') : '';
-        const _f = v => v >= 1000000 ? (v/1000000).toFixed(1)+'M €' : v > 0 ? Math.round(v/1000)+'K €' : '0 €';
-        msgs.unshift({
-          id: 'contract_reject_' + Date.now(),
-          from: '📋 Sözleşme Yönetimi',
-          fromAvatar: '⚠️',
-          type: 'system',
-          subject: `Yenileme Reddedildi — ${teamName}`,
-          body: `${flag} ${teamName} ile sözleşmeni yenilemedin.\n\n• Yeni sezon maaşın: ${_f(firstSalary)} (ilk imzaladığın maaş — büyüme yansıtılmadı)\n• Sözleşme bir sezon daha uzadı: ${info.season + 1}. sezon sonu\n• Artık takımdan istediğin an ayrılabilirsin (Finans/Profil sayfasından)\n\nDaha iyi bir teklif arıyorsan transfer yapabilirsin.`,
-          time: new Date().toLocaleDateString('tr'),
-          read: false,
-          thread: [],
-        });
-        if(typeof saveInboxMsgs === 'function') saveInboxMsgs(msgs);
-        if(typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
-      }
-    } catch(e){}
-
-    // Toast
-    try {
-      const t = document.createElement('div');
-      t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#ff5722;color:#fff;padding:12px 22px;border-radius:24px;font-size:13px;font-weight:700;z-index:9999;font-family:"Barlow Condensed",sans-serif;letter-spacing:.4px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:90vw;text-align:center';
-      t.textContent = `⚠️ Yenileme reddedildi — Maaşın eski seviyeye düştü`;
-      document.body.appendChild(t);
-      setTimeout(() => { try{ t.remove(); }catch(e){} }, 4000);
-    } catch(e){}
+  // Oyuncunun user_team_data'sını güncelle
+  try {
+    await window.sb.from('players')
+      .update({ user_team_data: playerUT })
+      .eq('user_id', req.playerUserId);
+  } catch(e) {
+    if (typeof tfShowToast === 'function') tfShowToast('❌ Güncelleme hatası', 'var(--red)');
+    return;
   }
 
-  // Inbox mesajını "reddedildi" işaretle
+  // Oyuncuya bildirim mesajı
+  const myName = (authUser||{}).name || 'Kaptan';
+  const _f = v => v >= 1000000 ? (v/1000000).toFixed(1)+'M €' : v > 0 ? Math.round(v/1000)+'K €' : '0 €';
+  const teamName = req.teamName || '';
+  const playerMsg = decision === 'accept'
+    ? {
+        from: '📋 ' + myName, fromAvatar: '✅', type: 'system',
+        subject: `Yenileme Onaylandı — ${teamName}`,
+        body: `Kaptan ${myName} sözleşme yenileme talebini ONAYLADI.\n\n• Yeni sezon maaşı: ${_f(req.seasonSalary)}\n• Taksit: ${_f(Math.round(req.seasonSalary/4))} × 4 (gün 10/20/30/40)\n• Yeni bitiş: ${c.endsSeason}. sezon sonu\n\nİyi maçlar!`,
+      }
+    : {
+        from: '📋 ' + myName, fromAvatar: '⚠️', type: 'system',
+        subject: `Yenileme Reddedildi — ${teamName}`,
+        body: `Kaptan ${myName} sözleşme yenileme talebini REDDETTİ.\n\n• Yeni sezon maaşın: ${_f(c.seasonSalary)} (ilk imza maaşı)\n• Sözleşme bir sezon daha uzadı: ${c.endsSeason}. sezon sonu\n• Artık takımdan istediğin an ayrılabilirsin\n\nDaha iyi bir teklif arıyorsan transfer yapabilirsin.`,
+      };
+  await inboxSendToUser(req.playerUserId, playerMsg);
+
+  // Kaptanın inbox'unda mesajı "karar verildi" olarak işaretle
+  msg.renewalRequest.status = decision === 'accept' ? 'accepted' : 'rejected';
+  msg.renewalRequest.decidedAt = Date.now();
+  saveInboxMsgs(msgs);
+  if (typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
+
+  if (typeof tfShowToast === 'function')
+    tfShowToast(decision === 'accept' ? `✅ Yenileme onaylandı: ${req.playerName}` : `❌ Yenileme reddedildi: ${req.playerName}`,
+                decision === 'accept' ? 'var(--accent)' : '#ff5722');
+
+  // Mesaj detay açıksa yeniden render
   try {
-    const msgs = (typeof getInboxMsgs === 'function') ? getInboxMsgs() : null;
-    if(msgs) {
-      msgs.forEach(m => {
-        if(m.type === 'contract_renewal' && !m.renewalStatus) m.renewalStatus = 'rejected';
-      });
-      if(typeof saveInboxMsgs === 'function') saveInboxMsgs(msgs);
+    if (typeof inboxRenderDetail === 'function' && _inboxCurrentMsg && _inboxCurrentMsg.id === msgId) {
+      _inboxCurrentMsg = msg;
+      inboxRenderDetail();
     }
   } catch(e){}
-  closeContractRenewalModal();
 }
+// ═══════════════════════════════════════════════════════════════════
+
 
 // ── 🆕 Sözleşme süresi dolma kontrolü ──
 // Sözleşmenin bitiş sezonu mevcut sezonun gerisinde ise:
@@ -31399,11 +31616,29 @@ async function resOpenFinishedMatch(matchKey) {
     }
   }
 
-  // Maçın Adamı — lineup'ta en yüksek match_rating'li oyuncuyu bul
+  // 🆕 Maçın Adamı — Edge maç sonu lineup'a yazdığı matchRating'i kullan.
+  //   Fallback: lineup'ta rating yoksa events'ten hesapla.
   let motm = null;
   let motmTeam = null;
   let motmRating = 0;
-  if (typeof calcPlayerRating === 'function' && events.length > 0) {
+
+  // 🆕 ÖNCELİK 1: Edge'in yazdığı lineup.matchRating
+  function _scanLineupForMOTM(lineup, teamName) {
+    lineup.forEach(p => {
+      if (!p || !p.name) return;
+      const r = (typeof p.matchRating === 'number') ? p.matchRating : 0;
+      if (r > motmRating) {
+        motmRating = r;
+        motm = p;
+        motmTeam = teamName;
+      }
+    });
+  }
+  _scanLineupForMOTM(homeLineup, m.home);
+  _scanLineupForMOTM(awayLineup, m.away);
+
+  // 🆕 FALLBACK: Edge henüz lineup'a rating yazmadıysa events'ten hesapla
+  if (!motm && typeof calcPlayerRating === 'function' && events.length > 0) {
     const hs = m.hs || 0, as = m.as || 0;
     function _scoreLineup(lineup, sideTeam, teamName, scored, conceded) {
       const teamWon = scored > conceded ? 'win' : scored < conceded ? 'loss' : 'draw';
@@ -66014,24 +66249,49 @@ function inboxRenderDetail(msg) {
     <div class="inbox-detail-subject">${msg.subject}</div>`;
 
   // Transfer teklifi mi?
-  if(msg.type === 'contract_renewal' && msg.renewalData) {
-    // 🆕 Sözleşme yenileme teklifi kartı
+  if(msg.type === 'contract_renewal_request' && msg.renewalRequest) {
+    // 🆕 Kaptana gelen yenileme talebi kartı
+    const rr = msg.renewalRequest;
+    const _f = v => v>=1000000?(v/1000000).toFixed(2)+'M €':v>0?Math.round(v/1000)+'K €':'0 €';
+    const status = rr.status || 'pending';
+    const raiseSign = (rr.raisePercent || 0) >= 0 ? '+' : '';
+    html += `<div class="inbox-detail-text">${msg.body}</div>
+      <div class="inbox-transfer-card">
+        <div class="inbox-tc-title">📋 Yenileme Talebi</div>
+        <div class="inbox-tc-row"><span class="inbox-tc-label">Oyuncu</span><span class="inbox-tc-val">${rr.playerName||'—'}</span></div>
+        <div class="inbox-tc-row"><span class="inbox-tc-label">Mevcut Maaş</span><span class="inbox-tc-val" style="opacity:.7">${_f(rr.oldSalary)}</span></div>
+        <div class="inbox-tc-row"><span class="inbox-tc-label">İlk İmza Maaşı</span><span class="inbox-tc-val" style="opacity:.6;font-size:11px">${_f(rr.firstSalary)}</span></div>
+        <div class="inbox-tc-row"><span class="inbox-tc-label">Talep Edilen Maaş</span><span class="inbox-tc-val" style="color:var(--accent)">${_f(rr.seasonSalary)} <small style="opacity:.65">(${raiseSign}%${rr.raisePercent})</small></span></div>
+        <div class="inbox-tc-row"><span class="inbox-tc-label">Taksit (4× gün 10/20/30/40)</span><span class="inbox-tc-val">${_f(Math.round(rr.seasonSalary/4))}</span></div>
+        ${status !== 'pending'
+          ? `<div style="margin-top:8px;padding:8px;border-radius:8px;font-size:11px;font-weight:700;text-align:center;background:${status==='accepted'?'rgba(0,230,118,.15)':'rgba(239,83,80,.12)'};color:${status==='accepted'?'var(--accent)':'#ef5350'}">${status==='accepted'?'✅ Onayladın':status==='rejected'?'❌ Reddettin':'⚠️ Geçersiz'}</div>`
+          : `<div class="inbox-tc-actions">
+              <button class="inbox-tc-accept" onclick="captainDecideRenewalRequest('${msg.id}','accept')">✓ Onayla</button>
+              <button class="inbox-tc-reject" onclick="captainDecideRenewalRequest('${msg.id}','reject')">✕ Reddet</button>
+             </div>`}
+      </div>`;
+  } else if(msg.type === 'contract_renewal' && msg.renewalData) {
+    // 🆕 Sözleşme yenileme bildirimi (oyuncuya gelen) — sistemce hesaplanmış maaş + Talep Gönder butonu
     const rd = msg.renewalData;
     const _f = v => v>=1000000?(v/1000000).toFixed(2)+'M €':v>0?Math.round(v/1000)+'K €':'0 €';
     const status = msg.renewalStatus;
+    const raiseSign = (rd.raisePercent || 0) >= 0 ? '+' : '';
+    const newSal = rd.seasonSalary || rd.yearlySalary || 0;
+    const oldSal = rd.oldSalary || rd.oldYearlySalary || 0;
+    const firstSal = rd.firstSalary || oldSal;
     html += `<div class="inbox-detail-text">${msg.body}</div>
       <div class="inbox-transfer-card">
         <div class="inbox-tc-title">📋 Sözleşme Yenileme</div>
-        <div class="inbox-tc-row"><span class="inbox-tc-label">Eski Yıllık Maaş</span><span class="inbox-tc-val" style="opacity:.7">${_f(rd.oldYearlySalary)}</span></div>
-        <div class="inbox-tc-row"><span class="inbox-tc-label">Yeni Yıllık Maaş</span><span class="inbox-tc-val" style="color:var(--accent)">${_f(rd.yearlySalary)} <small style="opacity:.65">(+%${rd.raisePercent})</small></span></div>
-        <div class="inbox-tc-row"><span class="inbox-tc-label">İmza Primi</span><span class="inbox-tc-val" style="color:var(--accent2)">${_f(rd.signingBonus)}</span></div>
-        <div class="inbox-tc-row"><span class="inbox-tc-label">Süre Uzatımı</span><span class="inbox-tc-val">+${rd.durationSeasons} sezon</span></div>
+        <div class="inbox-tc-row"><span class="inbox-tc-label">Mevcut Maaş</span><span class="inbox-tc-val" style="opacity:.7">${_f(oldSal)}</span></div>
+        <div class="inbox-tc-row"><span class="inbox-tc-label">İlk İmza Maaşı</span><span class="inbox-tc-val" style="opacity:.6;font-size:11px">${_f(firstSal)}</span></div>
+        <div class="inbox-tc-row"><span class="inbox-tc-label">Yeni Sezon Maaşı</span><span class="inbox-tc-val" style="color:var(--accent)">${_f(newSal)} <small style="opacity:.65">(${raiseSign}%${rd.raisePercent})</small></span></div>
+        <div class="inbox-tc-row"><span class="inbox-tc-label">Taksit (4× gün 10/20/30/40)</span><span class="inbox-tc-val">${_f(Math.round(newSal/4))}</span></div>
         <div class="inbox-tc-row"><span class="inbox-tc-label">Kalan Gün</span><span class="inbox-tc-val" style="color:#ff9800">${rd.daysLeft} gün</span></div>
         ${status ? `<div style="margin-top:8px;padding:8px;border-radius:8px;font-size:11px;font-weight:700;text-align:center;background:${status==='accepted'?'rgba(0,230,118,.15)':'rgba(239,83,80,.12)'};color:${status==='accepted'?'var(--accent)':'#ef5350'}">
-          ${status==='accepted'?'✅ Yenilendi':'❌ Reddedildi'}
+          ${status==='accepted'?'✅ Yenilendi':status==='rejected'?'❌ Reddedildi':'📤 Talep Gönderildi'}
         </div>` :
         `<div class="inbox-tc-actions">
-          <button class="inbox-tc-accept" onclick="openContractRenewalModal()">📋 Detayları Gör & Yenile</button>
+          <button class="inbox-tc-accept" onclick="openContractRenewalModal()">📋 Detay & Kaptana Talep Gönder</button>
         </div>`}
       </div>`;
   } else if(msg.type === 'transfer' && msg.transferData) {
@@ -75496,8 +75756,8 @@ document.addEventListener('keydown', function(e){
     <div class="crm-title">Sözleşme Yenileme</div>
     <div id="crmBody"><!-- dinamik içerik --></div>
     <div class="crm-btns">
-      <button class="crm-btn crm-cancel" onclick="rejectContractRenewal()">Reddet</button>
-      <button class="crm-btn crm-confirm" onclick="acceptContractRenewal()">Yenile ✓</button>
+      <button class="crm-btn crm-cancel" onclick="closeContractRenewalModal()">Daha Sonra</button>
+      <button class="crm-btn crm-confirm" onclick="sendContractRenewalRequest()">Kaptana Talep Gönder ✉</button>
     </div>
   </div>
 </div>
