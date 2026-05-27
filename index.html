@@ -10357,6 +10357,68 @@ body.team-vice .captain-or-vice-only.flex{display:flex}
 
 /* ══ EKİPMAN ══ */
 .eq-section-title{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);padding:12px 14px 6px;display:flex;align-items:center;gap:8px}
+
+/* 🆕 Boş dolap bilgilendirme bandı — kullanıcıyı mağazaya yönlendirir */
+.eq-empty-banner{
+  margin:12px 12px 4px;
+  background:linear-gradient(135deg, rgba(95,184,255,.08), rgba(95,184,255,.03));
+  border:1px solid rgba(95,184,255,.22);
+  border-radius:12px;
+  padding:14px 14px;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  position:relative;
+  overflow:hidden;
+}
+.eq-empty-banner::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,rgba(95,184,255,.6),transparent);
+}
+.eq-empty-banner-icon{
+  font-size:32px;
+  flex-shrink:0;
+  filter:drop-shadow(0 2px 4px rgba(0,0,0,.3));
+}
+.eq-empty-banner-text{flex:1;min-width:0}
+.eq-empty-banner-title{
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:15px;
+  font-weight:900;
+  color:#fff;
+  letter-spacing:.3px;
+  margin-bottom:3px;
+}
+.eq-empty-banner-msg{
+  font-size:11px;
+  color:var(--text2);
+  line-height:1.4;
+}
+.eq-empty-banner-btn{
+  flex-shrink:0;
+  background:linear-gradient(135deg, #5fb8ff, #3a8fd1);
+  border:none;
+  color:#fff;
+  font-size:11px;
+  font-weight:800;
+  padding:9px 14px;
+  border-radius:10px;
+  cursor:pointer;
+  letter-spacing:.3px;
+  box-shadow:0 4px 12px rgba(95,184,255,.3);
+  transition:transform .15s, box-shadow .15s;
+  white-space:nowrap;
+}
+.eq-empty-banner-btn:hover{
+  transform:translateY(-1px);
+  box-shadow:0 6px 16px rgba(95,184,255,.4);
+}
+.eq-empty-banner-btn:active{transform:translateY(0)}
+@media (max-width: 380px){
+  .eq-empty-banner{flex-direction:column;align-items:stretch;text-align:center;padding:14px 12px}
+  .eq-empty-banner-icon{font-size:36px}
+  .eq-empty-banner-btn{margin-top:4px}
+}
 .eq-section-sub{font-size:9px;font-weight:500;color:var(--border);text-transform:none;letter-spacing:0}
 
 /* Aktif slotlar satırı */
@@ -22900,6 +22962,16 @@ body.drawer-open{overflow:hidden}
 
     <!-- EKİPMAN -->
     <div id="pl-equipment" style="display:none">
+
+      <!-- 🆕 Boş dolap bilgilendirme kartı (renderEquipment tarafından dinamik yönetilir) -->
+      <div id="eqEmptyBanner" class="eq-empty-banner" style="display:none">
+        <div class="eq-empty-banner-icon">🎒</div>
+        <div class="eq-empty-banner-text">
+          <div class="eq-empty-banner-title">Dolabın Boş</div>
+          <div class="eq-empty-banner-msg">Gücünüzü artırmak için ekipman kullanın. Maçlarda yetenek bonusu sağlayan itemleri mağazadan satın alıp slotlara kuşanın.</div>
+        </div>
+        <button class="eq-empty-banner-btn" onclick="eqGoToShop()">🏪 Mağaza İtemler</button>
+      </div>
 
       <!-- Aktif Slotlar -->
       <div class="eq-section-title">⚡ Aktif Slotlar <span class="eq-section-sub">Yetenek %'si artıran itemler</span></div>
@@ -58828,10 +58900,11 @@ async function _eqDataLoadFromServer() {
 
 // localStorage: slot durumları + dolap (artık Supabase, RAM cache)
 function getEqData() {
+  // 🆕 Yeni kullanıcılar BOŞ dolapla başlar — itemler mağazadan satın alınmalı
   const defaultData = {
     unlockedSlots: [true, false, false, false, false],
     activeSlots:   [null, null, null, null, null],
-    wardrobe:      [...SAMPLE_ITEMS],
+    wardrobe:      [],
   };
   if (!_eqDataCache) return defaultData;
   const d = JSON.parse(JSON.stringify(_eqDataCache));  // deep copy
@@ -58840,12 +58913,12 @@ function getEqData() {
   if (Array.isArray(d.activeSlots)   && d.activeSlots.length   > 5) d.activeSlots   = d.activeSlots.slice(0,5);
   while ((d.unlockedSlots||[]).length < 5) (d.unlockedSlots = d.unlockedSlots||[]).push(false);
   while ((d.activeSlots  ||[]).length < 5) (d.activeSlots   = d.activeSlots  ||[]).push(null);
-  // Demo item temizliği
+  // Eski demo itemler temizlenir (bir kerelik migration)
   if (Array.isArray(d.wardrobe)) {
     const oldDemoIds = ['i001','i002','i003','i004','i005'];
     d.wardrobe = d.wardrobe.filter(w => !oldDemoIds.includes(w.id));
     d.activeSlots = d.activeSlots.map(id => oldDemoIds.includes(id) ? null : id);
-    if (d.wardrobe.length === 0) d.wardrobe = [...SAMPLE_ITEMS];
+    // Dolap boşsa yeniden DOLDURMA — kullanıcı mağazadan satın alacak
   }
   return d;
 }
@@ -58870,8 +58943,32 @@ let _slotToPlace = null;
 
 function renderEquipment() {
   _eqData = getEqData();
+  // 🆕 Boş dolap bilgilendirme bandı — dolap (slot kuşanmış dahil) tamamen boşsa göster
+  const banner = document.getElementById('eqEmptyBanner');
+  if (banner) {
+    const totalOwned = Array.isArray(_eqData.wardrobe) ? _eqData.wardrobe.length : 0;
+    banner.style.display = totalOwned === 0 ? 'flex' : 'none';
+  }
   renderSlots();
   renderWardrobe();
+}
+
+// 🆕 Ekipman sekmesinden mağaza → İtemler tabına yönlendir
+function eqGoToShop() {
+  try {
+    // Mağaza sayfasını aç (nav-btn[8] mağaza)
+    const shopNav = document.querySelectorAll('.nav-btn')[8];
+    if (typeof showPage === 'function') {
+      showPage('shop', shopNav);
+    }
+    // İtemler tabını seç
+    setTimeout(() => {
+      if (typeof shopTab === 'function') {
+        const itemsBtn = document.querySelector('.shop-tab[onclick*="\'items\'"]');
+        shopTab('items', itemsBtn);
+      }
+    }, 50);
+  } catch(e) { console.warn('[eqGoToShop] hata:', e); }
 }
 
 function renderSlots() {
