@@ -40356,9 +40356,53 @@ async function _rosterRefreshFromServer(countryCode) {
       });
     }
 
-    // Cache güncelle
+    // Cache güncelle — normalize format (loadTeamRoster/preloadAllTeamRosters ile aynı)
+    // 🆕 BUG FIX: önceden ham DB verisi (snake_case) cache'e yazılıyordu →
+    //   _teamRosterCache[key] = data → field'lar match_ratings, goals_total vs.
+    //   Diğer fonksiyonlar p.matchRatings, p.goalsTotal arayınca undefined dönüyordu.
+    //   Sonuç: Haftanın Yıldızı listesinde kullanıcının takım oyuncuları görünmüyordu.
     const key = countryCode + ':' + _userTeam.teamName;
-    _teamRosterCache[key] = data;
+    const normalized = data.map((r, i) => {
+      const sl = (typeof SQUAD_SLOTS_15 !== 'undefined' && SQUAD_SLOTS_15[i]) || {};
+      // matchRatings array → avgMatchRating + count önhesap
+      let avgMatchRating = 0, mrCount = 0;
+      if (Array.isArray(r.match_ratings)) {
+        for (const mr of r.match_ratings) {
+          if (mr && typeof mr.rating === 'number') { avgMatchRating += mr.rating; mrCount++; }
+        }
+        if (mrCount > 0) avgMatchRating /= mrCount;
+      }
+      return {
+        id: r.id,
+        userId: r.user_id,
+        num: r.num, name: r.name, pos: r.pos, posGroup: r.pos_group,
+        rating: r.rating || 10, overall: r.overall || 10,
+        level: r.level || 0, xp: r.xp || 0,
+        age: 18 + (r.num % 17),
+        starter: !!sl.starter,
+        abilities: r.abilities,
+        nation: r.nation || '🏳️',
+        nationality: r.nationality || r.country_code || countryCode,
+        avatar: r.avatar || (r.is_bot ? '🤖' : '👤'),
+        avatar_id: r.avatar_id || null,
+        role: r.role || 'member',
+        isBot: !!r.is_bot,
+        isUser: !r.is_bot,
+        lastSeen: r.last_seen || null,
+        goalsTotal: r.goals_total || 0,
+        assistsTotal: r.assists_total || 0,
+        matchesPlayed: r.matches_played || 0,
+        statsByComp: (r.stats_by_comp && typeof r.stats_by_comp === 'object') ? r.stats_by_comp : {},
+        matchRatings: Array.isArray(r.match_ratings) ? r.match_ratings : [],
+        avgMatchRating, matchRatingsCount: mrCount,
+        seasonYellow:   r.season_yellow   || 0,
+        suspendMatches: r.suspend_matches || 0,
+        suspendReason:  r.suspend_reason  || null,
+        injuryUntil:    Number(r.injury_until) || 0,
+        x: sl.x, y: sl.y,
+      };
+    });
+    _teamRosterCache[key] = normalized;
 
     // ROSTER_DATA'yı yeniden inşa et
     ROSTER_DATA = _buildRosterFromPlayers(data, countryCode);
