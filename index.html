@@ -59112,16 +59112,19 @@ async function confirmPosChange() {
   user.position = newPos;
   authUser      = user;
 
-  // 🆕 Supabase'e KALICI yaz — hem profiles.position hem players.pos güncellenir
-  //   Eski versiyon sadece RAM'deki authUser'ı değiştiriyordu; sayfa yenilenince
-  //   eski pos geri geliyor ve Edge Function simülasyonda yanlış pos_group kullanıyordu.
+  // 🆕 Supabase'e KALICI yaz — profiles.position + players.pos + user_player.position
+  //   Üç tablo birden senkronlanır. Eskiden user_player.position güncellenmediği için
+  //   _hydrateRosterWithUserData her yüklemede eski pos'u geri yüklüyordu (Özcan Yiğit bug'ı).
   (async () => {
     try {
       if (!window.sb || !authUser || !authUser.id) return;
       const POS_GRP = (typeof POS_GROUP !== 'undefined') ? POS_GROUP : {};
       const newPosGroup = POS_GRP[newPos] || newPos;
-      await window.sb.from('profiles').update({ position: newPos }).eq('id', authUser.id);
-      await window.sb.from('players').update({ pos: newPos, pos_group: newPosGroup }).eq('user_id', authUser.id);
+      await Promise.all([
+        window.sb.from('profiles').update({ position: newPos }).eq('id', authUser.id),
+        window.sb.from('players').update({ pos: newPos, pos_group: newPosGroup }).eq('user_id', authUser.id),
+        window.sb.from('user_player').update({ position: newPos, position_group: newPosGroup }).eq('user_id', authUser.id),
+      ]);
     } catch(e) { console.warn('[posChange] Supabase update hata:', e); }
   })();
 
