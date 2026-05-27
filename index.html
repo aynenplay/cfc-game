@@ -37335,6 +37335,83 @@ function processSeasonEnd(seasonNum) {
     } catch(e) {}
   }
 
+  // Avrupa kupası şampiyonluğu kontrolü (CHM/ELI/CON)
+  // Final winner = kullanıcının takımı ise trophy ekle
+  try {
+    const userTeamName = (_userTeam && _userTeam.teamName) || null;
+    const userCC = (_userTeam && _userTeam.countryCode) || null;
+    if (userTeamName && userCC) {
+      ['champ', 'elite', 'conv'].forEach(trnKey => {
+        const bracket = (typeof trn2BuildBracket === 'function')
+          ? (function(){
+              try {
+                const qual = trn2GetQualifiers(seasonNum);
+                if (!qual[trnKey] || qual[trnKey].length === 0) return null;
+                const playoff = trn2BuildPlayoff(qual[trnKey], seasonNum, trnKey);
+                const winners = playoff.map(m => m.winner).filter(Boolean);
+                if (winners.length < 16) return null;
+                const groups = trn2BuildGroups(winners, seasonNum, trnKey);
+                return trn2BuildBracket(groups, seasonNum, trnKey);
+              } catch(e) { return null; }
+            })()
+          : null;
+        if (!Array.isArray(bracket) || bracket.length === 0) return;
+        const finalRound = bracket[bracket.length - 1];
+        if (!finalRound || !Array.isArray(finalRound.matches) || finalRound.matches.length === 0) return;
+        const finalMatch = finalRound.matches[0];
+        if (!finalMatch.winner) return;
+        const winnerName = finalMatch.winner.name;
+        const winnerCC = finalMatch.winner.countryKey || finalMatch.winner.countryCode;
+        if (winnerName === userTeamName && winnerCC === userCC) {
+          const trophies = getTrophies();
+          // Aynı sezon + aynı tip eklenmediğinden emin ol
+          const dup = trophies.find(t => t.season === seasonNum && t.type === trnKey);
+          if (!dup) {
+            trophies.push({
+              season: seasonNum,
+              type: trnKey,
+              wonAt: Date.now()
+            });
+            saveTrophies(trophies);
+          }
+        }
+      });
+    }
+  } catch(e) { console.warn('[processSeasonEnd] avrupa kupası trophy hata:', e); }
+
+  // ENC (EURO Nations Cup) şampiyonluğu kontrolü — kullanıcının milli takımı (nationality)
+  try {
+    const userNat = (authUser && authUser.nationality) || null;
+    if (userNat && typeof encEnsureState === 'function') {
+      const encState = encEnsureState(seasonNum);
+      const finalM = encState && encState.knockout && encState.knockout.final;
+      if (finalM && finalM.played) {
+        // Winner: skor (et/pens dahil)
+        const homeCC = finalM.home && (finalM.home.countryKey || finalM.home.countryCode);
+        const awayCC = finalM.away && (finalM.away.countryKey || finalM.away.countryCode);
+        let winnerCC = null;
+        if (finalM.pens && finalM.pens.winner) {
+          winnerCC = finalM.pens.winner === 'home' ? homeCC : awayCC;
+        } else if (typeof finalM.hs === 'number' && typeof finalM.as === 'number') {
+          if (finalM.hs > finalM.as) winnerCC = homeCC;
+          else if (finalM.as > finalM.hs) winnerCC = awayCC;
+        }
+        if (winnerCC === userNat) {
+          const trophies = getTrophies();
+          const dup = trophies.find(t => t.season === seasonNum && t.type === 'enc');
+          if (!dup) {
+            trophies.push({
+              season: seasonNum,
+              type: 'enc',
+              wonAt: Date.now()
+            });
+            saveTrophies(trophies);
+          }
+        }
+      }
+    }
+  } catch(e) { console.warn('[processSeasonEnd] ENC trophy hata:', e); }
+
   // İnbox bildirimi
   try {
     if (typeof getInboxMsgs === 'function' && typeof saveInboxMsgs === 'function') {
@@ -37349,7 +37426,16 @@ function processSeasonEnd(seasonNum) {
       if (movement && movement.action === 'promoted') bodyLines.push(`⬆️ Bir üst lige çıktın! Tebrikler.`);
       if (movement && movement.action === 'relegated') bodyLines.push(`⬇️ Bir alt lige düştün. Toparlanma vakti.`);
       if (europeanCup) bodyLines.push(`${europeanCup.icon} ${europeanCup.cup} katılımı kazandın!`);
-      if (isUserChampion) bodyLines.push(`🏆 ŞAMPİYON OLDUN!`);
+      if (isUserChampion) bodyLines.push(`🏆 LİG ŞAMPİYONU OLDUN!`);
+
+      // Bu sezon kazanılan ekstra kupalar (CHM/ELI/CON/ENC)
+      try {
+        const allT = getTrophies().filter(t => t.season === seasonNum);
+        const cupLabels = { champ: '🏆 Şampiyonlar Ligi', elite: '🥈 Elit Lig', conv: '🥉 Konferans Ligi', enc: '🌍 EURO Nations Cup' };
+        allT.forEach(t => {
+          if (cupLabels[t.type]) bodyLines.push(`${cupLabels[t.type]} ŞAMPİYONU!`);
+        });
+      } catch(e) {}
 
       inbox.unshift({
         id: 'season_end_' + seasonNum,
@@ -50209,6 +50295,18 @@ function joinTeamDirect(countryCode, teamName, opts) {
   };
   if(typeof userTeamSave === 'function') userTeamSave();
 
+  // Career history: bot kaptanlı takıma direkt katılım
+  if (typeof pushCareerHistory === 'function') {
+    const lgName = (_cftGetCountry(countryCode) && _cftGetCountry(countryCode).leagues && _cftGetCountry(countryCode).leagues[tierIdx])
+      ? _cftGetCountry(countryCode).leagues[tierIdx].name : '';
+    pushCareerHistory({
+      teamName, countryCode,
+      leagueName: lgName,
+      role: 'member',
+      joinDate: new Date().toISOString(),
+    });
+  }
+
   // ROSTER_DATA'yı yeni takıma göre yeniden inşa et
   if(typeof rosterClearPersist === 'function') rosterClearPersist();
   if(typeof syncUserToRoster === 'function') syncUserToRoster();
@@ -54756,6 +54854,36 @@ async function _careerHistoryLoadFromServer() {
       .maybeSingle();
     _careerHistoryCache = Array.isArray(data?.career_history) ? data.career_history : [];
   } catch(e) { _careerHistoryCache = []; }
+
+  // BACKFILL: history boşsa ve kullanıcının aktif takımı varsa, mevcut takımı kaydet.
+  // Bu, eski hesaplar (career_history feature'ından önce katılmış) için tek seferlik düzeltme.
+  // Yeni katılımlar artık ilgili akışta (joinTeamDirect/buyTeam/TM/inbox) push'lanıyor.
+  try {
+    if (_careerHistoryCache.length === 0 && typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName) {
+      const cc = _userTeam.countryCode;
+      const country = (typeof _cftGetCountry === 'function') ? _cftGetCountry(cc) : null;
+      const tierIdx = (typeof getUserRealTierIdx === 'function') ? getUserRealTierIdx() : 0;
+      const lgName = (country && Array.isArray(country.leagues) && country.leagues[tierIdx])
+        ? country.leagues[tierIdx].name : '';
+      const joinTs = _userTeam.joinedAt || _userTeam.purchasedAt || Date.now();
+      const entry = {
+        teamName: _userTeam.teamName,
+        countryCode: cc,
+        leagueName: lgName,
+        role: _userTeam.role || 'member',
+        joinDate: new Date(joinTs).toISOString(),
+        leaveDate: null,
+        reason: ''
+      };
+      _careerHistoryCache = [entry];
+      // Server'a kalıcı yaz
+      try {
+        await window.sb.from('user_player').update({
+          career_history: _careerHistoryCache
+        }).eq('user_id', authUser.id);
+      } catch(e) { console.warn('[career_history] backfill yazma hatası:', e); }
+    }
+  } catch(e) { console.warn('[career_history] backfill exception:', e); }
 }
 
 function getCareerHistory() {
@@ -55002,18 +55130,6 @@ function renderCareerPage() {
   // ─── TAKIM GEÇMİŞİ ───
   const teamHistEl = document.getElementById('carTeamHistory');
   if (teamHistEl) {
-    // Mevcut takım otomatik eklensin (henüz yoksa)
-    if (isInTeam && careerHist.length === 0) {
-      pushCareerHistory({
-        teamName: _userTeam.teamName,
-        countryCode: cc,
-        leagueName: country?.leagues?.[getUserRealTierIdx()]?.name || '',
-        role: _userTeam.role,
-        joinDate: _userTeam.joinDate || new Date().toISOString()
-      });
-      careerHist = getCareerHistory();
-    }
-
     if (careerHist.length === 0) {
       teamHistEl.innerHTML = '<div class="car-table-empty">Takım geçmişi henüz yok</div>';
     } else {
@@ -55088,6 +55204,7 @@ function renderCareerPage() {
         if (t.type === 'champ') { cupKey = 'champ'; name = 'Championship'; }
         else if (t.type === 'elite') { cupKey = 'elite'; name = 'Elite Cup'; }
         else if (t.type === 'conv') { cupKey = 'conv'; name = 'Convergence'; }
+        else if (t.type === 'enc') { icon = '🌍'; name = 'EURO Nations'; }
         else if (t.type === 'league') { icon = '🥇'; }
         const iconHtml = cupKey ? _cupLogoIMG(cupKey, 32) : `<div style="font-size:32px">${icon}</div>`;
         return `
@@ -59589,6 +59706,10 @@ function tmConfirmBuy(){
 
   // Kullanıcının mevcut takımından ayrıl (varsa)
   if(userHasTeam()){
+    // Career history: aktif kaydı kapat
+    if (typeof _carCloseCurrentHistory === 'function') {
+      _carCloseCurrentHistory('Yeni takıma transfer (TM)');
+    }
     _userTeam = null;
     userTeamSave();
     if(typeof rosterClearTeam === 'function') rosterClearTeam();
@@ -59604,6 +59725,19 @@ function tmConfirmBuy(){
     joinedAt: Date.now(),
   };
   userTeamSave();
+
+  // Career history: TM'den satın alınan takım (kaptan)
+  if (typeof pushCareerHistory === 'function') {
+    const lgName = (_cftGetCountry(listing.countryCode) && _cftGetCountry(listing.countryCode).leagues && _cftGetCountry(listing.countryCode).leagues[0])
+      ? _cftGetCountry(listing.countryCode).leagues[0].name : '';
+    pushCareerHistory({
+      teamName: listing.teamName,
+      countryCode: listing.countryCode,
+      leagueName: lgName,
+      role: 'captain',
+      joinDate: new Date().toISOString(),
+    });
+  }
 
   // Yeni takım için fresh roster oluştur (kullanıcı kaptan)
   try{
@@ -65141,6 +65275,19 @@ async function _inboxProcessApprovedJoinRequests() {
         await _userTeamSaveImpl();
       } else if (typeof userTeamSave === 'function') {
         userTeamSave();
+      }
+
+      // Career history: inbox'tan transfer teklifi kabul (üye)
+      if (typeof pushCareerHistory === 'function') {
+        const lgName = (country && Array.isArray(country.leagues) && country.leagues[tierIdx])
+          ? country.leagues[tierIdx].name : '';
+        pushCareerHistory({
+          teamName: meta.teamName,
+          countryCode: meta.countryCode,
+          leagueName: lgName,
+          role: 'member',
+          joinDate: new Date().toISOString(),
+        });
       }
 
       // ROSTER_DATA yeniden inşa et
