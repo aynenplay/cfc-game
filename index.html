@@ -70896,6 +70896,8 @@ function _evRaceCalcLeaderboardFromCache(cycleStartMs) {
       }
       if (matchCount === 0) return; // bu cycle'da hiç maç oynamamış → listeye girmez
       out.push({
+        // 🆕 userId ile eşleştirme (isim string'i değil, ZWS/boşluk bug'larına karşı)
+        userId: p.userId || null,
         playerName: p.name,
         teamName,
         teamShort: info.short || teamName.slice(0,3).toUpperCase(),
@@ -71000,27 +71002,54 @@ function _evRaceBuildLeaderboard(metric) {
   } else {
     bots = _evRaceGenerateTrainPlayers(weekKey);
   }
-  // Bots içinde kullanıcı varsa (gerçek maç verisinden) onu user olarak işaretle
+  // 🆕 Bots içinde kullanıcı varsa onu user olarak işaretle.
+  //    userId tabanlı eşleştirme (isim string karşılaştırma bug'larına karşı).
+  const myUserId = (window.authUser && window.authUser.id) || null;
   let userInList = false;
   bots.forEach(b => {
-    if (b.teamName === userTeamName && b.playerName === userPlayerName) {
+    const isMe = (myUserId && b.userId && b.userId === myUserId)
+              || (b.teamName === userTeamName && b.playerName === userPlayerName);
+    if (isMe) {
       b.isUser = true;
       userInList = true;
     }
   });
 
-  // Yoksa score=0 ile ekle (cycle'da hiç oynamamış veya veri yok)
-  // ÖNEMLİ: Kullanıcı/bot ayrımı yok. Listedeyse oradan, değilse 0.
+  // 🆕 Kullanıcı listede yoksa: 3 maç oynamadığı için filtrelendi DEMEK.
+  //    Bunu açıkça göstermek için score=0 + matchCount info ile alta ekle.
   if (!userInList) {
+    // Kullanıcının kendi maç sayısını _teamRosterCache'ten oku — UI'da bilgilendirme için
+    let myMatchCount = 0;
+    let myAvgRating = 0;
+    try {
+      const cycleStartMs = _evRaceCycleInfo().start.getTime();
+      const rosterKey = userCC + ':' + userTeamName;
+      const roster = _teamRosterCache && _teamRosterCache[rosterKey];
+      if (Array.isArray(roster)) {
+        const me = roster.find(p =>
+          (myUserId && p.userId === myUserId) || (p.name === userPlayerName)
+        );
+        if (me && Array.isArray(me.matchRatings)) {
+          let sum = 0;
+          for (const mr of me.matchRatings) {
+            if (!mr || typeof mr.rating !== 'number') continue;
+            const ts = Number(mr.ts) || 0;
+            if (ts < cycleStartMs) continue;
+            sum += mr.rating; myMatchCount++;
+          }
+          if (myMatchCount > 0) myAvgRating = Math.round((sum / myMatchCount) * 100) / 100;
+        }
+      }
+    } catch(e) {}
     bots.push({
+      userId: myUserId,
       playerName: userPlayerName,
       teamName: userTeamName,
-      teamShort,
-      teamBg,
-      teamTc,
+      teamShort, teamBg, teamTc,
       countryCode: userCC,
       countryFlag: userFlag,
-      score: 0,
+      score: myAvgRating,  // gerçek ortalama (0 ise hiç oynamamış)
+      _matchCount: myMatchCount,
       isUser: true,
     });
   }
