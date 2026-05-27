@@ -70804,7 +70804,7 @@ async function _evRacePreloadServerLb() {
 // Lig sayfasındaki "Sezon Reytingi" ile aynı veri kaynağı, sadece cycle başlangıcı sonrası
 function _evRaceCalcLeaderboardFromCache(cycleStartMs) {
   // 🆕 GERÇEK SUPABASE VERİSİ: _teamRosterCache (players tablosu) direkt okuyor.
-  //   match_ratings array'inden cycle filtreli ortalama rating hesaplanır.
+  //   matchRatings array'inden CYCLE FİLTRELİ ortalama rating hesaplanır.
   //   Edge function rating'leri kümülatif doldurur. Frontend uydurma hesap YAPMAZ.
   if (typeof _teamRosterCache === 'undefined' || !_teamRosterCache) return [];
 
@@ -70833,17 +70833,20 @@ function _evRaceCalcLeaderboardFromCache(cycleStartMs) {
     const info = teamLookup[teamName] || {};
     roster.forEach(p => {
       if (!p || !p.name) return;
-      // Cycle filtresi: match_ratings array'inden cycle başlangıcından sonraki rating'ler
+      // 🆕 CYCLE FİLTRELİ: matchRatings array'inden sadece cycleStartMs sonrası rating'ler.
+      //    Her rating kaydında ts (Date.now()) var → filtreyi onunla yapıyoruz.
       let ratingSum = 0;
       let matchCount = 0;
-      // _teamRosterCache match_ratings ham datayı tutmuyor (avg ve count tutuyor).
-      // Cycle filtresi olmadan tüm ortalama kullanılır. (Cycle filtresi için Edge function
-      // weekly_ratings ayrı tutmalı; şimdilik kümülatif ortalama gösterilir.)
-      if ((p.matchRatingsCount || 0) > 0) {
-        ratingSum = (p.avgMatchRating || 0) * p.matchRatingsCount;
-        matchCount = p.matchRatingsCount;
+      if (Array.isArray(p.matchRatings)) {
+        for (const mr of p.matchRatings) {
+          if (!mr || typeof mr.rating !== 'number') continue;
+          const ts = Number(mr.ts) || 0;
+          if (ts < cycleStartMs) continue;  // bu hafta dışı, atla
+          ratingSum += mr.rating;
+          matchCount++;
+        }
       }
-      if (matchCount === 0) return; // hiç maç oynamamış oyuncu listede yok
+      if (matchCount === 0) return; // bu cycle'da hiç maç oynamamış → listeye girmez
       out.push({
         playerName: p.name,
         teamName,
