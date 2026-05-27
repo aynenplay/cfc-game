@@ -37378,19 +37378,12 @@ async function _matchResultsFlush() {
 let _liveMatchCache = {};
 let _liveMatchPollTimer = null;
 
-async function _liveMatchLoadFromServer(includeEvents) {
+async function _liveMatchLoadFromServer() {
   if (!window.sb) return;
-  // ⚡ PERF: includeEvents false geçilirse events+stats SELECT'ten çıkar.
-  //   Default true → eski davranış (maç ekranı + mini overlay için events lazım).
-  //   SONUÇLAR sayfa polling'i events'siz çağırır (5sn'de bir, 500 maç × büyük JSONB transferi kalkar).
-  const _ie = (includeEvents === false) ? false : true;
-  const COLS = _ie
-    ? 'match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,events,stats,started_at,kickoff_at,tournament_key,tournament_phase,viewer_count'
-    : 'match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,started_at,kickoff_at,tournament_key,tournament_phase,viewer_count';
   try {
     // 🆕 1) running olan TÜM maçları yükle (zaman sınırı yok — şu an canlı olanlar)
     const { data: runningData, error: e1 } = await window.sb.from('match_state')
-      .select(COLS)
+      .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,events,stats,started_at,kickoff_at,tournament_key,tournament_phase,viewer_count')
       .eq('status', 'running')
       .order('kickoff_at', { ascending: false })
       .limit(500);
@@ -37398,7 +37391,7 @@ async function _liveMatchLoadFromServer(includeEvents) {
     
     // 🆕 2) scheduled — yakın gelecek (önümüzdeki 4 saat)
     const { data: schedData, error: e2 } = await window.sb.from('match_state')
-      .select(COLS)
+      .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,events,stats,started_at,kickoff_at,tournament_key,tournament_phase,viewer_count')
       .eq('status', 'scheduled')
       .gte('kickoff_at', new Date(Date.now() - 30 * 60 * 1000).toISOString())
       .lte('kickoff_at', new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString())
@@ -37408,26 +37401,16 @@ async function _liveMatchLoadFromServer(includeEvents) {
     
     // 🆕 3) Tüm EURO Nations Cup planlanmış maçları (gün 34+ için)
     const { data: encData, error: e3 } = await window.sb.from('match_state')
-      .select(COLS)
+      .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,events,stats,started_at,kickoff_at,tournament_key,tournament_phase,viewer_count')
       .eq('tournament_key', 'enc')
       .order('day_in_season', { ascending: true })
       .limit(500);
     if (e3) { console.warn('[live_match enc] hata:', e3.message); }
     
-    // ⚡ Events çekilmediyse mevcut cache'teki events'leri koru (overwrite etme)
-    const cache = _ie ? {} : Object.assign({}, _liveMatchCache || {});
-    for (const r of (runningData || [])) {
-      if (_ie) cache[r.match_key] = r;
-      else cache[r.match_key] = Object.assign({}, cache[r.match_key] || {}, r);
-    }
-    for (const r of (schedData || [])) {
-      if (_ie) cache[r.match_key] = r;
-      else cache[r.match_key] = Object.assign({}, cache[r.match_key] || {}, r);
-    }
-    for (const r of (encData || [])) {
-      if (_ie) cache[r.match_key] = r;
-      else cache[r.match_key] = Object.assign({}, cache[r.match_key] || {}, r);
-    }
+    const cache = {};
+    for (const r of (runningData || [])) cache[r.match_key] = r;
+    for (const r of (schedData || [])) cache[r.match_key] = r;
+    for (const r of (encData || [])) cache[r.match_key] = r;
     _liveMatchCache = cache;
   } catch(e) { console.warn('[live_match] hata:', e); }
 }
@@ -37435,24 +37418,22 @@ async function _liveMatchLoadFromServer(includeEvents) {
 // SONUÇLAR sayfası açıkken poll başlat
 function _liveMatchStartPolling() {
   if (_liveMatchPollTimer) return;
-  // 🆕 İlk yükleme: events dahil (mini overlay açılabilir, ihtiyaç var)
+  // 🆕 İlk yükleme: bekle ve renderResultsPage'i tetikle
   _liveMatchLoadFromServer().then(() => {
     const page = document.querySelector('.page.active');
     if (page && page.id === 'page-results' && typeof renderResultsPage === 'function') {
       try { renderResultsPage(); } catch(e) {}
     }
   });
-  // ⚡ PERF: 5sn'lik tekrar poll EVENTS ÇEKMEZ (false) → 100kb yerine ~5kb transfer.
-  //   Cache'teki events korunur (sadece sim_minute/score/status üzerine yazılır).
-  //   Mini overlay açılırsa _resLiveUpdate kendi events okur (cache'ten).
+  // Sonra 5sn'de bir poll (canlı maç güncellemesi için)
   _liveMatchPollTimer = setInterval(() => {
-    _liveMatchLoadFromServer(false).then(() => {
+    _liveMatchLoadFromServer().then(() => {
       const page = document.querySelector('.page.active');
       if (page && page.id === 'page-results' && typeof renderResultsPage === 'function') {
         try { renderResultsPage(); } catch(e) {}
       }
     });
-  }, 5000);
+  }, 5000); // 🆕 10sn → 5sn (daha akıcı canlı güncelleme)
 }
 
 function _liveMatchStopPolling() {
