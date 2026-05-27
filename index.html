@@ -28707,33 +28707,10 @@ function adjustMorale(p, delta, reason) {
 //  • İmza parası (signing bonus) sözleşme onaylandığı an ayrı ödenir
 
 // Eski haftalık fonksiyonu nostöp halinde tutuyoruz (eski çağrılar kırılmasın)
-function checkWeeklySalaryPayment(){ /* devre dışı — sezonluk taksit sistemine taşındı */ }
+function checkWeeklySalaryPayment(){ /* devre dışı — Edge cron'una taşındı */ }
 
-// Bir oyuncunun sezonluk maaşı (botlar için 0)
-function getPlayerYearlySalary(p) {
-  if(!p) return 0;
-  // Sadece gerçek kullanıcı (role==='user') sözleşmeli sayılır.
-  if(p.role !== 'user') return 0;
-  // Kullanıcının sözleşmesi varsa onun yıllık ücreti
-  if(typeof _userTeam !== 'undefined' && _userTeam && _userTeam.contract
-     && typeof _userTeam.contract.yearlySalary === 'number') {
-    return _userTeam.contract.yearlySalary;
-  }
-  return 0;
-}
-
-// Bir oyuncunun bu sezon her bir taksitinin tutarı (yarım yıllık)
-function getPlayerInstallmentAmount(p) {
-  return Math.round(getPlayerYearlySalary(p) / 2);
-}
-
-// Takımın 1 taksitlik toplam maaş yükü (tüm sözleşmeli oyuncular)
-function getTeamInstallmentBill() {
-  if(typeof ROSTER_DATA === 'undefined' || !ROSTER_DATA.length) return 0;
-  return ROSTER_DATA.reduce((sum, p) => sum + getPlayerInstallmentAmount(p), 0);
-}
-
-// Sözleşme aktif mi? (sezon bazlı)
+// 🆕 Sözleşme aktif mi? (sezon bazlı) — Edge cron için kullanılıyor değil ama
+// canUserLeaveTeam, checkContractExpiration ve diğer akışlar için referans noktası.
 function userHasActiveContract() {
   if(typeof _userTeam === 'undefined' || !_userTeam) return false;
   const c = _userTeam.contract;
@@ -28744,6 +28721,14 @@ function userHasActiveContract() {
   if(typeof c.endsSeason === 'number' && c.endsSeason < info.season) return false;
   return true;
 }
+
+// 🆕 ESKİ FRONTEND MAAŞ ÖDEME ZİNCİRİ SİLİNDİ
+// Maaş ödemesi artık Edge function tarafından yapılıyor (_paySalariesForDay).
+// Silinen fonksiyonlar:
+//   • getPlayerYearlySalary, getPlayerInstallmentAmount, getTeamInstallmentBill
+//   • _paidInstallmentsCache, _paidInstallmentsLoadFromServer, getPaidInstallments,
+//     savePaidInstallments, isInstallmentPaid, markInstallmentPaid
+//   • checkSeasonalSalaryPayment (idempotency Edge'de contract.lastPayKey ile)
 
 // ═══════════════════════════════════════════════════════════════════
 //  KONTRAT KONTROLÜ — TAKIMDAN AYRILMA HAKKI
@@ -28776,12 +28761,18 @@ function canUserLeaveTeam() {
   const c = _userTeam.contract;
   if (c && typeof userHasActiveContract === 'function' && userHasActiveContract()) {
     if (c.canLeaveFreely) {
-      // Maaş ödenmemiş, sözleşmeyi fesheden ayrılma hakkı doğmuş
+      // 🆕 Ayrılma hakkı doğmuş — neden olduğunu mesajda belirt
+      const isExpired = (typeof getSeasonInfo === 'function') &&
+                        (getSeasonInfo().season > (c.endsSeason || 0));
+      const isUnpaid = (c.unpaidInstallments || 0) >= 2;
+      const reasonStr = isExpired ? 'sözleşme süren dolduğu için'
+                       : isUnpaid ? 'takım maaş ödemesini yapamadığı için'
+                       : 'yenileme reddedildiği için';
       return {
         allowed: true,
         requiresConfirm: true,
-        confirmMsg: `💰 SÖZLEŞME FESHİ\n\n` +
-                    `Takımın maaş taksitini ödeyemediği için sözleşmeni FESHEDİP serbestçe ayrılma hakkın doğdu.\n\n` +
+        confirmMsg: `🔓 SÖZLEŞME FESHİ\n\n` +
+                    `${reasonStr} serbestçe ayrılma hakkın doğdu.\n\n` +
                     `Ayrılırsan:\n` +
                     `• ${_userTeam.teamName} sözleşmen iptal edilir\n` +
                     `• Serbest oyuncu olursun\n` +
@@ -28793,200 +28784,28 @@ function canUserLeaveTeam() {
       const info = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : null;
       const remainSeasons = (info && typeof c.endsSeason === 'number')
         ? Math.max(0, c.endsSeason - info.season + 1) : 0;
-      const yearlyStr = c.yearlySalary
-        ? `Yıllık ücret: ${(c.yearlySalary/1000).toLocaleString('tr')}K €\n` : '';
+      const seasonSal = Number(c.seasonSalary || c.yearlySalary || 0);
+      const salStr = seasonSal > 0
+        ? `Sezon maaşı: ${(seasonSal/1000).toLocaleString('tr')}K € (4 taksit)\n` : '';
       return {
         allowed: false,
         reason: `🔒 SÖZLEŞMEN AKTİF\n\n` +
                 `${_userTeam.teamName} ile sözleşmen var.\n` +
                 (typeof c.endsSeason === 'number'
                   ? `Bitiş: ${c.endsSeason}. sezon sonu (kalan: ${remainSeasons} sezon)\n` : '') +
-                yearlyStr +
+                salStr +
                 `\n` +
                 `Sözleşmeli oyuncu kendi isteğiyle takımdan ayrılamaz.\n\n` +
                 `Ayrılma hakkı şu durumda doğar:\n` +
-                `• Takım maaş taksitini ödeyemezse (kasa yetersiz)\n` +
-                `• Sözleşme süresi dolarsa\n\n` +
+                `• Takım 2 maaş taksitini ödeyemezse (kasa yetersiz)\n` +
+                `• Sözleşme süresi dolarsa\n` +
+                `• Sezon sonu yenileme reddedildiyse\n\n` +
                 `Bu durumlardan biri gerçekleşene kadar takımda kalman gerekir.`
       };
     }
   }
   // Sözleşmesiz üye — istediği zaman ayrılır (sadece normal onay yeterli)
   return { allowed: true, requiresConfirm: false };
-}
-
-// 🆕 Ödenmiş taksitler: team_data tablosunda (takım bazlı, kaptan değişse bile kalır)
-let _paidInstallmentsCache = null;
-let _paidInstallmentsSaveTimer = null;
-
-async function _paidInstallmentsLoadFromServer() {
-  if (!window.sb || !_userTeam || !_userTeam.countryCode || !_userTeam.teamName) {
-    _paidInstallmentsCache = [];
-    return;
-  }
-  try {
-    const { data } = await window.sb.from('team_data')
-      .select('data')
-      .eq('country_code', _userTeam.countryCode)
-      .eq('team_name', _userTeam.teamName)
-      .eq('data_key', 'installments')
-      .maybeSingle();
-    _paidInstallmentsCache = Array.isArray(data?.data?.list) ? data.data.list : [];
-  } catch(e) { _paidInstallmentsCache = []; }
-}
-
-function getPaidInstallments() {
-  return Array.isArray(_paidInstallmentsCache) ? _paidInstallmentsCache : [];
-}
-
-function savePaidInstallments(list) {
-  _paidInstallmentsCache = Array.isArray(list) ? list : [];
-  if (window.sb && _userTeam && _userTeam.countryCode && _userTeam.teamName) {
-    clearTimeout(_paidInstallmentsSaveTimer);
-    _paidInstallmentsSaveTimer = setTimeout(async () => {
-      try {
-        await window.sb.from('team_data').upsert({
-          country_code: _userTeam.countryCode,
-          team_name: _userTeam.teamName,
-          data_key: 'installments',
-          data: { list: _paidInstallmentsCache },
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'country_code,team_name,data_key' });
-      } catch(e) { console.warn('[installments] save hata:', e); }
-    }, 500);
-  }
-}
-function isInstallmentPaid(season, day) {
-  return getPaidInstallments().some(p => p.season === season && p.day === day
-    && p.team === ((_userTeam||{}).teamName) && p.cc === ((_userTeam||{}).countryCode));
-}
-function markInstallmentPaid(season, day, amount, status) {
-  const list = getPaidInstallments();
-  list.unshift({
-    season, day, amount,
-    status: status || 'paid',
-    team: (_userTeam||{}).teamName,
-    cc:   (_userTeam||{}).countryCode,
-    ts:   Date.now(),
-  });
-  savePaidInstallments(list);
-}
-
-// Sezonluk taksit ödemesi kontrolü
-// • Gün 19 → 1. taksit, Gün 38 → 2. taksit
-// • Yetersizse hiç kimse ödenmez, kullanıcının canLeaveFreely flag'i true olur
-function checkSeasonalSalaryPayment() {
-  if(typeof _userTeam === 'undefined' || !_userTeam) return;
-  if(typeof ROSTER_DATA === 'undefined' || !ROSTER_DATA.length) return;
-  if(typeof getSeasonInfo !== 'function') return;
-
-  const info = getSeasonInfo();
-  if(info.preSeason) return;
-
-  // Hangi taksit günleri (19 / 38)
-  const INSTALLMENT_DAYS = [19, 38];
-  if(INSTALLMENT_DAYS.indexOf(info.dayInSeason) === -1) return;
-
-  // Bu taksit zaten ödenmiş mi?
-  if(isInstallmentPaid(info.season, info.dayInSeason)) return;
-
-  const bill = getTeamInstallmentBill();
-  // Hiç ödenecek bir şey yoksa (örn. takım tamamen botlardan oluşuyor) → ödenmiş say
-  if(bill <= 0) {
-    markInstallmentPaid(info.season, info.dayInSeason, 0, 'no-bill');
-    return;
-  }
-
-  const treasury = (typeof trsGetBalance === 'function') ? trsGetBalance('eur') : 0;
-  const fmt = v => v >= 1e6 ? '€'+(v/1e6).toFixed(2)+'M' : '€'+Math.round(v/1000)+'K';
-  const taksitNo = info.dayInSeason === 19 ? '1' : '2';
-
-  if(treasury >= bill) {
-    // ÖDEME BAŞARILI — kasadan düş, oyuncuların cüzdanına yatır
-    if(typeof trsDeduct === 'function'){
-      const ok = trsDeduct('eur', bill, `${taksitNo}. Taksit Maaş (${info.season}. sezon, ${info.dayInSeason}. gün)`);
-      if(!ok) return; // güvenlik: trsDeduct false dönerse bırak
-    }
-
-    // Her sözleşmeli oyuncuya kendi taksitini yatır (şu an sadece kullanıcı)
-    let userPaid = 0;
-    ROSTER_DATA.forEach(p => {
-      const amount = getPlayerInstallmentAmount(p);
-      if(amount <= 0) return;
-      if(p.role === 'user' && typeof wlAddIncome === 'function') {
-        wlAddIncome('eur', amount, `${taksitNo}. Taksit Maaş — ${(_userTeam||{}).teamName}`);
-        userPaid = amount;
-      }
-      // Diğer gerçek oyuncular (multiplayer için, şu an yok)
-    });
-
-    markInstallmentPaid(info.season, info.dayInSeason, bill, 'paid');
-
-    // Kullanıcı daha önce maaş alamamışsa flag'i kapat
-    if(_userTeam.contract && _userTeam.contract.canLeaveFreely) {
-      _userTeam.contract.canLeaveFreely = false;
-      if(typeof userTeamSave === 'function') userTeamSave();
-    }
-
-    // Inbox bildirimi
-    try {
-      const msgs = (typeof getInboxMsgs === 'function') ? getInboxMsgs() : null;
-      if(msgs){
-        msgs.unshift({
-          id: 'salary_paid_' + Date.now(),
-          from: '💰 Mali İşler',
-          fromAvatar: '💰',
-          subject: `${taksitNo}. Taksit Maaşın Ödendi`,
-          body: `${info.season}. sezonun ${info.dayInSeason}. günü — ${taksitNo}. taksit maaşın hesabına yatırıldı.\n\nTutar: ${fmt(userPaid)}\nKasadan düşülen toplam: ${fmt(bill)}`,
-          time: new Date().toLocaleDateString('tr'),
-          read: false,
-          type: 'system',
-          thread: [],
-        });
-        if(typeof saveInboxMsgs === 'function') saveInboxMsgs(msgs);
-        if(typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
-      }
-    } catch(e){}
-
-  } else {
-    // ÖDEME YAPILAMADI — kimse ödenmez, ayrılma serbest
-    markInstallmentPaid(info.season, info.dayInSeason, 0, 'unpaid');
-
-    if(_userTeam.contract) {
-      _userTeam.contract.canLeaveFreely = true;
-      _userTeam.contract.unpaidInstallments = (_userTeam.contract.unpaidInstallments || 0) + 1;
-      if(typeof userTeamSave === 'function') userTeamSave();
-    }
-
-    // Inbox uyarı mesajı
-    try {
-      const msgs = (typeof getInboxMsgs === 'function') ? getInboxMsgs() : null;
-      if(msgs){
-        msgs.unshift({
-          id: 'salary_unpaid_' + Date.now(),
-          from: '⚠️ Mali İşler',
-          fromAvatar: '⚠️',
-          subject: `${taksitNo}. Taksit Maaşın Ödenmedi!`,
-          body: `${info.season}. sezonun ${info.dayInSeason}. günü maaş ödemesi yapılamadı.\n\nTakım kasası ${fmt(bill)} taksit yükünü karşılayamadı (mevcut: ${fmt(treasury)}).\n\n🔓 Sözleşmen olsa bile takımdan SERBESTÇE AYRILABİLİRSİN. Burger menüden "Ayrıl" butonu artık aktif.`,
-          time: new Date().toLocaleDateString('tr'),
-          read: false,
-          type: 'warning',
-          thread: [],
-        });
-        if(typeof saveInboxMsgs === 'function') saveInboxMsgs(msgs);
-        if(typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
-      }
-    } catch(e){}
-
-    // Toast
-    try {
-      const t = document.createElement('div');
-      t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#ef5350;color:#fff;padding:12px 22px;border-radius:24px;font-size:13px;font-weight:700;z-index:9999;font-family:"Barlow Condensed",sans-serif;letter-spacing:.4px;box-shadow:0 8px 24px rgba(0,0,0,.4)';
-      t.textContent = `⚠️ ${taksitNo}. taksit ödenmedi! Ayrılabilirsin.`;
-      document.body.appendChild(t);
-      setTimeout(() => t.remove(), 3500);
-    } catch(e){}
-  }
 }
 
 // ── Bir takıma "gerçek kaptan" mı yoksa "bot kaptan" mı? ──
@@ -29175,26 +28994,33 @@ function _getContractRenewalState() {
 }
 
 function _calcRenewalOffer(currentContract) {
-  // Kullanıcı oyuncusu — yetenek seviyesine göre artış oranı
-  let ovr = 10;
+  // 🆕 SİSTEM HESAPLI YENİ MAAŞ
+  // Oyuncunun şu anki seviyesine göre yeni sezon maaşı hesaplanır.
+  // Büyüdüyse maaş ARTAR (sistem mantığı), küçülmesi imkansız (level düşmez).
+  let player = null;
   try {
     if(typeof ROSTER_DATA !== 'undefined' && Array.isArray(ROSTER_DATA)) {
-      const u = ROSTER_DATA.find(p => p && p.role === 'user');
-      if(u) ovr = u.overall || u.rating || 10;
+      player = ROSTER_DATA.find(p => p && p.role === 'user');
     }
   } catch(e){}
 
-  // %10-20 artış (overall yüksekse daha fazla)
-  const raisePercent = Math.min(20, 10 + Math.floor(ovr / 10));
-  const newYearlySalary = Math.max(1000, Math.round((currentContract.yearlySalary || 10000) * (1 + raisePercent / 100)));
-  const newDuration = 1; // 1 sezon yenileme
-  const newSigningBonus = Math.round(newYearlySalary * 0.25);
+  const newSeasonSalary = (typeof getSystemPlayerSalary === 'function' && player)
+    ? getSystemPlayerSalary(player)
+    : Math.round((currentContract.seasonSalary || currentContract.yearlySalary || 100000) * 1.1);
+
+  const oldSalary = Number(currentContract.seasonSalary || currentContract.yearlySalary || 0);
+  const diff = newSeasonSalary - oldSalary;
+  const raisePercent = oldSalary > 0 ? Math.round((diff / oldSalary) * 100) : 0;
 
   return {
-    yearlySalary: newYearlySalary,
-    durationSeasons: newDuration,
-    signingBonus: newSigningBonus,
-    raisePercent,
+    seasonSalary: newSeasonSalary,        // 🆕 yeni sezon maaşı
+    yearlySalary: newSeasonSalary,        // backward compat
+    durationSeasons: 1,                    // her zaman 1 sezon uzar
+    signingDiamond: 0,                     // imza elması yenilemede yok (yeni transfer değil)
+    signingBonus: 0,                       // backward compat
+    raisePercent,                          // % artış (negatif olabilir teorik, pratikte 0+)
+    oldSalary,
+    diff,
   };
 }
 
@@ -29211,6 +29037,8 @@ function checkContractRenewalWarning() {
     ? (_cftGetCountry(_userTeam.countryCode).flag || '') : '';
   const offer = _calcRenewalOffer(state.contract);
   const _f = v => v >= 1000000 ? (v/1000000).toFixed(1)+'M €' : v > 0 ? Math.round(v/1000)+'K €' : '0 €';
+  const firstSal = Number(state.contract.firstSalary || state.contract.seasonSalary || state.contract.yearlySalary || 0);
+  const raiseSign = offer.raisePercent >= 0 ? '+' : '';
 
   // Inbox bildirimi (yenileme teklifi tip'i — özel render)
   try {
@@ -29222,18 +29050,22 @@ function checkContractRenewalWarning() {
         fromAvatar: '👑',
         type: 'contract_renewal',
         subject: `Sözleşme Yenileme Teklifi — ${teamName}`,
-        body: `${flag} ${teamName} ile sözleşmen ${state.daysLeft} gün içinde sona eriyor.\n\nKaptan ${state.contract.capName || ''} sana yeni bir teklif sundu:\n• Yıllık maaş: ${_f(offer.yearlySalary)} (+%${offer.raisePercent})\n• Süre: ${offer.durationSeasons} sezon\n• İmza primi: ${_f(offer.signingBonus)}\n\nKararını ver: yenile veya sezon sonunda serbest kal.`,
+        body: `${flag} ${teamName} ile sözleşmen ${state.daysLeft} gün içinde sona eriyor.\n\n📊 Sistemce hesaplanan yeni maaş teklifi:\n• Sezon maaşı: ${_f(offer.seasonSalary)} (${raiseSign}%${offer.raisePercent})\n• Taksit: ${_f(Math.round(offer.seasonSalary/4))} × 4 (gün 10/20/30/40)\n• Yeni bitiş: ${state.info.season + 1}. sezon sonu\n\n⚠️ Reddedersen: maaşın ilk imza seviyene (${_f(firstSal)}) düşer + takımdan ayrılma serbestliği kazanırsın.`,
         time: new Date().toLocaleDateString('tr'),
         read: false,
         thread: [],
         renewalData: {
-          yearlySalary: offer.yearlySalary,
-          durationSeasons: offer.durationSeasons,
-          signingBonus: offer.signingBonus,
+          seasonSalary: offer.seasonSalary,
+          durationSeasons: 1,
           raisePercent: offer.raisePercent,
-          oldYearlySalary: state.contract.yearlySalary,
-          oldEndsSeason: state.contract.endsSeason,
+          oldSalary: offer.oldSalary,
+          firstSalary: firstSal,
           daysLeft: state.daysLeft,
+          // backward compat
+          yearlySalary: offer.seasonSalary,
+          signingBonus: 0,
+          oldYearlySalary: offer.oldSalary,
+          oldEndsSeason: state.contract.endsSeason,
         },
       });
       if(typeof saveInboxMsgs === 'function') saveInboxMsgs(msgs);
@@ -29270,6 +29102,14 @@ function openContractRenewalModal() {
   const flag = (true && _cftGetCountry(_userTeam.countryCode))
     ? (_cftGetCountry(_userTeam.countryCode).flag || '') : '';
 
+  // 🆕 Yeni alan yapısı: seasonSalary + firstSalary
+  const curSeason = Number(c.seasonSalary || c.yearlySalary || 0);
+  const firstSalary = Number(c.firstSalary || curSeason);
+  const newInst = Math.round(offer.seasonSalary / 4);
+  const rejectInst = Math.round(firstSalary / 4);
+  const raiseColor = offer.raisePercent >= 0 ? 'var(--accent)' : '#ff5722';
+  const raiseSign = offer.raisePercent >= 0 ? '+' : '';
+
   const body = document.getElementById('crmBody');
   if(body) {
     body.innerHTML = `
@@ -29278,21 +29118,21 @@ function openContractRenewalModal() {
 
       <div class="crm-section">
         <div class="crm-section-title">📋 Mevcut Sözleşme</div>
-        <div class="crm-row"><span class="crm-label">Yıllık Maaş</span><span class="crm-val">${_f(c.yearlySalary)}</span></div>
+        <div class="crm-row"><span class="crm-label">Sezon Maaşı</span><span class="crm-val">${_f(curSeason)}</span></div>
+        <div class="crm-row"><span class="crm-label">İlk Maaş (sözleşme imzasında)</span><span class="crm-val" style="opacity:.7">${_f(firstSalary)}</span></div>
         <div class="crm-row"><span class="crm-label">Bitiş</span><span class="crm-val">${c.endsSeason}. sezon sonu</span></div>
       </div>
 
       <div class="crm-arrow">↓</div>
 
       <div class="crm-section crm-offer">
-        <div class="crm-section-title" style="color:var(--gold)">✨ Yeni Teklif</div>
-        <div class="crm-row"><span class="crm-label">Yıllık Maaş</span><span class="crm-val" style="color:var(--accent)">${_f(offer.yearlySalary)} <small style="opacity:.65;font-weight:600">(+%${offer.raisePercent})</small></span></div>
-        <div class="crm-row"><span class="crm-label">İmza Primi</span><span class="crm-val" style="color:var(--accent2)">${_f(offer.signingBonus)}</span></div>
-        <div class="crm-row"><span class="crm-label">Süre Uzatımı</span><span class="crm-val">+${offer.durationSeasons} sezon</span></div>
-        <div class="crm-row"><span class="crm-label">Yeni Bitiş</span><span class="crm-val" style="color:var(--gold)">${state.info.season + offer.durationSeasons}. sezon sonu</span></div>
+        <div class="crm-section-title" style="color:var(--gold)">✨ Sistem Tarafından Hesaplanan Yeni Maaş</div>
+        <div class="crm-row"><span class="crm-label">Sezon Maaşı</span><span class="crm-val" style="color:${raiseColor}">${_f(offer.seasonSalary)} <small style="opacity:.65;font-weight:600">(${raiseSign}%${offer.raisePercent})</small></span></div>
+        <div class="crm-row"><span class="crm-label">Taksit (4× gün 10/20/30/40)</span><span class="crm-val">${_f(newInst)}</span></div>
+        <div class="crm-row"><span class="crm-label">Yeni Bitiş</span><span class="crm-val" style="color:var(--gold)">${state.info.season + 1}. sezon sonu</span></div>
       </div>
 
-      <div class="crm-note">Yenilemezsen sezon sonunda serbest kalırsın. Maaş ödemelerin durur, takımdan istediğin an ayrılabilirsin.</div>
+      <div class="crm-note">⚠️ Reddedersen sözleşme bir sezon daha uzar ama maaşın <b>${_f(firstSalary)}</b> ilk imza maaşına düşer (4× ${_f(rejectInst)}). Ayrıca takımdan istediğin an ayrılma yetkisi kazanırsın.</div>
     `;
   }
 
@@ -29315,15 +29155,20 @@ function acceptContractRenewal() {
   const info = getSeasonInfo();
   const c = _userTeam.contract;
 
-  // Yeni şartları uygula
-  c.yearlySalary    = offer.yearlySalary;
-  c.signingBonus    = offer.signingBonus;
-  c.durationSeasons = (c.durationSeasons || 1) + offer.durationSeasons;
-  c.endsSeason      = info.season + offer.durationSeasons;
-  c.canLeaveFreely  = false;
+  // 🆕 Yeni şartları uygula — sistem hesaplı sezon maaşı
+  c.seasonSalary    = offer.seasonSalary;
+  c.yearlySalary    = offer.seasonSalary;   // backward compat
+  c.signingBonus    = 0;
+  c.signingDiamond  = 0;
+  c.durationSeasons = (c.durationSeasons || 1) + 1;
+  c.endsSeason      = info.season + 1;       // bir sonraki sezon sonu
+  c.canLeaveFreely  = false;                  // yenilendi → ayrılma yetkisi sıfırlanır
+  c.unpaidInstallments = 0;                   // borç sıfırlanır (yeni dönem başlıyor)
+  c.lastPayKey      = null;                   // yeni sezonda cron tekrar ödeyecek
   c.renewalWarnedSeason = null;
   c.renewedAt       = Date.now();
   c.renewedSeason   = info.season;
+  c.renewalStatus   = 'accepted';
 
   if(typeof userTeamSave === 'function') userTeamSave();
 
@@ -29375,7 +29220,65 @@ function acceptContractRenewal() {
 }
 
 function rejectContractRenewal() {
-  // Sadece modal kapatır — sözleşme aynen sezon sonunda dolar
+  // 🆕 YENİ DAVRANIŞ — Reddetmek sözleşmeyi bitirmez, oyuncu firstSalary'ye düşer.
+  //   • seasonSalary → firstSalary (ilk imzalanan maaş)
+  //   • endsSeason++ (bir sezon daha bağlı)
+  //   • canLeaveFreely = true (acımasız: oyuncu istediği an ayrılabilir)
+  //   • unpaidInstallments = 0 (yeni dönem temiz başlasın)
+  //   • lastPayKey = null (yeni sezonda cron öder)
+  if(typeof _userTeam !== 'undefined' && _userTeam && _userTeam.contract && typeof getSeasonInfo === 'function') {
+    const info = getSeasonInfo();
+    const c = _userTeam.contract;
+    const oldSalary = Number(c.seasonSalary || c.yearlySalary || 0);
+    const firstSalary = Number(c.firstSalary || oldSalary);
+
+    c.seasonSalary    = firstSalary;
+    c.yearlySalary    = firstSalary;   // backward compat
+    c.durationSeasons = (c.durationSeasons || 1) + 1;
+    c.endsSeason      = info.season + 1;
+    c.canLeaveFreely  = true;          // 🆕 reddedildi → ayrılma serbest
+    c.unpaidInstallments = 0;
+    c.lastPayKey      = null;
+    c.renewalWarnedSeason = null;
+    c.renewalStatus   = 'rejected';
+    c.renewedAt       = Date.now();
+
+    if(typeof userTeamSave === 'function') userTeamSave();
+
+    // Inbox: red bildirimi (acımasız mesaj)
+    try {
+      const msgs = (typeof getInboxMsgs === 'function') ? getInboxMsgs() : null;
+      if(msgs){
+        const teamName = _userTeam.teamName || '';
+        const flag = (true && _cftGetCountry(_userTeam.countryCode))
+          ? (_cftGetCountry(_userTeam.countryCode).flag || '') : '';
+        const _f = v => v >= 1000000 ? (v/1000000).toFixed(1)+'M €' : v > 0 ? Math.round(v/1000)+'K €' : '0 €';
+        msgs.unshift({
+          id: 'contract_reject_' + Date.now(),
+          from: '📋 Sözleşme Yönetimi',
+          fromAvatar: '⚠️',
+          type: 'system',
+          subject: `Yenileme Reddedildi — ${teamName}`,
+          body: `${flag} ${teamName} ile sözleşmeni yenilemedin.\n\n• Yeni sezon maaşın: ${_f(firstSalary)} (ilk imzaladığın maaş — büyüme yansıtılmadı)\n• Sözleşme bir sezon daha uzadı: ${info.season + 1}. sezon sonu\n• Artık takımdan istediğin an ayrılabilirsin (Finans/Profil sayfasından)\n\nDaha iyi bir teklif arıyorsan transfer yapabilirsin.`,
+          time: new Date().toLocaleDateString('tr'),
+          read: false,
+          thread: [],
+        });
+        if(typeof saveInboxMsgs === 'function') saveInboxMsgs(msgs);
+        if(typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
+      }
+    } catch(e){}
+
+    // Toast
+    try {
+      const t = document.createElement('div');
+      t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#ff5722;color:#fff;padding:12px 22px;border-radius:24px;font-size:13px;font-weight:700;z-index:9999;font-family:"Barlow Condensed",sans-serif;letter-spacing:.4px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:90vw;text-align:center';
+      t.textContent = `⚠️ Yenileme reddedildi — Maaşın eski seviyeye düştü`;
+      document.body.appendChild(t);
+      setTimeout(() => { try{ t.remove(); }catch(e){} }, 4000);
+    } catch(e){}
+  }
+
   // Inbox mesajını "reddedildi" işaretle
   try {
     const msgs = (typeof getInboxMsgs === 'function') ? getInboxMsgs() : null;
@@ -29390,9 +29293,10 @@ function rejectContractRenewal() {
 }
 
 // ── 🆕 Sözleşme süresi dolma kontrolü ──
-// Sözleşmenin bitiş sezonu mevcut sezonun gerisindeyse: oyuncu serbest kalır.
-// Takımdan otomatik atılmaz; sadece sözleşme silinir → maaş ödemesi durur,
-// takımdan istediği an ayrılabilir, kaptan/yardımcı yeni sözleşme önerebilir.
+// Sözleşmenin bitiş sezonu mevcut sezonun gerisinde ise:
+//   • Sözleşme SİLİNMEZ — oyuncu hâlâ aynı takımda ve maaş hâlâ yürürlükte.
+//   • canLeaveFreely = true → "Takımdan Ayrıl" butonu aktif olur.
+//   • Yenilenmedikçe canLeaveFreely true kalır.
 function checkContractExpiration() {
   if(typeof _userTeam === 'undefined' || !_userTeam) return;
   const c = _userTeam.contract;
@@ -29406,15 +29310,15 @@ function checkContractExpiration() {
   // Sözleşme hâlâ geçerli (şu sezon dahil)
   if(c.endsSeason >= info.season) return;
 
-  // SÜRESI DOLDU
+  // SÜRESİ DOLDU — sözleşme silinmez, ayrılma serbest kalır
+  if (c.canLeaveFreely === true) return; // zaten işaretli
+
   const teamName = _userTeam.teamName || '';
   const flag = (true && _cftGetCountry(_userTeam.countryCode))
     ? (_cftGetCountry(_userTeam.countryCode).flag || '') : '';
-  const oldEnds = c.endsSeason;
-  const oldDur  = c.durationSeasons || 1;
 
-  // Sözleşmeyi temizle (takım bilgisi kalır)
-  _userTeam.contract = null;
+  c.canLeaveFreely = true;
+  c.expiredAt = Date.now();
   if(typeof userTeamSave === 'function') userTeamSave();
 
   // Inbox bildirimi
@@ -29422,12 +29326,12 @@ function checkContractExpiration() {
     const msgs = (typeof getInboxMsgs === 'function') ? getInboxMsgs() : null;
     if(msgs){
       msgs.unshift({
-        id: 'contract_exp_' + Date.now(),
+        id: 'contract_expired_' + Date.now(),
         from: '📋 Sözleşme Yönetimi',
-        fromAvatar: '📋',
+        fromAvatar: '🔓',
         type: 'system',
         subject: `Sözleşmen Sona Erdi — ${teamName}`,
-        body: `${flag} ${teamName} ile imzaladığın ${oldDur} sezonluk sözleşmen ${oldEnds}. sezon sonunda doldu.\n\nArtık serbest oyuncusun:\n• Takımdan istediğin zaman ayrılabilirsin\n• Yeni sözleşme imzalanmadıkça maaş ödemesi almazsın\n• Kaptan veya yardımcı kaptan sana yeni sözleşme teklifi sunabilir\n• Başka takımlardan da teklifler gelebilir`,
+        body: `${flag} ${teamName} ile sözleşmen ${c.endsSeason}. sezon sonunda doldu.\n\n• Maaşın hâlâ ödeniyor — yenileme yapana kadar mevcut şartlarla devam edersin\n• Artık takımdan istediğin an ayrılabilirsin (Finans/Profil sayfasından)\n• Kaptan veya yardımcı kaptan yeni sözleşme teklifi sunabilir\n• Başka takımlardan teklif gelebilir`,
         time: new Date().toLocaleDateString('tr'),
         read: false,
         thread: [],
@@ -29441,7 +29345,7 @@ function checkContractExpiration() {
   try {
     const t = document.createElement('div');
     t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#ffd600;color:#000;padding:12px 22px;border-radius:24px;font-size:13px;font-weight:700;z-index:9999;font-family:"Barlow Condensed",sans-serif;letter-spacing:.4px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:90vw;text-align:center';
-    t.textContent = `📋 Sözleşmen sona erdi — Artık serbest oyuncusun`;
+    t.textContent = `🔓 Sözleşmen sona erdi — İstediğin an ayrılabilirsin`;
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 3500);
   } catch(e){}
@@ -40068,7 +39972,7 @@ function doLogoutConfirmed(){
     try { _userMatchLogCache = null; _userXpLogCache = null; _eqDataCache = null; } catch(e){}
     try { _marketValCache = null; _marketValHistCache = null; _joinRequestsCache = null; } catch(e){}
     try { _careerHistoryCache = null; _achStateCache = null; _coachProfileCache = null; } catch(e){}
-    try { _skillsCache = null; _activeCache = null; _paidInstallmentsCache = null; } catch(e){}
+    try { _skillsCache = null; _activeCache = null; } catch(e){}
     try { _totoCouponsCache = null; _ntJerseyOverridesCache = null; } catch(e){}
   }catch(e){}
 
@@ -52005,7 +51909,6 @@ function updateHero() {
   if(typeof checkSeasonEndTrigger === 'function') checkSeasonEndTrigger();
   if(typeof checkContractRenewalWarning === 'function') checkContractRenewalWarning();
   if(typeof checkContractExpiration === 'function') checkContractExpiration();
-  if(typeof checkSeasonalSalaryPayment === 'function') checkSeasonalSalaryPayment();
   if(typeof runAllNotificationChecks === 'function') runAllNotificationChecks();
 
   // Sezon içeriği bloğu
@@ -75083,7 +74986,6 @@ setTimeout(async ()=>{
     _marketValLoadFromServer().catch(e => console.warn('marketval load hata:', e)),
     _joinRequestsLoadFromServer().catch(e => console.warn('joinRequests load hata:', e)),
     _eqDataLoadFromServer().catch(e => console.warn('equipment load hata:', e)),
-    _paidInstallmentsLoadFromServer().catch(e => console.warn('installments load hata:', e)),
     _careerHistoryLoadFromServer().catch(e => console.warn('career_history load hata:', e)),
     _ntJerseyOverridesLoadFromServer().catch(e => console.warn('nt_jersey load hata:', e)),
     _totoLoadFromServer().then(() => {
