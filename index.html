@@ -27025,6 +27025,7 @@ async function _loadTeamRosterFromServer(cc, teamName) {
           assistsTotal: r.assists_total || 0,
           matchesPlayed: r.matches_played || 0,
           statsByComp: (r.stats_by_comp && typeof r.stats_by_comp === 'object') ? r.stats_by_comp : {},
+          matchRatings: Array.isArray(r.match_ratings) ? r.match_ratings : [],
           avgMatchRating, matchRatingsCount: mrCount,
           seasonYellow: 0,
           suspendMatches: 0,
@@ -27107,6 +27108,7 @@ async function preloadAllTeamRosters() {
         assistsTotal: r.assists_total || 0,
         matchesPlayed: r.matches_played || 0,
         statsByComp: (r.stats_by_comp && typeof r.stats_by_comp === 'object') ? r.stats_by_comp : {},
+        matchRatings: Array.isArray(r.match_ratings) ? r.match_ratings : [],
         avgMatchRating: avgMatchRating,
         matchRatingsCount: mrCount,
         seasonYellow: 0, suspendMatches: 0, suspendReason: null, injuryUntil: 0,
@@ -39907,6 +39909,7 @@ function _buildRosterFromPlayers(playersList, countryCode) {
       assistsTotal: p.assists_total || 0,
       matchesPlayed: p.matches_played || 0,
       statsByComp: (p.stats_by_comp && typeof p.stats_by_comp === 'object') ? p.stats_by_comp : {},
+      matchRatings: Array.isArray(p.match_ratings) ? p.match_ratings : [],
       seasonYellow: 0, suspendMatches: 0, suspendReason: null, injuryUntil: 0,
       x: sl.x, y: sl.y,
     };
@@ -41975,11 +41978,34 @@ async function _userMatchLogLoadFromServer() {
   }
 }
 
-// getUserMatchLog/saveUserMatchLog SİLİNDİ — match_state events tek kaynak.
-//   Stub'lar boş array döner ki eski 7 çağıran kod kırılmasın; sonraki round'larda
-//   o çağrı yerleri tamamen sökülecek.
-function getUserMatchLog() { return []; }
-function saveUserMatchLog(list) { /* no-op */ }
+// getUserMatchLog: kullanıcının kendi oyuncu satırından match_ratings'ı oku
+// Edge function maç sonu her satıra: rating, goals, assists, yellows, reds,
+// tournament_key, home, away, hs, as, result (W/D/L), isHome, opp, ts yazıyor.
+// Kariyer sayfası bu kayıtları "userIsHome → isHome" map'iyle kullanır.
+function getUserMatchLog() {
+  if (typeof ROSTER_DATA === 'undefined' || !Array.isArray(ROSTER_DATA)) return [];
+  const me = ROSTER_DATA.find(p => p.role === 'user');
+  if (!me || !Array.isArray(me.matchRatings)) return [];
+  // Eski API'yi koru: log[i].userIsHome, log[i].goals/assists/yellowCards/redCards, log[i].date
+  return me.matchRatings.map(mr => ({
+    match_key: mr.match_key,
+    date: mr.ts ? new Date(mr.ts).toISOString() : null,
+    home: mr.home,
+    away: mr.away,
+    hs: mr.hs,
+    as: mr.as,
+    result: mr.result,
+    userIsHome: !!mr.isHome,
+    opp: mr.opp,
+    goals: mr.goals || 0,
+    assists: mr.assists || 0,
+    yellowCards: mr.yellows || 0,
+    redCards: mr.reds || 0,
+    rating: mr.rating || 0,
+    tournament_key: mr.tournament_key || null,
+  }));
+}
+function saveUserMatchLog(list) { /* no-op — Edge function tek yazar */ }
 
 function getUserXpLog() {
   return Array.isArray(_userXpLogCache) ? _userXpLogCache : [];
