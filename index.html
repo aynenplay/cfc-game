@@ -71304,9 +71304,6 @@ function _evRaceCountdownStr() {
   return `${mins}dk`;
 }
 
-// _evRaceUserRatingScore SİLİNDİ — kullanıcı stats'i artık match_state events'ten
-// _evRaceCalcLeaderboardFromCache içinde herkesle aynı şekilde okunuyor.
-
 // Kullanıcı antrenman puanı: bu hafta harcanan toplam enerji
 function _evRaceUserTrainScore() {
   try {
@@ -71407,75 +71404,38 @@ async function _evRacePreloadServerLb() {
   } catch(e) { console.warn('[race lb train] hata:', e); }
 }
 
-// match_results cache'inden rating leaderboard'ı hesapla (cycle filtreli)
-// Lig sayfasındaki "Sezon Reytingi" ile aynı veri kaynağı, sadece cycle başlangıcı sonrası
-function _evRaceCalcLeaderboardFromCache(cycleStartMs) {
-  // 🆕 GERÇEK SUPABASE VERİSİ: _teamRosterCache (players tablosu) direkt okuyor.
-  //   match_ratings array'inden cycle filtreli ortalama rating hesaplanır.
-  //   Edge function rating'leri kümülatif doldurur. Frontend uydurma hesap YAPMAZ.
-  if (typeof _teamRosterCache === 'undefined' || !_teamRosterCache) return [];
-
-  const teamLookup = {};
-  try {
-    _cftAllEntries().forEach(([cc, country]) => {
-      (country.leagues || []).forEach((lg, ti) => {
-        (lg.teams || []).forEach(t => {
-          teamLookup[t.name] = {
-            cc, tierIdx: ti, rank: t.rank || 1,
-            flag: country.flag || '🏳️',
-            short: t.short || t.name.slice(0,3).toUpperCase(),
-            bg: t.bg || '#333', tc: t.tc || '#fff',
-          };
-        });
-      });
-    });
-  } catch(e) {}
-
-  const out = [];
-  Object.entries(_teamRosterCache).forEach(([cacheKey, roster]) => {
-    if (!Array.isArray(roster)) return;
-    const colonIdx = cacheKey.indexOf(':');
-    if (colonIdx < 0) return;
-    const teamName = cacheKey.slice(colonIdx + 1);
-    const info = teamLookup[teamName] || {};
-    roster.forEach(p => {
-      if (!p || !p.name) return;
-      // Cycle filtresi: match_ratings array'inden cycle başlangıcından sonraki rating'ler
-      let ratingSum = 0;
-      let matchCount = 0;
-      // _teamRosterCache match_ratings ham datayı tutmuyor (avg ve count tutuyor).
-      // Cycle filtresi olmadan tüm ortalama kullanılır. (Cycle filtresi için Edge function
-      // weekly_ratings ayrı tutmalı; şimdilik kümülatif ortalama gösterilir.)
-      if ((p.matchRatingsCount || 0) > 0) {
-        ratingSum = (p.avgMatchRating || 0) * p.matchRatingsCount;
-        matchCount = p.matchRatingsCount;
-      }
-      if (matchCount === 0) return; // hiç maç oynamamış oyuncu listede yok
-      out.push({
-        playerName: p.name,
-        teamName,
-        teamShort: info.short || teamName.slice(0,3).toUpperCase(),
-        teamBg: info.bg || '#333',
-        teamTc: info.tc || '#fff',
-        countryCode: info.cc || '',
-        countryFlag: info.flag || '🏳️',
-        score: Math.round((ratingSum / matchCount) * 100) / 100,
-        _matchCount: matchCount,
-      });
-    });
-  });
-
-  return out.sort((a, b) => b.score - a.score).slice(0, 200);
-}
-
-// _evRaceAlphabeticFallback fonksiyonu SİLİNDİ (uydurma alfabetik liste,
-//   gerçek veri yokken yer doldurma amaçlıydı, artık kullanılmıyor).
-
+// Rating leaderboard — server-side, tüm gerçek kullanıcılar + bot oyuncular dahil.
+// _evRaceServerLbCache.rating'ten okunur (RPC: get_race_rating_leaderboard).
 function _evRaceGenerateRatingPlayers(weekKey) {
-  // Sadece gerçek match_state verisinden. Veri yoksa boş liste.
-  // (Uydurma alfabetik fallback SİLİNDİ.)
   const cycle = _evRaceCycleInfo();
-  return _evRaceCalcLeaderboardFromCache(cycle.start.getTime()) || [];
+  const cycleStartMs = cycle.start.getTime();
+  const cached = _evRaceServerLbCache.rating;
+  if (!cached || cached.cycleStart !== cycleStartMs || !Array.isArray(cached.data)) {
+    return [];
+  }
+  const myId = (window.authUser && window.authUser.id) || null;
+  return cached.data.map(row => {
+    let teamShort = (row.team_name || 'XX').slice(0,3).toUpperCase();
+    let teamBg = '#333', teamTc = '#fff';
+    let countryFlag = '🏳️';
+    const country = _cftGetCountry(row.country_code);
+    if (country) {
+      countryFlag = country.flag || '🏳️';
+      for (const lg of (country.leagues || [])) {
+        const t = (lg.teams || []).find(x => x.name === row.team_name);
+        if (t) { teamShort = t.short || teamShort; teamBg = t.bg || teamBg; teamTc = t.tc || teamTc; break; }
+      }
+    }
+    return {
+      playerName: row.player_name || 'Oyuncu',
+      teamName: row.team_name || 'Serbest',
+      teamShort, teamBg, teamTc,
+      countryCode: row.country_code || '',
+      countryFlag,
+      score: Math.round((Number(row.avg_rating) || 0) * 100) / 100,
+      isUser: myId && row.user_id === myId,
+    };
+  });
 }
 
 // Bot leaderboard üreteci — OYUNCU bazlı (Antrenman Yıldızı)
