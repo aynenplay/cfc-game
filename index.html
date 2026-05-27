@@ -26916,7 +26916,62 @@ function _foreignCountForTier(tier, seed) {
 const _teamRosterCache = {};
 const _teamRosterLoading = {};
 
-// Tek takım için Supabase'ten botları çek ve cache'e koy
+// ─────────────────────────────────────────────────────────────
+// _hydrateRosterWithUserData — TEK ÇOĞALTMA NOKTASI
+// players satırları için user_player + profiles birleştirme.
+// Gerçek kullanıcılar (is_bot=false, user_id var) için:
+//   • pos, pos_group, level, xp, overall, rating, abilities, nation → user_player
+//   • name, nationality, avatar_id                                    → profiles
+// In-place mutation: rows array'i değiştirilir, döner.
+// 3 loader (preloadAllTeamRosters, _loadTeamRosterFromServer,
+// _rosterRefreshFromServer) bu helper'ı çağırır → cache her zaman
+// tutarlı veriye sahip olur (Özcan Yiğit'in pozisyonu her yerde aynı).
+// ─────────────────────────────────────────────────────────────
+async function _hydrateRosterWithUserData(rows) {
+  if (!Array.isArray(rows) || rows.length === 0 || !window.sb) return rows;
+  const realUserIds = [];
+  for (const r of rows) {
+    if (!r.is_bot && r.user_id) realUserIds.push(r.user_id);
+  }
+  if (realUserIds.length === 0) return rows;
+
+  const [upResp, profResp] = await Promise.all([
+    window.sb.from('user_player')
+      .select('user_id, position, position_group, level, xp, overall, rating, nation_flag, abilities')
+      .in('user_id', realUserIds),
+    window.sb.from('profiles')
+      .select('id, name, nationality, avatar_id')
+      .in('id', realUserIds)
+  ]);
+
+  const upMap = {}, profMap = {};
+  if (Array.isArray(upResp.data)) upResp.data.forEach(up => { upMap[up.user_id] = up; });
+  if (Array.isArray(profResp.data)) profResp.data.forEach(p => { profMap[p.id] = p; });
+
+  for (const r of rows) {
+    if (r.is_bot || !r.user_id) continue;
+    const up = upMap[r.user_id];
+    const prof = profMap[r.user_id];
+    if (up) {
+      r.level = up.level ?? r.level;
+      r.xp = up.xp ?? r.xp;
+      r.overall = up.overall ?? r.overall;
+      r.rating = up.rating ?? r.rating;
+      r.pos = up.position || r.pos;
+      r.pos_group = up.position_group || r.pos_group;
+      r.nation = up.nation_flag || r.nation;
+      if (up.abilities) r.abilities = up.abilities;
+    }
+    if (prof) {
+      r.name = prof.name || r.name;
+      r.nationality = prof.nationality || r.nationality;
+      if (prof.avatar_id) r.avatar_id = prof.avatar_id;
+    }
+  }
+  return rows;
+}
+
+// Tek takım için Supabase'ten botlar+kullanıcılar (hydrated)
 async function _loadTeamRosterFromServer(cc, teamName) {
   if (!window.sb) return null;
   const key = cc + ':' + teamName;
@@ -26925,16 +26980,27 @@ async function _loadTeamRosterFromServer(cc, teamName) {
   _teamRosterLoading[key] = (async () => {
     try {
       const { data, error } = await window.sb.from('players')
-        .select('num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, is_bot, user_id')
+        .select('id, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, avatar_id, is_bot, user_id, last_seen, goals_total, assists_total, matches_played, match_ratings')
         .eq('country_code', cc)
         .eq('team_name', teamName)
         .order('num');
       if (error) { console.warn('[teamRoster] hata:', error); return null; }
       if (!data || data.length === 0) return null;
+      // Gerçek kullanıcılar için user_player + profiles override (kanonik veri)
+      await _hydrateRosterWithUserData(data);
       // SQUAD_SLOTS_15 ile starter/x/y bilgisini birleştir
       const players = data.map((r, i) => {
         const sl = (typeof SQUAD_SLOTS_15 !== 'undefined' && SQUAD_SLOTS_15[i]) || {};
+        // Ortalama maç rating'i (match_ratings array'inden)
+        let avgMatchRating = 0, mrCount = 0;
+        if (Array.isArray(r.match_ratings)) {
+          for (const mr of r.match_ratings) {
+            if (mr && typeof mr.rating === 'number') { avgMatchRating += mr.rating; mrCount++; }
+          }
+          if (mrCount > 0) avgMatchRating /= mrCount;
+        }
         return {
+          id: r.id,
           num: r.num,
           name: r.name,
           pos: r.pos,
@@ -26949,9 +27015,16 @@ async function _loadTeamRosterFromServer(cc, teamName) {
           nation: r.nation || '🏳️',
           nationality: r.nationality || cc,
           avatar: r.avatar || (r.is_bot ? '🤖' : '👤'),
+          avatar_id: r.avatar_id || null,
           role: r.role || 'member',
           isBot: !!r.is_bot,
+          isUser: !r.is_bot,
           userId: r.user_id || null,
+          lastSeen: r.last_seen || null,
+          goalsTotal: r.goals_total || 0,
+          assistsTotal: r.assists_total || 0,
+          matchesPlayed: r.matches_played || 0,
+          avgMatchRating, matchRatingsCount: mrCount,
           seasonYellow: 0,
           suspendMatches: 0,
           suspendReason: null,
@@ -26977,8 +27050,8 @@ async function preloadAllTeamRosters() {
     let safety = 0;
     while (safety++ < 50) {
       const { data, error } = await window.sb.from('players')
-        .select('id, user_id, country_code, team_name, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, is_bot, goals_total, assists_total, matches_played, match_ratings')
-        // 🆕 is_bot filtresi KALDIRILDI — gerçek kullanıcılar da yüklenir
+        .select('id, user_id, country_code, team_name, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, avatar_id, is_bot, last_seen, goals_total, assists_total, matches_played, match_ratings')
+        // is_bot filtresi yok — gerçek kullanıcılar da yüklenir
         .not('team_name', 'is', null)
         .order('country_code')
         .order('team_name')
@@ -26990,6 +27063,8 @@ async function preloadAllTeamRosters() {
       offset += data.length;
       if (data.length < PAGE) break;
     }
+    // Gerçek kullanıcılar için user_player + profiles override (tek kanonik veri)
+    await _hydrateRosterWithUserData(all);
     // Cache temizle (yeniden yüklüyoruz, çift olmasın)
     for (const k of Object.keys(_teamRosterCache)) delete _teamRosterCache[k];
     // Gruplayıp cache'e yaz
@@ -27020,11 +27095,13 @@ async function preloadAllTeamRosters() {
         abilities: r.abilities,
         nation: r.nation || '🏳️',
         nationality: r.nationality || r.country_code,
-        avatar: r.avatar || '🤖',
+        avatar: r.avatar || (r.is_bot ? '🤖' : '👤'),
+        avatar_id: r.avatar_id || null,
         role: r.role || 'member',
         isBot: !!r.is_bot,
         isUser: !r.is_bot,
-        // 🆕 Sezon istatistikleri (Edge function maç sonu doldurur)
+        lastSeen: r.last_seen || null,
+        // Sezon istatistikleri (Edge function maç sonu doldurur)
         goalsTotal: r.goals_total || 0,
         assistsTotal: r.assists_total || 0,
         matchesPlayed: r.matches_played || 0,
@@ -39838,62 +39915,17 @@ async function _rosterRefreshFromServer(countryCode) {
   if (!window.sb || !_userTeam || !_userTeam.teamName) return;
   try {
     const { data, error } = await window.sb.from('players')
-      .select('id, user_id, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, is_bot, last_seen')
+      .select('id, user_id, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, avatar_id, is_bot, last_seen, goals_total, assists_total, matches_played, match_ratings')
       .eq('country_code', countryCode)
       .eq('team_name', _userTeam.teamName)
       .order('num');
     if (error) { console.warn('[rosterRefresh] hata:', error); return; }
     if (!Array.isArray(data) || data.length === 0) return;
 
-    // 🆕 Gerçek kullanıcıların user_player verilerini çek (level/xp/overall/rating/pos doğru kaynak)
-    // players tablosundaki user veriler eski olabilir — user_player tek doğruluk kaynağı
-    const realUserIds = data.filter(p => !p.is_bot && p.user_id).map(p => p.user_id);
-    let userPlayerMap = {};
-    if (realUserIds.length > 0) {
-      const { data: ups, error: upErr } = await window.sb.from('user_player')
-        .select('user_id, position, position_group, level, xp, overall, rating, country_code, nation_flag, abilities')
-        .in('user_id', realUserIds);
-      if (upErr) {
-        console.warn('[rosterRefresh] user_player çekme hatası:', upErr);
-      } else if (Array.isArray(ups)) {
-        ups.forEach(up => { userPlayerMap[up.user_id] = up; });
-      }
-    }
-    
-    // 🆕 profiles tablosundan name + avatar_id çek (players.name + avatar eski olabilir)
-    let profileMap = {};
-    if (realUserIds.length > 0) {
-      const { data: profs } = await window.sb.from('profiles')
-        .select('id, name, username, nationality, avatar_id')
-        .in('id', realUserIds);
-      if (Array.isArray(profs)) {
-        profs.forEach(pr => { profileMap[pr.id] = pr; });
-      }
-    }
-    
-    // Gerçek kullanıcıların satırlarını user_player + profiles ile birleştir
-    data.forEach(p => {
-      if (p.is_bot || !p.user_id) return;
-      const up = userPlayerMap[p.user_id];
-      const prof = profileMap[p.user_id];
-      if (up) {
-        p.level = up.level ?? p.level;
-        p.xp = up.xp ?? p.xp;
-        p.overall = up.overall ?? p.overall;
-        p.rating = up.rating ?? p.rating;
-        p.pos = up.position || p.pos;
-        p.pos_group = up.position_group || p.pos_group;
-        p.nation = up.nation_flag || p.nation;
-        if (up.abilities) p.abilities = up.abilities;
-      }
-      if (prof) {
-        p.name = prof.name || p.name;
-        p.nationality = prof.nationality || p.nationality;
-        if (prof.avatar_id) p.avatar_id = prof.avatar_id;
-      }
-    });
+    // Gerçek kullanıcılar için user_player + profiles override (kanonik)
+    await _hydrateRosterWithUserData(data);
 
-    // 🆕 DEBUG: Mevcut kullanıcının birleştirilmiş verisini logla
+    // DEBUG: Mevcut kullanıcının birleştirilmiş verisini logla
     const myUserId = (window.authUser || {}).id;
     const myRow = data.find(p => p.user_id === myUserId);
     if (myRow) {
@@ -39910,31 +39942,10 @@ async function _rosterRefreshFromServer(countryCode) {
     // ROSTER_DATA'yı yeniden inşa et
     ROSTER_DATA = _buildRosterFromPlayers(data, countryCode);
 
-    // 🆕 EXTRA GARANTİ: Kullanıcı satırını user_player'dan TEKRAR override et
-    // (_buildRosterFromPlayers'da bir şey kaçırırsa diye savunma)
-    if (myUserId && userPlayerMap[myUserId]) {
-      const up = userPlayerMap[myUserId];
-      const prof = profileMap[myUserId];
-      const userIdx = ROSTER_DATA.findIndex(r => r.userId === myUserId);
-      if (userIdx >= 0) {
-        const r = ROSTER_DATA[userIdx];
-        r.level = up.level ?? r.level;
-        r.xp = up.xp ?? r.xp;
-        r.overall = up.overall ?? r.overall;
-        r.rating = up.rating ?? r.rating;
-        r.pos = up.position || r.pos;
-        r.posGroup = up.position_group || r.posGroup;
-        if (prof) {
-          r.name = prof.name || r.name;
-          r.nationality = prof.nationality || r.nationality;
-        }
-      }
-    }
-
     console.info('[rosterRefresh]', _userTeam.teamName, '→', ROSTER_DATA.length, 'oyuncu (',
       ROSTER_DATA.filter(p => !p.isBot).length, 'gerçek)');
 
-    // 🆕 OVR migration: tüm oyuncuların overall'ını yetenek ortalamasından yeniden hesapla
+    // OVR migration: tüm oyuncuların overall'ını yetenek ortalamasından yeniden hesapla
     if (typeof recalcAllPlayerOveralls === 'function') recalcAllPlayerOveralls();
 
     if (typeof renderRoster === 'function') renderRoster('all');
