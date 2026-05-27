@@ -61699,6 +61699,8 @@ function trn2GetUserStatus(trnKey, season) {
     (m.away.name === userTeamName && m.away.countryKey === userCC)
   );
   if(!userInPO) return { trnKey, userRank, inPlayoff: true, won: false };
+  // Pending (henüz oynanmamış) PO maçı: winner yok → kullanıcı henüz kazanmadı sayılır
+  if (userInPO.pending || !userInPO.winner) return { trnKey, userRank, inPlayoff: true, won: false };
   const userWon = userInPO.winner.name === userTeamName && userInPO.winner.countryKey === userCC;
   if(!userWon) return { trnKey, userRank, inPlayoff: true, won: false };
 
@@ -62341,8 +62343,9 @@ function trn2BuildPlayoffHtml(playoff, trnKey, season) {
   }
 
   playoff.forEach((m, idx) => {
-    const isHomeWin = m.winner.name === m.home.name && m.winner.countryKey === m.home.countryKey;
-    const isAwayWin = !isHomeWin;
+    const isPending = m.pending || !m.winner;
+    const isHomeWin = !isPending && m.winner.name === m.home.name && m.winner.countryKey === m.home.countryKey;
+    const isAwayWin = !isPending && !isHomeWin;
     const isUserMatch = isAnk(m.home) || isAnk(m.away);
 
     html += `<div class="trn2-po-card ${isUserMatch?'trn2-po-user':''}">
@@ -62356,9 +62359,9 @@ function trn2BuildPlayoffHtml(playoff, trnKey, season) {
           </div>
         </div>
         <div class="trn2-po-score">
-          <div class="trn2-po-sc" style="color:${isHomeWin?trnColor:'var(--text2)'}">${m.hs}</div>
+          <div class="trn2-po-sc" style="color:${isHomeWin?trnColor:'var(--text2)'}">${isPending?'-':m.hs}</div>
           <div class="trn2-po-dash">–</div>
-          <div class="trn2-po-sc" style="color:${isAwayWin?trnColor:'var(--text2)'}">${m.as}</div>
+          <div class="trn2-po-sc" style="color:${isAwayWin?trnColor:'var(--text2)'}">${isPending?'-':m.as}</div>
         </div>
         <div class="trn2-po-team away-side ${isAwayWin?'winner':''} ${isAnk(m.away)?'user-t':''}">
           ${inlineBadge({tag:'div', cls:'trn2-po-logo', team:m.away})}
@@ -62368,8 +62371,8 @@ function trn2BuildPlayoffHtml(playoff, trnKey, season) {
           </div>
         </div>
       </div>
-      <div class="trn2-po-winner-badge" style="color:${trnColor}">
-        ✓ ${m.winner.countryFlag} ${m.winner.name} → Grup Aşaması
+      <div class="trn2-po-winner-badge" style="color:${isPending?'var(--text3)':trnColor};${isPending?'font-style:italic':''}">
+        ${isPending ? '⏳ Henüz oynanmadı' : `✓ ${m.winner.countryFlag} ${m.winner.name} → Grup Aşaması`}
       </div>
     </div>`;
   });
