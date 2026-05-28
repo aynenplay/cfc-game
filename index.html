@@ -31957,37 +31957,23 @@ async function resOpenFinishedMatch(matchKey) {
     }
   }
 
-  // Maçın Adamı — lineup'ta en yüksek match_rating'li oyuncuyu bul
+  // Maçın Adamı — lineup'ta sunucunun yazdığı GERÇEK matchRating'i kullan (uydurma hesap YOK)
   let motm = null;
   let motmTeam = null;
   let motmRating = 0;
-  if (typeof calcPlayerRating === 'function' && events.length > 0) {
-    const hs = m.hs || 0, as = m.as || 0;
-    function _scoreLineup(lineup, sideTeam, teamName, scored, conceded) {
-      const teamWon = scored > conceded ? 'win' : scored < conceded ? 'loss' : 'draw';
-      lineup.forEach(p => {
-        if (!p || !p.name) return;
-        const playerEvents = events.filter(e =>
-          e && e.team === sideTeam && (e.player === p.name || e.assist === p.name)
-        );
-        let r;
-        try {
-          r = calcPlayerRating(
-            { name: p.name, pos: p.pos || 'MID' },
-            playerEvents, teamWon, 90, conceded,
-            { teamScored: scored, side: sideTeam }
-          );
-        } catch(e) { r = 6.5; }
-        if (r > motmRating) {
-          motmRating = r;
-          motm = p;
-          motmTeam = teamName;
-        }
-      });
-    }
-    _scoreLineup(homeLineup, 'home', m.home, hs, as);
-    _scoreLineup(awayLineup, 'away', m.away, as, hs);
+  function _pickMotm(lineup, teamName) {
+    if (!Array.isArray(lineup)) return;
+    lineup.forEach(p => {
+      if (!p || !p.name || typeof p.matchRating !== 'number') return;
+      if (p.matchRating > motmRating) {
+        motmRating = p.matchRating;
+        motm = p;
+        motmTeam = teamName;
+      }
+    });
   }
+  _pickMotm(homeLineup, m.home);
+  _pickMotm(awayLineup, m.away);
   const motmWrap = document.getElementById('resFmMotmWrap');
   if (motmWrap) {
     if (motm && motmRating > 0) {
