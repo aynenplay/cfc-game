@@ -53819,16 +53819,21 @@ let _mfsCache = null;
 let _mfsSaveTimer = null;
 
 // Server'dan manifesto verisini yükle (bootstrap ve takım değişimi sonrası)
+// 🆕 Ziyaretçi modunda ziyaret edilen takımın manifestosunu çeker (kendi takımın değil).
 async function _mfsLoadFromServer() {
-  if (!window.sb || !_userTeam || !_userTeam.countryCode || !_userTeam.teamName) {
-    _mfsCache = null;
-    return;
+  // Hangi takım? Ziyaretçi modu → ziyaret edilen, değilse kullanıcının takımı
+  let cc, tn;
+  if (typeof _viewingTeam !== 'undefined' && _viewingTeam) {
+    cc = _viewingTeam.countryCode; tn = _viewingTeam.teamName;
+  } else if (typeof _userTeam !== 'undefined' && _userTeam) {
+    cc = _userTeam.countryCode; tn = _userTeam.teamName;
   }
+  if (!window.sb || !cc || !tn) { _mfsCache = null; return; }
   try {
     const { data, error } = await window.sb.from('team_data')
       .select('data')
-      .eq('country_code', _userTeam.countryCode)
-      .eq('team_name', _userTeam.teamName)
+      .eq('country_code', cc)
+      .eq('team_name', tn)
       .eq('data_key', 'manifesto')
       .maybeSingle();
     if (error) { console.warn('[manifesto] load hata:', error); _mfsCache = null; return; }
