@@ -40046,6 +40046,7 @@ function authInit(){
             _loadStep('_trophiesLoadFromServer', typeof _trophiesLoadFromServer === 'function' ? _trophiesLoadFromServer : null),
             _loadStep('_teamTrophiesLoadFromServer', typeof _teamTrophiesLoadFromServer === 'function' ? _teamTrophiesLoadFromServer : null),
             _loadStep('_inboxLoadFromServer', typeof _inboxLoadFromServer === 'function' ? _inboxLoadFromServer : null),
+            _loadStep('_eqDataLoadFromServer', typeof _eqDataLoadFromServer === 'function' ? _eqDataLoadFromServer : null),
           ]);
           console.info('[Login] Server yüklemeleri tamamlandı. userTeam:', !!_userTeam, 'name:', authUser?.name);
 
@@ -59692,6 +59693,7 @@ const SAMPLE_ITEMS = [
 // 🆕 Equipment Supabase user_player.equipment jsonb'de
 let _eqDataCache = null;
 let _eqDataSaveTimer = null;
+let _eqDataLoaded = false;   // 🆕 Supabase'den equipment yüklendi mi (yazma koruması için)
 
 async function _eqDataLoadFromServer() {
   if (!window.sb || !authUser || !authUser.id) { _eqDataCache = null; return; }
@@ -59700,7 +59702,15 @@ async function _eqDataLoadFromServer() {
       .select('equipment')
       .eq('user_id', authUser.id)
       .maybeSingle();
-    _eqDataCache = (data && data.equipment) ? data.equipment : null;
+    _eqDataCache = (data && data.equipment && Object.keys(data.equipment).length > 0) ? data.equipment : null;
+    _eqDataLoaded = true;   // 🆕 yükleme tamamlandı (boş gelse bile)
+    // Ekipman sayfası açıksa yeniden render et (geç yükleme görünsün)
+    try {
+      const eqPage = document.getElementById('page-equipment');
+      if (eqPage && eqPage.classList.contains('active') && typeof renderEquipment === 'function') {
+        renderEquipment();
+      }
+    } catch(e) {}
   } catch(e) {}
 }
 
@@ -59719,27 +59729,26 @@ function getEqData() {
   if (Array.isArray(d.activeSlots)   && d.activeSlots.length   > 5) d.activeSlots   = d.activeSlots.slice(0,5);
   while ((d.unlockedSlots||[]).length < 5) (d.unlockedSlots = d.unlockedSlots||[]).push(false);
   while ((d.activeSlots  ||[]).length < 5) (d.activeSlots   = d.activeSlots  ||[]).push(null);
-  // Eski demo itemler temizlenir (bir kerelik migration)
-  if (Array.isArray(d.wardrobe)) {
-    const oldDemoIds = ['i001','i002','i003','i004','i005'];
-    d.wardrobe = d.wardrobe.filter(w => !oldDemoIds.includes(w.id));
-    d.activeSlots = d.activeSlots.map(id => oldDemoIds.includes(id) ? null : id);
-    // Dolap boşsa yeniden DOLDURMA — kullanıcı mağazadan satın alacak
-  }
+  if (!Array.isArray(d.wardrobe)) d.wardrobe = [];
   return d;
 }
 
-function saveEqData(data) {
+function saveEqData(data, immediate) {
+  // 🆕 KORUMA: equipment Supabase'den henüz yüklenmediyse YAZMA.
+  //   Yoksa boş default dolap, sunucudaki gerçek item'leri ezer (item kaybı).
+  if (!_eqDataLoaded) { console.warn('[equipment] yükleme bitmeden save engellendi'); return; }
   _eqDataCache = data;
   if (window.sb && authUser && authUser.id) {
     clearTimeout(_eqDataSaveTimer);
-    _eqDataSaveTimer = setTimeout(async () => {
+    const _doWrite = async () => {
       try {
         await window.sb.from('user_player').update({
           equipment: _eqDataCache
         }).eq('user_id', authUser.id);
       } catch(e) { console.warn('[equipment] save hata:', e); }
-    }, 500);
+    };
+    if (immediate) { _doWrite(); }            // 🆕 satın alma/kuşanma: anında yaz
+    else { _eqDataSaveTimer = setTimeout(_doWrite, 500); }
   }
 }
 
@@ -59925,7 +59934,7 @@ function _doUnlockSlot(slotIdx) {
     return;
   }
   _eqData.unlockedSlots[slotIdx] = true;
-  saveEqData(_eqData);
+  saveEqData(_eqData, true);
   showEqToast('Slot ' + (slotIdx + 1) + ' kilidi açıldı!', 'var(--accent)');
   renderSlots();
 }
@@ -60185,7 +60194,7 @@ function _scheduleAutoSell(listing) {
         if (Array.isArray(eq.activeSlots)) {
           eq.activeSlots = eq.activeSlots.map(id => id === listing.itemId ? null : id);
         }
-        if (typeof saveEqData === 'function') saveEqData(eq);
+        if (typeof saveEqData === 'function') saveEqData(eq, true);
         // Diamond ekle (cüzdana)
         if (typeof trsAddIncome === 'function') {
           trsAddIncome('dia', listing.price, 'Pazar satışı: ' + (sold.name || 'item'));
@@ -60465,14 +60474,14 @@ function eqDropHandler(payload, dest) {
       return;
     }
     _eqData.activeSlots[dest.idx] = payload.itemId;
-    saveEqData(_eqData);
+    saveEqData(_eqData, true);
     showEqToast((item ? item.name : 'Item') + ' Slot ' + (dest.idx + 1) + '\'e kuşanıldı', 'var(--accent)');
     changed = true;
   }
   else if (payload.source === 'slot' && dest.type === 'wardrobe') {
     // Slot → Dolap: çıkar
     _eqData.activeSlots[payload.slotIdx] = null;
-    saveEqData(_eqData);
+    saveEqData(_eqData, true);
     showEqToast((item ? item.name : 'Item') + ' dolaba çıkarıldı', 'var(--text2)');
     changed = true;
   }
@@ -60485,7 +60494,7 @@ function eqDropHandler(payload, dest) {
     const tmp = _eqData.activeSlots[dest.idx];
     _eqData.activeSlots[dest.idx] = _eqData.activeSlots[payload.slotIdx];
     _eqData.activeSlots[payload.slotIdx] = tmp;
-    saveEqData(_eqData);
+    saveEqData(_eqData, true);
     showEqToast(tmp ? 'Slotlar yer değiştirdi' : 'Item Slot ' + (dest.idx + 1) + '\'e taşındı', 'var(--accent)');
     changed = true;
   }
@@ -61264,8 +61273,7 @@ function confirmBuy() {
       type: item.catLabel,
       rarity: item.rarity
     });
-    saveEqData(eq);
-    // 🆕 Global state senkron tut — yoksa renderWardrobe eski _eqData ile çalışır
+    saveEqData(eq, true);   // 🆕 satın alma anında yaz (debounce bekleme — çıkışta kaybolmasın)
     if (typeof _eqData !== 'undefined') _eqData = eq;
 
     closeBuyModal();
@@ -61469,7 +61477,7 @@ function confirmSell() {
   eq.wardrobe = eq.wardrobe.filter(w=>w.id!==_sellItemId);
   // Aktif slottan da çıkar
   eq.activeSlots = eq.activeSlots.map(s=>s===_sellItemId?null:s);
-  saveEqData(eq);
+  saveEqData(eq, true);
 
   closeSellModal();
   showShopToast('✅ '+(item.name)+' pazara çıkarıldı · 💎'+price, 'var(--gold)');
