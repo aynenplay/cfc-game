@@ -62840,6 +62840,114 @@ function trn2BuildPlayoff(teams, season, trnKey) {
   return _results;
 }
 
+// 🆕 PO2 (ELI/CON): server fixture.playoff2'den maçları + skorları oku
+function trn2BuildPlayoff2(trnKey, season) {
+  if (trnKey === 'champ') return [];
+  const _srvState = (typeof _tournamentStateGet === 'function') ? _tournamentStateGet(trnKey, season) : null;
+  const _srvPO2 = _srvState && _srvState.fixture && Array.isArray(_srvState.fixture.playoff2) ? _srvState.fixture.playoff2 : null;
+  if (!_srvPO2 || _srvPO2.length === 0) return [];
+
+  const _mrAll = (typeof _matchResultsLoad === 'function') ? _matchResultsLoad() : {};
+  const _po2FromServer = {};
+  for (const k in _mrAll) {
+    const m = _mrAll[k];
+    if (!m || m.season !== season || m.tournament_key !== trnKey) continue;
+    if (m.tournament_phase !== 'playoff2') continue;
+    _po2FromServer[`${m.home}|${m.away}`] = m;
+  }
+
+  function _hydratePlayoffTeam(srvTeam) {
+    if (!srvTeam || !srvTeam.name) return null;
+    const cc = srvTeam.countryCode || srvTeam.countryKey;
+    if (!cc) return { name: srvTeam.name, rank: srvTeam.rank || 0 };
+    const country = _cftGetCountry(cc);
+    const countryFlag = (country && country.flag) || '🏳️';
+    if (country && country.leagues) {
+      for (const lg of country.leagues) {
+        const found = (lg.teams || []).find(x => x.name === srvTeam.name);
+        if (found) return { ...found, countryKey: cc, countryCode: cc, countryFlag, rank: srvTeam.rank || 0 };
+      }
+    }
+    return { name: srvTeam.name, countryKey: cc, countryCode: cc, countryFlag, rank: srvTeam.rank || 0 };
+  }
+
+  const _results = _srvPO2.map((pm, idx) => {
+    const home = _hydratePlayoffTeam(pm.home);
+    const away = _hydratePlayoffTeam(pm.away);
+    if (!home || !away) return null;
+    const srv = _po2FromServer[`${home.name}|${away.name}`];
+    if (!srv) return { home, away, hs: null, as: null, winner: null, pending: true, fromServer: true };
+    const hs = srv.hs ?? 0;
+    const as = srv.as ?? 0;
+    const winner = hs > as ? home : hs < as ? away : (idx % 2 === 0 ? home : away);
+    return { home, away, hs, as, winner, fromServer: true };
+  }).filter(x => x);
+
+  window._trn2Playoff2Cache = window._trn2Playoff2Cache || {};
+  window._trn2Playoff2Cache[`${trnKey}_s${season}`] = _results;
+  return _results;
+}
+
+// 🆕 PO2 HTML render — kaynak: üst turnuvadan düşenler + bu turnuva PO1 kazananları
+function trn2BuildPlayoff2Html(playoff2, trnKey, season) {
+  const trnColor = {elite:'#00b0ff', conv:'var(--accent)'}[trnKey];
+  const _userTeamName = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : null;
+  const _userCC = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.countryCode : null;
+  const isAnk = t => t && _userTeamName && t.name === _userTeamName && t.countryKey === _userCC;
+  const feederName = trnKey === 'elite' ? 'Championship' : 'Elite';
+
+  let html = `<div style="padding:8px 10px 4px;font-size:10px;color:var(--text3)">
+    🎟️ <b style="color:${trnColor}">16 Play-Off 2 Maçı</b> · Bu turnuva PO1 kazananları + ${feederName} PO1'den düşenler · Kazanan Grup Aşamasına geçer
+  </div>
+  <div class="trn2-po-grid" style="padding:0 10px 80px">`;
+
+  if (!playoff2 || playoff2.length === 0) {
+    html += `<div style="padding:40px 16px;text-align:center;color:var(--text3);font-size:12px;grid-column:1/-1">
+      ⏳ Play-Off 2 eşleşmeleri henüz belirlenmedi.<br>
+      <span style="font-size:10px">PO1 maçları tamamlandığında burada listelenecek.</span>
+    </div></div>`;
+    return html;
+  }
+
+  playoff2.forEach((m, idx) => {
+    const isPending = m.pending || !m.winner;
+    const isHomeWin = !isPending && m.winner.name === m.home.name && m.winner.countryKey === m.home.countryKey;
+    const isAwayWin = !isPending && !isHomeWin;
+    const isUserMatch = isAnk(m.home) || isAnk(m.away);
+
+    html += `<div class="trn2-po-card ${isUserMatch?'trn2-po-user':''}">
+      <div class="trn2-po-match-num">#${idx+1}</div>
+      <div class="trn2-po-teams">
+        <div class="trn2-po-team home-side ${isHomeWin?'winner':''} ${isAnk(m.home)?'user-t':''}">
+          ${inlineBadge({tag:'div', cls:'trn2-po-logo', team:m.home})}
+          <div class="trn2-po-tinfo">
+            <div class="trn2-po-tname">${m.home.name}</div>
+            <div class="trn2-po-flag">${m.home.countryFlag||'🏳️'}</div>
+          </div>
+        </div>
+        <div class="trn2-po-score">
+          <div class="trn2-po-sc" style="color:${isHomeWin?trnColor:'var(--text2)'}">${isPending?'-':m.hs}</div>
+          <div class="trn2-po-dash">–</div>
+          <div class="trn2-po-sc" style="color:${isAwayWin?trnColor:'var(--text2)'}">${isPending?'-':m.as}</div>
+        </div>
+        <div class="trn2-po-team away-side ${isAwayWin?'winner':''} ${isAnk(m.away)?'user-t':''}">
+          ${inlineBadge({tag:'div', cls:'trn2-po-logo', team:m.away})}
+          <div class="trn2-po-tinfo">
+            <div class="trn2-po-tname">${m.away.name}</div>
+            <div class="trn2-po-flag">${m.away.countryFlag||'🏳️'}</div>
+          </div>
+        </div>
+      </div>
+      <div class="trn2-po-winner-badge" style="color:${isPending?'var(--text3)':trnColor};${isPending?'font-style:italic':''}">
+        ${isPending ? '⏳ Henüz oynanmadı' : `✓ ${m.winner.countryFlag||''} ${m.winner.name} → Grup Aşaması`}
+      </div>
+    </div>`;
+  });
+
+  html += '</div>';
+  return html;
+}
+
 // 🆕 Turnuva grup maçı için gerçek tarih (sezon+gün → ISO YYYY-MM-DD)
 function _trnMatchDateISO(seasonNum, dayInSeason) {
   if (typeof SEASON_EPOCH === 'undefined' || typeof SEASON_LEN === 'undefined') {
@@ -63482,6 +63590,7 @@ function trn2RenderTrn(trnKey, season) {
   // Alt sekmeler
   html += `<div class="trn2-sub-tabs">
     <button class="trn2-stab ${subtab==='playoff'?'active':''}" onclick="trn2SubTab('${trnKey}','playoff',this)">🎫 Play-Off</button>
+    ${trnKey!=='champ' ? `<button class="trn2-stab ${subtab==='playoff2'?'active':''}" onclick="trn2SubTab('${trnKey}','playoff2',this)">🎟️ Play-Off 2</button>` : ''}
     <button class="trn2-stab ${subtab==='groups'?'active':''}" onclick="trn2SubTab('${trnKey}','groups',this)">📊 Gruplar</button>
     <button class="trn2-stab ${subtab==='bracket'?'active':''}" onclick="trn2SubTab('${trnKey}','bracket',this)">🏅 Eleme</button>
     <button class="trn2-stab ${subtab==='schedule'?'active':''}" onclick="trn2SubTab('${trnKey}','schedule',this)">📅 Takvim</button>
@@ -63492,6 +63601,7 @@ function trn2RenderTrn(trnKey, season) {
 
   // İçerik
   if(subtab==='playoff')       html += trn2BuildPlayoffHtml(playoff, trnKey, season);
+  else if(subtab==='playoff2') html += trn2BuildPlayoff2Html(trn2BuildPlayoff2(trnKey, season), trnKey, season);
   else if(subtab==='groups')   html += trn2BuildGroupsHtml(groups, trnKey, season);
   else if(subtab==='bracket')  html += trn2BuildBracketHtml(trn2BuildBracket(groups,season,trnKey), trnKey);
   else if(subtab==='schedule') html += trn2BuildScheduleHtml(trnKey, season);
