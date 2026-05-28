@@ -57314,6 +57314,11 @@ function renderHomeEuro() {
         bodyHtml = r.html;
         userInTrn = r.userIn;
         stageLabel = 'Play-off';
+      } else if (stage.type === 'po2') {
+        const r = _euRenderPlayoff2Mini(def.key, info.season, userTeamName);
+        bodyHtml = r.html;
+        userInTrn = r.userIn;
+        stageLabel = 'Play-off 2';
       } else if (stage.type === 'group') {
         const r = _euRenderGroupMini(def.key, info.season, userTeamName);
         bodyHtml = r.html;
@@ -57349,22 +57354,36 @@ function renderHomeEuro() {
   wrap.innerHTML = cards;
 }
 
-// Bugünün turnuva aşamasını belirle — SEASON_TEMPLATE'i kullanır.
-// Önce GERİYE tara (son tamamlanan/aktif tur), bulamazsa İLERİYE tara
-// (yaklaşan tur — sezon başında turnuva henüz başlamadıysa).
+// Bugünün turnuva aşamasını belirle.
+// 🆕 ÖNCE tournament_state.phase (gerçek aşama — server tek kaynak), SONRA takvim fallback.
+//   phase: playoff(PO1) | po2 | group | r32/r16/qf/sf | final
 function _euGetCurrentStage(type, dayInSeason) {
+  // 1) tournament_state.phase — gerçek aşama (takvim değil)
+  const _tkeyMap = { chm: 'champ', eli: 'elite', con: 'conv' };
+  const _tkey = _tkeyMap[type];
+  if (_tkey && typeof _tournamentStateGet === 'function' && typeof getSeasonInfo === 'function') {
+    const _season = getSeasonInfo().season;
+    const _ts = _tournamentStateGet(_tkey, _season);
+    if (_ts && _ts.phase) {
+      const ph = _ts.phase;
+      if (ph === 'playoff') return { type: 'playoff',  round: 'Play-off',   day: 0 };
+      if (ph === 'po2')     return { type: 'po2',      round: 'Play-off 2', day: 0 };
+      if (ph === 'group')   return { type: 'group',    round: 'Grup Aşaması', day: 0 };
+      // r32/r16/qf/sf/final → knockout
+      const _knLabel = { r32:'Son 32', r16:'Son 16', qf:'Çeyrek Final', sf:'Yarı Final', final:'Final' }[ph];
+      if (_knLabel) return { type: 'knockout', round: _knLabel, day: 0 };
+    }
+  }
+
+  // 2) Takvim fallback (phase yoksa — turnuva henüz kurulmamış)
   if (typeof SEASON_TEMPLATE === 'undefined') return { type: 'group', round: 'Grup Aşaması', day: 0 };
 
   let foundDay = null, foundRound = null;
-
-  // 1) Geriye tara — en son turnuva günü (bugüne kadar)
   for (let d = dayInSeason; d >= 1; d--) {
     const evs = SEASON_TEMPLATE[d] || [];
     const ev = evs.find(e => e && e.type === type);
     if (ev) { foundDay = d; foundRound = ev.round || ''; break; }
   }
-
-  // 2) Hâlâ yoksa ileriye tara — yaklaşan ilk turnuva günü
   if (!foundRound) {
     for (let d = dayInSeason + 1; d <= 40; d++) {
       const evs = SEASON_TEMPLATE[d] || [];
@@ -57372,13 +57391,11 @@ function _euGetCurrentStage(type, dayInSeason) {
       if (ev) { foundDay = d; foundRound = ev.round || ''; break; }
     }
   }
-
-  // 3) Hiç bulunamadıysa default 'group' (turnuva henüz hiç planlanmamış)
   if (!foundRound) return { type: 'group', round: 'Grup Aşaması', day: 0 };
 
-  if (/Play-off/i.test(foundRound)) return { type: 'playoff',  round: foundRound, day: foundDay };
-  // 'Grup N. Maç' veya 'Kura Çekimi' (EURO Cup draw) → group aşaması
-  if (/Grup|Kura/i.test(foundRound)) return { type: 'group',    round: foundRound, day: foundDay };
+  if (/Play-off 2/i.test(foundRound)) return { type: 'po2',     round: foundRound, day: foundDay };
+  if (/Play-off/i.test(foundRound))   return { type: 'playoff', round: foundRound, day: foundDay };
+  if (/Grup|Kura/i.test(foundRound))  return { type: 'group',   round: foundRound, day: foundDay };
   return { type: 'knockout', round: foundRound, day: foundDay };
 }
 
@@ -57428,6 +57445,29 @@ function _euRenderPlayoffMini(trnKey, season, userTeamName) {
     let userIn = false;
     // Kullanıcının maçını öne al, en önemli 3 maç göster
     const sorted = playoff.slice();
+    sorted.sort((a, b) => {
+      const aU = (a.home && a.home.name === userTeamName) || (a.away && a.away.name === userTeamName);
+      const bU = (b.home && b.home.name === userTeamName) || (b.away && b.away.name === userTeamName);
+      return (bU?1:0) - (aU?1:0);
+    });
+    const top5 = sorted.slice(0, 5);
+    const rows = top5.map(m => {
+      const isUser = (m.home && m.home.name === userTeamName) || (m.away && m.away.name === userTeamName);
+      if (isUser) userIn = true;
+      return _euMatchRowHtml(m, userTeamName);
+    }).join('');
+    return { html: rows, userIn };
+  } catch(e) { return { html: '<div class="lg-scene-empty">Veri okunamadı</div>', userIn: false }; }
+}
+
+// 🆕 Play-off 2 aşaması — ilk 5 eşleşme (ELI/CON)
+function _euRenderPlayoff2Mini(trnKey, season, userTeamName) {
+  try {
+    if (typeof trn2BuildPlayoff2 !== 'function') return { html: '<div class="lg-scene-empty">Veri yok</div>', userIn: false };
+    const po2 = trn2BuildPlayoff2(trnKey, season);
+    if (!po2 || !po2.length) return { html: '<div class="lg-scene-empty">Eşleşmeler hazırlanıyor</div>', userIn: false };
+    let userIn = false;
+    const sorted = po2.slice();
     sorted.sort((a, b) => {
       const aU = (a.home && a.home.name === userTeamName) || (a.away && a.away.name === userTeamName);
       const bU = (b.home && b.home.name === userTeamName) || (b.away && b.away.name === userTeamName);
