@@ -36436,18 +36436,18 @@ async function processMatchEvent(ev) {
 
 // Ödül tablosu (ÖDÜL_VE_GELİR_LİSTESİ.xlsx'ten)
 const MATCH_RESULT_REWARDS = {
-  // Lig: bilet, galibiyet, beraberlik, sezon sonu sıralaması (1-16)
-  'Türkiye Süper Ligi':  { ticket: 50,  win: 1800000, draw: 600000, season: [10000000,5000000,2500000,1750000,1500000,1250000,1000000,800000,650000,550000,450000,375000,300000,250000,200000,150000] },
-  '1. Lig':              { ticket: 25,  win:  100000, draw:  25000, season: [5000000,2000000,1750000,1500000,1250000,1000000,500000,450000,400000,350000,300000,250000,200000,150000,100000,50000] },
-  '2. Lig':              { ticket: 20,  win:   50000, draw:  12500, season: [2000000,1500000,875000,750000,625000,500000,250000,225000,200000,175000,150000,125000,100000,75000,50000,25000] },
-  '3. Lig':              { ticket: 15,  win:   25000, draw:   6250, season: [1000000,700000,450000,375000,312500,250000,125000,112500,100000,87500,75000,62500,50000,37500,25000,12500] },
-  '4. Lig':              { ticket: 10,  win:   12500, draw:   3100, season: [500000,300000,225000,187500,156250,125000,62500,56250,50000,43750,37500,31250,25000,18750,12500,6250] },
-  '5. Lig':              { ticket: 5,   win:    6250, draw:   1550, season: [250000,150000,110000,95000,75000,62500,31250,28100,25000,21800,18750,15600,12500,9300,6250,3100] },
-  '6. Lig':              { ticket: 3,   win:    3100, draw:    750, season: [125000,75000,55000,45000,35000,31250,15600,14000,12500,10900,9300,7800,6250,4600,3100,1550] },
-  // Turnuvalar
-  'Championship League': { ticket: 50, win: 1800000, draw: 600000, knockout:{r16:2500000, qf:5000000, sf:7500000, final:10000000, champ:5000000} },
-  'Elite League':        { ticket: 40, win:  900000, draw: 300000, knockout:{r16:1250000, qf:2500000, sf:3750000, final:5000000,  champ:2500000} },
-  'Confergence League':  { ticket: 30, win:  450000, draw: 150000, knockout:{r16: 625000, qf:1250000, sf:1875000, final:2500000,  champ:1250000} },
+  // Lig: bilet, galibiyet, beraberlik, sezon sonu sıralaması (1-16). Edge ile birebir.
+  'Türkiye Süper Ligi':  { ticket: 50, win: 800000, draw: 250000, season: [10000000,5000000,3000000,2000000,1500000,1200000,1000000,850000,700000,600000,500000,400000,300000,250000,200000,150000] },
+  '1. Lig':              { ticket: 25, win: 400000, draw: 120000, season: [4000000,2000000,1200000,800000,600000,480000,400000,340000,280000,240000,200000,160000,120000,100000,80000,60000] },
+  '2. Lig':              { ticket: 20, win: 200000, draw:  60000, season: [2000000,1000000,600000,400000,300000,240000,200000,170000,140000,120000,100000,80000,60000,50000,40000,30000] },
+  '3. Lig':              { ticket: 15, win: 100000, draw:  30000, season: [1000000,500000,300000,200000,150000,120000,100000,85000,70000,60000,50000,40000,30000,25000,20000,15000] },
+  '4. Lig':              { ticket: 10, win:  50000, draw:  15000, season: [500000,250000,150000,100000,75000,60000,50000,42000,35000,30000,25000,20000,15000,12000,10000,8000] },
+  '5. Lig':              { ticket: 5,  win:  25000, draw:   7500, season: [250000,125000,75000,50000,38000,30000,25000,21000,18000,15000,12000,10000,8000,6000,5000,4000] },
+  '6. Lig':              { ticket: 3,  win:  12000, draw:   3500, season: [120000,60000,36000,24000,18000,14000,12000,10000,8000,7000,6000,5000,4000,3000,2000,2000] },
+  // Turnuvalar: aşama bonusları Edge ile birebir (po2/group/r32/r16/qf/sf/finalist/champion)
+  'Championship League': { ticket: 50, win: 600000, draw: 200000, stage:{group:750000, r16:2000000, qf:4000000, sf:7000000, finalist:12000000, champion:20000000} },
+  'Elite League':        { ticket: 40, win: 350000, draw: 120000, stage:{po2:300000, group:600000, r32:1000000, r16:2000000, qf:3500000, sf:5000000, finalist:8000000, champion:12000000} },
+  'Confergence League':  { ticket: 30, win: 200000, draw:  70000, stage:{po2:150000, group:350000, r32:600000, r16:1000000, qf:1800000, sf:2800000, finalist:4000000, champion:6000000} },
 };
 
 // Lig adından kar tablosunu bul (esnek isim eşleştirme)
@@ -36548,26 +36548,25 @@ function _computeMatchRewards(leagueName, isUserHome, scoreH, scoreA, fixtureRef
     });
   }
 
-  // Turnuva eleme aşaması ödülü (knockout varsa)
-  if (table.knockout && fixtureRef && fixtureRef.round) {
+  // Turnuva tur-atlama bonusu (stage varsa) — Edge ile birebir aşama isimleri
+  if (table.stage && fixtureRef && fixtureRef.round) {
     const round = String(fixtureRef.round || '').toLowerCase();
-    let knockoutAmt = 0;
-    let knockoutLabel = '';
-    if (round.includes('son 16') || round.includes('r16')) {
-      knockoutAmt = table.knockout.r16;
-      knockoutLabel = 'Son 16 Geçiş Primi';
+    let stageAmt = 0;
+    let stageLabel = '';
+    if (round.includes('son 32') || round.includes('r32')) {
+      stageAmt = table.stage.r32 || 0; stageLabel = 'Son 32 Geçiş Primi';
+    } else if (round.includes('son 16') || round.includes('r16')) {
+      stageAmt = table.stage.r16 || 0; stageLabel = 'Son 16 Geçiş Primi';
     } else if (round.includes('çeyrek') || round.includes('qf')) {
-      knockoutAmt = table.knockout.qf;
-      knockoutLabel = 'Çeyrek Final Primi';
+      stageAmt = table.stage.qf || 0; stageLabel = 'Çeyrek Final Primi';
     } else if (round.includes('yarı') || round.includes('sf')) {
-      knockoutAmt = table.knockout.sf;
-      knockoutLabel = 'Yarı Final Primi';
+      stageAmt = table.stage.sf || 0; stageLabel = 'Yarı Final Primi';
     } else if (round.includes('final')) {
-      knockoutAmt = won ? table.knockout.champ : table.knockout.final;
-      knockoutLabel = won ? 'ŞAMPİYON ÖDÜLÜ' : 'Final Ödülü';
+      stageAmt = won ? (table.stage.champion || 0) : (table.stage.finalist || 0);
+      stageLabel = won ? 'ŞAMPİYON ÖDÜLÜ' : 'Finalist Ödülü';
     }
-    if (knockoutAmt > 0) {
-      items.push({ icon: '🥇', name: knockoutLabel, amount: knockoutAmt });
+    if (stageAmt > 0) {
+      items.push({ icon: '🥇', name: stageLabel, amount: stageAmt });
     }
   }
 
@@ -63542,13 +63541,13 @@ function trn2RenderTrn(trnKey, season) {
   const TRN_CFG = {
     champ: { icon:_cupLogoIMG('champ',48), name:'EURO Championship League', color:'var(--gold)',
       qual:'Her ülkenin Süper Lig 1. ve 2. sırası (32×2=64 → Play-Off → 32 takım)',
-      prizes:['5.000.000 €','2.500.000 €','500.000 €'] },
+      prizes:['20.000.000 €','12.000.000 €','750.000 €'] },
     elite: { icon:_cupLogoIMG('elite',48), name:'EURO Elite League', color:'#00b0ff',
-      qual:'Her ülkenin Süper Lig 3. ve 4. sırası (32×2=64 → Play-Off → 32 takım)',
-      prizes:['2.000.000 €','1.000.000 €','200.000 €'] },
+      qual:'Her ülkenin Süper Lig 3. ve 4. sırası (32×2=64 → PO1 → PO2 → 32 takım)',
+      prizes:['12.000.000 €','8.000.000 €','600.000 €'] },
     conv:  { icon:_cupLogoIMG('conv',48), name:'EURO Convergence League', color:'var(--accent)',
-      qual:'Her ülkenin Süper Lig 5. ve 6. sırası (32×2=64 → Play-Off → 32 takım)',
-      prizes:['1.000.000 €','500.000 €','100.000 €'] },
+      qual:'Her ülkenin Süper Lig 5. ve 6. sırası (32×2=64 → PO1 → PO2 → 32 takım)',
+      prizes:['6.000.000 €','4.000.000 €','350.000 €'] },
   };
   const cfg = TRN_CFG[trnKey];
 
@@ -63626,7 +63625,7 @@ function trn2RenderTrn(trnKey, season) {
           <div class="trn2-prize">
             <div class="trn2-prize-icon">${ic}</div>
             <div class="trn2-prize-val">${cfg.prizes[i]}</div>
-            <div class="trn2-prize-lbl">${['Şampiyon','Finalist','Grup 1.'][i]}</div>
+            <div class="trn2-prize-lbl">${['Şampiyon','Finalist','Gruba Yükselme'][i]}</div>
           </div>`).join('')}
       </div>
     </div>`;
