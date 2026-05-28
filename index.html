@@ -23082,6 +23082,7 @@ body.drawer-open{overflow:hidden}
               <span class="pl-hero-team-name" id="plFcTeamName">Takımsız</span>
             </span>
             <span class="pl-hero-mv" id="plMarketRow"><span id="plMarketVal">—</span></span>
+            <span class="pl-hero-mv" id="plSalaryRow" title="Sistem tarafından belirlenen sezon maaşı"><span id="plSalaryVal">—</span></span>
           </div>
         </div>
       </div>
@@ -24087,7 +24088,7 @@ body.drawer-open{overflow:hidden}
       <!-- 🆕 OYUNCU MAAŞLARI -->
       <div class="trs-section">
         <div class="trs-section-title">💼 Oyuncu Maaşları</div>
-        <div class="trs-section-sub">Maaşlar 4 taksitte ödenir: sezonun <b>10., 20., 30. ve 40. günleri</b>. Bot oyuncularının maaşı yoktur.</div>
+        <div class="trs-section-sub">Maaşlar <b>sistem tarafından dinamik</b> belirlenir: oyuncunun güncel yetenek seviyesine göre hesaplanır, oyuncu geliştikçe maaşı artar. Her maaş gününde <b>güncel sezon maaşı ÷ 4</b> ödenir. Ödeme günleri: sezonun <b>10., 20., 30. ve 40. günleri</b>. Bot oyuncularının maaşı yoktur.</div>
 
         <div class="salary-summary">
           <div class="salary-sum-card">
@@ -29136,8 +29137,11 @@ function _calcRenewalOffer(currentContract) {
 }
 
 function checkContractRenewalWarning() {
-  const state = _getContractRenewalState();
-  if(!state || !state.inWarningWindow || state.alreadyWarned) return;
+  // 🆕 İPTAL: Sözleşme yenileme sistemi kaldırıldı.
+  //   Maaş artık dinamik (sistem her maaş gününde güncel seviyeye göre öder),
+  //   sabit sözleşme maaşı + sezon sonu yenileme mekanizması gereksiz.
+  return;
+  // eslint-disable-next-line no-unreachable
 
   // Bu sezon uyarı verildi olarak işaretle (sezon başına 1 kez)
   state.contract.renewalWarnedSeason = state.info.season;
@@ -44261,6 +44265,10 @@ async function openPlayerModal(player, ctx) {
         <div class="pm-info-val mv">${(typeof getPlayerMarketValue === 'function' && typeof formatMV === 'function') ? formatMV(getPlayerMarketValue(player)) : '—'}</div>
       </div>
       <div class="pm-info-cell">
+        <div class="pm-info-label">Sezon Maaşı</div>
+        <div class="pm-info-val" style="color:var(--accent2)">${(typeof getSystemPlayerSalary === 'function' && typeof formatMV === 'function') ? formatMV(getSystemPlayerSalary(player)) : '—'}</div>
+      </div>
+      <div class="pm-info-cell">
         <div class="pm-info-label">Seviye</div>
         <div class="pm-info-val">Sv.${player.level||0}</div>
       </div>
@@ -59308,6 +59316,15 @@ function renderPlayerPage() {
     mvEl.innerHTML = `<span class="pl-hero-mv-emoji">💶</span> ${fmtFull(mv)}`;
     mvEl.style.color = 'var(--gold)';
     if (mvRow) mvRow.title = isCaptainSet ? 'Kaptan tarafından belirlendi' : 'Otomatik hesaplanan değer';
+    // 🆕 Sezon maaşı (sistem) — piyasa değerinin yanında
+    const salEl = document.getElementById('plSalaryVal');
+    if (salEl) {
+      const sal = (typeof getSystemPlayerSalary === 'function' && targetPlayer)
+        ? getSystemPlayerSalary(targetPlayer)
+        : (typeof getSystemPlayerSalary === 'function' ? getSystemPlayerSalary(overall) : 0);
+      salEl.innerHTML = `<span class="pl-hero-mv-emoji">💰</span> ${fmtFull(sal)}`;
+      salEl.style.color = 'var(--accent2)';
+    }
   }
 
   // Güç satırı kaldırıldı — bilgiler artık FIFA kartında bar olarak gösteriliyor
@@ -66656,17 +66673,15 @@ async function _inboxProcessApprovedJoinRequests() {
 // Sync getter — mevcut kod imzasını koru
 function getInboxMsgs() {
   if (Array.isArray(_inboxCache)) return _inboxCache;
-  // Cache henüz dolmadıysa demo mesaj göster (sonra _inboxLoadFromServer doldurur)
-  return [
-    { id:'msg_sys1', from:'🏆 Sistem', fromAvatar:'⚙️', type:'system', subject:'Hoş Geldin!',
-      body:'City Football Team\'e hoş geldin! Takımını yönet, turnuvalara katıl ve en iyi oyuncu ol.',
-      time:'25 Nis', read:false, thread:[] }
-  ];
+  // Cache henüz dolmadıysa boş dön — _inboxLoadFromServer doldurur (demo mesaj YOK)
+  return [];
 }
 
 // Sync setter — RAM cache anında, server debounced
 function saveInboxMsgs(msgs) {
   _inboxCache = Array.isArray(msgs) ? msgs : [];
+  // 🆕 Her mesajda ts garanti et (sıralama + tarih/saat için)
+  _inboxCache.forEach(m => { if (m && typeof m.ts !== 'number') m.ts = _inboxParseTs(m.time); });
   if (!window.sb || !authUser || !authUser.id) return;
   clearTimeout(_inboxSaveTimer);
   _inboxSaveTimer = setTimeout(async () => {
@@ -66802,17 +66817,45 @@ function inboxBackToList() {
 }
 
 // ── Mesaj listesi ──
+// 🆕 Eski 'time' string'inden ts türet (yoksa şimdi). "28 May", "28.05.2026" vb.
+function _inboxParseTs(timeStr) {
+  if (!timeStr) return Date.now();
+  const p = Date.parse(timeStr);
+  if (!isNaN(p)) return p;
+  // "28.05.2026" formatı
+  const m = String(timeStr).match(/(\d{1,2})[.\/](\d{1,2})[.\/](\d{2,4})/);
+  if (m) {
+    const y = m[3].length === 2 ? 2000 + (+m[3]) : +m[3];
+    const d = new Date(y, (+m[2]) - 1, +m[1]);
+    if (!isNaN(d.getTime())) return d.getTime();
+  }
+  return Date.now();
+}
+
+// 🆕 ts → "28 May 14:30" (tarih + saat)
+function _inboxFmtDateTime(ts) {
+  if (typeof ts !== 'number' || isNaN(ts)) return '';
+  try {
+    const d = new Date(ts);
+    const tarih = d.toLocaleDateString('tr-TR', { day:'2-digit', month:'short' });
+    const saat  = d.toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
+    return `${tarih} ${saat}`;
+  } catch(e) { return ''; }
+}
+
 function inboxRenderList() {
   const el = document.getElementById('inboxMsgList');
   if(!el) return;
 
   const msgs = getInboxMsgs();
   const q    = _inboxSearch.toLowerCase();
+  // 🆕 ts garanti et (eski mesajlarda yoksa türet), en yeni en üstte sırala
+  msgs.forEach(m => { if (typeof m.ts !== 'number') m.ts = _inboxParseTs(m.time); });
   const filtered = msgs.filter(m =>
-    !q || m.from.toLowerCase().includes(q) ||
-    m.subject.toLowerCase().includes(q) ||
-    m.body.toLowerCase().includes(q)
-  );
+    !q || (m.from||'').toLowerCase().includes(q) ||
+    (m.subject||'').toLowerCase().includes(q) ||
+    (m.body||'').toLowerCase().includes(q)
+  ).sort((a,b) => (b.ts||0) - (a.ts||0));
 
   // 🆕 Toplu sil bar — üstte (en az 1 mesaj varsa)
   let bulkBar = '';
@@ -66840,15 +66883,18 @@ function inboxRenderList() {
   el.innerHTML = bulkBar + filtered.map(m => {
     const avCls = m.type==='transfer'?'transfer-av':m.type==='system'?'system-av':m.type==='join_request_incoming'?'transfer-av':'';
     const safeId = m.id.replace(/'/g,"\\'");
+    // 🆕 Gönderdiğim mesajsa (sent) başlıkta ALICI ismi göster, değilse gönderen
+    const headName = m.sent ? ('↗ ' + (m.toName || m.to || 'Alıcı')) : (m.from || '—');
+    const dtStr = _inboxFmtDateTime(m.ts);
     return `<div class="inbox-msg-row ${m.read?'':'unread'}" onclick="inboxOpenMsg('${safeId}')">
       <div class="inbox-msg-avatar ${avCls}">${m.fromAvatar||'👤'}</div>
       <div class="inbox-msg-content">
-        <div class="inbox-msg-from">${m.from}</div>
-        <div class="inbox-msg-subject">${m.subject}</div>
+        <div class="inbox-msg-from">${headName}</div>
+        <div class="inbox-msg-subject">${m.subject||''}</div>
         <div class="inbox-msg-preview">${(m.body||'').substring(0,50)}…</div>
       </div>
       <div class="inbox-msg-meta">
-        <div class="inbox-msg-time">${m.time||''}</div>
+        <div class="inbox-msg-time">${dtStr}</div>
         ${!m.read?'<div class="inbox-msg-badge">Yeni</div>':''}
         <div class="inbox-msg-type-badge ${m.type||'chat'}">${TYPE_LABEL[m.type]||'Mesaj'}</div>
       </div>
@@ -66988,7 +67034,9 @@ function inboxRenderDetail(msg) {
   const body = document.getElementById('inboxDetailBody');
 
   // Ana mesaj
-  let html = `<div class="inbox-detail-from">Kimden: <b>${msg.from}</b> · ${msg.time||''}</div>
+  const _who = msg.sent ? `Kime: <b>${msg.toName || msg.to || 'Alıcı'}</b>` : `Kimden: <b>${msg.from||'—'}</b>`;
+  const _dt = _inboxFmtDateTime(typeof msg.ts === 'number' ? msg.ts : _inboxParseTs(msg.time));
+  let html = `<div class="inbox-detail-from">${_who} · ${_dt}</div>
     <div class="inbox-detail-subject">${msg.subject}</div>`;
 
   // Transfer teklifi mi?
@@ -67367,11 +67415,13 @@ async function inboxSendCompose() {
     id: 'msg_'+Date.now(),
     from: myName,
     to: '@' + prof.username,
+    toName: prof.name || ('@' + prof.username),
     fromAvatar: '👤',
     type: 'chat',
     subject,
     body,
     time: now,
+    ts: Date.now(),
     read: true,
     thread: [],
     sent: true,
@@ -67608,7 +67658,7 @@ function getSystemPlayerSalary(playerOrLevel) {
     level = 10;
   }
   const baseCost = _trEstimate40DayCost(level);
-  return Math.round(baseCost * 1.045);
+  return Math.round(baseCost * 1.05);
 }
 
 // Bir taksit (sezonun 10/20/30/40. gününde ödenir)
@@ -73002,12 +73052,8 @@ function getPlayerSeasonWage(p){
   // Bot oyuncular: maaş yok
   if (p.isBot) return 0;
   if (!p.userId && !p.user_id) return 0;
-  // Kullanıcı oyuncu (kendisi): kontrat varsa kontrattaki maaş
-  if (p.role === 'user' && _userTeam && _userTeam.contract) {
-    const c = _userTeam.contract;
-    return Number(c.seasonSalary || c.yearlySalary || 0);
-  }
-  // Diğer kullanıcı oyuncuları (takım arkadaşı): sistemce hesapla (preview)
+  // 🆕 TÜM kullanıcı oyuncuları: sistemce dinamik hesaplanır (Edge ödemesiyle birebir).
+  //   Sabit sözleşme maaşı kaldırıldı — güncel yetenek seviyesine göre.
   if (typeof getSystemPlayerSalary === 'function') {
     return getSystemPlayerSalary(p);
   }
