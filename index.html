@@ -69195,13 +69195,20 @@ function totoTodayCoupons() {
 // Lig için: buildLeagueFixture'dan o haftanın maçları
 // Turnuva için: trn2BuildPlayoff'tan eşleşmeler
 // Skor: generateMatchScore ile deterministik (sezon+maç bazlı, fikstür ile uyumlu)
-function totoGenMatches(leagueKey, couponPart, dayOffset) {
+function totoGenMatches(leagueKey, couponPart, dayOffset, absDateMs) {
   const part = couponPart || 0;
-  const offsetDays = (typeof dayOffset === 'number') ? dayOffset : (_totoSelectedDayOffset || 0);
   const now = new Date();
-  // 🆕 Hedef tarih: bugün + offset gün (gerçek dünya tarihi olarak)
-  const targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  targetDate.setDate(targetDate.getDate() + offsetDays);
+  // 🆕 Hedef tarih: absDateMs verilmişse o mutlak güne sabitlenir (kupon kayıtlı bülten günü),
+  // yoksa bugün + offset (canlı bülten navigasyonu) olarak hesaplanır.
+  let targetDate;
+  if (typeof absDateMs === 'number') {
+    const d = new Date(absDateMs);
+    targetDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  } else {
+    const offsetDays = (typeof dayOffset === 'number') ? dayOffset : (_totoSelectedDayOffset || 0);
+    targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    targetDate.setDate(targetDate.getDate() + offsetDays);
+  }
   if(typeof getSeasonInfo !== 'function') return [];
   const info = getSeasonInfo();
 
@@ -70160,7 +70167,7 @@ function totoRenderMyCoupons() {
   const dateHeader = `<div style="text-align:center;font-size:11px;color:var(--text2);font-family:'Barlow Condensed',sans-serif;letter-spacing:.4px;background:rgba(255,255,255,.03);padding:8px;border-radius:8px;margin:0 14px 10px">${dateLabel}</div>`;
 
   el.innerHTML = dateHeader + coupons.map(c => {
-    const matches = totoGenMatches(c.league, c.couponPart||0, c.dayOffset||0);
+    const matches = totoGenMatches(c.league, c.couponPart||0, c.dayOffset||0, (typeof c.targetDateMs === 'number' ? c.targetDateMs : undefined));
 
     // 🆕 Sonuçları her render'da cache'ten taze çek
     c.results = matches.map(m => m.result);
