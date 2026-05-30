@@ -25003,7 +25003,7 @@ body.drawer-open{overflow:hidden}
       <div class="fed-hero-divider"></div>
 
       <div class="fed-hero-pres">
-        <span class="fed-hero-pres-icon">👑</span>
+        <span class="fed-hero-pres-icon" id="fedHeroPresAvatar">👑</span>
         <span id="fedHeroPresident">Başkan: —</span>
       </div>
 
@@ -47258,6 +47258,18 @@ function fedRenderHero() {
   if(nameEl) nameEl.textContent = country.name + ' Futbol Federasyonu';
   if(metaEl) metaEl.textContent = members.length + ' üye · ' + country.leagues.length + ' lig · ' + country.total + ' takım sahibi';
   if(presLbl) presLbl.textContent = 'Başkan: ' + (pres ? pres.captainName : '—');
+  const presAv = document.getElementById('fedHeroPresAvatar');
+  if(presAv) {
+    let _ah = '👑';
+    if(pres) {
+      if(pres.isUser && typeof authUser !== 'undefined' && authUser && authUser.avatarId && typeof getAvatarEmoji === 'function') {
+        _ah = getAvatarEmoji(authUser.avatarId, pres.captainPos || 'MID');
+      } else if(pres.avatar_id && typeof getAvatarEmoji === 'function') {
+        _ah = getAvatarEmoji(pres.avatar_id, pres.captainPos || 'MID');
+      } else if(pres.avatar) { _ah = pres.avatar; }
+    }
+    presAv.innerHTML = _ah;
+  }
   if(memEl) memEl.textContent = members.length;
   if(roleEl) {
     roleEl.textContent = roleLabels[role] || '—';
@@ -47998,7 +48010,7 @@ async function _loadNtPoolFromServer(cc) {
   if (_ntPoolLoading[cc]) return _ntPoolLoading[cc];
   _ntPoolLoading[cc] = (async () => {
     const { data, error } = await window.sb.from('players')
-      .select('id, user_id, country_code, team_name, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, is_bot')
+      .select('id, user_id, country_code, team_name, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, avatar_id, is_bot')
       .eq('nationality', cc)
       .order('overall', { ascending: false });
     if (error) { console.warn('[ntPool] hata:', error); _ntPoolLoading[cc] = null; return null; }
@@ -48021,6 +48033,7 @@ async function _loadNtPoolFromServer(cc) {
         abilities: r.abilities, role: r.role || 'member',
         nation: r.nation || flag, nationality: r.nationality || cc,
         avatar: r.avatar || (r.is_bot ? '🤖' : '👤'),
+        avatar_id: r.avatar_id || null, user_id: r.user_id || null,
         isBot: !!r.is_bot, isUser: !!(myUid && r.user_id === myUid),
         ntId: (myUid && r.user_id === myUid) ? 'USER' : ((r.team_name || 'FA') + '|' + r.num),
         sourceClub: r.team_name || 'Serbest',
@@ -48122,6 +48135,8 @@ function ntLoadSquadIds(cc) {
 
 function ntSaveSquadIds(cc, ids) {
   _ntSquadCache[cc] = Array.isArray(ids) ? ids.slice() : ids;   // RAM anında
+  // 🆕 Sunucudan kadro OKUNMADAN üzerine yazma — yenilemede default'un gerçek kadroyu ezmesini önler
+  if (!_ntSquadLoaded[cc]) return;
   // Sunucuya yalnız BAŞKAN yazar (debounce'lu); ntId -> uuid çevrilir ('USER' -> kullanıcının uuid'i)
   if (!(typeof ntIsUserCoach === 'function' && ntIsUserCoach()) || !window.sb) return;
   if (_ntSquadSaveTimer) clearTimeout(_ntSquadSaveTimer);
@@ -49267,6 +49282,11 @@ function ntRenderPitch() {
       if (isUser && typeof authUser !== 'undefined' && authUser && authUser.avatarId
           && typeof getAvatarEmoji === 'function') {
         const result = getAvatarEmoji(authUser.avatarId, p.pos);
+        if (typeof result === 'string' && result.indexOf('<img') === 0) {
+          userAvatarHTML = result;
+        }
+      } else if (!isUser && p.avatar_id && typeof getAvatarEmoji === 'function') {
+        const result = getAvatarEmoji(p.avatar_id, p.pos);
         if (typeof result === 'string' && result.indexOf('<img') === 0) {
           userAvatarHTML = result;
         }
