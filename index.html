@@ -39050,7 +39050,7 @@ const TEAM_LOGO_SET = new Set([
   'tr-tekirdag','tr-tokat','tr-trabzon','tr-usak','tr-van','tr-yalova',
   'tr-yozgat','tr-zonguldak',
   // Arnavutluk (32 takım)
-  'al-ballsh','al-barjam-curri','al-berat','al-bulqize','al-burrel','al-cerrik',
+  'al-ballsh','al-berat','al-bulqize','al-burrel','al-cerrik',
   'al-devoll','al-divjake','al-durres','al-elbasan','al-fier','al-gjirokaster',
   'al-has','al-kamza','al-kavaje','al-korce','al-kukes','al-lac',
   'al-lezhe','al-lushnje','al-mallakaster','al-mat','al-patos','al-peqin',
@@ -47833,6 +47833,8 @@ function fedShowToast(msg, type) {
 // ──────── MİLLİ TAKIM render: Başkan = T.D. ────────
 function ntRender() {
   const cc = (typeof fedActiveCountry === 'function') ? fedActiveCountry() : 'TR';
+  if (typeof _loadNtPoolFromServer === 'function') _loadNtPoolFromServer(cc).catch(()=>{});
+  if (typeof _loadNtSquadFromServer === 'function') _loadNtSquadFromServer(cc).catch(()=>{});
   const country = (true) ? _cftGetCountry(cc) : null;
   const pres = (typeof fedGetPresident === 'function') ? fedGetPresident(cc) : null;
   const flagEl  = document.getElementById('ntHeroFlag');
@@ -47968,49 +47970,58 @@ function _ntSeed(cc, idx) {
 }
 
 // 🆕 HAVUZ: O ülkenin tier 1 lig kulüplerinin tüm oyuncuları + kullanıcı (kendi ülkesi ise)
-function ntPlayerPool(cc) {
-  const country = (true) ? _cftGetCountry(cc) : null;
-  if (!country || !country.leagues || !country.leagues[0]) return [];
-  const tier1Teams = country.leagues[0].teams || [];
-  const flag = country.flag;
-  const pool = [];
+// 🆕 Milli takım havuzu — Supabase RAM cache (roster cache deseniyle aynı).
+// Havuz = TÜM dünyadan nationality=cc oyuncular (alt klasman + yurt dışı dahil).
+const _ntPoolCache = {};      // cc -> [entry]
+const _ntPoolLoading = {};    // cc -> Promise
 
-  // Kullanıcıyı havuza ekle — yalnızca kendi ülkesinin milli takımı ise
-  if (typeof ROSTER_DATA !== 'undefined' && typeof _userTeam !== 'undefined' &&
-      _userTeam && _userTeam.countryCode === cc) {
-    const userP = ROSTER_DATA.find(p => p.role === 'user');
-    if (userP) {
-      pool.push({
-        ...userP,
-        isUser: true,
-        ntId: 'USER',
-        sourceClub: _userTeam.teamName || 'Kulüp',
-        clubBg: '#00e676', clubTc: '#000', clubShort: 'SEN',
-        nation: flag, nationality: cc,
-        avatar: userP.avatar || '⭐',
-        isBot: false
-      });
-    }
-  }
-
-  // Tier 1 lig botlarını havuza ekle
-  tier1Teams.forEach(team => {
-    if (typeof getOrCreateTeamRoster !== 'function') return;
-    const teamData = { ...team, countryCode: cc };
-    const roster = getOrCreateTeamRoster(teamData);
-    if (!Array.isArray(roster)) return;
-    roster.forEach(p => {
-      pool.push({
-        ...p,
-        ntId: team.name + '|' + p.num,
-        sourceClub: team.name,
-        clubBg: team.bg, clubTc: team.tc, clubShort: team.short,
-        nation: flag, nationality: cc
-      });
+async function _loadNtPoolFromServer(cc) {
+  if (!window.sb) return null;
+  if (_ntPoolCache[cc]) return _ntPoolCache[cc];
+  if (_ntPoolLoading[cc]) return _ntPoolLoading[cc];
+  _ntPoolLoading[cc] = (async () => {
+    const { data, error } = await window.sb.from('players')
+      .select('id, user_id, country_code, team_name, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, is_bot')
+      .eq('nationality', cc)
+      .order('overall', { ascending: false });
+    if (error) { console.warn('[ntPool] hata:', error); _ntPoolLoading[cc] = null; return null; }
+    await _hydrateRosterWithUserData(data);
+    const myUid = (window.authUser && window.authUser.id) ||
+                  (typeof authUser !== 'undefined' && authUser && authUser.id) || null;
+    const pool = (data || []).map(r => {
+      let bg = '#222', tc = '#fff', short = (r.team_name || '—').slice(0, 3).toUpperCase();
+      const oc = (typeof _cftGetCountry === 'function') ? _cftGetCountry(r.country_code) : null;
+      if (oc && oc.leagues) {
+        for (const lg of oc.leagues) {
+          const t = (lg.teams || []).find(x => x.name === r.team_name);
+          if (t) { bg = t.bg || bg; tc = t.tc || tc; short = t.short || short; break; }
+        }
+      }
+      const flag = oc ? oc.flag : '🏳️';
+      return {
+        id: r.id, num: r.num, name: r.name, pos: r.pos, posGroup: r.pos_group,
+        overall: r.overall || 10, rating: r.rating || 10, level: r.level || 0, xp: r.xp || 0,
+        abilities: r.abilities, role: r.role || 'member',
+        nation: r.nation || flag, nationality: r.nationality || cc,
+        avatar: r.avatar || (r.is_bot ? '🤖' : '👤'),
+        isBot: !!r.is_bot, isUser: !!(myUid && r.user_id === myUid),
+        ntId: (myUid && r.user_id === myUid) ? 'USER' : ((r.team_name || 'FA') + '|' + r.num),
+        sourceClub: r.team_name || 'Serbest',
+        clubBg: bg, clubTc: tc, clubShort: short
+      };
     });
-  });
+    _ntPoolCache[cc] = pool;
+    _ntPoolLoading[cc] = null;
+    if (typeof ntRender === 'function') ntRender();
+    return pool;
+  })();
+  return _ntPoolLoading[cc];
+}
 
-  return pool;
+function ntPlayerPool(cc) {
+  if (_ntPoolCache[cc]) return _ntPoolCache[cc];
+  if (window.sb) _loadNtPoolFromServer(cc).catch(()=>{});
+  return [];
 }
 
 // 🆕 Deterministik shuffle (aynı seed → aynı sıra)
@@ -48055,15 +48066,58 @@ function ntBuildDefaultSquadIds(cc, pool) {
   });
 }
 
-// 🆕 Kadro storage (TD davet/çıkar yaptığında kalıcı)
-function _ntSquadKey(cc) { return 'cft_nt_squad_' + cc; }
-function ntLoadSquadIds(cc) {
-  try { return JSON.parse(localStorage.getItem(_ntSquadKey(cc)) || 'null'); }
-  catch(e) { return null; }
+// 🆕 Kadro storage — Supabase team_data 'nt_squad' (uuid[]); RAM cache + BAŞKAN-only debounced RPC yazma.
+// UI tarafı eskisi gibi ntId ('takım|num' / 'USER') kullanır; sunucu sınırında uuid'e çevrilir.
+const _ntSquadCache = {};     // cc -> [ntId|null]
+const _ntSquadLoading = {};   // cc -> Promise
+const _ntSquadLoaded = {};    // cc -> true (boş gelse de tekrar sorgulama)
+let _ntSquadSaveTimer = null;
+
+async function _loadNtSquadFromServer(cc) {
+  if (!window.sb || _ntSquadLoaded[cc]) return _ntSquadCache[cc] || null;
+  if (_ntSquadLoading[cc]) return _ntSquadLoading[cc];
+  _ntSquadLoading[cc] = (async () => {
+    await _loadNtPoolFromServer(cc);   // uuid->ntId çevirisi için havuz lazım
+    const ntName = (typeof _ntCountryName === 'function') ? _ntCountryName() : cc;
+    const { data, error } = await window.sb.from('team_data')
+      .select('data').eq('country_code', cc).eq('team_name', ntName)
+      .eq('data_key', 'nt_squad').maybeSingle();
+    _ntSquadLoading[cc] = null;
+    _ntSquadLoaded[cc] = true;
+    if (error) { console.warn('[ntSquad] hata:', error); return null; }
+    const uuids = (data && Array.isArray(data.data)) ? data.data : null;
+    if (uuids) {
+      const pool = _ntPoolCache[cc] || [];
+      const byId = {}; pool.forEach(p => { byId[p.id] = p; });
+      _ntSquadCache[cc] = uuids.map(u => { const p = u ? byId[u] : null; return p ? p.ntId : null; });
+    }
+    if (typeof ntRender === 'function') ntRender();
+    return _ntSquadCache[cc] || null;
+  })();
+  return _ntSquadLoading[cc];
 }
+
+function ntLoadSquadIds(cc) {
+  if (_ntSquadCache[cc]) return _ntSquadCache[cc].slice();
+  if (window.sb && !_ntSquadLoaded[cc]) _loadNtSquadFromServer(cc).catch(()=>{});
+  return null;
+}
+
 function ntSaveSquadIds(cc, ids) {
-  try { localStorage.setItem(_ntSquadKey(cc), JSON.stringify(ids)); }
-  catch(e) {}
+  _ntSquadCache[cc] = Array.isArray(ids) ? ids.slice() : ids;   // RAM anında
+  // Sunucuya yalnız BAŞKAN yazar (debounce'lu); ntId -> uuid çevrilir ('USER' -> kullanıcının uuid'i)
+  if (!(typeof ntIsUserCoach === 'function' && ntIsUserCoach()) || !window.sb) return;
+  if (_ntSquadSaveTimer) clearTimeout(_ntSquadSaveTimer);
+  const snapCC = cc, snapIds = Array.isArray(ids) ? ids.slice() : [];
+  _ntSquadSaveTimer = setTimeout(() => {
+    const pool = _ntPoolCache[snapCC] || [];
+    if (!pool.length) return;                  // havuz yüklenmediyse atla (RAM korur)
+    const byNt = {}; pool.forEach(p => { byNt[p.ntId] = p; });
+    const uuids = snapIds.map(id => { const p = id ? byNt[id] : null; return p ? p.id : null; });
+    const ntName = (typeof _ntCountryName === 'function') ? _ntCountryName() : snapCC;
+    window.sb.rpc('nt_set_squad', { p_cc: snapCC, p_country_name: ntName, p_player_ids: uuids })
+      .then(({ error }) => { if (error) console.warn('[ntSquad] kayıt hata:', error.message); });
+  }, 600);
 }
 
 // 🆕 Yeni ntBuildRoster — gerçek havuzdan kadro oluşturur (sahte isim üretmez)
