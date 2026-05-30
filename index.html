@@ -27298,25 +27298,35 @@ async function _hydrateRosterWithUserData(rows) {
   if (Array.isArray(upResp.data)) upResp.data.forEach(up => { upMap[up.user_id] = up; });
   if (Array.isArray(profResp.data)) profResp.data.forEach(p => { profMap[p.id] = p; });
 
+  const staleFixes = [];
   for (const r of rows) {
     if (r.is_bot || !r.user_id) continue;
     const up = upMap[r.user_id];
     const prof = profMap[r.user_id];
     if (up) {
-      r.level = up.level ?? r.level;
-      r.xp = up.xp ?? r.xp;
-      r.overall = up.overall ?? r.overall;
-      r.rating = up.rating ?? r.rating;
+      const fix = {};
+      if (up.level   != null && r.level   !== up.level)   { r.level   = up.level;   fix.level   = up.level; }
+      if (up.xp      != null && r.xp      !== up.xp)      { r.xp      = up.xp;      fix.xp      = up.xp; }
+      if (up.overall != null && r.overall !== up.overall) { r.overall = up.overall; fix.overall = up.overall; }
+      if (up.rating  != null && r.rating  !== up.rating)  { r.rating  = up.rating;  fix.rating  = up.rating; }
       r.pos = up.position || r.pos;
       r.pos_group = up.position_group || r.pos_group;
       r.nation = up.nation_flag || r.nation;
       if (up.abilities) r.abilities = up.abilities;
+      if (Object.keys(fix).length) staleFixes.push({ user_id: r.user_id, fix });
     }
     if (prof) {
       r.name = prof.name || r.name;
       r.nationality = prof.nationality || r.nationality;
       if (prof.avatar_id) r.avatar_id = prof.avatar_id;
     }
+  }
+  // user_player kanonik kaynak; players satırındaki bayat stat'ı diske geri yaz (tek yön)
+  if (staleFixes.length) {
+    staleFixes.forEach(({ user_id, fix }) => {
+      window.sb.from('players').update(fix).eq('user_id', user_id)
+        .then(({ error }) => { if (error) console.warn('[hydrate] stale stat fix hata:', error.message); });
+    });
   }
   return rows;
 }
@@ -42853,12 +42863,14 @@ function rosterPersistUserProgress() {
     clearTimeout(window._upUserPlayerSaveTimer);
     window._upUserPlayerSaveTimer = setTimeout(async () => {
       try {
-        await window.sb.from('user_player').update({
+        const _stat = {
           level: me.level || 0,
           xp: me.xp || 0,
           overall: me.overall || 10,
           rating: me.overall || me.rating || 10
-        }).eq('user_id', authUser.id);
+        };
+        await window.sb.from('user_player').update(_stat).eq('user_id', authUser.id);
+        await window.sb.from('players').update(_stat).eq('user_id', authUser.id);
       } catch(e) { console.warn('[user_player] save hata:', e); }
     }, 2000);
   }
