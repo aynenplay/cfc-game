@@ -46729,20 +46729,86 @@ function computeFederationMembers(cc) {
   return members;
 }
 
-// Federasyon state'i yükle / boot et
-function fedLoad(cc) {
-  cc = cc || 'TR';
-  const k = fedKey(cc);
-  let state = null;
-  try { state = JSON.parse(localStorage.getItem(k) || 'null'); } catch(e) {}
-  if(!state) state = fedBootstrap(cc);
-  return state;
+// 🆕 Federasyon state'i SUNUCUDAN (federation_state) — RAM cache + fed_tick tetikleme.
+// Sunucu otoriter: başkan/seçim/oylar sunucuda; client team_name -> member.id köprüsüyle eşler.
+const _fedStateCache = {};
+const _fedStateLoaded = {};
+const _fedStateLoading = {};
+const _fedCandidacy = {};
+
+function _fedServerCandidacy(cc, row, members) {
+  const me = members.find(m => m.isUser);
+  if (!me || !row) return false;
+  const apps = Array.isArray(row.applicants) ? row.applicants : [];
+  const cands = Array.isArray(row.candidates) ? row.candidates : [];
+  return apps.includes(me.teamName) || cands.includes(me.teamName);
 }
 
-function fedSave(state) {
-  if(!state || !state.countryCode) return;
-  try { localStorage.setItem(fedKey(state.countryCode), JSON.stringify(state)); } catch(e) {}
+function _fedMapState(cc, row, votesByTeam) {
+  const members = (typeof computeFederationMembers === 'function') ? computeFederationMembers(cc) : [];
+  const idByTeam = {}; members.forEach(m => { idByTeam[m.teamName] = m.id; });
+  const toId = t => idByTeam[t] || null;
+  if (!row) {
+    return { countryCode: cc, season: 1, presidentId: null, vicePresidentIds: [],
+      electionPhase: 'closed', electionSeason: null, lastElectedSeason: 0,
+      candidates: [], votes: {}, history: [], userCandidacy: !!_fedCandidacy[cc] };
+  }
+  const votes = {};
+  Object.keys(votesByTeam || {}).forEach(vt => {
+    const vid = toId(vt), cid = toId(votesByTeam[vt]);
+    if (vid && cid) votes[vid] = cid;
+  });
+  return {
+    countryCode: cc,
+    season: row.season || 1,
+    presidentId: toId(row.president_team),
+    vicePresidentIds: (row.vice_president_teams || []).map(toId).filter(Boolean),
+    electionPhase: row.election_phase || 'closed',
+    electionSeason: row.election_season || null,
+    lastElectedSeason: (row.election_phase === 'completed') ? (row.election_season || 0) : 0,
+    candidates: (row.candidates || []).map(toId).filter(Boolean),
+    votes: votes,
+    history: Array.isArray(row.history) ? row.history : [],
+    userCandidacy: _fedServerCandidacy(cc, row, members) || !!_fedCandidacy[cc]
+  };
 }
+
+async function _loadFedStateFromServer(cc) {
+  if (!window.sb || _fedStateLoaded[cc]) return _fedStateCache[cc] || null;
+  if (_fedStateLoading[cc]) return _fedStateLoading[cc];
+  _fedStateLoading[cc] = (async () => {
+    const si = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : null;
+    if (si && !si.preSeason) {
+      await window.sb.rpc('fed_tick', { p_cc: cc, p_season: si.season || 1, p_day: si.dayInSeason || 1, p_hour: new Date().getHours() }).then(()=>{}, ()=>{});
+    }
+    const [stRes, vtRes] = await Promise.all([
+      window.sb.from('federation_state').select('*').eq('country_code', cc).maybeSingle(),
+      window.sb.from('federation_votes').select('voter_team, candidate_team, election_season').eq('country_code', cc)
+    ]);
+    _fedStateLoading[cc] = null;
+    _fedStateLoaded[cc] = true;
+    const row = stRes && stRes.data;
+    const votesByTeam = {};
+    if (row && vtRes && Array.isArray(vtRes.data)) {
+      vtRes.data.forEach(v => { if (v.election_season === row.election_season) votesByTeam[v.voter_team] = v.candidate_team; });
+    }
+    _fedStateCache[cc] = _fedMapState(cc, row, votesByTeam);
+    if (typeof fedActiveCountry === 'function' && fedActiveCountry() === cc && typeof fedRender === 'function') fedRender();
+    return _fedStateCache[cc];
+  })();
+  return _fedStateLoading[cc];
+}
+
+// Federasyon state'i (sunucu cache; yüklenene kadar boş iskelet döner)
+function fedLoad(cc) {
+  cc = cc || 'TR';
+  if (_fedStateCache[cc]) return _fedStateCache[cc];
+  if (window.sb && !_fedStateLoaded[cc]) _loadFedStateFromServer(cc).catch(()=>{});
+  return _fedMapState(cc, null, null);
+}
+
+// Sunucu otoriter — client state yazmaz (no-op)
+function fedSave(state) {}
 
 function fedBootstrap(cc) {
   const members = computeFederationMembers(cc);
@@ -46854,8 +46920,10 @@ function fedApplyForCandidacy() {
   if(state.electionPhase === 'open') return false;
   const me = fedGetUserMember(cc);
   if(!me) return false;
-  state.userCandidacy = true;
-  fedSave(state);
+  _fedCandidacy[cc] = true;
+  if (_fedStateCache[cc]) _fedStateCache[cc].userCandidacy = true;
+  if (window.sb) window.sb.rpc('fed_apply_candidacy', { p_cc: cc, p_apply: true })
+    .then(({ error }) => { if (error) { console.warn('[fed] aday hata:', error.message); return; } _fedStateLoaded[cc] = false; _loadFedStateFromServer(cc).catch(()=>{}); });
   return true;
 }
 
@@ -46868,8 +46936,10 @@ function fedWithdrawCandidacy() {
   if(state.electionPhase === 'open') return false;
   const me = fedGetUserMember(cc);
   if(!me) return false;
-  state.userCandidacy = false;
-  fedSave(state);
+  _fedCandidacy[cc] = false;
+  if (_fedStateCache[cc]) _fedStateCache[cc].userCandidacy = false;
+  if (window.sb) window.sb.rpc('fed_apply_candidacy', { p_cc: cc, p_apply: false })
+    .then(({ error }) => { if (error) { console.warn('[fed] çekilme hata:', error.message); return; } _fedStateLoaded[cc] = false; _loadFedStateFromServer(cc).catch(()=>{}); });
   return true;
 }
 
@@ -47017,69 +47087,15 @@ function fedFinalizeElection(cc) {
   } catch(e) { console.warn('[Fed] inbox mesajı hatası:', e); }
 }
 
-// 🆕 Tüm 32 ülkenin federasyonunu günlük tick et
-// Kullanıcı federasyon sayfasını açmasa bile seçimler otomatik akar.
-// Günde bir kez çağrılır (cft_fed_last_tick anahtarıyla idempotent).
-function fedDailyTickAll() {
-  try {
-    if (false) return;
-    if (typeof getSeasonInfo !== 'function') return;
-    const info = getSeasonInfo();
-    if (!info || info.preSeason) return;
+// Sunucu (fed_tick, federasyon sayfası açılınca) yönetiyor — client günlük tick yok
+function fedDailyTickAll() {}
 
-    // Günde bir kez çalışmasını sağla
-    const dayKey = `S${info.season}D${info.dayInSeason}`;
-    const lastKey = localStorage.getItem('cft_fed_last_tick');
-    if (lastKey === dayKey) return;
-
-    _cftGetCountryCodes().forEach(cc => {
-      try { fedTickElection(cc); } catch(e) {}
-    });
-
-    try { localStorage.setItem('cft_fed_last_tick', dayKey); } catch(e) {}
-  } catch(e) { console.warn('[Fed] daily tick all hatası:', e); }
-}
-
-// Periyodik kontrol — seçim açılmalı/kapanmalı mı?
+// Periyodik kontrol — sunucu (fed_tick) yönetiyor; client yalnız sunucu state'ini yükler
 function fedTickElection(cc) {
-  let state = fedLoad(cc);
-  if(!state) {
-    state = fedBootstrap(cc);
-    if(!state) return;
-  }
-  const info = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : null;
-  if(!info || info.preSeason) return;
-
-  const curSeason = info.season;
-  const day = info.dayInSeason;
-  const hour = new Date().getHours();
-  const lastElected = state.lastElectedSeason || 0;
-
-  // 1. Bu sezonun seçimi başlatılmamışsa ve gün 1+ ise: aç
-  if(state.electionPhase !== 'open' && lastElected < curSeason) {
-    if(day >= 1 && day <= 3) {
-      fedStartElection(cc, curSeason);
-      // Eğer 3. gün 19:00+ ise hemen finalize
-      if(day === 3 && hour >= FED_ELECTION_END_HOUR) {
-        fedFinalizeElection(cc);
-      }
-    } else if(day > 3) {
-      // Geç başlatma: hâlihazırda gün 4+ — seçim kaçırıldı, aç+anında kapat
-      fedStartElection(cc, curSeason);
-      fedFinalizeElection(cc);
-    }
-    return;
-  }
-
-  // 2. Açık seçimde 3. gün 19:00+ olduysa: kapat
-  if(state.electionPhase === 'open' && state.electionSeason === curSeason) {
-    if(day > 3 || (day === 3 && hour >= FED_ELECTION_END_HOUR)) {
-      fedFinalizeElection(cc);
-    }
-  }
+  if (typeof _loadFedStateFromServer === 'function') _loadFedStateFromServer(cc).catch(()=>{});
 }
 
-// Kullanıcı oyu
+// Kullanıcı oyu — sunucuya fed_cast_vote RPC ile
 function fedVote(candidateId) {
   const cc = fedActiveCountry();
   const state = fedLoad(cc);
@@ -47087,11 +47103,15 @@ function fedVote(candidateId) {
   const me = fedGetUserMember(cc);
   if(!me) return false;
   if(!(state.candidates || []).includes(candidateId)) return false;
-  // Oy zaten verildiyse — değiştirilemez (bekleyen koruma)
   if(state.votes && state.votes[me.id]) return false;
-  state.votes = state.votes || {};
-  state.votes[me.id] = candidateId;
-  fedSave(state);
+  const cand = computeFederationMembers(cc).find(m => m.id === candidateId);
+  if(!cand || !window.sb) return false;
+  window.sb.rpc('fed_cast_vote', { p_cc: cc, p_candidate_team: cand.teamName })
+    .then(({ error }) => {
+      if (error) { console.warn('[fed] oy hata:', error.message); return; }
+      _fedStateLoaded[cc] = false;
+      _loadFedStateFromServer(cc).catch(()=>{});
+    });
   return true;
 }
 
