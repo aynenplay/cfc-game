@@ -2214,14 +2214,17 @@ select.form-input option{background:var(--bg)}
   display:flex; align-items:flex-start; gap:8px;
   padding:9px 12px;
   border-bottom:1px solid rgba(30,34,48,.5);
-  animation:evIn .35s ease;
+  animation:evSlideL .45s cubic-bezier(.22,1,.36,1) both;
   font-size:12px;
 }
-.ev-list-split .ev-item.ev-home{ grid-column:1; }
-.ev-list-split .ev-item.ev-away{ grid-column:2; text-align:right; flex-direction:row-reverse; }
+.ev-list-split .ev-item.ev-home{ grid-column:1; animation:evSlideL .45s cubic-bezier(.22,1,.36,1) both; }
+.ev-list-split .ev-item.ev-away{ grid-column:2; text-align:right; flex-direction:row-reverse; animation:evSlideR .45s cubic-bezier(.22,1,.36,1) both; }
 .ev-list-split .ev-item.ev-away .ev-body{ text-align:right; }
-.ev-list-split .ev-item.ev-neutral{ grid-column:1 / -1; justify-content:center; background:rgba(120,160,255,.06); text-align:center; }
+.ev-list-split .ev-item.ev-neutral{ grid-column:1 / -1; justify-content:center; background:rgba(120,160,255,.06); text-align:center; animation:evSlideUp .4s cubic-bezier(.22,1,.36,1) both; }
 .ev-list-split .ev-item.ev-neutral .ev-body{ text-align:center; flex:0 0 auto; }
+@keyframes evSlideL{from{opacity:0;transform:translateX(-46px)}to{opacity:1;transform:translateX(0)}}
+@keyframes evSlideR{from{opacity:0;transform:translateX(46px)}to{opacity:1;transform:translateX(0)}}
+@keyframes evSlideUp{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
 
 /* 🆕 Gol Timeline çubuğu (0-90 dakika bar) */
 .goal-timeline{
@@ -35983,7 +35986,32 @@ async function startMatch(){
           const smoothMin = (MS._displayMin && MS._displayMin > 0) ? MS._displayMin : 0;
           const serverMin = liveRow.sim_minute || 0;
           const visibleMin = Math.max(smoothMin, serverMin);
-          const events = allEvents.filter(e => ((e.min !== undefined ? e.min : e.minute) || 0) <= visibleMin);
+          const _eventsRaw = allEvents.filter(e => ((e.min !== undefined ? e.min : e.minute) || 0) <= visibleMin);
+          // 🆕 DAKİKA BAŞINA EN FAZLA 3 OLAY + önem filtresi.
+          //   Önemli olaylar (gol/kart/sub/sakatlık/penaltı/devre/maç sonu) HER ZAMAN gösterilir.
+          //   Gürültü olayları (top kapma, çalım, pas kesme, taç, mücadele...) elenir; kalan
+          //   kota (3'e kadar) orta-önemli olaylarla (şut, korner, kurtarış, faul) doldurulur.
+          const _evImportant = new Set(['goal','yellow','red','sub','injury','penalty','penaltymissed','half','halftime','fulltime','end','var']);
+          const _evMid = new Set(['shotoff','shot_off','shot','save','corner','freekick','foul','offside','bigchancemissed']);
+          const events = (() => {
+            const byMin = new Map();
+            for (const e of _eventsRaw) {
+              const m = (e.min !== undefined ? e.min : (e.minute || 0));
+              if (!byMin.has(m)) byMin.set(m, []);
+              byMin.get(m).push(e);
+            }
+            const out = [];
+            for (const [m, list] of byMin) {
+              const t = (e) => (e.type || '').toLowerCase();
+              const important = list.filter(e => _evImportant.has(t(e)));
+              const mid = list.filter(e => _evMid.has(t(e)));
+              out.push(...important);
+              // Kalan kotayı orta-önemli olaylarla doldur (toplam max 3/dk)
+              const slots = Math.max(0, 3 - important.length);
+              out.push(...mid.slice(0, slots));
+            }
+            return out;
+          })();
           // 🆕 GOL ANLIK BİLDİRİM: Filter visibleMin'i bekleme — gol Edge Function'da min:X
           //   ile yazıldığı an, smoothing 250ms timer henüz X'e ulaşmamış olsa bile banner göster.
           //   Bu sayede gol gerçek zamanlı hissedilir.
