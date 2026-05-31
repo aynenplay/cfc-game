@@ -5842,7 +5842,7 @@ body.team-captain .pr-mv.is-custom:hover{color:#ffe082}
 /* ══ FORMATION PAGE ══ */
 .form-toolbar{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:var(--bg2);border-bottom:1px solid var(--border)}
 .form-tool-left{display:flex;align-items:center;gap:8px}
-.form-tool-right{display:flex;gap:6px}
+.form-tool-right{display:flex;gap:8px}
 .form-label-sm{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px}
 .form-select-wrap{position:relative}
 .form-select{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:5px 26px 5px 9px;color:var(--text);font-size:13px;font-weight:700;font-family:'Barlow Condensed',sans-serif;outline:none;cursor:pointer;appearance:none;-webkit-appearance:none}
@@ -6191,7 +6191,8 @@ body.team-captain .pr-mv.is-custom:hover{color:#ffe082}
 .bench-card-avatar{ width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:19px;line-height:1 }
 .bench-card-avatar img,.bench-card-avatar .avatar-img{ width:100%;height:100%;object-fit:contain;border-radius:50% }
 .bench-card-name{ font-size:8.5px;font-weight:700;color:#fff;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center }
-.bench-card-yc{ position:absolute;top:-7px;left:-5px;font-size:12px;line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6));pointer-events:none;z-index:6 }
+.bench-card-yc{ position:absolute;top:-9px;left:50%;transform:translateX(-50%);font-size:12px;line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6));pointer-events:none;z-index:6;display:inline-block }
+.bench-card-yc-n{ position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:8px;font-weight:900;color:#1a1a1a;font-family:'Barlow Condensed',sans-serif;line-height:1 }
 .bench-card-status{ position:absolute;top:-7px;left:-5px;font-size:12px;line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6));pointer-events:none;z-index:6 }
 .bench-card-empty{ opacity:.4;justify-content:center;min-height:54px }
 .bench-card-remove{ position:absolute;top:-6px;right:-6px;width:15px;height:15px;border-radius:50%;background:rgba(220,40,40,.92);color:#fff;font-size:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:6 }
@@ -23578,7 +23579,6 @@ body.drawer-open{overflow:hidden}
           </div>
         </div>
         <div class="form-tool-right">
-          <button class="form-tool-btn" onclick="autoSmartLineup()" title="En iyi 11'i otomatik diz">🤖 Akıllı Kadro</button>
           <button class="form-tool-btn" onclick="openStrategyPanel()">⚙️ Strateji</button>
           <button class="form-tool-btn accent" onclick="saveFormation()">💾 Kaydet</button>
         </div>
@@ -33672,10 +33672,14 @@ function setMatchFormation(name) {
   showTacticFlash(`📋 Formasyon: ${name}`);
 
   if (MS.running) {
+    // 🆕 Gerçek dakika: smooth timer (_displayMin) öncelikli, sonra MS.minute — 1'e düşme
+    const _fmMin = (MS._displayMin && MS._displayMin > 0) ? Math.floor(MS._displayMin)
+                 : (MS.minute && MS.minute > 0) ? Math.floor(MS.minute)
+                 : 0;
     addEvent({
       type: 'tactic',
       team: isUserHome ? 'home' : 'away',
-      min: Math.floor(MS.minute || 1),
+      min: _fmMin,
       text: `Formasyon değişti: ${name}`
     });
     // Formasyon değişimi gelecekteki olayları da etkiler
@@ -34477,19 +34481,28 @@ function _doMsubSwap(pitchIdx, benchIdx) {
   if (MS.match_key && typeof window !== 'undefined' && window.sb &&
       playerOut && benchPlayer && typeof playerOut.num === 'number' && typeof benchPlayer.num === 'number') {
     const lineupCol = userInHome ? 'home_lineup' : 'away_lineup';
-    const _cached = (typeof _liveMatchCache === 'object' && _liveMatchCache && MS.match_key)
-      ? _liveMatchCache[MS.match_key] : null;
-    const oldLineup = (_cached && _cached[lineupCol]) ? _cached[lineupCol] : {};
-    const subs = Array.isArray(oldLineup.pendingSubs) ? oldLineup.pendingSubs.slice() : [];
-    subs.push({ outNum: playerOut.num, inNum: benchPlayer.num, minute: curMin });
-    const newLineup = { ...oldLineup, pendingSubs: subs };
-    if (_cached) _cached[lineupCol] = newLineup;  // RAM cache de güncel kalsın
-    window.sb.from('match_state')
-      .update({ [lineupCol]: newLineup })
-      .eq('match_key', MS.match_key)
-      .then(({ error }) => {
+    (async () => {
+      try {
+        // Eski lineup'ı önce cache'ten al; lineup taşımıyorsa SERVER'DAN taze çek (players/bench kaybolmasın).
+        const _cached = (typeof _liveMatchCache === 'object' && _liveMatchCache && MS.match_key)
+          ? _liveMatchCache[MS.match_key] : null;
+        let oldLineup = (_cached && _cached[lineupCol] && Array.isArray(_cached[lineupCol].players))
+          ? _cached[lineupCol] : null;
+        if (!oldLineup) {
+          const { data: _row } = await window.sb.from('match_state')
+            .select(lineupCol).eq('match_key', MS.match_key).maybeSingle();
+          oldLineup = (_row && _row[lineupCol]) ? _row[lineupCol] : {};
+        }
+        const subs = Array.isArray(oldLineup.pendingSubs) ? oldLineup.pendingSubs.slice() : [];
+        subs.push({ outNum: playerOut.num, inNum: benchPlayer.num, minute: curMin });
+        const newLineup = { ...oldLineup, pendingSubs: subs };
+        if (_cached) _cached[lineupCol] = newLineup;  // RAM cache de güncel kalsın
+        const { error } = await window.sb.from('match_state')
+          .update({ [lineupCol]: newLineup })
+          .eq('match_key', MS.match_key);
         if (error) console.warn('[manuel sub] match_state update hata:', error);
-      });
+      } catch(e) { console.warn('[manuel sub] hata:', e); }
+    })();
   }
 
   const help = document.getElementById('tacSubsHelp');
@@ -35928,7 +35941,7 @@ async function startMatch(){
       if (MS.match_key && window.sb) {
         try {
           const { data: _one } = await window.sb.from('match_state')
-            .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,events,stats,started_at,kickoff_at,tournament_key,tournament_phase,viewer_count')
+            .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,events,stats,home_lineup,away_lineup,started_at,kickoff_at,tournament_key,tournament_phase,viewer_count')
             .eq('match_key', MS.match_key)
             .maybeSingle();
           if (_one) {
@@ -45900,54 +45913,7 @@ function _computeSmartLineup(eligible, slots, opts) {
 //  AKILLI KADRO ÖNER — En iyi 11'i pozisyona uygun seçer
 //  Cezalı/sakat hariç, yorgun (energy<%30) yedeğe, yüksek moral öncelikli
 // ═══════════════════════════════════════════════════════════════════
-function autoSmartLineup() {
-  if (typeof ROSTER_DATA === 'undefined' || ROSTER_DATA.length < 11) {
-    if (typeof showFlash === 'function') showFlash('En az 11 oyuncu gerekli');
-    else alert('En az 11 oyuncu gerekli');
-    return;
-  }
-
-  // Mevcut formasyon slot'ları
-  const slots = (typeof FORMATIONS !== 'undefined' && FORMATIONS[currentFormation]) || [];
-  if (!slots.length) {
-    alert('Formasyon yüklenemedi'); return;
-  }
-
-  // Uygun oyuncular (cezalı/sakat hariç)
-  const eligible = ROSTER_DATA.filter(p =>
-    !(typeof isPlayerSuspended === 'function' && isPlayerSuspended(p)) &&
-    !(typeof isPlayerInjured === 'function' && isPlayerInjured(p))
-  );
-
-  if (eligible.length < 11) {
-    alert('Cezalı/sakat oyuncular sonrası kadro 11 kişiden az! Önce kadroyu büyüt.');
-    return;
-  }
-
-  // 🆕 Akıllı yerleştirmeyi paylaşılan helper'a devret
-  const { lineup, bench } = _computeSmartLineup(eligible, slots);
-
-  // State'i güncelle
-  if (typeof activePitchPlayers !== 'undefined') {
-    activePitchPlayers.length = 0;
-    lineup.forEach(l => activePitchPlayers.push(l));
-  }
-  if (typeof benchPlayers !== 'undefined') {
-    benchPlayers.length = 0;
-    bench.forEach(b => benchPlayers.push(b));
-  }
-
-  // Render güncelle
-  if (typeof renderPitch === 'function') renderPitch();
-  if (typeof renderBench === 'function') renderBench();
-
-  // Auto-save (lineup değişti)
-  try { saveTeamStrategy(); } catch(e){}
-
-  // Bildirim
-  if (typeof showFlash === 'function') showFlash('🤖 Akıllı kadro önerildi');
-  else alert('🤖 Akıllı kadro önerildi — En iyi 11 sahada');
-}
+// autoSmartLineup SİLİNDİ — Akıllı Kadro butonu kaldırıldı (ölü kod).
 
 // ═══════════════════════════════════════════════════════════════════
 //  TAKIM OYLAMA SİSTEMİ
@@ -46443,7 +46409,7 @@ function renderBench() {
       const _inj = (p.injuryUntil || 0) > _now;
       if (_inj) statusHtml = `<span class="bench-card-status" title="Sakat">🚑</span>`;
       else if (_susp > 0) statusHtml = `<span class="bench-card-status" title="Cezalı (${_susp} maç)">${p.suspendReason === 'red' ? '🟥' : '🟨'}</span>`;
-      else if (_yc > 0) statusHtml = `<span class="bench-card-yc" title="${_yc}/4 sarı kart">🟨</span>`;
+      else if (_yc > 0) statusHtml = `<span class="bench-card-yc" title="${_yc}/4 sarı kart">🟨<b class="bench-card-yc-n">${_yc}</b></span>`;
 
       const removeBtn = isUserAuthorizedBench
         ? `<div class="bench-card-remove" title="Kadrodan çıkar" onclick="confirmRemoveFromSquad(${p.num}, event)">✕</div>` : '';
