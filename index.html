@@ -31611,16 +31611,22 @@ function liveMatchOpen(matchData, kickoffMs) {
   _resLiveUpdate();
   overlay.classList.add('open');
 
-  // Her 3 saniyede match_state'i poll, ayrıca server'dan da çek
+  // 🆕 Her 7sn'de SADECE bu maçın satırını çek (tüm canlı maçları değil — CPU dostu).
+  //   Tıklanan maçta olaylar görünür, o yüzden events+stats dahil.
   if (window._resLiveModalTimer) clearInterval(window._resLiveModalTimer);
-  window._resLiveModalTimer = setInterval(() => {
-    // Server'dan match_state'i tazele
-    if (typeof _liveMatchLoadFromServer === 'function') {
-      _liveMatchLoadFromServer().then(() => _resLiveUpdate());
-    } else {
-      _resLiveUpdate();
-    }
-  }, 3000);
+  window._resLiveModalTimer = setInterval(async () => {
+    try {
+      const mk = m.matchKey || (window._resLiveMatchData && window._resLiveMatchData.matchKey);
+      if (mk && window.sb) {
+        const { data: _one } = await window.sb.from('match_state')
+          .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,events,stats,started_at,kickoff_at,tournament_key,tournament_phase,viewer_count')
+          .eq('match_key', mk)
+          .maybeSingle();
+        if (_one && typeof _liveMatchCache === 'object' && _liveMatchCache) _liveMatchCache[mk] = _one;
+      }
+    } catch(e) {}
+    _resLiveUpdate();
+  }, 7000);
 }
 
 // SONUÇLAR sayfası — index ile çağrı
@@ -35908,13 +35914,24 @@ async function startMatch(){
           console.warn('[tick_match] CATCH:', e && e.message);
         }
       }
-      // match_state'i tazele
-      if (typeof _liveMatchLoadFromServer === 'function') {
-        await _liveMatchLoadFromServer();
-      }
-      // Bu maça ait match_state satırını bul — match_key öncelikli, yoksa home/away
+      // 🆕 SADECE izlenen maçın satırını çek (tüm canlı maçları değil — CPU dostu).
+      //   İzlenen maçta tam veri lazım: events + stats dahil.
       let liveRow = null;
-      if (typeof _liveMatchCache === 'object' && _liveMatchCache) {
+      if (MS.match_key && window.sb) {
+        try {
+          const { data: _one } = await window.sb.from('match_state')
+            .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,events,stats,started_at,kickoff_at,tournament_key,tournament_phase,viewer_count')
+            .eq('match_key', MS.match_key)
+            .maybeSingle();
+          if (_one) {
+            liveRow = _one;
+            // RAM cache'i de bu maç için güncelle (diğer ekranlar tutarlı kalsın)
+            if (typeof _liveMatchCache === 'object' && _liveMatchCache) _liveMatchCache[MS.match_key] = _one;
+          }
+        } catch(e) { console.warn('[match-screen one-fetch] hata:', e && e.message); }
+      }
+      // match_key yoksa (eski akış) cache'ten home/away ile bul — fallback
+      if (!liveRow && typeof _liveMatchCache === 'object' && _liveMatchCache) {
         if (MS.match_key && _liveMatchCache[MS.match_key]) {
           liveRow = _liveMatchCache[MS.match_key];
         } else {
@@ -37454,17 +37471,17 @@ let _liveMatchPollTimer = null;
 async function _liveMatchLoadFromServer() {
   if (!window.sb) return;
   try {
-    // 🆕 1) running olan TÜM maçları yükle (zaman sınırı yok — şu an canlı olanlar)
+    // 🆕 1) running olan TÜM maçları yükle (SADECE skor+meta — events/stats ÇEKİLMEZ, CPU dostu)
     const { data: runningData, error: e1 } = await window.sb.from('match_state')
-      .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,events,stats,started_at,kickoff_at,tournament_key,tournament_phase,viewer_count')
+      .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,started_at,kickoff_at,tournament_key,tournament_phase,viewer_count')
       .eq('status', 'running')
       .order('kickoff_at', { ascending: false })
       .limit(500);
     if (e1) { console.warn('[live_match running] hata:', e1.message); }
     
-    // 🆕 2) scheduled — yakın gelecek (önümüzdeki 4 saat)
+    // 🆕 2) scheduled — yakın gelecek (önümüzdeki 4 saat) — SADECE skor+meta
     const { data: schedData, error: e2 } = await window.sb.from('match_state')
-      .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,events,stats,started_at,kickoff_at,tournament_key,tournament_phase,viewer_count')
+      .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,started_at,kickoff_at,tournament_key,tournament_phase,viewer_count')
       .eq('status', 'scheduled')
       .gte('kickoff_at', new Date(Date.now() - 30 * 60 * 1000).toISOString())
       .lte('kickoff_at', new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString())
@@ -37472,9 +37489,9 @@ async function _liveMatchLoadFromServer() {
       .limit(500);
     if (e2) { console.warn('[live_match scheduled] hata:', e2.message); }
     
-    // 🆕 3) Tüm EURO Nations Cup planlanmış maçları (gün 34+ için)
+    // 🆕 3) Tüm EURO Nations Cup planlanmış maçları (gün 34+ için) — SADECE skor+meta
     const { data: encData, error: e3 } = await window.sb.from('match_state')
-      .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,events,stats,started_at,kickoff_at,tournament_key,tournament_phase,viewer_count')
+      .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,started_at,kickoff_at,tournament_key,tournament_phase,viewer_count')
       .eq('tournament_key', 'enc')
       .order('day_in_season', { ascending: true })
       .limit(500);
@@ -37498,7 +37515,7 @@ function _liveMatchStartPolling() {
       try { renderResultsPage(); } catch(e) {}
     }
   });
-  // Sonra 15sn'de bir poll (canlı maç güncellemesi için)
+  // Sonra 7sn'de bir poll — gerçek maç dakika ritmi (1 sim-dakika = 7sn). Sadece skor çeker.
   _liveMatchPollTimer = setInterval(() => {
     _liveMatchLoadFromServer().then(() => {
       const page = document.querySelector('.page.active');
@@ -37506,7 +37523,7 @@ function _liveMatchStartPolling() {
         try { renderResultsPage(); } catch(e) {}
       }
     });
-  }, 15000);
+  }, 7000);
 }
 
 function _liveMatchStopPolling() {
