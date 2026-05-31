@@ -37495,6 +37495,36 @@ async function _liveMatchLoadFromServer() {
     for (const r of (runningData || [])) cache[r.match_key] = r;
     for (const r of (schedData || [])) cache[r.match_key] = r;
     for (const r of (encData || [])) cache[r.match_key] = r;
+
+    // 🆕 BİTEN MAÇLARI YAKALA: önceki poll'de running olup bu poll'de cache'te OLMAYAN maçlar
+    //   = bitmiş demektir (running sorgusundan düştü). Final skor + finished durumunu çek.
+    const _justFinished = [];
+    for (const mk in _liveMatchCache) {
+      const prev = _liveMatchCache[mk];
+      if (prev && prev.status === 'running' && !cache[mk]) {
+        _justFinished.push(mk);
+      }
+    }
+    if (_justFinished.length > 0 && window.sb) {
+      try {
+        const { data: finRows } = await window.sb.from('match_state')
+          .select('match_key,status,home_score,away_score,sim_minute,started_at')
+          .in('match_key', _justFinished);
+        for (const fr of (finRows || [])) {
+          // Liste cache'ine final durumu yaz (canlıdan düşsün, biten maç olsun)
+          if (typeof _matchStateCache === 'object' && _matchStateCache && _matchStateCache.byKey) {
+            const dst = _matchStateCache.byKey[fr.match_key];
+            if (dst) {
+              dst.status = fr.status;
+              dst.home_score = fr.home_score;
+              dst.away_score = fr.away_score;
+              dst.sim_minute = fr.sim_minute;
+            }
+          }
+        }
+      } catch(e) { console.warn('[live_match finished-catch] hata:', e); }
+    }
+
     _liveMatchCache = cache;
 
     // 🆕 SONUÇLAR listesi _matchStateCache.byKey'ten okur — canlı skor/dakika/status'ü oraya köprüle.
