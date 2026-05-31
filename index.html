@@ -23444,12 +23444,6 @@ body.drawer-open{overflow:hidden}
           </div>
         </div>
 
-        <!-- Ziyaretçi modu dev badge — hamburger ile aynı pozisyon -->
-        <div class="thb-guest-dev guest-only" id="thbGuestDev" title="Tesis Gelişim Seviyesi">
-          <span>🏗️</span>
-          <span class="thb-gd-val" id="thbGuestDevVal">%—</span>
-        </div>
-
         <!-- HEAD: Logo + İsim/Meta -->
         <div class="thb-head">
           <div class="thb-logo c1" id="teamHeroLogo">—</div>
@@ -51519,9 +51513,9 @@ function guestRenderHeader() {
   const v = _viewingTeam;
   const logo = document.querySelector('#team-roster .thb-logo');
   const name = document.querySelector('#team-roster #teamHeroName');
-  const meta = document.querySelector('#team-roster .thb-meta');
-  const userEl = document.querySelector('#team-roster .thb-user');
-  const stats = document.querySelector('#team-roster .thb-stats');
+  const meta = document.querySelector('#team-roster #teamHeroMeta');
+  const userEl = document.querySelector('#team-roster #teamHeroUser');
+  const stats = null; // eski .thb-stats yapısı yok — rank/power/players id'lerine yazılır (aşağıda)
   if(logo) {
     logo.className = 'thb-logo';
     logo.style.background = v.teamRef.bg;
@@ -51533,11 +51527,10 @@ function guestRenderHeader() {
     }
   }
   if(name) name.textContent = v.teamRef.name;
-  // Gelişim badge — ziyaret edilen takım için seed bazlı (sağ üst guest dev'e yazılır)
+  // Gelişim % — ziyaret edilen takım için seed bazlı. Artık hero'da DEĞİL, TESİS sayfasında gösterilir.
   const devSeed = (v.countryCode.charCodeAt(0)*53 + (v.teamRef.rank||1)*11) & 0xff;
   const devPct  = 5 + (devSeed % 35);
-  const guestDevVal = document.getElementById('thbGuestDevVal');
-  if(guestDevVal) guestDevVal.textContent = '%' + devPct;
+  v._devPct = devPct; // TESİS sayfası bunu okur
   if(meta) meta.textContent = `${v.country.flag} ${v.country.name} · ${v.leagueName}`;
   // Bu takımın kaptanı kim? (deterministic — guest roster ile aynı seed)
   let roster = [];
@@ -51548,16 +51541,20 @@ function guestRenderHeader() {
     const captain = roster.find(p => p.role === 'captain');
     userEl.textContent = captain ? ('Kaptan: ' + captain.name) : '—';
   }
-  if(stats) {
-    // Ziyaretçi modunda yeni 2 sütun: Oyuncu + Ort. Güç (Gelişim isim yanı badge'inde)
+  // 🆕 Ziyaretçi stats: var olan hero-strip hücrelerine yaz (sıra/güç/kadro) — gerçek değerler
+  {
     const playerCount = roster.length || 15;
     const avgPwr = roster.length
       ? Math.round(roster.reduce((s,p)=>s+(p.overall||0),0) / roster.length)
       : 10;
-    stats.innerHTML = `
-      <div class="thb-stat"><div class="thb-val">${playerCount}</div><div class="thb-lbl">Oyuncu</div></div>
-      <div class="thb-stat"><div class="thb-val" style="color:var(--gold)">${avgPwr}</div><div class="thb-lbl">Ort. Güç</div></div>
-    `;
+    const rankEl = document.getElementById('teamHeroRank');
+    const powerEl = document.getElementById('teamHeroPower');
+    const playersEl = document.getElementById('teamHeroPlayers');
+    const playersMaxEl = document.getElementById('teamHeroPlayersMax');
+    if (rankEl) rankEl.textContent = '#' + (v.teamRef.rank || '—');
+    if (powerEl) powerEl.textContent = String(avgPwr);
+    if (playersEl) playersEl.textContent = String(playerCount);
+    if (playersMaxEl) playersMaxEl.textContent = String(playerCount);
   }
   // Hat güçleri (KL/DF/OS/FW) — guest roster'dan
   try {
@@ -52523,6 +52520,10 @@ async function guestRenderFacilities() {
         <div style="flex:1">
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900">${v.teamRef.name} · Tesisleri</div>
           <div style="font-size:10px;color:var(--text3)">Yetkisiz görüntüleme — değişiklik yapamazsın</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:#b39ddb;line-height:1">%${(typeof v._devPct === 'number') ? v._devPct : (5 + (((v.countryCode.charCodeAt(0)*53 + (v.teamRef.rank||1)*11) & 0xff) % 35))}</div>
+          <div style="font-size:9px;color:var(--text3);margin-top:2px">🏗️ Gelişim</div>
         </div>
       </div>
       ${facsData.map(f => {
