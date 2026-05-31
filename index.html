@@ -67659,7 +67659,7 @@ function inboxRejectTransfer(msgId) {
 }
 
 // ── Yanıt gönder ──
-function inboxSendReply() {
+async function inboxSendReply() {
   const input = document.getElementById('inboxReplyInput');
   if(!input || !input.value.trim()) return;
   const body   = input.value.trim();
@@ -67671,49 +67671,47 @@ function inboxSendReply() {
   if(idx===-1) return;
 
   msgs[idx].thread = [...(msgs[idx].thread||[]), { from:myName, body, time:now }];
-  // Önizleme güncelle (inbox listesinde son mesaj görünsün)
   msgs[idx].body = body;
   msgs[idx].time = now;
-
-  // 🆕 Akıllı bot yanıtı — _dmGenerateBotReply ile (anahtar kelime + role bazlı)
-  // Fallback: 4 sabit cevap (eski sistem)
-  const partner = msgs[idx]._dmPlayer || {
-    name: msgs[idx].from,
-    role: 'member'
-  };
-  let botReply;
-  if (typeof _dmGenerateBotReply === 'function') {
-    botReply = _dmGenerateBotReply(partner, body);
-  } else {
-    const fallbacks = ['Anlıyorum, teşekkürler! 👍','Tamam, iletişimde kalalım.','Harika! Kısa süre içinde geri döneceğim.','Değerlendireceğim ve sana bildireceğim.'];
-    botReply = fallbacks[Math.floor(Math.random()*fallbacks.length)];
-  }
-
-  setTimeout(() => {
-    const msgs2 = getInboxMsgs();
-    const idx2  = msgs2.findIndex(m=>m.id===_inboxCurrentMsg?.id);
-    if(idx2===-1) return;
-    const replyTime = new Date().toLocaleTimeString('tr',{hour:'2-digit',minute:'2-digit'});
-    msgs2[idx2].thread.push({ from: msgs2[idx2].from, body: botReply, time: replyTime });
-    msgs2[idx2].body = botReply;
-    msgs2[idx2].time = replyTime;
-    // En yeni mesaj başa taşınsın (inbox listesinde üstte gözüksün)
-    if (idx2 > 0) {
-      const e = msgs2.splice(idx2, 1)[0];
-      msgs2.unshift(e);
-    }
-    saveInboxMsgs(msgs2);
-    if(_inboxCurrentMsg?.id === msgs2[0]?.id) {
-      _inboxCurrentMsg = msgs2[0];
-      inboxRenderDetail(msgs2[0]);
-    }
-    inboxUpdateBadge();
-  }, 1000 + Math.random()*1200);
-
   saveInboxMsgs(msgs);
   _inboxCurrentMsg = msgs[idx];
   input.value = '';
   inboxRenderDetail(msgs[idx]);
+
+  // NPC/oyuncu DM ise (kasıtlı) bot yanıtı üret
+  if (msgs[idx]._dmPlayer) {
+    const botReply = (typeof _dmGenerateBotReply === 'function')
+      ? _dmGenerateBotReply(msgs[idx]._dmPlayer, body)
+      : 'Anlıyorum, teşekkürler! 👍';
+    setTimeout(() => {
+      const msgs2 = getInboxMsgs();
+      const idx2  = msgs2.findIndex(m=>m.id===_inboxCurrentMsg?.id);
+      if(idx2===-1) return;
+      const replyTime = new Date().toLocaleTimeString('tr',{hour:'2-digit',minute:'2-digit'});
+      msgs2[idx2].thread.push({ from: msgs2[idx2].from, body: botReply, time: replyTime });
+      msgs2[idx2].body = botReply;
+      msgs2[idx2].time = replyTime;
+      if (idx2 > 0) { const e = msgs2.splice(idx2, 1)[0]; msgs2.unshift(e); }
+      saveInboxMsgs(msgs2);
+      if(_inboxCurrentMsg?.id === msgs2[0]?.id) { _inboxCurrentMsg = msgs2[0]; inboxRenderDetail(msgs2[0]); }
+      inboxUpdateBadge();
+    }, 1000 + Math.random()*1200);
+    return;
+  }
+
+  // Gerçek kullanıcı sohbeti → alıcının inbox'una gönder (bot yok)
+  const toId = msgs[idx].fromUserId;
+  if (toId) {
+    await inboxSendToUser(toId, {
+      from: myName,
+      fromUserId: (authUser||{}).id,
+      fromAvatar: '👤',
+      type: 'chat',
+      subject: msgs[idx].subject || 'Yanıt',
+      body,
+      sent: false,
+    });
+  }
 }
 
 // ── Yeni mesaj compose ──
@@ -67754,6 +67752,7 @@ async function inboxSendCompose() {
   // Alıcıya gerçek mesajı gönder
   const ok = await inboxSendToUser(prof.id, {
     from: myName,
+    fromUserId: (authUser||{}).id,
     fromAvatar: '👤',
     type: 'chat',
     subject,
