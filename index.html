@@ -34392,31 +34392,21 @@ function _doMsubSwap(pitchIdx, benchIdx) {
   // 🆕 KADROLAR sekmesindeki giriş/çıkış işaretleri için lineup da refresh
   try { if (typeof renderLineup === 'function') renderLineup(); } catch(e) {}
 
-  // 🆕 MATCH_STATE LINEUP UPDATE: Edge Function bir sonraki tick'te yeni lineup'la
-  //   simüle etsin. Aksi takdirde manuel sub sadece UI'da görünür, simülasyona yansımaz.
-  //   Lineup verisi: activePitchPlayers (sahadaki 11) ROSTER_DATA'dan zenginleştirilir.
+  // 🆕 MANUEL SUB → match_state'e DAKİKA BAZLI kaydet (gerçek futbol gibi).
+  //   Eski davranış (lineup'ı komple yeni 11 ile değiştirmek) KALDIRILDI: motor maçı
+  //   baştan simüle ettiği için o yöntem sub'ı "maç başından beri sahadaydı" gibi gösteriyordu.
+  //   Yeni yöntem: home_lineup/away_lineup içine pendingSubs:[{outNum,inNum,minute}] ekle;
+  //   motor (_simStepMinute) o dakikaya gelince oyuncuyu değiştirir.
   if (MS.match_key && typeof window !== 'undefined' && window.sb &&
-      typeof activePitchPlayers !== 'undefined' && Array.isArray(activePitchPlayers)) {
-    const newPlayers = activePitchPlayers.map((entry, i) => {
-      const p = entry.player || {};
-      return {
-        name: p.name, num: p.num, pos: entry.pos || p.pos,
-        rating: p.overall || p.rating || 60,
-        overall: p.overall || p.rating || 60,
-        level: p.level || 0, xp: p.xp || 0,
-        x: entry.x, y: entry.y,
-        abilities: p.abilities || null,
-        userId: p.userId || p.user_id || null,
-        isUser: !!p.isUser || (p.role === 'user'),
-        isBot: !!p.isBot,
-        role: p.role || null
-      };
-    });
+      playerOut && benchPlayer && typeof playerOut.num === 'number' && typeof benchPlayer.num === 'number') {
     const lineupCol = userInHome ? 'home_lineup' : 'away_lineup';
     const _cached = (typeof _liveMatchCache === 'object' && _liveMatchCache && MS.match_key)
       ? _liveMatchCache[MS.match_key] : null;
     const oldLineup = (_cached && _cached[lineupCol]) ? _cached[lineupCol] : {};
-    const newLineup = { ...oldLineup, players: newPlayers };
+    const subs = Array.isArray(oldLineup.pendingSubs) ? oldLineup.pendingSubs.slice() : [];
+    subs.push({ outNum: playerOut.num, inNum: benchPlayer.num, minute: curMin });
+    const newLineup = { ...oldLineup, pendingSubs: subs };
+    if (_cached) _cached[lineupCol] = newLineup;  // RAM cache de güncel kalsın
     window.sb.from('match_state')
       .update({ [lineupCol]: newLineup })
       .eq('match_key', MS.match_key)
@@ -38800,6 +38790,12 @@ function showPage(name,btn){
 
   // 🆕 Takım sayfası dışına çıkınca sohbet fixed konum class'ını temizle
   if(name !== 'team') document.body.classList.remove('team-chat-active');
+
+  // 🆕 Takım sayfasından çıkarken bekleyen diziliş/strateji kaydını ANINDA yaz.
+  // Böylece debounce (500ms) dolmadan maça/başka sayfaya geçilse bile en son kayıt geçerli olur.
+  if(name !== 'team' && typeof flushTeamStrategySave === 'function') {
+    flushTeamStrategySave().catch(e => console.warn('[showPage] strateji flush hata:', e));
+  }
 
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
@@ -46540,26 +46536,30 @@ function applyFormation(name) {
   }
 }
 
+async function flushTeamStrategySave() {
+  // Bekleyen debounce yazmayı iptal edip son cache'i ANINDA Supabase'e yaz.
+  // Böylece sayfadan çıkış/maç başlangıcında en son kayıt garanti geçerli olur.
+  if (_teamStrategySaveTimer) {
+    clearTimeout(_teamStrategySaveTimer);
+    _teamStrategySaveTimer = null;
+  }
+  if (window.sb && _userTeam && _userTeam.countryCode && _userTeam.teamName && _teamStrategyCache) {
+    await window.sb.from('team_data').upsert({
+      country_code: _userTeam.countryCode,
+      team_name: _userTeam.teamName,
+      data_key: 'strategy',
+      data: _teamStrategyCache,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'country_code,team_name,data_key' });
+  }
+}
+
 async function saveFormation() {
   // 🆕 GERÇEK KAYIT — strateji + formasyon + diziliş
   // saveTeamStrategy() debounce'lu (500ms). Manuel "Kaydet" tıklanınca
   // pending timer'ı iptal edip ANINDA yazıp toast'ı write sonrası göster.
   try { saveTeamStrategy(); } catch(e){}
-  try {
-    if (_teamStrategySaveTimer) {
-      clearTimeout(_teamStrategySaveTimer);
-      _teamStrategySaveTimer = null;
-    }
-    if (window.sb && _userTeam && _userTeam.countryCode && _userTeam.teamName && _teamStrategyCache) {
-      await window.sb.from('team_data').upsert({
-        country_code: _userTeam.countryCode,
-        team_name: _userTeam.teamName,
-        data_key: 'strategy',
-        data: _teamStrategyCache,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'country_code,team_name,data_key' });
-    }
-  } catch(e) { console.warn('[saveFormation] write hata:', e); }
+  try { await flushTeamStrategySave(); } catch(e) { console.warn('[saveFormation] write hata:', e); }
 
   // Toast
   const toast = document.createElement('div');
@@ -76254,6 +76254,11 @@ setTimeout(async ()=>{
     _frmLoadFromServer().catch(e => console.warn('friendly load hata:', e)),
     userTeamLoadFromServer().catch(e => console.warn('userTeamLoadFromServer hata:', e)),
   ]);
+
+  // 🆕 Yenileme sonrası kadroyu yükle (login akışıyla aynı) — yoksa takım sayfası realtime event gelene kadar boş kalır
+  if (typeof userHasTeam === 'function' && userHasTeam() && _userTeam && _userTeam.countryCode) {
+    try { rosterBuildTeam(_userTeam.countryCode); } catch(e){}
+  }
   
   // 🆕 PRESENCE — players.last_seen sayfa açılışında ve her 60 sn güncellenir
   // Diğer kullanıcılar bu satırı okuyup "online" rozeti gösterir
