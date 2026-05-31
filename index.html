@@ -31956,12 +31956,13 @@ async function resOpenFinishedMatch(matchKey) {
   if (!entry && window.sb) {
     try {
       const { data, error } = await window.sb.from('match_state')
-        .select('events,home_lineup,away_lineup')
+        .select('events,stats,home_lineup,away_lineup')
         .eq('match_key', key)
         .maybeSingle();
       if (!error && data) {
         entry = {
           events: data.events,
+          stats: data.stats,
           home_lineup: data.home_lineup,
           away_lineup: data.away_lineup
         };
@@ -32176,8 +32177,28 @@ function openMatchFromFixture(idx) {
       // 🆕 İstatistik DOM'unu kur + cache verisi ile doldur
       try {
         if (typeof initStats === 'function') initStats();
-        if (_matchCacheData && _matchCacheData.stats && typeof updateStats === 'function') {
-          updateStats(_matchCacheData.stats, 1);
+        if (typeof updateStats === 'function') {
+          // ÖNCELİK: Edge'in yazdığı gerçek server stats. Yoksa server'dan çek, o da yoksa olaylardan hesapla.
+          let _fmStats = (_matchCacheData && _matchCacheData.stats && Array.isArray(_matchCacheData.stats.possession))
+            ? _matchCacheData.stats : null;
+          if (_fmStats) {
+            updateStats(_fmStats, 1);
+          } else if (m.matchKey && window.sb) {
+            // Server'dan gerçek stats'i ayrı çek (liste cache'i stats taşımıyor — boyut sebebiyle)
+            (async () => {
+              try {
+                const { data } = await window.sb.from('match_state')
+                  .select('stats,events').eq('match_key', m.matchKey).maybeSingle();
+                let s = (data && data.stats && Array.isArray(data.stats.possession)) ? data.stats : null;
+                if (!s && data && Array.isArray(data.events) && typeof _computeMatchStatsFromEvents === 'function') {
+                  s = _computeMatchStatsFromEvents(data.events, 90);
+                }
+                if (s && typeof updateStats === 'function') updateStats(s, 1);
+              } catch(e) {}
+            })();
+          } else if (_matchCacheData && Array.isArray(_matchCacheData.events) && typeof _computeMatchStatsFromEvents === 'function') {
+            updateStats(_computeMatchStatsFromEvents(_matchCacheData.events, 90), 1);
+          }
         }
       } catch(e) {}
 
