@@ -33981,10 +33981,9 @@ function _msubSyncStateAfterSwap(pitchIdx, benchPlayer, playerOut) {
       benchPlayers[benchIdx] = playerOut;
     }
   }
-  // 3. Kalıcı kaydet
-  try {
-    if (typeof saveTeamStrategy === 'function') saveTeamStrategy();
-  } catch(e) {}
+  // 3. ❌ KALICI KAYIT YAPMA — maç içi sub geçicidir, kalıcı dizilişi (kayıtlı taktik) BOZMAMALI.
+  //    Motor değişimi match_state.pendingSubs'ten uygular; saveTeamStrategy() çağrılmaz.
+  //    (Eski kalıntı: burada saveTeamStrategy() vardı → maç içi sub kalıcı dizilişi bozuyordu.)
 
   // 4. MS.simState.home/away.players'ı güncelle (motor state)
   const { myTeam } = _whichSideIsUser();
@@ -34571,6 +34570,17 @@ function closeMatchScreen(){
   }
   MS.running=false;
   document.getElementById('match-screen').classList.remove('open');
+
+  // 🆕 Maç içi sub'lar activePitchPlayers/benchPlayers'ı (takım sayfası RAM state'i) geçici
+  //   değiştirmiş olabilir. Kalıcı taktik (kayıtlı strateji) BOZULMADI — RAM görselini de
+  //   kayıtlı stratejiden geri yükle ki takım sayfası kayıtlı dizilişe dönsün.
+  try {
+    if (typeof loadTeamStrategy === 'function' && _teamStrategyCache) {
+      loadTeamStrategy();
+      if (typeof renderPitch === 'function') renderPitch();
+      if (typeof renderBench === 'function') renderBench();
+    }
+  } catch(e) {}
 }
 
 // 🆕 Maç ekranını kapat ve doğrudan ana sayfaya dön (sağ üst X butonu)
