@@ -29727,6 +29727,8 @@ window.goBuyTeamFromWarn = function(){
 
 let _jrwtTarget = null;       // {countryCode, teamName, rating}
 let _jrwtSeasons = 2;         // 1-3
+let _jrwtSystemSalary = 0;    // sistem belirler (değiştirilemez)
+let _jrwtSigningDia = 0;      // oyuncunun talep ettiği imza elması
 
 function _jrwtFmt(v){
   if(!v) return '0 €';
@@ -29748,6 +29750,10 @@ window.openJoinRequestWithTermsModal = function(cc, tn, rating){
 
   _jrwtTarget = { countryCode: cc, teamName: tn, rating };
   _jrwtSeasons = 2;
+  _jrwtSystemSalary = (typeof getSystemPlayerSalary === 'function') ? getSystemPlayerSalary(rating) : 0;
+  _jrwtSigningDia = 0;
+  const _diaIn = document.getElementById('jrwtSigningDiamond');
+  if(_diaIn) _diaIn.value = '';
 
   const flag = (true && _cftGetCountry(cc)) ? (_cftGetCountry(cc).flag || '') : '';
   const captainName = (typeof getTeamRealCaptainName === 'function')
@@ -29781,16 +29787,17 @@ window._jrwtSelectSeasons = function(n){
 };
 
 window._jrwtUpdateSummary = function(){
-  const bonus  = parseInt((document.getElementById('jrwtSigningBonus')||{}).value) || 0;
-  const salary = parseInt((document.getElementById('jrwtYearlySalary')||{}).value)  || 0;
-  const inst   = Math.round(salary / 2);
-  const total  = bonus + salary * _jrwtSeasons;
+  const diaEl = document.getElementById('jrwtSigningDiamond');
+  _jrwtSigningDia = Math.max(0, parseInt((diaEl||{}).value) || 0);
+  const salary = Number(_jrwtSystemSalary) || 0;
+  const inst   = Math.round(salary / 4);
   const set = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
-  set('jrwtSumBonus',  _jrwtFmt(bonus));
+  set('jrwtSalaryDisplay', _jrwtFmt(salary) + ' /sezon');
+  set('jrwtPayD10', _jrwtFmt(inst)); set('jrwtPayD20', _jrwtFmt(inst));
+  set('jrwtPayD30', _jrwtFmt(inst)); set('jrwtPayD40', _jrwtFmt(inst));
   set('jrwtSumSalary', _jrwtFmt(salary));
-  set('jrwtSumInst',   _jrwtFmt(inst));
+  set('jrwtSumDia',    _jrwtSigningDia.toLocaleString('tr-TR') + ' 💎');
   set('jrwtSumDur',    `${_jrwtSeasons} sezon`);
-  set('jrwtSumTotal',  _jrwtFmt(total));
 };
 
 window.submitJoinRequestWithTerms = async function(){
@@ -29798,11 +29805,12 @@ window.submitJoinRequestWithTerms = async function(){
   const cc = _jrwtTarget.countryCode;
   const tn = _jrwtTarget.teamName;
 
-  const bonus  = Math.max(0, parseInt((document.getElementById('jrwtSigningBonus')||{}).value) || 0);
-  const salary = Math.max(0, parseInt((document.getElementById('jrwtYearlySalary')||{}).value) || 0);
+  const signingDia = Math.max(0, parseInt((document.getElementById('jrwtSigningDiamond')||{}).value) || 0);
+  const salary = Math.max(0, Number(_jrwtSystemSalary) || 0);  // sistem belirler
+  const bonus  = 0;                                            // serbest → bonservis yok
 
   if(salary <= 0){
-    showInfoModal({icon:'⚠️',iconColor:'#f59e0b',title:'Geçersiz Ücret',subtitle:'Yıllık ücret sıfırdan büyük olmalı.',body:''});
+    showInfoModal({icon:'⚠️',iconColor:'#f59e0b',title:'Maaş Hesaplanamadı',subtitle:'Oyuncu seviyesi geçersiz, sayfayı yenile.',body:''});
     return;
   }
   if(_jrwtSeasons < 1 || _jrwtSeasons > 5){
@@ -29886,7 +29894,9 @@ window.submitJoinRequestWithTerms = async function(){
       sentDate: new Date().toLocaleDateString('tr'),
       status: 'pending',
       terms: {
-        signingBonus: bonus,
+        signingBonus: 0,
+        signingDiamond: signingDia,
+        seasonSalary: salary,
         yearlySalary: salary,
         durationSeasons: _jrwtSeasons,
       },
@@ -29910,7 +29920,7 @@ window.submitJoinRequestWithTerms = async function(){
       fromAvatar: '🤝',
       type: 'join_request',
       subject: `Katılma İsteği — ${tn}`,
-      body: `${flag} ${tn} takımına şartlarla katılma isteği gönderdin.\n\n• İmza Parası: ${fmt(bonus)}\n• Yıllık Ücret: ${fmt(salary)}\n• Süre: ${_jrwtSeasons} sezon\n\nKaptan veya yardımcı kaptan onaylarsa sözleşme imzalanacak. Yanıt geldiğinde bilgilendirileceksin.`,
+      body: `${flag} ${tn} takımına şartlarla katılma isteği gönderdin.\n\n• İmza Talebi: ${signingDia} 💎\n• Sezon Maaşı: ${fmt(salary)}\n• Süre: ${_jrwtSeasons} sezon\n\nKaptan veya yardımcı kaptan onaylarsa sözleşme imzalanacak. Yanıt geldiğinde bilgilendirileceksin.`,
       time: new Date().toLocaleDateString('tr'),
       read: true,
       thread: [],
@@ -29938,13 +29948,15 @@ window.submitJoinRequestWithTerms = async function(){
         fromAvatar: '🤝',
         type: 'join_request_incoming',
         subject: `Katılma İsteği — ${myName}`,
-        body: `${myName} adlı oyuncu ${flag} ${tn} takımına katılmak istiyor.\n\nÖnerdiği şartlar:\n• İmza Parası: ${fmt(bonus)}\n• Yıllık Ücret: ${fmt(salary)}\n• Süre: ${_jrwtSeasons} sezon\n\nKaptan veya yardımcı kaptan olarak onaylayabilir veya reddedebilirsin.`,
+        body: `${myName} adlı oyuncu ${flag} ${tn} takımına katılmak istiyor.\n\nÖnerdiği şartlar:\n• İmza Talebi: ${signingDia} 💎\n• Sezon Maaşı: ${fmt(salary)}\n• Süre: ${_jrwtSeasons} sezon\n\nKaptan veya yardımcı kaptan olarak onaylayabilir veya reddedebilirsin.`,
         joinReqIncomingData: {
           requestorUserId: myUserId,
           requestorName: myName,
           countryCode: cc,
           teamName: tn,
-          signingBonus: bonus,
+          signingBonus: 0,
+          signingDiamond: signingDia,
+          seasonSalary: salary,
           yearlySalary: salary,
           durationSeasons: _jrwtSeasons,
         },
@@ -30009,8 +30021,9 @@ window.inboxApproveJoinRequest = async function(msgId){
         captain_user_id: myUserId,
         country_code: d.countryCode,
         team_name: d.teamName,
-        signing_bonus: d.signingBonus || 0,
-        yearly_salary: d.yearlySalary || 0,
+        signing_bonus: 0,
+        signing_diamond: d.signingDiamond || 0,
+        yearly_salary: (d.seasonSalary != null ? d.seasonSalary : (d.yearlySalary || 0)),
         duration_seasons: d.durationSeasons || 1,
         captain_name: captainName,
         season: info.season,
@@ -66881,6 +66894,39 @@ function _inboxPlayDing() {
   tone(1319, 0.18, 0.6, 0.19);
 }
 
+// İki kullanıcı arası sabit sohbet kimliği (WhatsApp gibi tek konuşma)
+function _inboxConvId(a, b) { return 'dm_' + [String(a), String(b)].sort().join('_'); }
+function _inboxTimeStr() { return new Date().toLocaleTimeString('tr', {hour:'2-digit', minute:'2-digit'}); }
+
+// convId sohbetini bul/oluştur, mesajı thread'e ekle, en üste taşı
+function _inboxUpsertChat(arr, convId, peer, item, opts) {
+  opts = opts || {};
+  let e = arr.find(m => m && m.id === convId);
+  if (!e) { e = { id: convId, type: 'chat', fromAvatar: '👤', subject: '', thread: [] }; arr.unshift(e); }
+  e.thread = e.thread || [];
+  e.thread.push(item);
+  e.peerId = peer.id; e.peerName = peer.name; e.from = peer.name;
+  e.body = item.body; e.time = item.time; e.ts = item.ts;
+  if (typeof opts.read === 'boolean') e.read = opts.read;
+  const i = arr.indexOf(e);
+  if (i > 0) { arr.splice(i, 1); arr.unshift(e); }
+  return e;
+}
+
+// Alıcının sunucudaki inbox'una sohbet mesajı ekle (gerçek teslim)
+async function _inboxDeliverChat(toUserId, convId, fromPeer, item) {
+  if (!window.sb || !toUserId) return false;
+  const { data, error } = await window.sb.from('user_inbox').select('messages').eq('user_id', toUserId).maybeSingle();
+  if (error) { console.error('[inbox chat] read hata:', error); return false; }
+  const arr = (data && Array.isArray(data.messages)) ? data.messages : [];
+  _inboxUpsertChat(arr, convId, fromPeer, item, { read: false });
+  const { error: upErr } = await window.sb.from('user_inbox').upsert({
+    user_id: toUserId, messages: arr.slice(0, 200), updated_at: new Date().toISOString()
+  }, { onConflict: 'user_id' });
+  if (upErr) { console.error('[inbox chat] write hata:', upErr); return false; }
+  return true;
+}
+
 // Server'dan kendi inbox'unu yükle (bootstrap + login sonrası)
 async function _inboxLoadFromServer() {
   if (!window.sb) { _inboxCache = null; return; }
@@ -67526,14 +67572,10 @@ function inboxRenderDetail(msg) {
       <div class="inbox-transfer-card" style="background:rgba(0,230,118,.05);border-color:rgba(0,230,118,.25)">
         <div class="inbox-tc-title" style="color:#00e676">🤝 Katılma İsteği — Sözleşme Şartları</div>
         <div class="inbox-tc-row"><span class="inbox-tc-label">Oyuncu</span><span class="inbox-tc-val">${d.requestorName}</span></div>
-        <div class="inbox-tc-row"><span class="inbox-tc-label">İmza Parası</span><span class="inbox-tc-val" style="color:var(--gold)">${fmt(d.signingBonus)}</span></div>
-        <div class="inbox-tc-row"><span class="inbox-tc-label">Yıllık Ücret</span><span class="inbox-tc-val">${fmt(d.yearlySalary)}</span></div>
-        <div class="inbox-tc-row"><span class="inbox-tc-label">Her Taksit</span><span class="inbox-tc-val">${fmt(Math.round(d.yearlySalary/2))} × 2</span></div>
-        <div class="inbox-tc-row"><span class="inbox-tc-label">Süre</span><span class="inbox-tc-val">${d.durationSeasons} sezon</span></div>
-        <div class="inbox-tc-row" style="border-bottom:none">
-          <span class="inbox-tc-label">Toplam Sözleşme</span>
-          <span class="inbox-tc-val" style="color:var(--accent2)">${fmt(d.signingBonus + d.yearlySalary*d.durationSeasons)}</span>
-        </div>
+        <div class="inbox-tc-row"><span class="inbox-tc-label">İmza Talebi 💎</span><span class="inbox-tc-val" style="color:var(--gold)">${(d.signingDiamond||0).toLocaleString('tr-TR')} 💎</span></div>
+        <div class="inbox-tc-row"><span class="inbox-tc-label">Sezon Maaşı</span><span class="inbox-tc-val">${fmt(d.seasonSalary || d.yearlySalary || 0)}</span></div>
+        <div class="inbox-tc-row"><span class="inbox-tc-label">Her Taksit</span><span class="inbox-tc-val">${fmt(Math.round((d.seasonSalary || d.yearlySalary || 0)/4))} × 4 (gün 10/20/30/40)</span></div>
+        <div class="inbox-tc-row" style="border-bottom:none"><span class="inbox-tc-label">Süre</span><span class="inbox-tc-val">${d.durationSeasons} sezon</span></div>
         ${(isApproved || isRejected) ?
           `<div style="margin-top:8px;padding:8px;border-radius:8px;font-size:11px;font-weight:700;text-align:center;background:${isApproved?'rgba(0,230,118,.15)':'rgba(239,83,80,.12)'};color:${isApproved?'var(--accent)':'#ef5350'}">
             ${isApproved?'✅ Onaylandı — Sözleşme imzalandı':'❌ Reddedildi'}
@@ -67543,14 +67585,14 @@ function inboxRenderDetail(msg) {
             <button class="inbox-tc-reject" onclick="inboxRejectJoinRequest('${msg.id}')">✕ Reddet</button>
           </div>`}
       </div>`;
-  } else {
+  } else if (!(msg.type === 'chat' && (msg.thread||[]).length)) {
     html += `<div class="inbox-detail-text">${msg.body}</div>`;
   }
   if(msg.thread?.length) {
     html += '<div style="margin-top:14px;margin-bottom:6px;font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Konuşma</div>';
     const myName = (authUser||{}).name || 'Sen';
     msg.thread.forEach(t => {
-      const isMine = t.from === myName;
+      const isMine = t.fromId ? (t.fromId === (authUser||{}).id) : (t.from === myName);
       html += `<div class="inbox-thread-msg ${isMine?'sent':'received'}">
         <div class="inbox-thread-bubble">${t.body}</div>
         <div class="inbox-thread-meta">${t.from} · ${t.time}</div>
@@ -67688,33 +67730,25 @@ async function inboxSendReply() {
   if(!input || !input.value.trim()) return;
   const body   = input.value.trim();
   const myName = (authUser||{}).name || 'Sen';
-  const now    = new Date().toLocaleTimeString('tr',{hour:'2-digit',minute:'2-digit'});
+  const myId   = (authUser||{}).id;
+
+  const cur = _inboxCurrentMsg;
+  if (!cur) return;
+  const peerId = cur.peerId || cur.fromUserId;
+  if (!peerId) { input.value = ''; return; }   // sohbet değil (sistem mesajı) → gönderme
+
+  const convId   = (cur.id && cur.id.indexOf('dm_') === 0) ? cur.id : _inboxConvId(myId, peerId);
+  const peerName = cur.peerName || cur.from || 'Kullanıcı';
+  const item     = { from: myName, fromId: myId, body, time: _inboxTimeStr(), ts: Date.now() };
 
   const msgs = getInboxMsgs();
-  const idx  = msgs.findIndex(m=>m.id===_inboxCurrentMsg?.id);
-  if(idx===-1) return;
-
-  msgs[idx].thread = [...(msgs[idx].thread||[]), { from:myName, body, time:now }];
-  msgs[idx].body = body;
-  msgs[idx].time = now;
+  const e = _inboxUpsertChat(msgs, convId, { id: peerId, name: peerName }, item, { read: true });
   saveInboxMsgs(msgs);
-  _inboxCurrentMsg = msgs[idx];
+  _inboxCurrentMsg = e;
   input.value = '';
-  inboxRenderDetail(msgs[idx]);
+  inboxRenderDetail(e);
 
-  // Gerçek kullanıcıya gönder
-  const toId = msgs[idx].fromUserId;
-  if (toId) {
-    await inboxSendToUser(toId, {
-      from: myName,
-      fromUserId: (authUser||{}).id,
-      fromAvatar: '👤',
-      type: 'chat',
-      subject: msgs[idx].subject || 'Yanıt',
-      body,
-      sent: false,
-    });
-  }
+  await _inboxDeliverChat(peerId, convId, { id: myId, name: myName }, item);
 }
 
 // ── Yeni mesaj compose ──
@@ -67749,48 +67783,29 @@ async function inboxSendCompose() {
     return;
   }
 
-  const myName = (authUser||{}).name || 'Sen';
-  const now    = new Date().toLocaleDateString('tr');
+  const myName   = (authUser||{}).name || 'Sen';
+  const myId     = (authUser||{}).id;
+  const peerName = prof.name || ('@' + prof.username);
+  const convId   = _inboxConvId(myId, prof.id);
+  const item     = { from: myName, fromId: myId, body, time: _inboxTimeStr(), ts: Date.now() };
 
-  // Alıcıya gerçek mesajı gönder
-  const ok = await inboxSendToUser(prof.id, {
-    from: myName,
-    fromUserId: (authUser||{}).id,
-    fromAvatar: '👤',
-    type: 'chat',
-    subject,
-    body,
-    sent: false,
-  });
+  // Alıcının sohbetine ekle (gerçek teslim)
+  const ok = await _inboxDeliverChat(prof.id, convId, { id: myId, name: myName }, item);
   if (!ok) { alert('Mesaj gönderilemedi.'); return; }
 
-  // Kendi inbox'una "gönderildi" kaydı (lokal görünüm)
+  // Kendi sohbetime ekle
   const msgs = getInboxMsgs();
-  msgs.unshift({
-    id: 'msg_'+Date.now(),
-    from: myName,
-    to: '@' + prof.username,
-    toName: prof.name || ('@' + prof.username),
-    fromAvatar: '👤',
-    type: 'chat',
-    subject,
-    body,
-    time: now,
-    ts: Date.now(),
-    read: true,
-    thread: [],
-    sent: true,
-  });
+  _inboxUpsertChat(msgs, convId, { id: prof.id, name: peerName }, item, { read: true });
   saveInboxMsgs(msgs);
 
   inboxBackToList();
   inboxUpdateBadge();
-  tfShowToast(`✅ Mesaj gönderildi: @${prof.username}`, 'var(--accent2)');
+  tfShowToast(`✅ Gönderildi: @${prof.username}`, 'var(--accent2)');
 }
 
 // ── Transfer teklifi → Inbox mesajı ──
 // 🆕 Yeni offer yapısı: offer.transferFee, offer.signingBonus, offer.yearlySalary, offer.durationSeasons
-function inboxSendTransferOffer(target, _legacyWage, _legacyContract, offer) {
+async function inboxSendTransferOffer(target, _legacyWage, _legacyContract, offer) {
   function fmtEur(v){ return v>=1000000?(v/1000000).toFixed(2)+'M €':v>0?Math.round(v/1000)+'K €':'Ücretsiz'; }
   function fmtDia(v){ return v>0 ? v.toLocaleString('tr-TR') + ' 💎' : '—'; }
   const myName = (authUser||{}).name || 'Teklif Yapan';
@@ -67807,6 +67822,9 @@ function inboxSendTransferOffer(target, _legacyWage, _legacyContract, offer) {
   const seasonSalary   = offer.seasonSalary    ?? offer.yearlySalary
                           ?? (_legacyWage ? _legacyWage * 52 * 1000 : 0);
   const inst           = Math.round(seasonSalary / 4);                 // 4 taksit (gün 10/20/30/40)
+  const signingBonus    = 0;                          // € imza yok (imza artık elmas)
+  const yearlySalary    = seasonSalary;               // backward-compat alias
+  const durationSeasons = offer.durationSeasons ?? 1;
 
   // Şart bloğu — yeni 4-taksit yapısı
   const termsBlock = [
@@ -67892,11 +67910,38 @@ function inboxSendTransferOffer(target, _legacyWage, _legacyContract, offer) {
     },
   };
 
+  // Gönderenin kendi inbox'una sadece "sent" kopyası
   const msgs = getInboxMsgs();
   msgs.unshift(sentMsg);
-  msgs.unshift(incomingMsg);
   saveInboxMsgs(msgs);
   inboxUpdateBadge();
+
+  // 🆕 Teklifi GERÇEK alıcının sunucu inbox'una teslim et
+  //   Serbest oyuncu → doğrudan oyuncuya · Kontratlı → satıcı kulüp kaptanına
+  let recipientId = null;
+  if (isFree) {
+    const pr = target._playerRef || {};
+    recipientId = pr.userId || pr.user_id || null;
+    if (!recipientId && target._countryCode && target.seller && typeof _teamRosterCache !== 'undefined') {
+      const roster = _teamRosterCache[target._countryCode + ':' + target.seller];
+      if (Array.isArray(roster)) {
+        const c = roster.find(r => r && r.name === target.playerId);
+        if (c) recipientId = c.userId || c.user_id || null;
+      }
+    }
+  } else {
+    if (typeof _loadRealCaptainsFromServer === 'function') {
+      _invalidateRealCaptainsCache();
+      await _loadRealCaptainsFromServer();
+    }
+    const entry = _realCaptainsCache[(target._countryCode||'') + ':' + (target.seller||'')];
+    recipientId = entry ? entry.captainUserId : null;
+  }
+  if (recipientId && typeof inboxSendToUser === 'function') {
+    await inboxSendToUser(recipientId, incomingMsg);
+  } else {
+    console.warn('[teklif] alıcı user_id çözülemedi — teslim edilemedi:', target.playerId);
+  }
 }
 
 
@@ -76407,6 +76452,25 @@ setTimeout(async ()=>{
             } catch(e) {}
           }, 300))
           .subscribe();
+
+        // 🆕 7) user_inbox — bana mesaj geldi mi (anlık teslim)
+        window.sb.channel('rt-my-inbox')
+          .on('postgres_changes', {
+            event: '*', schema: 'public', table: 'user_inbox',
+            filter: `user_id=eq.${myUserId}`
+          }, _rtDebounce(async () => {
+            if (typeof _inboxLoadFromServer !== 'function') return;
+            await _inboxLoadFromServer();
+            if (typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
+            const ov = document.getElementById('inboxOverlay');
+            if (ov && ov.classList.contains('open')) {
+              if (_inboxView === 'detail' && _inboxCurrentMsg) {
+                const fresh = getInboxMsgs().find(m => m.id === _inboxCurrentMsg.id);
+                if (fresh) { _inboxCurrentMsg = fresh; inboxRenderDetail(fresh); }
+              } else if (typeof inboxRenderList === 'function') { inboxRenderList(); }
+            }
+          }, 200))
+          .subscribe();
       }
       
       // 🆕 6) toto_pools — havuzlar değişince (başka kullanıcı kupon yatırdı vb)
@@ -77099,6 +77163,13 @@ document.addEventListener('keydown', function(e){
 
 </style>
 
+<style>
+.jrwt-readonly{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-weight:800;color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:15px}
+.jrwt-readonly.jrwt-faded{color:var(--text3);font-weight:600;font-size:12px;opacity:.6}
+.jrwt-paysched{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:2px 0 12px}
+.jrwt-pay-row{display:flex;justify-content:space-between;background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:6px 9px;font-size:11px}
+.jrwt-pay-row b{color:var(--gold)}
+</style>
 <div class="jrwt-overlay" id="jrwtOverlay" onclick="if(event.target===this)closeJoinRequestWithTerms()">
   <div class="jrwt-modal">
     <div class="jrwt-head">
@@ -77111,7 +77182,7 @@ document.addEventListener('keydown', function(e){
 
     <div class="jrwt-body">
       <div class="jrwt-info">
-        Bu takımın <b>gerçek bir kaptanı</b> var. Şartlarını belirleyip isteğini gönder. Kaptan veya yardımcılarından biri onaylarsa <b>sözleşme imzalanır</b> ve takımın kontratlı oyuncusu olursun.
+        Maaş ve bonservis <b>sistemce belirlenir, değiştirilemez</b>. Sadece <b>süre</b> ve talep ettiğin <b>imza elmasını</b> seçebilirsin. Kaptan onaylarsa sözleşme imzalanır; maaş sezonun 10/20/30/40. günlerinde 4 taksit halinde ödenir.
       </div>
 
       <div class="jrwt-section">
@@ -77126,31 +77197,31 @@ document.addEventListener('keydown', function(e){
       </div>
 
       <div class="jrwt-section">
-        <span class="jrwt-label">İmza Parası (€) — onaylandığında peşin ödenir</span>
-        <input type="number" class="jrwt-input" id="jrwtSigningBonus" value="100000" min="0" step="10000" oninput="_jrwtUpdateSummary()"/>
+        <span class="jrwt-label">Sezon Maaşı (€) — sistem belirler, değiştirilemez</span>
+        <div class="jrwt-readonly" id="jrwtSalaryDisplay">0 €</div>
       </div>
 
       <div class="jrwt-section">
-        <span class="jrwt-label">Yıllık Ücret (€) — 2 taksit halinde sezonun 19 ve 38. günü ödenir</span>
-        <input type="number" class="jrwt-input" id="jrwtYearlySalary" value="500000" min="0" step="50000" oninput="_jrwtUpdateSummary()"/>
+        <span class="jrwt-label">Bonservis</span>
+        <div class="jrwt-readonly jrwt-faded">Serbest oyuncu · bonservis yok</div>
+      </div>
+
+      <div class="jrwt-section">
+        <span class="jrwt-label">İmza Parası 💎 — talep ettiğin elmas (kabul edilirse kasadan cüzdanına)</span>
+        <input type="number" class="jrwt-input" id="jrwtSigningDiamond" value="" min="0" step="50" placeholder="0" oninput="_jrwtUpdateSummary()"/>
+      </div>
+
+      <div class="jrwt-paysched">
+        <div class="jrwt-pay-row"><span>Gün 10 (1/4)</span><b id="jrwtPayD10">0 €</b></div>
+        <div class="jrwt-pay-row"><span>Gün 20 (2/4)</span><b id="jrwtPayD20">0 €</b></div>
+        <div class="jrwt-pay-row"><span>Gün 30 (3/4)</span><b id="jrwtPayD30">0 €</b></div>
+        <div class="jrwt-pay-row"><span>Gün 40 (4/4)</span><b id="jrwtPayD40">0 €</b></div>
       </div>
 
       <div class="jrwt-summary">
-        <div class="jrwt-summary-row">
-          <span>İmza Parası</span><span><b id="jrwtSumBonus">100K €</b></span>
-        </div>
-        <div class="jrwt-summary-row">
-          <span>Yıllık Ücret</span><span><b id="jrwtSumSalary">500K €</b></span>
-        </div>
-        <div class="jrwt-summary-row">
-          <span>Her Taksit (×2/sezon)</span><span><b id="jrwtSumInst">250K €</b></span>
-        </div>
-        <div class="jrwt-summary-row">
-          <span>Süre</span><span><b id="jrwtSumDur">2 sezon</b></span>
-        </div>
-        <div class="jrwt-summary-row total">
-          <span>Toplam Sözleşme Değeri</span><span><b id="jrwtSumTotal">1.1M €</b></span>
-        </div>
+        <div class="jrwt-summary-row"><span>Sezon Maaşı (€)</span><span><b id="jrwtSumSalary">0 €</b></span></div>
+        <div class="jrwt-summary-row"><span>İmza Talebi (💎)</span><span><b id="jrwtSumDia">0 💎</b></span></div>
+        <div class="jrwt-summary-row total"><span>Süre</span><span><b id="jrwtSumDur">2 sezon</b></span></div>
       </div>
     </div>
 
