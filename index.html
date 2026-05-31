@@ -66859,6 +66859,27 @@ let _inboxSearch = '';
 // 🆕 RAM cache - bootstrap'ta server'dan doldurulur
 let _inboxCache = null;
 let _inboxSaveTimer = null;
+let _inboxSeenIds = null; // yeni mesaj sesi için görülen mesaj id'leri
+
+// Yeni mesaj tınısı (Çıngırak — 3 çıkan nota), buton sesi ayarına bağlı
+function _inboxPlayDing() {
+  if (!_cftButtonSoundEnabled) return;
+  const c = _cftGetAudioCtx();
+  const tone = (freq, start, dur, gain) => {
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = 'triangle';
+    const t = c.currentTime + start;
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(c.destination);
+    o.start(t); o.stop(t + dur + 0.03);
+  };
+  tone(784, 0, 0.5, 0.24);
+  tone(988, 0.09, 0.5, 0.21);
+  tone(1319, 0.18, 0.6, 0.19);
+}
 
 // Server'dan kendi inbox'unu yükle (bootstrap + login sonrası)
 async function _inboxLoadFromServer() {
@@ -66884,6 +66905,9 @@ async function _inboxLoadFromServer() {
       .maybeSingle();
     if (error) { console.warn('[inbox] load hata:', error); _inboxCache = null; return; }
     _inboxCache = (data && Array.isArray(data.messages)) ? data.messages : [];
+    const _curIds = new Set(_inboxCache.map(m => m && m.id).filter(Boolean));
+    if (_inboxSeenIds && _inboxCache.some(m => m && !m.read && !_inboxSeenIds.has(m.id))) _inboxPlayDing();
+    _inboxSeenIds = _curIds;
     console.info('[inbox] cache yüklendi:', _inboxCache.length, 'mesaj');
 
     // 🆕 Edge Function tarafından gelen onay mesajı varsa _userTeam'i Supabase'ten taze çek
@@ -67678,28 +67702,7 @@ async function inboxSendReply() {
   input.value = '';
   inboxRenderDetail(msgs[idx]);
 
-  // NPC/oyuncu DM ise (kasıtlı) bot yanıtı üret
-  if (msgs[idx]._dmPlayer) {
-    const botReply = (typeof _dmGenerateBotReply === 'function')
-      ? _dmGenerateBotReply(msgs[idx]._dmPlayer, body)
-      : 'Anlıyorum, teşekkürler! 👍';
-    setTimeout(() => {
-      const msgs2 = getInboxMsgs();
-      const idx2  = msgs2.findIndex(m=>m.id===_inboxCurrentMsg?.id);
-      if(idx2===-1) return;
-      const replyTime = new Date().toLocaleTimeString('tr',{hour:'2-digit',minute:'2-digit'});
-      msgs2[idx2].thread.push({ from: msgs2[idx2].from, body: botReply, time: replyTime });
-      msgs2[idx2].body = botReply;
-      msgs2[idx2].time = replyTime;
-      if (idx2 > 0) { const e = msgs2.splice(idx2, 1)[0]; msgs2.unshift(e); }
-      saveInboxMsgs(msgs2);
-      if(_inboxCurrentMsg?.id === msgs2[0]?.id) { _inboxCurrentMsg = msgs2[0]; inboxRenderDetail(msgs2[0]); }
-      inboxUpdateBadge();
-    }, 1000 + Math.random()*1200);
-    return;
-  }
-
-  // Gerçek kullanıcı sohbeti → alıcının inbox'una gönder (bot yok)
+  // Gerçek kullanıcıya gönder
   const toId = msgs[idx].fromUserId;
   if (toId) {
     await inboxSendToUser(toId, {
