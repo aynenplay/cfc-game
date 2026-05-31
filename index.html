@@ -28429,258 +28429,8 @@ function getStaminaWarnings() {
 // minutesPlayed: oynadığı dakika (1-95)
 // teamConceded: takım kaç gol yedi
 // ctx: { teamScored, oppRating, teamRating, allEvents, side, fixturePass, fixturePoss, weather, ... }
-function calcPlayerRating(player, playerEvents, teamWon, minutesPlayed, teamConceded, ctx) {
-  if (!player) return 6.0;
-  ctx = ctx || {};
-  let rating = 6.5; // Baz: orta seviye performans
-
-  const evs = playerEvents || [];
-
-  // Olay sayıları
-  const goals     = evs.filter(e => e.type === 'goal' && !e.isOwnGoal).length;
-  const assists   = evs.filter(e => e.type === 'goal' && e.assist === player.name).length;
-  const keyPasses = evs.filter(e => e.type === 'keyPass' && e.player === player.name).length;
-  const yellows   = evs.filter(e => e.type === 'yellow').length;
-  const reds      = evs.filter(e => e.type === 'red').length;
-  const ownGoals  = evs.filter(e => e.type === 'goal' && e.isOwnGoal).length;
-  const saves     = evs.filter(e => e.type === 'save').length;
-  const greatSaves = evs.filter(e => e.type === 'save' && e.greatSave).length;
-  const tackles   = evs.filter(e => e.type === 'tackle').length;
-  const blocks    = evs.filter(e => e.type === 'block').length;
-  const clearances = evs.filter(e => e.type === 'clearance').length;
-  const interceptions = evs.filter(e => e.type === 'interception').length;
-  const duelsWon  = evs.filter(e => e.type === 'duelWon').length;
-  const duelsLost = evs.filter(e => e.type === 'duelLost').length;
-  const dribbles  = evs.filter(e => e.type === 'dribble').length;
-  const missedPens = evs.filter(e => e.type === 'penaltyMissed').length;
-  const wonPens   = evs.filter(e => e.type === 'penaltyWon').length;
-  const missedBigChances = evs.filter(e => e.type === 'bigChanceMissed').length;
-  const fouls     = evs.filter(e => e.type === 'foul').length;
-  const foulsDrawn = evs.filter(e => e.type === 'foulDrawn').length;
-  const offsides  = evs.filter(e => e.type === 'offside').length;
-  const injuries  = evs.filter(e => e.type === 'injury').length;
-  const motm      = evs.filter(e => e.type === 'manOfMatch').length;
-
-  const pos = player.pos || '';
-  const isGK = pos === 'KL' || pos === 'GK';
-  const isDef = ['STB','SB','DEF'].includes(pos);
-  const isMid = ['DOS','OS','SAK','MID','CAM','CDM'].includes(pos);
-  const isFwd = ['FWD','ST'].includes(pos);
-
-  // ─── 1) HÜCUM KATKISI ───
-  rating += goals     * 1.10;   // Her gol +1.10
-  rating += assists   * 0.75;   // Her asist +0.75
-  rating += keyPasses * 0.15;   // Her gol pası +0.15 (asist olmasa da)
-  rating += wonPens   * 0.40;   // Penaltı kazandırma +0.40
-  rating += dribbles  * 0.06;   // Başarılı çalım +0.06
-
-  // ─── 2) DEFANS KATKISI ───
-  rating += tackles      * 0.10;
-  rating += blocks       * 0.15;
-  rating += interceptions * 0.10;
-  rating += clearances   * 0.05;
-  rating += (duelsWon - duelsLost) * 0.04; // İkili mücadele net farkı
-
-  // ─── 3) KALECİ ÖZEL ───
-  if (isGK) {
-    rating += saves      * 0.18;
-    rating += greatSaves * 0.30; // Süper kurtarış ekstra +0.30
-    if (teamConceded === 0)      rating += 0.80; // Clean sheet (ek)
-    else if (teamConceded === 1) rating += 0.25;
-    else if (teamConceded >= 3)  rating -= 0.60;
-    else if (teamConceded >= 4)  rating -= 1.00;
-    // Şut başına kurtarış oranı (xS) — çok şut yedi ama az yedi → bonus
-    const shotsOnTarget = ctx.oppShotsOnTarget || 0;
-    if (shotsOnTarget >= 5 && teamConceded <= 1) rating += 0.30;
-  }
-
-  // ─── 4) DEFANS POZİSYON BONUSU ───
-  if (isDef) {
-    if (teamConceded === 0)     rating += 0.50; // Clean sheet
-    else if (teamConceded >= 3) rating -= 0.40;
-    if ((tackles + interceptions + blocks) >= 6) rating += 0.20; // Yoğun savunma
-  }
-
-  // ─── 5) HÜCUMCU PERFORMANS BASKISI ───
-  if (isFwd && goals === 0 && assists === 0 && keyPasses === 0) {
-    rating -= 0.30; // Hücum oyuncusu hiç katkı yapmadıysa
-  }
-  // Forvet kaçırılan büyük şanslar
-  rating -= missedBigChances * 0.40;
-
-  // ─── 6) DİSİPLİN ───
-  // Sarı kart erken alındıysa daha kötü (sınırlı oyun)
-  evs.filter(e => e.type === 'yellow').forEach(e => {
-    const min = e.min || 60;
-    if (min < 30)      rating -= 0.40; // 0-30dk → -0.40
-    else if (min < 60) rating -= 0.30; // 30-60dk → -0.30
-    else               rating -= 0.20; // 60-90dk → -0.20
-  });
-  // Kırmızı kart erken vs geç
-  evs.filter(e => e.type === 'red').forEach(e => {
-    const min = e.min || 60;
-    if (min < 45)      rating -= 1.80; // İlk yarı → ağır ceza
-    else               rating -= 1.40; // İkinci yarı
-  });
-
-  // ─── 7) HATALAR ───
-  rating -= ownGoals    * 1.30;    // Kendi kalesine gol
-  rating -= missedPens  * 0.90;    // Penaltı kaçırma
-  rating -= fouls       * 0.04;    // Genel faul (ufak)
-  rating += foulsDrawn  * 0.05;    // Faul kazandırma
-
-  // ─── 8) KRİTİK DAKİKA ÇARPANI ───
-  // 80+ dakikada gol/asist galibiyet ya da beraberlik gelirse ekstra bonus
-  evs.forEach(e => {
-    if (e.type === 'goal' && !e.isOwnGoal) {
-      const min = e.min || 0;
-      const isLate = min >= 80;
-      if (isLate) {
-        // Skor durumu: gol attığı anda 1 fark var mıydı?
-        if (ctx.lateGameWinner) rating += 0.50; // Galibiyet golü
-        else if (ctx.lateGameEqualizer) rating += 0.40; // Beraberlik golü
-        else rating += 0.20; // Genel geç gol
-      }
-    }
-  });
-
-  // ─── 9) GERİ DÖNÜŞ GOLÜ ───
-  // Takım geriden geldi ve bu oyuncu skor ürettiyse +0.20 ekstra
-  if (ctx.teamCameback && (goals > 0 || assists > 0)) rating += 0.20;
-
-  // ─── 10) RAKİP KALİTESİ ───
-  // Daha güçlü rakibe karşı oynayan ve katkı yapan oyuncuya bonus
-  const teamR = ctx.teamRating || 75;
-  const oppR  = ctx.oppRating  || 75;
-  const ratingGap = oppR - teamR; // Rakip daha güçlü ise pozitif
-  if (ratingGap >= 5 && (goals > 0 || assists > 0)) rating += 0.30;
-  if (ratingGap >= 5 && isGK && teamConceded <= 1)  rating += 0.20;
-  if (ratingGap <= -5 && goals === 0 && assists === 0 && isFwd) rating -= 0.15;
-
-  // ─── 11) PAS İSABETİ MODİFİYESİ (takım stat'ından oyuncuya pay) ───
-  const teamPassAcc = ctx.teamPassAcc || 80; // %
-  if (isMid) {
-    if (teamPassAcc >= 90)      rating += 0.20;
-    else if (teamPassAcc >= 85) rating += 0.10;
-    else if (teamPassAcc < 70)  rating -= 0.20;
-  }
-
-  // ─── 12) TOPLA HAKİMİYET MODİFİYESİ ───
-  const teamPoss = ctx.teamPossession || 50; // %
-  if (isMid && teamPoss >= 60) rating += 0.10;
-  if (isFwd && teamPoss <= 35 && goals > 0) rating += 0.20; // Az topla çok iş
-
-  // ─── 13) MAÇ SONUCU ───
-  if (teamWon === true || teamWon === 'win')   rating += 0.30;
-  else if (teamWon === 'draw')                  rating += 0.05;
-  else if (teamWon === false || teamWon === 'loss') rating -= 0.20;
-
-  // ─── 14) OYNANAN DAKİKA AYARI ───
-  const playedMin = Math.max(1, minutesPlayed || 90);
-  if (playedMin < 30) {
-    // Az süre oynayanlar 6.5'e doğru çekilir (ekstrem etkilerden korunur)
-    const factor = playedMin / 30;
-    rating = 6.5 + (rating - 6.5) * factor;
-  } else if (playedMin < 60) {
-    const factor = 0.6 + 0.4 * ((playedMin - 30) / 30);
-    rating = 6.5 + (rating - 6.5) * factor;
-  }
-  // Sakatlık nedeniyle erken çıkış: küçük tampon
-  if (injuries > 0 && playedMin < 60) rating += 0.10;
-
-  // ─── 15) HAVA / SAHA DURUMU (varsa) ───
-  if (ctx.weather === 'rain' && (goals > 0 || saves > 0)) rating += 0.05;
-
-  // ─── 16) MAN OF THE MATCH (eğer önceden işaretlendiyse) ───
-  if (motm > 0) rating += 0.20;
-
-  // ─── 17) RANDOM VARYASYON (gerçeklik hissi) ───
-  rating += (Math.random() - 0.5) * 0.20; // ±0.10
-
-  // ─── SINIRLA ───
-  rating = Math.max(4.0, Math.min(10.0, rating));
-  return Math.round(rating * 10) / 10;
-}
-
-// Bir takımın tüm oyuncularına maç notu ver
-// teamPlayers: maç oynayan 11 oyuncu (substitutionsla giriş çıkışlar dahil)
-// allEvents: maçın tüm event listesi
-// teamSide: 'home' veya 'away'
-// teamWon: bool (kazanma/yenilme/berabere)
-// teamConceded: yenilen gol sayısı
-// ctxBase: { teamRating, oppRating, teamPossession, teamPassAcc, teamScored, oppShotsOnTarget, weather }
-function ratePlayers(teamPlayers, allEvents, teamSide, teamWon, teamConceded, substitutions, ctxBase) {
-  if (!teamPlayers || !teamPlayers.length) return [];
-  const evs = (allEvents || []).filter(e => e.team === teamSide);
-  const subs = substitutions || [];
-
-  // 🆕 Geri dönüş ve geç gol durumlarını saptama (takım seviyesinde)
-  const teamGoalEvs = evs.filter(e => e.type === 'goal' && !e.isOwnGoal).sort((a,b) => (a.min||0) - (b.min||0));
-  const oppGoalEvs = (allEvents || []).filter(e => e.team !== teamSide && e.type === 'goal' && !e.isOwnGoal).sort((a,b) => (a.min||0) - (b.min||0));
-
-  // Geri dönüş: maçta bir noktada geride sonra eşit/galip oldu
-  let teamCameback = false;
-  let lateGameWinner = false;
-  let lateGameEqualizer = false;
-  if (teamGoalEvs.length && oppGoalEvs.length) {
-    let myG = 0, oppG = 0;
-    let wasBehind = false;
-    const allG = [...teamGoalEvs.map(e => ({...e, mine:true})), ...oppGoalEvs.map(e => ({...e, mine:false}))]
-                 .sort((a,b) => (a.min||0) - (b.min||0));
-    allG.forEach(e => {
-      if (e.mine) myG++;
-      else        oppG++;
-      if (oppG > myG) wasBehind = true;
-      if (wasBehind && myG >= oppG) teamCameback = true;
-    });
-  }
-  // 80+ dakikada gol attı + skor 1 fark veya eşit oldu mu?
-  if (teamGoalEvs.length) {
-    const lastGoal = teamGoalEvs[teamGoalEvs.length - 1];
-    if ((lastGoal.min || 0) >= 80) {
-      // Maçın bu noktada skor durumunu yeniden hesapla
-      let myG = 0, oppG = 0;
-      [...teamGoalEvs.filter(e => (e.min||0) <= lastGoal.min), ...oppGoalEvs.filter(e => (e.min||0) <= lastGoal.min)]
-        .forEach(e => {
-          if (teamGoalEvs.includes(e)) myG++; else oppG++;
-        });
-      if (myG > oppG) lateGameWinner = true;
-      else if (myG === oppG) lateGameEqualizer = true;
-    }
-  }
-
-  const ctx = Object.assign({
-    teamCameback, lateGameWinner, lateGameEqualizer
-  }, ctxBase || {});
-
-  return teamPlayers.map(p => {
-    // Bu oyuncunun event'lerini bul (isim eşleşmesi)
-    const playerEvs = evs.filter(e => {
-      if (!e.player) return false;
-      return e.player === p.name || e.player.toLowerCase() === (p.name || '').toLowerCase();
-    });
-    // Asist event'lerini de yakala (oyuncu asist yaptıysa)
-    const assistEvs = evs.filter(e => e.assist && e.assist === p.name);
-    const allPlayerEvs = [...playerEvs, ...assistEvs.map(e => ({ ...e, type: 'goal', assist: e.assist }))];
-
-    // Oynanan dakika hesabı
-    const subOut = subs.find(s => s.outNum === p.num);
-    const subIn = subs.find(s => s.inNum === p.num);
-    let minutesPlayed = 90;
-    if (subOut) minutesPlayed = subOut.minute || 60;
-    else if (subIn) minutesPlayed = Math.max(0, 90 - (subIn.minute || 60));
-
-    const rating = calcPlayerRating(p, allPlayerEvs, teamWon, minutesPlayed, teamConceded, ctx);
-    return { num: p.num, name: p.name, pos: p.pos, rating, minutesPlayed };
-  });
-}
-
-// MVP seçimi: en yüksek rating'li oyuncu
-function findMatchMVP(homeRatings, awayRatings) {
-  const all = [...(homeRatings||[]), ...(awayRatings||[])];
-  if (!all.length) return null;
-  return all.reduce((best, cur) => cur.rating > best.rating ? cur : best, all[0]);
-}
+// calcPlayerRating + ratePlayers + findMatchMVP KALDIRILDI — reyting TEK kaynak: Edge.
+// (Frontend çift hesap idi; LIVE canlı reyting _attachLivePlayerStats, kalıcı reyting Edge.)
 
 // Rating renk kodu (UI için)
 function ratingColor(r) {
@@ -30429,84 +30179,8 @@ function processMatchOutcome(script, userIsHome) {
     } catch(e) { console.warn('Stamina uygulanamadı:', e); }
   }
 
-  // 🆕 6d) Bireysel maç notları (ratings)
-  if (typeof ratePlayers === 'function') {
-    try {
-      const homeWon = (MS.scoreH || 0) > (MS.scoreA || 0);
-      const awayWon = (MS.scoreA || 0) > (MS.scoreH || 0);
-      const draw = (MS.scoreH || 0) === (MS.scoreA || 0);
-      const subs = (MS.subsHistory || []).map(s => ({
-        outNum: s.outNum, inNum: s.inNum, minute: s.minute || 60
-      }));
-      // 🆕 Context — gerçek hayat reyting modifierleri için
-      const stats = (script && script.stats) || {};
-      const homeShots = stats.shots && stats.shots[0] || 0;
-      const awayShots = stats.shots && stats.shots[1] || 0;
-      const homeShotsOnTarget = stats.shotsOnTarget && stats.shotsOnTarget[0] || 0;
-      const awayShotsOnTarget = stats.shotsOnTarget && stats.shotsOnTarget[1] || 0;
-      const homePoss = stats.possession && stats.possession[0] || 50;
-      const awayPoss = stats.possession && stats.possession[1] || 50;
-      const homePassAcc = stats.passAcc && stats.passAcc[0] || 80;
-      const awayPassAcc = stats.passAcc && stats.passAcc[1] || 80;
-      const homeR = (curHome && curHome.rating) || 75;
-      const awayR = (curAway && curAway.rating) || 75;
-
-      const homeCtx = {
-        teamRating: homeR, oppRating: awayR,
-        teamPossession: homePoss, teamPassAcc: homePassAcc,
-        teamScored: MS.scoreH || 0, oppShotsOnTarget: awayShotsOnTarget,
-        weather: (MS._fixtureRef && MS._fixtureRef.weather) || null
-      };
-      const awayCtx = {
-        teamRating: awayR, oppRating: homeR,
-        teamPossession: awayPoss, teamPassAcc: awayPassAcc,
-        teamScored: MS.scoreA || 0, oppShotsOnTarget: homeShotsOnTarget,
-        weather: (MS._fixtureRef && MS._fixtureRef.weather) || null
-      };
-
-      // Home & Away ratings
-      const homeRatings = (curHome && curHome.players) ? ratePlayers(
-        curHome.players, script.evs, 'home',
-        homeWon ? true : (draw ? 'draw' : false),
-        MS.scoreA || 0, subs, homeCtx
-      ) : [];
-      const awayRatings = (curAway && curAway.players) ? ratePlayers(
-        curAway.players, script.evs, 'away',
-        awayWon ? true : (draw ? 'draw' : false),
-        MS.scoreH || 0, subs, awayCtx
-      ) : [];
-      // MS state'e yaz (UI için)
-      MS._playerRatings = { home: homeRatings, away: awayRatings };
-      MS._matchMVP = findMatchMVP(homeRatings, awayRatings);
-
-      // Kullanıcı oyuncusunun rating'ini MS._userStats'a yaz
-      const userPlayer = ROSTER_DATA.find(p => p.role === 'user' && !p.isBot);
-      if (userPlayer) {
-        const userSideRatings = userIsHome ? homeRatings : awayRatings;
-        const userRating = userSideRatings.find(r => r.num === userPlayer.num);
-        if (userRating) {
-          if (!MS._userStats) MS._userStats = {};
-          MS._userStats.rating = userRating.rating;
-        }
-      }
-
-      // 🆕 Maç sonucunu players tablosuna yaz (hazırlık maçları hariç)
-      if (!MS._isFriendly) {
-        const fx = MS._fixtureRef || {};
-        const homeName = (curHome && curHome.name) || '';
-        const awayName = (curAway && curAway.name) || '';
-        const season = fx.season || 1;
-        const day = fx.day || 0;
-        const matchId = `${season}_${day}_${homeName}_${awayName}`;
-        _recordMatchToSupabase(
-          matchId,
-          (curHome && curHome.players) || [],
-          (curAway && curAway.players) || [],
-          homeRatings, awayRatings, script.evs
-        );
-      }
-    } catch(e) { console.warn('Rating hesaplanamadı:', e); }
-  }
+  // 6d) Bireysel maç notları KALDIRILDI — reyting TEK kaynak: Edge (players.match_ratings).
+  //   Frontend ratePlayers/_recordMatchToSupabase çift hesap+yazma idi (çakışma+yük), silindi.
 
   // 🆕 7) MAÇ XP KAZANIMI — kullanıcı oyuncusu için
   try {
@@ -36769,6 +36443,28 @@ function showMatchResult() {
   const overlay = document.getElementById('match-result-overlay');
   if (!overlay) return;
 
+  // 🆕 MAÇ BİTTİ → reyting tutarlılığı: edge'in lineup'a yazdığı GERÇEK matchRating'i kullan
+  //   (bitmiş maç modalıyla aynı kaynak). Frontend'in canlı tahmini (_attachLivePlayerStats)
+  //   maç sonunda ezilir. İsim eşleştirmesiyle curHome/curAway players'a aktar.
+  try {
+    if (typeof _liveMatchCache !== 'undefined' && _liveMatchCache && MS.match_key) {
+      const _lr = _liveMatchCache[MS.match_key];
+      if (_lr) {
+        const _applyServerRatings = (lineup, players) => {
+          if (!lineup || !Array.isArray(players)) return;
+          const arr = Array.isArray(lineup.players) ? lineup.players
+                    : Array.isArray(lineup) ? lineup : [];
+          if (!arr.length) return;
+          const byName = {};
+          arr.forEach(sp => { if (sp && sp.name && typeof sp.matchRating === 'number') byName[sp.name] = sp.matchRating; });
+          players.forEach(p => { if (p && p.name && typeof byName[p.name] === 'number') p.matchRating = byName[p.name]; });
+        };
+        if (curHome) _applyServerRatings(_lr.home_lineup, curHome.players);
+        if (curAway) _applyServerRatings(_lr.away_lineup, curAway.players);
+      }
+    }
+  } catch(e) { console.warn('[showMatchResult] server rating aktarım hata:', e); }
+
   const script = MS.script;
   // 🆕 Skor: MS'den oku, 0 ise Edge Function row'undan fallback (poll güncellemesi gecikti olabilir)
   let scoreH = MS.scoreH || 0;
@@ -37585,21 +37281,21 @@ async function _liveMatchLoadFromServer() {
 // SONUÇLAR sayfası açıkken poll başlat
 function _liveMatchStartPolling() {
   if (_liveMatchPollTimer) return;
-  // 🆕 İlk yükleme: bekle ve renderResultsPage'i tetikle
-  _liveMatchLoadFromServer().then(() => {
+  // 🆕 Poll açık sayfaya göre ilgili listeyi yeniler (SONUÇLAR veya TOTO). Sadece skor çeker.
+  const _pollRender = () => {
     const page = document.querySelector('.page.active');
-    if (page && page.id === 'page-results' && typeof renderResultsPage === 'function') {
+    if (!page) return;
+    if (page.id === 'page-results' && typeof renderResultsPage === 'function') {
       try { renderResultsPage(); } catch(e) {}
+    } else if (page.id === 'page-entertainment' && typeof totoRender === 'function') {
+      try { totoRender(); } catch(e) {}
     }
-  });
+  };
+  // İlk yükleme
+  _liveMatchLoadFromServer().then(_pollRender);
   // Sonra 7sn'de bir poll — gerçek maç dakika ritmi (1 sim-dakika = 7sn). Sadece skor çeker.
   _liveMatchPollTimer = setInterval(() => {
-    _liveMatchLoadFromServer().then(() => {
-      const page = document.querySelector('.page.active');
-      if (page && page.id === 'page-results' && typeof renderResultsPage === 'function') {
-        try { renderResultsPage(); } catch(e) {}
-      }
-    });
+    _liveMatchLoadFromServer().then(_pollRender);
   }, 7000);
 }
 
@@ -39066,7 +38762,12 @@ function showPage(name,btn){
     renderPlayerPage();
   }
   if(name==='settings') { if(typeof renderSettings === 'function') renderSettings(); }
-  if(name==='home') { if(typeof updateHero === 'function') updateHero(); }
+  if(name==='home') {
+    // 🆕 Ana sayfaya her dönüşte TÜM değerler tazelensin (son 5 maç, takım gücü, hazırlık maçları).
+    //   Throttle'ı sıfırla → renderHomeNextMatch fresh veri çeksin.
+    window._frmLastLoad = 0;
+    if(typeof updateHero === 'function') updateHero();
+  }
   if(name==='shop') { renderDiamondPacks(); const sb=document.getElementById('shopDiamondBal'); if(sb) sb.textContent=document.getElementById('diamond-display')?.textContent||'0'; }
   if(name==='federation') { if(typeof fedRender === 'function') fedRender(); }
   if(name==='national')   {
@@ -39119,7 +38820,10 @@ function showPage(name,btn){
     } catch(e) {}
     trRender();
   }
-  if(name==='entertainment') { totoRender(); }
+  if(name==='entertainment') {
+    totoRender();
+    // Canlı skor güncellemesi _liveMatchStartPolling ile sağlanır (aşağıda, skor-only).
+  }
   if(name==='rankings') { if(typeof rkRenderPlayers==='function') rkRenderPlayers(); }
   if(name==='events') {
     if(typeof evAutoCheckOnLoad === 'function') evAutoCheckOnLoad();
@@ -39160,8 +38864,11 @@ function showPage(name,btn){
       renderResultsPage();
       // 🆕 Canlı maç pollerini başlat (match_state)
       if (typeof _liveMatchStartPolling === 'function') _liveMatchStartPolling();
+    } else if(name==='entertainment') {
+      // 🆕 TOTO da canlı maç skorlarını SONUÇLAR gibi yayınlar (skor-only poll)
+      if (typeof _liveMatchStartPolling === 'function') _liveMatchStartPolling();
     } else {
-      // SONUÇLAR sayfasından çıkıldığında polleri durdur
+      // SONUÇLAR/TOTO dışına çıkıldığında polleri durdur
       if (typeof _liveMatchStopPolling === 'function') _liveMatchStopPolling();
     }
     if(name==='shop') evQuestProgress('visit_shop', 1);
@@ -43513,41 +43220,7 @@ function setUserRaceClaimed(key, value) {
 // ═══════════════════════════════════════════════════════════
 // Maç sonu rating + gol/asist → players tablosuna (RPC idempotent)
 // ═══════════════════════════════════════════════════════════
-async function _recordMatchToSupabase(matchId, homePlayers, awayPlayers, homeRatings, awayRatings, events) {
-  if (!window.sb || !matchId) return;
-  if (!Array.isArray(homePlayers) || !Array.isArray(awayPlayers)) return;
-
-  function countGoalsAssists(playerName, side) {
-    let g = 0, a = 0;
-    (events || []).forEach(e => {
-      if (e.team !== side) return;
-      if (e.type === 'goal' && !e.isOwnGoal && e.player === playerName) g++;
-      if (e.assist && e.assist === playerName) a++;
-    });
-    return { g, a };
-  }
-
-  const payload = [];
-  function pushRow(p, ratingArr, side) {
-    if (!p || !p.id) return;
-    const r = (ratingArr || []).find(x => x && x.num === p.num);
-    const rating = (r && typeof r.rating === 'number') ? r.rating : 7.0;
-    const { g, a } = countGoalsAssists(p.name, side);
-    payload.push({ player_id: p.id, rating, goals: g, assists: a });
-  }
-
-  homePlayers.forEach(p => pushRow(p, homeRatings, 'home'));
-  awayPlayers.forEach(p => pushRow(p, awayRatings, 'away'));
-
-  if (!payload.length) return;
-
-  try {
-    await window.sb.rpc('record_match_result', {
-      p_match_id: matchId,
-      p_players: payload
-    });
-  } catch(e) { console.warn('[record_match_result] hata:', e); }
-}
+// _recordMatchToSupabase KALDIRILDI — Edge maç bitiminde players.match_ratings'i yazar (tek kaynak).
 
 // (Eski teamTab tanımı kaldırıldı — aşağıda satır ~6803'te güncel sürümü var)
 
@@ -45529,8 +45202,11 @@ document.addEventListener('DOMContentLoaded', () => {
   if(typeof trsSyncHeader === 'function') trsSyncHeader();
   if(typeof updateHero === 'function') updateHero();
   if(typeof syncEnergyDisplay === 'function') syncEnergyDisplay();
-  // Tarih dakikada bir kontrol et — gece yarısı sezon günü kayar
-  setInterval(() => { if(typeof updateHero === 'function') updateHero(); }, 60000);
+  // Tarih dakikada bir kontrol et — gece yarısı sezon günü kayar. SADECE ana sayfa açıkken.
+  setInterval(() => {
+    const _pg = document.querySelector('.page.active');
+    if (_pg && _pg.id === 'page-home' && typeof updateHero === 'function') updateHero();
+  }, 60000);
 });
 
 
