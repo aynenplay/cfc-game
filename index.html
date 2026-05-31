@@ -6013,7 +6013,7 @@ body.team-captain .pr-mv.is-custom:hover{color:#ffe082}
 /* 🆕 Pitch oyuncu durum badge (sakat/cezalı/sarı kart) */
 .fpn-status{
   position:absolute;
-  top:-4px; left:-4px;
+  top:-11px; left:-9px;
   background:rgba(0,0,0,.85);
   border:1.5px solid rgba(255,255,255,.4);
   border-radius:50%;
@@ -6032,7 +6032,8 @@ body.team-captain .pr-mv.is-custom:hover{color:#ffe082}
 /* 🆕 Çerçevesiz sade sarı kart işareti (PNG/daire yok) */
 .fpn-yc-flag{
   position:absolute;
-  top:-5px; left:-3px;
+  top:-13px; left:50%;
+  transform:translateX(-50%);
   font-size:13px;
   line-height:1;
   z-index:6;
@@ -6190,8 +6191,8 @@ body.team-captain .pr-mv.is-custom:hover{color:#ffe082}
 .bench-card-avatar{ width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:19px;line-height:1 }
 .bench-card-avatar img,.bench-card-avatar .avatar-img{ width:100%;height:100%;object-fit:contain;border-radius:50% }
 .bench-card-name{ font-size:8.5px;font-weight:700;color:#fff;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center }
-.bench-card-yc{ position:absolute;top:-5px;right:-3px;font-size:12px;line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6));pointer-events:none }
-.bench-card-status{ position:absolute;top:-5px;right:-3px;font-size:12px;line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6));pointer-events:none }
+.bench-card-yc{ position:absolute;top:-7px;left:-5px;font-size:12px;line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6));pointer-events:none;z-index:6 }
+.bench-card-status{ position:absolute;top:-7px;left:-5px;font-size:12px;line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6));pointer-events:none;z-index:6 }
 .bench-card-empty{ opacity:.4;justify-content:center;min-height:54px }
 .bench-card-remove{ position:absolute;top:-6px;right:-6px;width:15px;height:15px;border-radius:50%;background:rgba(220,40,40,.92);color:#fff;font-size:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:6 }
 
@@ -27192,21 +27193,18 @@ function getPlayerMainOverall(player) {
 function getPlayerEffectiveRating(player, playedPosGroup) {
   if (!player) return 10;
 
-  // 🆕 Kullanıcı: Supabase user_player.overall tek doğruluk kaynağı
-  if (player.role === 'user') {
-    const ov = Number(player.overall || player.rating || 10);
-    return Math.max(1, Math.min(99, Math.round(ov)));
+  // 🆕 HERKES için: oynadığı mevkinin yetenek ortalaması (forvet ≠ orta saha).
+  //   45 yetenekli abilities varsa o grubun ortalamasını al; yoksa overall fallback.
+  const ab = player.abilities;
+  const hasGroupedAbilities = ab && typeof ab === 'object' && ab.GK && ab.DEF && ab.MID && ab.FWD;
+  if (hasGroupedAbilities) {
+    const base = getPlayerPositionAvg(player, playedPosGroup);
+    return Math.max(1, Math.min(99, Math.round(base)));
   }
 
-  // 🆕 Gerçek kullanıcı (bot değil, kendisi değil) → DB overall'u kullan
-  if (player.isBot === false && player.role !== 'user') {
-    const ov = Number(player.overall || player.rating || 10);
-    return Math.max(1, Math.min(99, Math.round(ov)));
-  }
-
-  // Bot: abilities-bazlı (yerleştirildiği pozisyon)
-  const base = getPlayerPositionAvg(player, playedPosGroup);
-  return Math.max(1, Math.min(99, Math.round(base)));
+  // Abilities yoksa (eski/eksik veri) → DB overall fallback
+  const ov = Number(player.overall || player.rating || 10);
+  return Math.max(1, Math.min(99, Math.round(ov)));
 }
 
 // 🆕 OVR'ye göre hiyerarşik kart kademesi (renk class'ı)
@@ -58711,7 +58709,33 @@ function renderFixture() {
       scorePart = '<div class="lg2-fix-sc"><div class="lg2-fix-time" style="font-size:12px;font-weight:700">' + timeStr + '</div></div>';
     }
 
-    html += '<div class="' + cardCls + '">'
+    // 🆕 Bitmiş maç → tıklanabilir, maç sonu modalını aç (SONUÇLAR ile aynı modal).
+    let cardOnclick = '';
+    if (isFinished) {
+      const mk = ms.matchKey || ms.match_key || `${ms.season}_${ms.day}_${ms.home}_${ms.away}`;
+      if (!window._resCurrentMatches) window._resCurrentMatches = {};
+      window._resCurrentMatches[mk] = {
+        season: ms.season,
+        day: ms.day,
+        home: ms.home,
+        away: ms.away,
+        homeShort: (ms.home || '').slice(0,3).toUpperCase(),
+        awayShort: (ms.away || '').slice(0,3).toUpperCase(),
+        hs: ms.home_score ?? 0,
+        as: ms.away_score ?? 0,
+        played: true,
+        leagueName: ms.tournament_key ? (TRN_LBL[ms.tournament_key] || ms.leagueName || 'Turnuva') : (ms.leagueName || 'Lig'),
+        leagueFlag: (!ms.tournament_key && ms.countryCode && typeof _cftGetCountry === 'function' && _cftGetCountry(ms.countryCode)) ? (_cftGetCountry(ms.countryCode).flag || '') : '',
+        matchKey: mk,
+        countryCode: ms.countryCode,
+        tier: ms.tier,
+        tournament_key: ms.tournament_key,
+        tournament_phase: ms.tournament_phase
+      };
+      cardOnclick = ' onclick="resOpenFinishedMatch(\'' + String(mk).replace(/'/g, "\\'") + '\')" style="cursor:pointer"';
+    }
+
+    html += '<div class="' + cardCls + '"' + cardOnclick + '>'
           + '<div class="lg2-fix-date">'
           +   '<div class="lg2-fix-d">' + dayNum + '</div>'
           +   '<div class="lg2-fix-w">' + mon + '</div>'
