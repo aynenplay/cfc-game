@@ -4120,6 +4120,25 @@ body:not(.team-captain):not(.team-vice) #page-team:not(.guest-mode) #team-treasu
 /* Join chip de gizliyse info-chips wrapper'ı tamamen gizle (kullanıcı zaten takımdaysa) */
 #page-team.guest-mode.no-join-chip .thb-info-chips{display:none}
 
+/* 🆕 ZİYARETÇİ: iki stat strip'i tek satıra birleştir (Tesis · Ort.Güç · Kadro yan yana).
+   Owner-only kartlar (Elmas/Euro/Yabancı) zaten gizli; kalan 3 kart tek satır grid olur. */
+#page-team.guest-mode #team-roster .thb-stats-strip{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:0;
+}
+/* İlk strip (Tesis) ile ikinci strip (Ort.Güç/Kadro) arasındaki boşluğu kaldır,
+   birinci strip'i ikinciyle aynı görsel satıra getirmek yerine ikisini de tam genişlikte
+   üç sütuna yay: birinci stripte sadece Tesis, ikincide Güç+Kadro kalır. Tek satır hissi için
+   ikisini flex ile yan yana koyarız. */
+#page-team.guest-mode #team-roster .thb-stats-wrap{
+  display:flex;gap:8px;margin-bottom:9px;position:relative;z-index:1;
+}
+#page-team.guest-mode #team-roster .thb-stats-wrap .thb-stats-strip{
+  display:contents;
+}
+#page-team.guest-mode #team-roster .thb-stats-wrap .ts-cell{
+  flex:1 1 0;min-width:0;
+}
+
 /* Katıl chip — yeşil call-to-action (ziyaretçide tek chip, içerik genişliğinde) */
 .thb-join-chip{
   flex:0 0 auto;min-width:0;
@@ -23161,6 +23180,8 @@ body.drawer-open{overflow:hidden}
           </div>
         </div>
 
+        <!-- 🆕 STAT STRIP'LERİ — ziyaretçide tek satıra birleşir (thb-stats-wrap) -->
+        <div class="thb-stats-wrap">
         <!-- TESİS % / ELMAS / EURO -->
         <div class="thb-stats-strip">
           <div class="ts-cell facil">
@@ -23210,6 +23231,8 @@ body.drawer-open{overflow:hidden}
             </div>
           </div>
         </div>
+        </div>
+        <!-- /thb-stats-wrap -->
 
         <!-- 🆕 SQUAD CHIPS — Tıklanabilir, tek satır -->
         <div class="thb-squad-chips owner-only">
@@ -42226,18 +42249,40 @@ function requestJoinFromGuest() {
   const tn = _viewingTeam.teamRef.name;
   const flag = (_cftGetCountry(cc)||{}).flag || '🏳️';
 
-  // 🆕 Direkt katılma kontrolü: bot kaptan veya şartı karşılayan oyuncu
+  // 🆕 KAPTAN TİPİNE göre yönlendirme:
+  //   • Bot kaptan → direkt katılım (onaysız, mevcut davranış)
+  //   • Gerçek kullanıcı kaptan → karbon "Katılma Talebi" modalı (direkt GİREMEZ)
   const elig = (typeof evaluateJoinEligibility === 'function')
     ? evaluateJoinEligibility(cc, tn)
-    : { canDirect: true, reason: 'fallback' };
+    : { canDirect: true, captainType: 'bot' };
 
-  if(elig.canDirect) {
-    // Direkt katılım (onaysız)
-    if(typeof joinTeamDirect === 'function') {
-      joinTeamDirect(cc, tn);
+  if(elig.captainType === 'user') {
+    // Gerçek kaptanlı takım → şartlarla katılma isteği modalı (direkt katılım yok)
+    if(hasJoinRequestFor(cc, tn)) {
+      showJoinToast(`📩 ${flag} ${tn} takımına zaten istek gönderdin (beklemede).`);
+      return;
+    }
+    const rating = (_viewingTeam.rating != null) ? _viewingTeam.rating
+                 : (_viewingTeam.teamRef && _viewingTeam.teamRef.rating != null ? _viewingTeam.teamRef.rating : 0);
+    if(typeof openJoinRequestWithTermsModal === 'function') {
+      openJoinRequestWithTermsModal(cc, tn, rating);
     }
     return;
   }
+
+  // Bot kaptan / kaptansız → direkt katılım (onaysız)
+  if(typeof joinTeamDirect === 'function') {
+    joinTeamDirect(cc, tn);
+  }
+  return;
+}
+
+// (eski onay-isteği akışı openJoinRequestWithTermsModal'a taşındı)
+function _requestJoinFromGuest_LEGACY() {
+  if(!_viewingTeam) return;
+  const cc = _viewingTeam.countryCode;
+  const tn = _viewingTeam.teamRef.name;
+  const flag = (_cftGetCountry(cc)||{}).flag || '🏳️';
 
   // Onay isteği akışı (mevcut)
   // Tekrar göndermeyi engelle
@@ -50902,12 +50947,13 @@ function viewTeam(countryCode, teamName) {
         joinBtn.style.boxShadow = 'none';
         joinBtn.dataset.disabled = '1';
       } else {
-        // 🆕 Direkt katılım uygun mu kontrol et — buton metni ona göre
+        // 🆕 Buton metni KAPTAN TİPİNE göre: bot kaptan → direkt katıl; gerçek kaptan → talep
         const elig = (typeof evaluateJoinEligibility === 'function')
           ? evaluateJoinEligibility(countryCode, teamName)
-          : { canDirect: true };
-        if(iconEl) iconEl.textContent = elig.canDirect ? '🚀' : '🤝';
-        if(txtEl) txtEl.textContent = elig.canDirect ? 'Takıma Katıl' : 'Katılmak İstiyorum';
+          : { canDirect: true, captainType: 'bot' };
+        const _isRealCaptain = elig.captainType === 'user';
+        if(iconEl) iconEl.textContent = _isRealCaptain ? '🤝' : '🚀';
+        if(txtEl) txtEl.textContent = _isRealCaptain ? 'Katılma Talebi' : 'Takıma Katıl';
         // Stil reset (eski state'ten gelmiş olabilir)
         joinBtn.style.background = '';
         joinBtn.style.borderColor = '';
@@ -76769,96 +76815,110 @@ document.addEventListener('keydown', function(e){
 
 <!-- 🆕 ══ ŞARTLARLA KATILMA İSTEĞİ MODAL — Gerçek kaptanlı takım ══ -->
 <style>
-  .jrwt-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)}
+  .jrwt-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:none;align-items:flex-end;justify-content:center;backdrop-filter:blur(2px)}
   .jrwt-overlay.open{display:flex}
   .jrwt-modal{
-    width:100%;max-width:380px;background:var(--card);border:1px solid var(--border);
-    border-radius:16px;overflow:hidden;display:flex;flex-direction:column;
-    max-height:90vh;
+    width:100%;max-width:480px;
+    background:repeating-linear-gradient(45deg,#15171c 0 2px,#101216 2px 4px);
+    background-color:#101216;border:1px solid #20242c;border-bottom:none;
+    border-radius:18px 18px 0 0;overflow:hidden;display:flex;flex-direction:column;
+    max-height:90vh;position:relative;
   }
+  .jrwt-modal::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(70,209,122,.5),transparent);z-index:3}
   .jrwt-head{
-    background:linear-gradient(135deg,#0a1929,#0d2a1a);
-    padding:14px;border-bottom:1px solid var(--border);
+    padding:18px 20px 14px;border-bottom:1px solid #20242c;
     display:flex;align-items:center;justify-content:space-between;
   }
   .jrwt-head h3{
     font-family:'Barlow Condensed',sans-serif;
-    font-size:18px;font-weight:900;color:var(--accent2);letter-spacing:.5px;margin:0;
+    font-size:22px;font-weight:900;color:#e8eaf0;letter-spacing:.5px;margin:0;
+    display:flex;align-items:center;gap:9px;
   }
-  .jrwt-head-team{font-size:11px;color:var(--text2);margin-top:2px}
-  .jrwt-close{background:none;border:1px solid var(--border);color:var(--text2);width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:14px}
-  .jrwt-body{padding:14px;overflow-y:auto;flex:1}
+  .jrwt-head h3::before{
+    content:'';width:20px;height:20px;flex-shrink:0;
+    background:#46d17a;
+    -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='9' cy='7' r='4'/%3E%3Cpath d='M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75'/%3E%3C/svg%3E") center/contain no-repeat;
+            mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='9' cy='7' r='4'/%3E%3Cpath d='M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75'/%3E%3C/svg%3E") center/contain no-repeat;
+  }
+  .jrwt-head-team{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;color:#46d17a;margin-top:3px;letter-spacing:.5px}
+  .jrwt-close{background:rgba(255,255,255,.04);border:1px solid #20242c;color:#8b90a0;width:34px;height:34px;border-radius:9px;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center}
+  .jrwt-close:hover{background:rgba(255,255,255,.08);color:#e8eaf0;border-color:#2a2f3a}
+  .jrwt-body{padding:16px 20px;overflow-y:auto;flex:1}
   .jrwt-info{
-    background:rgba(0,176,255,.06);border:1px solid rgba(0,176,255,.2);
-    border-radius:10px;padding:10px 12px;margin-bottom:12px;
-    font-size:11px;color:var(--text2);line-height:1.55;
+    background:rgba(255,255,255,.02);border:1px solid #20242c;
+    border-radius:10px;padding:12px 14px;margin-bottom:16px;
+    font-size:12px;color:#8b90a0;line-height:1.5;
   }
-  .jrwt-info b{color:var(--accent2)}
-  .jrwt-section{margin-bottom:12px}
+  .jrwt-info b{color:#38d5d2;font-weight:700}
+  .jrwt-section{margin-bottom:16px}
   .jrwt-label{
-    font-size:10px;font-weight:800;text-transform:uppercase;
-    letter-spacing:.6px;color:var(--text3);margin-bottom:5px;display:block;
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:11px;font-weight:800;text-transform:uppercase;
+    letter-spacing:2px;color:#7a8095;margin-bottom:8px;display:block;
   }
   .jrwt-input{
-    width:100%;background:var(--bg3);border:1px solid var(--border);
-    border-radius:8px;padding:9px 12px;color:var(--text);
-    /* iOS Safari klavye açıldığında zoom yapmaması için min 16px */
-    font-size:16px;outline:none;font-family:'Barlow',sans-serif;
+    width:100%;
+    background:repeating-linear-gradient(45deg,#15171c 0 2px,#101216 2px 4px);
+    background-color:#0c0e12;border:1px solid #2a2f3a;
+    border-radius:12px;padding:13px 16px;color:#e8eaf0;
+    font-size:22px;font-weight:800;outline:none;
+    font-family:'Barlow Condensed',sans-serif;letter-spacing:.4px;
   }
-  .jrwt-input:focus{border-color:var(--accent2)}
+  .jrwt-input:focus{border-color:#46d17a}
   .jrwt-row{display:flex;gap:8px}
   .jrwt-row > div{flex:1}
-  .jrwt-seasons{display:flex;gap:6px}
+  .jrwt-seasons{display:flex;gap:8px}
   .jrwt-season-pill{
-    flex:1;padding:9px;background:var(--bg3);border:1px solid var(--border);
-    color:var(--text2);border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;
+    flex:1;padding:12px;
+    background:repeating-linear-gradient(45deg,#15171c 0 2px,#101216 2px 4px);
+    background-color:#13151b;border:1px solid #20242c;
+    color:#8b90a0;border-radius:11px;cursor:pointer;font-size:18px;font-weight:800;
     text-align:center;font-family:'Barlow Condensed',sans-serif;letter-spacing:.4px;
     transition:all .15s;
   }
   .jrwt-season-pill.active{
-    background:linear-gradient(135deg,#00b0ff,#0091ea);color:#fff;border-color:#00b0ff;
-    box-shadow:0 2px 8px rgba(0,176,255,.3);
+    background:rgba(70,209,122,.12);color:#46d17a;border-color:rgba(70,209,122,.4);
   }
   .jrwt-summary{
-    background:var(--bg3);border-radius:10px;padding:10px 12px;margin-top:8px;
-    font-size:11px;color:var(--text2);line-height:1.6;
+    border:1px solid #20242c;border-radius:12px;overflow:hidden;margin-top:10px;
+    background:rgba(255,255,255,.015);
   }
-  .jrwt-summary-row{display:flex;justify-content:space-between;padding:3px 0}
-  .jrwt-summary-row b{color:var(--text);font-weight:700}
+  .jrwt-summary-row{display:flex;justify-content:space-between;padding:12px 16px;font-size:13px;color:#8b90a0;border-bottom:1px solid #20242c}
+  .jrwt-summary-row b{color:#e8eaf0;font-weight:800;font-family:'Barlow Condensed',sans-serif;font-size:15px}
   .jrwt-summary-row.total{
-    border-top:1px solid var(--border);margin-top:5px;padding-top:7px;
-    font-weight:700;
+    background:rgba(255,209,26,.05);border-bottom:none;
   }
-  .jrwt-summary-row.total b{color:var(--gold);font-size:13px}
+  .jrwt-summary-row.total span:first-child{color:#e8eaf0;font-weight:700}
+  .jrwt-summary-row.total b{color:#ffd11a;font-size:18px}
   .jrwt-actions{
-    padding:12px 14px;border-top:1px solid var(--border);
-    display:flex;flex-direction:column;gap:8px;
-    background:var(--bg2);
+    padding:18px 20px;border-top:1px solid #20242c;
+    display:flex;flex-direction:column;gap:10px;
   }
   .jrwt-btn{
-    padding:11px;border:none;border-radius:10px;cursor:pointer;
-    font-size:13px;font-weight:800;letter-spacing:.4px;
+    padding:15px;border:none;border-radius:11px;cursor:pointer;
+    font-size:16px;font-weight:900;letter-spacing:1px;
     font-family:'Barlow Condensed',sans-serif;
   }
-  .jrwt-btn-send{background:linear-gradient(135deg,#00e676,#00c853);color:#001b0a;box-shadow:0 2px 8px rgba(0,230,118,.3)}
-  .jrwt-btn-cancel{background:rgba(239,83,80,.1);color:#ef5350;border:1px solid rgba(239,83,80,.3)}
-  .jrwt-btn:active{transform:scale(.97)}
+  .jrwt-btn-send{background:linear-gradient(180deg,#46d17a,#33b863);color:#06210f;border:1px solid rgba(70,209,122,.4);box-shadow:0 6px 18px rgba(70,209,122,.25)}
+  .jrwt-btn-cancel{background:repeating-linear-gradient(45deg,#15171c 0 2px,#101216 2px 4px);background-color:#13151b;color:#8b90a0;border:1px solid #20242c}
+  .jrwt-btn:active{transform:scale(.985)}
 
 
 </style>
 
 <style>
-.jrwt-readonly{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-weight:800;color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:15px}
-.jrwt-readonly.jrwt-faded{color:var(--text3);font-weight:600;font-size:12px;opacity:.6}
-.jrwt-paysched{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:2px 0 12px}
-.jrwt-pay-row{display:flex;justify-content:space-between;background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:6px 9px;font-size:11px}
-.jrwt-pay-row b{color:var(--gold)}
+.jrwt-readonly{background:rgba(255,209,26,.06);border:1px solid rgba(255,209,26,.22);border-radius:12px;padding:16px 18px;font-weight:900;color:#ffd11a;font-family:'Barlow Condensed',sans-serif;font-size:26px;letter-spacing:.5px}
+.jrwt-readonly.jrwt-faded{background:rgba(255,255,255,.02);border-color:#20242c;color:#7a8095;font-weight:700;font-size:14px;letter-spacing:.3px}
+.jrwt-paysched{border:1px solid #20242c;border-radius:12px;overflow:hidden;margin:0 0 16px}
+.jrwt-pay-row{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;font-size:13px;color:#8b90a0;border-bottom:1px solid #20242c}
+.jrwt-pay-row:last-child{border-bottom:none}
+.jrwt-pay-row b{color:#e8eaf0;font-weight:800;font-family:'Barlow Condensed',sans-serif;font-size:15px;letter-spacing:.3px}
 </style>
 <div class="jrwt-overlay" id="jrwtOverlay" onclick="if(event.target===this)closeJoinRequestWithTerms()">
   <div class="jrwt-modal">
     <div class="jrwt-head">
       <div>
-        <h3>🤝 Katılma İsteği</h3>
+        <h3>Katılma İsteği</h3>
         <div class="jrwt-head-team" id="jrwtTeamName">—</div>
       </div>
       <button class="jrwt-close" onclick="closeJoinRequestWithTerms()">✕</button>
@@ -76910,7 +76970,7 @@ document.addEventListener('keydown', function(e){
     </div>
 
     <div class="jrwt-actions">
-      <button class="jrwt-btn jrwt-btn-send" onclick="submitJoinRequestWithTerms()">📨 İsteği Gönder</button>
+      <button class="jrwt-btn jrwt-btn-send" onclick="submitJoinRequestWithTerms()">İsteği Gönder</button>
       <button class="jrwt-btn jrwt-btn-cancel" onclick="closeJoinRequestWithTerms()">Vazgeç</button>
     </div>
   </div>
