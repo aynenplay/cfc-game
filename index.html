@@ -52609,17 +52609,24 @@ function showOnlinePlayersModal() {
 setTimeout(() => { fetchOnlineStats(); pingLastSeen(); }, 5000);
 setInterval(() => { fetchOnlineStats(); pingLastSeen(); }, 60000);
 
-// 🆕 INBOX POLL — yeni gelen mesajlar için periyodik kontrol (ding + kırmızı rozet)
-// _inboxLoadFromServer içinde: yeni okunmamış mesaj varsa _inboxPlayDing() + badge güncellenir.
-// Sayfa görünürken (gizli sekmede değilken) 20sn'de bir kontrol et.
+// 🆕 INBOX POLL — realtime yedeği. Realtime açıksa zaten anlık gelir;
+// kapalıysa bu poll makul hızda yakalar. Sayfa görünürken 8sn'de bir.
 setInterval(() => {
   if (document.hidden) return;
   if (typeof _inboxLoadFromServer === 'function') {
     _inboxLoadFromServer().then(() => {
       if (typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
+      // Sohbet/liste açıksa anlık tazele
+      const ov = document.getElementById('inboxOverlay');
+      if (ov && ov.classList.contains('open')) {
+        if (_inboxView === 'detail' && _inboxCurrentMsg) {
+          const fresh = getInboxMsgs().find(m => m.id === _inboxCurrentMsg.id);
+          if (fresh) { _inboxCurrentMsg = fresh; inboxRenderDetail(fresh); }
+        } else if (typeof inboxRenderList === 'function') { inboxRenderList(); }
+      }
     }).catch(()=>{});
   }
-}, 20000);
+}, 8000);
 
 // 🆕 ═══════════════════════════════════════════════════════════════════
 // MAÇ İZLEYİCİLERİ MODALI
@@ -76259,8 +76266,13 @@ setTimeout(async ()=>{
                 if (fresh) { _inboxCurrentMsg = fresh; inboxRenderDetail(fresh); }
               } else if (typeof inboxRenderList === 'function') { inboxRenderList(); }
             }
-          }, 200))
-          .subscribe();
+          }, 60))
+          .subscribe((status) => {
+            console.info('[inbox] realtime status:', status);
+            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+              console.warn('[inbox] realtime BAĞLANAMADI — user_inbox tablosu için Supabase Realtime publication açık mı? (Dashboard → Database → Replication)');
+            }
+          });
       }
       
       // 🆕 6) toto_pools — havuzlar değişince (başka kullanıcı kupon yatırdı vb)
