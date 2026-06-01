@@ -12358,9 +12358,10 @@ body.lg-myleague-mode .lg2-tier-pills{display:none !important}
   overscroll-behavior:contain;
 }
 .inbox-overlay.open{opacity:1;pointer-events:all}
-/* 🆕 İnbox açıkken arka sayfa kilitli — klavye açılınca arka görünmez/zıplamaz */
-body.inbox-open{overflow:hidden!important}
-body.inbox-open #main{pointer-events:none}
+/* 🆕 İnbox açıkken arka sayfa tamamen kilitli (iOS dahil).
+   body position:fixed JS ile uygulanır; bu CSS sadece destekler. */
+body.inbox-open{overflow:hidden!important;position:fixed!important;width:100%!important;touch-action:none!important}
+body.inbox-open #main{pointer-events:none;overflow:hidden!important}
 /* 🆕 Tam sayfa (mobile-first) — masaüstünde max 480px */
 .inbox-panel{
   width:100%;
@@ -66771,9 +66772,13 @@ function inboxUpdateBadge() {
 }
 
 // ── Aç / Kapat ──
+let _inboxScrollY = 0;
 function inboxOpen() {
   document.getElementById('inboxOverlay').classList.add('open');
-  document.body.classList.add('inbox-open');   // 🆕 arka sayfa scroll kilidi
+  // 🆕 iOS arka scroll kilidi: scroll konumunu sakla, body'yi sabitle
+  _inboxScrollY = window.scrollY || window.pageYOffset || 0;
+  document.body.style.top = (-_inboxScrollY) + 'px';
+  document.body.classList.add('inbox-open');
   _inboxView = 'list';
   inboxShowList();
   inboxRenderList();
@@ -66818,7 +66823,10 @@ function inboxClose() {
     overlay.style.height = '';
     overlay.style.top = '';
   }
-  document.body.classList.remove('inbox-open');  // 🆕 kilidi aç
+  // 🆕 iOS scroll kilidini aç + sayfayı eski konumuna geri getir
+  document.body.classList.remove('inbox-open');
+  document.body.style.top = '';
+  window.scrollTo(0, _inboxScrollY);
   inboxUpdateBadge();
 }
 
@@ -66954,7 +66962,7 @@ function _inboxBindSwipe(container) {
     const row = wrap.querySelector('.inbox-msg-row');
     if (!row || row._swipeBound) return;
     row._swipeBound = true;
-    let startX = 0, startY = 0, baseX = 0, curNx = 0, prevX = 0, lastDir = 0,
+    let startX = 0, startY = 0, baseX = 0, curNx = 0,
         dragging = false, opened = false, decided = false, horiz = false;
 
     const setX = (x) => { curNx = x; row.style.transform = `translateX(${x}px)`; };
@@ -66962,7 +66970,7 @@ function _inboxBindSwipe(container) {
     const open  = () => { opened = true;  row.style.transition = 'transform .2s'; setX(-OPEN); };
 
     const onStart = (x, y) => {
-      startX = x; startY = y; prevX = x; lastDir = 0;
+      startX = x; startY = y;
       baseX = opened ? -OPEN : 0;
       dragging = true; decided = false; horiz = false;
       row.style.transition = 'none';
@@ -66971,39 +66979,38 @@ function _inboxBindSwipe(container) {
       if (!dragging) return;
       const dx = x - startX, dy = y - startY;
       if (!decided) {
-        if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
-        decided = true; horiz = Math.abs(dx) > Math.abs(dy);
+        // 🆕 Belirgin hareket olmadan karar verme (küçük dokunuş = tıklama)
+        if (Math.abs(dx) < 14 && Math.abs(dy) < 14) return;
+        decided = true;
+        horiz = Math.abs(dx) > Math.abs(dy) + 4; // yatay net üstün olmalı
       }
-      if (!horiz) return;
+      if (!horiz) return; // dikey scroll → karışma
       if (e && e.cancelable) e.preventDefault();
-      // son hareket yönü (parmak sağa mı sola mı gidiyor)
-      if (x > prevX + 1) lastDir = 1;        // sağa
-      else if (x < prevX - 1) lastDir = -1;  // sola
-      prevX = x;
       let nx = baseX + dx;
       if (nx > 0) nx = 0;
       if (nx < -OPEN - 30) nx = -OPEN - 30; // hafif esneme
       setX(nx);
     };
-    const onEnd = () => {
+    const onEnd = (x) => {
       if (!dragging) return; dragging = false;
-      if (!horiz) { return; }
-      // 🆕 Karar: son hareket yönü öncelikli. Sağa gidiyorduysa KAPAT, sola AÇ.
-      //   Yön belirsizse pozisyona göre eşik.
-      if (lastDir === 1) { close(); }
-      else if (lastDir === -1) { open(); }
+      if (!horiz) return;
+      const dx = (typeof x === 'number' ? x : startX) - startX;
+      // 🆕 Toplam yatay mesafenin yönüne göre karar (titremeye değil):
+      //   net sola (>30px) → AÇ, net sağa (>30px) → KAPAT, arası → mevcut konuma göre eşik
+      if (dx < -30) { open(); }
+      else if (dx > 30) { close(); }
       else { if (curNx < -OPEN/2) open(); else close(); }
     };
 
     // Touch
     row.addEventListener('touchstart', (e)=>{ const t=e.touches[0]; onStart(t.clientX,t.clientY); }, {passive:false});
     row.addEventListener('touchmove',  (e)=>{ const t=e.touches[0]; onMove(t.clientX,t.clientY,e); }, {passive:false});
-    row.addEventListener('touchend',   onEnd);
-    row.addEventListener('touchcancel', onEnd);
+    row.addEventListener('touchend',   (e)=>{ const t=(e.changedTouches&&e.changedTouches[0]); onEnd(t?t.clientX:undefined); });
+    row.addEventListener('touchcancel',(e)=>{ const t=(e.changedTouches&&e.changedTouches[0]); onEnd(t?t.clientX:undefined); });
     // Mouse (masaüstü test)
     row.addEventListener('mousedown', (e)=>{ onStart(e.clientX,e.clientY); });
     window.addEventListener('mousemove', (e)=>{ if(dragging){ onMove(e.clientX,e.clientY,e); } });
-    window.addEventListener('mouseup', onEnd);
+    window.addEventListener('mouseup', (e)=>{ if(dragging) onEnd(e.clientX); });
 
     // Açıkken satıra tıklama → önce kapat (mesajı açma)
     row.addEventListener('click', (e)=>{ if (opened) { e.stopPropagation(); e.preventDefault(); close(); } }, true);
