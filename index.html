@@ -12445,12 +12445,37 @@ body.inbox-open #main{pointer-events:none;overflow:hidden!important}
 .inbox-search input::placeholder{color:var(--text3)}
 
 .inbox-msg-list{flex:1;overflow-y:auto}
-/* 🆕 WhatsApp swipe-to-delete sarmalı */
-.inbox-swipe{position:relative;overflow:hidden;border-bottom:1px solid rgba(255,255,255,.04)}
-.inbox-swipe-del{position:absolute;top:0;right:0;bottom:0;width:76px;background:#d33;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:#fff;cursor:pointer}
+/* 🆕 WhatsApp swipe-to-delete — NATIVE yatay scroll-snap.
+   Tarayıcının kendi kaydırma motoru çalışır → iOS dahil kusursuz. */
+.inbox-swipe{
+  position:relative;
+  border-bottom:1px solid rgba(255,255,255,.04);
+  display:flex;
+  overflow-x:auto;
+  overflow-y:hidden;
+  scroll-snap-type:x mandatory;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior-x:contain;
+  scrollbar-width:none;            /* Firefox */
+}
+.inbox-swipe::-webkit-scrollbar{display:none}   /* WebKit: scrollbar gizle */
+.inbox-swipe-del{
+  flex:0 0 76px;width:76px;
+  background:#d33;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  color:#fff;cursor:pointer;
+  scroll-snap-align:end;
+}
 .inbox-swipe-del svg{width:20px;height:20px}
 .inbox-swipe-del span{font:800 11px Barlow,sans-serif;letter-spacing:.3px}
-.inbox-msg-row{display:flex;align-items:center;gap:11px;padding:11px 14px;cursor:pointer;position:relative;background:var(--bg);will-change:transform;touch-action:pan-y}
+.inbox-msg-row{
+  flex:0 0 100%;width:100%;
+  display:flex;align-items:center;gap:11px;
+  padding:11px 14px;cursor:pointer;position:relative;
+  background:var(--bg);
+  scroll-snap-align:start;
+  box-sizing:border-box;
+}
 .inbox-msg-row:hover{background:rgba(255,255,255,.03)}
 .inbox-msg-row.unread{background:rgba(70,209,122,.05)}
 
@@ -66930,10 +66955,6 @@ function inboxRenderList() {
     const prevText = m.subject ? m.subject : ((m.body||'').substring(0,52));
     // 🆕 WhatsApp swipe-to-delete: arkada kırmızı sil, üstte kayan satır
     return `<div class="inbox-swipe" data-id="${safeId}">
-      <div class="inbox-swipe-del" onclick="inboxDeleteMsg('${safeId}')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-        <span>Sil</span>
-      </div>
       <div class="inbox-msg-row ${m.read?'':'unread'}" onclick="inboxOpenMsg('${safeId}')">
         <div class="inbox-msg-avatar ${avCls}">${m.fromAvatar||'👤'}</div>
         <div class="inbox-msg-content">
@@ -66945,6 +66966,10 @@ function inboxRenderList() {
           ${!m.read?'<div class="inbox-msg-badge">&nbsp;</div>':''}
         </div>
       </div>
+      <div class="inbox-swipe-del" onclick="inboxDeleteMsg('${safeId}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        <span>Sil</span>
+      </div>
     </div>`;
   }).join('');
 
@@ -66952,77 +66977,36 @@ function inboxRenderList() {
   if (typeof _inboxBindSwipe === 'function') _inboxBindSwipe(el);
 }
 
-// 🆕 WhatsApp tarzı sola kaydır → sil. Her satır .inbox-swipe sarmalı içinde;
-//   .inbox-msg-row parmakla sola kayar, arkadan .inbox-swipe-del görünür.
-//   iOS-güvenli: canlı pozisyon (curNx) + son yön (lastDir) takip edilir,
-//   WebKitCSSMatrix'e güvenilmez.
+// 🆕 WhatsApp tarzı sola kaydır → sil. NATIVE CSS scroll-snap kullanır:
+//   Her satır yatay kaydırılabilir konteyner; tarayıcının kendi kaydırma motoru
+//   işi yapar (iOS dahil kusursuz). JS touch matematiği YOK.
+//   Tek iş: bir satır açılınca diğerlerini kapatmak + tıklamayı yönetmek.
 function _inboxBindSwipe(container) {
-  const OPEN = 76; // sil butonu genişliği
   container.querySelectorAll('.inbox-swipe').forEach(wrap => {
-    const row = wrap.querySelector('.inbox-msg-row');
-    if (!row || wrap._swipeBound) return;
+    if (wrap._swipeBound) return;
     wrap._swipeBound = true;
-    let startX = 0, startY = 0, baseX = 0, curNx = 0,
-        dragging = false, opened = false, decided = false, horiz = false;
+    const row = wrap.querySelector('.inbox-msg-row');
 
-    const setX = (x) => { curNx = x; row.style.transform = `translateX(${x}px)`; };
-    const close = () => { opened = false; row.style.transition = 'transform .2s'; setX(0); };
-    const open  = () => { opened = true;  row.style.transition = 'transform .2s'; setX(-OPEN); };
-
-    const onStart = (x, y) => {
-      startX = x; startY = y;
-      baseX = opened ? -OPEN : 0;
-      dragging = true; decided = false; horiz = false;
-      row.style.transition = 'none';
-    };
-    const onMove = (x, y, e) => {
-      if (!dragging) return;
-      const dx = x - startX, dy = y - startY;
-      if (!decided) {
-        // 🆕 Belirgin hareket olmadan karar verme (küçük dokunuş = tıklama)
-        if (Math.abs(dx) < 14 && Math.abs(dy) < 14) return;
-        decided = true;
-        horiz = Math.abs(dx) > Math.abs(dy) + 4; // yatay net üstün olmalı
-        // 🆕 Yatay swipe başladıysa iOS'un kaydırmayı çalmasını engelle
-        if (horiz) row.style.touchAction = 'none';
+    // Açılınca (sağa kaydırıldı = sil göründü) diğer açık satırları kapat
+    wrap.addEventListener('scroll', () => {
+      if (wrap.scrollLeft > 8) {
+        container.querySelectorAll('.inbox-swipe').forEach(o => {
+          if (o !== wrap && o.scrollLeft > 0) {
+            o.scrollTo ? o.scrollTo({left:0,behavior:'smooth'}) : (o.scrollLeft = 0);
+          }
+        });
       }
-      if (!horiz) return; // dikey scroll → karışma
-      if (e && e.cancelable) e.preventDefault();
-      let nx = baseX + dx;
-      if (nx > 0) nx = 0;
-      if (nx < -OPEN - 30) nx = -OPEN - 30; // hafif esneme
-      setX(nx);
-    };
-    const onEnd = () => {
-      if (!dragging) return; dragging = false;
-      row.style.touchAction = '';  // 🆕 swipe bitti, normale dön
-      if (!horiz) return;
-      // 🆕 Konuma göre karar — açık/kapalı duruma göre eşik farklı:
-      const wasOpen = (baseX === -OPEN);
-      if (wasOpen) {
-        // açıktı: -76'dan ~18px+ sağa geldiyse kapat
-        if (curNx > -OPEN + 18) close(); else open();
-      } else {
-        // kapalıydı: yarıdan fazla açıldıysa aç
-        if (curNx < -OPEN/2) open(); else close();
-      }
-    };
+    }, {passive:true});
 
-    // Touch — wrapper'a bağla ki açıkken sil butonu üstünden de kaydırma yakalansın
-    wrap.addEventListener('touchstart', (e)=>{ const t=e.touches[0]; onStart(t.clientX,t.clientY); }, {passive:false});
-    wrap.addEventListener('touchmove',  (e)=>{ const t=e.touches[0]; onMove(t.clientX,t.clientY,e); }, {passive:false});
-    wrap.addEventListener('touchend',   onEnd);
-    wrap.addEventListener('touchcancel',onEnd);
-    // Mouse (masaüstü test)
-    row.addEventListener('mousedown', (e)=>{ onStart(e.clientX,e.clientY); });
-    window.addEventListener('mousemove', (e)=>{ if(dragging){ onMove(e.clientX,e.clientY,e); } });
-    window.addEventListener('mouseup', onEnd);
-
-    // 🆕 Açıkken satıra dokunma (kaydırma değil) → kapat, mesajı açma.
-    //   Sadece gerçekten kaydırma olmadıysa (decided=false) tıklama say.
-    row.addEventListener('click', (e)=>{
-      if (opened) { e.stopPropagation(); e.preventDefault(); close(); }
-    }, true);
+    // Satır AÇIKKEN ona tıklanırsa: mesajı açma, önce kapat
+    if (row) {
+      row.addEventListener('click', (e) => {
+        if (wrap.scrollLeft > 8) {
+          e.stopPropagation(); e.preventDefault();
+          wrap.scrollTo ? wrap.scrollTo({left:0,behavior:'smooth'}) : (wrap.scrollLeft = 0);
+        }
+      }, true);
+    }
   });
 }
 
