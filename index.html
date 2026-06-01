@@ -44057,7 +44057,7 @@ function openPlayerModalSelfFromRanking() {
 // Genel modal açma
 // 🆕 Serbest/dış-kaynaklı oyuncuyu DB'den canlı çöz (takım cache'inde yoksa).
 //   _buildRosterFromPlayers ile aynı kanonik objeyi üretir → is_bot/avatar/abilities/userId/level doğru.
-async function _resolvePlayerFromServer(player){
+async function _resolvePlayerFromServer(player, ctx){
   if(!window.sb || !player) return null;
   try {
     const cols='id, user_id, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, avatar_id, is_bot, last_seen, goals_total, assists_total, matches_played, match_ratings, stats_by_comp, season_yellow, suspend_matches, suspend_reason, injury_until';
@@ -44065,7 +44065,14 @@ async function _resolvePlayerFromServer(player){
     const uid=player.userId||player.user_id;
     if(uid) q=q.eq('user_id',uid);
     else if(typeof player.id==='number') q=q.eq('id',player.id);
-    else if(player.name) q=q.eq('name',player.name);
+    else if(player.name){
+      q=q.eq('name',player.name);
+      // 🆕 Aynı isimli birden çok oyuncu olabilir → takım + ülke ile daralt (varsa)
+      const _tn=(ctx&&(ctx.teamLookupName||ctx.teamName))||player.team_name||null;
+      const _cc=(ctx&&(ctx.countryCode||ctx.cc))||player.country_code||null;
+      if(_tn) q=q.eq('team_name',_tn);
+      if(_cc) q=q.eq('country_code',String(_cc).toUpperCase().slice(0,2));
+    }
     else return null;
     const { data, error }=await q.limit(1);
     if(error||!Array.isArray(data)||!data.length) return null;
@@ -44102,7 +44109,7 @@ async function openPlayerModal(player, ctx) {
       // 🆕 Takım cache'inde çözülemedi (serbest oyuncu / sıralama / gelen kutusu gibi geçici obje)
       //   → DB'den canlı çöz; çağıranın uydurduğu alanları (level:0/overall:80/top avatar) kullanma.
       if (!resolved && typeof _resolvePlayerFromServer === 'function') {
-        const live = await _resolvePlayerFromServer(player);
+        const live = await _resolvePlayerFromServer(player, ctx);
         if (live) player = live;
       }
     }
@@ -62015,10 +62022,23 @@ function lg2ViewTab(tab, btn) {
 }
 
 // Lig sayfası — gol/asist/reyting render
-function lg2RenderStat(statType) {
+// 🆕 TEK DÜNYA: önce o ligin TÜM takımlarını DB'den yükle, sonra sırala (cihazdan bağımsız).
+async function lg2RenderStat(statType) {
   const el = document.getElementById('lg2DetailContent');
   if(!el || typeof renderStatList !== 'function') return;
-  el.innerHTML = renderStatList(_lg2Country, _lg2TierIdx, statType);
+  const _cc = _lg2Country, _ti = _lg2TierIdx;
+  const country = _cftGetCountry(_cc);
+  const teams = (country && country.leagues && country.leagues[_ti] && country.leagues[_ti].teams) || [];
+  const needLoad = teams.some(t => !_teamRosterCache[_cc + ':' + t.name]);
+  if (needLoad) {
+    el.innerHTML = '<div class="lst-empty"><div class="lst-empty-icon">⏳</div>Sıralama yükleniyor…</div>';
+    if (typeof _loadAllLeagueRostersForRanking === 'function') {
+      try { await _loadAllLeagueRostersForRanking(_cc, _ti); } catch(e){}
+    }
+    // Yükleme sırasında kullanıcı başka lige/ülkeye geçtiyse bu sonucu yazma
+    if (_lg2Country !== _cc || _lg2TierIdx !== _ti) return;
+  }
+  el.innerHTML = renderStatList(_cc, _ti, statType);
 }
 
 
@@ -62037,6 +62057,27 @@ function _statsHash(s){let h=2166136261;for(let i=0;i<s.length;i++){h=(h^s.charC
 // JSON.stringify(4500 maç) çok yavaştı, no-op yapıldı.
 function _migrateMatchPlayerStats() {
   // Boş bırakıldı; server-side playerStats üretildiğinde frontend okur.
+}
+
+// 🆕 TEK DÜNYA SIRALAMA — o ligin TÜM takımlarının roster'ını DB'den yükle.
+//   Sıralama _teamRosterCache'ten beslendiği için, cache eksikse sıralama cihazdan
+//   cihaza değişir. Bu fonksiyon eksik takımları paralel yükleyip cache'i tamamlar.
+async function _loadAllLeagueRostersForRanking(countryCode, tierIdx) {
+  if (!window.sb) return;
+  const country = _cftGetCountry(countryCode);
+  if (!country || !country.leagues || !country.leagues[tierIdx]) return;
+  const teams = country.leagues[tierIdx].teams || [];
+  const missing = teams.filter(t => {
+    const key = countryCode + ':' + t.name;
+    return !_teamRosterCache[key];
+  });
+  if (!missing.length) return; // hepsi zaten yüklü
+  // Paralel yükle (tek-takım yükleyici hidrasyon + slot mantığını korur)
+  await Promise.all(missing.map(t =>
+    (typeof _loadTeamRosterFromServer === 'function')
+      ? _loadTeamRosterFromServer(countryCode, t.name).catch(()=>null)
+      : Promise.resolve(null)
+  ));
 }
 
 function computePlayerStats(countryCode, tierIdx) {
@@ -62142,7 +62183,7 @@ function _statRowHtml(p, rank, statType) {
   </div>`;
 }
 
-// 🆕 Stat list satırına tıklayınca: ziyaretçi profil aç (bot için seed'li overall)
+// 🆕 Stat list satırına tıklayınca: ziyaretçi profil aç (bot için DB'den gerçek veri)
 function statListViewPlayer(idx) {
   const cache = window._statListPlayerCache || [];
   const p = cache[idx];
@@ -62151,24 +62192,15 @@ function statListViewPlayer(idx) {
     if (typeof openPlayerModalSelfFromRanking === 'function') openPlayerModalSelfFromRanking();
     return;
   }
-  // Bot için seed'li overall (rating yüksek → yüksek ovr)
-  let h = 0;
-  const s = (p.name || '') + '|' + (p.teamName || '');
-  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
-  const baseR = (typeof p.rating === 'number' && !isNaN(p.rating)) ? p.rating : 7.0;
-  // rating 6.0 - 9.5 → ovr 60-95
-  const ovr = Math.max(55, Math.min(95, Math.round(60 + (baseR - 6.0) / 3.5 * 35)));
-
+  // 🆕 TEK DÜNYA: OVR/pos/level UYDURULMAZ — sadece isim+takım+ülke geçilir,
+  //   openPlayerModal DB'den gerçek overall/abilities/pos/level'i çözer.
   const player = {
-    num: 0,
     name: p.name,
     nation: p.flag,
     nationality: p.countryCode || '',
     pos: p.pos || 'MID',
-    level: 0,
-    xp: 0,
-    overall: ovr,
-    avatar: '⚽',
+    team_name: p.teamName,
+    country_code: p.countryCode || '',
     role: 'member',
     isBot: true
   };
@@ -72073,34 +72105,15 @@ function evRaceViewPlayer(metric, rank) {
   const e = lb.find(x => x.rank === rank);
   if (!e || e.isUser) return; // kullanıcı kendi satırı için ayrı handler
 
-  // Bot oyuncularda overall ve pos saklanmıyor → seed'li tahmin
-  // Aynı bot her seferinde aynı overall/pos göstermeli (deterministic)
-  let h = 0;
-  const s = (e.playerName || '') + '|' + (e.teamName || '');
-  for (let i = 0; i < s.length; i++) h = ((h<<5) - h + s.charCodeAt(i)) | 0;
-  const positions = ['GK','DEF','MID','FWD'];
-  const pos = positions[Math.abs(h) % 4];
-
-  // Overall: rating yüksek → yüksek overall
-  let ovr;
-  if (metric === 'rating') {
-    // 6.5-9.7 → 60-95
-    ovr = Math.max(55, Math.min(95, Math.round(60 + ((e.score || 7) - 6.5) / 3.2 * 35)));
-  } else {
-    // train: skor varsa kullan, yoksa 60-90 arası seed
-    ovr = 60 + Math.abs(h % 30);
-  }
-
+  // 🆕 TEK DÜNYA: bot oyuncunun OVR/pos/level/değeri UYDURULMAZ.
+  //   Sadece isim + takım + ülke geçilir; openPlayerModal DB'den (players tablosu)
+  //   gerçek overall/abilities/pos/level/piyasa değerini çözer → her cihazda AYNI.
   const player = {
-    num: rank,
     name: e.playerName,
     nation: e.countryFlag,
     nationality: e.countryCode || '',
-    pos,
-    level: 0,
-    xp: 0,
-    overall: ovr,
-    avatar: '⚽',
+    team_name: e.teamName,
+    country_code: e.countryCode || '',
     role: 'member',
     isBot: true
   };
