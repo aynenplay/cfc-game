@@ -66777,6 +66777,8 @@ function inboxOpen() {
   _inboxView = 'list';
   inboxShowList();
   inboxRenderList();
+  // 🆕 iOS klavye: visualViewport ile panel yüksekliğini klavyeye göre ayarla
+  _inboxBindViewport();
   // 🆕 Server'dan en güncel mesajları çek (başka kullanıcı mesaj göndermiş olabilir)
   if (typeof _inboxLoadFromServer === 'function') {
     _inboxLoadFromServer().then(() => {
@@ -66786,10 +66788,35 @@ function inboxOpen() {
   }
 }
 
+// 🆕 iOS klavye düzeltmesi — visualViewport küçülünce paneli ona sığdır.
+//   Klavye açılınca panel = görünür alan; reply-bar klavyenin tam üstüne oturur,
+//   arkada boşluk/arka sayfa görünmez.
+let _inboxVVbound = false;
+function _inboxApplyViewport() {
+  const overlay = document.getElementById('inboxOverlay');
+  if (!overlay || !overlay.classList.contains('open')) return;
+  const vv = window.visualViewport;
+  if (!vv) return;
+  // Panel yüksekliğini görünür viewport'a sabitle, üst ofseti uygula
+  overlay.style.height = vv.height + 'px';
+  overlay.style.top = vv.offsetTop + 'px';
+}
+function _inboxBindViewport() {
+  if (!window.visualViewport) return;
+  _inboxApplyViewport();
+  if (_inboxVVbound) return;
+  _inboxVVbound = true;
+  window.visualViewport.addEventListener('resize', _inboxApplyViewport);
+  window.visualViewport.addEventListener('scroll', _inboxApplyViewport);
+}
+
 function inboxClose() {
   const overlay = document.getElementById('inboxOverlay');
   if (overlay) {
     overlay.classList.remove('open');
+    // 🆕 Klavye için uyguladığımız inline yükseklik/top'u temizle
+    overlay.style.height = '';
+    overlay.style.top = '';
   }
   document.body.classList.remove('inbox-open');  // 🆕 kilidi aç
   inboxUpdateBadge();
@@ -66919,19 +66946,27 @@ function inboxRenderList() {
 
 // 🆕 WhatsApp tarzı sola kaydır → sil. Her satır .inbox-swipe sarmalı içinde;
 //   .inbox-msg-row parmakla sola kayar, arkadan .inbox-swipe-del görünür.
+//   iOS-güvenli: canlı pozisyon (curNx) + son yön (lastDir) takip edilir,
+//   WebKitCSSMatrix'e güvenilmez.
 function _inboxBindSwipe(container) {
   const OPEN = 76; // sil butonu genişliği
   container.querySelectorAll('.inbox-swipe').forEach(wrap => {
     const row = wrap.querySelector('.inbox-msg-row');
     if (!row || row._swipeBound) return;
     row._swipeBound = true;
-    let startX = 0, startY = 0, curX = 0, lastX = 0, dragging = false, opened = false, decided = false, horiz = false;
+    let startX = 0, startY = 0, baseX = 0, curNx = 0, prevX = 0, lastDir = 0,
+        dragging = false, opened = false, decided = false, horiz = false;
 
-    const setX = (x) => { row.style.transform = `translateX(${x}px)`; };
+    const setX = (x) => { curNx = x; row.style.transform = `translateX(${x}px)`; };
     const close = () => { opened = false; row.style.transition = 'transform .2s'; setX(0); };
     const open  = () => { opened = true;  row.style.transition = 'transform .2s'; setX(-OPEN); };
 
-    const onStart = (x, y) => { startX = x; startY = y; curX = opened ? -OPEN : 0; dragging = true; decided = false; horiz = false; row.style.transition = 'none'; };
+    const onStart = (x, y) => {
+      startX = x; startY = y; prevX = x; lastDir = 0;
+      baseX = opened ? -OPEN : 0;
+      dragging = true; decided = false; horiz = false;
+      row.style.transition = 'none';
+    };
     const onMove = (x, y, e) => {
       if (!dragging) return;
       const dx = x - startX, dy = y - startY;
@@ -66941,30 +66976,33 @@ function _inboxBindSwipe(container) {
       }
       if (!horiz) return;
       if (e && e.cancelable) e.preventDefault();
-      let nx = curX + dx;
+      // son hareket yönü (parmak sağa mı sola mı gidiyor)
+      if (x > prevX + 1) lastDir = 1;        // sağa
+      else if (x < prevX - 1) lastDir = -1;  // sola
+      prevX = x;
+      let nx = baseX + dx;
       if (nx > 0) nx = 0;
       if (nx < -OPEN - 30) nx = -OPEN - 30; // hafif esneme
       setX(nx);
     };
     const onEnd = () => {
       if (!dragging) return; dragging = false;
-      if (!horiz) return;
-      const tx = new WebKitCSSMatrix(getComputedStyle(row).transform).m41;
-      const dx = lastX - startX;
-      // 🆕 Yön bazlı karar: sağa çekildiyse kapat, sola çekildiyse aç.
-      //   (Açıkken hafif sağa kaydırma da kapatır; orada takılı kalmaz.)
-      if (dx > 8) { close(); }
-      else if (dx < -8) { open(); }
-      else { if (tx < -OPEN/2) open(); else close(); }
+      if (!horiz) { return; }
+      // 🆕 Karar: son hareket yönü öncelikli. Sağa gidiyorduysa KAPAT, sola AÇ.
+      //   Yön belirsizse pozisyona göre eşik.
+      if (lastDir === 1) { close(); }
+      else if (lastDir === -1) { open(); }
+      else { if (curNx < -OPEN/2) open(); else close(); }
     };
 
     // Touch
-    row.addEventListener('touchstart', (e)=>{ const t=e.touches[0]; lastX=t.clientX; onStart(t.clientX,t.clientY); }, {passive:false});
-    row.addEventListener('touchmove',  (e)=>{ const t=e.touches[0]; lastX=t.clientX; onMove(t.clientX,t.clientY,e); }, {passive:false});
+    row.addEventListener('touchstart', (e)=>{ const t=e.touches[0]; onStart(t.clientX,t.clientY); }, {passive:false});
+    row.addEventListener('touchmove',  (e)=>{ const t=e.touches[0]; onMove(t.clientX,t.clientY,e); }, {passive:false});
     row.addEventListener('touchend',   onEnd);
+    row.addEventListener('touchcancel', onEnd);
     // Mouse (masaüstü test)
-    row.addEventListener('mousedown', (e)=>{ lastX=e.clientX; onStart(e.clientX,e.clientY); });
-    window.addEventListener('mousemove', (e)=>{ if(dragging){ lastX=e.clientX; onMove(e.clientX,e.clientY,e); } });
+    row.addEventListener('mousedown', (e)=>{ onStart(e.clientX,e.clientY); });
+    window.addEventListener('mousemove', (e)=>{ if(dragging){ onMove(e.clientX,e.clientY,e); } });
     window.addEventListener('mouseup', onEnd);
 
     // Açıkken satıra tıklama → önce kapat (mesajı açma)
