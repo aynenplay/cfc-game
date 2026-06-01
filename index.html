@@ -62046,11 +62046,8 @@ async function lg2RenderStat(statType) {
 //   OYUNCU SEZON İSTATİSTİKLERİ (Gol/Asist/Reyting)
 // ═══════════════════════════════════════
 //
-// Bir lig için tüm takımların oyuncularının deterministik sezon istatistiklerini üretir.
-// Pozisyona göre dağılım: FWD çok gol, MID çok asist, DEF/GK düşük.
-// Sezon ilerlemesine orantılı (gün 1 → 0, gün 33+ → tam sezon).
-// Kullanıcının oyuncusu varsa otomatik dahil edilir.
-function _statsHash(s){let h=2166136261;for(let i=0;i<s.length;i++){h=(h^s.charCodeAt(i))*16777619>>>0;}return h>>>0;}
+// 🆕 Sezon istatistikleri artık server'dan (players tablosu goals_total/assists_total/
+//    match_ratings) okunur — frontend hesap/üretim YAPMAZ.
 
 
 // 🆕 Eski migration — artık gerek yok, server playerStats üretiyor.
@@ -63451,10 +63448,8 @@ function trn2BuildBracket(groups, season, trnKey) {
       const found = (lg.teams || []).find(x => x.name === nm);
       if (found) {
         const full = { ...found, countryCode: cc, countryKey: cc };
-        if (true /* guestGenerateRoster silindi */) {
-          try { full._roster = getOrCreateTeamRoster({ countryCode: cc, name: nm, rank: found.rank || 1 }); } catch(e){}
-          if (full._roster && !full.players) full.players = full._roster;
-        }
+        try { full._roster = getOrCreateTeamRoster({ countryCode: cc, name: nm, rank: found.rank || 1 }); } catch(e){}
+        if (full._roster && !full.players) full.players = full._roster;
         return full;
       }
     }
@@ -67359,12 +67354,24 @@ async function inboxAcceptTransfer(msgId) {
     } catch(e) { console.warn('[transfer] numara üretimi hata:', e); }
 
     // Oyuncuyu bul: önce DB id, yoksa isim + satıcı takım/ülke
-    let q = window.sb.from('players').update({
+    // 🆕 Serbest oyuncuda kabul eden = oyuncunun kendisi → user_team_data'yı da yaz
+    //    (userTeamLoadFromServer'ın birincil kaynağı; fallback'e düşmeden takım gelsin).
+    const _updatePayload = {
       team_name: td.buyerTeam,
       country_code: td.buyerCountryCode,
       num: newNum,
       role: 'member'
-    });
+    };
+    if (td.isFree) {
+      _updatePayload.user_team_data = {
+        teamName: td.buyerTeam,
+        countryCode: td.buyerCountryCode,
+        role: 'member',
+        num: newNum,
+        joinedAt: Date.now(),
+      };
+    }
+    let q = window.sb.from('players').update(_updatePayload);
     if (td.playerDbId) {
       q = q.eq('id', td.playerDbId);
     } else {
@@ -67378,13 +67385,33 @@ async function inboxAcceptTransfer(msgId) {
       tfShowToast('❌ Transfer DB hatası — oyuncu taşınamadı', 'var(--red)');
       return;
     }
-    // Alıcı takım kullanıcının kendi takımıysa lokal roster'ı tazele
-    if (typeof _userTeam !== 'undefined' && _userTeam &&
-        _userTeam.teamName === td.buyerTeam && _userTeam.countryCode === td.buyerCountryCode &&
-        typeof _rosterRefreshFromServer === 'function') {
-      try { await _rosterRefreshFromServer(td.buyerCountryCode); } catch(e){}
-      if (typeof renderRoster === 'function') renderRoster('all');
-    }
+
+    // 🆕 ANINDA GÖRÜNÜRLÜK — sayfayı yenilemeden DB'den taze veri çek.
+    //   Serbest oyuncu kabul etti = kabul eden OYUNCUNUN KENDİSİ buyer takıma katıldı.
+    //   → players satırı zaten güncellendi; şimdi _userTeam'i DB'den yeniden yükle,
+    //     kadroyu inşa et ve tüm takım UI'ını tazele (joinTeamDirect ile aynı sonuç).
+    try {
+      const _amIThePlayer = !!td.isFree; // serbest oyuncuda kabul eden = oyuncu
+      if (_amIThePlayer) {
+        if (typeof userTeamLoadFromServer === 'function') await userTeamLoadFromServer();
+        if (_userTeam && _userTeam.countryCode) {
+          if (typeof _rosterRefreshFromServer === 'function') {
+            try { await _rosterRefreshFromServer(_userTeam.countryCode); } catch(e){}
+          }
+          if (typeof syncUserToRoster === 'function') syncUserToRoster();
+          if (typeof rosterBuildTeam === 'function') rosterBuildTeam(_userTeam.countryCode);
+        }
+        if (typeof applyUserTeamUI === 'function') applyUserTeamUI();
+        if (typeof renderRoster === 'function') renderRoster('all');
+      } else if (typeof _userTeam !== 'undefined' && _userTeam &&
+                 _userTeam.teamName === td.buyerTeam && _userTeam.countryCode === td.buyerCountryCode) {
+        // Kaptan kendi takımına oyuncu kattı → sadece roster tazele
+        if (typeof _rosterRefreshFromServer === 'function') {
+          try { await _rosterRefreshFromServer(td.buyerCountryCode); } catch(e){}
+        }
+        if (typeof renderRoster === 'function') renderRoster('all');
+      }
+    } catch(e) { console.warn('[transfer] UI tazeleme hata:', e); }
   }
 
   msgs[idx].offerStatus = 'accepted';
@@ -71065,20 +71092,8 @@ function tmRefreshListButton(){
   }
 }
 
-// ── Demo Listings (oyun ekosistemi) ──
-// Sezon başında veya pazar boşken otomatik 5-7 sahte listing oluştur.
-const TM_DEMO_NAMES = [
-  'Marcus Chen','Diego Hernández','Tom Wilson','Hans Müller','Pierre Dubois',
-  'Hiroshi Tanaka','Carlos Mendes','Anders Nielsen','Pavel Novak','Igor Petrov',
-  'Kemal Yıldız','James O\'Brien','Akira Sato','Lukas Becker','Vincent Rousseau'
-];
-
-function tmInitDemoListings(){
-  // 🆕 Demo listings devre dışı (kullanıcı isteği)
-  // Mağaza takım listesi sadece gerçek kaptanların satışa çıkardığı takımlardan
-  // oluşacak. Botların otomatik ilan üretmesi artık çalışmaz.
-  return;
-}
+// ── Mağaza takım listesi: sadece gerçek kaptanların satışa çıkardığı takımlar ──
+//   (Botların sahte ilan/isim üretmesi tamamen kaldırıldı — tek dünya, gerçek veri.)
 
 
 
@@ -73596,30 +73611,33 @@ const TEAM_AV_BY_COUNTRY = {
 
 // 🆕 Takımın gerçek gücünü OYUNCULARINDAN hesapla
 // Kullanıcı takımı: ROSTER_DATA'dan (gelişen kullanıcı dahil)
-// Bot takımları: guestGenerateRoster ile (tüm botlar overall: 10)
+// Bot takımları: getOrCreateTeamRoster ile (gerçek DB roster'ı)
 function _teamPowerFromPlayers(countryCode, teamName, teamRank) {
-  // Kullanıcının takımı mı?
+  // Kullanıcının takımı mı? → ROSTER_DATA'dan tüm kadro ortalaması
   try {
     if (typeof _userTeam !== 'undefined' && _userTeam &&
         _userTeam.countryCode === countryCode && _userTeam.teamName === teamName &&
         typeof ROSTER_DATA !== 'undefined' && ROSTER_DATA.length > 0) {
-      // Top 11 oyuncunun ortalaması
-      const sorted = [...ROSTER_DATA].sort((a,b) => (b.overall||0) - (a.overall||0));
-      const top11 = sorted.slice(0, 11);
-      const sum = top11.reduce((s,p) => s + (p.overall||0), 0);
-      return Math.round(sum / top11.length);
+      const sum = ROSTER_DATA.reduce((s,p) => s + (p.overall||0), 0);
+      return Math.round(sum / ROSTER_DATA.length);
     }
   } catch(e) {}
 
-  // Bot takımı: guestGenerateRoster ile üret + ortalama
+  // 🆕 Hafif güç cache'i (tek sorgudan) — tüm kadro ortalaması, DB players.overall
   try {
-    if (true /* guestGenerateRoster silindi */) {
-      const players = getOrCreateTeamRoster({ countryCode: countryCode, name: teamName, rank: teamRank || 1 });
-      const sorted = [...players].sort((a,b) => (b.overall||0) - (a.overall||0));
-      const top11 = sorted.slice(0, 11);
-      const sum = top11.reduce((s,p) => s + (p.overall||0), 0);
-      return Math.round(sum / top11.length);
+    if (_teamPowerCache) {
+      const key = countryCode + ':' + teamName;
+      if (typeof _teamPowerCache[key] === 'number') return _teamPowerCache[key];
+      return 10; // cache yüklü ama bu takım yoksa
     }
+  } catch(e) {}
+
+  // Fallback: cache henüz yüklenmediyse roster cache'inden tüm kadro ortalaması
+  try {
+    const players = getOrCreateTeamRoster({ countryCode: countryCode, name: teamName, rank: teamRank || 1 });
+    if (!Array.isArray(players) || players.length === 0) return 10;
+    const sum = players.reduce((s,p) => s + (p.overall||0), 0);
+    return Math.round(sum / players.length);
   } catch(e) {}
 
   return 10; // fallback
@@ -73671,6 +73689,37 @@ function _rkTeamCoef(countryCode, teamName, teamRank) {
     total += seasonBase + jitter;
   }
   return parseFloat(total.toFixed(2));
+}
+
+// 🆕 TEK DÜNYA TAKIM GÜCÜ — TEK SORGUDA sadece güç verisi (hafif).
+//   Tüm oyuncuların yalnızca team_name + country_code + overall'ı çekilir
+//   (15 kolonluk tam roster DEĞİL → oyunu kastırmaz). Takım bazında top-11
+//   overall ortalaması _teamPowerCache'e yazılır. Sıralama buradan okur.
+let _teamPowerCache = null;   // { "CC:TeamName": ortalamaGuc }
+async function _loadAllTeamsForRanking() {
+  if (!window.sb) return;
+  try {
+    // Sadece güç hesabı için gereken 3 kolon — minimal yük
+    const { data, error } = await window.sb.from('players')
+      .select('team_name, country_code, overall');
+    if (error || !Array.isArray(data)) { console.warn('[teamPower] yük hata:', error); return; }
+    // Takım bazında overall'ları topla
+    const byTeam = {};
+    for (const r of data) {
+      if (!r || !r.team_name) continue;
+      const cc = (r.country_code || 'TR');
+      const key = cc + ':' + r.team_name;
+      (byTeam[key] || (byTeam[key] = [])).push(Number(r.overall) || 10);
+    }
+    // Her takım için TÜM KADRO ortalaması (top-11 değil)
+    const cache = {};
+    for (const key in byTeam) {
+      const ovrs = byTeam[key];
+      if (!ovrs.length) { cache[key] = 10; continue; }
+      cache[key] = Math.round(ovrs.reduce((a,b) => a+b, 0) / ovrs.length);
+    }
+    _teamPowerCache = cache;
+  } catch(e) { console.warn('[teamPower] exception:', e); }
 }
 
 function getTop50Teams() {
@@ -74386,9 +74435,19 @@ function rkTeamRow(t, rank, isMe){
 }
 
 // ── Render: Takımlar ──
-function rkRenderTeams(){
+async function rkRenderTeams(){
   const list = document.getElementById('rkTeamsList');
   if(!list) return;
+  // 🆕 TEK DÜNYA: takım güçlerini TEK SORGUDA çek (tüm kadro ortalaması).
+  //   Her açılışta taze çekilir (maç sonrası overall değişebilir). Hafif sorgu:
+  //   sadece team_name+country_code+overall → oyunu kastırmaz.
+  list.innerHTML = '<div class="lst-empty"><div class="lst-empty-icon">⏳</div>Sıralama yükleniyor…</div>';
+  if (typeof _loadAllTeamsForRanking === 'function') {
+    try { await _loadAllTeamsForRanking(); } catch(e){}
+  }
+  // Kullanıcı bu sırada başka sekmeye geçtiyse yazma
+  const teamsTabVisible = (function(){ const e = document.getElementById('rk-teams'); return e && e.style.display !== 'none'; })();
+  if (!teamsTabVisible) return;
   // Top 50'yi her render'da teams DB'den taze al (sıfırlanmış cf:0 ile)
   RK_TOP_TEAMS = getTop50Teams();
 
@@ -77460,28 +77519,8 @@ document.addEventListener('keydown', function(e){
   };
 
   // ────────────────────────────────────────────────────────────
-  // Self-test (sadece console)
+  // (Self-test kaldırıldı — lokal motor yok, gerçek skorlar Edge Function'dan)
   // ────────────────────────────────────────────────────────────
-
-  window._koSelfTest = function _koSelfTest() {
-    console.group('[KO] Self-test başladı');
-    const fake = (name, rating) => ({
-      name, rating,
-      players: Array.from({length: 11}, (_, i) => ({
-        num: i+1, name: name+'_P'+i, pos: i===0?'GK':(i<5?'DEF':(i<8?'MID':'FWD')),
-        posGroup: i===0?'GK':(i<5?'DEF':(i<8?'MID':'FWD')),
-        rating: rating + (Math.random()*10 - 5),
-        abilities: { finishing: rating, composure: rating, diving: rating, shooting: rating }
-      }))
-    });
-    const A = fake('Ankara', 80);
-    const B = fake('Berlin', 78);
-
-    // 🚫 Knockout test çağrıları KALDIRILDI. Lokal motor yok artık.
-    console.log('[KO TEST] Lokal motor silindi — gerçek skorlar Edge Function üzerinden gelecek.');
-    console.groupEnd();
-    return true;
-  };
 
   // (startup log kaldırıldı — kullanıcı konsol görüntüsünü temiz görsün)
 })();
@@ -78482,67 +78521,9 @@ document.addEventListener('keydown', function(e){
   window._koOrchestrate = _koOrchestrate;
 
   // ────────────────────────────────────────────────────────────
-  // Test yardımcıları
+  // (Konsol test yardımcıları kaldırıldı — sahte takım/veri üreten test
+  //  fonksiyonları silindi. Penaltı/uzatma motoru gerçek maç verisiyle çalışır.)
   // ────────────────────────────────────────────────────────────
-
-  // Console'dan test: hızlıca penaltı paneli göster
-  window._koTestPenaltyPanel = function _koTestPenaltyPanel() {
-    const fake = (name, rating) => ({
-      name, rating,
-      players: Array.from({length: 11}, (_, i) => ({
-        num: i+1, name: name+' P'+(i+1), pos: i===0?'GK':(i<5?'DEF':(i<8?'MID':'FWD')),
-        posGroup: i===0?'GK':(i<5?'DEF':(i<8?'MID':'FWD')),
-        rating: rating + (Math.random()*8 - 4),
-        abilities: { finishing: rating, composure: rating, diving: rating }
-      }))
-    });
-    const A = fake('Ankara', 80);
-    const B = fake('Berlin', 78);
-    const pens = window._simulatePenaltyShootout(A, B, 'test_pen_' + Date.now());
-    console.log('Pen sequence üretildi:', pens);
-    window._koShowPenaltyPanel('Ankara', 'Berlin', 5);
-    setTimeout(() => {
-      window._koAnimatePenaltySequence(pens.sequence, { home: 'Ankara', away: 'Berlin' }, (res) => {
-        console.log('Penaltılar bitti:', res);
-        setTimeout(() => window._koHidePenaltyPanel(), 2500);
-      });
-    }, 600);
-    return true;
-  };
-
-  // Console'dan test: hızlıca geri sayım göster (5sn'lik mini test)
-  window._koTestCountdown = function _koTestCountdown() {
-    window._koShowCountdown(5, {
-      phase: 'TEST',
-      title: 'GERİ SAYIM TESTİ',
-      subtitle: '5 saniye sonra kapanır',
-      extra: '"Atla" butonuyla hemen kapatabilirsin',
-      allowSkip: true
-    }, () => {
-      console.log('[KO-UI] Test countdown tamamlandı');
-    });
-    return true;
-  };
-
-  // Console'dan test: bir sonraki maçı knockout işaretle
-  window._koMarkNextMatch = function _koMarkNextMatch(aggregate, aggH, aggA) {
-    if (typeof window._cfcMarkMatchAsKnockout !== 'function') {
-      console.warn('_cfcMarkMatchAsKnockout yok (Faz 1 yüklenmedi mi?)');
-      return false;
-    }
-    // MS'i bekle (maç başladıktan sonra çağrılırsa)
-    if (typeof MS === 'undefined' || !MS) {
-      console.warn('[KO-UI] MS yok — önce maç başlat');
-      return false;
-    }
-    window._cfcMarkMatchAsKnockout({
-      aggregate: !!aggregate,
-      aggHomeGoals: aggH || 0,
-      aggAwayGoals: aggA || 0
-    });
-    console.log('[KO-UI] Bu maç knockout olarak işaretlendi. 90\' bittiğinde eşitse uzatma+penaltı oynanacak.');
-    return true;
-  };
 
   // (startup log kaldırıldı)
 })();
