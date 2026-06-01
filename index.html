@@ -12360,7 +12360,7 @@ body.lg-myleague-mode .lg2-tier-pills{display:none !important}
 .inbox-overlay.open{opacity:1;pointer-events:all}
 /* 🆕 İnbox açıkken arka sayfa tamamen kilitli (iOS dahil).
    body position:fixed JS ile uygulanır; bu CSS sadece destekler. */
-body.inbox-open{overflow:hidden!important;position:fixed!important;width:100%!important;touch-action:none!important}
+body.inbox-open{overflow:hidden!important;position:fixed!important;width:100%!important}
 body.inbox-open #main{pointer-events:none;overflow:hidden!important}
 /* 🆕 Tam sayfa (mobile-first) — masaüstünde max 480px */
 .inbox-panel{
@@ -66960,8 +66960,8 @@ function _inboxBindSwipe(container) {
   const OPEN = 76; // sil butonu genişliği
   container.querySelectorAll('.inbox-swipe').forEach(wrap => {
     const row = wrap.querySelector('.inbox-msg-row');
-    if (!row || row._swipeBound) return;
-    row._swipeBound = true;
+    if (!row || wrap._swipeBound) return;
+    wrap._swipeBound = true;
     let startX = 0, startY = 0, baseX = 0, curNx = 0,
         dragging = false, opened = false, decided = false, horiz = false;
 
@@ -66983,6 +66983,8 @@ function _inboxBindSwipe(container) {
         if (Math.abs(dx) < 14 && Math.abs(dy) < 14) return;
         decided = true;
         horiz = Math.abs(dx) > Math.abs(dy) + 4; // yatay net üstün olmalı
+        // 🆕 Yatay swipe başladıysa iOS'un kaydırmayı çalmasını engelle
+        if (horiz) row.style.touchAction = 'none';
       }
       if (!horiz) return; // dikey scroll → karışma
       if (e && e.cancelable) e.preventDefault();
@@ -66993,13 +66995,12 @@ function _inboxBindSwipe(container) {
     };
     const onEnd = () => {
       if (!dragging) return; dragging = false;
+      row.style.touchAction = '';  // 🆕 swipe bitti, normale dön
       if (!horiz) return;
-      // 🆕 Konuma göre karar — ama açık/kapalı duruma göre eşik farklı:
-      //   - Kapalıyken: yarıdan fazla açıldıysa (curNx<-38) AÇ, yoksa kapalı kal.
-      //   - Açıkken: biraz sağa kaydırma yeter (curNx > -56 ≈ 20px) → KAPAT.
+      // 🆕 Konuma göre karar — açık/kapalı duruma göre eşik farklı:
       const wasOpen = (baseX === -OPEN);
       if (wasOpen) {
-        // açıktı: -76'dan 20px+ sağa geldiyse kapat
+        // açıktı: -76'dan ~18px+ sağa geldiyse kapat
         if (curNx > -OPEN + 18) close(); else open();
       } else {
         // kapalıydı: yarıdan fazla açıldıysa aç
@@ -67007,11 +67008,11 @@ function _inboxBindSwipe(container) {
       }
     };
 
-    // Touch
-    row.addEventListener('touchstart', (e)=>{ const t=e.touches[0]; onStart(t.clientX,t.clientY); }, {passive:false});
-    row.addEventListener('touchmove',  (e)=>{ const t=e.touches[0]; onMove(t.clientX,t.clientY,e); }, {passive:false});
-    row.addEventListener('touchend',   onEnd);
-    row.addEventListener('touchcancel',onEnd);
+    // Touch — wrapper'a bağla ki açıkken sil butonu üstünden de kaydırma yakalansın
+    wrap.addEventListener('touchstart', (e)=>{ const t=e.touches[0]; onStart(t.clientX,t.clientY); }, {passive:false});
+    wrap.addEventListener('touchmove',  (e)=>{ const t=e.touches[0]; onMove(t.clientX,t.clientY,e); }, {passive:false});
+    wrap.addEventListener('touchend',   onEnd);
+    wrap.addEventListener('touchcancel',onEnd);
     // Mouse (masaüstü test)
     row.addEventListener('mousedown', (e)=>{ onStart(e.clientX,e.clientY); });
     window.addEventListener('mousemove', (e)=>{ if(dragging){ onMove(e.clientX,e.clientY,e); } });
