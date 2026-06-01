@@ -12348,17 +12348,19 @@ body.lg-myleague-mode .lg2-tier-pills{display:none !important}
 
 .inbox-overlay{
   position:fixed;
-  /* 🆕 Dynamic viewport — klavye açılınca otomatik küçülür */
-  top:0;left:0;right:0;
-  height:100vh;       /* fallback */
-  height:100dvh;      /* modern: viewport - klavye yüksekliği */
+  /* 🆕 Tüm kenarlardan sabitlenmiş — klavye açılınca zıplamaz, arka sayfa görünmez */
+  top:0;left:0;right:0;bottom:0;
   background:rgba(0,0,0,.7);
   z-index:7000;
   opacity:0;pointer-events:none;
   transition:opacity .2s;
   display:flex;justify-content:flex-end;
+  overscroll-behavior:contain;
 }
 .inbox-overlay.open{opacity:1;pointer-events:all}
+/* 🆕 İnbox açıkken arka sayfa kilitli — klavye açılınca arka görünmez/zıplamaz */
+body.inbox-open{overflow:hidden!important}
+body.inbox-open #main{pointer-events:none}
 /* 🆕 Tam sayfa (mobile-first) — masaüstünde max 480px */
 .inbox-panel{
   width:100%;
@@ -12380,22 +12382,18 @@ body.lg-myleague-mode .lg2-tier-pills{display:none !important}
   overflow:hidden;  /* iç scroll body'de */
 }
 
-.inbox-header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border);background:var(--bg3);flex-shrink:0}
+.inbox-header{display:flex;align-items:center;gap:2px;padding:12px 14px;border-bottom:1px solid var(--border);background:var(--bg3);flex-shrink:0}
+.inbox-header .inbox-title{margin-right:auto}
 .inbox-title{font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:900}
 .inbox-header-actions{display:flex;gap:8px;align-items:center}
 .inbox-compose-btn{
-  display:inline-flex;align-items:center;gap:5px;
-  padding:5px 12px 5px 10px;
+  display:inline-flex;align-items:center;justify-content:center;
+  width:38px;height:38px;
   background:linear-gradient(135deg,#00e676 0%,#00c853 50%,#00a040 100%);
   color:#0a1f12;
   border:1px solid rgba(0,230,118,.65);
-  border-radius:14px;
-  font-size:11px;
-  font-weight:900;
+  border-radius:50%;
   cursor:pointer;
-  font-family:'Barlow Condensed',sans-serif;
-  letter-spacing:.7px;
-  text-transform:uppercase;
   box-shadow:
     0 2px 10px rgba(0,230,118,.35),
     0 0 0 2px rgba(0,230,118,.12),
@@ -12405,6 +12403,17 @@ body.lg-myleague-mode .lg2-tier-pills{display:none !important}
   position:relative;
   overflow:hidden;
 }
+/* 🆕 Header geri oku — Mesajlar başlığının solunda küçük < */
+.inbox-hdr-back{
+  display:flex;align-items:center;justify-content:center;
+  width:30px;height:30px;flex-shrink:0;
+  background:none;border:none;cursor:pointer;
+  color:var(--text);font-size:26px;font-weight:300;line-height:1;
+  padding:0;margin-right:2px;
+  font-family:'Barlow',sans-serif;
+}
+.inbox-hdr-back:active{opacity:.6}
+.inbox-compose-plus{font-size:24px;line-height:1;font-weight:400}
 .inbox-compose-btn::before{
   content:'';
   position:absolute;inset:0;
@@ -12471,7 +12480,7 @@ body.lg-myleague-mode .lg2-tier-pills{display:none !important}
 .inbox-back-btn{font-size:13px;color:#06210f;background:linear-gradient(135deg,#46d17a,#33b863);border:none;cursor:pointer;padding:7px 13px 7px 10px;font-weight:800;line-height:1;border-radius:10px;font-family:'Barlow',sans-serif;letter-spacing:.3px;box-shadow:0 2px 8px rgba(70,209,122,.35),inset 0 1px 0 rgba(255,255,255,.20);transition:transform .15s ease,box-shadow .15s ease,filter .15s ease}
 .inbox-back-btn:hover{box-shadow:0 4px 12px rgba(70,209,122,.50),inset 0 1px 0 rgba(255,255,255,.26);filter:brightness(1.06);transform:translateY(-1px)}
 .inbox-back-btn:active{transform:translateY(0);box-shadow:0 1px 4px rgba(70,209,122,.40),inset 0 1px 0 rgba(255,255,255,.10)}
-.inbox-detail-title{flex:1;font-size:14px;font-weight:700;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.inbox-detail-title{flex:1;font-size:15px;font-weight:800;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* 🆕 Inbox view'lerinin flex hiyerarşisi — body büyüyünce input görünür kalsın */
 #inboxListView, #inboxDetailView, #inboxComposeView{
   flex:1;
@@ -22468,9 +22477,10 @@ body.drawer-open{overflow:hidden}
 <div class="inbox-overlay" id="inboxOverlay" onclick="if(event.target===this)inboxClose()">
   <div class="inbox-panel" id="inboxPanel">
     <div class="inbox-header">
+      <button class="inbox-hdr-back" id="inboxHdrBack" onclick="inboxBackToList()" aria-label="Geri" style="display:none">‹</button>
       <div class="inbox-title">Mesajlar</div>
       <div class="inbox-header-actions">
-        <button class="inbox-compose-btn" onclick="inboxOpenCompose()"><span class="inbox-compose-btn-icon">✦</span> Yeni Mesaj</button>
+        <button class="inbox-compose-btn" onclick="inboxOpenCompose()" aria-label="Yeni Mesaj"><span class="inbox-compose-plus">+</span></button>
         <button class="inbox-close-btn" onclick="inboxClose()">✕</button>
       </div>
     </div>
@@ -22485,9 +22495,7 @@ body.drawer-open{overflow:hidden}
 
     <div id="inboxDetailView" style="display:none">
       <div class="inbox-detail-header">
-        <button class="inbox-back-btn" onclick="inboxBackToList()">‹ Geri</button>
         <div class="inbox-detail-title" id="inboxDetailTitle">Mesaj</div>
-        <div style="width:40px"></div>
       </div>
       <div id="inboxDetailBody" class="inbox-detail-body"></div>
       <div class="inbox-reply-bar">
@@ -22503,9 +22511,7 @@ body.drawer-open{overflow:hidden}
 
     <div id="inboxComposeView" style="display:none">
       <div class="inbox-detail-header">
-        <button class="inbox-back-btn" onclick="inboxBackToList()">‹ Geri</button>
         <div class="inbox-detail-title">Yeni Mesaj</div>
-        <div style="width:40px"></div>
       </div>
       <div class="inbox-compose-body">
         <div class="inbox-compose-label">Alıcı</div>
@@ -66767,6 +66773,7 @@ function inboxUpdateBadge() {
 // ── Aç / Kapat ──
 function inboxOpen() {
   document.getElementById('inboxOverlay').classList.add('open');
+  document.body.classList.add('inbox-open');   // 🆕 arka sayfa scroll kilidi
   _inboxView = 'list';
   inboxShowList();
   inboxRenderList();
@@ -66783,10 +66790,8 @@ function inboxClose() {
   const overlay = document.getElementById('inboxOverlay');
   if (overlay) {
     overlay.classList.remove('open');
-    // Klavye için pin'lediğimiz inline stilleri temizle
-    overlay.style.height = '';
-    overlay.style.top = '';
   }
+  document.body.classList.remove('inbox-open');  // 🆕 kilidi aç
   inboxUpdateBadge();
 }
 
@@ -66798,6 +66803,13 @@ function inboxShowList() {
   if (dv) dv.style.display = 'none';
   if (cv) cv.style.display = 'none';
   _inboxView = 'list';
+  _inboxToggleHdrBack(false);
+}
+
+// 🆕 Header'daki geri oku (<) — detay/compose'da göster, listede gizle
+function _inboxToggleHdrBack(show) {
+  const b = document.getElementById('inboxHdrBack');
+  if (b) b.style.display = show ? 'flex' : 'none';
 }
 
 function inboxShowDetail() {
@@ -66808,6 +66820,7 @@ function inboxShowDetail() {
   if (dv) { dv.style.display = 'flex'; dv.style.flexDirection = 'column'; }
   if (cv) cv.style.display = 'none';
   _inboxView = 'detail';
+  _inboxToggleHdrBack(true);
 }
 
 function inboxShowCompose() {
@@ -66818,6 +66831,7 @@ function inboxShowCompose() {
   if (dv) dv.style.display = 'none';
   if (cv) { cv.style.display = 'flex'; cv.style.flexDirection = 'column'; }
   _inboxView = 'compose';
+  _inboxToggleHdrBack(true);
 }
 
 function inboxBackToList() {
@@ -66911,7 +66925,7 @@ function _inboxBindSwipe(container) {
     const row = wrap.querySelector('.inbox-msg-row');
     if (!row || row._swipeBound) return;
     row._swipeBound = true;
-    let startX = 0, startY = 0, curX = 0, dragging = false, opened = false, decided = false, horiz = false;
+    let startX = 0, startY = 0, curX = 0, lastX = 0, dragging = false, opened = false, decided = false, horiz = false;
 
     const setX = (x) => { row.style.transform = `translateX(${x}px)`; };
     const close = () => { opened = false; row.style.transition = 'transform .2s'; setX(0); };
@@ -66936,16 +66950,21 @@ function _inboxBindSwipe(container) {
       if (!dragging) return; dragging = false;
       if (!horiz) return;
       const tx = new WebKitCSSMatrix(getComputedStyle(row).transform).m41;
-      if (tx < -OPEN/2) open(); else close();
+      const dx = lastX - startX;
+      // 🆕 Yön bazlı karar: sağa çekildiyse kapat, sola çekildiyse aç.
+      //   (Açıkken hafif sağa kaydırma da kapatır; orada takılı kalmaz.)
+      if (dx > 8) { close(); }
+      else if (dx < -8) { open(); }
+      else { if (tx < -OPEN/2) open(); else close(); }
     };
 
     // Touch
-    row.addEventListener('touchstart', (e)=>{ const t=e.touches[0]; onStart(t.clientX,t.clientY); }, {passive:true});
-    row.addEventListener('touchmove',  (e)=>{ const t=e.touches[0]; onMove(t.clientX,t.clientY,e); }, {passive:false});
+    row.addEventListener('touchstart', (e)=>{ const t=e.touches[0]; lastX=t.clientX; onStart(t.clientX,t.clientY); }, {passive:false});
+    row.addEventListener('touchmove',  (e)=>{ const t=e.touches[0]; lastX=t.clientX; onMove(t.clientX,t.clientY,e); }, {passive:false});
     row.addEventListener('touchend',   onEnd);
     // Mouse (masaüstü test)
-    row.addEventListener('mousedown', (e)=>{ onStart(e.clientX,e.clientY); });
-    window.addEventListener('mousemove', (e)=>{ if(dragging) onMove(e.clientX,e.clientY,e); });
+    row.addEventListener('mousedown', (e)=>{ lastX=e.clientX; onStart(e.clientX,e.clientY); });
+    window.addEventListener('mousemove', (e)=>{ if(dragging){ lastX=e.clientX; onMove(e.clientX,e.clientY,e); } });
     window.addEventListener('mouseup', onEnd);
 
     // Açıkken satıra tıklama → önce kapat (mesajı açma)
