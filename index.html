@@ -44060,7 +44060,7 @@ function openPlayerModalSelfFromRanking() {
 async function _resolvePlayerFromServer(player){
   if(!window.sb || !player) return null;
   try {
-    const cols='id, user_id, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, is_bot, last_seen, goals_total, assists_total, matches_played, match_ratings, stats_by_comp, season_yellow, suspend_matches, suspend_reason, injury_until';
+    const cols='id, user_id, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, avatar_id, is_bot, last_seen, goals_total, assists_total, matches_played, match_ratings, stats_by_comp, season_yellow, suspend_matches, suspend_reason, injury_until';
     let q=window.sb.from('players').select(cols);
     const uid=player.userId||player.user_id;
     if(uid) q=q.eq('user_id',uid);
@@ -44243,13 +44243,14 @@ async function openPlayerModal(player, ctx) {
   // Avatar HTML — kullanıcı kendi seçtiği PNG'yi görür; başka oyuncularda emoji
   // 🆕 Avatar kaynağı:
   //   - Kendi kullanıcı → authUser.avatarId
-  //   - Diğer gerçek kullanıcılar → player.avatar_id (profiles tablosundan)
-  //   - Botlar → emoji (player.avatar)
+  //   - Diğer gerçek kullanıcılar → player.avatar_id / avatar / avatarId (kaynak değişebilir)
+  //   - Botlar → emoji (player.avatar) / mevki fallback
+  const _avId = player.avatar_id || player.avatarId || (typeof player.avatar === 'string' && /^[mf]\d+$/i.test(player.avatar) ? player.avatar : null);
   let pmAvatarHTML;
   if (isUser && typeof authUser !== 'undefined' && authUser && authUser.avatarId && typeof getAvatarEmoji === 'function') {
     pmAvatarHTML = getAvatarEmoji(authUser.avatarId, player.pos);
   } else if (typeof getAvatarEmoji === 'function') {
-    pmAvatarHTML = getAvatarEmoji(player.avatar_id, player.pos);
+    pmAvatarHTML = getAvatarEmoji(_avId, player.pos);
   } else {
     pmAvatarHTML = player.avatar || '';
   }
@@ -52624,6 +52625,18 @@ function showOnlinePlayersModal() {
 // Sayfa açılışında ilk fetch + 60sn'de bir tekrar (heartbeat + sayaç tazeleme)
 setTimeout(() => { fetchOnlineStats(); pingLastSeen(); }, 5000);
 setInterval(() => { fetchOnlineStats(); pingLastSeen(); }, 60000);
+
+// 🆕 INBOX POLL — yeni gelen mesajlar için periyodik kontrol (ding + kırmızı rozet)
+// _inboxLoadFromServer içinde: yeni okunmamış mesaj varsa _inboxPlayDing() + badge güncellenir.
+// Sayfa görünürken (gizli sekmede değilken) 20sn'de bir kontrol et.
+setInterval(() => {
+  if (document.hidden) return;
+  if (typeof _inboxLoadFromServer === 'function') {
+    _inboxLoadFromServer().then(() => {
+      if (typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
+    }).catch(()=>{});
+  }
+}, 20000);
 
 // 🆕 ═══════════════════════════════════════════════════════════════════
 // MAÇ İZLEYİCİLERİ MODALI
@@ -67114,20 +67127,21 @@ function inboxRenderDetail(msg) {
   } else if(msg.type === 'transfer' && msg.transferData) {
     const td = msg.transferData;
     function fmtFee(v){ return v>=1000000?(v/1000000).toFixed(2)+'M €':v>0?Math.round(v/1000)+'K €':'Ücretsiz'; }
+    function fmtDia(v){ return v>0 ? v.toLocaleString('tr-TR')+' 💎' : 'Yok'; }
     // 🆕 Yeni alanlar (eski format desteği için fallback)
     const transferFee     = td.transferFee     ?? td.fee ?? 0;
-    const signingBonus    = td.signingBonus    ?? 0;
+    const signingDiamond  = td.signingDiamond  ?? 0;            // 💎 imza parası (€ değil)
     const yearlySalary    = td.yearlySalary    ?? (td.wage ? td.wage * 52 * 1000 : 0);
     const durationSeasons = td.durationSeasons ?? td.contract ?? 1;
     const inst            = Math.round(yearlySalary / 2);
-    const totalCost       = transferFee + signingBonus + (yearlySalary * durationSeasons);
+    const totalCost       = transferFee + (yearlySalary * durationSeasons);  // imza elması € maliyete katılmaz
     const showFee         = transferFee > 0;
     html += `<div class="inbox-detail-text">${msg.body}</div>
       <div class="inbox-transfer-card">
         <div class="inbox-tc-title">⚽ Transfer Teklifi</div>
         <div class="inbox-tc-row"><span class="inbox-tc-label">Oyuncu</span><span class="inbox-tc-val">${td.playerName}</span></div>
         ${showFee ? `<div class="inbox-tc-row"><span class="inbox-tc-label">Bonservis ${td.sellerTeam ? '('+td.sellerTeam+' kasasına)' : ''}</span><span class="inbox-tc-val" style="color:var(--gold)">${fmtFee(transferFee)}</span></div>` : ''}
-        <div class="inbox-tc-row"><span class="inbox-tc-label">İmza Parası (oyuncuya)</span><span class="inbox-tc-val" style="color:var(--accent2)">${fmtFee(signingBonus)}</span></div>
+        <div class="inbox-tc-row"><span class="inbox-tc-label">İmza Parası (oyuncuya)</span><span class="inbox-tc-val" style="color:var(--accent2)">${fmtDia(signingDiamond)}</span></div>
         <div class="inbox-tc-row"><span class="inbox-tc-label">Yıllık Ücret</span><span class="inbox-tc-val">${fmtFee(yearlySalary)}</span></div>
         <div class="inbox-tc-row"><span class="inbox-tc-label">Her Taksit (×2/sezon)</span><span class="inbox-tc-val">${fmtFee(inst)}</span></div>
         <div class="inbox-tc-row"><span class="inbox-tc-label">Sözleşme Süresi</span><span class="inbox-tc-val">${durationSeasons} sezon</span></div>
@@ -67226,9 +67240,9 @@ async function inboxAcceptTransfer(msgId) {
   if(!td){ tfShowToast('❌ Teklif verisi bozuk', 'var(--red)'); return; }
 
   // 🆕 TRANSFER DÖNEMİ KONTROLÜ
-  // Eğer satıcı kulüp varsa (sellerTeam) → oyuncu sözleşmeli → transfer dönemi gerekli.
-  // Yoksa serbest oyuncu → her zaman kabul edilebilir.
-  const _isContracted = !!(td.sellerTeam || (td.transferFee && td.transferFee > 0) || (td.fee && td.fee > 0));
+  // Serbest oyuncu (isFree) → her zaman kabul edilebilir, transfer dönemi gerekmez.
+  // Sadece sözleşmeli (kontratlı) oyuncu transferinde dönem kontrolü yapılır.
+  const _isContracted = (td.isFree === false) || (td.isFree == null && td.contractStatus === 'active');
   if (_isContracted && typeof _enforceTransferWindow === 'function') {
     const r = _enforceTransferWindow('Sözleşmeli oyuncu transferi');
     if (r.blocked) {
@@ -67521,6 +67535,7 @@ async function inboxSendTransferOffer(target, _legacyWage, _legacyContract, offe
       // 🆕 Yeni alanlar
       transferFee,
       signingBonus,
+      signingDiamond,
       yearlySalary,
       durationSeasons,
       // Backward compat
