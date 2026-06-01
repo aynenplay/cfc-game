@@ -67574,6 +67574,15 @@ async function inboxSendTransferOffer(target, _legacyWage, _legacyContract, offe
   function fmtDia(v){ return v>0 ? v.toLocaleString('tr-TR') + ' 💎' : '—'; }
   const myName = (authUser||{}).name || 'Teklif Yapan';
   const now    = new Date().toLocaleDateString('tr');
+  // 🆕 Transfer teklifleri KİŞİ değil TAKIM adından görünür (Artvin Yönetimi gibi).
+  //   Teklifi sunan kullanıcının takım adı + bayrağı.
+  let _myTeamName = myName; // fallback: takımsızsa kişi adı
+  try {
+    if (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName) {
+      const _fl = (typeof ccToFlag === 'function' && _userTeam.countryCode) ? ccToFlag(_userTeam.countryCode) + ' ' : '';
+      _myTeamName = _fl + _userTeam.teamName;
+    }
+  } catch(e) {}
 
   // External (profil modal'ından gelen) teklif: kontrat durumuna göre farklı format
   const isExternal = !!target._external;
@@ -67604,20 +67613,20 @@ async function inboxSendTransferOffer(target, _legacyWage, _legacyContract, offe
   if(isFree) {
     // Boşta — doğrudan oyuncuya kişisel teklif (bonservis yok)
     incomingSubject = `Kişisel Teklif — ${target.playerId}`;
-    incomingBody = `${myName} sana doğrudan kişisel bir transfer teklifi sundu.\n\nDurum: 🆓 Serbest (kontratsız)\n${termsBlock}\n\nKulüp onayı gerekmiyor — kabul edersen sözleşme imzalanır.`;
+    incomingBody = `${_myTeamName} sana doğrudan kişisel bir transfer teklifi sundu.\n\nDurum: 🆓 Serbest (kontratsız)\n${termsBlock}\n\nKulüp onayı gerekmiyor — kabul edersen sözleşme imzalanır.`;
     sentSubject = `Teklif Gönderildi — ${target.playerId}`;
     sentBody = `${target.playerId} adlı boştaki oyuncuya kişisel teklif gönderdin.\n\n${termsBlock}`;
   } else if(isActive) {
     // Aktif kontrat — önce kulübe (takım liderine) resmi teklif
     incomingSubject = `Resmi Transfer Teklifi — ${target.playerId}`;
-    incomingBody = `${myName}, oyuncumuz ${target.playerId} için kulübümüze resmi bir transfer teklifi sundu.\n\nKontrat Durumu: ${target._contractLabel || 'Aktif'}\n${termsBlock}\n\nKulüp yönetimi olarak teklifi değerlendirip oyuncu ile görüşme izni verip vermeyeceğimize karar vereceğiz.`;
+    incomingBody = `${_myTeamName}, oyuncumuz ${target.playerId} için kulübümüze resmi bir transfer teklifi sundu.\n\nKontrat Durumu: ${target._contractLabel || 'Aktif'}\n${termsBlock}\n\nKulüp yönetimi olarak teklifi değerlendirip oyuncu ile görüşme izni verip vermeyeceğimize karar vereceğiz.`;
     sentSubject = `Resmi Teklif — ${target.playerId} (${target.seller})`;
     sentBody = `${target.seller} kulübüne ${target.playerId} için resmi transfer teklifi gönderdin.\nKulüp onay verirse oyuncu ile kişisel görüşmeye geçebilirsin.\n\n${termsBlock}`;
   } else {
     // 🆕 LEGACY DALI — Pazar yeri (transfer listesi) artık bu yola uğramıyor.
     console.warn('[inboxSendTransferOffer] Beklenmeyen non-external çağrı — pazar yeri artık tfConfirmPurchase kullanır.');
     incomingSubject = `Transfer Bildirimi — ${target.playerId}`;
-    incomingBody = `${myName} ${target.playerId} ile ilgili bir bildirim gönderdi.\n\n${termsBlock}`;
+    incomingBody = `${_myTeamName} ${target.playerId} ile ilgili bir bildirim gönderdi.\n\n${termsBlock}`;
     sentSubject = `Bildirim Gönderildi — ${target.playerId}`;
     sentBody = `${target.seller} adlı oyuncuya bildirim gönderdin.\n\n${termsBlock}`;
   }
@@ -67625,7 +67634,7 @@ async function inboxSendTransferOffer(target, _legacyWage, _legacyContract, offe
   // Satıcıya/kulübe gelen mesaj
   const incomingMsg = {
     id: 'tf_msg_'+Date.now(),
-    from: myName,
+    from: _myTeamName,
     fromAvatar: '⚽',
     type: 'transfer',
     subject: incomingSubject,
