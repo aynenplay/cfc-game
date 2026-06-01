@@ -22498,10 +22498,10 @@ body.drawer-open{overflow:hidden}
       <div class="inbox-detail-header">
         <div class="inbox-detail-title" id="inboxDetailTitle">Mesaj</div>
       </div>
-      <div id="inboxDetailBody" class="inbox-detail-body"></div>
+      <div id="inboxDetailBody" class="inbox-detail-body" onclick="var i=document.getElementById('inboxReplyInput'); if(i) i.blur();"></div>
       <div class="inbox-reply-bar">
         <input type="text" class="inbox-reply-input" id="inboxReplyInput" placeholder="Yanıtla..." onkeydown="if(event.key==='Enter')inboxSendReply()"/>
-        <button class="inbox-send-btn" onclick="inboxSendReply()" aria-label="Gönder">
+        <button class="inbox-send-btn" onclick="inboxSendReply()" onpointerdown="event.preventDefault()" aria-label="Gönder">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M22 2L11 13"/>
             <path d="M22 2l-7 20-4-9-9-4 20-7z"/>
@@ -66991,29 +66991,37 @@ function _inboxBindSwipe(container) {
       if (nx < -OPEN - 30) nx = -OPEN - 30; // hafif esneme
       setX(nx);
     };
-    const onEnd = (x) => {
+    const onEnd = () => {
       if (!dragging) return; dragging = false;
       if (!horiz) return;
-      const dx = (typeof x === 'number' ? x : startX) - startX;
-      // 🆕 Toplam yatay mesafenin yönüne göre karar (titremeye değil):
-      //   net sola (>30px) → AÇ, net sağa (>30px) → KAPAT, arası → mevcut konuma göre eşik
-      if (dx < -30) { open(); }
-      else if (dx > 30) { close(); }
-      else { if (curNx < -OPEN/2) open(); else close(); }
+      // 🆕 Konuma göre karar — ama açık/kapalı duruma göre eşik farklı:
+      //   - Kapalıyken: yarıdan fazla açıldıysa (curNx<-38) AÇ, yoksa kapalı kal.
+      //   - Açıkken: biraz sağa kaydırma yeter (curNx > -56 ≈ 20px) → KAPAT.
+      const wasOpen = (baseX === -OPEN);
+      if (wasOpen) {
+        // açıktı: -76'dan 20px+ sağa geldiyse kapat
+        if (curNx > -OPEN + 18) close(); else open();
+      } else {
+        // kapalıydı: yarıdan fazla açıldıysa aç
+        if (curNx < -OPEN/2) open(); else close();
+      }
     };
 
     // Touch
     row.addEventListener('touchstart', (e)=>{ const t=e.touches[0]; onStart(t.clientX,t.clientY); }, {passive:false});
     row.addEventListener('touchmove',  (e)=>{ const t=e.touches[0]; onMove(t.clientX,t.clientY,e); }, {passive:false});
-    row.addEventListener('touchend',   (e)=>{ const t=(e.changedTouches&&e.changedTouches[0]); onEnd(t?t.clientX:undefined); });
-    row.addEventListener('touchcancel',(e)=>{ const t=(e.changedTouches&&e.changedTouches[0]); onEnd(t?t.clientX:undefined); });
+    row.addEventListener('touchend',   onEnd);
+    row.addEventListener('touchcancel',onEnd);
     // Mouse (masaüstü test)
     row.addEventListener('mousedown', (e)=>{ onStart(e.clientX,e.clientY); });
     window.addEventListener('mousemove', (e)=>{ if(dragging){ onMove(e.clientX,e.clientY,e); } });
-    window.addEventListener('mouseup', (e)=>{ if(dragging) onEnd(e.clientX); });
+    window.addEventListener('mouseup', onEnd);
 
-    // Açıkken satıra tıklama → önce kapat (mesajı açma)
-    row.addEventListener('click', (e)=>{ if (opened) { e.stopPropagation(); e.preventDefault(); close(); } }, true);
+    // 🆕 Açıkken satıra dokunma (kaydırma değil) → kapat, mesajı açma.
+    //   Sadece gerçekten kaydırma olmadıysa (decided=false) tıklama say.
+    row.addEventListener('click', (e)=>{
+      if (opened) { e.stopPropagation(); e.preventDefault(); close(); }
+    }, true);
   });
 }
 
@@ -67510,6 +67518,7 @@ async function inboxSendReply() {
   _inboxCurrentMsg = e;
   input.value = '';
   inboxRenderDetail(e);
+  input.focus();  // 🆕 gönderdikten sonra klavye açık kalsın
 
   await _inboxDeliverChat(peerId, convId, { id: myId, name: myName }, item);
 }
