@@ -12228,6 +12228,10 @@ body.lg-myleague-mode .lg2-tier-pills{display:none !important}
 .tf-status.active{background:rgba(255,209,26,.07);border:1px solid rgba(255,209,26,.22);color:#ffd11a}
 .tf-status .tf-ic{width:16px;height:16px;flex-shrink:0;stroke-width:2.2}
 .tf-offer-info .tf-ic{width:14px;height:14px;vertical-align:-2px;margin-right:4px;stroke-width:2.2;display:inline-block}
+.tf-window-warn{margin:0 20px 16px;padding:13px 14px;border-radius:11px;display:flex;align-items:flex-start;gap:10px;font-size:12.5px;line-height:1.5;background:rgba(239,106,106,.08);border:1px solid rgba(239,106,106,.32);color:#ef6a6a}
+.tf-window-warn .tf-ic{width:18px;height:18px;flex-shrink:0;stroke-width:2.2;margin-top:1px}
+.tf-window-warn b{color:#ff8c8c;font-weight:800}
+.tf-btn-offer:disabled{background:#1a1d24;color:#4a4f5a;border-color:#20242c;box-shadow:none;cursor:not-allowed}
 .tf-fee-display{font-family:'Barlow Condensed',sans-serif;font-size:26px;font-weight:900;color:var(--gold);padding:4px 16px 8px}
 .tf-contract-pills{display:flex;gap:8px;padding:4px 16px 8px}
 .tf-cpill{flex:1;padding:8px;border-radius:8px;font-size:11px;font-weight:700;border:1px solid var(--border);background:var(--bg3);color:var(--text2);cursor:pointer;font-family:'Barlow',sans-serif;transition:all .15s;text-align:center}
@@ -44142,10 +44146,10 @@ async function openPlayerModal(player, ctx) {
     const msgPayload = JSON.stringify({ player, ctx }).replace(/"/g, '&quot;');
     const msgBtn = `<button class="pm-btn pm-btn-msg" onclick='playerSendMessage(this.dataset.payload)' data-payload="${msgPayload}">${_icMsg}Mesaj Gönder</button>`;
 
-    // Teklif Sun — sadece kaptan/yrd kaptan görür (turuncu)
+    // Teklif Sun — sadece kaptan/yrd kaptan görür (turuncu) · botlara teklif YOK (mağazadan alınır)
     const _icOffer = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v7a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-7"/><rect x="2" y="7" width="20" height="5"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>`;
     let offerBtn = '';
-    if(userCanMakeOffer()) {
+    if(userCanMakeOffer() && !isBot) {
       if(ctx.isOwnTeam){
         offerBtn = `<button class="pm-btn pm-btn-offer pm-btn-disabled" disabled title="Bu oyuncu zaten kadronda">${_icOffer}Zaten Kadronda</button>`;
       } else {
@@ -65862,6 +65866,11 @@ function tfOpenOfferDirect(player, ctx) {
     _countryCode: ctx.countryCode || '',
     _seasonSalary: seasonSalary,
     _playerRef: player,
+    // 🆕 Transfer gerçekleştirme için: oyuncunun DB id'si + teklifi yapanın (alıcı) takımı
+    _playerDbId: (player.id || player.dbId || player._id || null),
+    _buyerTeam: (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : null,
+    _buyerCountryCode: (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.countryCode : null,
+    _buyerUserId: (typeof authUser !== 'undefined' && authUser) ? authUser.id : null,
   };
 
   // Modal state (kullanıcı sadece elmas miktarını seçer)
@@ -65912,6 +65921,24 @@ function tfOpenOfferDirect(player, ctx) {
     infoEl.innerHTML = isFree
       ? `${_icFree} <b>Boşta</b> oyuncu. Bonservis yok, sadece maaş + opsiyonel imza elması.`
       : `${_icDoc} Kontratlı oyuncu. Bonservis kasandan <b>${ctx.teamName||'satıcı'}</b> kasasına aktarılır. Maaş 4 taksit halinde (gün 10/20/30/40) sezonun her çeyreğinde ödenir.`;
+  }
+
+  // 🆕 TRANSFER DÖNEMİ UYARISI — bonservisli oyuncu + pencere kapalıysa modalde göster + gönder butonu pasif
+  const _warnEl = document.getElementById('tfWindowWarn');
+  const _sendBtn = document.getElementById('tfSendBtn');
+  const _windowOpen = (typeof isTransferWindowOpen === 'function') ? isTransferWindowOpen() : true;
+  if (!isFree && !_windowOpen) {
+    const _next = (typeof getNextTransferWindowInfo === 'function') ? getNextTransferWindowInfo() : null;
+    const _icWarn = `<svg class="tf-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+    const _nextStr = _next ? `${_next.label} · ${_next.startDay}-${_next.endDay}. günler` : 'sonraki transfer dönemi';
+    if (_warnEl) {
+      _warnEl.innerHTML = `${_icWarn}<div><b>Transfer dönemi kapalı.</b> Bu oyuncu başka bir takımla sözleşmeli — sözleşmeli transfer sadece transfer günlerinde yapılabilir (ara: 16-18. gün, sezon arası: 34-40. gün). Sonraki dönem: ${_nextStr}.</div>`;
+      _warnEl.style.display = 'flex';
+    }
+    if (_sendBtn) _sendBtn.disabled = true;
+  } else {
+    if (_warnEl) _warnEl.style.display = 'none';
+    if (_sendBtn) _sendBtn.disabled = false;
   }
 
   document.getElementById('tfOfferModal').classList.add('open');
@@ -67144,7 +67171,7 @@ function inboxRenderDetail(msg) {
 }
 
 // ── Transfer kabul/red ──
-function inboxAcceptTransfer(msgId) {
+async function inboxAcceptTransfer(msgId) {
   const msgs = getInboxMsgs();
   const idx  = msgs.findIndex(m=>m.id===msgId);
   if(idx===-1) return;
@@ -67223,6 +67250,50 @@ function inboxAcceptTransfer(msgId) {
       if(typeof userTeamSave === 'function') userTeamSave();
     }
   } catch(e){}
+
+  // 🆕 GERÇEK TRANSFER — oyuncuyu DB'de yeni (alıcı) takıma geçir
+  // Serbest oyuncuyu kabul eden = oyuncunun kendisi → kendi takımı buyer olur.
+  // Bonservisli oyuncuyu kabul eden = satıcı takımın kaptanı → oyuncu buyer takıma gider.
+  if (window.sb && td.buyerTeam && td.buyerCountryCode) {
+    // Alıcı takımda boş numara üret
+    let newNum = 30;
+    try {
+      const { data: buyerRoster } = await window.sb.from('players')
+        .select('num')
+        .eq('team_name', td.buyerTeam)
+        .eq('country_code', td.buyerCountryCode);
+      const used = new Set((buyerRoster||[]).map(r => r && r.num).filter(n => typeof n === 'number'));
+      while (used.has(newNum) && newNum < 100) newNum++;
+    } catch(e) { console.warn('[transfer] numara üretimi hata:', e); }
+
+    // Oyuncuyu bul: önce DB id, yoksa isim + satıcı takım/ülke
+    let q = window.sb.from('players').update({
+      team_name: td.buyerTeam,
+      country_code: td.buyerCountryCode,
+      num: newNum,
+      role: 'member'
+    });
+    if (td.playerDbId) {
+      q = q.eq('id', td.playerDbId);
+    } else {
+      q = q.eq('name', td.playerName);
+      if (td.sellerCountryCode) q = q.eq('country_code', td.sellerCountryCode);
+      if (td.sellerTeam) q = q.eq('team_name', td.sellerTeam);
+    }
+    const { error: trErr } = await q;
+    if (trErr) {
+      console.error('[transfer] oyuncu transfer hata:', trErr);
+      tfShowToast('❌ Transfer DB hatası — oyuncu taşınamadı', 'var(--red)');
+      return;
+    }
+    // Alıcı takım kullanıcının kendi takımıysa lokal roster'ı tazele
+    if (typeof _userTeam !== 'undefined' && _userTeam &&
+        _userTeam.teamName === td.buyerTeam && _userTeam.countryCode === td.buyerCountryCode &&
+        typeof _rosterRefreshFromServer === 'function') {
+      try { await _rosterRefreshFromServer(td.buyerCountryCode); } catch(e){}
+      if (typeof renderRoster === 'function') renderRoster('all');
+    }
+  }
 
   msgs[idx].offerStatus = 'accepted';
   saveInboxMsgs(msgs);
@@ -67415,6 +67486,13 @@ async function inboxSendTransferOffer(target, _legacyWage, _legacyContract, offe
       external:  isExternal,
       contractStatus: target._contractStatus || null,
       sellerTeam:     target.seller || null,
+      // 🆕 Transfer gerçekleştirme bilgileri (kabul edilince oyuncu buraya gider)
+      playerDbId:       target._playerDbId || null,
+      sellerCountryCode: target._countryCode || null,
+      buyerTeam:        target._buyerTeam || null,
+      buyerCountryCode: target._buyerCountryCode || null,
+      buyerUserId:      target._buyerUserId || null,
+      isFree:           isFree,
     },
   };
 
@@ -76349,6 +76427,9 @@ document.addEventListener('keydown', function(e){
       Bonservis ve maaş sistemce belirlenmiştir. Maaş sezonun 10., 20., 30. ve 40. günlerinde 4 taksit halinde takım kasasından oyuncu cüzdanına ödenir.
     </div>
 
+    <!-- 🆕 TRANSFER DÖNEMİ UYARISI (bonservisli oyuncu + pencere kapalıyken görünür) -->
+    <div class="tf-window-warn" id="tfWindowWarn" style="display:none"></div>
+
     <!-- BONSERVİS (READ-ONLY, sistem belirler) -->
     <div id="tfFeeWrap">
       <div class="tf-modal-section">Bonservis (Satıcı Takım Kasasına)</div>
@@ -76393,7 +76474,7 @@ document.addEventListener('keydown', function(e){
 
     <div class="tf-modal-btns">
       <button class="tf-btn-cancel" onclick="tfCloseOffer()">İptal</button>
-      <button class="tf-btn-offer" onclick="tfConfirmOffer()">Teklifi Gönder ✓</button>
+      <button class="tf-btn-offer" id="tfSendBtn" onclick="tfConfirmOffer()">Teklifi Gönder ✓</button>
     </div>
   </div>
 </div>
