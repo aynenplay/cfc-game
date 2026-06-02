@@ -12358,9 +12358,11 @@ body.lg-myleague-mode .lg2-tier-pills{display:none !important}
   overscroll-behavior:contain;
 }
 .inbox-overlay.open{opacity:1;pointer-events:all}
-/* İnbox açıkken arka sayfa kilitli (iOS dahil) — body position:fixed JS ile uygulanır */
-body.inbox-open{overflow:hidden!important;position:fixed!important;width:100%!important}
-body.inbox-open #main{pointer-events:none;overflow:hidden!important}
+/* İnbox açıkken arka sayfa TAMAMEN gizli + kilitli (iOS dahil) — overlay opak tam ekran */
+body.inbox-open{overflow:hidden!important;position:fixed!important;width:100%!important;height:100%!important}
+body.inbox-open #main{visibility:hidden!important;pointer-events:none!important}
+/* overlay'i tam opak yap ki arka hiç sızmasın */
+.inbox-overlay.open{background:var(--bg)!important}
 /* 🆕 Tam sayfa (mobile-first) — masaüstünde max 480px */
 .inbox-panel{
   width:100%;
@@ -66869,35 +66871,45 @@ function inboxOpen() {
   }
 }
 
-// 🆕 iOS klavye düzeltmesi — visualViewport küçülünce paneli ona sığdır.
-//   Klavye açılınca panel = görünür alan; input/reply-bar klavyenin tam üstüne
-//   oturur, arkada boşluk/arka sayfa görünmez.
+// 🆕 Klavye: paneli KÜÇÜLTME. Panel tam ekran sabit kalır; içerik alanı
+//   kendi içinde kayar, input klavyenin üstünde kalır. Yarıya inme/arka sızma olmaz.
 let _inboxVVbound = false;
 function _inboxApplyViewport() {
-  const overlay = document.getElementById('inboxOverlay');
-  if (!overlay || !overlay.classList.contains('open')) return;
-  const vv = window.visualViewport;
-  if (!vv) return;
-  // bottom:0 ile height çakışmasın → bottom'u auto yap, top+height geçerli olsun
-  overlay.style.bottom = 'auto';
-  overlay.style.top = vv.offsetTop + 'px';
-  overlay.style.height = vv.height + 'px';
+  // Artık panel boyutuyla oynamıyoruz — overlay tam ekran (CSS inset 0).
+  // Sadece focus sonrası input'u görünür alana kaydır.
+  const ov = document.getElementById('inboxOverlay');
+  if (!ov || !ov.classList.contains('open')) return;
+  const active = document.activeElement;
+  if (active && ov.contains(active) && typeof active.scrollIntoView === 'function') {
+    try { active.scrollIntoView({ block:'center', behavior:'smooth' }); } catch(e){}
+  }
 }
 function _inboxBindViewport() {
-  if (!window.visualViewport) return;
-  _inboxApplyViewport();
   if (_inboxVVbound) return;
   _inboxVVbound = true;
-  window.visualViewport.addEventListener('resize', _inboxApplyViewport);
-  window.visualViewport.addEventListener('scroll', _inboxApplyViewport);
-  // 🆕 input/textarea focus olunca da uygula (iOS resize'ı geç tetikleyebilir)
+  // input/textarea focus olunca o alanı görünür yap
   document.addEventListener('focusin', (e) => {
     const ov = document.getElementById('inboxOverlay');
     if (ov && ov.classList.contains('open') && ov.contains(e.target)) {
-      setTimeout(_inboxApplyViewport, 50);
-      setTimeout(_inboxApplyViewport, 300);
+      setTimeout(_inboxApplyViewport, 200);
     }
   });
+  // 🆕 Klavye dışına (input/textarea/buton olmayan yere) dokununca klavyeyi kapat
+  const ov = document.getElementById('inboxOverlay');
+  if (ov) {
+    ov.addEventListener('touchstart', _inboxDismissKbd, { passive: true });
+    ov.addEventListener('mousedown', _inboxDismissKbd);
+  }
+}
+function _inboxDismissKbd(e) {
+  const t = e.target;
+  if (!t) return;
+  // input/textarea/buton ve içindeki elemanlara dokunulduysa klavyeyi kapatma
+  if (t.closest && t.closest('input, textarea, button, .inbox-send-btn, .inbox-reply-bar, .inbox-compose-send-btn')) return;
+  const active = document.activeElement;
+  if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+    active.blur();
+  }
 }
 
 function inboxClose() {
