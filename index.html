@@ -39027,12 +39027,10 @@ const TEAM_LOGO_SET = new Set([
   'gr-rafina','gr-serres','gr-sparta','gr-thebes','gr-thessaloniki','gr-trikala',
   'gr-tripoli','gr-veria','gr-volos','gr-voula','gr-xanthi','gr-zakynthos'
 ]);
-// Aksanlı → ASCII normalize. Ayrışmayan özel harfler haritada; gerisini NFD + combining-mark strip halleder.
+// Türkçe → ASCII normalize (ç→c, ğ→g, ı→i, ö→o, ş→s, ü→u, İ→i, vs)
 function _trToAscii(s) {
-  const map = {'ı':'i','İ':'i','I':'i','ł':'l','Ł':'l','ø':'o','Ø':'o','đ':'d','Đ':'d','ß':'ss'};
-  return String(s || '').split('').map(c => map[c] || c).join('')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
+  const map = {'ç':'c','Ç':'c','ğ':'g','Ğ':'g','ı':'i','I':'i','İ':'i','ö':'o','Ö':'o','ş':'s','Ş':'s','ü':'u','Ü':'u'};
+  return String(s || '').split('').map(c => map[c] || c).join('').toLowerCase();
 }
 // Takım adından slug (URL-safe)
 function _teamSlug(name) {
@@ -51066,7 +51064,7 @@ function guestRenderHeader() {
   const userEl = document.querySelector('#team-roster #teamHeroUser');
   const stats = null; // eski .thb-stats yapısı yok — rank/power/players id'lerine yazılır (aşağıda)
   if(logo) {
-    logo.className = 'thb-logo c1';
+    logo.className = 'thb-logo';
     logo.style.background = v.teamRef.bg;
     logo.style.color = v.teamRef.tc;
     logo.textContent = v.teamRef.short;
@@ -63298,21 +63296,19 @@ function trn2BuildGroups(teams48, season, trnKey) {
 
   // Skor lookup: match_results + match_state finished (tek kaynak Supabase)
   const _grpMrCache = (typeof _matchResultsLoad === 'function') ? _matchResultsLoad() : {};
-  // 🆕 İsim eşleştirme kanonik anahtarla — aksan / Unicode formu (NFC/NFD) / büyük-küçük harf farkı maçı kaçırmasın
-  const _nameKey = (s) => (typeof _trToAscii === 'function') ? _trToAscii(s) : String(s || '').toLowerCase();
   const _scoreFromServer = {};
   for (const k in _grpMrCache) {
     const m = _grpMrCache[k];
     if (!m || m.season !== season) continue;
     if (m.tournament_key !== trnKey || m.tournament_phase !== 'group') continue;
-    _scoreFromServer[`${_nameKey(m.home)}|${_nameKey(m.away)}`] = m;
+    _scoreFromServer[`${m.home}|${m.away}`] = m;
   }
   if (_matchStateCache && _matchStateCache.byKey) {
     for (const m of Object.values(_matchStateCache.byKey)) {
       if (!m || m.season !== season) continue;
       if (m.tournament_key !== trnKey || m.tournament_phase !== 'group') continue;
       if (m.status !== 'finished') continue;
-      const _k = `${_nameKey(m.home)}|${_nameKey(m.away)}`;
+      const _k = `${m.home}|${m.away}`;
       if (_scoreFromServer[_k]) continue;
       _scoreFromServer[_k] = {
         home: m.home, away: m.away, hs: m.home_score, as: m.away_score,
@@ -63346,10 +63342,10 @@ function trn2BuildGroups(teams48, season, trnKey) {
     const home = _hydrateTeam(m.home);
     const away = _hydrateTeam(m.away);
     if (!home || !away) continue;
-    const hi = grp.teams.findIndex(t => _nameKey(t.name) === _nameKey(home.name));
-    const ai = grp.teams.findIndex(t => _nameKey(t.name) === _nameKey(away.name));
+    const hi = grp.teams.findIndex(t => t.name === home.name);
+    const ai = grp.teams.findIndex(t => t.name === away.name);
 
-    const _srvScore = _scoreFromServer[`${_nameKey(home.name)}|${_nameKey(away.name)}`];
+    const _srvScore = _scoreFromServer[`${home.name}|${away.name}`];
     const hs = _srvScore ? (_srvScore.hs ?? null) : (m.hg ?? null);
     const as = _srvScore ? (_srvScore.as ?? null) : (m.ag ?? null);
     const isPlayed = (typeof hs === 'number') && (typeof as === 'number');
@@ -63360,8 +63356,8 @@ function trn2BuildGroups(teams48, season, trnKey) {
       const _msFound = Object.values(_matchStateCache.byKey).find(mm =>
         mm.tournament_key === trnKey &&
         mm.tournament_phase === 'group' &&
-        _nameKey(mm.home) === _nameKey(home.name) &&
-        _nameKey(mm.away) === _nameKey(away.name) &&
+        mm.home === home.name &&
+        mm.away === away.name &&
         mm.season === season
       );
       if (_msFound && _msFound.matchDateTime) {
