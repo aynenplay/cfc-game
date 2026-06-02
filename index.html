@@ -36861,8 +36861,51 @@ async function _tournamentStateLoadFromServer() {
   } catch(e) { console.warn('[tournament_state] load hata:', e); _tournamentStateCache = {}; }
 }
 
+// 🆕 Fixture iyileştirme — tournament_state.fixture'tan playoff/groups/groupMatches
+//   silinmişse (clobber), bu yapıyı zaten yüklü match_state cache'inden yeniden kurar.
+//   Skorlar match_state'te; eksik olan yalnız yapı. Otomatik — deploy/tetik gerekmez.
+function _trn2HealFixtureFromMS(state, trnKey, season) {
+  if (!state || !_matchStateCache || !_matchStateCache.byKey) return state;
+  const fx = (state.fixture && typeof state.fixture === 'object') ? state.fixture : (state.fixture = {});
+  const groupsOk = Array.isArray(fx.groups) && fx.groups.length === 8 &&
+    fx.groups.every(g => Array.isArray(g.teams) && g.teams.length > 0) &&
+    Array.isArray(fx.groupMatches) && fx.groupMatches.length > 0;
+  const playoffOk = Array.isArray(fx.playoff) && fx.playoff.length > 0;
+  if (groupsOk && playoffOk) return state;
+  if (state.__msHealedAt === _matchStateCache.loadedAt) return state;
+  state.__msHealedAt = _matchStateCache.loadedAt;
+  const ccByName = {};
+  for (const [cc, country] of _cftAllEntries())
+    for (const lg of (country.leagues || []))
+      for (const t of (lg.teams || []))
+        if (t && t.name && !(t.name in ccByName)) ccByName[t.name] = cc;
+  const mk = name => ({ name, countryCode: ccByName[name] || null });
+  const playoff = [], groupTeams = {}, groupMatches = [];
+  for (const ms of Object.values(_matchStateCache.byKey)) {
+    if (!ms || ms.tournament_key !== trnKey || ms.season !== season) continue;
+    if (ms.tournament_phase === 'playoff') {
+      playoff.push({ home: mk(ms.home), away: mk(ms.away), _k: ms.matchKey });
+    } else if (ms.tournament_phase === 'group') {
+      const m = /_G([A-H])_W(\d+)_/.exec(ms.matchKey || '');
+      if (!m) continue;
+      const letter = m[1], week = parseInt(m[2], 10);
+      const set = groupTeams[letter] || (groupTeams[letter] = []);
+      if (!set.includes(ms.home)) set.push(ms.home);
+      if (!set.includes(ms.away)) set.push(ms.away);
+      groupMatches.push({ group: letter, week, day: ms.day, home: mk(ms.home), away: mk(ms.away) });
+    }
+  }
+  playoff.sort((a, b) => (a._k || '').localeCompare(b._k || '')).forEach(p => delete p._k);
+  if (!playoffOk && playoff.length > 0) fx.playoff = playoff;
+  if (!groupsOk && groupMatches.length > 0) {
+    fx.groups = ['A','B','C','D','E','F','G','H'].map(L => ({ letter: L, teams: (groupTeams[L] || []).map(mk) }));
+    fx.groupMatches = groupMatches;
+  }
+  return state;
+}
 function _tournamentStateGet(trnKey, season) {
-  return _tournamentStateCache[`${trnKey}_s${season}`] || null;
+  const st = _tournamentStateCache[`${trnKey}_s${season}`] || null;
+  return st ? _trn2HealFixtureFromMS(st, trnKey, season) : st;
 }
 
 // _matchResultsLoadDetail SİLİNDİ — match_state.events ana cache veya
