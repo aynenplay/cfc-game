@@ -12480,7 +12480,8 @@ body.inbox-open #main{pointer-events:none;overflow:hidden!important}
 .inbox-msg-row.unread{background:rgba(70,209,122,.05)}
 
 .inbox-msg-row.unread::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);z-index:1}
-.inbox-msg-avatar{width:46px;height:46px;border-radius:50%;background:var(--bg3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.inbox-msg-avatar{width:46px;height:46px;border-radius:50%;background:var(--bg3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;overflow:hidden}
+.inbox-msg-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}
 .inbox-msg-avatar.transfer-av{background:rgba(70,209,122,.14);border-color:rgba(70,209,122,.3)}
 .inbox-msg-avatar.system-av{background:rgba(255,214,0,.1);border-color:rgba(255,214,0,.25)}
 .inbox-msg-content{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
@@ -12547,16 +12548,10 @@ body.inbox-open #main{pointer-events:none;overflow:hidden!important}
 .inbox-thread-msg{margin-bottom:8px;display:flex;flex-direction:column}
 .inbox-thread-msg.sent{align-items:flex-end}
 .inbox-thread-msg.received{align-items:flex-start}
-/* 🆕 avatar + balon aynı satırda */
-.inbox-thread-line{display:flex;align-items:flex-end;gap:7px;max-width:88%}
-.inbox-thread-msg.sent .inbox-thread-line{flex-direction:row-reverse}
-.inbox-thread-av{width:30px;height:30px;border-radius:50%;flex-shrink:0;background:var(--bg3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:15px;overflow:hidden}
-.inbox-thread-av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
-.inbox-thread-av span{line-height:1}
-.inbox-thread-bubble{display:inline-block;max-width:100%;padding:8px 12px;border-radius:14px;font-size:12.5px;line-height:1.45;text-align:left;word-break:break-word}
+.inbox-thread-bubble{display:inline-block;max-width:80%;padding:8px 12px;border-radius:14px;font-size:12.5px;line-height:1.45;text-align:left;word-break:break-word}
 .inbox-thread-msg.received .inbox-thread-bubble{background:var(--bg3);border:1px solid var(--border);border-bottom-left-radius:4px}
 .inbox-thread-msg.sent .inbox-thread-bubble{background:linear-gradient(180deg,#1f6e44,#185836);color:#eafff2;border:1px solid rgba(70,209,122,.4);border-bottom-right-radius:4px}
-.inbox-thread-meta{font-size:9px;color:var(--text3);margin-top:2px;padding:0 38px}
+.inbox-thread-meta{font-size:9px;color:var(--text3);margin-top:2px}
 .inbox-thread-msg.sent .inbox-thread-meta{color:rgba(255,255,255,.4)}
 
 .inbox-reply-bar{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--border);flex-shrink:0;background:var(--bg2);align-items:center}
@@ -52655,23 +52650,26 @@ setTimeout(() => { fetchOnlineStats(); pingLastSeen(); }, 5000);
 setInterval(() => { fetchOnlineStats(); pingLastSeen(); }, 60000);
 
 // 🆕 INBOX POLL — realtime yedeği. Realtime açıksa zaten anlık gelir;
-// kapalıysa bu poll makul hızda yakalar. Sayfa görünürken 8sn'de bir.
+// kapalıysa bu poll yakalar. İnbox AÇIKKEN 2sn (anlık hissi), KAPALIYKEN 8sn (pil).
+let _inboxPollCnt = 0;
 setInterval(() => {
   if (document.hidden) return;
-  if (typeof _inboxLoadFromServer === 'function') {
-    _inboxLoadFromServer().then(() => {
-      if (typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
-      // Sohbet/liste açıksa anlık tazele
-      const ov = document.getElementById('inboxOverlay');
-      if (ov && ov.classList.contains('open')) {
-        if (_inboxView === 'detail' && _inboxCurrentMsg) {
-          const fresh = getInboxMsgs().find(m => m.id === _inboxCurrentMsg.id);
-          if (fresh) { _inboxCurrentMsg = fresh; inboxRenderDetail(fresh); }
-        } else if (typeof inboxRenderList === 'function') { inboxRenderList(); }
-      }
-    }).catch(()=>{});
-  }
-}, 8000);
+  if (typeof _inboxLoadFromServer !== 'function') return;
+  const ov = document.getElementById('inboxOverlay');
+  const isOpen = ov && ov.classList.contains('open');
+  _inboxPollCnt++;
+  // Açıkken her tur (2sn), kapalıyken her 4. tur (8sn)
+  if (!isOpen && (_inboxPollCnt % 4 !== 0)) return;
+  _inboxLoadFromServer().then(() => {
+    if (typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
+    if (isOpen) {
+      if (_inboxView === 'detail' && _inboxCurrentMsg) {
+        const fresh = getInboxMsgs().find(m => m.id === _inboxCurrentMsg.id);
+        if (fresh) { _inboxCurrentMsg = fresh; inboxRenderDetail(fresh); }
+      } else if (typeof inboxRenderList === 'function') { inboxRenderList(); }
+    }
+  }).catch(()=>{});
+}, 2000);
 
 // 🆕 ═══════════════════════════════════════════════════════════════════
 // MAÇ İZLEYİCİLERİ MODALI
@@ -66872,17 +66870,18 @@ function inboxOpen() {
 }
 
 // 🆕 iOS klavye düzeltmesi — visualViewport küçülünce paneli ona sığdır.
-//   Klavye açılınca panel = görünür alan; reply-bar klavyenin tam üstüne oturur,
-//   arkada boşluk/arka sayfa görünmez.
+//   Klavye açılınca panel = görünür alan; input/reply-bar klavyenin tam üstüne
+//   oturur, arkada boşluk/arka sayfa görünmez.
 let _inboxVVbound = false;
 function _inboxApplyViewport() {
   const overlay = document.getElementById('inboxOverlay');
   if (!overlay || !overlay.classList.contains('open')) return;
   const vv = window.visualViewport;
   if (!vv) return;
-  // Panel yüksekliğini görünür viewport'a sabitle, üst ofseti uygula
-  overlay.style.height = vv.height + 'px';
+  // bottom:0 ile height çakışmasın → bottom'u auto yap, top+height geçerli olsun
+  overlay.style.bottom = 'auto';
   overlay.style.top = vv.offsetTop + 'px';
+  overlay.style.height = vv.height + 'px';
 }
 function _inboxBindViewport() {
   if (!window.visualViewport) return;
@@ -66891,15 +66890,24 @@ function _inboxBindViewport() {
   _inboxVVbound = true;
   window.visualViewport.addEventListener('resize', _inboxApplyViewport);
   window.visualViewport.addEventListener('scroll', _inboxApplyViewport);
+  // 🆕 input/textarea focus olunca da uygula (iOS resize'ı geç tetikleyebilir)
+  document.addEventListener('focusin', (e) => {
+    const ov = document.getElementById('inboxOverlay');
+    if (ov && ov.classList.contains('open') && ov.contains(e.target)) {
+      setTimeout(_inboxApplyViewport, 50);
+      setTimeout(_inboxApplyViewport, 300);
+    }
+  });
 }
 
 function inboxClose() {
   const overlay = document.getElementById('inboxOverlay');
   if (overlay) {
     overlay.classList.remove('open');
-    // 🆕 Klavye için uyguladığımız inline yükseklik/top'u temizle
+    // 🆕 Klavye için uyguladığımız inline yükseklik/top/bottom'u temizle
     overlay.style.height = '';
     overlay.style.top = '';
+    overlay.style.bottom = '';
   }
   // 🆕 iOS scroll kilidini aç + sayfayı eski konumuna geri getir
   document.body.classList.remove('inbox-open');
@@ -67006,10 +67014,23 @@ function inboxRenderList() {
     const headName = m.sent ? ('↗ ' + (m.toName || m.to || 'Alıcı')) : (m.from || '—');
     const dtStr = _inboxFmtDateTime(m.ts);
     const prevText = m.subject ? m.subject : ((m.body||'').substring(0,52));
+    // 🆕 Liste avatarı: transfer→takım logosu, sohbet→karşı avatar, diğer→emoji
+    let avHtml = m.fromAvatar || '👤';
+    if (m.type === 'transfer') {
+      const _tn = String(m.from || '').replace(/^[^\p{L}\p{N}]+/u, '').trim();
+      const _logo = (typeof teamLogoUrl === 'function' && _tn) ? teamLogoUrl({ name: _tn }) : '';
+      if (_logo) avHtml = `<img src="${_logo}" alt="" loading="lazy">`;
+    } else if (m.type === 'chat') {
+      const _avId = m.sent ? ((authUser||{}).avatarId) : (m.peerAvatarId || m.fromAvatarId);
+      if (_avId && typeof getAvatarEmoji === 'function') {
+        const v = getAvatarEmoji(_avId);
+        if (v && /<img/.test(v)) avHtml = v; else if (v) avHtml = v;
+      }
+    }
     // 🆕 WhatsApp swipe-to-delete: arkada kırmızı sil, üstte kayan satır
     return `<div class="inbox-swipe" data-id="${safeId}">
       <div class="inbox-msg-row ${m.read?'':'unread'}" onclick="inboxOpenMsg('${safeId}')">
-        <div class="inbox-msg-avatar ${avCls}">${m.fromAvatar||'👤'}</div>
+        <div class="inbox-msg-avatar ${avCls}">${avHtml}</div>
         <div class="inbox-msg-content">
           <div class="inbox-msg-from">${headName}</div>
           <div class="inbox-msg-preview">${prevText}</div>
@@ -67188,31 +67209,10 @@ function inboxRenderDetail(msg) {
 
   const body = document.getElementById('inboxDetailBody');
 
-  // 🆕 Üst başlıkta avatar/logo:
-  //   - transfer teklifi → takım logosu (gönderen takım)
-  //   - sohbet/diğer → karşı tarafın avatarı (peerAvatarId) ya da mesaj fromAvatar
-  let _hdrVisual = '';
-  if (msg.type === 'transfer') {
-    // from = "🇹🇷 Artvin" gibi; bayrak/emoji'yi at, saf takım adıyla logo bul
-    const _teamName = String(msg.from || '').replace(/^[^\p{L}\p{N}]+/u, '').trim();
-    const _logo = (typeof teamLogoUrl === 'function' && _teamName) ? teamLogoUrl({ name: _teamName }) : '';
-    _hdrVisual = _logo
-      ? `<img src="${_logo}" alt="" loading="lazy">`
-      : `<span>${msg.fromAvatar || '⚽'}</span>`;
-  } else if (!msg.sent && msg.peerAvatarId && typeof getAvatarEmoji === 'function') {
-    const v = getAvatarEmoji(msg.peerAvatarId);
-    _hdrVisual = (v && /<img/.test(v)) ? v : `<span>${v || '👤'}</span>`;
-  } else {
-    _hdrVisual = `<span>${msg.fromAvatar || '👤'}</span>`;
-  }
-
   // Ana mesaj
   const _who = msg.sent ? `Kime: <b>${msg.toName || msg.to || 'Alıcı'}</b>` : `Kimden: <b>${msg.from||'—'}</b>`;
   const _dt = _inboxFmtDateTime(typeof msg.ts === 'number' ? msg.ts : _inboxParseTs(msg.time));
-  let html = `<div class="inbox-detail-head">
-      <div class="inbox-detail-head-av">${_hdrVisual}</div>
-      <div class="inbox-detail-head-txt"><div class="inbox-detail-from">${_who}</div><div class="inbox-detail-head-dt">${_dt}</div></div>
-    </div>
+  let html = `<div class="inbox-detail-from">${_who} · ${_dt}</div>
     <div class="inbox-detail-subject">${msg.subject}</div>`;
 
   // Transfer teklifi mi?
@@ -67346,20 +67346,10 @@ function inboxRenderDetail(msg) {
     html += '<div style="margin-top:14px;margin-bottom:6px;font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Konuşma</div>';
     const myName = (authUser||{}).name || 'Sen';
     const myId   = (authUser||{}).id;
-    const myAvId = (authUser||{}).avatarId || null;
-    const peerAvId = msg.peerAvatarId || null;
-    const _avHtml = (id) => {
-      const v = (typeof getAvatarEmoji === 'function') ? getAvatarEmoji(id) : '👤';
-      return (v && /<img/.test(v)) ? v : `<span>${v||'👤'}</span>`;
-    };
     msg.thread.forEach(t => {
       const isMine = t.fromId ? (t.fromId === myId) : (t.from === myName);
-      const avId = isMine ? (t.avatarId || myAvId) : (t.avatarId || peerAvId);
       html += `<div class="inbox-thread-msg ${isMine?'sent':'received'}">
-        <div class="inbox-thread-line">
-          <div class="inbox-thread-av">${_avHtml(avId)}</div>
-          <div class="inbox-thread-bubble">${t.body}</div>
-        </div>
+        <div class="inbox-thread-bubble">${t.body}</div>
         <div class="inbox-thread-meta">${t.from} · ${t.time}</div>
       </div>`;
     });
