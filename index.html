@@ -52651,8 +52651,8 @@ setTimeout(() => { fetchOnlineStats(); pingLastSeen(); }, 5000);
 setInterval(() => { fetchOnlineStats(); pingLastSeen(); }, 60000);
 
 
-// 🆕 INBOX POLL — realtime yedeği. Realtime açıksa zaten anlık gelir;
-// kapalıysa bu poll yakalar. İnbox AÇIKKEN 2sn (anlık hissi), KAPALIYKEN 8sn (pil).
+// 🆕 INBOX POLL — realtime yedeği. Sadece DEĞİŞİKLİK olunca render eder (WhatsApp gibi).
+// İnbox AÇIKKEN 2sn, KAPALIYKEN 8sn kontrol; veri aynıysa DOM'a hiç dokunmaz.
 let _inboxPollCnt = 0;
 setInterval(() => {
   if (document.hidden) return;
@@ -52664,11 +52664,15 @@ setInterval(() => {
   if (!isOpen && (_inboxPollCnt % 4 !== 0)) return;
   _inboxLoadFromServer().then(() => {
     if (typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
+    // 🆕 Veri değişmediyse hiçbir şey yapma — liste/sohbet olduğu gibi kalır
+    if (!window._inboxChanged) return;
     if (isOpen) {
       if (_inboxView === 'detail' && _inboxCurrentMsg) {
         const fresh = getInboxMsgs().find(m => m.id === _inboxCurrentMsg.id);
         if (fresh) { _inboxCurrentMsg = fresh; inboxRenderDetail(fresh); }
-      } else if (typeof inboxRenderList === 'function') { inboxRenderList(); }
+      } else if (_inboxView === 'list' && typeof inboxRenderList === 'function') {
+        inboxRenderList();
+      }
     }
   }).catch(()=>{});
 }, 2000);
@@ -66622,7 +66626,16 @@ async function _inboxLoadFromServer() {
       .eq('user_id', uid)
       .maybeSingle();
     if (error) { console.warn('[inbox] load hata:', error); _inboxCache = null; return; }
-    _inboxCache = (data && Array.isArray(data.messages)) ? data.messages : [];
+    // 🆕 DEĞİŞİKLİK TESPİTİ — yeni veri eskiyle aynıysa render etme (WhatsApp gibi).
+    //   İmza: her mesajın id + read + son içerik/zaman. Aynıysa _inboxChanged=false.
+    const _newArr = (data && Array.isArray(data.messages)) ? data.messages : [];
+    const _sig = _newArr.map(m => {
+      const th = (m && Array.isArray(m.thread) && m.thread.length) ? m.thread[m.thread.length-1] : null;
+      return [m && m.id, m && m.read ? 1 : 0, m && m.ts, th ? th.ts : '', th ? (th.body||'').length : ''].join(':');
+    }).join('|');
+    window._inboxChanged = (_sig !== window._inboxSig);
+    window._inboxSig = _sig;
+    _inboxCache = _newArr;
     const _curIds = new Set(_inboxCache.map(m => m && m.id).filter(Boolean));
     if (_inboxSeenIds && _inboxCache.some(m => m && !m.read && !_inboxSeenIds.has(m.id))) _inboxPlayDing();
     _inboxSeenIds = _curIds;
@@ -76377,12 +76390,14 @@ setTimeout(async ()=>{
             if (typeof _inboxLoadFromServer !== 'function') return;
             await _inboxLoadFromServer();
             if (typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
+            // 🆕 Veri değişmediyse DOM'a dokunma
+            if (!window._inboxChanged) return;
             const ov = document.getElementById('inboxOverlay');
             if (ov && ov.classList.contains('open')) {
               if (_inboxView === 'detail' && _inboxCurrentMsg) {
                 const fresh = getInboxMsgs().find(m => m.id === _inboxCurrentMsg.id);
                 if (fresh) { _inboxCurrentMsg = fresh; inboxRenderDetail(fresh); }
-              } else if (typeof inboxRenderList === 'function') { inboxRenderList(); }
+              } else if (_inboxView === 'list' && typeof inboxRenderList === 'function') { inboxRenderList(); }
             }
           }, 60))
           .subscribe((status) => {
