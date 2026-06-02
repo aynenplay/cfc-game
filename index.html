@@ -22530,7 +22530,7 @@ body.drawer-open{overflow:hidden}
       <button class="inbox-hdr-back" id="inboxHdrBack" onclick="inboxBackToList()" aria-label="Geri" style="display:none">‹</button>
       <div class="inbox-title">Mesajlar</div>
       <div class="inbox-header-actions">
-        <button class="inbox-compose-btn" onclick="inboxOpenCompose()" aria-label="Yeni Mesaj">
+        <button class="inbox-compose-btn" onclick="window._inboxComposeTarget=null; inboxOpenCompose()" aria-label="Yeni Mesaj">
           <svg class="inbox-compose-ico" viewBox="0 0 24 24"><path d="M12 3.5C7 3.5 3 6.9 3 11c0 1.9.8 3.6 2.2 4.9L4.5 20l4.6-1.3c.9.25 1.9.4 2.9.4 5 0 9-3.4 9-7.6S17 3.5 12 3.5z" fill="none" stroke="#06210f" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 8v6M9 11h6" stroke="#06210f" stroke-width="1.8" stroke-linecap="round"/></svg>
         </button>
         <button class="inbox-close-btn" onclick="inboxClose()">✕</button>
@@ -44346,19 +44346,48 @@ function playerSendMessage(payload) {
     if (typeof payload === 'string' && payload) player = { name: payload };
   }
   if (!player || !player.name) return;
+
+  // Oyuncunun sahibi kullanıcı id'si
+  const ownerId = player.userId || player.user_id || null;
+  if (!ownerId) {
+    alert('Bu oyuncunun bağlı bir kullanıcı hesabı yok, mesaj gönderilemez.');
+    return;
+  }
+  // Kendine mesaj engeli
+  if (authUser && ownerId === authUser.id) {
+    alert('Kendine mesaj gönderemezsin.');
+    return;
+  }
+
   closePlayerModal();
 
-  // Inbox'ta DM mesajı oluştur/bul
-  const found = _dmFindOrCreateInboxEntry(player, ctx);
-  if (!found) return;
-
-  // Inbox modal'ını aç + bu mesajı detail view'da göster
-  if (typeof inboxOpen === 'function') {
-    inboxOpen();
-    setTimeout(() => {
-      if (typeof inboxOpenMsg === 'function') inboxOpenMsg(found.entry.id);
-    }, 150);
-  }
+  // 🆕 Compose (yeni mesaj) ekranını aç, alıcıyı oyuncunun SAHİBİ kullanıcı yap.
+  //   inboxSendCompose username yerine bu hazır alıcıyı kullanır (_inboxComposeTarget).
+  window._inboxComposeTarget = {
+    id: ownerId,
+    name: player.name,
+    avatarId: player.avatarId || player.avatar_id || null
+  };
+  if (typeof inboxOpen === 'function') inboxOpen();
+  setTimeout(() => {
+    if (typeof inboxOpenCompose === 'function') inboxOpenCompose(player.name);
+    // alıcı chip'ini hazır alıcıyla göster
+    const chip = document.getElementById('inboxComposeChip');
+    const avEl = document.getElementById('inboxComposeChipAv');
+    const nmEl = document.getElementById('inboxComposeChipNm');
+    if (chip && nmEl) {
+      nmEl.textContent = player.name;
+      if (avEl) {
+        const avId = window._inboxComposeTarget.avatarId;
+        const avImg = (avId && typeof getAvatarEmoji === 'function') ? getAvatarEmoji(avId) : null;
+        avEl.innerHTML = (avImg && /<img/.test(avImg)) ? avImg : (avImg || (player.avatar || '⚽'));
+      }
+      chip.style.display = 'inline-flex';
+    }
+    // mesaj kutusuna odaklan
+    const bodyEl = document.getElementById('inboxComposeBody');
+    if (bodyEl) bodyEl.focus();
+  }, 180);
 }
 
 // ── DM Modal sistemi (inbox entegre) ──
@@ -67613,18 +67642,26 @@ async function inboxSendReply() {
 function inboxOpenCompose(toName) {
   inboxShowCompose();
   const inp = document.getElementById('inboxComposeTo');
-  if (inp) inp.value = toName || '';
+  if (inp) {
+    inp.value = toName || '';
+    // 🆕 Hazır alıcı varsa kutu kilitli (profil kartından gelen kişi değişmesin)
+    inp.readOnly = !!window._inboxComposeTarget;
+  }
   const bodyEl = document.getElementById('inboxComposeBody');
   if (bodyEl) bodyEl.value = '';
-  // chip sıfırla, ön-dolu alıcı varsa çöz
+  // chip sıfırla
   const chip = document.getElementById('inboxComposeChip');
   if (chip) chip.style.display = 'none';
+  // 🆕 Hazır alıcı (profil kartından geldi) varsa username çözme — chip dışarıda set edilir.
+  if (window._inboxComposeTarget) return;
   if (toName && typeof _inboxComposeResolveTo === 'function') _inboxComposeResolveTo(toName);
 }
 
 // 🆕 Alıcı kutusuna yazılınca avatarlı chip göster (profiles'tan çöz)
 let _inboxComposeResolveTimer = null;
 async function _inboxComposeResolveTo(val) {
+  // Kullanıcı elle yazmaya başladıysa hazır alıcıyı iptal et (username moduna dön)
+  window._inboxComposeTarget = null;
   const chip = document.getElementById('inboxComposeChip');
   if (!chip) return;
   const username = String(val || '').replace(/^@+/, '').trim().toLowerCase();
@@ -67652,41 +67689,51 @@ async function _inboxComposeResolveTo(val) {
 async function inboxSendCompose() {
   const toRaw   = document.getElementById('inboxComposeTo').value.trim();
   const body    = document.getElementById('inboxComposeBody').value.trim();
-  if(!toRaw || !body) { alert('Alıcı ve mesaj gerekli!'); return; }
-
-  // @ prefix kaldır, küçük harfe çevir
-  const username = toRaw.replace(/^@+/, '').trim().toLowerCase();
-  if (!username) { alert('Geçerli bir kullanıcı adı gir.'); return; }
-
-  // Profilden user_id bul
+  if(!body) { alert('Mesaj boş olamaz!'); return; }
   if (!window.sb) { alert('Bağlantı yok, sayfayı yenile.'); return; }
-  const { data: prof, error } = await window.sb.from('profiles')
-    .select('id, name, username, avatar_id')
-    .ilike('username', username)
-    .maybeSingle();
-  if (error || !prof) {
-    alert(`Kullanıcı bulunamadı: @${username}`);
-    return;
+
+  // 🆕 Alıcıyı bul: profil kartından geldiyse hazır hedef, yoksa username çöz
+  let toId, toName, toAvatarId;
+  if (window._inboxComposeTarget && window._inboxComposeTarget.id) {
+    toId = window._inboxComposeTarget.id;
+    toName = window._inboxComposeTarget.name || 'Kullanıcı';
+    toAvatarId = window._inboxComposeTarget.avatarId || null;
+  } else {
+    const username = toRaw.replace(/^@+/, '').trim().toLowerCase();
+    if (!username) { alert('Geçerli bir kullanıcı adı gir.'); return; }
+    const { data: prof, error } = await window.sb.from('profiles')
+      .select('id, name, username, avatar_id')
+      .ilike('username', username)
+      .maybeSingle();
+    if (error || !prof) { alert(`Kullanıcı bulunamadı: @${username}`); return; }
+    toId = prof.id;
+    toName = prof.name || ('@' + prof.username);
+    toAvatarId = prof.avatar_id || null;
   }
 
-  const myName   = (authUser||{}).name || 'Sen';
-  const myId     = (authUser||{}).id;
-  const peerName = prof.name || ('@' + prof.username);
-  const convId   = _inboxConvId(myId, prof.id);
-  const item     = { from: myName, fromId: myId, avatarId: (authUser||{}).avatarId || null, body, time: _inboxTimeStr(), ts: Date.now() };
+  // Kendine gönderme engeli
+  if (authUser && toId === authUser.id) { alert('Kendine mesaj gönderemezsin.'); return; }
+
+  const myName = (authUser||{}).name || 'Sen';
+  const myId   = (authUser||{}).id;
+  const convId = _inboxConvId(myId, toId);
+  const item   = { from: myName, fromId: myId, avatarId: (authUser||{}).avatarId || null, body, time: _inboxTimeStr(), ts: Date.now() };
 
   // Alıcının sohbetine ekle (gerçek teslim) — karşı tarafın gözünde ben'in avatarı
-  const ok = await _inboxDeliverChat(prof.id, convId, { id: myId, name: myName, avatarId: (authUser||{}).avatarId||null }, item);
+  const ok = await _inboxDeliverChat(toId, convId, { id: myId, name: myName, avatarId: (authUser||{}).avatarId||null }, item);
   if (!ok) { alert('Mesaj gönderilemedi.'); return; }
 
   // Kendi sohbetime ekle — benim gözümde peer'in avatarı
   const msgs = getInboxMsgs();
-  _inboxUpsertChat(msgs, convId, { id: prof.id, name: peerName, avatarId: prof.avatar_id||null }, item, { read: true });
+  const e = _inboxUpsertChat(msgs, convId, { id: toId, name: toName, avatarId: toAvatarId }, item, { read: true });
   saveInboxMsgs(msgs);
 
-  inboxBackToList();
+  window._inboxComposeTarget = null; // hedefi temizle
+  // 🆕 Gönderdikten sonra sohbeti aç (devam edebilsin)
+  _inboxCurrentMsg = e;
+  inboxOpenMsg(e.id);
   inboxUpdateBadge();
-  tfShowToast(`✅ Gönderildi: @${prof.username}`, 'var(--accent2)');
+  tfShowToast(`✅ Gönderildi: ${toName}`, 'var(--accent2)');
 }
 
 // ── Transfer teklifi → Inbox mesajı ──
