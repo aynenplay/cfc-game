@@ -12360,8 +12360,9 @@ body.lg-myleague-mode .lg2-tier-pills{display:none !important}
 .inbox-overlay.open{opacity:1;pointer-events:all}
 /* 🆕 İnbox açıkken arka sayfa tamamen kilitli (iOS dahil).
    body position:fixed JS ile uygulanır; bu CSS sadece destekler. */
-body.inbox-open{overflow:hidden!important;position:fixed!important;width:100%!important}
-body.inbox-open #main{pointer-events:none;overflow:hidden!important}
+/* 🆕 GENEL kilit — herhangi bir tam-ekran overlay açıkken arka sayfa donar (iOS dahil) */
+body.kbd-lock{overflow:hidden!important;position:fixed!important;width:100%!important;left:0;right:0}
+body.kbd-lock #main{pointer-events:none!important;overflow:hidden!important}
 /* 🆕 Tam sayfa (mobile-first) — masaüstünde max 480px */
 .inbox-panel{
   width:100%;
@@ -52649,6 +52650,67 @@ function showOnlinePlayersModal() {
 setTimeout(() => { fetchOnlineStats(); pingLastSeen(); }, 5000);
 setInterval(() => { fetchOnlineStats(); pingLastSeen(); }, 60000);
 
+// 🆕 ═══════════════════════════════════════════════════════════════════
+// GLOBAL SCROLL-LOCK — herhangi bir tam-ekran overlay açıkken arka sayfa (#main) donar.
+// iOS dahil: body position:fixed tekniği. Overlay'ler farklı class'larla (.open/.show)
+// açıldığı için görünürlüğü gerçek layout'tan (offsetParent + boyut) ölçeriz.
+// MutationObserver overlay class/style değişimlerini yakalar.
+// ═══════════════════════════════════════════════════════════════════
+let _lockScrollY = 0;
+let _lockActive = false;
+
+function _isOverlayVisible(el) {
+  // Görünür mü + tam-ekran fixed mi?
+  if (!el || !el.isConnected) return false;
+  const cs = getComputedStyle(el);
+  if (cs.position !== 'fixed') return false;
+  if (cs.display === 'none' || cs.visibility === 'hidden') return false;
+  if (parseFloat(cs.opacity) < 0.05) return false;
+  if (cs.pointerEvents === 'none') return false;
+  const r = el.getBoundingClientRect();
+  // Ekranın en az %60'ını kaplıyorsa "tam ekran overlay" say
+  return r.width >= window.innerWidth * 0.6 && r.height >= window.innerHeight * 0.6;
+}
+
+function _anyOverlayOpen() {
+  // Tüm bilinen overlay class'ları + id'li paneller
+  const sel = '.inbox-overlay.open, [class*="-overlay"].open, [class*="-overlay"].show, '
+            + '.modal-overlay.open, .modal-overlay.show, [class*="modal-overlay"].open, '
+            + '[class*="modal-overlay"].show, .vt-modal.show';
+  const nodes = document.querySelectorAll(sel);
+  for (const n of nodes) { if (_isOverlayVisible(n)) return true; }
+  return false;
+}
+
+function _applyScrollLock() {
+  const want = _anyOverlayOpen();
+  if (want && !_lockActive) {
+    _lockActive = true;
+    _lockScrollY = window.scrollY || window.pageYOffset || 0;
+    document.body.style.top = (-_lockScrollY) + 'px';
+    document.body.classList.add('kbd-lock');
+  } else if (!want && _lockActive) {
+    _lockActive = false;
+    document.body.classList.remove('kbd-lock');
+    document.body.style.top = '';
+    window.scrollTo(0, _lockScrollY);
+  }
+}
+
+// Overlay'lerin class/style değişimini izle → kilidi güncelle
+(function _initScrollLockObserver(){
+  let _t = null;
+  const schedule = () => { if (_t) return; _t = setTimeout(() => { _t = null; _applyScrollLock(); }, 40); };
+  const obs = new MutationObserver(schedule);
+  // Sadece class/style attribute değişimlerini izle (overlay'ler .open/.show ile açılır).
+  // childList'i de izleriz ama yalnız doğrudan body altındaki eklemeler için (yeni modal eklenebilir).
+  obs.observe(document.body, { attributes:true, attributeFilter:['class','style'], subtree:true });
+  obs.observe(document.body, { childList:true });   // body'ye yeni overlay eklenirse
+  // İlk durum
+  schedule();
+})();
+
+
 // 🆕 INBOX POLL — realtime yedeği. Realtime açıksa zaten anlık gelir;
 // kapalıysa bu poll yakalar. İnbox AÇIKKEN 2sn (anlık hissi), KAPALIYKEN 8sn (pil).
 let _inboxPollCnt = 0;
@@ -66848,13 +66910,9 @@ function inboxUpdateBadge() {
 }
 
 // ── Aç / Kapat ──
-let _inboxScrollY = 0;
 function inboxOpen() {
   document.getElementById('inboxOverlay').classList.add('open');
-  // 🆕 iOS arka scroll kilidi: scroll konumunu sakla, body'yi sabitle
-  _inboxScrollY = window.scrollY || window.pageYOffset || 0;
-  document.body.style.top = (-_inboxScrollY) + 'px';
-  document.body.classList.add('inbox-open');
+  // Arka scroll kilidi GENEL sistemce (kbd-lock) otomatik uygulanır.
   _inboxView = 'list';
   inboxShowList();
   inboxRenderList();
@@ -66909,10 +66967,7 @@ function inboxClose() {
     overlay.style.top = '';
     overlay.style.bottom = '';
   }
-  // 🆕 iOS scroll kilidini aç + sayfayı eski konumuna geri getir
-  document.body.classList.remove('inbox-open');
-  document.body.style.top = '';
-  window.scrollTo(0, _inboxScrollY);
+  // Arka scroll kilidi GENEL sistemce (kbd-lock) otomatik kalkar.
   inboxUpdateBadge();
 }
 
