@@ -25397,7 +25397,6 @@ body.drawer-open{overflow:hidden}
       <div class="rk-mode-tabs">
         <button class="rk-mode-btn active" id="rkTeamModeOverall" onclick="rkSetTeamMode('overall')">🛡️ Takım Gücü</button>
         <button class="rk-mode-btn" id="rkTeamModeCoef" onclick="rkSetTeamMode('coef')">🏆 Takım Puanı</button>
-        <button class="rk-mode-btn" id="rkTeamModeMarket" onclick="rkSetTeamMode('market')">💶 Piyasa Değeri</button>
       </div>
       <div class="rk-list" id="rkTeamsList"></div>
       <div id="rkTeamMe"></div>
@@ -39027,12 +39026,10 @@ const TEAM_LOGO_SET = new Set([
   'gr-rafina','gr-serres','gr-sparta','gr-thebes','gr-thessaloniki','gr-trikala',
   'gr-tripoli','gr-veria','gr-volos','gr-voula','gr-xanthi','gr-zakynthos'
 ]);
-// Aksanlı → ASCII normalize. Ayrışmayan özel harfler haritada; gerisini NFD + combining-mark strip halleder.
+// Türkçe → ASCII normalize (ç→c, ğ→g, ı→i, ö→o, ş→s, ü→u, İ→i, vs)
 function _trToAscii(s) {
-  const map = {'ı':'i','İ':'i','I':'i','ł':'l','Ł':'l','ø':'o','Ø':'o','đ':'d','Đ':'d','ß':'ss'};
-  return String(s || '').split('').map(c => map[c] || c).join('')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
+  const map = {'ç':'c','Ç':'c','ğ':'g','Ğ':'g','ı':'i','I':'i','İ':'i','ö':'o','Ö':'o','ş':'s','Ş':'s','ü':'u','Ü':'u'};
+  return String(s || '').split('').map(c => map[c] || c).join('').toLowerCase();
 }
 // Takım adından slug (URL-safe)
 function _teamSlug(name) {
@@ -51066,7 +51063,7 @@ function guestRenderHeader() {
   const userEl = document.querySelector('#team-roster #teamHeroUser');
   const stats = null; // eski .thb-stats yapısı yok — rank/power/players id'lerine yazılır (aşağıda)
   if(logo) {
-    logo.className = 'thb-logo c1';
+    logo.className = 'thb-logo';
     logo.style.background = v.teamRef.bg;
     logo.style.color = v.teamRef.tc;
     logo.textContent = v.teamRef.short;
@@ -73887,44 +73884,67 @@ function _teamEffectiveRating(team) {
 
 // 🆕 Bir takım için Avrupa kupası katsayısı (son 5 sezon toplamı)
 // Ülke gücü + takımın ülke içindeki rank'ına göre seed-based deterministik
-// 🆕 SIRALAMA HARİTALARI — hepsi Edge Function'da hesaplanıp world_state'e yazılır.
-//   Frontend yalnızca küçük haritaları okur — full players taraması / roster üretimi YOK.
-//     • team_coef   (computeTeamCoefficients)   → takım puanı
-//     • team_power  (computeTeamPowerAndMarket) → takım gücü (kadro overall ortalaması)
-//     • team_market (computeTeamPowerAndMarket) → piyasa değeri (kadro bonservis toplamı)
-//   _worldStateCache'ten okumuyoruz (geri-yazıldığı için yarış riski) → tek hafif fetch.
-let _teamCoefCache = null;    // { "CC:Takım": katsayı }
-let _teamPowerCache = null;   // { "CC:Takım": ortalamaGuc }
-let _teamMarketMap = null;    // { "CC:Takım": piyasaDegeri }
-async function _loadAllTeamsForRanking() {
-  if (!window.sb) { _teamCoefCache = _teamCoefCache||{}; _teamPowerCache = _teamPowerCache||{}; _teamMarketMap = _teamMarketMap||{}; return; }
-  try {
-    const { data } = await window.sb.from('world_state')
-      .select('coef:data->team_coef, power:data->team_power, market:data->team_market')
-      .eq('id', 1).maybeSingle();
-    _teamCoefCache  = (data && data.coef   && typeof data.coef   === 'object') ? data.coef   : {};
-    _teamPowerCache = (data && data.power  && typeof data.power  === 'object') ? data.power  : {};
-    _teamMarketMap  = (data && data.market && typeof data.market === 'object') ? data.market : {};
-  } catch(e) { _teamCoefCache = _teamCoefCache||{}; _teamPowerCache = _teamPowerCache||{}; _teamMarketMap = _teamMarketMap||{}; }
-}
-
-// teamRank artık kullanılmıyor (imza korunuyor — çağrı yerleri değişmedi).
 function _rkTeamCoef(countryCode, teamName, teamRank) {
-  return (_teamCoefCache && _teamCoefCache[countryCode + ':' + teamName]) || 0;
-}
+  // 🆕 Hiç maç oynanmadıysa coefficient = 0
+  // (Takım puanı = Avrupa kupası performansından gelir; sezon başında henüz maç yok)
+  try {
+    const _cache = _matchResultsLoad();
+    if (!_cache || Object.keys(_cache).length === 0) return 0; // hiç maç yok
+  } catch(e) {}
 
-// 🆕 Piyasa değeri — kullanıcının KENDİ takımı canlı (ROSTER_DATA + captainMV override),
-//   diğer takımlar server haritasından (roster üretmeden → hızlı).
-function _rkTeamMarket(cc, name) {
-  if (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.countryCode === cc && _userTeam.teamName === name) {
-    return (typeof calculateTeamValue === 'function') ? calculateTeamValue({ name, countryCode: cc }) : 0;
+  // Üst sıra takımlar daha sık Avrupa'ya katılır → daha yüksek katsayı
+  // teamRank 1 → tam katılım, 6+ → düşük katılım
+  const rank = Math.max(1, teamRank || 8);
+  const countryBase = RK_COEF_BASE[countryCode] || 4.0;
+  // Rank etkisi: 1. → ×1.0, 2. → ×0.85, 3. → ×0.7, 4. → ×0.5, 5+. → ×0.3
+  const rankMult = rank === 1 ? 1.0 : rank === 2 ? 0.85 : rank === 3 ? 0.7
+                 : rank === 4 ? 0.5 : rank === 5 ? 0.4 : rank === 6 ? 0.3 : 0.15;
+  // 5 sezonun toplamı (her sezon ayrı seed ile jitter)
+  const curSeason = (typeof getSeasonInfo === 'function') ? getSeasonInfo().season : 1;
+  let total = 0;
+  for (let i = 0; i < 5; i++) {
+    const s = curSeason - i;
+    if (s < 1) continue;
+    const seasonBase = countryBase * rankMult;
+    const r = _rkSeed(`team-${countryCode}-${teamName}-s${s}`);
+    const jitter = (r - 0.5) * 0.6 * seasonBase;
+    total += seasonBase + jitter;
   }
-  return (_teamMarketMap && _teamMarketMap[cc + ':' + name]) || 0;
+  return parseFloat(total.toFixed(2));
 }
 
-function getTop50Teams(mode) {
-  mode = mode || 'overall';
-  const wantMv = mode === 'market';  // 🆕 mv yalnızca market modunda hesaplanır (perf)
+// 🆕 TEK DÜNYA TAKIM GÜCÜ — TEK SORGUDA sadece güç verisi (hafif).
+//   Tüm oyuncuların yalnızca team_name + country_code + overall'ı çekilir
+//   (15 kolonluk tam roster DEĞİL → oyunu kastırmaz). Takım bazında top-11
+//   overall ortalaması _teamPowerCache'e yazılır. Sıralama buradan okur.
+let _teamPowerCache = null;   // { "CC:TeamName": ortalamaGuc }
+async function _loadAllTeamsForRanking() {
+  if (!window.sb) return;
+  try {
+    // Sadece güç hesabı için gereken 3 kolon — minimal yük
+    const { data, error } = await window.sb.from('players')
+      .select('team_name, country_code, overall');
+    if (error || !Array.isArray(data)) { console.warn('[teamPower] yük hata:', error); return; }
+    // Takım bazında overall'ları topla
+    const byTeam = {};
+    for (const r of data) {
+      if (!r || !r.team_name) continue;
+      const cc = (r.country_code || 'TR');
+      const key = cc + ':' + r.team_name;
+      (byTeam[key] || (byTeam[key] = [])).push(Number(r.overall) || 10);
+    }
+    // Her takım için TÜM KADRO ortalaması (top-11 değil)
+    const cache = {};
+    for (const key in byTeam) {
+      const ovrs = byTeam[key];
+      if (!ovrs.length) { cache[key] = 10; continue; }
+      cache[key] = Math.round(ovrs.reduce((a,b) => a+b, 0) / ovrs.length);
+    }
+    _teamPowerCache = cache;
+  } catch(e) { console.warn('[teamPower] exception:', e); }
+}
+
+function getTop50Teams() {
   const all = [];
   if(false) return [];
 
@@ -73946,7 +73966,6 @@ function getTop50Teams(mode) {
           rawRating: team.rating || 10,
           oz: team.oz || 0,
           cf: _rkTeamCoef(code, team.name, team.rank),
-          mv: wantMv ? _rkTeamMarket(code, team.name) : 0,
           av: TEAM_AV_BY_COUNTRY[code] || '🛡️',
           bg: team.bg, tc: team.tc, short: team.short,
           rank: team.rank,
@@ -73971,7 +73990,6 @@ function getTop50Teams(mode) {
             rawRating: myTeamHere.rating || 10,
             oz: myTeamHere.oz || 0,
             cf: _rkTeamCoef(code, myTeamHere.name, myTeamHere.rank),
-            mv: wantMv ? _rkTeamMarket(code, myTeamHere.name) : 0,
             av: TEAM_AV_BY_COUNTRY[code] || '🛡️',
             bg: myTeamHere.bg, tc: myTeamHere.tc, short: myTeamHere.short,
             rank: myTeamHere.rank,
@@ -73983,13 +74001,10 @@ function getTop50Teams(mode) {
     }
   }
 
-  // 🆕 Sıralama: aktif moda göre (overall/coef/market) → eşitlikte kullanıcı önde → oz → isim
-  const _key = mode === 'coef' ? (t => t.cf||0)
-             : mode === 'market' ? (t => t.mv||0)
-             : (t => t.o||0);
+  // 🆕 Sıralama: o azalan → eşitlikte kullanıcı takımı önde → sonra oz → isim
   return all
     .sort((a,b) =>
-      (_key(b) - _key(a)) ||
+      (b.o - a.o) ||
       ((b._isMe?1:0) - (a._isMe?1:0)) ||
       ((b.oz||0) - (a.oz||0)) ||
       (a.n > b.n ? 1 : -1)
@@ -74606,24 +74621,18 @@ function rkSetTeamMode(mode){
   _rkTeamMode = mode;
   const oBtn = document.getElementById('rkTeamModeOverall');
   const cBtn = document.getElementById('rkTeamModeCoef');
-  const mBtn = document.getElementById('rkTeamModeMarket');
   if(oBtn) oBtn.classList.toggle('active', mode==='overall');
   if(cBtn) cBtn.classList.toggle('active', mode==='coef');
-  if(mBtn) mBtn.classList.toggle('active', mode==='market');
-  rkRenderTeams(false);
+  rkRenderTeams();
 }
 
 // ── Takım satırı ──
 function rkTeamRow(t, rank, isMe){
-  const isMarket = _rkTeamMode === 'market';
-  const isCoef = _rkTeamMode === 'coef';
-  // 🆕 Piyasa değeri modu: kompakt € (fmtEUR); coef: puan; diğer: yetenek
-  const score = isMarket ? ((typeof fmtEUR === 'function') ? fmtEUR(t.mv||0) : (t.mv||0))
-              : isCoef ? (t.cf||0) : (t.o||0);
-  const isZero = isCoef && (t.cf||0)===0;
+  const score = _rkTeamMode === 'coef' ? (t.cf||0) : (t.o||0);
+  const isZero = _rkTeamMode === 'coef' && (t.cf||0)===0;
   // Coef sıralamasında 0 puanlı (Avrupa dışı) takımlara özel görsel
   const scoreStyle = isZero ? 'opacity:.4' : '';
-  const unit = isMarket ? 'değer' : (isCoef ? 'puan' : 'yetenek');
+  const unit = _rkTeamMode === 'coef' ? 'puan' : 'yetenek';
   // Tıklanabilirlik: countryCode varsa viewTeam'e yönlendir
   const cc = t.countryCode || '';
   const clickAttr = cc ? `onclick="viewTeam('${cc}', '${(t.n||'').replace(/'/g, "\\'")}')" style="cursor:pointer"` : '';
@@ -74648,31 +74657,26 @@ function rkTeamRow(t, rank, isMe){
 }
 
 // ── Render: Takımlar ──
-async function rkRenderTeams(reload){
+async function rkRenderTeams(){
   const list = document.getElementById('rkTeamsList');
   if(!list) return;
-  // 🆕 Ağır yükleme (players güç taraması + coef) SADECE sekmeye giriş/yeniden girişte.
-  //   Mod butonları (Güç/Puan/Piyasa) rkRenderTeams(false) çağırır → cache'ten anında render,
-  //   ağ sorgusu yok. Cache boşsa (ilk kez) yine de yüklenir.
-  if (reload !== false || !_teamPowerCache) {
-    list.innerHTML = '<div class="lst-empty"><div class="lst-empty-icon">⏳</div>Sıralama yükleniyor…</div>';
-    if (typeof _loadAllTeamsForRanking === 'function') {
-      try { await _loadAllTeamsForRanking(); } catch(e){}
-    }
+  // 🆕 TEK DÜNYA: takım güçlerini TEK SORGUDA çek (tüm kadro ortalaması).
+  //   Her açılışta taze çekilir (maç sonrası overall değişebilir). Hafif sorgu:
+  //   sadece team_name+country_code+overall → oyunu kastırmaz.
+  list.innerHTML = '<div class="lst-empty"><div class="lst-empty-icon">⏳</div>Sıralama yükleniyor…</div>';
+  if (typeof _loadAllTeamsForRanking === 'function') {
+    try { await _loadAllTeamsForRanking(); } catch(e){}
   }
   // Kullanıcı bu sırada başka sekmeye geçtiyse yazma
   const teamsTabVisible = (function(){ const e = document.getElementById('rk-teams'); return e && e.style.display !== 'none'; })();
   if (!teamsTabVisible) return;
   // Top 50'yi her render'da teams DB'den taze al (sıfırlanmış cf:0 ile)
-  RK_TOP_TEAMS = getTop50Teams(_rkTeamMode);
+  RK_TOP_TEAMS = getTop50Teams();
 
   // 🆕 Moda göre sırala — eşitlikte kullanıcı takımı önde
   const sorted = [...RK_TOP_TEAMS].sort((a,b) => {
     if(_rkTeamMode === 'coef') {
       return ((b.cf||0) - (a.cf||0)) || ((b._isMe?1:0) - (a._isMe?1:0));
-    }
-    if(_rkTeamMode === 'market') {
-      return ((b.mv||0) - (a.mv||0)) || ((b._isMe?1:0) - (a._isMe?1:0));
     }
     return (b.o - a.o) || ((b._isMe?1:0) - (a._isMe?1:0));
   });
@@ -74698,7 +74702,6 @@ async function rkRenderTeams(reload){
             rawRating: t.rating || 10,
             oz: t.oz || 0,
             cf: _rkTeamCoef(myCC, t.name, t.rank),
-            mv: _rkTeamMarket(myCC, t.name),
             av: TEAM_AV_BY_COUNTRY[myCC] || '🛡️',
             bg: t.bg, tc: t.tc, short: t.short,
           };
@@ -74707,7 +74710,7 @@ async function rkRenderTeams(reload){
       }
     }
   } catch(e) {}
-  if(!myTeam) myTeam = {n:'Ankara', f:'🇹🇷', cn:'Türkiye', lg:'Süper Lig', o:10, cf:_rkTeamCoef('TR','Ankara',1), mv:_rkTeamMarket('TR','Ankara'), av:'🌙'};
+  if(!myTeam) myTeam = {n:'Ankara', f:'🇹🇷', cn:'Türkiye', lg:'Süper Lig', o:10, cf:_rkTeamCoef('TR','Ankara',1), av:'🌙'};
 
   // 🆕 Modlar (power/coef) için gerçek sıra hesaplanır
   // Tüm tier 1 takımlar arası sıra:
@@ -74746,21 +74749,6 @@ async function rkRenderTeams(reload){
         }))
         .sort((a,b) =>
           (b._cf - a._cf) ||
-          ((b._isMe?1:0) - (a._isMe?1:0)) ||
-          (a.name > b.name ? 1 : -1)
-        );
-      const idx = sortedAll.findIndex(t => t._isMe);
-      myRank = idx >= 0 ? (idx + 1) : '—';
-    } else if(_rkTeamMode === 'market') {
-      // 🆕 Piyasa değeri sıralaması — calculateTeamValue ile her takım için hesapla
-      const sortedAll = compareList
-        .map(t => ({
-          ...t,
-          _mv: _rkTeamMarket(t._code, t.name),
-          _isMe : (t._code === myCountryCode && t.name === myTeamName),
-        }))
-        .sort((a,b) =>
-          (b._mv - a._mv) ||
           ((b._isMe?1:0) - (a._isMe?1:0)) ||
           (a.name > b.name ? 1 : -1)
         );
