@@ -25397,6 +25397,7 @@ body.drawer-open{overflow:hidden}
       <div class="rk-mode-tabs">
         <button class="rk-mode-btn active" id="rkTeamModeOverall" onclick="rkSetTeamMode('overall')">🛡️ Takım Gücü</button>
         <button class="rk-mode-btn" id="rkTeamModeCoef" onclick="rkSetTeamMode('coef')">🏆 Takım Puanı</button>
+        <button class="rk-mode-btn" id="rkTeamModeMarket" onclick="rkSetTeamMode('market')">💶 Piyasa Değeri</button>
       </div>
       <div class="rk-list" id="rkTeamsList"></div>
       <div id="rkTeamMe"></div>
@@ -73935,7 +73936,9 @@ async function _loadAllTeamsForRanking() {
   } catch(e) { console.warn('[teamPower] exception:', e); }
 }
 
-function getTop50Teams() {
+function getTop50Teams(mode) {
+  mode = mode || 'overall';
+  const wantMv = mode === 'market';  // 🆕 mv yalnızca market modunda hesaplanır (perf)
   const all = [];
   if(false) return [];
 
@@ -73957,6 +73960,7 @@ function getTop50Teams() {
           rawRating: team.rating || 10,
           oz: team.oz || 0,
           cf: _rkTeamCoef(code, team.name, team.rank),
+          mv: wantMv ? calculateTeamValue({ name: team.name, countryCode: code }) : 0,
           av: TEAM_AV_BY_COUNTRY[code] || '🛡️',
           bg: team.bg, tc: team.tc, short: team.short,
           rank: team.rank,
@@ -73981,6 +73985,7 @@ function getTop50Teams() {
             rawRating: myTeamHere.rating || 10,
             oz: myTeamHere.oz || 0,
             cf: _rkTeamCoef(code, myTeamHere.name, myTeamHere.rank),
+            mv: wantMv ? calculateTeamValue({ name: myTeamHere.name, countryCode: code }) : 0,
             av: TEAM_AV_BY_COUNTRY[code] || '🛡️',
             bg: myTeamHere.bg, tc: myTeamHere.tc, short: myTeamHere.short,
             rank: myTeamHere.rank,
@@ -73992,10 +73997,13 @@ function getTop50Teams() {
     }
   }
 
-  // 🆕 Sıralama: o azalan → eşitlikte kullanıcı takımı önde → sonra oz → isim
+  // 🆕 Sıralama: aktif moda göre (overall/coef/market) → eşitlikte kullanıcı önde → oz → isim
+  const _key = mode === 'coef' ? (t => t.cf||0)
+             : mode === 'market' ? (t => t.mv||0)
+             : (t => t.o||0);
   return all
     .sort((a,b) =>
-      (b.o - a.o) ||
+      (_key(b) - _key(a)) ||
       ((b._isMe?1:0) - (a._isMe?1:0)) ||
       ((b.oz||0) - (a.oz||0)) ||
       (a.n > b.n ? 1 : -1)
@@ -74612,18 +74620,24 @@ function rkSetTeamMode(mode){
   _rkTeamMode = mode;
   const oBtn = document.getElementById('rkTeamModeOverall');
   const cBtn = document.getElementById('rkTeamModeCoef');
+  const mBtn = document.getElementById('rkTeamModeMarket');
   if(oBtn) oBtn.classList.toggle('active', mode==='overall');
   if(cBtn) cBtn.classList.toggle('active', mode==='coef');
+  if(mBtn) mBtn.classList.toggle('active', mode==='market');
   rkRenderTeams();
 }
 
 // ── Takım satırı ──
 function rkTeamRow(t, rank, isMe){
-  const score = _rkTeamMode === 'coef' ? (t.cf||0) : (t.o||0);
-  const isZero = _rkTeamMode === 'coef' && (t.cf||0)===0;
+  const isMarket = _rkTeamMode === 'market';
+  const isCoef = _rkTeamMode === 'coef';
+  // 🆕 Piyasa değeri modu: kompakt € (fmtEUR); coef: puan; diğer: yetenek
+  const score = isMarket ? ((typeof fmtEUR === 'function') ? fmtEUR(t.mv||0) : (t.mv||0))
+              : isCoef ? (t.cf||0) : (t.o||0);
+  const isZero = isCoef && (t.cf||0)===0;
   // Coef sıralamasında 0 puanlı (Avrupa dışı) takımlara özel görsel
   const scoreStyle = isZero ? 'opacity:.4' : '';
-  const unit = _rkTeamMode === 'coef' ? 'puan' : 'yetenek';
+  const unit = isMarket ? 'değer' : (isCoef ? 'puan' : 'yetenek');
   // Tıklanabilirlik: countryCode varsa viewTeam'e yönlendir
   const cc = t.countryCode || '';
   const clickAttr = cc ? `onclick="viewTeam('${cc}', '${(t.n||'').replace(/'/g, "\\'")}')" style="cursor:pointer"` : '';
@@ -74666,12 +74680,15 @@ async function rkRenderTeams(){
   const teamsTabVisible = (function(){ const e = document.getElementById('rk-teams'); return e && e.style.display !== 'none'; })();
   if (!teamsTabVisible) return;
   // Top 50'yi her render'da teams DB'den taze al (sıfırlanmış cf:0 ile)
-  RK_TOP_TEAMS = getTop50Teams();
+  RK_TOP_TEAMS = getTop50Teams(_rkTeamMode);
 
   // 🆕 Moda göre sırala — eşitlikte kullanıcı takımı önde
   const sorted = [...RK_TOP_TEAMS].sort((a,b) => {
     if(_rkTeamMode === 'coef') {
       return ((b.cf||0) - (a.cf||0)) || ((b._isMe?1:0) - (a._isMe?1:0));
+    }
+    if(_rkTeamMode === 'market') {
+      return ((b.mv||0) - (a.mv||0)) || ((b._isMe?1:0) - (a._isMe?1:0));
     }
     return (b.o - a.o) || ((b._isMe?1:0) - (a._isMe?1:0));
   });
@@ -74697,6 +74714,7 @@ async function rkRenderTeams(){
             rawRating: t.rating || 10,
             oz: t.oz || 0,
             cf: _rkTeamCoef(myCC, t.name, t.rank),
+            mv: calculateTeamValue({ name: t.name, countryCode: myCC }),
             av: TEAM_AV_BY_COUNTRY[myCC] || '🛡️',
             bg: t.bg, tc: t.tc, short: t.short,
           };
@@ -74705,7 +74723,7 @@ async function rkRenderTeams(){
       }
     }
   } catch(e) {}
-  if(!myTeam) myTeam = {n:'Ankara', f:'🇹🇷', cn:'Türkiye', lg:'Süper Lig', o:10, cf:_rkTeamCoef('TR','Ankara',1), av:'🌙'};
+  if(!myTeam) myTeam = {n:'Ankara', f:'🇹🇷', cn:'Türkiye', lg:'Süper Lig', o:10, cf:_rkTeamCoef('TR','Ankara',1), mv:calculateTeamValue({name:'Ankara',countryCode:'TR'}), av:'🌙'};
 
   // 🆕 Modlar (power/coef) için gerçek sıra hesaplanır
   // Tüm tier 1 takımlar arası sıra:
@@ -74744,6 +74762,21 @@ async function rkRenderTeams(){
         }))
         .sort((a,b) =>
           (b._cf - a._cf) ||
+          ((b._isMe?1:0) - (a._isMe?1:0)) ||
+          (a.name > b.name ? 1 : -1)
+        );
+      const idx = sortedAll.findIndex(t => t._isMe);
+      myRank = idx >= 0 ? (idx + 1) : '—';
+    } else if(_rkTeamMode === 'market') {
+      // 🆕 Piyasa değeri sıralaması — calculateTeamValue ile her takım için hesapla
+      const sortedAll = compareList
+        .map(t => ({
+          ...t,
+          _mv: calculateTeamValue({ name: t.name, countryCode: t._code }),
+          _isMe : (t._code === myCountryCode && t.name === myTeamName),
+        }))
+        .sort((a,b) =>
+          (b._mv - a._mv) ||
           ((b._isMe?1:0) - (a._isMe?1:0)) ||
           (a.name > b.name ? 1 : -1)
         );
