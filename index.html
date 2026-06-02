@@ -73884,33 +73884,24 @@ function _teamEffectiveRating(team) {
 
 // 🆕 Bir takım için Avrupa kupası katsayısı (son 5 sezon toplamı)
 // Ülke gücü + takımın ülke içindeki rank'ına göre seed-based deterministik
-function _rkTeamCoef(countryCode, teamName, teamRank) {
-  // 🆕 Hiç maç oynanmadıysa coefficient = 0
-  // (Takım puanı = Avrupa kupası performansından gelir; sezon başında henüz maç yok)
+// 🆕 TAKIM PUANI — gerçek veri (sahte seed/formül silindi).
+//   Edge Function (computeTeamCoefficients) gerçek EuroCup sonuçlarından hesaplayıp
+//   world_state.data.team_coef = { "CC:Takım": katsayı } yazar. Burada salt-okunur.
+//   _worldStateCache'ten OKUMUYORUZ (o geri-yazıldığı için yarış riski) → ayrı hafif fetch.
+let _teamCoefCache = null;
+async function _loadTeamCoefFromServer() {
+  if (!window.sb) { _teamCoefCache = {}; return; }
   try {
-    const _cache = _matchResultsLoad();
-    if (!_cache || Object.keys(_cache).length === 0) return 0; // hiç maç yok
-  } catch(e) {}
+    const { data, error } = await window.sb.from('world_state')
+      .select('team_coef:data->team_coef').eq('id', 1).maybeSingle();
+    const tc = data && data.team_coef;
+    _teamCoefCache = (error || !tc || typeof tc !== 'object') ? {} : tc;
+  } catch(e) { _teamCoefCache = {}; }
+}
 
-  // Üst sıra takımlar daha sık Avrupa'ya katılır → daha yüksek katsayı
-  // teamRank 1 → tam katılım, 6+ → düşük katılım
-  const rank = Math.max(1, teamRank || 8);
-  const countryBase = RK_COEF_BASE[countryCode] || 4.0;
-  // Rank etkisi: 1. → ×1.0, 2. → ×0.85, 3. → ×0.7, 4. → ×0.5, 5+. → ×0.3
-  const rankMult = rank === 1 ? 1.0 : rank === 2 ? 0.85 : rank === 3 ? 0.7
-                 : rank === 4 ? 0.5 : rank === 5 ? 0.4 : rank === 6 ? 0.3 : 0.15;
-  // 5 sezonun toplamı (her sezon ayrı seed ile jitter)
-  const curSeason = (typeof getSeasonInfo === 'function') ? getSeasonInfo().season : 1;
-  let total = 0;
-  for (let i = 0; i < 5; i++) {
-    const s = curSeason - i;
-    if (s < 1) continue;
-    const seasonBase = countryBase * rankMult;
-    const r = _rkSeed(`team-${countryCode}-${teamName}-s${s}`);
-    const jitter = (r - 0.5) * 0.6 * seasonBase;
-    total += seasonBase + jitter;
-  }
-  return parseFloat(total.toFixed(2));
+// teamRank artık kullanılmıyor (imza korunuyor — çağrı yerleri değişmedi).
+function _rkTeamCoef(countryCode, teamName, teamRank) {
+  return (_teamCoefCache && _teamCoefCache[countryCode + ':' + teamName]) || 0;
 }
 
 // 🆕 TEK DÜNYA TAKIM GÜCÜ — TEK SORGUDA sadece güç verisi (hafif).
@@ -74666,6 +74657,10 @@ async function rkRenderTeams(){
   list.innerHTML = '<div class="lst-empty"><div class="lst-empty-icon">⏳</div>Sıralama yükleniyor…</div>';
   if (typeof _loadAllTeamsForRanking === 'function') {
     try { await _loadAllTeamsForRanking(); } catch(e){}
+  }
+  // 🆕 Takım puanı (gerçek Avrupa katsayısı) — world_state.data.team_coef
+  if (typeof _loadTeamCoefFromServer === 'function') {
+    try { await _loadTeamCoefFromServer(); } catch(e){}
   }
   // Kullanıcı bu sırada başka sekmeye geçtiyse yazma
   const teamsTabVisible = (function(){ const e = document.getElementById('rk-teams'); return e && e.style.display !== 'none'; })();
