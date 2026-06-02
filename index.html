@@ -74624,7 +74624,7 @@ function rkSetTeamMode(mode){
   if(oBtn) oBtn.classList.toggle('active', mode==='overall');
   if(cBtn) cBtn.classList.toggle('active', mode==='coef');
   if(mBtn) mBtn.classList.toggle('active', mode==='market');
-  rkRenderTeams();
+  rkRenderTeams(false);
 }
 
 // ── Takım satırı ──
@@ -74662,19 +74662,21 @@ function rkTeamRow(t, rank, isMe){
 }
 
 // ── Render: Takımlar ──
-async function rkRenderTeams(){
+async function rkRenderTeams(reload){
   const list = document.getElementById('rkTeamsList');
   if(!list) return;
-  // 🆕 TEK DÜNYA: takım güçlerini TEK SORGUDA çek (tüm kadro ortalaması).
-  //   Her açılışta taze çekilir (maç sonrası overall değişebilir). Hafif sorgu:
-  //   sadece team_name+country_code+overall → oyunu kastırmaz.
-  list.innerHTML = '<div class="lst-empty"><div class="lst-empty-icon">⏳</div>Sıralama yükleniyor…</div>';
-  if (typeof _loadAllTeamsForRanking === 'function') {
-    try { await _loadAllTeamsForRanking(); } catch(e){}
-  }
-  // 🆕 Takım puanı (gerçek Avrupa katsayısı) — world_state.data.team_coef
-  if (typeof _loadTeamCoefFromServer === 'function') {
-    try { await _loadTeamCoefFromServer(); } catch(e){}
+  // 🆕 Ağır yükleme (players güç taraması + coef) SADECE sekmeye giriş/yeniden girişte.
+  //   Mod butonları (Güç/Puan/Piyasa) rkRenderTeams(false) çağırır → cache'ten anında render,
+  //   ağ sorgusu yok. Cache boşsa (ilk kez) yine de yüklenir.
+  if (reload !== false || !_teamPowerCache) {
+    list.innerHTML = '<div class="lst-empty"><div class="lst-empty-icon">⏳</div>Sıralama yükleniyor…</div>';
+    if (typeof _loadAllTeamsForRanking === 'function') {
+      try { await _loadAllTeamsForRanking(); } catch(e){}
+    }
+    // 🆕 Takım puanı (gerçek Avrupa katsayısı) — world_state.data.team_coef
+    if (typeof _loadTeamCoefFromServer === 'function') {
+      try { await _loadTeamCoefFromServer(); } catch(e){}
+    }
   }
   // Kullanıcı bu sırada başka sekmeye geçtiyse yazma
   const teamsTabVisible = (function(){ const e = document.getElementById('rk-teams'); return e && e.style.display !== 'none'; })();
