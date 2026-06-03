@@ -3606,8 +3606,12 @@ select.form-input option{background:var(--bg)}
   overflow-y:auto;
 }
 #auth-screen.hidden{display:none}
-/* Klavye açıkken: ekran görünür alana (visualViewport) otursun → odaklanan alan klavyenin üstünde kalır */
-#auth-screen.kbd-active{height:var(--auth-vh,100%);bottom:auto;-webkit-overflow-scrolling:touch}
+/* Klavye açıkken: ekran tam kaplamaya devam eder (arka plan görünmez), alt boşluk = klavye yüksekliği → odaklanan alan klavyenin üstüne kadar kaydırılabilir */
+#auth-screen.kbd-active{padding-bottom:var(--auth-kbd-h,300px);-webkit-overflow-scrolling:touch}
+#auth-screen.kbd-active .auth-card{flex:0 0 auto}
+/* Klavye açıkken belgeyi kilitle: iOS belgeyi kaydırıp sabit auth ekranını yukarı sürüklemesin
+   (arka planda ana sayfa görünmesin / kaydırılamasın, ekran fazla yukarı kalkmasın) */
+body.auth-kbd-lock{position:fixed!important;top:0;left:0;right:0;width:100%;height:100%;overflow:hidden!important}
 
 /* Auth background decoration */
 .auth-bg{
@@ -26600,20 +26604,23 @@ window.addEventListener('load', function() {
     let active = false, blurT = 0;
     const vv = window.visualViewport;
     const isField = el => el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
-    const setVh = () => { if(vv) scr.style.setProperty('--auth-vh', Math.round(vv.height) + 'px'); };
+    const kbdHeight = () => vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
+    const setKbdVar = () => scr.style.setProperty('--auth-kbd-h', (kbdHeight() || 300) + 'px');
     const bringIntoView = () => {
       const el = document.activeElement;
-      if(isField(el) && scr.contains(el)){
-        try { el.scrollIntoView({ block: 'center' }); } catch(_){}
-      }
+      if(!vv || !isField(el) || !scr.contains(el)) return;
+      const kbdTop = vv.offsetTop + vv.height;          // klavyenin üst kenarı
+      const overlap = el.getBoundingClientRect().bottom + 16 - kbdTop; // alan klavyenin altına ne kadar taşıyor
+      if(overlap > 0) scr.scrollTop += overlap;          // yalnızca gerektiği kadar yukarı (klavyeye bitişik)
     };
     scr.addEventListener('focusin', (e) => {
       if(!isField(e.target)) return;
       clearTimeout(blurT);
       active = true;
       scr.classList.add('kbd-active');
-      setVh();
-      setTimeout(() => { setVh(); bringIntoView(); }, 300);
+      document.body.classList.add('auth-kbd-lock');
+      setKbdVar();
+      setTimeout(() => { setKbdVar(); bringIntoView(); }, 300);
     });
     scr.addEventListener('focusout', () => {
       clearTimeout(blurT);
@@ -26621,12 +26628,14 @@ window.addEventListener('load', function() {
         if(isField(document.activeElement) && scr.contains(document.activeElement)) return;
         active = false;
         scr.classList.remove('kbd-active');
-        scr.style.removeProperty('--auth-vh');
+        document.body.classList.remove('auth-kbd-lock');
+        scr.style.removeProperty('--auth-kbd-h');
+        scr.scrollTop = 0;
       }, 120);
     });
     if(vv){
-      vv.addEventListener('resize', () => { if(active){ setVh(); bringIntoView(); } });
-      vv.addEventListener('scroll', () => { if(active) setVh(); });
+      vv.addEventListener('resize', () => { if(active){ setKbdVar(); bringIntoView(); } });
+      vv.addEventListener('scroll', () => { if(active) setKbdVar(); });
     }
   })();
 });
