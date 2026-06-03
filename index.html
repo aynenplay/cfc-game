@@ -3606,6 +3606,8 @@ select.form-input option{background:var(--bg)}
   overflow-y:auto;
 }
 #auth-screen.hidden{display:none}
+/* Klavye açıkken: ekran görünür alana (visualViewport) otursun → odaklanan alan klavyenin üstünde kalır */
+#auth-screen.kbd-active{height:var(--auth-vh,100%);bottom:auto;-webkit-overflow-scrolling:touch}
 
 /* Auth background decoration */
 .auth-bg{
@@ -26588,6 +26590,43 @@ window.addEventListener('load', function() {
       });
       window.visualViewport.addEventListener('resize', checkKeyboard);
       window.visualViewport.addEventListener('scroll', checkKeyboard);
+    }
+  })();
+
+  // 🆕 Kayıt/giriş ekranı klavye yönetimi — odaklanan alan klavyenin üstünde kalsın
+  (function setupAuthKeyboard(){
+    const scr = document.getElementById('auth-screen');
+    if(!scr) return;
+    let active = false, blurT = 0;
+    const vv = window.visualViewport;
+    const isField = el => el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
+    const setVh = () => { if(vv) scr.style.setProperty('--auth-vh', Math.round(vv.height) + 'px'); };
+    const bringIntoView = () => {
+      const el = document.activeElement;
+      if(isField(el) && scr.contains(el)){
+        try { el.scrollIntoView({ block: 'center' }); } catch(_){}
+      }
+    };
+    scr.addEventListener('focusin', (e) => {
+      if(!isField(e.target)) return;
+      clearTimeout(blurT);
+      active = true;
+      scr.classList.add('kbd-active');
+      setVh();
+      setTimeout(() => { setVh(); bringIntoView(); }, 300);
+    });
+    scr.addEventListener('focusout', () => {
+      clearTimeout(blurT);
+      blurT = setTimeout(() => {
+        if(isField(document.activeElement) && scr.contains(document.activeElement)) return;
+        active = false;
+        scr.classList.remove('kbd-active');
+        scr.style.removeProperty('--auth-vh');
+      }, 120);
+    });
+    if(vv){
+      vv.addEventListener('resize', () => { if(active){ setVh(); bringIntoView(); } });
+      vv.addEventListener('scroll', () => { if(active) setVh(); });
     }
   })();
 });
