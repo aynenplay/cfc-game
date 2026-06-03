@@ -74558,11 +74558,19 @@ setTimeout(() => {
 function rkCalcCountries(){
   return _cftAllEntries()
     .map(([code, country]) => {
-      const d = _countryPts(code);
-      return { code, f: country.flag, n: country.name, cb: 0, s: d.s, total: parseFloat(d.total.toFixed(3)) };
+      // Canlı toplam: ülkenin kulüplerinin team_points toplamı (teams'ten yüklü — her zaman güncel)
+      let live = 0;
+      (country.leagues || []).forEach(lg => (lg.teams || []).forEach(t => { live += (t.teamPoints || 0); }));
+      live = parseFloat(live.toFixed(2));
+      // Edge son-5-sezon penceresi varsa onu kullan (6. sezondan itibaren 1. sezonu düşürür); yoksa canlı toplam.
+      const ep = _countryPts(code);
+      const hasEdge = ep && Array.isArray(ep.s) && ep.s.some(v => v > 0);
+      const total = hasEdge ? parseFloat((ep.total || 0).toFixed(2)) : live;
+      const s = hasEdge ? ep.s : [0, 0, 0, 0, live];
+      return { code, f: country.flag, n: country.name, cb: 0, s, total };
     })
-    .sort((a,b) => b.total - a.total)
-    .map((c,i) => ({...c, rank: i+1}));
+    .sort((a, b) => b.total - a.total)
+    .map((c, i) => ({ ...c, rank: i + 1 }));
 }
 
 // ── Sekme geçişi ──
