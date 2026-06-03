@@ -38820,7 +38820,6 @@ function showPage(name,btn){
     if(typeof _rkRefreshStats==='function') _rkRefreshStats(true).then(ok => { if(ok && typeof rkRerenderActive==='function') rkRerenderActive(); });
   }
   if(name==='events') {
-    if(typeof evAutoCheckOnLoad === 'function') evAutoCheckOnLoad();
     if(typeof evRender === 'function') evRender();
     if(typeof evRefreshTabBadges === 'function') evRefreshTabBadges();
     // 🆕 Server-side race leaderboard preload (train için tüm gerçek kullanıcılar)
@@ -38851,9 +38850,8 @@ function showPage(name,btn){
   if(name==='calendar') {
     if(typeof calRender === 'function') calRender();
   }
-  // Görev tetikleyiciler — her sayfa açılışında ilgili daily quest'i ilerletir
-  if(typeof evQuestProgress === 'function') {
-    if(name==='team') evQuestProgress('visit_team', 1);
+  // Sayfa açılış tetikleyicileri (results render + canlı maç polling)
+  {
     if(name==='results' && typeof renderResultsPage === 'function') {
       renderResultsPage();
       // 🆕 Canlı maç pollerini başlat (match_state)
@@ -38865,7 +38863,6 @@ function showPage(name,btn){
       // SONUÇLAR/TOTO dışına çıkıldığında polleri durdur
       if (typeof _liveMatchStopPolling === 'function') _liveMatchStopPolling();
     }
-    if(name==='shop') evQuestProgress('visit_shop', 1);
   }
   inboxUpdateBadge();
   if(name==='transfers') { tfRender(); }
@@ -53405,16 +53402,11 @@ function renderHomeQuickAccessBadges() {
   // Hızlı erişim grid'inden Mesajlar butonu kaldırıldığı için (Lig/Turnuva eklendi)
   // artık özel bir işlem gerekmiyor. Topbar'daki inbox butonu zaten badge gösteriyor.
 
-  // 🆕 Etkinlik (events) rozeti — aktif/tamamlanmamış görev sayısı
+  // 🆕 Etkinlik (events) rozeti — toplanabilir ödül sayısı (giriş ödülü + başarı)
   try {
     const evBadge = document.getElementById('hmEventsBadge');
-    if (evBadge && typeof evGet === 'function') {
-      const quests = evGet('cft_quests') || {};
-      let pendingCount = 0;
-      // Aktif görevleri say (henüz tamamlanmamış)
-      Object.values(quests).forEach(q => {
-        if (q && q.target && q.progress < q.target && !q.claimed) pendingCount++;
-      });
+    if (evBadge && typeof evCountClaimables === 'function') {
+      const pendingCount = evCountClaimables();
       if (pendingCount > 0) {
         evBadge.textContent = pendingCount > 9 ? '9+' : String(pendingCount);
         evBadge.style.display = 'flex';
@@ -66237,10 +66229,9 @@ function tfConfirmOffer() {
     tfShowToast(`✅ ${_targetSnap.seller}: ${fmtT(fee)} bonservis · ${fmtT(seasonSalary)}/sezon${diaStr}`, 'var(--accent2)');
   }
 
-  // Etkinlik: transfer teklifi sayacı + haftalık görev
+  // Etkinlik: transfer teklifi sayacı
   try{
     if(typeof evIncrementStat === 'function') evIncrementStat('transferOffers', 1);
-    if(typeof evQuestProgress === 'function') evQuestProgress('transfer1', 1);
     if(typeof evRefreshBadge === 'function') evRefreshBadge();
   }catch(e){}
 
@@ -68967,13 +68958,9 @@ function trCollect(id) {
   // Topbar level badge'ini ve player sayfasındaki XP bar'ı güncelle
   if(typeof updateTopbarFromUser === 'function') updateTopbarFromUser();
 
-  // Etkinlik: yaşam boyu sayaç + görev ilerlemesi
+  // Etkinlik: yaşam boyu sayaç + başarı ilerlemesi
   try{
     if(typeof evIncrementStat === 'function') evIncrementStat('trainings', 1);
-    if(typeof evQuestProgress === 'function') {
-      evQuestProgress('training', 1);    // daily
-      evQuestProgress('training5', 1);   // weekly
-    }
     if(typeof achBump === 'function') achBump('train');   // 🆕 başarı: antrenman sayacı
     if(typeof evRefreshBadge === 'function') evRefreshBadge();
   }catch(e){}
@@ -71543,13 +71530,10 @@ function calRender() {
 // ═══════════════════════════════════════
 //
 // Giriş serisi (7 günlük) → Supabase user_player (login_day/login_streak/streak_claimed), RPC ile.
-// localStorage anahtarları (görevler/başarılar/sayaçlar):
-//   cft_quests           - Aktif günlük + haftalık görevler
-//   cft_achievements     - Açılan/claim'lenen başarılar
-//   cft_lifetime_stats   - Yaşam boyu sayaçlar (antrenman, maç, vb.)
+// Başarılar (seri+pro) → Supabase (achievement_defs + players/user_player sayaçları), RPC ile.
+// Kalan localStorage anahtarı:
+//   cft_lifetime_stats   - Yaşam boyu sayaçlar (antrenman, maç, transfer, bağış vb. — yerel istatistik)
 //
-// Reward sistemi: claim'lendiğinde wlAddIncome ile cüzdana eklenir.
-// Achievement'lar tek seferlik. Daily/weekly görevler periyodik resetlenir.
 
 // ── Günlük Giriş Ödülleri (7 gün ardışık seri) ──
 // Server otoritesi: gerçek değerler RPC'deki _streak_reward'da. Bu tablo SADECE UI gösterimi.
@@ -71567,24 +71551,7 @@ const EV_STREAK_REWARDS = [
 //   { login_day:'YYYY-MM-DD', login_streak:int(0-7), streak_claimed:[int,...] }
 let _userStreakCache = { login_day: null, login_streak: 0, streak_claimed: [] };
 
-// ── Günlük Görevler — her gece yarısı resetlenir ──
-const EV_DAILY_QUESTS = [
-  { id:'login',       label:'Giriş Yap',           desc:'Bugün uygulamaya gir',           icon:'🚪', target:1, reward:1  },
-  { id:'visit_team',  label:'Takıma Bak',          desc:'Takım sayfana git',              icon:'🛡️', target:1, reward:1  },
-  { id:'training',    label:'Bir Antrenman Yap',   desc:'1 antrenman tamamla',            icon:'🏋️', target:1, reward:3  },
-  { id:'visit_shop',  label:'Mağazayı Ziyaret Et', desc:'Mağaza sayfasına git',           icon:'🛒', target:1, reward:1  },
-];
-
-// ── Haftalık Görevler — her Pazartesi resetlenir ──
-const EV_WEEKLY_QUESTS = [
-  { id:'streak7',     label:'Tam Hafta',           desc:'7 gün üst üste giriş yap',       icon:'🔥', target:7, reward:15 },
-  { id:'training5',   label:'Sıkı Çalışma',        desc:'Bu hafta 100 antrenman tamamla', icon:'💪', target:100, reward:10 },
-  { id:'transfer1',   label:'Transfer Pazarı',     desc:'1 transfer teklifi sun',         icon:'🔄', target:1, reward:12 },
-  { id:'donate1',     label:'Cömert Kaptan',       desc:'Kasaya 1 bağış yap',             icon:'💝', target:1, reward:8  },
-];
-
 // ── Storage Yardımcıları ──
-const EV_QUESTS_KEY    = 'cft_quests';
 const EV_STATS_KEY     = 'cft_lifetime_stats';
 
 function evGet(key, def) {
@@ -71604,7 +71571,6 @@ function evGetStreak() {
     streak_claimed: Array.isArray(c.streak_claimed) ? c.streak_claimed : []
   };
 }
-function evGetQuestState(){ return evGet(EV_QUESTS_KEY, { daily:{}, weekly:{}, dailyResetDate:null, weeklyResetWeek:null }); }
 function evGetStats()     { return evGet(EV_STATS_KEY, { trainings:0, matches:0, goals:0, transferOffers:0, donatedEur:0, donatedDia:0 }); }
 
 function evGetStat(key)   { return (evGetStats()[key]) || 0; }
@@ -71617,116 +71583,6 @@ function evSetStat(key, val) {
   const s = evGetStats();
   s[key] = val;
   evSet(EV_STATS_KEY, s);
-}
-
-function evGetUserLevel() {
-  try {
-    const me = (typeof ROSTER_DATA !== 'undefined') ? ROSTER_DATA.find(r => r.role==='user') : null;
-    return me ? (me.level||0) : 0;
-  } catch(e) { return 0; }
-}
-
-// Sıralama rank — placeholder, sonraki turlarda ilerleyebilir
-function evGetUserRank(type) { return 0; }
-
-// ── Tarih Yardımcıları ──
-function evToday() {
-  const d = new Date();
-  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-}
-function evWeekKey() {
-  const d = new Date();
-  // ISO hafta numarası
-  const target = new Date(d.valueOf());
-  const dayNr = (d.getDay() + 6) % 7;
-  target.setDate(target.getDate() - dayNr + 3);
-  const firstThursday = target.valueOf();
-  target.setMonth(0, 1);
-  if(target.getDay() !== 4) target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
-  const week = 1 + Math.ceil((firstThursday - target) / 604800000);
-  return d.getFullYear() + '-W' + String(week).padStart(2,'0');
-}
-
-// ── Reward Toast (özel altın) ──
-function evShowRewardToast(amount, type, label) {
-  const t = document.createElement('div');
-  t.className = 'ev-reward-toast';
-  const icon = type === 'eur' ? '💰' : '💎';
-  const sym = type === 'eur' ? '€' : '';
-  t.innerHTML = `<div class="ev-rt-icon">${icon}</div>
-    <div>${label||'Ödül Kazandın!'}</div>
-    <div class="ev-rt-amount">+${amount.toLocaleString('tr')} ${sym}</div>`;
-  document.body.appendChild(t);
-  setTimeout(() => t.style.transition = 'opacity .4s', 1500);
-  setTimeout(() => t.style.opacity = '0', 1500);
-  setTimeout(() => t.remove(), 1900);
-}
-
-function evGiveReward(dia, eur, label) {
-  if(typeof wlAddIncome === 'function') {
-    if(dia > 0) wlAddIncome('dia', dia, label || 'Etkinlik Ödülü');
-    if(eur > 0) wlAddIncome('eur', eur, label || 'Etkinlik Ödülü');
-  }
-  if(dia > 0) evShowRewardToast(dia, 'dia', label);
-  else if(eur > 0) evShowRewardToast(eur, 'eur', label);
-}
-
-// ── Quest reset kontrolü ──
-function evMaybeResetQuests() {
-  const state = evGetQuestState();
-  const today = evToday();
-  const week = evWeekKey();
-  let changed = false;
-  if(state.dailyResetDate !== today) {
-    state.daily = {};
-    state.dailyResetDate = today;
-    changed = true;
-  }
-  if(state.weeklyResetWeek !== week) {
-    state.weekly = {};
-    state.weeklyResetWeek = week;
-    changed = true;
-  }
-  if(changed) evSet(EV_QUESTS_KEY, state);
-  return state;
-}
-
-// Görev ilerlemesi (tetiklenince çağrılır)
-function evQuestProgress(questId, n) {
-  evMaybeResetQuests();
-  const state = evGetQuestState();
-  // Hangi havuzda olduğunu bul
-  const isDaily  = EV_DAILY_QUESTS.find(q => q.id === questId);
-  const isWeekly = EV_WEEKLY_QUESTS.find(q => q.id === questId);
-  const def = isDaily || isWeekly;
-  if(!def) return;
-  const pool = isDaily ? 'daily' : 'weekly';
-  if(!state[pool][questId]) state[pool][questId] = { progress:0, claimed:false };
-  if(state[pool][questId].claimed) return;
-  state[pool][questId].progress = Math.min(def.target, (state[pool][questId].progress||0) + (n||1));
-  evSet(EV_QUESTS_KEY, state);
-  // Notif badge güncelle
-  evRefreshBadge();
-}
-
-function evClaimQuest(questId) {
-  const state = evGetQuestState();
-  const isDaily  = EV_DAILY_QUESTS.find(q => q.id === questId);
-  const isWeekly = EV_WEEKLY_QUESTS.find(q => q.id === questId);
-  const def = isDaily || isWeekly;
-  if(!def) return;
-  const pool = isDaily ? 'daily' : 'weekly';
-  const q = state[pool][questId];
-  if(!q || q.claimed) return;
-  if((q.progress||0) < def.target) return;
-
-  q.claimed = true;
-  q.claimedAt = Date.now();
-  evSet(EV_QUESTS_KEY, state);
-
-  evGiveReward(def.reward, 0, def.label);
-  evRender();
-  evRefreshBadge();
 }
 
 // ── Giriş Serisi (Daily Login Streak) — SERVER OTORİTELİ (RPC) ──
@@ -71792,9 +71648,6 @@ async function evClaimStreakDay(day) {
       if (typeof _refreshWalletDisplay === 'function') _refreshWalletDisplay();
     } catch(e2) {}
 
-    // streak7 haftalık görev ilerlemesi
-    try { if (typeof evQuestProgress === 'function') evQuestProgress('streak7', 1); } catch(e3) {}
-
     if (typeof rosterToast === 'function') {
       const parts = [];
       if (data.dia) parts.push(`+${data.dia} 💎`);
@@ -71814,13 +71667,6 @@ function evCanClaimStreak() {
     if (!s.streak_claimed.includes(d)) return true;
   }
   return false;
-}
-
-// ── Otomatik kontroller (page açıldığında) ──
-function evAutoCheckOnLoad() {
-  // login quest otomatik tamamlanır
-  evQuestProgress('login', 1);
-  // visit-only quest'ler render aşamasında işaretlenir
 }
 
 // ── Render ──
@@ -72606,51 +72452,6 @@ function evRenderStreak() {
   }
 }
 
-function evQuestCardHtml(q, state) {
-  const cur = (state && state.progress) || 0;
-  const completed = cur >= q.target;
-  const claimed = state && state.claimed;
-  const pct = Math.min(100, Math.round((cur / q.target) * 100));
-
-  let cls = '';
-  if(claimed) cls += ' claimed';
-  else if(completed) cls += ' completed';
-
-  let actionBtn;
-  if(claimed) {
-    actionBtn = `<button class="ev-quest-btn claimed">✓ Alındı</button>`;
-  } else if(completed) {
-    actionBtn = `<button class="ev-quest-btn" onclick="evClaimQuest('${q.id}')">Topla</button>`;
-  } else {
-    actionBtn = `<button class="ev-quest-btn locked">${cur}/${q.target}</button>`;
-  }
-
-  const progressDisplay = q.target > 1 ? `<div class="ev-quest-progress"><div class="ev-quest-progress-fill ${completed?'done':''}" style="width:${pct}%"></div></div>` : '';
-
-  return `<div class="ev-quest${cls}">
-    <div class="ev-quest-icon">${q.icon}</div>
-    <div class="ev-quest-info">
-      <div class="ev-quest-label">${q.label}</div>
-      <div class="ev-quest-desc">${q.desc}</div>
-      ${progressDisplay}
-    </div>
-    <div class="ev-quest-action">
-      <div class="ev-quest-reward">+${q.reward}💎</div>
-      ${actionBtn}
-    </div>
-  </div>`;
-}
-
-function evRenderQuests() {
-  const dailyEl = document.getElementById('evDailyQuests');
-  const weeklyEl = document.getElementById('evWeeklyQuests');
-  if(!dailyEl || !weeklyEl) return;
-
-  const state = evMaybeResetQuests();
-  dailyEl.innerHTML  = EV_DAILY_QUESTS.map(q => evQuestCardHtml(q, state.daily[q.id])).join('');
-  weeklyEl.innerHTML = EV_WEEKLY_QUESTS.map(q => evQuestCardHtml(q, state.weekly[q.id])).join('');
-}
-
 function evRenderAchievements() {
   // 🆕 Eski sistem yerine yeni 100 başarı sistemine yönlendir.
   // evAchList artık gizli legacy elemanı; yeni achList #ev-ach içinde render edilir.
@@ -72666,18 +72467,8 @@ function evRenderAchievements() {
 // ── Bildirim badge'i (ana ekrandaki Etkinlik kartında "!" göster) ──
 function evCountClaimables() {
   let n = 0;
-  // Streak claim
+  // Giriş ödülü: toplanmamış hak edilmiş gün var mı
   if(evCanClaimStreak()) n++;
-  // Tamamlanmış ama claim'lenmemiş görevler
-  const state = evMaybeResetQuests();
-  EV_DAILY_QUESTS.forEach(q => {
-    const s = state.daily[q.id];
-    if(s && s.progress >= q.target && !s.claimed) n++;
-  });
-  EV_WEEKLY_QUESTS.forEach(q => {
-    const s = state.weekly[q.id];
-    if(s && s.progress >= q.target && !s.claimed) n++;
-  });
   // Achievement claim — 🆕 Seri + Pro görev sistemi
   if (typeof ACH_SERIES !== 'undefined' && typeof _achProgress === 'function') {
     for (const a of ACH_SERIES) if (!_achIsClaimed(a[0]) && _achProgress(a[2]) >= a[5]) n++;
@@ -72705,17 +72496,9 @@ function evRefreshTabBadges() {
   const aBadge = document.getElementById('evAchBadge');
   if(!qBadge || !aBadge) return;
 
+  // GÖREVLER sekmesi = sadece giriş ödülleri → toplanmamış hak edilmiş gün
   let qn = 0;
   if(evCanClaimStreak()) qn++;
-  const state = evMaybeResetQuests();
-  EV_DAILY_QUESTS.forEach(q => {
-    const s = state.daily[q.id];
-    if(s && s.progress >= q.target && !s.claimed) qn++;
-  });
-  EV_WEEKLY_QUESTS.forEach(q => {
-    const s = state.weekly[q.id];
-    if(s && s.progress >= q.target && !s.claimed) qn++;
-  });
   // 🆕 Başarı badge — Seri + Pro görev sistemi
   let an = 0;
   if (typeof ACH_SERIES !== 'undefined' && typeof _achProgress === 'function') {
@@ -73289,13 +73072,12 @@ function trsDonate(){
     trsToast(`🤝 ${amount.toLocaleString('tr')} 💎 kasaya bağışlandı!`, 'var(--accent2)');
   }
 
-  // Etkinlik: bağış sayacı + haftalık görev
+  // Etkinlik: bağış sayacı
   try{
     if(typeof evIncrementStat === 'function') {
       if(cur==='eur') evIncrementStat('donatedEur', amount);
       else evIncrementStat('donatedDia', amount);
     }
-    if(typeof evQuestProgress === 'function') evQuestProgress('donate1', 1);
     if(typeof evRefreshBadge === 'function') evRefreshBadge();
   }catch(e){}
 
