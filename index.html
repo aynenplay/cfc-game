@@ -26928,13 +26928,21 @@ function getPlayerMainOverall(player) {
 // 🆕 Kullanıcı için: gerçek SKILL_DEFS verisinden, yerleştirildiği mevkinin ortalaması.
 function getPlayerEffectiveRating(player, playedPosGroup) {
   if (!player) return 10;
+  const group = playedPosGroup || (typeof POS_GROUP !== 'undefined' && POS_GROUP[player.pos]) || 'MID';
 
-  // 🆕 HERKES için: oynadığı mevkinin yetenek ortalaması (forvet ≠ orta saha).
+  // 🆕 Giriş yapan kullanıcının kendi oyuncusu: skill'ler abilities'te değil antrenman
+  //   verisinde (getSkillLevels). OYNADIĞI mevkinin (group) yetenek ortalamasını oradan al.
+  if (player.role === 'user' && typeof getSkillLevels === 'function' && typeof calcOverallForGroup === 'function') {
+    const lvls = getSkillLevels(player.pos || 'MID');
+    return Math.max(1, Math.min(99, Math.round(calcOverallForGroup(group, lvls))));
+  }
+
+  // 🆕 HERKES (bot/diğer): oynadığı mevkinin yetenek ortalaması (forvet ≠ orta saha).
   //   45 yetenekli abilities varsa o grubun ortalamasını al; yoksa overall fallback.
   const ab = player.abilities;
   const hasGroupedAbilities = ab && typeof ab === 'object' && ab.GK && ab.DEF && ab.MID && ab.FWD;
   if (hasGroupedAbilities) {
-    const base = getPlayerPositionAvg(player, playedPosGroup);
+    const base = getPlayerPositionAvg(player, group);
     return Math.max(1, Math.min(99, Math.round(base)));
   }
 
