@@ -51195,6 +51195,25 @@ function exitGuestMode(silent) {
   }
 }
 
+// 🆕 Gerçek tesis gelişim % — herhangi bir takımın Supabase tesis seviyelerinden (uydurma seed YOK).
+//   calcDevLevel ile aynı ölçek (6 tesis × 10 = 60). Eksik tesis = seviye 1 → gelişmemiş takım %10.
+async function _teamRealDevPct(cc, name) {
+  if (!window.sb || !cc || !name) return null;
+  try {
+    const { data } = await window.sb.from('team_data').select('data')
+      .eq('country_code', cc).eq('team_name', name).eq('data_key', 'facilities').maybeSingle();
+    const levels = (data && data.data) ? data.data : {};
+    const facs = (typeof FAC_DATA !== 'undefined') ? FAC_DATA : [];
+    if (!facs.length) return null;
+    let total = 0;
+    for (const fc of facs) {
+      const lvl = (levels[fc.id] && levels[fc.id] >= 1) ? levels[fc.id] : 1;
+      total += lvl;
+    }
+    return Math.round((total / (facs.length * 10)) * 100);
+  } catch(e) { return null; }
+}
+
 // Hero başlığını ziyaret edilen takıma göre güncelle
 function guestRenderHeader() {
   if(!_viewingTeam) return;
@@ -51215,12 +51234,16 @@ function guestRenderHeader() {
     }
   }
   if(name) name.textContent = v.teamRef.name;
-  // Gelişim % — ziyaret edilen takım için seed bazlı. Artık hero'da DEĞİL, TESİS sayfasında gösterilir.
-  const devSeed = (v.countryCode.charCodeAt(0)*53 + (v.teamRef.rank||1)*11) & 0xff;
-  const devPct  = 5 + (devSeed % 35);
-  v._devPct = devPct; // TESİS sayfası bunu okur
+  // 🆕 Gerçek tesis gelişim % — Supabase'ten (uydurma seed kaldırıldı)
+  v._devPct = null;
   const facEl = document.getElementById('teamHeroFacility');
-  if(facEl){ facEl.textContent = '%' + devPct; facEl.style.color = devPct === 100 ? '#ffd11a' : '#9fe06a'; }
+  if(facEl) facEl.textContent = '%—';
+  _teamRealDevPct(v.countryCode, v.teamRef.name).then(pct => {
+    const p = (pct != null) ? pct : 10;
+    v._devPct = p;
+    const fe = document.getElementById('teamHeroFacility');
+    if(fe && _viewingTeam === v){ fe.textContent = '%' + p; fe.style.color = p === 100 ? '#ffd11a' : '#9fe06a'; }
+  });
   if(meta) meta.textContent = `${v.country.flag} ${v.country.name} · ${v.leagueName}`;
   // Bu takımın kaptanı kim? (deterministic — guest roster ile aynı seed)
   let roster = [];
@@ -52217,7 +52240,7 @@ async function guestRenderFacilities() {
           <div style="font-size:10px;color:var(--text3)">Yetkisiz görüntüleme — değişiklik yapamazsın</div>
         </div>
         <div style="text-align:right;flex-shrink:0">
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:#b39ddb;line-height:1">%${(typeof v._devPct === 'number') ? v._devPct : (5 + (((v.countryCode.charCodeAt(0)*53 + (v.teamRef.rank||1)*11) & 0xff) % 35))}</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:#b39ddb;line-height:1">%${(() => { const facs=(typeof FAC_DATA!=='undefined')?FAC_DATA:[]; if(!facs.length) return 0; let t=0; for(const fc of facs){ const l=(visitedFacLevels[fc.id]&&visitedFacLevels[fc.id]>=1)?visitedFacLevels[fc.id]:1; t+=l; } return Math.round((t/(facs.length*10))*100); })()}</div>
           <div style="font-size:9px;color:var(--text3);margin-top:2px">🏗️ Gelişim</div>
         </div>
       </div>
