@@ -786,9 +786,12 @@ to{opacity:1;transform:translateY(0)}}
 .rk-cnt-info{flex:1;min-width:0}
 .rk-cnt-name{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rk-cnt-meta{font-size:10px;color:var(--text3);margin-top:1px}
-.rk-cnt-seasons{display:flex;gap:2px;margin-top:4px}
-.rk-cnt-s{flex:1;height:3px;background:var(--bg3);border-radius:2px;overflow:hidden}
-.rk-cnt-s-fill{height:100%;background:linear-gradient(90deg,var(--accent2),var(--accent))}
+.rk-cnt-szrow{display:flex;gap:5px;margin-top:5px;flex-wrap:wrap}
+.rk-cnt-szchip{display:flex;flex-direction:column;align-items:center;min-width:42px;padding:3px 7px;background:var(--bg3);border:1px solid var(--border);border-radius:7px;line-height:1}
+.rk-cnt-szchip.cur{border-color:var(--accent);background:rgba(0,230,118,.10)}
+.rk-cnt-szchip-lbl{font-size:8.5px;color:var(--text3);letter-spacing:.3px;margin-bottom:2px}
+.rk-cnt-szchip-val{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:800;color:var(--text)}
+.rk-cnt-szchip.empty .rk-cnt-szchip-val{color:var(--text3)}
 .rk-cnt-total{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:var(--gold);text-align:right;flex-shrink:0;min-width:54px}
 .rk-cnt-row.me-row{background:rgba(0,230,118,.07);border-left:3px solid var(--accent);padding-left:11px}
 
@@ -74567,7 +74570,7 @@ function rkCalcCountries(){
       const hasEdge = ep && Array.isArray(ep.s) && ep.s.some(v => v > 0);
       const total = hasEdge ? parseFloat((ep.total || 0).toFixed(2)) : live;
       const s = hasEdge ? ep.s : [0, 0, 0, 0, live];
-      return { code, f: country.flag, n: country.name, cb: 0, s, total };
+      return { code, f: country.flag, n: country.name, cb: 0, s, total, clubs: (country.total || 0) };
     })
     .sort((a, b) => b.total - a.total)
     .map((c, i) => ({ ...c, rank: i + 1 }));
@@ -75022,18 +75025,21 @@ function rkRenderCountries(){
   const list = document.getElementById('rkCountriesList');
   if(!list) return;
   const data = rkCalcCountries();
-  // Maks total (mini bar normalleştirmesi için)
-  const maxSeasonVal = Math.max(...data.flatMap(c => c.s), 1);
-
-  // Kullanıcının ülke kodu (dinamik)
+  const curSeason = (typeof getSeasonInfo === 'function') ? getSeasonInfo().season : 1;
   const myCC = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.countryCode : 'TR';
 
-  // Lig sayfası ve diğer sıralamalarla AYNI lst-* yapısı
   list.innerHTML = '<div class="lst-list">' + data.map(c => {
     const isMe = c.code === myCC;
-    const seasons = c.s.map(v => {
-      const w = Math.max(8, Math.round((v / maxSeasonVal) * 100));
-      return `<div class="rk-cnt-s"><div class="rk-cnt-s-fill" style="width:${w}%"></div></div>`;
+    // Son 5 sezonun sayısal değerleri (yalnızca başlamış sezonlar gösterilir)
+    const chips = c.s.map((v, i) => {
+      const sn = curSeason - 4 + i;
+      if (sn < 1) return '';
+      const isCur = sn === curSeason;
+      const empty = !(v > 0);
+      return `<div class="rk-cnt-szchip ${isCur?'cur':''} ${empty?'empty':''}">
+        <div class="rk-cnt-szchip-lbl">${sn}. Sz</div>
+        <div class="rk-cnt-szchip-val">${empty ? '\u2014' : v.toFixed(2)}</div>
+      </div>`;
     }).join('');
 
     return `<div class="lst-row ${isMe?'is-user':''}">
@@ -75041,12 +75047,12 @@ function rkRenderCountries(){
       <div style="flex-shrink:0;width:38px;display:flex;align-items:center;justify-content:center;font-size:30px;line-height:1">${c.f}</div>
       <div class="lst-info-col">
         <div class="lst-pname ${isMe?'user-mark':''}">${c.n}</div>
-        <div class="lst-psub" style="margin-bottom:4px">6 kulüp · son 5 sezon</div>
-        <div class="rk-cnt-seasons">${seasons}</div>
+        <div class="lst-psub" style="margin-bottom:2px">${c.clubs} kulüp · son 5 sezon</div>
+        <div class="rk-cnt-szrow">${chips}</div>
       </div>
       <div>
         <div class="lst-stat-val ${c.rank<=3?'gold':''}">${c.total.toFixed(2)}</div>
-        <div class="lst-stat-unit">puan</div>
+        <div class="lst-stat-unit">toplam</div>
       </div>
     </div>`;
   }).join('') + '</div>';
