@@ -68342,41 +68342,15 @@ function getUserEffectiveMaxEnergy() {
   return max;
 }
 
-// Günlük reset kontrolü + dinamik max senkronu:
-// - Kayıtlı dayKey ile mevcut dayKey farklıysa → yeni gün, enerji yeni max'a sıfırla
-// - Aynı gün ama max değişmişse (takım/tesis değişimi) → fark kadar bonus uygula veya cap
-// - Kullanılmayan enerji KAYBOLUR (gün geçişinde üstüne eklenmez)
+// 🆕 ENERJİ artık SERVER tarafından (UTC 00:00) yenilenir — istemci hiçbir şeyi
+// sıfırlamaz veya yazmaz. Bu fonksiyon yalnızca cache'teki değeri okuyup max'ı
+// gösterim için günceller (geriye uyumluluk: aynı imza, aynı dönüş şekli).
 function trCheckEnergyReset() {
   const e = trGetEnergy();
-  const today = getUserDayKey();
-  let changed = false;
-
-  if(e.dayKey !== today) {
-    // Yeni gün — taze max enerji ver (bonus dahil dinamik max)
-    e.max = getUserEffectiveMaxEnergy();
-    e.current = e.max;
-    e.dayKey = today;
-    changed = true;
-  } else {
-    // Aynı gün — takım/tesis değişimine göre max güncelle
-    const oldMax = (typeof e.max === 'number') ? e.max : ENERGY_MAX;
-    const newMax = getUserEffectiveMaxEnergy();
-    if(newMax > oldMax) {
-      // Bonus kazanıldı (takıma katıldı / tesis yükseltildi)
-      // Fark kadar bonus topbardaki enerjiye eklenir
-      e.current = Math.max(0, e.current) + (newMax - oldMax);
-      e.max = newMax;
-      changed = true;
-    } else if(newMax < oldMax) {
-      // Bonus kaybedildi (takımdan ayrıldı)
-      // current yeni max'la sınırlandırılır
-      if(e.current > newMax) e.current = newMax;
-      e.max = newMax;
-      changed = true;
-    }
-  }
-
-  if(changed) trSaveEnergy(e);
+  // max'ı dinamik göster (takım/tesis durumuna göre) — current'a DOKUNMA, server yönetir.
+  e.max = getUserEffectiveMaxEnergy();
+  // current asla max'ı aşmamalı (tesis düşmesi vb. durumlarda görsel clamp)
+  if (typeof e.current === 'number' && e.current > e.max) e.current = e.max;
   return e;
 }
 
