@@ -8744,6 +8744,10 @@ body.team-captain .pr-mv.is-custom:hover{color:#ffe082}
 .ev-day.locked{opacity:.4}
 .ev-day.bonus{border-color:rgba(255,213,79,.5);background:linear-gradient(135deg,rgba(255,213,79,.06),transparent)}
 .ev-day.bonus.today{border-color:#ffd54f;background:linear-gradient(135deg,rgba(255,213,79,.2),rgba(255,193,7,.1))}
+/* Gün kartı durum etiketi (Topla / Alındı) */
+.ev-day-state{font-size:8px;font-weight:800;line-height:1;margin-top:1px}
+.ev-day.claimed .ev-day-state{color:#00c853}
+.ev-day-claim{color:#06120a;background:linear-gradient(135deg,var(--accent),#00c853);padding:2px 6px;border-radius:5px;letter-spacing:.2px;box-shadow:0 1px 4px rgba(0,230,118,.4);animation:evPulse 2s ease-in-out infinite}
 
 /* Çok dar ekranlarda (≤360px) daha sıkı */
 @media (max-width: 360px){
@@ -40278,6 +40282,15 @@ function authInit(){
             };
           }
 
+          // 🆕 Giriş serisi RAM cache ön-doldur (server otoriteli)
+          if (uplayer) {
+            _userStreakCache = {
+              login_day: uplayer.login_day || null,
+              login_streak: (typeof uplayer.login_streak === 'number') ? uplayer.login_streak : 0,
+              streak_claimed: Array.isArray(uplayer.streak_claimed) ? uplayer.streak_claimed : []
+            };
+          }
+
           // 🆕 Skills + Active Trainings — SERVER TEK DOĞRU KAYNAK
           // Login'de daima lokal cft_tr_* anahtarları silinir (eski/kirli veri kalıntısını önler).
           // Sonra server'dan gelen veriler RAM cache + localStorage'a yazılır.
@@ -40781,6 +40794,8 @@ function doLogin(){
       // 🆕 Wallet + Energy + Team ön-yükle (RAM cache)
       try { if (typeof wlLoadFromServer === 'function') wlLoadFromServer().catch(()=>{}); } catch(e){}
       try { if (typeof _energyLoadFromServer === 'function') _energyLoadFromServer().catch(()=>{}); } catch(e){}
+      // 🆕 Giriş serisini server UTC günüyle güncelle (manipülasyona kapalı)
+      try { if (typeof evTouchLoginStreak === 'function') evTouchLoginStreak().catch(()=>{}); } catch(e){}
       try { await userTeamLoadFromServer(); } catch(e){}
       try { if (typeof _loadRealCaptainsFromServer === 'function') await _loadRealCaptainsFromServer(); } catch(e){}
       try { if (typeof _teamStrategyLoadFromServer === 'function') await _teamStrategyLoadFromServer(); } catch(e){}
@@ -71543,8 +71558,8 @@ function calRender() {
 //   ETKİNLİK (EVENTS): Günlük Görevler + Başarılar
 // ═══════════════════════════════════════
 //
-// 3 storage anahtarı:
-//   cft_daily_streak     - 7 günlük giriş çarkı state'i
+// Giriş serisi (7 günlük) → Supabase user_player (login_day/login_streak/streak_claimed), RPC ile.
+// localStorage anahtarları (görevler/başarılar/sayaçlar):
 //   cft_quests           - Aktif günlük + haftalık görevler
 //   cft_achievements     - Açılan/claim'lenen başarılar
 //   cft_lifetime_stats   - Yaşam boyu sayaçlar (antrenman, maç, vb.)
@@ -71552,17 +71567,21 @@ function calRender() {
 // Reward sistemi: claim'lendiğinde wlAddIncome ile cüzdana eklenir.
 // Achievement'lar tek seferlik. Daily/weekly görevler periyodik resetlenir.
 
-// ── Günlük Çark Ödülleri (7 gün döngü, az ama motive edici) ──
-// Toplam haftalık: ~46💎 + 2.000€
+// ── Günlük Giriş Ödülleri (7 gün ardışık seri) ──
+// Server otoritesi: gerçek değerler RPC'deki _streak_reward'da. Bu tablo SADECE UI gösterimi.
 const EV_STREAK_REWARDS = [
-  { day:1, dia:1,                     icon:'🎁' },
-  { day:2, dia:2,                     icon:'🎁' },
-  { day:3, dia:4,  eur:400,           icon:'🎁' },
-  { day:4, dia:6,                     icon:'🎁' },
-  { day:5, dia:8,  eur:600,           icon:'🎁' },
-  { day:6, dia:10,                    icon:'🎁' },
-  { day:7, dia:15, eur:1000,          icon:'🎉', bonus:true }, // büyük gün
+  { day:1, dia:3,  eur:300,  energy:1,  icon:'🎁' },
+  { day:2, dia:6,  eur:600,  energy:4,  icon:'🎁' },
+  { day:3, dia:9,  eur:900,  energy:7,  icon:'🎁' },
+  { day:4, dia:12, eur:1200, energy:10, icon:'🎁' },
+  { day:5, dia:15, eur:1500, energy:13, icon:'🎁' },
+  { day:6, dia:18, eur:1800, energy:16, icon:'🎁' },
+  { day:7, dia:21, eur:2100, energy:19, icon:'🎉', bonus:true },
 ];
+
+// 🆕 Giriş serisi RAM cache — Supabase user_player'dan gelir (login pull doldurur).
+//   { login_day:'YYYY-MM-DD', login_streak:int(0-7), streak_claimed:[int,...] }
+let _userStreakCache = { login_day: null, login_streak: 0, streak_claimed: [] };
 
 // ── Günlük Görevler — her gece yarısı resetlenir ──
 const EV_DAILY_QUESTS = [
@@ -71611,7 +71630,6 @@ const EV_ACHIEVEMENTS = [
 ];
 
 // ── Storage Yardımcıları ──
-const EV_STREAK_KEY    = 'cft_daily_streak';
 const EV_QUESTS_KEY    = 'cft_quests';
 const EV_ACH_KEY       = 'cft_achievements';
 const EV_STATS_KEY     = 'cft_lifetime_stats';
@@ -71624,7 +71642,15 @@ function evSet(key, val) {
   try { localStorage.setItem(key, JSON.stringify(val)); } catch(e) {}
 }
 
-function evGetStreak()    { return evGet(EV_STREAK_KEY, { currentDay:1, lastClaimDate:null, totalDays:0 }); }
+// 🆕 Giriş serisi state'i RAM cache'ten (Supabase user_player). localStorage YOK.
+function evGetStreak() {
+  const c = _userStreakCache || {};
+  return {
+    login_day: c.login_day || null,
+    login_streak: (typeof c.login_streak === 'number') ? c.login_streak : 0,
+    streak_claimed: Array.isArray(c.streak_claimed) ? c.streak_claimed : []
+  };
+}
 function evGetQuestState(){ return evGet(EV_QUESTS_KEY, { daily:{}, weekly:{}, dailyResetDate:null, weeklyResetWeek:null }); }
 function evGetAchState()  { return evGet(EV_ACH_KEY, {}); }
 function evGetStats()     { return evGet(EV_STATS_KEY, { trainings:0, matches:0, goals:0, transferOffers:0, donatedEur:0, donatedDia:0 }); }
@@ -71751,45 +71777,86 @@ function evClaimQuest(questId) {
   evRefreshBadge();
 }
 
-// ── Daily Streak ──
-function evClaimStreak() {
-  const s = evGetStreak();
-  const today = evToday();
-  if(s.lastClaimDate === today) return; // bugün zaten alındı
-
-  // Gün geçmiş mi? Eğer 1+ gün boşluk varsa streak resetlenir (haftadaki gün 1'e döner)
-  let streakReset = false;
-  if(s.lastClaimDate) {
-    const last = new Date(s.lastClaimDate);
-    const todayDate = new Date(today);
-    const diff = Math.round((todayDate - last) / 86400000);
-    if(diff > 1) streakReset = true;
-  }
-
-  if(streakReset) s.currentDay = 1;
-  // currentDay 1-7 arası, claim ettikten sonra +1
-  const claimDay = s.currentDay;
-  const reward = EV_STREAK_REWARDS[claimDay - 1];
-  if(!reward) return;
-
-  s.lastClaimDate = today;
-  s.totalDays = (s.totalDays||0) + 1;
-  s.currentDay = claimDay >= 7 ? 1 : claimDay + 1;
-  evSet(EV_STREAK_KEY, s);
-
-  // Reward dağıt
-  evGiveReward(reward.dia||0, reward.eur||0, `Gün ${claimDay} Hediyesi`);
-
-  // streak7 weekly quest progress'ini de güncelle
-  evQuestProgress('streak7', 1);
-
-  evRender();
-  evRefreshBadge();
+// ── Giriş Serisi (Daily Login Streak) — SERVER OTORİTELİ (RPC) ──
+// Giriş anında çağrılır: server UTC günüyle seriyi günceller, RAM cache'i tazeler.
+async function evTouchLoginStreak() {
+  if (!window.sb || !authUser || !authUser.id) return;
+  try {
+    const { data, error } = await window.sb.rpc('touch_login_streak');
+    if (error) { console.warn('[streak] touch hata:', error.message || error); return; }
+    if (data && typeof data === 'object') {
+      _userStreakCache = {
+        login_day: data.login_day || null,
+        login_streak: (typeof data.login_streak === 'number') ? data.login_streak : 0,
+        streak_claimed: Array.isArray(data.streak_claimed) ? data.streak_claimed : []
+      };
+      if (typeof evRender === 'function') evRender();
+      if (typeof evRefreshBadge === 'function') evRefreshBadge();
+    }
+  } catch(e) { console.warn('[streak] touch exception:', e); }
 }
 
+// Belirli bir günün ödülünü topla (hak edilmiş + toplanmamış olmalı). Server ödülü yazar.
+async function evClaimStreakDay(day) {
+  if (!window.sb || !authUser || !authUser.id) return;
+  const s = evGetStreak();
+  if (day < 1 || day > 7) return;
+  if (day > s.login_streak) return;                    // henüz hak edilmedi
+  if (s.streak_claimed.includes(day)) return;          // zaten toplandı
+  try {
+    const { data, error } = await window.sb.rpc('claim_streak_reward', { p_day: day });
+    if (error) { console.warn('[streak] claim hata:', error.message || error); return; }
+    if (!data || data.ok !== true) {
+      // not_earned / already_claimed / bad_day — sessizce render tazele
+      if (data && data.streak_claimed) _userStreakCache.streak_claimed = data.streak_claimed;
+      if (typeof evRender === 'function') evRender();
+      return;
+    }
+    // Cache: toplandı işaretle
+    if (Array.isArray(data.streak_claimed)) _userStreakCache.streak_claimed = data.streak_claimed;
+    else if (!_userStreakCache.streak_claimed.includes(day)) _userStreakCache.streak_claimed.push(day);
+
+    // Cüzdan + enerji RAM cache'lerini server değerine yaklaştır (UI anında güncel görünsün)
+    try {
+      if (_wlCache) {
+        _wlCache.eur = (Number(_wlCache.eur)||0) + (Number(data.eur)||0);
+        _wlCache.dia = (Number(_wlCache.dia)||0) + (Number(data.dia)||0);
+        _wlCache.total_in = (Number(_wlCache.total_in)||0) + (Number(data.eur)||0);
+        _wlCache.totalIn = _wlCache.total_in;
+      }
+      if (typeof _energyCache === 'object' && _energyCache && typeof data.energy === 'number') {
+        const mx = (typeof getUserEffectiveMaxEnergy === 'function') ? getUserEffectiveMaxEnergy() : 450;
+        _energyCache.current = Math.min(mx, (Number(_energyCache.current)||0) + data.energy);
+        _energyCache.max = mx;
+        const ed = document.getElementById('energy-display');
+        if (ed) ed.textContent = Math.max(0, _energyCache.current);
+      }
+      if (typeof updateCurrencyDisplay === 'function') updateCurrencyDisplay();
+      if (typeof _refreshWalletDisplay === 'function') _refreshWalletDisplay();
+    } catch(e2) {}
+
+    // streak7 haftalık görev ilerlemesi
+    try { if (typeof evQuestProgress === 'function') evQuestProgress('streak7', 1); } catch(e3) {}
+
+    if (typeof rosterToast === 'function') {
+      const parts = [];
+      if (data.dia) parts.push(`+${data.dia} 💎`);
+      if (data.eur) parts.push(`+${data.eur} €`);
+      if (data.energy) parts.push(`+${data.energy} ⚡`);
+      rosterToast(`Gün ${day} hediyesi: ${parts.join('  ')}`, 'ok');
+    }
+    if (typeof evRender === 'function') evRender();
+    if (typeof evRefreshBadge === 'function') evRefreshBadge();
+  } catch(e) { console.warn('[streak] claim exception:', e); }
+}
+
+// Toplanmamış (hak edilmiş ama alınmamış) ödül var mı? — badge için
 function evCanClaimStreak() {
   const s = evGetStreak();
-  return s.lastClaimDate !== evToday();
+  for (let d = 1; d <= s.login_streak; d++) {
+    if (!s.streak_claimed.includes(d)) return true;
+  }
+  return false;
 }
 
 // ── Achievements ──
@@ -72547,55 +72614,71 @@ function evRenderStreak() {
   if(!grid) return;
 
   const s = evGetStreak();
-  const today = evToday();
-  const claimedToday = s.lastClaimDate === today;
-  const currentDay = s.currentDay;
+  const streak = s.login_streak || 0;          // hak edilen en yüksek gün (0-7)
+  const claimed = s.streak_claimed || [];       // toplanan gün no'ları
 
-  if(meta) meta.textContent = `Toplam: ${s.totalDays||0} gün giriş`;
+  if(meta) meta.textContent = streak > 0 ? `Seri: ${streak}/7 gün` : 'Seri başlamadı';
 
   // 7 gün kart
   let html = '';
   for(let i = 1; i <= 7; i++) {
     const reward = EV_STREAK_REWARDS[i-1];
     let cls = '';
-    let icon = reward.icon;
     if(reward.bonus) cls += ' bonus';
 
-    if(i < currentDay) {
+    const earned = i <= streak;            // bu gün hak edildi mi
+    const isClaimed = claimed.includes(i); // toplandı mı
+    const canClaim = earned && !isClaimed; // toplanabilir mi
+
+    let stateLabel = '';
+    let onclick = '';
+    if(isClaimed) {
       cls += ' claimed';
-    } else if(i === currentDay && !claimedToday) {
+      stateLabel = '<div class="ev-day-state">✓ Alındı</div>';
+    } else if(canClaim) {
       cls += ' today';
-    } else if(i === currentDay && claimedToday) {
-      cls += ' claimed';
+      stateLabel = '<div class="ev-day-state ev-day-claim">Topla</div>';
+      onclick = `onclick="evClaimStreakDay(${i})"`;
     } else {
       cls += ' locked';
     }
 
-    const rwd = reward.dia ? `${reward.dia}💎` : `${reward.eur}€`;
+    // Ödül özeti: elmas + euro + enerji
+    const rwdParts = [];
+    if(reward.dia)    rwdParts.push(`${reward.dia}💎`);
+    if(reward.energy) rwdParts.push(`${reward.energy}⚡`);
+    const rwd = rwdParts.join(' ');
     const eur = reward.eur ? `<div style="font-size:9px;color:#ffa726">+${reward.eur}€</div>` : '';
-    const onclick = (i === currentDay && !claimedToday) ? `onclick="evClaimStreak()"` : '';
 
     html += `<div class="ev-day${cls}" ${onclick}>
       <div class="ev-day-num">Gün ${i}</div>
-      <div class="ev-day-icon">${icon}</div>
+      <div class="ev-day-icon">${reward.icon}</div>
       <div class="ev-day-reward">${rwd}</div>
       ${eur}
+      ${stateLabel}
     </div>`;
   }
   grid.innerHTML = html;
 
-  // Info
+  // Info — toplanabilir ödül var mı?
   if(info) {
-    if(claimedToday) {
-      info.innerHTML = `✅ Bugünün hediyesini aldın! Yarın <b>Gün ${currentDay}</b> seni bekliyor.`;
-      info.style.background = 'rgba(0,200,83,.06)';
-      info.style.borderColor = 'rgba(0,200,83,.2)';
-      info.style.color = '#81c784';
-    } else {
-      info.innerHTML = `⏰ Bugünün hediyesi <b>Gün ${currentDay}</b> kartında! Üzerine tıkla.`;
+    const pending = [];
+    for(let d = 1; d <= streak; d++) if(!claimed.includes(d)) pending.push(d);
+    if(streak === 0) {
+      info.innerHTML = `🚪 Her gün giriş yap, serini büyüt! İlk gün hediyesi seni bekliyor.`;
+      info.style.background = 'rgba(0,176,255,.06)';
+      info.style.borderColor = 'rgba(0,176,255,.2)';
+      info.style.color = 'var(--text2)';
+    } else if(pending.length > 0) {
+      info.innerHTML = `⏰ <b>${pending.length}</b> toplanmamış hediyen var! Toplamadan gün kaçırırsan yanar.`;
       info.style.background = 'rgba(255,213,79,.06)';
       info.style.borderColor = 'rgba(255,213,79,.3)';
       info.style.color = '#ffd54f';
+    } else {
+      info.innerHTML = `✅ Bu serideki tüm hediyelerini topladın. Yarın da gir, seri devam etsin!`;
+      info.style.background = 'rgba(0,200,83,.06)';
+      info.style.borderColor = 'rgba(0,200,83,.2)';
+      info.style.color = '#81c784';
     }
   }
 }
