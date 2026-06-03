@@ -4494,14 +4494,25 @@ body:not(.team-captain):not(.team-vice) #page-team:not(.guest-mode) #team-treasu
   position:relative;z-index:1;
 }
 /* 🆕 SOL ÜST: belirgin GENEL SIRALAMA rozeti */
-#team-roster .thb-rank-badge{
+#team-roster .thb-rank-stack{
   position:absolute;top:12px;left:12px;z-index:6;
+  display:flex;flex-direction:column;gap:6px;align-items:flex-start;
+}
+#team-roster .thb-rank-badge{
   display:flex;align-items:center;gap:7px;
   padding:7px 12px 7px 9px;border-radius:12px;
   background:linear-gradient(135deg,rgba(255,209,26,.22),rgba(255,209,26,.06));
   border:1px solid rgba(255,209,26,.5);
   box-shadow:0 4px 12px rgba(255,209,26,.12),inset 0 1px 0 rgba(255,255,255,.12);
 }
+/* 🆕 Piyasa Değeri rozeti — sıralama rozetiyle aynı boy, yeşil tema */
+#team-roster .thb-mv-badge{
+  background:linear-gradient(135deg,rgba(0,230,118,.22),rgba(0,230,118,.06));
+  border-color:rgba(0,230,118,.5);
+  box-shadow:0 4px 12px rgba(0,230,118,.12),inset 0 1px 0 rgba(255,255,255,.12);
+}
+#team-roster .thb-mv-badge .thb-rb-val{color:#00e676}
+#team-roster .thb-mv-badge .thb-rb-lbl{color:#3fae6e}
 #team-roster .thb-rank-badge .thb-rb-tx{display:flex;flex-direction:column;line-height:1}
 #team-roster .thb-rank-badge .thb-rb-val{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:22px;color:#ffd11a;letter-spacing:.3px}
 #team-roster .thb-rank-badge .thb-rb-lbl{font-size:8px;font-weight:800;letter-spacing:.6px;color:#c9a83a;text-transform:uppercase;margin-top:2px}
@@ -23155,9 +23166,14 @@ body.drawer-open{overflow:hidden}
           </div>
         </div>
 
-        <!-- SOL ÜST: belirgin GENEL SIRALAMA rozeti -->
-        <div class="thb-rank-badge">
-          <span class="thb-rb-tx"><span class="thb-rb-val" id="teamHeroRank">—</span><span class="thb-rb-lbl">Genel Sıralama</span></span>
+        <!-- SOL ÜST: GENEL SIRALAMA + (altında) PİYASA DEĞERİ rozetleri -->
+        <div class="thb-rank-stack">
+          <div class="thb-rank-badge">
+            <span class="thb-rb-tx"><span class="thb-rb-val" id="teamHeroRank">—</span><span class="thb-rb-lbl">Genel Sıralama</span></span>
+          </div>
+          <div class="thb-rank-badge thb-mv-badge">
+            <span class="thb-rb-tx"><span class="thb-rb-val" id="teamHeroMarket">—</span><span class="thb-rb-lbl">Piyasa Değeri</span></span>
+          </div>
         </div>
 
         <!-- HEAD: Logo + İsim/Meta -->
@@ -42477,27 +42493,9 @@ function applyUserTeamUI() {
       set('teamHeroPlayersMax', String(maxR));
     } catch(e) {}
 
-    // 🆕 Ortalama güç — SAHADAKİ gerçek 11 oyuncu, her biri OYNADIĞI slot mevkisine göre.
-    //    Forvet orta sahaya çekilirse OVR'si o grubun yetenek ortalamasına düşer ve ortalamayı etkiler.
-    let avgPower = 0;
-    const _grpMap = { GK:'GK', KL:'GK', STB:'DEF', SB:'DEF', DEF:'DEF', DOS:'MID', OS:'MID', CAM:'MID', SAK:'MID', MID:'MID', FWD:'FWD' };
-    if (Array.isArray(activePitchPlayers) && activePitchPlayers.length > 0 && typeof getPlayerPositionAvg === 'function') {
-      const _vals = activePitchPlayers
-        .filter(e => e && e.player)
-        .map(e => {
-          const slotPos = e.pos || (typeof FORMATIONS !== 'undefined' && FORMATIONS[currentFormation] && FORMATIONS[currentFormation][e.slotIdx] ? FORMATIONS[currentFormation][e.slotIdx].pos : null);
-          const grp = slotPos ? (_grpMap[slotPos] || 'MID') : null;
-          const ov = grp ? getPlayerPositionAvg(e.player, grp) : (e.player.overall || e.player.rating || 0);
-          return ov || 0;
-        });
-      if (_vals.length) avgPower = _vals.reduce((s,v) => s+v, 0) / _vals.length;
-    } else {
-      // Fallback: diziliş yoksa en iyi 11 (eski davranış)
-      const _sortedRoster = [...ROSTER_DATA].sort((a,b) => (b.overall||0) - (a.overall||0));
-      const _top11 = _sortedRoster.slice(0, 11);
-      avgPower = _top11.length > 0 ? _top11.reduce((s,p) => s + (p.overall||0), 0) / _top11.length : 0;
-    }
-    set('teamHeroPower', Math.round(avgPower));
+    // 🆕 Ort. Güç = takım OVR'si — sıralama ile AYNI kaynak (edge'in sakladığı team_ovr;
+    //    oyuncuların seçtiği mevki-OVR ortalaması, level/xp karışmaz).
+    set('teamHeroPower', _teamPowerFromPlayers(_userTeam.countryCode, _userTeam.teamName, 1));
 
     // 🆕 Takım sıralaması (rkRenderTeams ile aynı kaynak: getTop50Teams + overall sıra)
     try {
@@ -42509,6 +42507,11 @@ function applyUserTeamUI() {
         );
         const rankEl = document.getElementById('teamHeroRank');
         if (rankEl) rankEl.textContent = idx >= 0 ? ((idx + 1) + '.') : '—';
+        const mvEl = document.getElementById('teamHeroMarket');
+        if (mvEl && typeof calculateTeamValue === 'function') {
+          const _mv = calculateTeamValue({ name: _userTeam.teamName, countryCode: _userTeam.countryCode });
+          mvEl.textContent = (typeof _carFmtEUR === 'function') ? _carFmtEUR(_mv) : (_mv + ' €');
+        }
       }
     } catch(e) {}
 
@@ -51149,15 +51152,18 @@ function guestRenderHeader() {
   // 🆕 Ziyaretçi stats: var olan hero-strip hücrelerine yaz (sıra/güç/kadro) — gerçek değerler
   {
     const playerCount = roster.length || 15;
-    const avgPwr = roster.length
-      ? Math.round(roster.reduce((s,p)=>s+(p.overall||0),0) / roster.length)
-      : 10;
     const rankEl = document.getElementById('teamHeroRank');
     const powerEl = document.getElementById('teamHeroPower');
     const playersEl = document.getElementById('teamHeroPlayers');
     const playersMaxEl = document.getElementById('teamHeroPlayersMax');
     if (rankEl) rankEl.textContent = v.teamRef.rank ? (v.teamRef.rank + '.') : '—';
-    if (powerEl) powerEl.textContent = String(avgPwr);
+    if (powerEl) powerEl.textContent = String(_teamPowerFromPlayers(v.countryCode, v.teamRef.name, v.teamRef.rank || 1));
+    const mvEl = document.getElementById('teamHeroMarket');
+    if (mvEl) {
+      let _mv = 0;
+      try { _mv = roster.reduce((s,p)=> s + ((typeof getPlayerMarketValue === 'function') ? getPlayerMarketValue(p) : 0), 0); } catch(e){}
+      mvEl.textContent = (typeof _carFmtEUR === 'function') ? _carFmtEUR(_mv) : (_mv + ' €');
+    }
     if (playersEl) playersEl.textContent = String(playerCount);
     if (playersMaxEl) playersMaxEl.textContent = String(playerCount);
   }
