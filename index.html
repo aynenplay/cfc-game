@@ -32506,21 +32506,23 @@ function fillPreMatchPreview(home, away, league, venue, kickoff) {
     awayCrestEl.onclick = (e) => { e.stopPropagation(); _openTeamFromMatch(away); };
   }
 
-  // 🆕 Rating: takımın gerçek oyuncu ortalaması (calcTeamPowerAverage)
-  // Eskiden home.rating (teams DB statik) kullanılıyordu — yanlış, oyuncular değil takım kayıtlı rating'i yansıtıyordu.
-  let homeRoster = null, awayRoster = null;
-  try {
-    if (typeof getOrCreateTeamRoster === 'function') {
-      homeRoster = getOrCreateTeamRoster(home);
-      awayRoster = getOrCreateTeamRoster(away);
+  // 🆕 Rating = takım gücü, HERO/SIRALAMA ile AYNI kaynaktan (_teamPowerFromPlayers).
+  //   Tekrar hesap YOK: kullanıcı takımı → _userTeamDbOvr (hero'daki değer), rakip → edge team_ovr.
+  const _mpPow = (t) => {
+    const cc = t && (t.countryCode || t.cc);
+    if (cc && t.name && typeof _teamPowerFromPlayers === 'function') {
+      return _teamPowerFromPlayers(cc, t.name, t.rank || 1);
     }
-  } catch(e) {}
-  const homeRating = (typeof calcTeamPowerAverage === 'function' && homeRoster)
-    ? calcTeamPowerAverage(homeRoster)
-    : (home.rating || home.overall || 10);
-  const awayRating = (typeof calcTeamPowerAverage === 'function' && awayRoster)
-    ? calcTeamPowerAverage(awayRoster)
-    : (away.rating || away.overall || 10);
+    // cc yoksa son çare: roster ortalaması
+    try {
+      if (typeof getOrCreateTeamRoster === 'function' && typeof calcTeamPowerAverage === 'function') {
+        return Math.round(calcTeamPowerAverage(getOrCreateTeamRoster(t)));
+      }
+    } catch(e) {}
+    return t.rating || t.overall || 10;
+  };
+  const homeRating = _mpPow(home);
+  const awayRating = _mpPow(away);
   const hRatEl = document.getElementById('mpHomeRating');
   const aRatEl = document.getElementById('mpAwayRating');
   hRatEl.textContent = homeRating;
@@ -73932,8 +73934,30 @@ const TEAM_AV_BY_COUNTRY = {
 // Kullanıcı takımı: ROSTER_DATA'dan (gelişen kullanıcı dahil)
 // Bot takımları: getOrCreateTeamRoster ile (gerçek DB roster'ı)
 function _teamPowerFromPlayers(countryCode, teamName, teamRank) {
-  // 🆕 Edge'in hesaplayıp sakladığı takım OVR'si = oyuncuların seçtiği mevki-OVR ortalaması.
-  //   Varsa direkt onu kullan — frontend'de yeniden hesaplama / abilities çekme YOK.
+  const _isUserTeam = (typeof _userTeam !== 'undefined' && _userTeam &&
+    _userTeam.countryCode === countryCode && _userTeam.teamName === teamName);
+
+  // 🆕 TEK KAYNAK — Kullanıcının takımı: rosterRefresh'te getPlayerMainOverall (gerçek 4-hat
+  //   yetenek ortalaması) ile bir kez hesaplanan _userTeamDbOvr. Hero / sıralama / maç önizleme
+  //   HEPSİ buradan okur → tekrar hesap YOK, 3 ayrı yerde 3 ayrı değer YOK. Edge'in (eski/şişik)
+  //   team_ovr'sini bile EZER, çünkü kullanıcının kadrosu canlı ve doğru.
+  if (_isUserTeam) {
+    try {
+      if (typeof window._userTeamDbOvr === 'number' && window._userTeamDbOvr > 0) {
+        return window._userTeamDbOvr;
+      }
+    } catch(e) {}
+    // _userTeamDbOvr henüz hazır değilse (ilk render) ROSTER_DATA'dan aynı formülle hesapla
+    try {
+      if (typeof getPlayerMainOverall === 'function' &&
+          typeof ROSTER_DATA !== 'undefined' && ROSTER_DATA.length > 0) {
+        const sum = ROSTER_DATA.reduce((s,p) => s + (Number(getPlayerMainOverall(p)) || 0), 0);
+        return Math.round(sum / ROSTER_DATA.length);
+      }
+    } catch(e) {}
+  }
+
+  // Diğer takımlar → edge'in sakladığı team_ovr (4-hat ortalaması; deploy sonrası doğru)
   try {
     const c = (typeof _cftGetCountry === 'function') ? _cftGetCountry(countryCode) : null;
     if (c && Array.isArray(c.leagues)) {
@@ -73944,18 +73968,8 @@ function _teamPowerFromPlayers(countryCode, teamName, teamRank) {
     }
   } catch(e) {}
 
-  // 🆕 Kullanıcının takımı → gerçek 4-hat yetenek ortalaması (rosterRefresh'te getPlayerMainOverall
-  //   ile hesaplandı). Şişik players.overall kolonundan ETKİLENMEZ. Cache'ten ÖNCE gelir.
-  try {
-    if (typeof _userTeam !== 'undefined' && _userTeam &&
-        _userTeam.countryCode === countryCode && _userTeam.teamName === teamName &&
-        typeof window._userTeamDbOvr === 'number' && window._userTeamDbOvr > 0) {
-      return window._userTeamDbOvr;
-    }
-  } catch(e) {}
-
-  // DB players.overall ortalaması (sıralama cache'i) — DİĞER takımlar için fallback. Not: bu kolon
-  //   şişik; doğru değer edge'in team_ovr'si (yukarıdaki ilk blok). Edge deploy edilince bu kullanılmaz.
+  // Diğer takımlar fallback — sıralama cache'i (players.overall ort.). Not: bu kolon şişik;
+  //   doğru değer edge team_ovr'si. Edge deploy edilince bu kullanılmaz.
   try {
     if (_teamPowerCache) {
       const key = countryCode + ':' + teamName;
@@ -73963,17 +73977,7 @@ function _teamPowerFromPlayers(countryCode, teamName, teamRank) {
     }
   } catch(e) {}
 
-  // Son çare — kullanıcının takımı, yukarıdaki kaynaklar yoksa ROSTER_DATA ortalaması
-  try {
-    if (typeof _userTeam !== 'undefined' && _userTeam &&
-        _userTeam.countryCode === countryCode && _userTeam.teamName === teamName &&
-        typeof ROSTER_DATA !== 'undefined' && ROSTER_DATA.length > 0) {
-      const sum = ROSTER_DATA.reduce((s,p) => s + (p.overall||0), 0);
-      return Math.round(sum / ROSTER_DATA.length);
-    }
-  } catch(e) {}
-
-  // Fallback: cache henüz yüklenmediyse roster cache'inden tüm kadro ortalaması
+  // Son çare: roster cache'inden tüm kadro ortalaması
   try {
     const players = getOrCreateTeamRoster({ countryCode: countryCode, name: teamName, rank: teamRank || 1 });
     if (!Array.isArray(players) || players.length === 0) return 10;
