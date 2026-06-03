@@ -40880,6 +40880,13 @@ async function _rosterRefreshFromServer(countryCode) {
     if (error) { console.warn('[rosterRefresh] hata:', error); return; }
     if (!Array.isArray(data) || data.length === 0) return;
 
+    // 🆕 Takım OVR = ham players.overall ortalaması (overal_kolon) — user_player override'ı ÖNCESİ.
+    //   Hero/sıralama bu değeri göstersin diye saklanır (kullanıcı slotunun canlı şişmesini önler).
+    try {
+      const _ov = data.map(p => Number(p.overall) || 10);
+      window._userTeamDbOvr = _ov.length ? Math.round(_ov.reduce((a,b)=>a+b,0) / _ov.length) : null;
+    } catch(e) {}
+
     // Gerçek kullanıcılar için user_player + profiles override (kanonik)
     await _hydrateRosterWithUserData(data);
 
@@ -45799,7 +45806,13 @@ function renderPitch() {
   container.innerHTML = '';
 
   activePitchPlayers.forEach((entry, i) => {
-    const p = entry.player;
+    let p = entry.player;
+    // 🆕 Tam oyuncu objesini (abilities dahil) ROSTER_DATA'dan çöz — restore edilmiş diziliş
+    //   trimmed gelebilir; abilities olmadan getPlayerEffectiveRating overall'a düşer ve mevki-OVR çalışmaz.
+    if (typeof ROSTER_DATA !== 'undefined' && Array.isArray(ROSTER_DATA) && p) {
+      const _full = ROSTER_DATA.find(x => x && (x.num === p.num || (p.id != null && x.id === p.id)));
+      if (_full) p = _full;
+    }
     const c = POS_COLORS[entry.pos] || {bg:'#37474f',tc:'#b0bec5'};
     const isUser = p.role === 'user';
     const isCap  = p.role === 'captain';
@@ -73920,22 +73933,31 @@ function _teamPowerFromPlayers(countryCode, teamName, teamRank) {
     }
   } catch(e) {}
 
-  // Kullanıcının takımı mı? → ROSTER_DATA'dan tüm kadro ortalaması
+  // 🆕 DB players.overall ortalaması (overal_kolon) — kullanıcı dahil TÜM takımlar için öncelikli.
+  //   (Kullanıcı takımında user_player.overall canlı şişmesini önler; sıralamada bu cache var.)
+  try {
+    if (_teamPowerCache) {
+      const key = countryCode + ':' + teamName;
+      if (typeof _teamPowerCache[key] === 'number') return _teamPowerCache[key];
+    }
+  } catch(e) {}
+
+  // Kullanıcının takımı → ham players.overall ortalaması (rosterRefresh'te hidrasyon öncesi yakalandı)
+  try {
+    if (typeof _userTeam !== 'undefined' && _userTeam &&
+        _userTeam.countryCode === countryCode && _userTeam.teamName === teamName &&
+        typeof window._userTeamDbOvr === 'number' && window._userTeamDbOvr > 0) {
+      return window._userTeamDbOvr;
+    }
+  } catch(e) {}
+
+  // Son çare — kullanıcının takımı, yukarıdaki kaynaklar yoksa ROSTER_DATA ortalaması
   try {
     if (typeof _userTeam !== 'undefined' && _userTeam &&
         _userTeam.countryCode === countryCode && _userTeam.teamName === teamName &&
         typeof ROSTER_DATA !== 'undefined' && ROSTER_DATA.length > 0) {
       const sum = ROSTER_DATA.reduce((s,p) => s + (p.overall||0), 0);
       return Math.round(sum / ROSTER_DATA.length);
-    }
-  } catch(e) {}
-
-  // 🆕 Hafif güç cache'i (tek sorgudan) — tüm kadro ortalaması, DB players.overall
-  try {
-    if (_teamPowerCache) {
-      const key = countryCode + ':' + teamName;
-      if (typeof _teamPowerCache[key] === 'number') return _teamPowerCache[key];
-      return 10; // cache yüklü ama bu takım yoksa
     }
   } catch(e) {}
 
