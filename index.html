@@ -42475,18 +42475,46 @@ function _requestJoinFromGuest_LEGACY() {
 // ── Kullanıcının takım durumuna göre UI'ı güncelle ──
 // Takım sayfası, takım sekmeleri, banner, ROSTER_DATA hepsini koordine eder.
 // 🆕 Hero bar: gerçek GLOBAL sıra (team_points) + taze puan — Supabase'ten (top-50 değil, tüm takımlar).
-async function _updateTeamHeroRankPoints(cc, name) {
-  if (!window.sb || !name) return;
+// 🆕 Takım puanı çarpan tablosu (frontend canlı hesap — edge TEAM_POINT_MULT ile birebir; tarayıcı/Deno modül paylaşamaz).
+const _TP_MULT = { chm:[0.55,0.50,0.45], elit:[0.50,0.45,0.40], conv:[0.45,0.40,0.35], t1:[0.40,0.35,0.30], t2:[0.35,0.30,0.25], t3:[0.30,0.25,0.20], t4:[0.25,0.20,0.15], t5:[0.20,0.15,0.10], t6:[0.15,0.10,0.05] };
+function _tpComp(tkey, tier){ if(tkey==='champ')return 'chm'; if(tkey==='elite')return 'elit'; if(tkey==='conv')return 'conv'; if(tkey==null && tier>=1 && tier<=6)return 't'+tier; return null; }
+function _tpAcc(rows, asHome){
+  if(!Array.isArray(rows)) return 0;
+  let p=0;
+  for(const m of rows){
+    const tkey=(m.data&&m.data.tournament_key)?m.data.tournament_key:null;
+    const ck=_tpComp(tkey, m.tier); if(!ck) continue;
+    const mult=_TP_MULT[ck];
+    const hs=Number(m.home_score), as=Number(m.away_score);
+    if(!Number.isFinite(hs)||!Number.isFinite(as)) continue;
+    const res=asHome?(hs>as?0:hs===as?1:2):(as>hs?0:as===hs?1:2);
+    p+=mult[res];
+  }
+  return p;
+}
+// 🆕 TEK KAYNAK: takımın GÜNCEL puanı (match_results'tan CANLI) + GLOBAL sırası (tüm takımlar).
+async function _teamPointsRank(cc, name) {
+  if (!window.sb || !name) return { rank: null, points: 0 };
+  let pts = 0;
   try {
-    let myPts = 0;
-    const { data: mine } = await window.sb.from('teams').select('team_points').eq('country_code', cc).eq('name', name).maybeSingle();
-    if (mine && typeof mine.team_points === 'number') myPts = mine.team_points;
-    const { count } = await window.sb.from('teams').select('*', { count: 'exact', head: true }).gt('team_points', myPts);
-    const rankEl = document.getElementById('teamHeroRank');
-    if (rankEl) rankEl.textContent = (typeof count === 'number') ? ((count + 1) + '.') : '—';
-    const ptsEl = document.getElementById('teamHeroPoints');
-    if (ptsEl) ptsEl.textContent = myPts.toFixed(2) + ' P';
-  } catch(e) { console.warn('[heroRank] hata:', e); }
+    const { data: dh } = await window.sb.from('match_results').select('home_score,away_score,tier,data').eq('home_team', name);
+    const { data: da } = await window.sb.from('match_results').select('home_score,away_score,tier,data').eq('away_team', name);
+    pts = Math.round((_tpAcc(dh, true) + _tpAcc(da, false)) * 100) / 100;
+  } catch(e) {}
+  let rank = null;
+  try {
+    const { count } = await window.sb.from('teams').select('*', { count: 'exact', head: true }).gt('team_points', pts);
+    if (typeof count === 'number') rank = count + 1;
+  } catch(e) {}
+  return { rank, points: pts };
+}
+async function _updateTeamHeroRankPoints(cc, name) {
+  if (!name) return;
+  const { rank, points } = await _teamPointsRank(cc, name);
+  const rankEl = document.getElementById('teamHeroRank');
+  if (rankEl) rankEl.textContent = (rank != null) ? (rank + '.') : '—';
+  const ptsEl = document.getElementById('teamHeroPoints');
+  if (ptsEl) ptsEl.textContent = points.toFixed(2) + ' P';
 }
 
 function applyUserTeamUI() {
@@ -74760,7 +74788,17 @@ async function rkRenderTeams(){
     return (b.o - a.o) || ((b._isMe?1:0) - (a._isMe?1:0));
   });
   // 🆕 Üst listede kullanıcı takımını vurgula (is-user class)
-  list.innerHTML = '<div class="lst-list">' + sorted.map((t, i) => rkTeamRow(t, i+1, !!t._isMe)).join('') + '</div>';
+  // 🆕 Kullanıcının GERÇEK global puan-sırası + canlı puanı (hero ile AYNI kaynak)
+  let _myGR = null, _myGP = 0;
+  try {
+    const _mc = (typeof _userTeam!=='undefined'&&_userTeam)?_userTeam.countryCode:null;
+    const _mn = (typeof _userTeam!=='undefined'&&_userTeam)?_userTeam.teamName:null;
+    if (_mn && typeof _teamPointsRank==='function') { const r = await _teamPointsRank(_mc,_mn); _myGR = r.rank; _myGP = r.points; }
+  } catch(e){}
+  // coef modunda kullanıcı gerçekten top-50'de değilse üst listeden çıkar (sahte #50 olmasın — altta gerçek sırayla görünür)
+  let _display = sorted;
+  if (_rkTeamMode === 'coef' && _myGR != null && _myGR > 50) _display = sorted.filter(t => !t._isMe);
+  list.innerHTML = '<div class="lst-list">' + _display.map((t, i) => rkTeamRow(t, i+1, !!t._isMe)).join('') + '</div>';
 
   // Benim takımım — kullanıcının takımı (yoksa Ankara fallback)
   let myTeam = null;
@@ -74867,6 +74905,7 @@ async function rkRenderTeams(){
     }
   } catch(e) {}
 
+  if (_rkTeamMode === 'coef' && _myGR != null) myRank = _myGR;
   const meEl = document.getElementById('rkTeamMe');
   if(meEl){
     // 🆕 Kullanıcı takımı top 50'deyse alt panel gizle (zaten yukarıda vurgulu görünüyor)
@@ -74910,6 +74949,7 @@ async function rkRenderTeams(){
       }
     } catch(e) {}
 
+    if (_rkTeamMode === 'coef' && typeof _myGP === 'number') myTeamFull = { ...myTeamFull, cf: _myGP };
     meEl.innerHTML = `<div style="padding:10px 14px;font-size:10px;color:var(--text3);text-align:center;letter-spacing:.4px;text-transform:uppercase">Senin takımın</div>
       <div class="lst-list">${rkTeamRow(myTeamFull, myRank, true)}</div>`;
   }
