@@ -786,12 +786,16 @@ to{opacity:1;transform:translateY(0)}}
 .rk-cnt-info{flex:1;min-width:0}
 .rk-cnt-name{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rk-cnt-meta{font-size:10px;color:var(--text3);margin-top:1px}
-.rk-cnt-szrow{display:flex;gap:5px;margin-top:5px;flex-wrap:wrap}
-.rk-cnt-szchip{display:flex;flex-direction:column;align-items:center;min-width:42px;padding:3px 7px;background:var(--bg3);border:1px solid var(--border);border-radius:7px;line-height:1}
+.lst-row.rk-cnt-r{gap:8px}
+.rk-cnt-nameblock{flex-shrink:0;width:64px;min-width:0}
+.rk-cnt-nameblock .lst-pname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12.5px}
+.rk-cnt-szrow{display:flex;gap:4px;flex:1;min-width:0}
+.rk-cnt-szchip{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;padding:3px 1px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;line-height:1}
 .rk-cnt-szchip.cur{border-color:var(--accent);background:rgba(0,230,118,.10)}
-.rk-cnt-szchip-lbl{font-size:8.5px;color:var(--text3);letter-spacing:.3px;margin-bottom:2px}
-.rk-cnt-szchip-val{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:800;color:var(--text)}
+.rk-cnt-szchip-lbl{font-size:8px;color:var(--text3);margin-bottom:2px;white-space:nowrap}
+.rk-cnt-szchip-val{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:800;color:var(--text)}
 .rk-cnt-szchip.empty .rk-cnt-szchip-val{color:var(--text3)}
+.rk-cnt-totalblock{flex-shrink:0;text-align:right;min-width:44px}
 .rk-cnt-total{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:var(--gold);text-align:right;flex-shrink:0;min-width:54px}
 .rk-cnt-row.me-row{background:rgba(0,230,118,.07);border-left:3px solid var(--accent);padding-left:11px}
 
@@ -75073,31 +75077,33 @@ function rkRenderCountries(){
   if(!list) return;
   const data = rkCalcCountries();
   const curSeason = (typeof getSeasonInfo === 'function') ? getSeasonInfo().season : 1;
+  const winStart = curSeason - 4;
+  // Daima 5 sezon slotu (şablon). cur<=5 → 1..5; sonrası kayan pencere.
+  const displaySeasons = (curSeason <= 5) ? [1,2,3,4,5] : [curSeason-4,curSeason-3,curSeason-2,curSeason-1,curSeason];
   const myCC = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.countryCode : 'TR';
 
   list.innerHTML = '<div class="lst-list">' + data.map(c => {
     const isMe = c.code === myCC;
-    // Son 5 sezonun sayısal değerleri (yalnızca başlamış sezonlar gösterilir)
-    const chips = c.s.map((v, i) => {
-      const sn = curSeason - 4 + i;
-      if (sn < 1) return '';
-      const isCur = sn === curSeason;
+    const chips = displaySeasons.map(ds => {
+      const idx = ds - winStart;
+      const v = (ds <= curSeason && idx >= 0 && idx <= 4) ? c.s[idx] : 0;
+      const isCur = ds === curSeason;
       const empty = !(v > 0);
       return `<div class="rk-cnt-szchip ${isCur?'cur':''} ${empty?'empty':''}">
-        <div class="rk-cnt-szchip-lbl">${sn}. Sz</div>
-        <div class="rk-cnt-szchip-val">${empty ? '\u2014' : v.toFixed(2)}</div>
+        <div class="rk-cnt-szchip-lbl">${ds}.Sz</div>
+        <div class="rk-cnt-szchip-val">${empty ? '\u2014' : Math.round(v)}</div>
       </div>`;
     }).join('');
 
-    return `<div class="lst-row ${isMe?'is-user':''}">
+    return `<div class="lst-row rk-cnt-r ${isMe?'is-user':''}">
       <div class="lst-rank ${(typeof _rankClass === 'function') ? _rankClass(c.rank) : rkNumCls(c.rank)}">${c.rank}</div>
-      <div style="flex-shrink:0;width:38px;display:flex;align-items:center;justify-content:center;font-size:30px;line-height:1">${c.f}</div>
-      <div class="lst-info-col">
+      <div style="flex-shrink:0;width:34px;display:flex;align-items:center;justify-content:center;font-size:30px;line-height:1">${c.f}</div>
+      <div class="rk-cnt-nameblock">
         <div class="lst-pname ${isMe?'user-mark':''}">${c.n}</div>
-        <div class="lst-psub" style="margin-bottom:2px">${c.clubs} kulüp · son 5 sezon</div>
-        <div class="rk-cnt-szrow">${chips}</div>
+        <div class="lst-psub">${c.clubs} kulüp</div>
       </div>
-      <div>
+      <div class="rk-cnt-szrow">${chips}</div>
+      <div class="rk-cnt-totalblock">
         <div class="lst-stat-val ${c.rank<=3?'gold':''}">${c.total.toFixed(2)}</div>
         <div class="lst-stat-unit">toplam</div>
       </div>
