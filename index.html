@@ -41543,10 +41543,7 @@ function tbmRenderCountryGrid() {
 
     // UEFA katsayısı (varsa)
     let coef = 0;
-    if(typeof RK_COEFFICIENTS !== 'undefined' && RK_COEFFICIENTS[cc]) {
-      const s = RK_COEFFICIENTS[cc].s || [0,0,0,0,0];
-      coef = s.reduce((a,b)=>a+b, 0);
-    }
+    { const _cp = (typeof _countryPts === 'function') ? _countryPts(cc) : null; if(_cp) coef = _cp.total; }
 
     return {
       cc, name: c.name, flag: c.flag,
@@ -42044,10 +42041,7 @@ function tsmRenderCountryGrid() {
     c.leagues.forEach(lg => { teamCount += lg.teams.length; });
 
     let coef = 0;
-    if(typeof RK_COEFFICIENTS !== 'undefined' && RK_COEFFICIENTS[cc]) {
-      const s = RK_COEFFICIENTS[cc].s || [0,0,0,0,0];
-      coef = s.reduce((a,b)=>a+b, 0);
-    }
+    { const _cp = (typeof _countryPts === 'function') ? _countryPts(cc) : null; if(_cp) coef = _cp.total; }
 
     return {
       cc, name: c.name, flag: c.flag,
@@ -74107,83 +74101,15 @@ let RK_TOP_TEAMS = []; // DOMContentLoaded'da getTop50Teams ile dolduruluyor
 // ── Ülke Katsayıları (UEFA tarzı: son 5 sezon) ──
 // SIFIRLANDI — Sezon 1 başlangıç (1 Haziran 2026): tüm ülkelerin Avrupa puanı 0.
 // Avrupa kupalarındaki performansla zamanla birikir.
-// 🆕 Ülke Avrupa kupası katsayısı — DİNAMİK hesaplama
-// Eski: RK_COEFFICIENTS = sabit [0,0,0,0,0] (sahte)
-// Yeni: Ülke gücü + her sezon için deterministik seed-based puan üret.
-// Her ülke 6 kulüp gönderir (3 chm + 2 elite + 1 conv tarzı). Her kulübün
-// turnuvada kazandığı puan toplamı / 6 = o sezonun ülke katsayısı.
-// Burada gerçek 237 maçı simüle etmek pahalı; bunun yerine ülke gücüne
-// göre realistik bir dağılım deterministik üretiyoruz. Sezon ilerledikçe
-// gerçek turnuva maçları oynandıkça (mevcut sezon için) bu hesap güncellenir.
-const RK_COEF_BASE = {
-  'EN':14.5, 'IT':13.8, 'ES':14.2, 'DE':13.5, 'FR':12.5, 'NL':12.0,
-  'PT':11.0, 'BE':9.5,  'TR':7.5,  'GR':7.0,  'CZ':6.0,  'NO':5.5,
-  'AT':6.0,  'PL':5.5,  'IL':4.5,  'UA':6.5,  'DK':6.0,  'CH':5.0,
-  'RU':9.0,  'RS':6.0,  'HR':5.5,  'SC':5.0,  'SE':5.0,  'SK':4.0,
-  'RO':4.5,  'BG':3.5,  'KZ':3.0,  'AZ':4.0,  'FI':3.5,  'HU':4.5,
-  'AL':3.0,  'IE':3.0,
-};
-const RK_COEF_BUDGET = {
-  'EN':7,'IT':7,'ES':7,'DE':7,'FR':6,'NL':6,'PT':5,'BE':5,'TR':5,'GR':5,
-  'CZ':4,'NO':4,'AT':4,'PL':4,'IL':4,'UA':4,'DK':4,'CH':4,'RU':4,'RS':4,
-  'HR':4,'SC':4,'SE':4,'SK':3,'RO':4,'BG':3,'KZ':3,'AZ':3,'FI':3,'HU':3,
-  'AL':2,'IE':2,
-};
-
-// Deterministik küçük PRNG (sezon+CC seed)
-function _rkSeed(s) {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0) / 4294967296;
-}
-
-// Bir sezon için bir ülkenin Avrupa kupası katsayısı puanı
-// Base = ülke gücü tabanı; her sezon ±%40 jitter ile gerçekçi varyans
-function _rkCountrySeasonPoint(cc, season) {
-  // 🆕 Hiç maç oynanmadıysa 0 (Avrupa kupası performansından gelir)
-  try {
-    const _cache = _matchResultsLoad();
-    if (!_cache || Object.keys(_cache).length === 0) return 0;
-  } catch(e) {}
-
-  const base = RK_COEF_BASE[cc];
-  if (base == null) return 0;
-  // Sezon-ülke kombinasyonu için deterministik random [0,1]
-  const r = _rkSeed(`coef-${cc}-s${season}`);
-  // ±%40 varyasyon: sezona göre yükselir/düşer
-  const jitter = (r - 0.5) * 0.8 * base;
-  return parseFloat((base + jitter).toFixed(2));
-}
-
-// RK_COEFFICIENTS artık bir GETTER — her çağrıda dinamik hesap
-// Eski yapıya backward-compat: RK_COEFFICIENTS[cc] hâlâ {cb, s} formatında
-function _rkRebuildCountryCoefficients() {
-  const curSeason = (typeof getSeasonInfo === 'function') ? getSeasonInfo().season : 1;
-  const out = {};
-  Object.keys(RK_COEF_BASE).forEach(cc => {
-    const seasons = [];
-    // Son 5 sezonu üret: en yeni sezon en sonda
-    for (let i = 4; i >= 0; i--) {
-      const s = curSeason - i;
-      if (s < 1) {
-        seasons.push(0); // henüz oynanmamış sezonlar 0
-      } else {
-        seasons.push(_rkCountrySeasonPoint(cc, s));
-      }
-    }
-    out[cc] = { cb: RK_COEF_BUDGET[cc] || 3, s: seasons };
-  });
-  return out;
-}
-
-// Eski RK_COEFFICIENTS sembolik — runtime'da dinamik dolar (geriye uyum)
-let RK_COEFFICIENTS = _rkRebuildCountryCoefficients();
-// Sezon değişiminde tazele (processSeasonEnd benzeri akıştan çağrılabilir)
-function rkRefreshCoefficients() {
-  RK_COEFFICIENTS = _rkRebuildCountryCoefficients();
+// 🆕 Ülke puanı EDGE'de hesaplanır (world_state.data.country_points = {cc:{s:[son 5 sezon], total}}).
+//   Eski uydurma seed/baz sistemi kaldırıldı — edge tek kaynak, ülke = kulüplerinin puan toplamı.
+function _countryPts(cc) {
+  const cp = (typeof _worldStateCache !== 'undefined' && _worldStateCache && _worldStateCache.country_points)
+    ? _worldStateCache.country_points : null;
+  const d = (cp && cp[cc]) ? cp[cc] : null;
+  const s = (d && Array.isArray(d.s)) ? d.s : [0,0,0,0,0];
+  const total = (d && typeof d.total === 'number') ? d.total : s.reduce((a,b)=>a+b,0);
+  return { s, total };
 }
 
 // 🆕 ═══════════════════════════════════════════════════════════════════════
@@ -74630,22 +74556,11 @@ setTimeout(() => {
 
 // Ülke listesini hesapla ve sırala (teams DB'deki ülkelerden)
 function rkCalcCountries(){
-  if(false) return [];
   return _cftAllEntries()
     .map(([code, country]) => {
-      const stats = RK_COEFFICIENTS[code];
-      if(!stats) return null;
-      const total = stats.s.reduce((a,b)=>a+b, 0);
-      return {
-        code,
-        f: country.flag,
-        n: country.name,
-        cb: stats.cb,
-        s: stats.s,
-        total: parseFloat(total.toFixed(3))
-      };
+      const d = _countryPts(code);
+      return { code, f: country.flag, n: country.name, cb: 0, s: d.s, total: parseFloat(d.total.toFixed(3)) };
     })
-    .filter(Boolean)
     .sort((a,b) => b.total - a.total)
     .map((c,i) => ({...c, rank: i+1}));
 }
@@ -75115,7 +75030,7 @@ function rkRenderCountries(){
 
     return `<div class="lst-row ${isMe?'is-user':''}">
       <div class="lst-rank ${(typeof _rankClass === 'function') ? _rankClass(c.rank) : rkNumCls(c.rank)}">${c.rank}</div>
-      <div class="lst-team-logo" style="background:rgba(255,255,255,.05);font-size:14px">${c.f}</div>
+      <div style="flex-shrink:0;width:38px;display:flex;align-items:center;justify-content:center;font-size:30px;line-height:1">${c.f}</div>
       <div class="lst-info-col">
         <div class="lst-pname ${isMe?'user-mark':''}">${c.n}</div>
         <div class="lst-psub" style="margin-bottom:4px">6 kulüp · son 5 sezon</div>
