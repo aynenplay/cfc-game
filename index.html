@@ -38639,7 +38639,11 @@ function showPage(name,btn){
     totoRender();
     // Canlı skor güncellemesi _liveMatchStartPolling ile sağlanır (aşağıda, skor-only).
   }
-  if(name==='rankings') { if(typeof rkRenderPlayers==='function') rkRenderPlayers(); }
+  if(name==='rankings') {
+    _rkActiveTab = 'players';
+    if(typeof rkRenderPlayers==='function') rkRenderPlayers();
+    if(typeof _rkRefreshStats==='function') _rkRefreshStats(true).then(ok => { if(ok && typeof rkRerenderActive==='function') rkRerenderActive(); });
+  }
   if(name==='events') {
     if(typeof evAutoCheckOnLoad === 'function') evAutoCheckOnLoad();
     if(typeof evRender === 'function') evRender();
@@ -74577,7 +74581,49 @@ function rkCalcCountries(){
 }
 
 // ── Sekme geçişi ──
+let _rkActiveTab = 'players';
+let _rkLastStatRefresh = 0;
+// 🆕 Sıralama verilerini Supabase'ten tazele (maç sonrası team_points/team_ovr/değer + ülke/milli puanları).
+//   _cftDb yerinde yamanır, world_state yeniden yüklenir. throttle 8sn (force ile atlanır).
+async function _rkRefreshStats(force) {
+  const now = Date.now();
+  if (!force && (now - _rkLastStatRefresh) < 8000) return false;
+  _rkLastStatRefresh = now;
+  if (!window.sb) return false;
+  try {
+    const PAGE = 1000; let from = 0; const fresh = {};
+    while (true) {
+      const { data, error } = await window.sb.from('teams')
+        .select('country_code,name,team_points,team_ovr,market_value').range(from, from + PAGE - 1);
+      if (error || !Array.isArray(data) || data.length === 0) break;
+      for (const t of data) if (t && t.name) fresh[(t.country_code || '') + ':' + t.name] = t;
+      if (data.length < PAGE) break;
+      from += PAGE; if (from > 100000) break;
+    }
+    for (const cc in _cftDb) {
+      const c = _cftDb[cc]; if (!c || !c.leagues) continue;
+      for (const lg of c.leagues) for (const t of (lg.teams || [])) {
+        const fr = fresh[cc + ':' + t.name];
+        if (!fr) continue;
+        if (typeof fr.team_points === 'number') t.teamPoints = fr.team_points;
+        if (typeof fr.team_ovr === 'number') t.teamOvr = fr.team_ovr;
+        if (typeof fr.market_value === 'number') t.oz = fr.market_value;
+      }
+    }
+  } catch(e) { console.warn('[rkRefresh] teams:', e); }
+  try { if (typeof _worldStateLoadFromServer === 'function') await _worldStateLoadFromServer(); } catch(e) {}
+  try { if (typeof invalidateRkPlayerCache === 'function') invalidateRkPlayerCache(); } catch(e) {}
+  return true;
+}
+function rkRerenderActive(){
+  if (_rkActiveTab === 'teams') rkRenderTeams();
+  else if (_rkActiveTab === 'national') rkRenderNational();
+  else if (_rkActiveTab === 'countries') rkRenderCountries();
+  else rkRenderPlayers();
+}
+
 function rkTab(tab, btn){
+  _rkActiveTab = tab;
   ['players','teams','national','countries'].forEach(t=>{
     const e = document.getElementById('rk-'+t);
     if(e) e.style.display = t===tab ? 'block' : 'none';
@@ -74588,6 +74634,7 @@ function rkTab(tab, btn){
   if(tab==='teams')     rkRenderTeams();
   if(tab==='national')  rkRenderNational();
   if(tab==='countries') rkRenderCountries();
+  if(typeof _rkRefreshStats === 'function') _rkRefreshStats().then(ok => { if(ok) rkRerenderActive(); });
 }
 
 // ── Yardımcı: rank rozet sınıfı ──
