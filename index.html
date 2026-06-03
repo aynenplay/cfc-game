@@ -21016,7 +21016,7 @@ body.drawer-open{overflow:hidden}
 .cfcmd-tpl-btn{
   flex:1;display:flex;align-items:center;justify-content:center;gap:6px;
   font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:800;letter-spacing:.4px;
-  padding:11px 8px;border-radius:11px;cursor:pointer;color:#fff;
+  padding:8px 8px;border-radius:10px;cursor:pointer;color:#fff;
   background:repeating-linear-gradient(45deg,#15171c 0 2px,#101216 2px 4px);
   border:1px solid #20242c;box-shadow:inset 0 1px 0 rgba(255,255,255,.04);
   -webkit-tap-highlight-color:transparent;transition:transform .12s,border-color .12s;
@@ -21048,7 +21048,7 @@ body.drawer-open{overflow:hidden}
 }
 .tplc-pill{
   font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:800;letter-spacing:1.2px;
-  padding:6px 12px;display:flex;align-items:center;gap:5px;border-bottom:1px solid #20242c;
+  padding:4px 12px;display:flex;align-items:center;gap:5px;border-bottom:1px solid #20242c;
 }
 .tplc-pill.tpl-fa{color:#00e676;background:rgba(0,230,118,.06)}
 .tplc-pill.tpl-tr{color:#00b0ff;background:rgba(0,176,255,.06)}
@@ -76261,13 +76261,31 @@ async function cfcMdShareTemplate(kind, btn) {
       const grp = pl.posGroup || pl.pos_group || (typeof POS_GROUP !== 'undefined' && POS_GROUP[pl.pos]) || 'MID';
       const posInfo = _CFCMD_POS[grp] || _CFCMD_POS.MID;
       const ovr = Math.round((typeof getPlayerMainOverall === 'function') ? getPlayerMainOverall(pl) : (pl.overall || pl.rating || 10));
-      // KL/DF/OS/FW = 4 mevki grubu yetenek ortalaması
-      const _cat = (g) => Math.round((typeof getPlayerPositionAvg === 'function') ? getPlayerPositionAvg(pl, g) : 10);
+      // KL/DF/OS/FW = 4 mevki grubu ortalaması.
+      // Kullanıcının kendi oyuncusu için yetenekler abilities'te DEĞİL antrenman verisinde
+      // (getSkillLevels + SKILL_DEFS) — OVR hesabıyla aynı kaynaktan al ki tutarlı olsun.
+      let catVals = null;
+      if (pl.role === 'user' && typeof getSkillLevels === 'function'
+          && typeof SKILL_DEFS !== 'undefined' && SKILL_DEFS.ALL) {
+        try {
+          const lvls = getSkillLevels(pl.pos || 'MID');
+          const _ca = (cat) => {
+            const sk = cat && cat.skills;
+            if (!sk || !sk.length) return 10;
+            return sk.reduce((a, s) => a + (lvls[s.id] || 10), 0) / sk.length;
+          };
+          catVals = [_ca(SKILL_DEFS.ALL[0]), _ca(SKILL_DEFS.ALL[1]), _ca(SKILL_DEFS.ALL[2]), _ca(SKILL_DEFS.ALL[3])];
+        } catch(e) { catVals = null; }
+      }
+      const _cat = (g, i) => {
+        if (catVals && catVals[i] != null) return Math.round(catVals[i]);
+        return Math.round((typeof getPlayerPositionAvg === 'function') ? getPlayerPositionAvg(pl, g) : 10);
+      };
       const cats = [
-        { k: 'KL', v: _cat('GK'),  cls: 'cat-kl' },
-        { k: 'DF', v: _cat('DEF'), cls: 'cat-df' },
-        { k: 'OS', v: _cat('MID'), cls: 'cat-os' },
-        { k: 'FW', v: _cat('FWD'), cls: 'cat-fw' },
+        { k: 'KL', v: _cat('GK', 0),  cls: 'cat-kl' },
+        { k: 'DF', v: _cat('DEF', 1), cls: 'cat-df' },
+        { k: 'OS', v: _cat('MID', 2), cls: 'cat-os' },
+        { k: 'FW', v: _cat('FWD', 3), cls: 'cat-fw' },
       ];
       const cc = (t && t.countryCode) || (typeof authUser !== 'undefined' && authUser && authUser.nationality) || 'TR';
       const flag = (typeof _cftGetCountry === 'function' && _cftGetCountry(cc)) ? (_cftGetCountry(cc).flag || '🏳️') : '🏳️';
