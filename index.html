@@ -40880,13 +40880,6 @@ async function _rosterRefreshFromServer(countryCode) {
     if (error) { console.warn('[rosterRefresh] hata:', error); return; }
     if (!Array.isArray(data) || data.length === 0) return;
 
-    // 🆕 Takım OVR = ham players.overall ortalaması (overal_kolon) — user_player override'ı ÖNCESİ.
-    //   Hero/sıralama bu değeri göstersin diye saklanır (kullanıcı slotunun canlı şişmesini önler).
-    try {
-      const _ov = data.map(p => Number(p.overall) || 10);
-      window._userTeamDbOvr = _ov.length ? Math.round(_ov.reduce((a,b)=>a+b,0) / _ov.length) : null;
-    } catch(e) {}
-
     // Gerçek kullanıcılar için user_player + profiles override (kanonik)
     await _hydrateRosterWithUserData(data);
 
@@ -40907,8 +40900,17 @@ async function _rosterRefreshFromServer(countryCode) {
     // ROSTER_DATA'yı yeniden inşa et
     ROSTER_DATA = _buildRosterFromPlayers(data, countryCode);
 
-    // 🆕 Hero "Ort. Güç" = ham players.overall ortalaması (overal_kolon). Taze veri gelince
-    //   doğrudan güncelle — applyUserTeamUI zamanlamasından bağımsız (canlı şişme yansımaz).
+    // 🆕 Takım Ort. Güç = oyuncuların GERÇEK genel OVR ortalaması = 4-hat yetenek ortalaması
+    //   (getPlayerMainOverall). Saklanan `overall` kolonu ŞİŞİK (Hürşad 29 ama gerçek 14);
+    //   kart neyi gösteriyorsa o. Kullanıcı slotu canlı getSkillLevels'ten, botlar abilities'ten.
+    try {
+      if (typeof getPlayerMainOverall === 'function' && ROSTER_DATA.length) {
+        const _sum = ROSTER_DATA.reduce((a, p) => a + (Number(getPlayerMainOverall(p)) || 0), 0);
+        window._userTeamDbOvr = Math.round(_sum / ROSTER_DATA.length);
+      }
+    } catch(e) {}
+
+    // Hero "Ort. Güç"u taze veriyle doğrudan güncelle (applyUserTeamUI zamanlamasından bağımsız)
     try {
       const _el = document.getElementById('teamHeroPower');
       if (_el && typeof window._userTeamDbOvr === 'number' && window._userTeamDbOvr > 0) {
@@ -73942,21 +73944,22 @@ function _teamPowerFromPlayers(countryCode, teamName, teamRank) {
     }
   } catch(e) {}
 
-  // 🆕 DB players.overall ortalaması (overal_kolon) — kullanıcı dahil TÜM takımlar için öncelikli.
-  //   (Kullanıcı takımında user_player.overall canlı şişmesini önler; sıralamada bu cache var.)
-  try {
-    if (_teamPowerCache) {
-      const key = countryCode + ':' + teamName;
-      if (typeof _teamPowerCache[key] === 'number') return _teamPowerCache[key];
-    }
-  } catch(e) {}
-
-  // Kullanıcının takımı → ham players.overall ortalaması (rosterRefresh'te hidrasyon öncesi yakalandı)
+  // 🆕 Kullanıcının takımı → gerçek 4-hat yetenek ortalaması (rosterRefresh'te getPlayerMainOverall
+  //   ile hesaplandı). Şişik players.overall kolonundan ETKİLENMEZ. Cache'ten ÖNCE gelir.
   try {
     if (typeof _userTeam !== 'undefined' && _userTeam &&
         _userTeam.countryCode === countryCode && _userTeam.teamName === teamName &&
         typeof window._userTeamDbOvr === 'number' && window._userTeamDbOvr > 0) {
       return window._userTeamDbOvr;
+    }
+  } catch(e) {}
+
+  // DB players.overall ortalaması (sıralama cache'i) — DİĞER takımlar için fallback. Not: bu kolon
+  //   şişik; doğru değer edge'in team_ovr'si (yukarıdaki ilk blok). Edge deploy edilince bu kullanılmaz.
+  try {
+    if (_teamPowerCache) {
+      const key = countryCode + ':' + teamName;
+      if (typeof _teamPowerCache[key] === 'number') return _teamPowerCache[key];
     }
   } catch(e) {}
 
