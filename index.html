@@ -75051,102 +75051,15 @@ const RK_NT_BASE = {
   'KZ': 1300, 'RU': 1750, // RU özel — eski güç
 };
 
-// Round → çarpan
-const RK_NT_ROUND_MULT = {
-  'Grup': 1.0, 'Grup 1. Maç': 1.0, 'Grup 2. Maç': 1.0, 'Grup 3. Maç': 1.0,
-  'Son 16': 1.2, 'Çeyrek Final': 1.5, 'Yarı Final': 1.8, 'Final': 2.0, 'Final 🏆': 2.0,
-  'Kura Çekimi': 0, 'Kura Çekimi 🎲': 0
-};
-
-// Bir milli takımın bir maçtan kazandığı puan
-function _rkNtMatchPoints(round, result) {
-  // result: 'win' | 'draw' | 'lose' | 'pen-win' | 'pen-lose'
-  const mult = RK_NT_ROUND_MULT[round] != null ? RK_NT_ROUND_MULT[round] : 1.0;
-  let base = 0;
-  switch(result) {
-    case 'win':      base = 3; break;
-    case 'draw':     base = 1; break;
-    case 'pen-win':  base = 2; break;
-    case 'pen-lose': base = 1; break;
-    default: base = 0;
-  }
-  return base * mult;
-}
-
-// Milli takım katsayılarını hesapla
+// 🆕 Milli takım puanları EDGE'de hesaplanır (world_state.data.nation_points).
+//   Eski lokal seed/tur-çarpanı hesabı kaldırıldı — uydurma yok, edge tek kaynak.
 function rkCalcNational() {
-  if(false) return [];
-  // Her ülke için kümüle puan — TÜM TAKIMLAR 0'dan başlar
-  // (Kullanıcı isteği: sezon başında her şey sıfır, gerçek maç sonuçlarından artar)
-  const points = {};
-  _cftGetCountryCodes().forEach(cc => { points[cc] = 0; });
-
-  // Son 5 sezonun EURO Cup state'ini topla
-  const curSeason = (typeof getSeasonInfo === 'function') ? getSeasonInfo().season : 1;
-  for(let s = Math.max(2, curSeason - 4); s <= curSeason; s++) {
-    const state = (typeof encLoad === 'function') ? encLoad(s) : null;
-    if(!state) continue;
-
-    // GRUP MAÇLARI
-    if(Array.isArray(state.groups)) {
-      state.groups.forEach(g => {
-        if(!Array.isArray(g.matches)) return;
-        g.matches.forEach(m => {
-          // Maç formatı: { home, away, hg, ag, pens, result, phase } — backend match_results'tan adapt edilir
-          if(!m) return;
-          if(typeof m.hg !== 'number' || typeof m.ag !== 'number') return;
-          const round = m.round || 'Grup';
-          let homeRes, awayRes;
-          if(m.hg > m.ag) { homeRes='win'; awayRes='lose'; }
-          else if(m.hg < m.ag) { homeRes='lose'; awayRes='win'; }
-          else { homeRes='draw'; awayRes='draw'; }
-          if(points[m.home] != null) points[m.home] += _rkNtMatchPoints(round, homeRes);
-          if(points[m.away] != null) points[m.away] += _rkNtMatchPoints(round, awayRes);
-        });
-      });
-    }
-
-    // ELEME MAÇLARI (knockout)
-    if(state.knockout) {
-      const allKO = [];
-      ['r16','qf','sf','final'].forEach(stage => {
-        const arr = state.knockout[stage];
-        if(Array.isArray(arr)) allKO.push(...arr);
-        else if(arr && arr.home) allKO.push(arr); // single match (final)
-      });
-      allKO.forEach(m => {
-        if(!m) return;
-        if(typeof m.hg !== 'number' || typeof m.ag !== 'number') return;
-        const round = m.round || 'Eleme';
-        let homeRes, awayRes;
-        if(m.hg > m.ag) {
-          homeRes='win'; awayRes='lose';
-        } else if(m.hg < m.ag) {
-          homeRes='lose'; awayRes='win';
-        } else if(Array.isArray(m.pens) && m.pens.length === 2) {
-          // Penaltıya gidildi: pens=[homePens, awayPens]
-          if(m.pens[0] > m.pens[1]) { homeRes='pen-win'; awayRes='pen-lose'; }
-          else { homeRes='pen-lose'; awayRes='pen-win'; }
-        } else {
-          homeRes='draw'; awayRes='draw';
-        }
-        if(points[m.home] != null) points[m.home] += _rkNtMatchPoints(round, homeRes);
-        if(points[m.away] != null) points[m.away] += _rkNtMatchPoints(round, awayRes);
-      });
-    }
-  }
-
-  // Sonuç: her ülke için { code, name, flag, total, base, gain }
-  // 🆕 Base 0 olduğundan total = gain (Avrupa kupası performansıyla kazanılan toplam)
-  const results = _cftAllEntries().map(([cc, country]) => ({
-    code: cc,
-    n: country.name,
-    f: country.flag,
-    base: 0,
-    total: parseFloat(points[cc].toFixed(1)),
-    gain: parseFloat(points[cc].toFixed(1))
-  }));
-
+  const np = (typeof _worldStateCache !== 'undefined' && _worldStateCache && _worldStateCache.nation_points)
+    ? _worldStateCache.nation_points : {};
+  const results = _cftAllEntries().map(([cc, country]) => {
+    const total = parseFloat(((np[country.name] || 0)).toFixed(1));
+    return { code: cc, n: country.name, f: country.flag, base: 0, total, gain: total };
+  });
   results.sort((a, b) => b.total - a.total);
   return results.map((r, i) => ({ ...r, rank: i + 1 }));
 }
@@ -75164,7 +75077,7 @@ function rkRenderNational() {
     const gainCls = c.gain > 0 ? 'rk-nt-gain-pos' : (c.gain < 0 ? 'rk-nt-gain-neg' : 'rk-nt-gain-zero');
     return `<div class="lst-row clickable ${isMe?'is-user':''}" onclick="ntViewAsGuest('${c.code}')" style="cursor:pointer">
       <div class="lst-rank ${(typeof _rankClass === 'function') ? _rankClass(c.rank) : rkNumCls(c.rank)}">${c.rank}</div>
-      <div class="lst-team-logo" style="background:rgba(255,255,255,.05);font-size:14px">${c.f}</div>
+      <div style="flex-shrink:0;width:38px;display:flex;align-items:center;justify-content:center;font-size:30px;line-height:1">${c.f}</div>
       <div class="lst-info-col">
         <div class="lst-pname ${isMe?'user-mark':''}">${c.n}</div>
         <div class="lst-psub" style="margin-bottom:2px">Milli Takım · A Sınıfı</div>
