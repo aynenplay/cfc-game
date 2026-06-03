@@ -37886,6 +37886,8 @@ function processSeasonEnd(seasonNum) {
 
   // Avrupa kupası
   const europeanCup = qualifyForEuropeanCups(userRankInfo);
+  // 🆕 Pro görev: Avrupa kupalarına katıl
+  try { if (europeanCup && typeof achSetFlag === 'function') achSetFlag('euro_join'); } catch(e) {}
 
   // 🆕 Sonraki sezon için _userTeam'e europeanCup tipini kaydet
   // qualifyForEuropeanCups → {cup: 'Championship League', icon: '🏆'} → 'chm' (SEASON_TEMPLATE ile aynı)
@@ -37919,6 +37921,13 @@ function processSeasonEnd(seasonNum) {
         wonAt: Date.now()
       });
       saveTrophies(trophies);
+    } catch(e) {}
+    // 🆕 Pro görev: herhangi bir ligde şampiyon → klasman; en üst tier (0) → süper lig
+    try {
+      if (typeof achSetFlag === 'function') {
+        achSetFlag('champ_klasman');
+        if (tierIdx === 0) achSetFlag('champ_superlig');
+      }
     } catch(e) {}
   }
 
@@ -37961,6 +37970,13 @@ function processSeasonEnd(seasonNum) {
             });
             saveTrophies(trophies);
           }
+          // 🆕 Pro görev: Avrupa kupası şampiyonluğu (champ→chm, elite→elite, conv→conv)
+          try {
+            if (typeof achSetFlag === 'function') {
+              const _flag = trnKey === 'champ' ? 'champ_chm' : (trnKey === 'elite' ? 'champ_elite' : 'champ_conv');
+              achSetFlag(_flag);
+            }
+          } catch(e) {}
           // Takım vitrini (team_data.trophies) Edge function ensureEuroCupPhases tarafından yazılır.
         }
       });
@@ -37995,6 +38011,8 @@ function processSeasonEnd(seasonNum) {
             });
             saveTrophies(trophies);
           }
+          // 🆕 Pro görev: Euro Cup (ENC) şampiyonu
+          try { if (typeof achSetFlag === 'function') achSetFlag('champ_eurocup'); } catch(e) {}
         }
       }
     }
@@ -48551,6 +48569,15 @@ function ntRenderRoster() {
 
   // Kadro (18 kişi) + havuz (kadro dışındakiler)
   let squad = ntEnsureRoster().slice();
+
+  // 🆕 Pro görev: kullanıcı KENDİ milli takım kadrosunda mı? → national_pick
+  try {
+    const _userNat = (authUser && authUser.nationality) || null;
+    if (_userNat && cc === _userNat && squad.some(p => p && p.isUser) && typeof achSetFlag === 'function') {
+      achSetFlag('national_pick');
+    }
+  } catch(e) {}
+
   // Kadro sıralama: USER (kaptan) en üstte, sonra overall desc
   squad.sort((a, b) => {
     if (a.isUser && !b.isUser) return -1;
@@ -74022,6 +74049,8 @@ async function achBump(metric, inc) {
 // ── Pro olay işaretle → set_ach_flag RPC ──
 async function achSetFlag(metric) {
   if (!window.sb || !authUser || !authUser.id) return;
+  // Zaten set'liyse tekrar RPC atma (render'larda defalarca çağrılabilir)
+  if (_achStateCache && _achStateCache.stats && Number(_achStateCache.stats[metric]) >= 1) return;
   try {
     const { data, error } = await window.sb.rpc('set_ach_flag', { p_metric: metric });
     if (error) { console.warn('[ach] flag hata:', error.message || error); return; }
