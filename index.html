@@ -39828,7 +39828,7 @@ async function bootstrapWorld(){
     while (true) {
       const { data, error } = await window.sb
         .from('teams')
-        .select('country_code,country_name,country_flag,tier,tier_name,tier_color,rank,name,city,population,market_value,rating,bg,tc,short')
+        .select('country_code,country_name,country_flag,tier,tier_name,tier_color,rank,name,city,population,market_value,rating,team_ovr,bg,tc,short')
         .order('country_code').order('tier').order('rank')
         .range(from, from + PAGE - 1);
       if (error) { console.warn('[bootstrap] teams hata:', error.message); return; }
@@ -39852,7 +39852,7 @@ async function bootstrapWorld(){
       if (!lg) { lg = { tier: t.tier, name: t.tier_name, color: t.tier_color, teams: [] }; db[cc].leagues.push(lg); }
       lg.teams.push({
         rank: t.rank, city: t.city, name: t.name,
-        pop: t.population, oz: t.market_value, rating: t.rating,
+        pop: t.population, oz: t.market_value, rating: t.rating, teamOvr: (typeof t.team_ovr === 'number' ? t.team_ovr : null),
         bg: t.bg, tc: t.tc, short: t.short,
         countryCode: cc, countryKey: cc  // 🆕 helper kodu bekliyor
       });
@@ -73894,6 +73894,18 @@ const TEAM_AV_BY_COUNTRY = {
 // Kullanıcı takımı: ROSTER_DATA'dan (gelişen kullanıcı dahil)
 // Bot takımları: getOrCreateTeamRoster ile (gerçek DB roster'ı)
 function _teamPowerFromPlayers(countryCode, teamName, teamRank) {
+  // 🆕 Edge'in hesaplayıp sakladığı takım OVR'si = oyuncuların seçtiği mevki-OVR ortalaması.
+  //   Varsa direkt onu kullan — frontend'de yeniden hesaplama / abilities çekme YOK.
+  try {
+    const c = (typeof _cftGetCountry === 'function') ? _cftGetCountry(countryCode) : null;
+    if (c && Array.isArray(c.leagues)) {
+      for (const lg of c.leagues) {
+        const t = (lg.teams || []).find(x => x && x.name === teamName);
+        if (t) { if (typeof t.teamOvr === 'number' && t.teamOvr > 0) return Math.round(t.teamOvr); break; }
+      }
+    }
+  } catch(e) {}
+
   // Kullanıcının takımı mı? → ROSTER_DATA'dan tüm kadro ortalaması
   try {
     if (typeof _userTeam !== 'undefined' && _userTeam &&
