@@ -56979,7 +56979,9 @@ function renderHomeLeagueScene() {
   try { renderHomeLeagueTicker(); } catch(e) {}
 }
 
-// 🆕 LİG TİCKER — bugünün lig maçlarını akan şeritte göster (yeşil ton, LIVE blink)
+// 🆕 LİG TİCKER — kullanıcı ülkesinin BUGÜN BİTEN lig maçlarını akan şeritte göster.
+// Canlı/realtime YOK: sadece tamamlanmış maçlar. Liste 15 dakikalık sabit dilimlerde
+// (00,15,30,45) yenilenir — _lgTickerScheduleNext zamanlamayı kurar.
 // Veri kaynağı: _resGetMatchesForDate (SONUÇLARIM ile aynı veri — sahte üretim YOK)
 function renderHomeLeagueTicker() {
   const wrap = document.getElementById('homeLeagueTicker');
@@ -57000,138 +57002,28 @@ function renderHomeLeagueTicker() {
     todayMatches = _resGetMatchesForDate(new Date()) || [];
   } catch(e) { todayMatches = []; }
 
-  const userLeagueMatches = todayMatches.filter(m =>
+  // Yalnızca BİTEN maçlar (skoru olanlar)
+  const finishedMatches = todayMatches.filter(m =>
     m && m.countryCode === cc && (m.competition === 'league' || !m.competition)
+    && m.played && (typeof m.hs === 'number') && (typeof m.as === 'number')
   );
 
-  if (!userLeagueMatches.length) {
+  if (!finishedMatches.length) {
     wrap.style.display = 'flex';
-    wrap.innerHTML = '<div class="lg-ticker-empty">Bugün lig maçı yok</div>';
+    wrap.innerHTML = '<div class="lg-ticker-empty">Bugün biten lig maçı yok</div>';
+    _lgTickerScheduleNext();
     return;
   }
 
   wrap.style.display = 'block';
 
-  // Her maç için ticker item HTML üret
-  const nowMs = Date.now();
-  const today = new Date();
-  const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-
-  // 🆕 Kullanıcının canlı maçı (MS state'inden) — varsa o maç için skor+dakika gösterilecek
-  const userLiveOn = !!(typeof MS !== 'undefined' && MS && MS.running && !MS.finished);
-  const userLiveHome = userLiveOn && typeof curHome !== 'undefined' && curHome ? curHome.name : null;
-  const userLiveAway = userLiveOn && typeof curAway !== 'undefined' && curAway ? curAway.name : null;
-  const userLiveHs = userLiveOn ? (MS.scoreH || 0) : 0;
-  const userLiveAs = userLiveOn ? (MS.scoreA || 0) : 0;
-  const userLiveMin = userLiveOn ? (MS.minute || 0) : 0;
-
-  // 🆕 BOT canlı skor hesabı — final skor deterministik, gol dakikalarına göre kademeli
-  // Maç süresi 12 gerçek dakika = 90 maç dakikası
-  function _liveBotScoreAtMinute(seed, finalHs, finalAs, currentMatchMin) {
-    let h = 2166136261;
-    const s = String(seed);
-    for (let i = 0; i < s.length; i++) {
-      h ^= s.charCodeAt(i);
-      h = Math.imul(h, 16777619);
-    }
-    let liveHs = 0;
-    for (let g = 0; g < finalHs; g++) {
-      const r = Math.imul(h, 7919 + g * 31) >>> 0;
-      const goalMin = (r % 90) + 1;
-      if (goalMin <= currentMatchMin) liveHs++;
-    }
-    let liveAs = 0;
-    for (let g = 0; g < finalAs; g++) {
-      const r = Math.imul(h, 31337 + g * 53) >>> 0;
-      const goalMin = (r % 90) + 1;
-      if (goalMin <= currentMatchMin) liveAs++;
-    }
-    return { hs: liveHs, as: liveAs };
-  }
-
-  // 🚫 _liveBotFinalScore lokal sahte skor üreticiydi.
-  // Artık match_state'ten okuyacak (gerçek skor) — bulunamazsa 0-0 döner.
-  function _liveBotFinalScore(m) {
-    return { hs: 0, as: 0 };
-  }
-
-  const itemHtml = userLeagueMatches.map(m => {
+  const itemHtml = finishedMatches.map(m => {
     const home = m.home || '—';
     const away = m.away || '—';
-    const itemKey = m.cacheKey || (m.home + '|' + m.away);
-    const itemKeyAttr = String(itemKey).replace(/"/g, '&quot;');
-
-    // 🆕 Kullanıcının CANLI maçı mı? (MS state'inden gerçek skor + dakika)
-    const isUserLive = userLiveOn && userLiveHome && userLiveAway
-      && home === userLiveHome && away === userLiveAway;
-
-    if (isUserLive) {
-      return `
-        <div class="lg-ticker-item live" data-key="${itemKeyAttr}" data-state="live-user">
-          <span class="lg-ti-live">LIVE</span>
-          <span class="lg-ti-team">${home}</span>
-          <span class="lg-ti-score">${userLiveHs}-${userLiveAs}</span>
-          <span class="lg-ti-team">${away}</span>
-          <span class="lg-ti-min">${userLiveMin}'</span>
-        </div>
-      `;
-    }
-
-    // Bitti mi?
-    if (m.played && (typeof m.hs === 'number') && (typeof m.as === 'number')) {
-      return `
-        <div class="lg-ticker-item fin" data-key="${itemKeyAttr}" data-state="fin">
-          <span class="lg-ti-team">${home}</span>
-          <span class="lg-ti-score">${m.hs}-${m.as}</span>
-          <span class="lg-ti-team">${away}</span>
-        </div>
-      `;
-    }
-
-    // Saati hesapla — canlı mı, ileride mi?
-    const [hh, mm] = String(m.scheduledTime || '15:00').split(':').map(n => parseInt(n, 10) || 0);
-    const kickoff = new Date(todayDay);
-    kickoff.setHours(hh, mm, 0, 0);
-    const kickoffMs = kickoff.getTime();
-    const elapsedMin = (nowMs - kickoffMs) / 60000;
-
-    // 🆕 BOT CANLI: saati geçti, 12 dakika içinde — gerçek-zamanlı skor + dakika
-    if (elapsedMin >= 0 && elapsedMin < 15) {
-      const progress = Math.max(0, Math.min(1, elapsedMin / 12));
-      const matchMin = Math.max(1, Math.min(90, Math.floor(progress * 90)));
-      const finalScore = _liveBotFinalScore(m);
-      const liveScore = _liveBotScoreAtMinute(itemKey, finalScore.hs, finalScore.as, matchMin);
-      return `
-        <div class="lg-ticker-item live" data-key="${itemKeyAttr}" data-state="live-bot"
-             data-kickoff="${kickoffMs}" data-final-hs="${finalScore.hs}" data-final-as="${finalScore.as}">
-          <span class="lg-ti-live">LIVE</span>
-          <span class="lg-ti-team">${home}</span>
-          <span class="lg-ti-score">${liveScore.hs}-${liveScore.as}</span>
-          <span class="lg-ti-team">${away}</span>
-          <span class="lg-ti-min">${matchMin}'</span>
-        </div>
-      `;
-    }
-
-    // İleride: saati henüz gelmedi
-    if (elapsedMin < 0) {
-      return `
-        <div class="lg-ticker-item sched" data-key="${itemKeyAttr}" data-state="sched"
-             data-kickoff="${kickoffMs}" data-home="${home.replace(/"/g, '&quot;')}" data-away="${away.replace(/"/g, '&quot;')}">
-          <span class="lg-ti-time">${_getMatchHM(m)}</span>
-          <span class="lg-ti-team">${home}</span>
-          <span class="lg-ti-vs">-</span>
-          <span class="lg-ti-team">${away}</span>
-        </div>
-      `;
-    }
-
-    // Saat geçmiş ama henüz simule edilmemiş (nadir, fallback): scheduled gibi göster
     return `
-      <div class="lg-ticker-item sched" data-key="${itemKeyAttr}" data-state="sched">
-        <span class="lg-ti-time">${_getMatchHM(m)}</span>
+      <div class="lg-ticker-item fin">
         <span class="lg-ti-team">${home}</span>
-        <span class="lg-ti-vs">-</span>
+        <span class="lg-ti-score">${m.hs}-${m.as}</span>
         <span class="lg-ti-team">${away}</span>
       </div>
     `;
@@ -57140,144 +57032,29 @@ function renderHomeLeagueTicker() {
   // Sürekli scroll için içeriği 2x kopyala (translateX(-50%) ile döngü tamamlanır)
   wrap.innerHTML = `<div class="lg-ticker-track">${itemHtml}${itemHtml}</div>`;
 
-  // 🆕 PERİYODİK REFRESH — animation'ı bozmadan sadece içerik update
-  // (her 5 saniyede bir: live skoru güncelle, biten maçları "fin" stiline dönüştür)
+  // Bir sonraki 15'lik dilimde yenile
+  _lgTickerScheduleNext();
+}
+
+// 🆕 Bir sonraki çeyrek saat dilimine (xx:00, xx:15, xx:30, xx:45) kadar bekleyip yeniler.
+// Sürekli interval YOK — her seferinde tek bir timeout kurulur, render içinde tekrar planlanır.
+function _lgTickerScheduleNext() {
   if (window._lgTickerTimer) {
-    clearInterval(window._lgTickerTimer);
+    clearTimeout(window._lgTickerTimer);
     window._lgTickerTimer = null;
   }
-  window._lgTickerTimer = setInterval(() => {
+  const now = new Date();
+  const ms = now.getMinutes() * 60000 + now.getSeconds() * 1000 + now.getMilliseconds();
+  const quarter = 15 * 60000;
+  const delay = quarter - (ms % quarter); // sonraki 00/15/30/45'e kalan süre
+  window._lgTickerTimer = setTimeout(() => {
     const tEl = document.getElementById('homeLeagueTicker');
     if (!tEl || !document.body.contains(tEl)) {
-      clearInterval(window._lgTickerTimer);
       window._lgTickerTimer = null;
       return;
     }
-    try { _lgTickerTickUpdate(); } catch(e) {}
-  }, 5000);
-}
-
-// 🆕 Ticker incremental update — animation reseti olmadan
-// Sadece live item'ların skor/dakikasını günceller, biten maçları "fin"e çevirir
-function _lgTickerTickUpdate() {
-  const wrap = document.getElementById('homeLeagueTicker');
-  if (!wrap) return;
-  const items = wrap.querySelectorAll('.lg-ticker-item');
-  if (!items.length) return;
-
-  // Cache'i bir kez oku — biten maçları yakalamak için
-  let resultsCache = {};
-  try { resultsCache = _matchResultsLoad(); } catch(e) {}
-
-  const nowMs = Date.now();
-  const userLiveOn = !!(typeof MS !== 'undefined' && MS && MS.running && !MS.finished);
-  const userLiveHome = userLiveOn && typeof curHome !== 'undefined' && curHome ? curHome.name : null;
-  const userLiveAway = userLiveOn && typeof curAway !== 'undefined' && curAway ? curAway.name : null;
-
-  items.forEach(item => {
-    const state = item.dataset.state;
-    const key = item.dataset.key;
-    if (!state || !key) return;
-
-    // 1) BOT LIVE → bitti mi kontrol et (cache'de skor varsa) veya skor güncelle
-    if (state === 'live-bot') {
-      // Bitti mi?
-      const cached = resultsCache[key];
-      if (cached && typeof cached.hs === 'number' && typeof cached.as === 'number') {
-        // FIN'e dönüştür — animation bozulmaz, sadece DOM içerik
-        const teams = item.querySelectorAll('.lg-ti-team');
-        const homeName = teams[0] ? teams[0].textContent : '';
-        const awayName = teams[1] ? teams[1].textContent : '';
-        item.classList.remove('live');
-        item.classList.add('fin');
-        item.dataset.state = 'fin';
-        item.innerHTML = `
-          <span class="lg-ti-team">${homeName}</span>
-          <span class="lg-ti-score">${cached.hs}-${cached.as}</span>
-          <span class="lg-ti-team">${awayName}</span>
-        `;
-        return;
-      }
-      // Hâlâ canlı: skor + dakika update
-      const kickoffMs = parseInt(item.dataset.kickoff, 10);
-      const finalHs = parseInt(item.dataset.finalHs, 10) || 0;
-      const finalAs = parseInt(item.dataset.finalAs, 10) || 0;
-      const elapsedMin = (nowMs - kickoffMs) / 60000;
-      if (elapsedMin >= 15) {
-        // Pencere kapandı, cache hâlâ yok — scheduled fallback
-        return;
-      }
-      const progress = Math.max(0, Math.min(1, elapsedMin / 12));
-      const matchMin = Math.max(1, Math.min(90, Math.floor(progress * 90)));
-      const liveScore = _lgTickerComputeBotLive(key, finalHs, finalAs, matchMin);
-      const scoreEl = item.querySelector('.lg-ti-score');
-      const minEl = item.querySelector('.lg-ti-min');
-      if (scoreEl) scoreEl.textContent = `${liveScore.hs}-${liveScore.as}`;
-      if (minEl) minEl.textContent = `${matchMin}'`;
-      return;
-    }
-
-    // 2) USER LIVE → MS state'inden skor + dakika
-    if (state === 'live-user') {
-      // Maç bitti mi?
-      if (!userLiveOn) {
-        // Cache'de skor varsa bitti olarak güncelle
-        const cached = resultsCache[key];
-        if (cached && typeof cached.hs === 'number' && typeof cached.as === 'number') {
-          const teams = item.querySelectorAll('.lg-ti-team');
-          const homeName = teams[0] ? teams[0].textContent : '';
-          const awayName = teams[1] ? teams[1].textContent : '';
-          item.classList.remove('live');
-          item.classList.add('fin');
-          item.dataset.state = 'fin';
-          item.innerHTML = `
-            <span class="lg-ti-team">${homeName}</span>
-            <span class="lg-ti-score">${cached.hs}-${cached.as}</span>
-            <span class="lg-ti-team">${awayName}</span>
-          `;
-        }
-        return;
-      }
-      const scoreEl = item.querySelector('.lg-ti-score');
-      const minEl = item.querySelector('.lg-ti-min');
-      if (scoreEl) scoreEl.textContent = `${MS.scoreH || 0}-${MS.scoreA || 0}`;
-      if (minEl) minEl.textContent = `${MS.minute || 0}'`;
-      return;
-    }
-
-    // 3) SCHED → kickoff geçtiyse live'a çevir (yeniden render gerekir, basit yol: full refresh)
-    if (state === 'sched') {
-      const kickoffMs = parseInt(item.dataset.kickoff, 10);
-      if (!isNaN(kickoffMs) && nowMs >= kickoffMs && nowMs < kickoffMs + 15 * 60 * 1000) {
-        // Bu durum nadir — full re-render yap
-        try { renderHomeLeagueTicker(); } catch(e) {}
-        return;
-      }
-    }
-  });
-}
-
-// 🆕 Bot canlı skor — _lgTickerTickUpdate için (renderHomeLeagueTicker kapsamı dışında erişilebilir)
-function _lgTickerComputeBotLive(seed, finalHs, finalAs, currentMatchMin) {
-  let h = 2166136261;
-  const s = String(seed);
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  let liveHs = 0;
-  for (let g = 0; g < finalHs; g++) {
-    const r = Math.imul(h, 7919 + g * 31) >>> 0;
-    const goalMin = (r % 90) + 1;
-    if (goalMin <= currentMatchMin) liveHs++;
-  }
-  let liveAs = 0;
-  for (let g = 0; g < finalAs; g++) {
-    const r = Math.imul(h, 31337 + g * 53) >>> 0;
-    const goalMin = (r % 90) + 1;
-    if (goalMin <= currentMatchMin) liveAs++;
-  }
-  return { hs: liveHs, as: liveAs };
+    try { renderHomeLeagueTicker(); } catch(e) {}
+  }, delay);
 }
 
 // 🆕 Lig sahnesi git butonu — o ligi aç
