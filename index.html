@@ -39825,84 +39825,30 @@ async function userTeamLoadFromServer() {
       .eq('user_id', user.id).maybeSingle();
     if (error) { console.warn('[userTeam] load hata:', error.message); _userTeam = null; return; }
     
-    if (data && data.user_team_data) {
-      // Birincil kaynak: user_team_data JSON
-      _userTeam = data.user_team_data;
-      if (data.num && !_userTeam.num) _userTeam.num = data.num;
-      if (!_userTeam.role && data.role) _userTeam.role = data.role;
-      
-      // 🆕 tierIdx'i takımın gerçek liginden doğrula/düzelt
-      if (_userTeam.teamName && _userTeam.countryCode && typeof _cftGetCountry === 'function') {
-        const country = _cftGetCountry(_userTeam.countryCode);
-        if (country && country.leagues) {
-          let realTierIdx = -1;
-          for (let li = 0; li < country.leagues.length; li++) {
-            const lg = country.leagues[li];
-            if (lg && lg.teams && lg.teams.some(t => t.name === _userTeam.teamName)) {
-              realTierIdx = li;
-              break;
-            }
-          }
-          if (realTierIdx >= 0 && _userTeam.tierIdx !== realTierIdx) {
-            console.info('[userTeam] tierIdx düzeltildi:', _userTeam.tierIdx, '→', realTierIdx);
-            _userTeam.tierIdx = realTierIdx;
-            // DB'ye yaz (geleceğe yönelik)
-            try {
-              await window.sb.from('players').update({ user_team_data: _userTeam }).eq('user_id', user.id);
-            } catch(e) {}
-          }
-        }
-      }
-    } else if (data && data.team_name && data.country_code) {
-      // FALLBACK 1: user_team_data JSON boş ama team_name + country_code dolu
-      console.info('[userTeam] user_team_data boş, players sütunlarından inşa ediliyor');
+    // 🆕 TEK KAYNAK: takım kimliği daima players.team_name + country_code kolonlarından.
+    //   user_team_data JSON yalnızca tierIdx gibi ek alan taşır (kimlik kaynağı DEĞİL).
+    //   team_name boşsa kullanıcı takımsız (serbest) — JSON/inbox ile geri kurulmaz.
+    if (data && data.team_name && data.country_code) {
       _userTeam = {
         teamName: data.team_name,
         countryCode: data.country_code,
         role: data.role || 'member',
         num: data.num || null,
       };
-      try {
-        await window.sb.from('players').update({ user_team_data: _userTeam }).eq('user_id', user.id);
-      } catch(e) {}
-    } else {
-      // 🆕 FALLBACK 2: players satırı eksik kalmış olabilir
-      // Inbox'tan kabul edilmiş katılım mesajı ara ve oradan takım bilgisini al
-      try {
-        const { data: inboxData } = await window.sb.from('user_inbox')
-          .select('messages')
-          .eq('user_id', user.id)
-          .maybeSingle();
-        const msgs = (inboxData && Array.isArray(inboxData.messages)) ? inboxData.messages : [];
-        // En son kabul edilmiş katılım mesajını bul
-        const accepted = msgs.filter(m => 
-          m && (m.type === 'join_accepted' || m.type === 'offer_accepted' || m.offerStatus === 'approved')
-          && m.teamName && m.countryCode
-        ).sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
-        if (accepted) {
-          console.info('[userTeam] inbox\'tan takım bilgisi alındı:', accepted.teamName);
-          _userTeam = {
-            teamName: accepted.teamName,
-            countryCode: accepted.countryCode,
-            role: 'member',
-            num: null,
-          };
-          // players satırını da güncelle (geleceğe yönelik)
-          try {
-            await window.sb.from('players').update({
-              team_name: _userTeam.teamName,
-              country_code: _userTeam.countryCode,
-              role: 'member',
-              user_team_data: _userTeam,
-            }).eq('user_id', user.id);
-          } catch(e) { console.warn('[userTeam] players update hata:', e); }
-        } else {
-          _userTeam = null;
+      const ut = (data.user_team_data && typeof data.user_team_data === 'object') ? data.user_team_data : {};
+      if (ut.tierIdx != null) _userTeam.tierIdx = ut.tierIdx;
+      // tierIdx'i takımın gerçek liginden doğrula/düzelt
+      if (typeof _cftGetCountry === 'function') {
+        const country = _cftGetCountry(_userTeam.countryCode);
+        if (country && country.leagues) {
+          for (let li = 0; li < country.leagues.length; li++) {
+            const lg = country.leagues[li];
+            if (lg && lg.teams && lg.teams.some(t => t.name === _userTeam.teamName)) { _userTeam.tierIdx = li; break; }
+          }
         }
-      } catch(e) {
-        console.warn('[userTeam] inbox fallback hata:', e);
-        _userTeam = null;
       }
+    } else {
+      _userTeam = null;
     }
   } catch(e) { console.warn('[userTeam] load hata:', e); _userTeam = null; }
 }
