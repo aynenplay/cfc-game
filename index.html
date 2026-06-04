@@ -73704,14 +73704,14 @@ function getTop50Teams() {
 
   for(const [code, country] of _cftAllEntries()) {
     if(!country.leagues) continue;
-    // Tier 0 (1. lig) takımlarını dahil et
-    const tier0 = country.leagues[0];
-    if(tier0 && tier0.teams) {
-      tier0.teams.forEach(team => {
+    // 🆕 TÜM tier'lar — her ligdeki her takım havuza girer (sadece tier-0 DEĞİL → 1824'ün hepsi)
+    country.leagues.forEach(lg => {
+      if(!lg || !lg.teams) return;
+      lg.teams.forEach(team => {
         const isUserTeam = !!(myCC && myName && code === myCC && team.name === myName);
         all.push({
           n: team.name, f: country.flag, cn: country.name,
-          countryCode: code, lg: tier0.name,
+          countryCode: code, lg: lg.name,
           o: _teamPowerFromPlayers(code, team.name, team.rank),
           rawRating: team.rating || 10,
           oz: team.oz || 0,
@@ -73723,36 +73723,7 @@ function getTop50Teams() {
           _isMe: isUserTeam,
         });
       });
-    }
-
-    // 🆕 Kullanıcı bu ülkede + tier 0'da değil ise, alt tier'lardan kullanıcı takımını da dahil et
-    if(myCC === code && myName) {
-      // Tier 1+ ligleri tara
-      for(let ti = 1; ti < country.leagues.length; ti++) {
-        const lg = country.leagues[ti];
-        if(!lg || !lg.teams) continue;
-        const myTeamHere = lg.teams.find(t => t && t.name === myName);
-        if(myTeamHere) {
-          // Bu takım zaten tier 0 listesinde yoksa ekle
-          all.push({
-            n: myTeamHere.name, f: country.flag, cn: country.name,
-            countryCode: code, lg: lg.name,
-            o: _teamPowerFromPlayers(code, myTeamHere.name, myTeamHere.rank),
-            rawRating: myTeamHere.rating || 10,
-            oz: myTeamHere.oz || 0,
-            mv: (typeof calculateTeamValue === 'function')
-                  ? calculateTeamValue({name: myTeamHere.name, countryCode: code})
-                  : 0,
-            cf: (myTeamHere.teamPoints || 0),
-            av: TEAM_AV_BY_COUNTRY[code] || '🛡️',
-            bg: myTeamHere.bg, tc: myTeamHere.tc, short: myTeamHere.short,
-            rank: myTeamHere.rank,
-            _isMe: true,
-          });
-          break; // Bulduktan sonra dur
-        }
-      }
-    }
+    });
   }
 
   // 🆕 Sıralama: o azalan → eşitlikte kullanıcı takımı önde → sonra oz → isim
@@ -73762,8 +73733,7 @@ function getTop50Teams() {
       ((b._isMe?1:0) - (a._isMe?1:0)) ||
       ((b.oz||0) - (a.oz||0)) ||
       (a.n > b.n ? 1 : -1)
-    )
-    .slice(0, 50);
+    );
 }
 
 // Eski sabit liste yerine fonksiyondan al (geriye dönük uyumluluk için global ad)
@@ -74299,7 +74269,7 @@ async function rkRenderTeams(){
   // coef modunda kullanıcı gerçekten top-50'de değilse üst listeden çıkar (sahte #50 olmasın — altta gerçek sırayla görünür)
   let _display = sorted;
   if (_rkTeamMode === 'coef' && _myGR != null && _myGR > 50) _display = sorted.filter(t => !t._isMe);
-  list.innerHTML = '<div class="lst-list">' + _display.map((t, i) => rkTeamRow(t, i+1, !!t._isMe)).join('') + '</div>';
+  list.innerHTML = '<div class="lst-list">' + _display.slice(0, 50).map((t, i) => rkTeamRow(t, i+1, !!t._isMe)).join('') + '</div>';
 
   // Benim takımım — kullanıcının takımı (yoksa Ankara fallback)
   let myTeam = null;
