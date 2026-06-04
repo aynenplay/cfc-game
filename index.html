@@ -51488,7 +51488,9 @@ async function joinTeamDirect(countryCode, teamName, opts) {
     if (typeof showJoinToast === 'function') showJoinToast('⚠️ Bağlantı yok, sayfayı yenile.');
     return false;
   }
-  const _newTeamData = {
+  // _userTeam'i hemen kur (senkron — çağıranlar takım kimliğine await beklemeden erişsin)
+  const _prevTeam = _userTeam;
+  _userTeam = {
     countryCode,
     teamName,
     role: 'member',         // Direkt katılım her zaman üye rolünde
@@ -51499,15 +51501,15 @@ async function joinTeamDirect(countryCode, teamName, opts) {
     p_user_id: authUser.id,
     p_country_code: countryCode,
     p_team_name: teamName,
-    p_user_team_data: _newTeamData,
+    p_user_team_data: _userTeam,
   });
   if (_joinErr || _assignedNum == null) {
     console.warn('[joinTeamDirect] slot RPC hata:', _joinErr && _joinErr.message);
+    _userTeam = _prevTeam;   // başarısızsa eski duruma dön
     if (typeof showJoinToast === 'function') showJoinToast('⚠️ Takıma katılınamadı, tekrar dene.');
     return false;
   }
-  _newTeamData.num = _assignedNum;
-  _userTeam = _newTeamData;
+  _userTeam.num = _assignedNum;
   if(typeof achBump === 'function') achBump('join');   // 🆕 başarı: takıma katılma sayacı
 
   // Career history: bot kaptanlı takıma direkt katılım
