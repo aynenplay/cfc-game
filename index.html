@@ -73660,17 +73660,22 @@ let _teamPowerCache = null;   // { "CC:TeamName": ortalamaGuc }
 async function _loadAllTeamsForRanking() {
   if (!window.sb) return;
   try {
-    // Takım gücü (kadro overall ortalaması) için tek hafif sorgu
-    const { data, error } = await window.sb.from('players')
-      .select('team_name, country_code, overall');
-    if (error || !Array.isArray(data)) { console.warn('[teamPower] yük hata:', error); return; }
-    // Takım bazında overall'ları topla
+    // Takım gücü (kadro overall ortalaması) — TÜM oyuncular (Supabase 1000 limitini sayfalı aş)
     const byTeam = {};
-    for (const r of data) {
-      if (!r || !r.team_name) continue;
-      const cc = (r.country_code || 'TR');
-      const key = cc + ':' + r.team_name;
-      (byTeam[key] || (byTeam[key] = [])).push(Number(r.overall) || 10);
+    const PAGE = 1000; let from = 0;
+    while (true) {
+      const { data, error } = await window.sb.from('players')
+        .select('team_name, country_code, overall')
+        .range(from, from + PAGE - 1);
+      if (error || !Array.isArray(data) || data.length === 0) { if (error) console.warn('[teamPower] yük hata:', error); break; }
+      for (const r of data) {
+        if (!r || !r.team_name) continue;
+        const cc = (r.country_code || 'TR');
+        const key = cc + ':' + r.team_name;
+        (byTeam[key] || (byTeam[key] = [])).push(Number(r.overall) || 10);
+      }
+      if (data.length < PAGE) break;
+      from += PAGE; if (from > 200000) break;
     }
     // Her takım için TÜM KADRO ortalaması (top-11 değil)
     const cache = {};
