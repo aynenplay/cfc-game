@@ -27287,6 +27287,22 @@ async function _loadTeamRosterFromServer(cc, teamName) {
 }
 
 // Önyükleme: bir kerelik tüm takımları cache'le (ağır, isteğe bağlı)
+let _rkFreeUsersCache = []; // takımsız (serbest) gerçek kullanıcılar — sıralama için RAM cache
+let _rkFreeUsersLoaded = false;
+async function _loadFreeAgentUsers() {
+  if (!window.sb) return;
+  try {
+    const { data, error } = await window.sb.from('players')
+      .select('id, user_id, country_code, name, pos, overall, level, avatar, avatar_id, nation, nationality')
+      .is('team_name', null)
+      .eq('is_bot', false);
+    if (error) { console.warn('[freeUsers] hata:', error); return; }
+    _rkFreeUsersCache = Array.isArray(data) ? data : [];
+    _rkFreeUsersLoaded = true;
+    if (typeof invalidateRkPlayerCache === 'function') invalidateRkPlayerCache();
+    console.info('[freeUsers] yüklendi:', _rkFreeUsersCache.length, 'takımsız kullanıcı');
+  } catch(e) { console.warn('[freeUsers] exception:', e); }
+}
 async function preloadAllTeamRosters() {
   if (!window.sb) return;
   try {
@@ -27361,6 +27377,7 @@ async function preloadAllTeamRosters() {
       _teamRosterCache[k].sort((a, b) => a.num - b.num);
     }
     console.info('[preloadAllRosters] yüklendi:', all.length, 'oyuncu /', Object.keys(_teamRosterCache).length, 'takım');
+    if (typeof invalidateRkPlayerCache === 'function') invalidateRkPlayerCache(); // taze kadrolar geldi → sıralama tazelensin
   } catch(e) { console.warn('[preloadAllRosters] exception:', e); }
 }
 
@@ -39966,6 +39983,9 @@ async function bootstrapWorld(){
       try {
         if (typeof preloadAllTeamRosters === 'function') {
           preloadAllTeamRosters();
+        }
+        if (typeof _loadFreeAgentUsers === 'function') {
+          _loadFreeAgentUsers();
         }
       } catch(e) { console.warn('[bootstrap] background preload hata:', e); }
     }, 0);
@@ -73478,6 +73498,22 @@ function buildRkPlayerList() {
         });
       }
     }
+
+    // 🆕 Takımsız (serbest) gerçek kullanıcılar — players cache'inde yoklar (team_name null).
+    //   _loadFreeAgentUsers() ile RAM'e yüklenir; oturum kullanıcısı zaten ROSTER_DATA'da (dedup).
+    for (const u of (_rkFreeUsersCache || [])) {
+      if (!u || !u.user_id || addedUserIds.has(u.user_id)) continue;
+      addedUserIds.add(u.user_id);
+      const ctry = _cftGetCountry(u.country_code || 'TR');
+      all.push({
+        n: u.name, f: u.nation || (ctry && ctry.flag) || '🏳️', c: 'Serbest',
+        p: u.pos || 'MID', o: u.overall || 10, lv: u.level || 0,
+        av: u.avatar || '🧑', avatar_id: u.avatar_id || null,
+        cc: u.country_code || 'TR', teamName: 'Serbest', teamRank: 99,
+        teamBg: '#444', teamTc: '#fff', teamShort: 'FA',
+        isUser: true, userId: u.user_id,
+      });
+    }
   }
 
   // 🆕 Oyuncu istatistiklerini topla (cached maçlardan deterministik dağıtım)
@@ -74425,10 +74461,24 @@ function rkSetPlayerMode(mode){
   rkRenderPlayers();
 }
 
-function rkRenderPlayers(){
+async function rkRenderPlayers(){
   const list = document.getElementById('rkPlayersList');
   if(!list) return;
   if(_rkSearchActive){ rkRenderSearch(); return; }
+
+  // 🆕 Supabase'den TAM çek: cache boşsa (preload bitmemişse) bekle ki liste
+  //   herkes için eksiksiz olsun; sonra sıralama cache'ini tazeleyip kur.
+  if (typeof preloadAllTeamRosters === 'function' &&
+      (typeof _teamRosterCache === 'undefined' || !_teamRosterCache || Object.keys(_teamRosterCache).length === 0)) {
+    list.innerHTML = '<div class="lst-empty"><div class="lst-empty-icon">⏳</div>Sıralama yükleniyor…</div>';
+    try { await preloadAllTeamRosters(); } catch(e) {}
+  }
+  if (typeof _loadFreeAgentUsers === 'function' && !_rkFreeUsersLoaded) {
+    try { await _loadFreeAgentUsers(); } catch(e) {}
+  }
+  if (typeof invalidateRkPlayerCache === 'function') invalidateRkPlayerCache();
+  // Kullanıcı bu sırada başka sekmeye geçtiyse yazma
+  if (_rkActiveTab !== 'players') return;
 
   // Dinamik liste — teams DB + kendi takım
   const allPlayers = buildRkPlayerList().slice(); // shallow copy
