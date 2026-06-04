@@ -6595,6 +6595,7 @@ body.team-captain .pr-mv.is-custom:hover{color:#ffe082}
 .pm-role-badge.vice{background:rgba(102,179,255,.1);color:#66b3ff;border:1px solid rgba(102,179,255,.25)}
 .pm-role-badge.user{background:rgba(70,209,122,.1);color:#46d17a;border:1px solid rgba(70,209,122,.25)}
 .pm-role-badge.bot{background:rgba(102,179,255,.1);color:#66b3ff;border:1px solid rgba(102,179,255,.25)}
+.pm-role-badge.free{background:rgba(45,212,191,.12);color:#2dd4bf;border:1px solid rgba(45,212,191,.28)}
 
 /* Bilgi şeridi — sol renk şeritli karbon kart */
 .pm-info-strip{
@@ -39298,13 +39299,16 @@ function inlineBadge(opts) {
       if (team) break;
     }
   }
-  const url = team ? teamLogoUrl(team) : null;
-  if (url) {
-    return `<${tag} class="${cls} crest-has-logo"><img src="${url}" alt="" loading="lazy"></${tag}>`;
-  }
   const bg = (team && team.bg) || opts.bg || '#333';
   const tc = (team && team.tc) || opts.tc || '#fff';
   const short = (team && team.short) || opts.short || '?';
+  const url = team ? teamLogoUrl(team) : null;
+  if (url) {
+    // Logo dosyası storage'da yoksa renkli kısa-isim rozetine düş (kırık img gösterme)
+    const sh = String(short).replace(/['\\]/g, '');
+    const fb = `var p=this.parentNode;p.classList.remove('crest-has-logo');p.style.background='${bg}';p.style.color='${tc}';p.textContent='${sh}'`;
+    return `<${tag} class="${cls} crest-has-logo"><img src="${url}" alt="" loading="lazy" onerror="${fb}"></${tag}>`;
+  }
   return `<${tag} class="${cls}" style="background:${bg};color:${tc}">${short}</${tag}>`;
 }
 
@@ -40781,6 +40785,7 @@ function doRegister(){
           abilities: (typeof _buildAbilities === 'function') ? _buildAbilities() : { GK:{}, DEF:{}, MID:{}, FWD:{} },
           role: null,  // 🆕 Takıma girince member/vice/captain olur
           avatar: '👤',
+          avatar_id: _regSelectedAvatar,  // 🆕 başkaları da seçilen avatarı görsün
           last_seen: new Date().toISOString()
         });
       } catch(e) { console.warn('[register] players insert hata:', e); }
@@ -44313,7 +44318,7 @@ function openPlayerModalSelfFromRanking() {
 async function _resolvePlayerFromServer(player, ctx){
   if(!window.sb || !player) return null;
   try {
-    const cols='id, user_id, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, avatar_id, is_bot, last_seen, goals_total, assists_total, matches_played, match_ratings, stats_by_comp, season_yellow, suspend_matches, suspend_reason, injury_until';
+    const cols='id, user_id, team_name, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, avatar_id, is_bot, last_seen, goals_total, assists_total, matches_played, match_ratings, stats_by_comp, season_yellow, suspend_matches, suspend_reason, injury_until';
     let q=window.sb.from('players').select(cols);
     const uid=player.userId||player.user_id;
     if(uid) q=q.eq('user_id',uid);
@@ -44330,7 +44335,9 @@ async function _resolvePlayerFromServer(player, ctx){
     const { data, error }=await q.limit(1);
     if(error||!Array.isArray(data)||!data.length) return null;
     const mapped=_buildRosterFromPlayers([data[0]], data[0].nationality);
-    return (mapped&&mapped[0])||null;
+    const out=(mapped&&mapped[0])||null;
+    if(out) out.team_name = (data[0].team_name == null ? null : data[0].team_name);
+    return out;
   } catch(e){ return null; }
 }
 
@@ -44402,6 +44409,7 @@ async function openPlayerModal(player, ctx) {
   const isCap  = player.role === 'captain';
   const isVice = player.role === 'vice';
   const isBot  = player.isBot;
+  const isFreeAgent = !isBot && player.team_name === null;  // 🆕 takımsız gerçek kullanıcı = serbest
 
   // Rol badge — emoji yok, sade text
   let roleBadge = '';
@@ -44413,6 +44421,7 @@ async function openPlayerModal(player, ctx) {
   else if(isCap)  roleBadge = '<span class="pm-role-badge cap">Kaptan</span>';
   else if(isVice) roleBadge = '<span class="pm-role-badge vice">Yrd. Kaptan</span>';
   else if(isBot)  roleBadge = '<span class="pm-role-badge bot">Bot</span>';
+  else if(isFreeAgent) roleBadge = '<span class="pm-role-badge free">Serbest</span>';
   else            roleBadge = '<span class="pm-role-badge bot">Üye</span>';
 
   const avatarClass = isCap ? 'cap' : isVice ? 'vice' : '';
