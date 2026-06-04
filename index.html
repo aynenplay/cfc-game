@@ -40085,13 +40085,15 @@ function authInit(){
           const userId = sess.session.user.id;
           const userEmail = sess.session.user.email;
 
-          const [profRes, upRes, wlRes] = await Promise.all([
+          const [profRes, upRes, wlRes, plrRes] = await Promise.all([
             window.sb.from('profiles').select('*').eq('id', userId).maybeSingle(),
             window.sb.from('user_player').select('*').eq('user_id', userId).maybeSingle(),
-            window.sb.from('user_wallet').select('*').eq('user_id', userId).maybeSingle()
+            window.sb.from('user_wallet').select('*').eq('user_id', userId).maybeSingle(),
+            window.sb.from('players').select('pos, avatar_id, level, xp, overall').eq('user_id', userId).maybeSingle()
           ]);
           const prof = profRes.data;
           const uplayer = upRes.data;
+          const _plr = plrRes.data;
 
           // authUser'ı (yoksa yarat, varsa güncelle)
           if (!authUser) authUser = {};
@@ -40102,20 +40104,21 @@ function authInit(){
             authUser.name = prof.name || authUser.name || authUser.username;
             authUser.nationality = prof.nationality || authUser.nationality || 'TR';
             authUser.age = prof.age || authUser.age || '25-34';
-            authUser.position = prof.position || authUser.position || 'MID';
-            if (prof.avatar_id) authUser.avatarId = prof.avatar_id;
+            authUser.position = (_plr && _plr.pos) || prof.position || authUser.position || 'MID';
           }
+          if (_plr && _plr.avatar_id) authUser.avatarId = _plr.avatar_id;
           if (!authUser.avatarId && typeof AVATAR_OPTIONS !== 'undefined') {
             authUser.avatarId = AVATAR_OPTIONS[Math.floor(Math.random() * AVATAR_OPTIONS.length)].id;
           }
           /* cft_auth localStorage kaldırıldı - sadece Supabase */
 
           // user_player → RAM cache (Supabase tek doğru kaynak)
-          if (uplayer) {
+          const _prog = _plr || uplayer;
+          if (_prog) {
             window._userProgressCache = {
-              level: (typeof uplayer.level === 'number') ? uplayer.level : 0,
-              xp: (typeof uplayer.xp === 'number') ? uplayer.xp : 0,
-              overall: (typeof uplayer.overall === 'number') ? uplayer.overall : 10
+              level: (typeof _prog.level === 'number') ? _prog.level : 0,
+              xp: (typeof _prog.xp === 'number') ? _prog.xp : 0,
+              overall: (typeof _prog.overall === 'number') ? _prog.overall : 10
             };
           }
 
@@ -40604,6 +40607,10 @@ function doLogin(){
       const { data: uplayer } = await window.sb.from('user_player')
         .select('*').eq('user_id', data.user.id).maybeSingle();
 
+      // 🆕 players çek — pos/avatar/stat kanonik kaynak
+      const { data: _plr } = await window.sb.from('players')
+        .select('pos, avatar_id, level, xp, overall').eq('user_id', data.user.id).maybeSingle();
+
       const randomAvatar = AVATAR_OPTIONS[Math.floor(Math.random() * AVATAR_OPTIONS.length)].id;
       authUser = {
         id: data.user.id,
@@ -40612,16 +40619,17 @@ function doLogin(){
         name: profile?.name || profile?.username || email.split('@')[0] || 'Oyuncu',
         nationality: profile?.nationality || 'TR',
         age: profile?.age || '25-34',
-        position: profile?.position || 'MID',
-        avatarId: profile?.avatar_id || randomAvatar
+        position: (_plr && _plr.pos) || profile?.position || 'MID',
+        avatarId: (_plr && _plr.avatar_id) || randomAvatar
       };
 
       // user_player → RAM cache (Supabase tek doğru kaynak)
-      if (uplayer) {
+      const _prog = _plr || uplayer;
+      if (_prog) {
         window._userProgressCache = {
-          level: (typeof uplayer.level === 'number') ? uplayer.level : 0,
-          xp: (typeof uplayer.xp === 'number') ? uplayer.xp : 0,
-          overall: (typeof uplayer.overall === 'number') ? uplayer.overall : 10
+          level: (typeof _prog.level === 'number') ? _prog.level : 0,
+          xp: (typeof _prog.xp === 'number') ? _prog.xp : 0,
+          overall: (typeof _prog.overall === 'number') ? _prog.overall : 10
         };
       }
 
@@ -52792,7 +52800,7 @@ async function fetchOnlineStats() {
     // Online kullanıcılar (son 5 dakika, sadece gerçek kullanıcılar)
     const fiveMinAgo = new Date(Date.now() - 5*60*1000).toISOString();
     const { data: list, error } = await window.sb.from('players')
-      .select('id,user_id,name,team_name,country_code,nation,pos,pos_group,last_seen')
+      .select('id,user_id,name,team_name,country_code,nation,pos,pos_group,last_seen,avatar_id')
       .not('user_id', 'is', null)
       .gte('last_seen', fiveMinAgo)
       .order('last_seen', { ascending: false })
@@ -52803,14 +52811,14 @@ async function fetchOnlineStats() {
     if (enriched.length > 0) {
       const uids = enriched.map(p => p.user_id);
       const { data: profs } = await window.sb.from('profiles')
-        .select('id,username,avatar_id,position').in('id', uids);
+        .select('id,username').in('id', uids);
       const pmap = {};
       (profs || []).forEach(pr => { pmap[pr.id] = pr; });
       enriched = enriched.map(p => ({
         ...p,
         username: pmap[p.user_id]?.username || '',
-        avatar_id: pmap[p.user_id]?.avatar_id || null,
-        position: p.pos_group || pmap[p.user_id]?.position || null
+        avatar_id: p.avatar_id || null,
+        position: p.pos_group || null
       }));
     }
     _onlineCache = {
@@ -59693,9 +59701,9 @@ async function confirmPosChange() {
   let oldPos = user.position || 'MID';
   try {
     if (window.sb && user.id) {
-      const { data: _pr } = await window.sb.from('profiles').select('position').eq('id', user.id).maybeSingle();
-      if (_pr && _pr.position) {
-        oldPos = _pr.position;
+      const { data: _pr } = await window.sb.from('players').select('pos').eq('user_id', user.id).maybeSingle();
+      if (_pr && _pr.pos) {
+        oldPos = _pr.pos;
         user.position = oldPos; // RAM cache'i de yenile
       }
     }
@@ -67594,15 +67602,18 @@ async function _inboxComposeResolveTo(val) {
   _inboxComposeResolveTimer = setTimeout(async () => {
     try {
       const { data: prof } = await window.sb.from('profiles')
-        .select('id, name, username, avatar_id')
+        .select('id, name, username')
         .ilike('username', username)
         .maybeSingle();
       if (!prof) { chip.style.display = 'none'; return; }
+      const { data: _pp } = await window.sb.from('players')
+        .select('avatar_id').eq('user_id', prof.id).maybeSingle();
+      const _avId = (_pp && _pp.avatar_id) || null;
       const avEl = document.getElementById('inboxComposeChipAv');
       const nmEl = document.getElementById('inboxComposeChipNm');
       if (nmEl) nmEl.textContent = prof.name || ('@' + prof.username);
       if (avEl) {
-        const avImg = (typeof getAvatarEmoji === 'function') ? getAvatarEmoji(prof.avatar_id) : null;
+        const avImg = (typeof getAvatarEmoji === 'function') ? getAvatarEmoji(_avId) : null;
         avEl.innerHTML = (avImg && /<img/.test(avImg)) ? avImg : (avImg || '👤');
       }
       chip.style.display = 'inline-flex';
@@ -67626,13 +67637,14 @@ async function inboxSendCompose() {
     const username = toRaw.replace(/^@+/, '').trim().toLowerCase();
     if (!username) { alert('Geçerli bir kullanıcı adı gir.'); return; }
     const { data: prof, error } = await window.sb.from('profiles')
-      .select('id, name, username, avatar_id')
+      .select('id, name, username')
       .ilike('username', username)
       .maybeSingle();
     if (error || !prof) { alert(`Kullanıcı bulunamadı: @${username}`); return; }
     toId = prof.id;
     toName = prof.name || ('@' + prof.username);
-    toAvatarId = prof.avatar_id || null;
+    const { data: _pp } = await window.sb.from('players').select('avatar_id').eq('user_id', prof.id).maybeSingle();
+    toAvatarId = (_pp && _pp.avatar_id) || null;
   }
 
   // Kendine gönderme engeli
@@ -75707,22 +75719,25 @@ async function cfcMdLoadKnownUsers() {
   try {
     // Profiles + players paralel
     const [profRes, playersRes] = await Promise.all([
-      window.sb.from('profiles').select('id, username, name, nationality, avatar_id').order('username'),
-      window.sb.from('players').select('user_id, user_team_data').not('user_id', 'is', null),
+      window.sb.from('profiles').select('id, username, name, nationality').order('username'),
+      window.sb.from('players').select('user_id, user_team_data, avatar_id').not('user_id', 'is', null),
     ]);
     if (profRes.error) { console.warn('[social] users:', profRes.error); _cfcMdUsersCache = []; return []; }
     // user_id → user_team_data
     const teamByUid = {};
+    const avByUid = {};
     for (const row of (playersRes.data || [])) {
       if (row.user_id && row.user_team_data) teamByUid[row.user_id] = row.user_team_data;
+      if (row.user_id && row.avatar_id) avByUid[row.user_id] = row.avatar_id;
     }
     const myId = cfcMdGetMyId();
     const users = (profRes.data || []).map(p => {
       const handle = '@' + (p.username || '').replace(/^@+/, '').toLowerCase();
       const id = 'user:' + (p.username || '').replace(/^@+/, '').toLowerCase();
+      const avId = avByUid[p.id] || null;
       let avHTML = '⚽';
-      if (p.avatar_id && typeof getAvatarEmoji === 'function') {
-        avHTML = getAvatarEmoji(p.avatar_id, null);
+      if (avId && typeof getAvatarEmoji === 'function') {
+        avHTML = getAvatarEmoji(avId, null);
       }
       const t = teamByUid[p.id];
       return {
@@ -75730,7 +75745,7 @@ async function cfcMdLoadKnownUsers() {
         name: p.name || p.username || 'Kullanıcı',
         handle,
         avatar: avHTML,
-        avatarId: p.avatar_id || null,
+        avatarId: avId,
         team: t && t.teamName ? t.teamName : null,
         country: p.nationality || (t && t.countryCode) || null,
         isMe: id === myId,
