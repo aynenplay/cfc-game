@@ -39825,30 +39825,84 @@ async function userTeamLoadFromServer() {
       .eq('user_id', user.id).maybeSingle();
     if (error) { console.warn('[userTeam] load hata:', error.message); _userTeam = null; return; }
     
-    // 🆕 TEK KAYNAK: takım kimliği daima players.team_name + country_code kolonlarından.
-    //   user_team_data JSON yalnızca tierIdx gibi ek alan taşır (kimlik kaynağı DEĞİL).
-    //   team_name boşsa kullanıcı takımsız (serbest) — JSON/inbox ile geri kurulmaz.
-    if (data && data.team_name && data.country_code) {
+    if (data && data.user_team_data) {
+      // Birincil kaynak: user_team_data JSON
+      _userTeam = data.user_team_data;
+      if (data.num && !_userTeam.num) _userTeam.num = data.num;
+      if (!_userTeam.role && data.role) _userTeam.role = data.role;
+      
+      // 🆕 tierIdx'i takımın gerçek liginden doğrula/düzelt
+      if (_userTeam.teamName && _userTeam.countryCode && typeof _cftGetCountry === 'function') {
+        const country = _cftGetCountry(_userTeam.countryCode);
+        if (country && country.leagues) {
+          let realTierIdx = -1;
+          for (let li = 0; li < country.leagues.length; li++) {
+            const lg = country.leagues[li];
+            if (lg && lg.teams && lg.teams.some(t => t.name === _userTeam.teamName)) {
+              realTierIdx = li;
+              break;
+            }
+          }
+          if (realTierIdx >= 0 && _userTeam.tierIdx !== realTierIdx) {
+            console.info('[userTeam] tierIdx düzeltildi:', _userTeam.tierIdx, '→', realTierIdx);
+            _userTeam.tierIdx = realTierIdx;
+            // DB'ye yaz (geleceğe yönelik)
+            try {
+              await window.sb.from('players').update({ user_team_data: _userTeam }).eq('user_id', user.id);
+            } catch(e) {}
+          }
+        }
+      }
+    } else if (data && data.team_name && data.country_code) {
+      // FALLBACK 1: user_team_data JSON boş ama team_name + country_code dolu
+      console.info('[userTeam] user_team_data boş, players sütunlarından inşa ediliyor');
       _userTeam = {
         teamName: data.team_name,
         countryCode: data.country_code,
         role: data.role || 'member',
         num: data.num || null,
       };
-      const ut = (data.user_team_data && typeof data.user_team_data === 'object') ? data.user_team_data : {};
-      if (ut.tierIdx != null) _userTeam.tierIdx = ut.tierIdx;
-      // tierIdx'i takımın gerçek liginden doğrula/düzelt
-      if (typeof _cftGetCountry === 'function') {
-        const country = _cftGetCountry(_userTeam.countryCode);
-        if (country && country.leagues) {
-          for (let li = 0; li < country.leagues.length; li++) {
-            const lg = country.leagues[li];
-            if (lg && lg.teams && lg.teams.some(t => t.name === _userTeam.teamName)) { _userTeam.tierIdx = li; break; }
-          }
-        }
-      }
+      try {
+        await window.sb.from('players').update({ user_team_data: _userTeam }).eq('user_id', user.id);
+      } catch(e) {}
     } else {
-      _userTeam = null;
+      // 🆕 FALLBACK 2: players satırı eksik kalmış olabilir
+      // Inbox'tan kabul edilmiş katılım mesajı ara ve oradan takım bilgisini al
+      try {
+        const { data: inboxData } = await window.sb.from('user_inbox')
+          .select('messages')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        const msgs = (inboxData && Array.isArray(inboxData.messages)) ? inboxData.messages : [];
+        // En son kabul edilmiş katılım mesajını bul
+        const accepted = msgs.filter(m => 
+          m && (m.type === 'join_accepted' || m.type === 'offer_accepted' || m.offerStatus === 'approved')
+          && m.teamName && m.countryCode
+        ).sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+        if (accepted) {
+          console.info('[userTeam] inbox\'tan takım bilgisi alındı:', accepted.teamName);
+          _userTeam = {
+            teamName: accepted.teamName,
+            countryCode: accepted.countryCode,
+            role: 'member',
+            num: null,
+          };
+          // players satırını da güncelle (geleceğe yönelik)
+          try {
+            await window.sb.from('players').update({
+              team_name: _userTeam.teamName,
+              country_code: _userTeam.countryCode,
+              role: 'member',
+              user_team_data: _userTeam,
+            }).eq('user_id', user.id);
+          } catch(e) { console.warn('[userTeam] players update hata:', e); }
+        } else {
+          _userTeam = null;
+        }
+      } catch(e) {
+        console.warn('[userTeam] inbox fallback hata:', e);
+        _userTeam = null;
+      }
     }
   } catch(e) { console.warn('[userTeam] load hata:', e); _userTeam = null; }
 }
@@ -41027,9 +41081,6 @@ function _buildRosterFromPlayers(playersList, countryCode) {
 // Server'dan TÜM takım üyelerini taze çek (botlar + gerçek kullanıcılar)
 async function _rosterRefreshFromServer(countryCode) {
   if (!window.sb || !_userTeam || !_userTeam.teamName) return;
-  // 🆕 authUser hazır değilse atla — _buildRosterFromPlayers seni user_id ile tanır;
-  //   myUserId boşken çekersen kendi satırın "bot" işaretlenir. Login sonrası tekrar çağrılır.
-  if (!(window.authUser || {}).id) return;
   try {
     const { data, error } = await window.sb.from('players')
       .select('id, user_id, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, is_bot, last_seen, goals_total, assists_total, matches_played, match_ratings, stats_by_comp, season_yellow, suspend_matches, suspend_reason, injury_until')
@@ -44408,12 +44459,6 @@ async function openPlayerModal(player, ctx) {
         const live = await _resolvePlayerFromServer(player, ctx);
         if (live) player = live;
       }
-    }
-    // 🆕 KANONİK KİMLİK GÜVENLİK AĞI — çözülen oyuncu authUser'a aitse "sen"dir
-    //   (hangi listeden gelirse gelsin uydurma isBot:true'yu tek kurala ezer).
-    const _meId = (window.authUser || {}).id;
-    if (player && _meId && (player.userId || player.user_id) === _meId) {
-      player.isBot = false; player.isUser = true; player.role = 'user';
     }
     // 🆕 Gerçek user takım arkadaşı için skills cache'i — modal açılmadan önce yükle.
     //   Cache dolunca getPlayerMainOverall 4 hat avg ile doğru OVR döner.
@@ -62186,15 +62231,18 @@ function computePlayerStats(countryCode, tierIdx) {
       assists: s.assists,
       rating,
       matches: s.matches,
-      userId: s.userId || null,
       isUser: false,
     });
   });
 
-  // 🆕 Kullanıcı işaretle — kanonik kimlik: user_id === authUser.id (isim eşleşmesi değil)
+  // Kullanıcı işaretle (UI rengi için, ayrı veri yok)
   try {
-    const myId = (window.authUser || {}).id;
-    if (myId) players.forEach(pl => { if (pl.userId && pl.userId === myId) pl.isUser = true; });
+    if (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.countryCode === countryCode) {
+      const userTeamName = _userTeam.teamName;
+      const userName = (window.authUser && authUser.name) || '';
+      const userIdx = players.findIndex(pl => pl.teamName === userTeamName && pl.name === userName);
+      if (userIdx >= 0) players[userIdx].isUser = true;
+    }
   } catch(e) {}
 
   return players;
@@ -62228,7 +62276,7 @@ function _statRowHtml(p, rank, statType) {
     name: p.name, pos: p.pos, teamName: p.teamName,
     countryCode: p.countryCode, flag: p.flag,
     rating: typeof p.rating === 'number' ? p.rating : 7.0,
-    isUser: !!p.isUser, userId: p.userId || null
+    isUser: !!p.isUser
   });
   const clickAttr = p.isUser
     ? `onclick="if(typeof openPlayerModalSelfFromRanking==='function')openPlayerModalSelfFromRanking()"`
@@ -62266,8 +62314,8 @@ function statListViewPlayer(idx) {
     pos: p.pos || 'MID',
     team_name: p.teamName,
     country_code: p.countryCode || '',
-    user_id: p.userId || null,
-    role: 'member'
+    role: 'member',
+    isBot: true
   };
   if (typeof openPlayerModal === 'function') {
     openPlayerModal(player, {
@@ -63879,7 +63927,7 @@ function trn2BuildLeadersHtml(trnKey, season) {
       name: p.name, pos: p.pos, teamName: p.teamName,
       countryCode: p.countryCode, flag: p.flag,
       rating: typeof p.rating === 'number' ? p.rating : 7.0,
-      isUser: !!p.isUser, userId: p.userId || null
+      isUser: !!p.isUser
     });
     const clickAttr = p.isUser
       ? `onclick="if(typeof openPlayerModalSelfFromRanking==='function')openPlayerModalSelfFromRanking()"`
@@ -63980,7 +64028,7 @@ function trn2BuildStatHtml(trnKey, season, statType) {
       name: p.name, pos: p.pos, teamName: p.teamName,
       countryCode: p.countryCode, flag: p.flag,
       rating: typeof p.rating === 'number' ? p.rating : 7.0,
-      isUser: !!p.isUser, userId: p.userId || null
+      isUser: !!p.isUser
     });
     const clickAttr = p.isUser
       ? `onclick="if(typeof openPlayerModalSelfFromRanking==='function')openPlayerModalSelfFromRanking()"`
@@ -73394,7 +73442,6 @@ function _calcPlayerStatsFromCache(teamFilter) {
         matches: p.matchesPlayed || 0,
         ratingSum: (p.avgMatchRating || 0) * (p.matchRatingsCount || 0),
         pos: p.pos || 'MID',
-        userId: p.userId || null,
       };
     });
   });
