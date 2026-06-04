@@ -51461,7 +51461,7 @@ function evaluateJoinEligibility(countryCode, teamName) {
 // Aşağıdaki eski stub kaldırıldı.
 
 // Bir takıma direkt katıl (onaysız) — bot kaptanlı veya şartı karşılayan kullanıcı için
-function joinTeamDirect(countryCode, teamName, opts) {
+async function joinTeamDirect(countryCode, teamName, opts) {
   // 🆕 TRANSFER DÖNEMİ KONTROLÜ
   // Kural: Sözleşmeli oyuncu (zaten bir takımda) sadece transfer döneminde geçiş yapabilir.
   //        Serbest oyuncu (takımsız) her zaman katılabilir.
@@ -51482,25 +51482,32 @@ function joinTeamDirect(countryCode, teamName, opts) {
     if(t) { teamObj = t; tierIdx = i; break; }
   }
 
-  // 🆕 Bu takımdaki kullanılmayan forma numarası bul (cache'ten)
-  const rosterCacheKey = countryCode + ':' + teamName;
-  const teamRoster = _teamRosterCache[rosterCacheKey] || [];
-  const usedNums = new Set(teamRoster.map(p => p.num));
-  let assignedNum = null;
-  for (let n = 16; n <= 99; n++) {
-    if (!usedNums.has(n)) { assignedNum = n; break; }
+  // 🆕 Atomik slot al (RPC): mevkiye uyan en zayıf slot-botu serbest bırak (free agent),
+  //   kullanıcıya o botun numarasını ver → takım 15'te kalır, kullanıcı gerçek slota oturur.
+  if (!window.sb || !(authUser && authUser.id)) {
+    if (typeof showJoinToast === 'function') showJoinToast('⚠️ Bağlantı yok, sayfayı yenile.');
+    return false;
   }
-  if (!assignedNum) assignedNum = 99;
-
-  _userTeam = {
+  const _newTeamData = {
     countryCode,
     teamName,
     role: 'member',         // Direkt katılım her zaman üye rolünde
     tierIdx,
-    num: assignedNum,       // 🆕 forma numarası
     joinedAt: Date.now(),
   };
-  if(typeof userTeamSave === 'function') userTeamSave();
+  const { data: _assignedNum, error: _joinErr } = await window.sb.rpc('join_team_take_slot', {
+    p_user_id: authUser.id,
+    p_country_code: countryCode,
+    p_team_name: teamName,
+    p_user_team_data: _newTeamData,
+  });
+  if (_joinErr || _assignedNum == null) {
+    console.warn('[joinTeamDirect] slot RPC hata:', _joinErr && _joinErr.message);
+    if (typeof showJoinToast === 'function') showJoinToast('⚠️ Takıma katılınamadı, tekrar dene.');
+    return false;
+  }
+  _newTeamData.num = _assignedNum;
+  _userTeam = _newTeamData;
   if(typeof achBump === 'function') achBump('join');   // 🆕 başarı: takıma katılma sayacı
 
   // Career history: bot kaptanlı takıma direkt katılım
