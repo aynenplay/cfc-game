@@ -55463,8 +55463,9 @@ async function _loadAllMatchStateFromServer() {
         if ((_id === 'page-lg2' || _id === 'page-lig') && typeof lg2RenderFixture === 'function') {
           lg2RenderFixture();
         }
-        if (_id === 'page-home' && typeof renderHomeNextMatch === 'function') {
-          renderHomeNextMatch();
+        if (_id === 'page-home') {
+          if (typeof renderHomeNextMatch === 'function') renderHomeNextMatch();
+          if (typeof renderHomeLeagueTicker === 'function') renderHomeLeagueTicker();
         }
       }
     } catch(e) {}
@@ -56920,10 +56921,11 @@ function renderHomeLeagueScene() {
   try { renderHomeLeagueTicker(); } catch(e) {}
 }
 
-// 🆕 LİG TİCKER — kullanıcı ülkesinin BUGÜN BİTEN lig maçlarını akan şeritte göster.
-// Canlı/realtime YOK: sadece tamamlanmış maçlar. Liste 15 dakikalık sabit dilimlerde
-// (00,15,30,45) yenilenir — _lgTickerScheduleNext zamanlamayı kurar.
-// Veri kaynağı: _resGetMatchesForDate (SONUÇLARIM ile aynı veri — sahte üretim YOK)
+// 🆕 LİG TİCKER — kullanıcı ülkesinin BUGÜNkü (UTC gün) lig maçlarını akan şeritte göster.
+// Gün penceresi UTC 00:00 → 00:00 (TR saatiyle 03:00'da döner). Aynı gün içinde:
+//   biten = skor, canlı = dakika+skor, başlamamış = başlama saati (yerel).
+// 15 dakikalık sabit dilimlerde (00,15,30,45) yenilenir — _lgTickerScheduleNext kurar.
+// Veri kaynağı: _matchStateCache.byKey (SONUÇLARIM ile aynı RAM cache — sahte üretim YOK)
 function renderHomeLeagueTicker() {
   const wrap = document.getElementById('homeLeagueTicker');
   if (!wrap) return;
@@ -56932,42 +56934,70 @@ function renderHomeLeagueTicker() {
     ? _userTeam.countryCode : null;
   if (!cc) { wrap.style.display = 'none'; return; }
 
-  if (typeof _resGetMatchesForDate !== 'function') {
+  if (!_matchStateCache || !_matchStateCache.byKey) {
     wrap.style.display = 'none';
     return;
   }
 
-  // Bugünün maçları — kullanıcının ülkesinin lig maçları
-  let todayMatches = [];
-  try {
-    todayMatches = _resGetMatchesForDate(new Date()) || [];
-  } catch(e) { todayMatches = []; }
+  // Gün penceresi UTC 00:00 → ertesi UTC 00:00 (TR 03:00 dönümü)
+  const now = new Date();
+  const utcStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const utcEnd = utcStart + 86400000;
 
-  // Yalnızca BİTEN maçlar (skoru olanlar)
-  const finishedMatches = todayMatches.filter(m =>
-    m && m.countryCode === cc && (m.competition === 'league' || !m.competition)
-    && m.played && (typeof m.hs === 'number') && (typeof m.as === 'number')
-  );
+  // Kullanıcı ülkesinin bu güne ait lig maçları (turnuva hariç)
+  const matches = [];
+  for (const ms of Object.values(_matchStateCache.byKey)) {
+    if (!ms || !ms.matchDateTime || ms.tournament_key) continue;
+    if (ms.countryCode !== cc) continue;
+    const t = new Date(ms.matchDateTime).getTime();
+    if (isNaN(t) || t < utcStart || t >= utcEnd) continue;
+    matches.push({ ms, t });
+  }
 
-  if (!finishedMatches.length) {
+  if (!matches.length) {
     wrap.style.display = 'flex';
-    wrap.innerHTML = '<div class="lg-ticker-empty">Bugün biten lig maçı yok</div>';
+    wrap.innerHTML = '<div class="lg-ticker-empty">Bugün lig maçı yok</div>';
     _lgTickerScheduleNext();
     return;
   }
 
+  // Kronolojik: başlama saatine göre (erken bitenler → canlı → sonraki başlayacaklar)
+  matches.sort((a, b) => a.t - b.t);
+
   wrap.style.display = 'block';
 
-  const itemHtml = finishedMatches.map(m => {
-    const home = m.home || '—';
-    const away = m.away || '—';
+  const itemHtml = matches.map(({ ms }) => {
+    const home = ms.home || '—';
+    const away = ms.away || '—';
+    if (ms.status === 'running') {
+      const min = (typeof _computeLiveSimMinute === 'function') ? _computeLiveSimMinute(ms) : null;
+      const hs = ms.home_score ?? 0, as = ms.away_score ?? 0;
+      return `
+        <div class="lg-ticker-item live">
+          <span class="lg-ti-team">${home}</span>
+          <span class="lg-ti-live">CANLI</span>
+          <span class="lg-ti-score">${hs}-${as}</span>
+          <span class="lg-ti-min">${min ? min + "'" : ''}</span>
+          <span class="lg-ti-team">${away}</span>
+        </div>`;
+    }
+    if (ms.status === 'finished') {
+      const hs = ms.home_score ?? 0, as = ms.away_score ?? 0;
+      return `
+        <div class="lg-ticker-item fin">
+          <span class="lg-ti-team">${home}</span>
+          <span class="lg-ti-score">${hs}-${as}</span>
+          <span class="lg-ti-team">${away}</span>
+        </div>`;
+    }
+    // başlamamış (scheduled) — başlama saati
+    const hm = (typeof _getMatchHM === 'function') ? _getMatchHM(ms) : '';
     return `
-      <div class="lg-ticker-item fin">
+      <div class="lg-ticker-item sched">
         <span class="lg-ti-team">${home}</span>
-        <span class="lg-ti-score">${m.hs}-${m.as}</span>
+        <span class="lg-ti-time">${hm}</span>
         <span class="lg-ti-team">${away}</span>
-      </div>
-    `;
+      </div>`;
   }).join('');
 
   // Sürekli scroll için içeriği 2x kopyala (translateX(-50%) ile döngü tamamlanır)
