@@ -73358,6 +73358,7 @@ function buildRkPlayerList() {
   if (_rkPlayerListCache && _rkPlayerListCacheKey === _matchKey) return _rkPlayerListCache;
   _rkPlayerListCacheKey = _matchKey;
   const all = [];
+  const addedUserIds = new Set(); // gerçek kullanıcılar tek kez eklensin (tüm geçişlerde dedup)
 
   // Kendi takım oyuncuları (ROSTER_DATA)
   // 🆕 İki durum:
@@ -73390,6 +73391,8 @@ function buildRkPlayerList() {
         // Takımsızsa sadece kullanıcının kendi profilini (role='user') ekle
         if (!_hasTeam && p.role !== 'user') return;
 
+        const _isReal = (p.role === 'user') || (!p.isBot && p.userId);
+        if (p.userId) addedUserIds.add(p.userId);
         all.push({
           n: p.name, f: myFlag,
           c: (myTeamData && myTeamData.name) || myTeamName,
@@ -73400,6 +73403,8 @@ function buildRkPlayerList() {
           teamTc: (myTeamData && myTeamData.tc) || '#fff',
           teamShort: (myTeamData && myTeamData.short) || (_hasTeam ? 'XX' : 'FA'),
           _isMe: p.role === 'user',
+          isUser: !!_isReal,
+          userId: p.userId || null,
           _rosterPlayer: p,
         });
       });
@@ -73418,22 +73423,60 @@ function buildRkPlayerList() {
         const players = getOrCreateTeamRoster({ countryCode: cc, name: team.name, rank: team.rank || 1 });
 
         players.forEach((p, idx) => {
-          // KURAL: Botlar gelişmez. Yetenek (overall) sabit 10, Seviye (level) sabit 0.
-          // Botlar antrenman yapamaz, kendilerini geliştiremezler — sadece kullanıcı gelişir.
-          // Sıralamalarda eşit değer durumunda JS stable sort liste pozisyonunu korur.
-          all.push({
-            n: p.name, f: country.flag, c: team.name,
-            p: p.pos,
-            o: 10,
-            lv: 0,
-            av: '🤖',
-            cc, teamName: team.name, teamRank: team.rank,
-            teamBg: team.bg || '#444',
-            teamTc: team.tc || '#fff',
-            teamShort: team.short || 'XX',
-          });
+          if (!p.isBot && p.userId) {
+            // 🆕 Gerçek kullanıcı: players'taki gerçek verisiyle yansıt (bota indirgeme yok)
+            if (addedUserIds.has(p.userId)) return;
+            addedUserIds.add(p.userId);
+            all.push({
+              n: p.name, f: country.flag, c: team.name,
+              p: p.pos, o: p.overall || 10, lv: p.level || 0,
+              av: p.avatar || '🧑', avatar_id: p.avatar_id || null,
+              cc, teamName: team.name, teamRank: team.rank,
+              teamBg: team.bg || '#444', teamTc: team.tc || '#fff', teamShort: team.short || 'XX',
+              isUser: true, userId: p.userId,
+            });
+          } else {
+            // KURAL: Botlar gelişmez. Yetenek (overall) sabit 10, Seviye (level) sabit 0.
+            all.push({
+              n: p.name, f: country.flag, c: team.name,
+              p: p.pos, o: 10, lv: 0, av: '🤖',
+              cc, teamName: team.name, teamRank: team.rank,
+              teamBg: team.bg || '#444', teamTc: team.tc || '#fff', teamShort: team.short || 'XX',
+            });
+          }
         });
       });
+    }
+
+    // 🆕 Alt liglerdeki gerçek kullanıcılar da sıralamada/aramada görünsün:
+    //   tier-1 dışında kalan tüm gerçek kullanıcıları players cache'inden topla.
+    for (const cacheKey in _teamRosterCache) {
+      const roster = _teamRosterCache[cacheKey];
+      if (!Array.isArray(roster)) continue;
+      const ci = cacheKey.indexOf(':');
+      const ccK = ci > 0 ? cacheKey.slice(0, ci) : 'TR';
+      const tnK = ci > 0 ? cacheKey.slice(ci + 1) : cacheKey;
+      for (const p of roster) {
+        if (!p || p.isBot || !p.userId || addedUserIds.has(p.userId)) continue;
+        addedUserIds.add(p.userId);
+        let tBg = '#444', tTc = '#fff', tShort = 'XX', tFlag = '🏳️';
+        const ctry = _cftGetCountry(ccK);
+        if (ctry) {
+          tFlag = ctry.flag || '🏳️';
+          for (const lg of (ctry.leagues || [])) {
+            const t = (lg.teams || []).find(x => x.name === tnK);
+            if (t) { tBg = t.bg || tBg; tTc = t.tc || tTc; tShort = t.short || tShort; break; }
+          }
+        }
+        all.push({
+          n: p.name, f: tFlag, c: tnK,
+          p: p.pos, o: p.overall || 10, lv: p.level || 0,
+          av: p.avatar || '🧑', avatar_id: p.avatar_id || null,
+          cc: ccK, teamName: tnK, teamRank: 99,
+          teamBg: tBg, teamTc: tTc, teamShort: tShort,
+          isUser: true, userId: p.userId,
+        });
+      }
     }
   }
 
