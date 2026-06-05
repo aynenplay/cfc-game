@@ -38808,7 +38808,8 @@ function showPage(name,btn){
       if (_activeEvTab === 'race' && typeof evRaceRender === 'function') {
         evRaceRender();
       } else if (_activeEvTab === 'ach' && typeof achRenderAll === 'function') {
-        achRenderAll();
+        if (typeof achLoadState === 'function') achLoadState().then(() => { try { achRenderAll(); } catch(e){} }).catch(() => { try { achRenderAll(); } catch(e){} });
+        else achRenderAll();
       }
     } catch(e) { console.warn('events tab render fail:', e); }
   }
@@ -71648,8 +71649,11 @@ function evShowTab(tab) {
   document.getElementById('evTabRace').classList.toggle('active', tab==='race');
   evRender();
   if (tab === 'race' && typeof evRaceRender === 'function') evRaceRender();
-  // 🆕 Başarılar sekmesi → Seri + Pro görev sistemi render
-  if (tab === 'ach' && typeof achShowKind === 'function') achShowKind(_achKind || 'series');
+  // 🆕 Başarılar sekmesi → state'i sunucudan tazele (claimed/ilerleme güncel), sonra Seri+Pro render
+  if (tab === 'ach') {
+    const _achGo = () => { try { if (typeof achShowKind === 'function') achShowKind(_achKind || 'series'); } catch(e){} };
+    if (typeof achLoadState === 'function') achLoadState().then(_achGo).catch(_achGo); else _achGo();
+  }
 }
 
 // 🆕 ════════════════════════════════════════════════════════════════
@@ -73983,7 +73987,7 @@ function _achRenderSeries(rows) {
         <div class="ach-row-name">${name}</div>
         <div class="ach-row-desc">${desc}</div>
         <div class="ach-prog"><div class="ach-prog-fill" style="width:${pct}%"></div></div>
-        <div class="ach-prog-txt">${_achFmt(prog)} / ${_achFmt(target)}</div>
+        <div class="ach-prog-txt">${_achFmt(Math.min(prog, target))} / ${_achFmt(target)}</div>
       </div>
       <div class="ach-row-right">
         <div class="ach-rw"><span class="e">${_achFmt(eur)}€</span><span class="d">${dia}💎</span></div>
