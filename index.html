@@ -22426,6 +22426,10 @@ body.drawer-open{overflow:hidden}
             <div class="ob-option-check">✓</div>
           </div>
         </div>
+        <div id="subPosWrap" style="display:none;margin-top:14px">
+          <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Alt mevkini seç:</div>
+          <div class="ob-options" id="subPosOptions"></div>
+        </div>
         <div style="display:flex;gap:10px;margin-top:16px">
           <button class="auth-submit" style="background:var(--bg3);color:var(--text2);border:1px solid var(--border);flex:0 0 48px" onclick="regNextStep(2)">←</button>
           <button class="auth-submit" style="flex:1" id="regFinishBtn" onclick="doRegister()" disabled>Kayıt Ol 🎉</button>
@@ -39794,6 +39798,7 @@ let trnInitDone = false;
 let authCurrentTab = 'login';
 let regCurrentStep = 0;
 let selectedPos = null;
+let selectedSubPos = null;
 let authUser = null;
 
 // ── KULLANICI TAKIMI ──
@@ -40639,7 +40644,22 @@ function selectPos(el, pos){
   document.querySelectorAll('#positionOptions .ob-option').forEach(o=>o.classList.remove('selected'));
   el.classList.add('selected');
   selectedPos = pos;
-  document.getElementById('regFinishBtn').disabled = false;
+  selectedSubPos = null;
+  const subs = (typeof SUB_POS !== 'undefined' && SUB_POS[pos]) ? SUB_POS[pos] : [];
+  const box = document.getElementById('subPosOptions');
+  const wrap = document.getElementById('subPosWrap');
+  if (box) box.innerHTML = subs.map(sp => `<div class="ob-option" onclick="selectSubPos(this,'${sp.c}')"><div class="ob-option-info"><div class="ob-option-name">${sp.t} (${sp.c})</div></div><div class="ob-option-check">✓</div></div>`).join('');
+  if (wrap) wrap.style.display = subs.length ? 'block' : 'none';
+  const fin = document.getElementById('regFinishBtn');
+  if (subs.length === 1) { selectedSubPos = subs[0].c; if (box && box.firstChild) box.firstChild.classList.add('selected'); if (fin) fin.disabled = false; }
+  else if (fin) { fin.disabled = true; }
+}
+function selectSubPos(el, sub){
+  document.querySelectorAll('#subPosOptions .ob-option').forEach(o=>o.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedSubPos = sub;
+  const fin = document.getElementById('regFinishBtn');
+  if (fin) fin.disabled = false;
 }
 
 function doLogin(){
@@ -40762,6 +40782,7 @@ function doRegister(){
   // SUPABASE REGISTER — auth.users + profiles trigger
   // ═══════════════════════════════════════════════════════════════════
   if(!selectedPos){ authShowMsg('error','Mevki seçin.'); return; }
+  if(!selectedSubPos){ authShowMsg('error','Alt mevki seçin.'); return; }
   if(!_regSelectedAvatar){ authShowMsg('error','Avatar seçin.'); return; }
   if(!window.sb){ authShowMsg('error','Supabase bağlantısı yok. Sayfayı yenile.'); return; }
 
@@ -40785,7 +40806,7 @@ function doRegister(){
         options: {
           data: {
             name, username, nationality, age,
-            position: selectedPos, avatar_id: _regSelectedAvatar
+            position: selectedPos, sub_pos: selectedSubPos, avatar_id: _regSelectedAvatar
           }
         }
       });
@@ -40795,7 +40816,7 @@ function doRegister(){
       authUser = {
         id: data.user.id,
         email, username, name, nationality, age,
-        position: selectedPos, avatarId: _regSelectedAvatar
+        position: selectedPos, subPos: selectedSubPos, avatarId: _regSelectedAvatar
       };
       /* cft_auth localStorage kaldırıldı - sadece Supabase */
 
@@ -59723,32 +59744,39 @@ const POS_CARDS = [
 ];
 
 function openChangePosModal() {
-  const user    = authUser || {};
-  const curPos  = user.position || 'MID';
-  const cfg     = POS_CONFIG[curPos] || POS_CONFIG.MID;
+  const user   = authUser || {};
+  const curGrp = user.position || 'MID';
+  const curSub = user.subPos || (typeof subPosOf==='function' ? subPosOf({pos:curGrp, pos_group:curGrp, sub_pos:user.subPos}) : '');
   _selectedNewPos = null;
 
-  document.getElementById('posModalCurrent').textContent = cfg.label;
+  const _curLbl = (typeof SUBPOS_LABEL!=='undefined' && SUBPOS_LABEL[curSub]) ? SUBPOS_LABEL[curSub]
+                : ((POS_CONFIG[curGrp]||POS_CONFIG.MID).label);
+  document.getElementById('posModalCurrent').textContent = _curLbl;
   document.getElementById('posModalConfirm').disabled    = true;
 
-  // Mevki kartları
+  const grpNames = { GK:'Kaleci', DEF:'Defans', MID:'Orta Saha', FWD:'Forvet' };
   const grid = document.getElementById('posModalGrid');
-  grid.innerHTML = POS_CARDS.map(pc => {
-    const isCurrent = pc.pos === curPos;
-    return `<div class="pos-modal-card ${isCurrent?'current-pos':''}"
-      onclick="selectNewPos('${pc.pos}', this)">
-      <div class="pos-modal-card-icon">${pc.icon}</div>
-      <div class="pos-modal-card-name">${pc.name}</div>
-      <div class="pos-modal-card-note">${pc.note.replace(/\n/g,'<br>')}</div>
-      ${isCurrent ? '<div style="font-size:9px;color:var(--accent);margin-top:4px">✓ Mevcut</div>' : ''}
-    </div>`;
-  }).join('');
+  let html = '';
+  ['GK','DEF','MID','FWD'].forEach(g => {
+    const subs = (typeof SUB_POS!=='undefined' && SUB_POS[g]) ? SUB_POS[g] : [];
+    if (!subs.length) return;
+    html += `<div style="grid-column:1/-1;font-size:11px;color:var(--text3);font-weight:800;margin:8px 0 2px">${grpNames[g]}</div>`;
+    html += subs.map(sp => {
+      const isCur = sp.c === curSub;
+      return `<div class="pos-modal-card ${isCur?'current-pos':''}" onclick="selectNewPos('${sp.c}', this)">
+        <div class="pos-modal-card-name">${sp.t}</div>
+        <div class="pos-modal-card-note">${sp.c}</div>
+        ${isCur ? '<div style="font-size:9px;color:var(--accent);margin-top:4px">✓ Mevcut</div>' : ''}
+      </div>`;
+    }).join('');
+  });
+  grid.innerHTML = html;
 
   document.getElementById('posModal').classList.add('open');
 }
 
-function selectNewPos(pos, el) {
-  _selectedNewPos = pos;
+function selectNewPos(sub, el) {
+  _selectedNewPos = sub;
   document.querySelectorAll('.pos-modal-card').forEach(c => c.classList.remove('selected'));
   el.classList.add('selected');
   document.getElementById('posModalConfirm').disabled = false;
@@ -59761,81 +59789,64 @@ function closePosModal() {
 
 async function confirmPosChange() {
   if(!_selectedNewPos) return;
-  const user   = authUser || {};
+  const user  = authUser || {};
+  const newSub   = _selectedNewPos;
+  const newGroup = (typeof SUBPOS_GROUP!=='undefined' && SUBPOS_GROUP[newSub]) ? SUBPOS_GROUP[newSub] : newSub;
 
-  // 🆕 oldPos'u Supabase'den FRESH oku — RAM cache stale ise yanlış skill silme bug'ı önlenir.
-  //   Bug: cache MID iken DB FWD ise, user FWD seçince oldPos=MID hesaplanır,
-  //   getSkillLevels('MID') ile FWD skill'leri için ortak id aranır, hiçbiri yok →
-  //   FWD skills hepsi 10'a sıfırlanır. KORKUNÇ veri kaybı.
-  let oldPos = user.position || 'MID';
+  // Eski grubu FRESH oku (stale cache → yanlış skill silme bug'ı önlenir)
+  let oldGroup = user.position || 'MID';
+  let oldSub   = user.subPos || '';
   try {
     if (window.sb && user.id) {
-      const { data: _pr } = await window.sb.from('players').select('pos').eq('user_id', user.id).maybeSingle();
-      if (_pr && _pr.pos) {
-        oldPos = _pr.pos;
-        user.position = oldPos; // RAM cache'i de yenile
-      }
+      const { data: _pr } = await window.sb.from('players').select('pos, pos_group').eq('user_id', user.id).maybeSingle();
+      if (_pr) { oldGroup = _pr.pos_group || _pr.pos || oldGroup; user.position = oldGroup; }
     }
-  } catch(e) { console.warn('[posChange] fresh oldPos okunamadı:', e); }
+  } catch(e) { console.warn('[posChange] fresh oldGroup okunamadı:', e); }
 
-  const newPos = _selectedNewPos;
-  if(newPos === oldPos) { closePosModal(); return; }
+  if (newSub === oldSub && newGroup === oldGroup) { closePosModal(); return; }
 
-  // Diamond kontrolü ve düşürme — CÜZDAN (user_wallet)
-  const _wlBal = (typeof wlGetData === 'function') ? (wlGetData().dia || 0) : 0;
-  if (_wlBal < 500) {
-    closePosModal();
-    showPosToast(`❌ Yetersiz Diamond! Gerekli: 500 💎 · Mevcut: ${_wlBal.toLocaleString('tr')} 💎`, '#ef5350');
-    return;
+  const groupChanged = (newGroup !== oldGroup);
+
+  // Grup değişiyorsa: 500 elmas + yetenek sıfırlama. Sadece alt mevki değişiyorsa: ücretsiz, sıfırlama yok.
+  if (groupChanged) {
+    const _wlBal = (typeof wlGetData === 'function') ? (wlGetData().dia || 0) : 0;
+    if (_wlBal < 500) { closePosModal(); showPosToast(`❌ Yetersiz Diamond! Gerekli: 500 💎 · Mevcut: ${_wlBal.toLocaleString('tr')} 💎`, '#ef5350'); return; }
+    const _wlOk = (typeof wlDeduct === 'function') ? wlDeduct('dia', 500, `Mevki Değişimi: ${oldGroup}→${newGroup}`) : false;
+    if (!_wlOk) { closePosModal(); showPosToast('❌ Bakiye düşülemedi (cüzdan hatası).', '#ef5350'); return; }
+
+    const oldLevels = getSkillLevels(oldGroup);
+    const newDefs   = SKILL_DEFS[newGroup] || [];
+    const newLevels = {};
+    newDefs.forEach(cat => cat.skills.forEach(s => { newLevels[s.id] = oldLevels[s.id] !== undefined ? oldLevels[s.id] : 10; }));
+    saveSkillLevels(newGroup, newLevels);
   }
-  const _wlOk = (typeof wlDeduct === 'function')
-    ? wlDeduct('dia', 500, `Mevki Değişimi: ${oldPos}→${newPos}`)
-    : false;
-  if (!_wlOk) {
-    closePosModal();
-    showPosToast('❌ Bakiye düşülemedi (cüzdan hatası).', '#ef5350');
-    return;
-  }
 
-  // Eski mevkinin yetenek değerlerini kaydet
-  const oldLevels = getSkillLevels(oldPos);
-
-  // Yeni mevki için yetenek değerlerini hazırla
-  // Eski mevkiyle ortak skill id varsa değerini koru, yoksa 10 ile başlat
-  const newDefs   = SKILL_DEFS[newPos] || [];
-  const newLevels = {};
-  newDefs.forEach(cat => cat.skills.forEach(s => {
-    newLevels[s.id] = oldLevels[s.id] !== undefined ? oldLevels[s.id] : 10;
-  }));
-
-  // Kaydet
-  saveSkillLevels(newPos, newLevels);
-  user.position = newPos;
+  user.position = newGroup;
+  user.subPos   = newSub;
   authUser      = user;
 
-  // 🆕 Supabase'e KALICI yaz — players kanonik (pos + pos_group)
+  // Supabase'e yaz — pos/pos_group her zaman; sub_pos ayrı (kolon yoksa sessiz geçer)
   (async () => {
     try {
       if (!window.sb || !authUser || !authUser.id) return;
-      const POS_GRP = (typeof POS_GROUP !== 'undefined') ? POS_GROUP : {};
-      const newPosGroup = POS_GRP[newPos] || newPos;
-      await window.sb.from('players').update({ pos: newPos, pos_group: newPosGroup }).eq('user_id', authUser.id);
+      await window.sb.from('players').update({ pos: newGroup, pos_group: newGroup }).eq('user_id', authUser.id);
+      await window.sb.from('players').update({ sub_pos: newSub }).eq('user_id', authUser.id);
     } catch(e) { console.warn('[posChange] Supabase update hata:', e); }
   })();
 
   closePosModal();
 
-  // Kaç yetenek sıfırlandı?
-  const oldIds  = new Set();
-  (SKILL_DEFS[oldPos] || []).forEach(cat => cat.skills.forEach(s => oldIds.add(s.id)));
-  const reset   = newDefs.reduce((n, cat) => n + cat.skills.filter(s => !oldIds.has(s.id)).length, 0);
-  const kept    = 20 - reset;
+  const subLbl = (typeof SUBPOS_LABEL!=='undefined' && SUBPOS_LABEL[newSub]) ? SUBPOS_LABEL[newSub] : newSub;
+  if (groupChanged) {
+    const oldIds = new Set();
+    (SKILL_DEFS[oldGroup] || []).forEach(cat => cat.skills.forEach(s => oldIds.add(s.id)));
+    const reset = (SKILL_DEFS[newGroup]||[]).reduce((n, cat) => n + cat.skills.filter(s => !oldIds.has(s.id)).length, 0);
+    const kept = 20 - reset;
+    showPosToast(`✅ Mevki ${subLbl}'e değiştirildi!\n${kept} yetenek korundu · ${reset} yetenek 10'dan başlıyor`, 'var(--accent)');
+  } else {
+    showPosToast(`✅ Alt mevki ${subLbl} olarak güncellendi.`, 'var(--accent)');
+  }
 
-  // Başarı bildirimi
-  const cfg = POS_CONFIG[newPos];
-  showPosToast(`✅ Mevki ${cfg.label}'e değiştirildi!\n${kept} yetenek korundu · ${reset} yetenek 10'dan başlıyor`, 'var(--accent)');
-
-  // Sayfayı yeniden render et
   setTimeout(renderPlayerPage, 300);
 }
 
