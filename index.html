@@ -73570,31 +73570,11 @@ const TEAM_AV_BY_COUNTRY = {
 // Kullanıcı takımı: ROSTER_DATA'dan (gelişen kullanıcı dahil)
 // Bot takımları: getOrCreateTeamRoster ile (gerçek DB roster'ı)
 function _teamPowerFromPlayers(countryCode, teamName, teamRank) {
-  const _isUserTeam = (typeof _userTeam !== 'undefined' && _userTeam &&
-    _userTeam.teamName === teamName &&
-    (!countryCode || _userTeam.countryCode === countryCode));
+  // 🆕 TEK KAYNAK — TÜM takımlar (kullanıcı dahil) Supabase teams.team_ovr'den okur
+  //   (edge'in 4-hat ortalaması; _rkRefreshStats yükler). Hiçbir yerde yeniden hesap YOK;
+  //   hero / maç önizleme / sıralama hepsi bu tek saklı değeri okur.
 
-  // 🆕 TEK KAYNAK — Kullanıcının takımı: rosterRefresh'te getPlayerMainOverall (gerçek 4-hat
-  //   yetenek ortalaması) ile bir kez hesaplanan _userTeamDbOvr. Hero / sıralama / maç önizleme
-  //   HEPSİ buradan okur → tekrar hesap YOK, 3 ayrı yerde 3 ayrı değer YOK. Edge'in (eski/şişik)
-  //   team_ovr'sini bile EZER, çünkü kullanıcının kadrosu canlı ve doğru.
-  if (_isUserTeam) {
-    try {
-      if (typeof window._userTeamDbOvr === 'number' && window._userTeamDbOvr > 0) {
-        return window._userTeamDbOvr;
-      }
-    } catch(e) {}
-    // _userTeamDbOvr henüz hazır değilse (ilk render) ROSTER_DATA'dan aynı formülle hesapla
-    try {
-      if (typeof getPlayerMainOverall === 'function' &&
-          typeof ROSTER_DATA !== 'undefined' && ROSTER_DATA.length > 0) {
-        const sum = ROSTER_DATA.reduce((s,p) => s + (Number(getPlayerMainOverall(p)) || 0), 0);
-        return Math.round(sum / ROSTER_DATA.length);
-      }
-    } catch(e) {}
-  }
-
-  // 🆕 Diğer takımlar → Supabase teams.team_ovr (tüm takımların haritası, _rkRefreshStats)
+  // Supabase teams.team_ovr (tüm takımların haritası, _rkRefreshStats)
   try {
     const m = window._teamOvrMap;
     if (m) { const v = m[countryCode + ':' + teamName]; if (typeof v === 'number' && v > 0) return v; }
