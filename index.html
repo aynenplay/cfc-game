@@ -27258,7 +27258,7 @@ async function _loadTeamRosterFromServer(cc, teamName) {
   _teamRosterLoading[key] = (async () => {
     try {
       const { data, error } = await window.sb.from('players')
-        .select('id, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, avatar_id, is_bot, user_id, last_seen, goals_total, assists_total, matches_played, match_ratings, stats_by_comp, season_yellow, suspend_matches, suspend_reason, injury_until')
+        .select('id, num, name, pos, pos_group, sub_pos, nationality, nation, level, xp, overall, rating, abilities, role, avatar, avatar_id, is_bot, user_id, last_seen, goals_total, assists_total, matches_played, match_ratings, stats_by_comp, season_yellow, suspend_matches, suspend_reason, injury_until')
         .eq('country_code', cc)
         .eq('team_name', teamName)
         .order('num');
@@ -27280,7 +27280,7 @@ async function _loadTeamRosterFromServer(cc, teamName) {
           num: r.num,
           name: r.name,
           pos: r.pos,
-          posGroup: r.pos_group,
+          posGroup: r.pos_group, subPos: r.sub_pos,
           rating: r.rating || 10,
           overall: r.overall || 10,
           level: r.level || 0,
@@ -27344,7 +27344,7 @@ async function preloadAllTeamRosters() {
     let safety = 0;
     while (safety++ < 50) {
       const { data, error } = await window.sb.from('players')
-        .select('id, user_id, country_code, team_name, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, avatar_id, is_bot, last_seen, goals_total, assists_total, matches_played, match_ratings, stats_by_comp, season_yellow, suspend_matches, suspend_reason, injury_until')
+        .select('id, user_id, country_code, team_name, num, name, pos, pos_group, sub_pos, nationality, nation, level, xp, overall, rating, abilities, role, avatar, avatar_id, is_bot, last_seen, goals_total, assists_total, matches_played, match_ratings, stats_by_comp, season_yellow, suspend_matches, suspend_reason, injury_until')
         // is_bot filtresi yok — gerçek kullanıcılar da yüklenir
         .not('team_name', 'is', null)
         .order('country_code')
@@ -27379,7 +27379,7 @@ async function preloadAllTeamRosters() {
       _teamRosterCache[key].push({
         id: r.id,
         userId: r.user_id,
-        num: r.num, name: r.name, pos: r.pos, posGroup: r.pos_group,
+        num: r.num, name: r.name, pos: r.pos, posGroup: r.pos_group, subPos: r.sub_pos,
         rating: r.rating || 10, overall: r.overall || 10,
         level: r.level || 0, xp: r.xp || 0,
         age: 18 + (r.num % 17),
@@ -28632,7 +28632,7 @@ async function _loadRealCaptainsFromServer() {
     try {
       // 🆕 Kapsamlı kullanıcı bilgisi çek: avatar, level, overall, pos, last_seen
       const { data, error } = await window.sb.from('players')
-        .select('user_id, user_team_data, name, avatar, level, overall, rating, pos, pos_group, nationality, nation, last_seen, xp')
+        .select('user_id, user_team_data, name, avatar, level, overall, rating, pos, pos_group, sub_pos, nationality, nation, last_seen, xp')
         .not('user_id', 'is', null)
         .not('user_team_data', 'is', null);
       if (error) { console.warn('[realCaptains] load hata:', error); return _realCaptainsCache; }
@@ -28657,7 +28657,7 @@ async function _loadRealCaptainsFromServer() {
           overall: Number(row.overall || 10),
           rating: Number(row.rating || row.overall || 10),
           pos: row.pos || 'MID',
-          posGroup: row.pos_group || row.pos || 'MID',
+          posGroup: row.pos_group || row.pos || 'MID', subPos: row.sub_pos,
           nationality: row.nationality || t.countryCode,
           nation: row.nation || null,
           isOnline,
@@ -41050,7 +41050,7 @@ async function _rosterRefreshFromServer(countryCode) {
   if (!(window.authUser || {}).id) return;
   try {
     const { data, error } = await window.sb.from('players')
-      .select('id, user_id, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, avatar_id, is_bot, last_seen, goals_total, assists_total, matches_played, match_ratings, stats_by_comp, season_yellow, suspend_matches, suspend_reason, injury_until')
+      .select('id, user_id, num, name, pos, pos_group, sub_pos, nationality, nation, level, xp, overall, rating, abilities, role, avatar, avatar_id, is_bot, last_seen, goals_total, assists_total, matches_played, match_ratings, stats_by_comp, season_yellow, suspend_matches, suspend_reason, injury_until')
       .eq('country_code', countryCode)
       .eq('team_name', _userTeam.teamName)
       .order('num');
@@ -41109,7 +41109,7 @@ async function _rosterRefreshRealMembers(countryCode) {
   }
   try {
     const { data, error } = await window.sb.from('players')
-      .select('user_id, name, avatar, level, overall, rating, pos, pos_group, nationality, nation, last_seen, xp, user_team_data')
+      .select('user_id, name, avatar, level, overall, rating, pos, pos_group, sub_pos, nationality, nation, last_seen, xp, user_team_data')
       .eq('country_code', countryCode)
       .eq('team_name', _userTeam.teamName)
       .not('user_id', 'is', null);
@@ -41158,7 +41158,7 @@ async function _rosterRefreshRealMembers(countryCode) {
       ROSTER_DATA.push({
         num,
         pos,
-        posGroup: r.pos_group || POSGRP[pos] || pos,
+        posGroup: r.pos_group || POSGRP[pos] || pos, subPos: r.sub_pos,
         name: r.name || 'Oyuncu',
         nation: r.nation || null,
         nationality: r.nationality || countryCode,
@@ -44367,7 +44367,7 @@ function openPlayerModalSelfFromRanking() {
 async function _resolvePlayerFromServer(player, ctx){
   if(!window.sb || !player) return null;
   try {
-    const cols='id, user_id, team_name, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, avatar_id, is_bot, last_seen, goals_total, assists_total, matches_played, match_ratings, stats_by_comp, season_yellow, suspend_matches, suspend_reason, injury_until';
+    const cols='id, user_id, team_name, num, name, pos, pos_group, sub_pos, nationality, nation, level, xp, overall, rating, abilities, role, avatar, avatar_id, is_bot, last_seen, goals_total, assists_total, matches_played, match_ratings, stats_by_comp, season_yellow, suspend_matches, suspend_reason, injury_until';
     let q=window.sb.from('players').select(cols);
     const uid=player.userId||player.user_id;
     if(uid) q=q.eq('user_id',uid);
@@ -47997,7 +47997,7 @@ async function _loadNtPoolFromServer(cc) {
   if (_ntPoolLoading[cc]) return _ntPoolLoading[cc];
   _ntPoolLoading[cc] = (async () => {
     const { data, error } = await window.sb.from('players')
-      .select('id, user_id, country_code, team_name, num, name, pos, pos_group, nationality, nation, level, xp, overall, rating, abilities, role, avatar, avatar_id, is_bot')
+      .select('id, user_id, country_code, team_name, num, name, pos, pos_group, sub_pos, nationality, nation, level, xp, overall, rating, abilities, role, avatar, avatar_id, is_bot')
       .eq('nationality', cc)
       .order('overall', { ascending: false });
     if (error) { console.warn('[ntPool] hata:', error); _ntPoolLoading[cc] = null; return null; }
@@ -48014,7 +48014,7 @@ async function _loadNtPoolFromServer(cc) {
       }
       const flag = oc ? oc.flag : '🏳️';
       return {
-        id: r.id, num: r.num, name: r.name, pos: r.pos, posGroup: r.pos_group,
+        id: r.id, num: r.num, name: r.name, pos: r.pos, posGroup: r.pos_group, subPos: r.sub_pos,
         overall: r.overall || 10, rating: r.rating || 10, level: r.level || 0, xp: r.xp || 0,
         abilities: r.abilities, role: r.role || 'member',
         nation: r.nation || flag, nationality: r.nationality || cc,
@@ -52891,7 +52891,7 @@ async function fetchOnlineStats() {
     // Online kullanıcılar (son 5 dakika, sadece gerçek kullanıcılar)
     const fiveMinAgo = new Date(Date.now() - 5*60*1000).toISOString();
     const { data: list, error } = await window.sb.from('players')
-      .select('id,user_id,name,team_name,country_code,nation,pos,pos_group,last_seen,avatar_id')
+      .select('id,user_id,name,team_name,country_code,nation,pos,pos_group,sub_pos,last_seen,avatar_id')
       .not('user_id', 'is', null)
       .gte('last_seen', fiveMinAgo)
       .order('last_seen', { ascending: false })
@@ -59798,7 +59798,7 @@ async function confirmPosChange() {
   let oldSub   = user.subPos || '';
   try {
     if (window.sb && user.id) {
-      const { data: _pr } = await window.sb.from('players').select('pos, pos_group').eq('user_id', user.id).maybeSingle();
+      const { data: _pr } = await window.sb.from('players').select('pos, pos_group, sub_pos').eq('user_id', user.id).maybeSingle();
       if (_pr) { oldGroup = _pr.pos_group || _pr.pos || oldGroup; user.position = oldGroup; }
     }
   } catch(e) { console.warn('[posChange] fresh oldGroup okunamadı:', e); }
@@ -65658,7 +65658,7 @@ async function renderFreeAgentList(){
   if (window.sb) {
     try {
       const { data, error } = await window.sb.from('players')
-        .select('id, name, pos, pos_group, overall, level, nation, nationality, avatar, is_bot, user_id')
+        .select('id, name, pos, pos_group, sub_pos, overall, level, nation, nationality, avatar, is_bot, user_id')
         .is('team_name', null)
         .eq('is_bot', true)
         .order('overall', { ascending: false })
@@ -65761,7 +65761,7 @@ async function tfHireFreeAgent(agentId){
 
   // Supabase'ten oyuncuyu çek + transfer et (team_name IS NULL koşulu ile yarış güvenliği)
   const { data: pRow, error: e1 } = await window.sb.from('players')
-    .select('id, name, pos, pos_group, overall, level, nation, nationality, avatar, is_bot, user_id, team_name')
+    .select('id, name, pos, pos_group, sub_pos, overall, level, nation, nationality, avatar, is_bot, user_id, team_name')
     .eq('id', sbId).maybeSingle();
   if(e1 || !pRow){
     if(typeof rosterToast === 'function') rosterToast('Oyuncu bulunamadı.', 'err'); return;
