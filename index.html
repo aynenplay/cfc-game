@@ -2203,6 +2203,8 @@ select.form-input option{background:var(--bg)}
 .fmap-dot{position:absolute;width:9px;height:9px;border-radius:50%;background:#ffd54f;box-shadow:0 1px 3px rgba(0,0,0,.5);transform:translate(-50%,-50%);border:1px solid rgba(0,0,0,.3)}
 .fmap-dot.gk{background:#7e57c2}
 .fmap-name{font-size:13px;font-weight:800;color:#eef2ff;font-family:'Barlow Condensed',sans-serif;letter-spacing:.5px}
+.form-formation-pick{display:inline-flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 10px;min-width:96px;cursor:pointer;text-align:left}
+.form-formation-pick .ffp-caret{opacity:.6;font-size:11px}
 
 /* pitch */
 .pitch-wrap{background:linear-gradient(180deg,#0d2a14 0%,#0a2010 50%,#0d2a14 100%);border-radius:var(--radius);border:1px solid #1a3a1a;aspect-ratio:1/1.4;position:relative;overflow:hidden;max-width:340px;margin:12px auto}
@@ -4141,7 +4143,7 @@ body:not(.team-captain):not(.team-vice) #page-team:not(.guest-mode) .captain-onl
 /* 🆕 Üye için Diziliş sekmesi read-only — toolbar butonları, pills, sürükleme devre dışı */
 body:not(.team-captain):not(.team-vice) #page-team:not(.guest-mode) #team-formation .form-toolbar,
 body:not(.team-captain):not(.team-vice) #page-team:not(.guest-mode) #team-formation .form-tool-btn,
-body:not(.team-captain):not(.team-vice) #page-team:not(.guest-mode) #team-formation #formationSelect{
+body:not(.team-captain):not(.team-vice) #page-team:not(.guest-mode) #team-formation #formationPickBtn{
   pointer-events:none;
   opacity:.55;
 }
@@ -23341,26 +23343,21 @@ body.drawer-open{overflow:hidden}
         <div class="form-tool-left">
           <div class="form-label-sm">Formasyon</div>
           <div class="form-select-wrap">
-            <select id="formationSelect" onchange="applyFormation(this.value)" class="form-select">
-              <option value="4-3-3">4-3-3</option>
-              <option value="4-2-3-1">4-2-3-1</option>
-              <option value="4-4-2">4-4-2</option>
-              <option value="3-5-2">3-5-2</option>
-              <option value="5-3-2">5-3-2</option>
-              <option value="4-1-4-1">4-1-4-1</option>
-              <option value="3-4-3">3-4-3</option>
-              <option value="4-5-1">4-5-1</option>
-              <option value="4-4-1-1">4-4-1-1</option>
-              <option value="4-1-2-1-2">4-1-2-1-2</option>
-              <option value="4-2-2-2">4-2-2-2</option>
-              <option value="3-4-1-2">3-4-1-2</option>
-              <option value="5-4-1">5-4-1</option>
-            </select>
+            <button type="button" id="formationPickBtn" class="form-select form-formation-pick" onclick="openFormationModal()"><span id="formationPickLabel">4-3-3</span><span class="ffp-caret">▾</span></button>
           </div>
         </div>
         <div class="form-tool-right">
           <button class="form-tool-btn" onclick="openStrategyPanel()">⚙️ Strateji</button>
           <button class="form-tool-btn accent" onclick="saveFormation()">💾 Kaydet</button>
+        </div>
+      </div>
+
+      <!-- 🆕 Formasyon seçim modalı (maç motoru fmap-grid tasarımı) -->
+      <div id="formationModal" class="strategy-overlay" onclick="if(event.target===this)closeFormationModal()">
+        <div class="strategy-sheet">
+          <div class="strategy-handle"></div>
+          <div class="strategy-title">📋 Formasyon Seç</div>
+          <div class="fmap-grid" id="teamFmapGrid"></div>
         </div>
       </div>
 
@@ -38703,6 +38700,38 @@ function renderTacFormationMaps() {
   }).join('');
 }
 
+// 🆕 Diziliş formasyon seçim modalı (maç motoru fmap tasarımı)
+function renderTeamFormationMaps() {
+  const grid = document.getElementById('teamFmapGrid');
+  if (!grid || typeof FORMATIONS === 'undefined') return;
+  const active = (typeof currentFormation !== 'undefined') ? currentFormation : '4-3-3';
+  grid.innerHTML = Object.keys(FORMATIONS).map(fname => {
+    const dots = (FORMATIONS[fname] || []).map(sl => {
+      const cls = (sl.pos === 'GK' || sl.pos === 'KL') ? 'fmap-dot gk' : 'fmap-dot';
+      return `<div class="${cls}" style="left:${sl.x}%;top:${sl.y}%"></div>`;
+    }).join('');
+    return `<div class="fmap-card${fname === active ? ' active' : ''}" onclick="selectTeamFormation('${fname}')">
+      <div class="fmap-pitch">${dots}</div>
+      <div class="fmap-name">${fname}</div>
+    </div>`;
+  }).join('');
+}
+function openFormationModal() {
+  renderTeamFormationMaps();
+  const m = document.getElementById('formationModal');
+  if (m) m.classList.add('open');
+}
+function closeFormationModal() {
+  const m = document.getElementById('formationModal');
+  if (m) m.classList.remove('open');
+}
+function selectTeamFormation(fname) {
+  if (typeof applyFormation === 'function') applyFormation(fname);
+  const lbl = document.getElementById('formationPickLabel');
+  if (lbl) lbl.textContent = fname;
+  closeFormationModal();
+}
+
 // ═══════════ MAIN APP NAV ═══════════
 function showPage(name,btn){
   // 🆕 Milli takım sayfa dışına çıkış: izleyici state ve class temizle
@@ -45557,8 +45586,8 @@ function applyStrategyToUI() {
     });
   }
   // Formation select
-  const fs = document.getElementById('formationSelect');
-  if (fs) fs.value = currentFormation;
+  const _fpl = document.getElementById('formationPickLabel');
+  if (_fpl) _fpl.textContent = currentFormation;
   // Aktif strateji özet kutusu
   const setVal = (id, v) => {
     const el = document.getElementById(id);
@@ -45854,8 +45883,8 @@ function _vtProcessExpired(vote) {
     if (typeof FORMATIONS !== 'undefined' && FORMATIONS[winner.value]) {
       currentFormation = winner.value;
       try {
-        const sel = document.getElementById('formationSelect');
-        if (sel) sel.value = winner.value;
+        const _fpl = document.getElementById('formationPickLabel');
+        if (_fpl) _fpl.textContent = winner.value;
       } catch(e) {}
       if (typeof saveTeamStrategy === 'function') saveTeamStrategy();
       actionTaken = `Formasyon ${winner.value} olarak değiştirildi.`;
@@ -49636,8 +49665,8 @@ function ntApplyFormation(name) {
     console.warn('[nt-isolation] Kulüp formasyonu yan etkiyle değişti, restore ediliyor:', _clubFormSnap);
     currentFormation = _clubFormSnap;
     try {
-      const sel = document.getElementById('formationSelect');
-      if (sel) sel.value = _clubFormSnap;
+      const _fpl = document.getElementById('formationPickLabel');
+      if (_fpl) _fpl.textContent = _clubFormSnap;
     } catch(e) {}
   }
   if (_clubLineupSnap && typeof activePitchPlayers !== 'undefined' && Array.isArray(activePitchPlayers)) {
