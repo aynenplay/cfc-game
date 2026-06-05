@@ -32636,16 +32636,11 @@ function fillPreMatchPreview(home, away, league, venue, kickoff) {
   // 🆕 Rating = takım gücü, HERO/SIRALAMA ile AYNI kaynaktan (_teamPowerFromPlayers).
   //   Tekrar hesap YOK: kullanıcı takımı → _userTeamDbOvr (hero'daki değer), rakip → edge team_ovr.
   const _mpPow = (t) => {
-    const cc = t && (t.countryCode || t.cc);
-    if (cc && t.name && typeof _teamPowerFromPlayers === 'function') {
+    if (!t || !t.name) return 10;
+    const cc = t.countryCode || t.cc || null;
+    if (typeof _teamPowerFromPlayers === 'function') {
       return _teamPowerFromPlayers(cc, t.name, t.rank || 1);
     }
-    // cc yoksa son çare: roster ortalaması
-    try {
-      if (typeof getOrCreateTeamRoster === 'function' && typeof calcTeamPowerAverage === 'function') {
-        return Math.round(calcTeamPowerAverage(getOrCreateTeamRoster(t)));
-      }
-    } catch(e) {}
     return t.rating || t.overall || 10;
   };
   const homeRating = _mpPow(home);
@@ -73576,7 +73571,8 @@ const TEAM_AV_BY_COUNTRY = {
 // Bot takımları: getOrCreateTeamRoster ile (gerçek DB roster'ı)
 function _teamPowerFromPlayers(countryCode, teamName, teamRank) {
   const _isUserTeam = (typeof _userTeam !== 'undefined' && _userTeam &&
-    _userTeam.countryCode === countryCode && _userTeam.teamName === teamName);
+    _userTeam.teamName === teamName &&
+    (!countryCode || _userTeam.countryCode === countryCode));
 
   // 🆕 TEK KAYNAK — Kullanıcının takımı: rosterRefresh'te getPlayerMainOverall (gerçek 4-hat
   //   yetenek ortalaması) ile bir kez hesaplanan _userTeamDbOvr. Hero / sıralama / maç önizleme
