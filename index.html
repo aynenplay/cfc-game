@@ -32059,7 +32059,9 @@ function calcLineStrengths(team) {
   //   - Bot → abilities tablosundan ana mevkinin yetenek ortalaması
   //   - Gerçek başka kullanıcı → DB overall
   // p.overall stale olabilir (cache), bu yüzden TEK KAYNAK getPlayerMainOverall.
-  const _getOvr = (p) => {
+  // 🆕 Hat değeri = oyuncunun KENDİ hattındaki yeteneği (overall DEĞİL — uzmanlık seyrelmesin)
+  const _getOvr = (p, grp) => {
+    if (typeof getPlayerPositionAvg === 'function') return getPlayerPositionAvg(p, grp);
     if (typeof getPlayerMainOverall === 'function') return getPlayerMainOverall(p);
     return p.overall || p.rating || 10;
   };
@@ -32067,15 +32069,9 @@ function calcLineStrengths(team) {
   let players = [];
   // Kullanıcı takımı → ROSTER_DATA
   if (isUserTeam && typeof ROSTER_DATA !== 'undefined' && ROSTER_DATA && ROSTER_DATA.length) {
-    players = ROSTER_DATA.map(p => ({
-      grp: p.posGroup || POSGRP[p.pos] || 'MID',
-      ovr: _getOvr(p)
-    }));
+    players = ROSTER_DATA.map(p => { const grp = p.posGroup || POSGRP[p.pos] || 'MID'; return { grp, ovr: _getOvr(p, grp) }; });
   } else if (team && Array.isArray(team.players) && team.players.length) {
-    players = team.players.map(p => ({
-      grp: p.posGroup || POSGRP[p.pos] || 'MID',
-      ovr: _getOvr(p)
-    }));
+    players = team.players.map(p => { const grp = p.posGroup || POSGRP[p.pos] || 'MID'; return { grp, ovr: _getOvr(p, grp) }; });
   }
 
   if (!players.length) {
