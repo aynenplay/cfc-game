@@ -175,7 +175,7 @@
   #modalErr{ color:var(--red); font-size:13px; min-height:18px; }
 
   /* Üst bar + mobil çekmece + geri + beni hatırla */
-  #topbar{ display:none; align-items:center; gap:10px; padding:10px 12px; background-image:var(--carbon); border-bottom:1px solid var(--goldln); }
+  #topbar{ display:none; align-items:center; gap:10px; padding:calc(10px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) 10px calc(12px + env(safe-area-inset-left)); background-image:var(--carbon); border-bottom:1px solid var(--goldln); }
   #topbar #burger{ background:transparent; color:var(--gold); padding:4px; display:flex; }
   #topbar #topLogo{ width:26px; height:26px; border-radius:7px; }
   #topbar b{ font-family:var(--disp); font-weight:900; font-size:16px; }
@@ -183,14 +183,14 @@
   #overlay{ display:none; }
   .backbtn{ background:var(--panel2); color:var(--txt); border:1px solid var(--line); border-radius:9px; padding:7px 11px; font-family:var(--disp); font-weight:700; font-size:14px; }
   .backbtn:hover{ border-color:var(--goldln); }
-  .remember{ display:flex; align-items:center; gap:8px; color:var(--dim); font-size:13px; margin:2px 2px 14px; cursor:pointer; }
-  .remember input{ width:16px; height:16px; accent-color:var(--accent); }
+  .remember{ display:flex; align-items:center; justify-content:flex-start; gap:8px; color:var(--dim); font-size:13px; margin:2px 0 14px; cursor:pointer; white-space:nowrap; }
+  #login .remember input{ width:16px; min-width:16px; flex:0 0 16px; height:16px; margin:0; padding:0; background:none; border:none; border-radius:0; accent-color:var(--accent); }
 
   @media (max-width:760px){
     #app.show{ display:block; height:auto; min-height:100vh; }
     #topbar{ display:flex; position:sticky; top:0; z-index:40; }
     #side{ position:fixed; top:0; left:0; bottom:0; width:82%; max-width:300px; z-index:60;
-      transform:translateX(-100%); transition:transform .22s ease; }
+      transform:translateX(-100%); transition:transform .22s ease; padding-top:calc(12px + env(safe-area-inset-top)); }
     body.navopen #side{ transform:none; }
     #overlay{ display:block; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:55; opacity:0; pointer-events:none; transition:opacity .2s; }
     body.navopen #overlay{ opacity:1; pointer-events:auto; }
@@ -202,6 +202,14 @@
     th,td{ max-width:200px; }
     #modal .box{ width:100%; padding:18px; }
   }
+
+  /* Boot / yükleniyor ekranı */
+  #boot{ display:none; position:fixed; inset:0; z-index:80; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+    background:var(--bg) radial-gradient(1200px 600px at 80% -10%, #16191f 0, transparent 60%); }
+  #boot img{ width:72px; height:72px; border-radius:16px; box-shadow:0 6px 24px rgba(210,35,47,.35); }
+  #boot .bootspin{ width:26px; height:26px; border:3px solid rgba(255,255,255,.14); border-top-color:var(--accent); border-radius:50%; animation:bootspin .8s linear infinite; }
+  #boot p{ color:var(--dim); font-size:13px; margin:0; }
+  @keyframes bootspin{ to{ transform:rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -221,12 +229,19 @@
   <p>Yönetim paneli — giriş yap</p>
   <input id="email" type="email" placeholder="E-posta" autocomplete="username">
   <input id="pass" type="password" placeholder="Şifre" autocomplete="current-password">
-  <label class="remember"><input type="checkbox" id="remember" checked> Beni hatırla (bu cihazda)</label>
+  <label class="remember"><input type="checkbox" id="remember" checked> Beni hatırla</label>
   <button id="loginBtn">GİRİŞ</button>
   <div id="loginErr"></div>
 </div>
 
-<div id="app">
+<div id="boot"><img id="bootLogo" alt=""><div class="bootspin"></div><p>Yükleniyor…</p></div>
+  <script>
+    if (localStorage.getItem('csc_admin_sess')) {
+      var _L=document.getElementById('login'); if(_L) _L.style.display='none';
+      var _B=document.getElementById('boot'); if(_B){ _B.style.display='flex'; var _BL=document.getElementById('bootLogo'); if(_BL && typeof ICON!=='undefined') _BL.src=ICON; }
+    }
+  </script>
+  <div id="app">
   <div id="topbar">
     <button id="burger" aria-label="Menü"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
     <img id="topLogo" alt=""><b>CSC <span>Admin</span></b>
@@ -327,11 +342,12 @@ async function doLogin() {
     TOKEN = d.access_token;
     META = (await api('meta')).meta || {};
     if ($('remember').checked) saveSess(d); else clearSess();
+    { var b=$('boot'); if(b) b.style.display='none'; }
     $('login').style.display='none'; $('app').classList.add('show');
     buildNav(); openDash();
   } catch(e) { $('loginErr').textContent = e.message; }
 }
-function logout(){ TOKEN=null; META=null; CUR=null; clearSess(); document.body.classList.remove('navopen'); $('app').classList.remove('show'); $('login').style.display='block'; $('pass').value=''; }
+function logout(){ TOKEN=null; META=null; CUR=null; clearSess(); document.body.classList.remove('navopen'); var b=$('boot'); if(b) b.style.display='none'; $('app').classList.remove('show'); $('login').style.display='block'; $('pass').value=''; }
 
 // Özet (dashboard)
 const DASH = [
@@ -609,7 +625,7 @@ $('modalSave').onclick = saveEditor;
 $('modal').addEventListener('click', e => { if (e.target.id==='modal') $('modal').style.display='none'; });
 
 // İkonları tek base64'ten ata
-['loginLogo','brandLogo','topLogo'].forEach(id=>{ const e=$(id); if(e) e.src=ICON; });
+['loginLogo','brandLogo','topLogo','bootLogo'].forEach(id=>{ const e=$(id); if(e) e.src=ICON; });
 
 // Mobil çekmece
 $('burger').onclick = () => document.body.classList.toggle('navopen');
@@ -627,16 +643,18 @@ async function refreshSession(rt){
   if (!r.ok || !d.access_token) throw new Error('refresh failed');
   return d;
 }
+function showLogin(){ var b=$('boot'); if(b) b.style.display='none'; $('app').classList.remove('show'); $('login').style.display='block'; }
 async function tryResume(){
   let sess=null; try{ sess=JSON.parse(localStorage.getItem(SESS_KEY)||'null'); }catch(e){}
-  if(!sess || !sess.access_token) return;
+  if(!sess || !sess.access_token){ showLogin(); return; }
   TOKEN = sess.access_token;
   try { META = (await api('meta')).meta || {}; }
   catch(e){
-    if(!sess.refresh_token){ clearSess(); return; }
+    if(!sess.refresh_token){ clearSess(); showLogin(); return; }
     try { const d=await refreshSession(sess.refresh_token); TOKEN=d.access_token; saveSess(d); META=(await api('meta')).meta || {}; }
-    catch(e2){ clearSess(); return; }
+    catch(e2){ clearSess(); showLogin(); return; }
   }
+  var b=$('boot'); if(b) b.style.display='none';
   $('login').style.display='none'; $('app').classList.add('show');
   buildNav(); openDash();
 }
