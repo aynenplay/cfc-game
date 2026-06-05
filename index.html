@@ -26991,6 +26991,36 @@ function subPosOf(p) {
 }
 function subPosGroupOf(sub) { return SUBPOS_GROUP[sub] || 'MID'; }
 function subPosClass(p) { return 'pos-' + subPosGroupOf(subPosOf(p)).toLowerCase(); }
+// 🆕 MEVKİ-DIŞI OVR CEZASI (diziliş kartı)
+function _zoneIdx(z){ return z==='GK'?0 : z==='DEF'?1 : z==='MID'?2 : 3; }
+// Slotun alt mevkisini koordinattan türet (x: sol<35 / sağ>65, y: derinlik)
+function slotSubFromXY(zone, x, y) {
+  x = Number(x); if (!isFinite(x)) x = 50;
+  y = Number(y); if (!isFinite(y)) y = 50;
+  if (zone === 'GK') return 'GK';
+  if (zone === 'DEF') return x < 35 ? 'LB' : (x > 65 ? 'RB' : 'CB');
+  if (zone === 'FWD') return x < 35 ? 'LF' : (x > 65 ? 'RF' : 'ST');
+  if (x < 28) return 'LM';
+  if (x > 72) return 'RM';
+  return y > 58 ? 'DM' : (y < 45 ? 'AM' : 'CM');   // ev sahibi: yüksek y = geride
+}
+// Ceza çarpanı: kendi alt mevkisi (ownSub) ↔ slot alt mevkisi (slotSub)
+function posPenaltyFactor(ownSub, slotSub) {
+  if (!ownSub || !slotSub) return 1;
+  if (ownSub === slotSub) return 1;                 // tam kendi mevkisi
+  const oz = subPosGroupOf(ownSub), sz = subPosGroupOf(slotSub);
+  if (oz === sz) return 0.85;                        // aynı bölge, farklı alt mevki → -%15
+  const d = Math.abs(_zoneIdx(oz) - _zoneIdx(sz));
+  return d === 1 ? 0.80 : d === 2 ? 0.70 : 0.60;     // -%20 / -%30 / -%40
+}
+// Bir slotta gösterilecek efektif OVR (baz = slot bölgesi yeteneği × ceza çarpanı)
+function pitchSlotOvr(p, slotZone, slotX, slotY) {
+  const base = (typeof getPlayerEffectiveRating === 'function')
+    ? getPlayerEffectiveRating(p, slotZone) : (p && (p.overall || p.rating) || 10);
+  const ownSub  = (typeof subPosOf === 'function') ? subPosOf(p) : ((p && p.pos) || 'CM');
+  const slotSub = slotSubFromXY(slotZone, slotX, slotY);
+  return Math.max(1, Math.round(base * posPenaltyFactor(ownSub, slotSub)));
+}
 
 // 🆕 Tüm yetenekler 10'dan başlar (büyüme sistemi sonradan eklenecek)
 // ═══════════════════════════════════════════════════════════════════
@@ -46067,11 +46097,11 @@ function renderPitch() {
       }
     } catch(e) { userAvatarHTML = null; }
 
-    // 🆕 Yetenek puanı: oynadığı mevkinin ortalaması (out-of-position penalty doğal)
+    // 🆕 Mevki-dışı OVR cezası: kendi alt mevkisi dışına konulursa düşer
     const playedPosGroup = (typeof POS_GROUP !== 'undefined' && POS_GROUP[entry.pos]) || 'MID';
-    const ovr = (typeof getPlayerEffectiveRating === 'function')
-      ? getPlayerEffectiveRating(p, playedPosGroup)
-      : (p.overall || p.rating || 10);
+    const ovr = (typeof pitchSlotOvr === 'function')
+      ? pitchSlotOvr(p, playedPosGroup, entry.x, entry.y)
+      : ((typeof getPlayerEffectiveRating === 'function') ? getPlayerEffectiveRating(p, playedPosGroup) : (p.overall || p.rating || 10));
 
     // Mevki grubu (üst kenar şerit rengi)
     const posGroup = (typeof POS_GROUP !== 'undefined' && POS_GROUP[entry.pos]) || 'MID';
@@ -46162,9 +46192,9 @@ function updateLineupAverage(){
     // Ana mevki dışına konulursa out-of-position penalty doğal olarak düşer.
     const slotPos = (entry.pos || p.pos || '').toUpperCase();
     const slotPosGroup = (typeof POS_GROUP !== 'undefined' && POS_GROUP[slotPos]) || 'MID';
-    const eff = (typeof getPlayerEffectiveRating === 'function')
-      ? getPlayerEffectiveRating(p, slotPosGroup)
-      : (p.overall || 0);
+    const eff = (typeof pitchSlotOvr === 'function')
+      ? pitchSlotOvr(p, slotPosGroup, entry.x, entry.y)
+      : ((typeof getPlayerEffectiveRating === 'function') ? getPlayerEffectiveRating(p, slotPosGroup) : (p.overall || 0));
     if (typeof eff !== 'number') return;
     total += eff; count++;
     const cat = POS_CAT[slotPos];
