@@ -73843,27 +73843,43 @@ async function achSetFlag(metric) {
 async function achClaim(id) {
   if (!window.sb || !authUser || !authUser.id) return;
   if (_achIsClaimed(id)) return;
+
+  // Ödül miktarını def'ten oku (RPC beklemeden anında kredilemek için)
+  let eur = 0, dia = 0;
+  const sDef = ACH_SERIES.find(a => a[0] === id);
+  if (sDef) { eur = sDef[6]; dia = sDef[7]; }
+  else { const pDef = ACH_PRO.find(a => a[0] === id); if (pDef) { eur = pDef[4]; dia = pDef[5]; } }
+
+  // 🆕 ANINDA (beklemesiz): cüzdana ekle + claimed + render + rozet + toast
+  if (_wlCache) { _wlCache.eur = (_wlCache.eur || 0) + eur; _wlCache.dia = (_wlCache.dia || 0) + dia; wlSyncHeader(); }
+  if (!Array.isArray(_achStateCache.claimed)) _achStateCache.claimed = [];
+  _achStateCache.claimed.push(id);
+  achRenderAll();            // satır "Alındı" + rozet 1 düşer
+  if (typeof rosterToast === 'function') {
+    const parts = [];
+    if (eur) parts.push(`+${eur} €`);
+    if (dia) parts.push(`+${dia} 💎`);
+    rosterToast(`Görev ödülü: ${parts.join('  ')}`, 'ok');
+  }
+
+  // Arka planda sunucuya kalıcı yaz (cüzdan + claimed atomik). Başarısızsa geri al.
   try {
     const { data, error } = await window.sb.rpc('claim_achievement', { p_id: id });
-    if (error) { console.warn('[ach] claim hata:', error.message || error); return; }
-    if (!data || data.ok !== true) {
-      achRenderAll();
-      return;
+    if (error || !data || data.ok !== true) {
+      // already_claimed → sunucuda zaten alınmış, KORU; aksi halde GERİ AL (cüzdan + claimed)
+      if (!(data && data.reason === 'already_claimed')) {
+        if (_wlCache) { _wlCache.eur = (_wlCache.eur || 0) - eur; _wlCache.dia = (_wlCache.dia || 0) - dia; wlSyncHeader(); }
+        _achStateCache.claimed = _achStateCache.claimed.filter(x => x !== id);
+        achRenderAll();
+      }
+      if (error) console.warn('[ach] claim hata:', error.message || error);
     }
-    if (!Array.isArray(_achStateCache.claimed)) _achStateCache.claimed = [];
-    if (!_achStateCache.claimed.includes(id)) _achStateCache.claimed.push(id);
-    // 🆕 Önce UI'ı anında güncelle — ödülü aldığı an satır "Alındı" + rozet düşsün
+  } catch(e) {
+    if (_wlCache) { _wlCache.eur = (_wlCache.eur || 0) - eur; _wlCache.dia = (_wlCache.dia || 0) - dia; wlSyncHeader(); }
+    _achStateCache.claimed = _achStateCache.claimed.filter(x => x !== id);
     achRenderAll();
-    achRefreshBadge();
-    if (typeof rosterToast === 'function') {
-      const parts = [];
-      if (data.eur) parts.push(`+${data.eur} €`);
-      if (data.dia) parts.push(`+${data.dia} 💎`);
-      rosterToast(`Görev ödülü: ${parts.join('  ')}`, 'ok');
-    }
-    // Ödül server'da (claim_achievement RPC) cüzdana yazıldı — otoriter değeri çekip header'ı tazele
-    try { if (typeof wlLoadFromServer === 'function') await wlLoadFromServer(); } catch(e2) {}
-  } catch(e) { console.warn('[ach] claim exception:', e); }
+    console.warn('[ach] claim exception:', e);
+  }
 }
 
 // ── Sekme: Seri / Pro ──
@@ -73916,6 +73932,8 @@ function achRenderAll() {
   } else {
     _achRenderSeries(rows);
   }
+  // 🆕 Rozet de aynı (çizilen) state'ten hesaplansın → satır↔rozet hep uyumlu, "0 takılması" olmaz
+  if (typeof achRefreshBadge === 'function') achRefreshBadge();
 }
 
 function _achRenderSeries(rows) {
