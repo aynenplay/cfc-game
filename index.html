@@ -53351,18 +53351,10 @@ function renderHomeQuickAccessBadges() {
   // Hızlı erişim grid'inden Mesajlar butonu kaldırıldığı için (Lig/Turnuva eklendi)
   // artık özel bir işlem gerekmiyor. Topbar'daki inbox butonu zaten badge gösteriyor.
 
-  // 🆕 Etkinlik (events) rozeti — toplanabilir ödül sayısı (giriş ödülü + başarı)
+  // 🆕 Ana sayfa Etkinlik rozeti kaldırıldı — bildirim yalnızca Etkinlik içi sekme rozetlerinde
   try {
     const evBadge = document.getElementById('hmEventsBadge');
-    if (evBadge && typeof evCountClaimables === 'function') {
-      const pendingCount = evCountClaimables();
-      if (pendingCount > 0) {
-        evBadge.textContent = pendingCount > 9 ? '9+' : String(pendingCount);
-        evBadge.style.display = 'flex';
-      } else {
-        evBadge.style.display = 'none';
-      }
-    }
+    if (evBadge) evBadge.style.display = 'none';
   } catch(e) {}
 }
 
@@ -71609,12 +71601,9 @@ async function evClaimStreakDay(day) {
     if (Array.isArray(data.streak_claimed)) _userStreakCache.streak_claimed = data.streak_claimed;
     else if (!_userStreakCache.streak_claimed.includes(day)) _userStreakCache.streak_claimed.push(day);
 
-    // 🆕 Ödül server'da (claim_streak_reward RPC) cüzdana + enerjiye yazıldı — otoriter değerleri çekip tazele
-    try {
-      if (typeof wlLoadFromServer === 'function') await wlLoadFromServer();
-      if (typeof _energyLoadFromServer === 'function') await _energyLoadFromServer();
-    } catch(e2) {}
-
+    // 🆕 Önce UI'ı anında güncelle — ödülü aldığı an rozet düşsün
+    if (typeof evRender === 'function') evRender();
+    if (typeof evRefreshBadge === 'function') evRefreshBadge();
     if (typeof rosterToast === 'function') {
       const parts = [];
       if (data.dia) parts.push(`+${data.dia} 💎`);
@@ -71622,8 +71611,11 @@ async function evClaimStreakDay(day) {
       if (data.energy) parts.push(`+${data.energy} ⚡`);
       rosterToast(`Gün ${day} hediyesi: ${parts.join('  ')}`, 'ok');
     }
-    if (typeof evRender === 'function') evRender();
-    if (typeof evRefreshBadge === 'function') evRefreshBadge();
+    // Ödül server'da (claim_streak_reward RPC) cüzdana + enerjiye yazıldı — otoriter değerleri çekip tazele
+    try {
+      if (typeof wlLoadFromServer === 'function') await wlLoadFromServer();
+      if (typeof _energyLoadFromServer === 'function') await _energyLoadFromServer();
+    } catch(e2) {}
   } catch(e) { console.warn('[streak] claim exception:', e); }
 }
 
@@ -72451,16 +72443,7 @@ function evCountClaimables() {
 }
 
 function evRefreshBadge() {
-  const badge = document.getElementById('evNotifBadge');
-  if(!badge) return;
-  const n = evCountClaimables();
-  if(n > 0) {
-    badge.textContent = String(Math.min(99, n));
-    badge.style.display = 'inline-block';
-  } else {
-    badge.style.display = 'none';
-  }
-  // Sekme rozetleri de güncellensin (etkinlik sayfası açıkken)
+  // 🆕 Ana sayfa Etkinlik rozeti kaldırıldı — yalnızca Etkinlik içi sekme rozetlerini güncelle
   evRefreshTabBadges();
 }
 
@@ -73869,16 +73852,17 @@ async function achClaim(id) {
     }
     if (!Array.isArray(_achStateCache.claimed)) _achStateCache.claimed = [];
     if (!_achStateCache.claimed.includes(id)) _achStateCache.claimed.push(id);
-    // 🆕 Ödül server'da (claim_achievement RPC) cüzdana yazıldı — otoriter değeri çekip header'ı tazele
-    try { if (typeof wlLoadFromServer === 'function') await wlLoadFromServer(); } catch(e2) {}
+    // 🆕 Önce UI'ı anında güncelle — ödülü aldığı an satır "Alındı" + rozet düşsün
+    achRenderAll();
+    achRefreshBadge();
     if (typeof rosterToast === 'function') {
       const parts = [];
       if (data.eur) parts.push(`+${data.eur} €`);
       if (data.dia) parts.push(`+${data.dia} 💎`);
       rosterToast(`Görev ödülü: ${parts.join('  ')}`, 'ok');
     }
-    achRenderAll();
-    achRefreshBadge();
+    // Ödül server'da (claim_achievement RPC) cüzdana yazıldı — otoriter değeri çekip header'ı tazele
+    try { if (typeof wlLoadFromServer === 'function') await wlLoadFromServer(); } catch(e2) {}
   } catch(e) { console.warn('[ach] claim exception:', e); }
 }
 
