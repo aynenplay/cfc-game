@@ -5193,6 +5193,10 @@ body:not(.team-captain):not(.team-vice) #page-team:not(.guest-mode) #team-treasu
 .futc-pos.pos-stb,.futc-pos.pos-sb{color:#66b3ff}
 .futc-pos.pos-dos,.futc-pos.pos-os,.futc-pos.pos-sak{color:#46d17a}
 .futc-pos.pos-fw{color:#ff8c66}
+.futc-pos.pos-gk{color:#c0894f}
+.futc-pos.pos-def{color:#5fb8ff}
+.futc-pos.pos-mid{color:#46d17a}
+.futc-pos.pos-fwd{color:#ff6b6b}
 .futc-rcol{flex:1;min-width:0;display:flex;align-items:center;gap:11px;padding:11px 13px}
 .futc-av{width:38px;height:38px;border-radius:50%;flex-shrink:0;position:relative;
   background:linear-gradient(145deg,#2a2f3a,#15171c);
@@ -26960,7 +26964,30 @@ const SQUAD_SLOTS_15 = [
 ];
 
 // 🆕 KL/STB/SB/DOS/OS/SAK/FWD → GK/DEF/MID/FWD (geriye uyumluluk için)
-const POS_GROUP = { KL:'GK', STB:'DEF', SB:'DEF', DOS:'MID', OS:'MID', SAK:'MID', FWD:'FWD' };
+const POS_GROUP = { KL:'GK', STB:'DEF', SB:'DEF', DOS:'MID', OS:'MID', SAK:'MID', SOK:'MID', FWD:'FWD',
+  GK:'GK', RB:'DEF', CB:'DEF', LB:'DEF', DM:'MID', CM:'MID', RM:'MID', LM:'MID', AM:'MID', RF:'FWD', LF:'FWD', ST:'FWD' };
+
+// 🆕 ALT MEVKİ SİSTEMİ (12 mevki) — ana grubun (GK/DEF/MID/FWD) ALTINDA.
+//   Ana grup hat/yetenek/antrenmanı sürdürür; alt mevki SADECE kayıt seçimi + kart gösterimi.
+const SUB_POS = {
+  GK:  [{c:'GK', t:'Kaleci'}],
+  DEF: [{c:'RB', t:'Sağ Bek'}, {c:'CB', t:'Stoper'}, {c:'LB', t:'Sol Bek'}],
+  MID: [{c:'DM', t:'Defansif Orta Saha'}, {c:'CM', t:'Merkez Orta Saha'}, {c:'RM', t:'Sağ Kanat'}, {c:'LM', t:'Sol Kanat'}, {c:'AM', t:'Forvet Arkası'}],
+  FWD: [{c:'RF', t:'Sağ Forvet'}, {c:'LF', t:'Sol Forvet'}, {c:'ST', t:'Forvet'}]
+};
+const SUBPOS_GROUP = { GK:'GK', RB:'DEF',CB:'DEF',LB:'DEF', DM:'MID',CM:'MID',RM:'MID',LM:'MID',AM:'MID', RF:'FWD',LF:'FWD',ST:'FWD' };
+const SUBPOS_LABEL = { GK:'Kaleci', RB:'Sağ Bek', CB:'Stoper', LB:'Sol Bek', DM:'Defansif Orta Saha', CM:'Merkez Orta Saha', RM:'Sağ Kanat', LM:'Sol Kanat', AM:'Forvet Arkası', RF:'Sağ Forvet', LF:'Sol Forvet', ST:'Forvet' };
+const _OLD2SUB = { KL:'GK', STB:'CB', SB:'RB', DOS:'DM', OS:'CM', SAK:'RM', SOK:'LM', FWD:'ST' };
+function subPosOf(p) {
+  if (!p) return 'CM';
+  const s = p.subPos || p.sub_pos;
+  if (s && SUBPOS_GROUP[s]) return s;
+  if (_OLD2SUB[p.pos]) return _OLD2SUB[p.pos];
+  const g = p.posGroup || p.pos_group || (POS_GROUP[p.pos]) || p.pos;
+  return ({ GK:'GK', DEF:'CB', MID:'CM', FWD:'ST' })[g] || 'CM';
+}
+function subPosGroupOf(sub) { return SUBPOS_GROUP[sub] || 'MID'; }
+function subPosClass(p) { return 'pos-' + subPosGroupOf(subPosOf(p)).toLowerCase(); }
 
 // 🆕 Tüm yetenekler 10'dan başlar (büyüme sistemi sonradan eklenecek)
 // ═══════════════════════════════════════════════════════════════════
@@ -44017,7 +44044,7 @@ function renderRoster(filter) {
     return `<div class="player-row fut-card clickable${isUser?' is-user':''}${isCap?' is-cap':''}${isVice?' is-vice':''}" data-pos="${p.pos}" onclick="openPlayerModalSelf(${p.num})">
       <div class="futc-lcol">
         <div class="futc-ovr" style="color:${overallColor((typeof getPlayerMainOverall==='function')?getPlayerMainOverall(p):p.overall)}">${(typeof getPlayerMainOverall==='function')?getPlayerMainOverall(p):p.overall}</div>
-        <div class="futc-pos ${posClass(p.pos)}">${posLabel(p.pos)}</div>
+        <div class="futc-pos ${subPosClass(p)}">${subPosOf(p)}</div>
       </div>
       <div class="futc-rcol">
         <div class="futc-av ${avatarClass}">${avatarHTML}${isPlayerOnline(p) ? '<span class="pr-online-dot" title="Çevrimiçi"></span>' : ''}</div>
@@ -49326,7 +49353,7 @@ function ntRenderPitch() {
         ${circleHtml}
         <div class="bi-info">
           <div class="bi-name">${shortName}</div>
-          <div class="bi-pos">${p.nation || ''} <span style="opacity:.55">·</span> ${p.pos}</div>
+          <div class="bi-pos">${p.nation || ''} <span style="opacity:.55">·</span> ${subPosOf(p)}</div>
         </div>
         <div class="bi-ovr" style="color:var(--gold)">${p.overall}</div>
       </div>`;
@@ -52315,7 +52342,7 @@ function guestRenderRoster() {
     return `<div class="player-row fut-card clickable" data-pos="${p.pos}" onclick="openPlayerModalGuest(${p.num})">
       <div class="futc-lcol">
         <div class="futc-ovr" style="color:${overallColor(p.overall)}">${p.overall}</div>
-        <div class="futc-pos ${posClass(p.pos)}">${posLabel(p.pos)}</div>
+        <div class="futc-pos ${subPosClass(p)}">${subPosOf(p)}</div>
       </div>
       <div class="futc-rcol">
         <div class="futc-av ${avatarClass}">${p.avatar}${onlineDotHTML}</div>
