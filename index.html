@@ -44358,7 +44358,7 @@ async function openPlayerModal(player, ctx) {
       const cc = ((ctx && (ctx.countryCode || ctx.cc)) || '').toUpperCase().slice(0,2);
       const teamName = (ctx && (ctx.teamLookupName || ctx.teamName)) || '';
       let resolved = false;
-      if (cc && teamName) {
+      if (cc && teamName && teamName !== 'Serbest') {
         const key = cc + ':' + teamName;
         let roster = _teamRosterCache[key];
         if ((!Array.isArray(roster) || roster.length === 0) && typeof _loadTeamRosterFromServer === 'function') {
@@ -56842,11 +56842,12 @@ function renderHomeLeagueTicker() {
   const utcStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   const utcEnd = utcStart + 86400000;
 
-  // Kullanıcı ülkesinin bu güne ait lig maçları (turnuva hariç)
+  // Kullanıcı ülkesinin bu güne ait lig maçları (turnuva hariç). Canlı maçlar şeritte gösterilmez.
   const matches = [];
   for (const ms of Object.values(_matchStateCache.byKey)) {
     if (!ms || !ms.matchDateTime || ms.tournament_key) continue;
     if (ms.countryCode !== cc) continue;
+    if (ms.status === 'running') continue;
     const t = new Date(ms.matchDateTime).getTime();
     if (isNaN(t) || t < utcStart || t >= utcEnd) continue;
     matches.push({ ms, t });
@@ -56859,7 +56860,7 @@ function renderHomeLeagueTicker() {
     return;
   }
 
-  // Kronolojik: başlama saatine göre (erken bitenler → canlı → sonraki başlayacaklar)
+  // Kronolojik: başlama saatine göre (erken bitenler → sonraki başlayacaklar)
   matches.sort((a, b) => a.t - b.t);
 
   wrap.style.display = 'block';
@@ -56867,18 +56868,6 @@ function renderHomeLeagueTicker() {
   const itemHtml = matches.map(({ ms }) => {
     const home = ms.home || '—';
     const away = ms.away || '—';
-    if (ms.status === 'running') {
-      const min = (typeof _computeLiveSimMinute === 'function') ? _computeLiveSimMinute(ms) : null;
-      const hs = ms.home_score ?? 0, as = ms.away_score ?? 0;
-      return `
-        <div class="lg-ticker-item live">
-          <span class="lg-ti-team">${home}</span>
-          <span class="lg-ti-live">CANLI</span>
-          <span class="lg-ti-score">${hs}-${as}</span>
-          <span class="lg-ti-min">${min ? min + "'" : ''}</span>
-          <span class="lg-ti-team">${away}</span>
-        </div>`;
-    }
     if (ms.status === 'finished') {
       const hs = ms.home_score ?? 0, as = ms.away_score ?? 0;
       return `
