@@ -55805,6 +55805,7 @@ function _resRenderMatches(matches) {
 
   window._resCurrentMatches = {};
   window._resClickableMatches = [];
+  window._resLiveKeys = [];
 
   // 🆕 Canlı maç tespiti — kickoff geçti, oyun motoruyla aynı kompakt süre
   // Oyun motoru: 5dk ilk yarı + 100s devre arası + 5dk ikinci yarı = 700 saniye
@@ -55897,6 +55898,7 @@ function _resRenderMatches(matches) {
       let scoreCell, hClass = '', aClass = '', timeStr;
       let liveClass = '';
       let liveBadge = '';
+      let timeId = '';
 
       const live = _isLive(m);
 
@@ -55909,10 +55911,15 @@ function _resRenderMatches(matches) {
         scoreCell = `<div class="res-match-score">${m.hs} - ${m.as}</div>`;
         timeStr = _getMatchHM(m);
       } else if (live) {
-        // 🆕 CANLI: pulse animasyonlu skor + dakika
+        // 🆕 CANLI: pulse animasyonlu skor + dakika. Hücrelere index'li id verilir ki
+        //   7 sn'lik hafif güncelleyici (_resUpdateLiveCells) tam render olmadan güncellesin.
         const ls = _liveScore(m);
-        scoreCell = `<div class="res-match-score res-match-score-live">${ls.hs} - ${ls.as}</div>`;
+        const _lk = m.matchKey || `${m.season || 1}_${m.day || 0}_${m.home}_${m.away}`;
+        const _li = window._resLiveKeys.length;
+        window._resLiveKeys.push(_lk);
+        scoreCell = `<div id="res-sc-${_li}" class="res-match-score res-match-score-live">${ls.hs} - ${ls.as}</div>`;
         timeStr = `${ls.minute}'`;
+        timeId = ` id="res-tm-${_li}"`;
         liveClass = ' res-match-live';
         liveBadge = `<div class="res-live-dot"></div>`;
       } else {
@@ -55948,7 +55955,7 @@ function _resRenderMatches(matches) {
         ? `<img class="res-match-logo" src="${teamLogoUrl({name:m.away})}" alt="" loading="lazy">` : '';
       html += `
         <div class="res-match${userClass}${upcomingClass}${clickableClass}${liveClass}"${onclickAttr}>
-          <div class="res-match-time">${liveBadge}${timeStr}</div>
+          <div class="res-match-time"${timeId}>${liveBadge}${timeStr}</div>
           <div class="res-match-team home${hClass}">${homeLogo}<span class="res-match-tname">${m.home}</span></div>
           ${scoreCell}
           <div class="res-match-team away${aClass}"><span class="res-match-tname">${m.away}</span>${awayLogo}</div>
@@ -55960,23 +55967,51 @@ function _resRenderMatches(matches) {
 
   listEl.innerHTML = html;
 
-  // 🆕 Canlı maçlar varsa periyodik refresh (her 30 saniyede bir)
-  // Sıkıştırılmış maç ~12dk → 30sn refresh dakika değişimini yakalar (5dk gerçek = 45dk maç → ~9.5sn/dakika)
-  // 30sn = ~3 dakikada bir güncelleme, mobilde batarya/CPU dostu
-  if (listEl.querySelector('.res-match-live')) {
-    if (window._resLiveRefreshTimer) clearInterval(window._resLiveRefreshTimer);
-    window._resLiveRefreshTimer = setInterval(() => {
-      // Sayfa hâlâ açık mı?
-      const pg = document.getElementById('page-results');
-      if (!pg || !pg.classList.contains('active')) {
-        clearInterval(window._resLiveRefreshTimer);
-        window._resLiveRefreshTimer = null;
-        return;
-      }
-      // 🆕 Tüm sayfayı yenile — cache'i yeniden oku, _isLive→played geçişini yakala
-      renderResultsPage();
-    }, 30000);
+  // 🆕 Canlı maç varsa: 7 sn'de bir SADECE skor+dakika hücrelerini güncelle (tam render YOK, CPU dostu).
+  if (window._resLiveKeys && window._resLiveKeys.length) {
+    if (window._resLiveCellTimer) clearInterval(window._resLiveCellTimer);
+    window._resLiveCellTimer = setInterval(_resUpdateLiveCells, 7000);
+  } else if (window._resLiveCellTimer) {
+    clearInterval(window._resLiveCellTimer);
+    window._resLiveCellTimer = null;
   }
+}
+
+// 🆕 Canlı hücre güncelleyici — görünen canlı maçların skor+dakikasını sunucudan çekip
+//   sadece ilgili hücreleri günceller. Tam sayfa render yapmaz (eski sağlıklı 7sn mekanizması).
+//   Bir maç bittiyse (status=finished) tek seferlik tam reflow ile listede 'biten'e geçer.
+async function _resUpdateLiveCells() {
+  const pg = document.getElementById('page-results');
+  if (!pg || !pg.classList.contains('active')) {
+    if (window._resLiveCellTimer) { clearInterval(window._resLiveCellTimer); window._resLiveCellTimer = null; }
+    return;
+  }
+  const keys = window._resLiveKeys || [];
+  if (!keys.length || !window.sb) return;
+  let rows = [];
+  try {
+    const { data } = await window.sb.from('match_state')
+      .select('match_key,home_score,away_score,sim_minute,status')
+      .in('match_key', keys);
+    rows = data || [];
+  } catch(e) { return; }
+  let anyFinished = false;
+  for (const r of rows) {
+    const idx = keys.indexOf(r.match_key);
+    if (idx < 0) continue;
+    if (r.status === 'finished') {
+      anyFinished = true;
+      const e = _matchStateCache && _matchStateCache.byKey && _matchStateCache.byKey[r.match_key];
+      if (e) { e.status = 'finished'; e.home_score = r.home_score; e.away_score = r.away_score; }
+      continue;
+    }
+    if (r.status !== 'running') continue;
+    const scEl = document.getElementById('res-sc-' + idx);
+    if (scEl) scEl.textContent = `${r.home_score ?? 0} - ${r.away_score ?? 0}`;
+    const tmEl = document.getElementById('res-tm-' + idx);
+    if (tmEl) tmEl.innerHTML = `<div class="res-live-dot"></div>${r.sim_minute ?? 0}'`;
+  }
+  if (anyFinished) renderResultsPage();
 }
 
 // Tarih değiştir (← / →)
@@ -56096,27 +56131,6 @@ function renderResultsPage() {
 
   // Listeyi render et
   _resRenderMatches(matches);
-
-  // 🆕 Sayfada CANLI maç varsa otomatik tazele — her saniyede bir dakika güncellensin
-  // Maç ekranı kapalıyken bile SONUÇLAR sayfasındaki canlı maçlar akıcı dakika gösterir
-  if (window._resLiveTimer) {
-    clearInterval(window._resLiveTimer);
-    window._resLiveTimer = null;
-  }
-  const hasLive = matches.some(m => m && m.isLive);
-  if (hasLive) {
-    window._resLiveTimer = setInterval(() => {
-      // SONUÇLAR sayfası kapatılmışsa timer'ı temizle
-      const page = document.querySelector('.page.active');
-      if (!page || page.id !== 'page-results') {
-        clearInterval(window._resLiveTimer);
-        window._resLiveTimer = null;
-        return;
-      }
-      // Tazele
-      try { renderResultsPage(); } catch(e) {}
-    }, 1000);
-  }
 }
 
 
