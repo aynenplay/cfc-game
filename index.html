@@ -41016,21 +41016,12 @@ async function _rosterRefreshFromServer(countryCode) {
     // ROSTER_DATA'yı yeniden inşa et
     ROSTER_DATA = _buildRosterFromPlayers(data, countryCode);
 
-    // 🆕 Takım Ort. Güç = oyuncuların GERÇEK genel OVR ortalaması = 4-hat yetenek ortalaması
-    //   (getPlayerMainOverall). Saklanan `overall` kolonu ŞİŞİK (Hürşad 29 ama gerçek 14);
-    //   kart neyi gösteriyorsa o. Kullanıcı slotu canlı getSkillLevels'ten, botlar abilities'ten.
-    try {
-      if (typeof getPlayerMainOverall === 'function' && ROSTER_DATA.length) {
-        const _sum = ROSTER_DATA.reduce((a, p) => a + (Number(getPlayerMainOverall(p)) || 0), 0);
-        window._userTeamDbOvr = Math.round(_sum / ROSTER_DATA.length);
-      }
-    } catch(e) {}
-
-    // Hero "Ort. Güç"u taze veriyle doğrudan güncelle (applyUserTeamUI zamanlamasından bağımsız)
+    // Hero "Ort. Güç" = TEK KAYNAK (teams.team_ovr). Frontend hesap YOK; sadece okuma.
     try {
       const _el = document.getElementById('teamHeroPower');
-      if (_el && typeof window._userTeamDbOvr === 'number' && window._userTeamDbOvr > 0) {
-        _el.textContent = String(window._userTeamDbOvr);
+      if (_el && typeof _teamPowerFromPlayers === 'function') {
+        const _p = _teamPowerFromPlayers(_userTeam.countryCode, _userTeam.teamName, 1);
+        if (_p > 0) _el.textContent = String(_p);
       }
     } catch(e) {}
 
@@ -53716,12 +53707,13 @@ function renderHomeNextMatch() {
   // 🆕 Eskiden home.rating fixed (10) kullanılıyordu, şimdi hat güçlerinin ortalaması
   let homeRating = home.rating || 70;
   let awayRating = away.rating || 70;
-  if (typeof calcLineStrengths === 'function') {
+  // 🆕 Takım Gücü sayısı = TEK KAYNAK (teams.team_ovr). Frontend hesap YOK; sadece okuma.
+  if (typeof _teamPowerFromPlayers === 'function') {
     try {
-      const hL = calcLineStrengths(home);
-      const aL = calcLineStrengths(away);
-      if (hL) homeRating = Math.round((hL.GK + hL.DEF + hL.MID + hL.FWD) / 4);
-      if (aL) awayRating = Math.round((aL.GK + aL.DEF + aL.MID + aL.FWD) / 4);
+      const _hp = _teamPowerFromPlayers(home.countryCode || home.cc || null, home.name, home.rank || 1);
+      const _ap = _teamPowerFromPlayers(away.countryCode || away.cc || null, away.name, away.rank || 1);
+      if (_hp > 0) homeRating = _hp;
+      if (_ap > 0) awayRating = _ap;
     } catch(e) {}
   }
   const totalRating = homeRating + awayRating || 1;
