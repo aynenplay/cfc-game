@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CFC Admin</title>
+<style>
+  :root{ --bg:#0c0e12; --panel:#14171d; --panel2:#1a1e26; --line:#262b34; --txt:#e6e9ef; --dim:#8a93a3; --accent:#2ec36b; --red:#e23b5a; --gold:#ffd54f; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; font:14px/1.4 system-ui,Segoe UI,Roboto,Arial,sans-serif; background:var(--bg); color:var(--txt); }
+  button{ font:inherit; cursor:pointer; border:none; border-radius:8px; }
+  input,select,textarea{ font:inherit; background:var(--panel2); color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:8px 10px; }
+  textarea{ width:100%; min-height:90px; resize:vertical; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; }
+
+  /* Giriş */
+  #login{ max-width:340px; margin:14vh auto; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:26px; }
+  #login h1{ margin:0 0 4px; font-size:20px; }
+  #login p{ margin:0 0 18px; color:var(--dim); font-size:13px; }
+  #login input{ width:100%; margin-bottom:10px; }
+  #login button{ width:100%; background:var(--accent); color:#06210f; font-weight:700; padding:11px; }
+  #loginErr{ color:var(--red); font-size:13px; min-height:18px; margin-top:6px; }
+
+  /* Uygulama */
+  #app{ display:none; grid-template-columns:220px 1fr; height:100vh; }
+  #side{ background:var(--panel); border-right:1px solid var(--line); overflow:auto; padding:10px; }
+  #side .brand{ font-weight:800; font-size:15px; padding:8px 10px 12px; color:var(--gold); }
+  #side button{ display:block; width:100%; text-align:left; background:transparent; color:var(--dim); padding:8px 10px; border-radius:8px; margin-bottom:2px; }
+  #side button:hover{ background:var(--panel2); color:var(--txt); }
+  #side button.active{ background:var(--accent); color:#06210f; font-weight:700; }
+  #side .logout{ color:var(--red); margin-top:14px; }
+
+  #main{ overflow:auto; padding:16px 18px; }
+  .bar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+  .bar h2{ margin:0; font-size:17px; }
+  .bar .sp{ flex:1; }
+  .bar .cnt{ color:var(--dim); font-size:12px; }
+  .btn{ background:var(--panel2); color:var(--txt); border:1px solid var(--line); padding:7px 12px; }
+  .btn.green{ background:var(--accent); color:#06210f; border:none; font-weight:700; }
+  .btn.red{ background:transparent; color:var(--red); border:1px solid var(--red); }
+
+  table{ border-collapse:collapse; width:100%; }
+  th,td{ border:1px solid var(--line); padding:6px 8px; text-align:left; font-size:12.5px; max-width:320px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  th{ background:var(--panel2); position:sticky; top:0; color:var(--dim); font-weight:600; }
+  td.act{ white-space:nowrap; }
+  td .mini{ padding:3px 8px; font-size:11px; margin-right:4px; background:var(--panel2); border:1px solid var(--line); color:var(--txt); }
+  td .mini.red{ color:var(--red); border-color:var(--red); }
+  tr:hover td{ background:#11141a; }
+
+  .page{ display:flex; gap:8px; align-items:center; margin-top:12px; }
+  .msg{ color:var(--dim); padding:20px 4px; }
+  .err{ color:var(--red); }
+
+  /* Modal */
+  #modal{ display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); align-items:flex-start; justify-content:center; overflow:auto; padding:30px 16px; }
+  #modal .box{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px; width:560px; max-width:100%; }
+  #modal h3{ margin:0 0 14px; font-size:16px; }
+  .fld{ margin-bottom:12px; }
+  .fld label{ display:block; color:var(--dim); font-size:12px; margin-bottom:4px; }
+  .fld label .ty{ color:#5c6470; }
+  .fld input{ width:100%; }
+  .fld input[readonly]{ opacity:.6; }
+  .mbtns{ display:flex; gap:8px; justify-content:flex-end; margin-top:8px; }
+  #modalErr{ color:var(--red); font-size:13px; min-height:18px; }
+</style>
+</head>
+<body>
+
+<!-- ╔══ AYAR: anon anahtarını bir kez buraya yapıştır (anon anahtar herkese açıktır, güvenli) ══╗ -->
+<script>
+  const CFG = {
+    url:  'https://fkmpkfhikhludkgrzvtd.supabase.co',
+    anon: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZrbXBrZmhpa2hsdWRrZ3J6dnRkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5Mjg0NTYsImV4cCI6MjA5NDUwNDQ1Nn0.iYfX_1spn8n3A7Z7B_3eajweKFFUvZwOL0Q6IDS7TyM'
+  };
+  const GATEWAY = CFG.url + '/functions/v1/admin-gateway';
+</script>
+
+<div id="login">
+  <h1>CFC Admin</h1>
+  <p>Yönetim paneli — giriş yap</p>
+  <input id="email" type="email" placeholder="E-posta" autocomplete="username">
+  <input id="pass" type="password" placeholder="Şifre" autocomplete="current-password">
+  <button id="loginBtn">Giriş</button>
+  <div id="loginErr"></div>
+</div>
+
+<div id="app">
+  <div id="side">
+    <div class="brand">⚙ CFC Admin</div>
+    <div id="tabs"></div>
+    <button class="logout" id="logoutBtn">Çıkış</button>
+  </div>
+  <div id="main">
+    <div class="msg">Soldan bir tablo seç.</div>
+  </div>
+</div>
+
+<div id="modal">
+  <div class="box">
+    <h3 id="modalTitle"></h3>
+    <div id="modalFields"></div>
+    <div id="modalErr"></div>
+    <div class="mbtns">
+      <button class="btn" id="modalCancel">Vazgeç</button>
+      <button class="btn green" id="modalSave">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let TOKEN = null;
+let META = null;
+let CUR = null;            // şu anki tablo
+let STATE = { offset:0, limit:50, search:'', searchCol:'' };
+let EDIT = null;           // { table, mode:'edit'|'add', row }
+
+const $ = (id) => document.getElementById(id);
+
+// ── API ──
+async function api(op, payload={}) {
+  const r = await fetch(GATEWAY, {
+    method:'POST',
+    headers:{ 'Authorization':'Bearer '+TOKEN, 'apikey':CFG.anon, 'Content-Type':'application/json' },
+    body: JSON.stringify({ op, ...payload })
+  });
+  const d = await r.json().catch(()=>({ ok:false, error:'Yanıt okunamadı' }));
+  if (!d.ok) throw new Error(d.error || ('HTTP '+r.status));
+  return d;
+}
+
+// ── Giriş ──
+async function doLogin() {
+  $('loginErr').textContent = '';
+  const email = $('email').value.trim();
+  const password = $('pass').value;
+  if (!email || !password) { $('loginErr').textContent = 'E-posta ve şifre gir.'; return; }
+  try {
+    const r = await fetch(CFG.url + '/auth/v1/token?grant_type=password', {
+      method:'POST',
+      headers:{ 'apikey':CFG.anon, 'Content-Type':'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const d = await r.json();
+    if (!r.ok || !d.access_token) throw new Error(d.error_description || d.msg || d.error || 'Giriş başarısız');
+    TOKEN = d.access_token;
+    const m = await api('meta');
+    META = m.meta || {};
+    $('login').style.display = 'none';
+    $('app').style.display = 'grid';
+    buildTabs();
+  } catch(e) {
+    $('loginErr').textContent = e.message;
+  }
+}
+
+function logout() {
+  TOKEN = null; META = null; CUR = null;
+  $('app').style.display = 'none';
+  $('login').style.display = 'block';
+  $('pass').value = '';
+}
+
+// ── Sol menü ──
+function buildTabs() {
+  const names = Object.keys(META).sort();
+  $('tabs').innerHTML = names.map(n => `<button data-t="${n}">${n}</button>`).join('');
+  $('tabs').querySelectorAll('button').forEach(b => b.onclick = () => openTable(b.dataset.t));
+}
+
+// ── Tablo aç ──
+async function openTable(t) {
+  CUR = t;
+  STATE = { offset:0, limit:50, search:'', searchCol:'' };
+  $('tabs').querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.t===t));
+  await loadRows();
+}
+
+async function loadRows() {
+  $('main').innerHTML = '<div class="msg">Yükleniyor…</div>';
+  try {
+    const d = await api('list', {
+      table: CUR, limit: STATE.limit, offset: STATE.offset,
+      search: STATE.search || undefined, searchCol: STATE.searchCol || undefined
+    });
+    renderGrid(d.rows || [], d.count || 0);
+  } catch(e) {
+    $('main').innerHTML = `<div class="msg err">${e.message}</div>`;
+  }
+}
+
+function colType(name) {
+  const c = (META[CUR].columns || []).find(c => c.name === name);
+  return c ? c.type : 'text';
+}
+
+function fmtCell(v) {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'object') return JSON.stringify(v);
+  return String(v);
+}
+
+function renderGrid(rows, count) {
+  const cols = (META[CUR].columns || []).map(c => c.name);
+  const textCols = (META[CUR].columns || []).filter(c => ['text','character varying','uuid'].includes(c.type)).map(c => c.name);
+  if (!STATE.searchCol && textCols.length) STATE.searchCol = textCols[0];
+
+  const head = `
+    <div class="bar">
+      <h2>${CUR}</h2>
+      <span class="cnt">${count} kayıt</span>
+      <div class="sp"></div>
+      <select id="scol">${textCols.map(c => `<option ${c===STATE.searchCol?'selected':''}>${c}</option>`).join('')}</select>
+      <input id="sval" placeholder="ara…" value="${STATE.search.replace(/"/g,'&quot;')}" style="width:160px">
+      <button class="btn" id="sbtn">Ara</button>
+      <button class="btn green" id="addBtn">+ Ekle</button>
+    </div>`;
+
+  const table = `
+    <div style="overflow:auto; max-height:calc(100vh - 160px); border:1px solid var(--line); border-radius:10px;">
+    <table>
+      <thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}<th>işlem</th></tr></thead>
+      <tbody>
+        ${rows.map((row,i)=>`
+          <tr>
+            ${cols.map(c=>`<td title="${fmtCell(row[c]).replace(/"/g,'&quot;')}">${fmtCell(row[c])}</td>`).join('')}
+            <td class="act">
+              <button class="mini" data-edit="${i}">Düzenle</button>
+              <button class="mini red" data-del="${i}">Sil</button>
+            </td>
+          </tr>`).join('')}
+      </tbody>
+    </table></div>`;
+
+  const totalPages = Math.max(1, Math.ceil(count / STATE.limit));
+  const curPage = Math.floor(STATE.offset / STATE.limit) + 1;
+  const page = `
+    <div class="page">
+      <button class="btn" id="prev" ${STATE.offset<=0?'disabled':''}>‹ Önceki</button>
+      <span class="cnt">${curPage} / ${totalPages}</span>
+      <button class="btn" id="next" ${curPage>=totalPages?'disabled':''}>Sonraki ›</button>
+    </div>`;
+
+  $('main').innerHTML = head + table + (rows.length ? page : '<div class="msg">Kayıt yok.</div>');
+
+  // olaylar
+  $('sbtn').onclick = () => { STATE.search = $('sval').value.trim(); STATE.searchCol = $('scol').value; STATE.offset = 0; loadRows(); };
+  $('sval').addEventListener('keydown', e => { if (e.key==='Enter') $('sbtn').click(); });
+  $('addBtn').onclick = () => openEditor('add', {});
+  const prev = $('prev'), next = $('next');
+  if (prev) prev.onclick = () => { STATE.offset = Math.max(0, STATE.offset - STATE.limit); loadRows(); };
+  if (next) next.onclick = () => { STATE.offset += STATE.limit; loadRows(); };
+  $('main').querySelectorAll('[data-edit]').forEach(b => b.onclick = () => openEditor('edit', rows[+b.dataset.edit]));
+  $('main').querySelectorAll('[data-del]').forEach(b => b.onclick = () => delRow(rows[+b.dataset.del]));
+}
+
+// ── Birincil anahtar nesnesi ──
+function pkObj(row) {
+  const pk = META[CUR].pk || [];
+  const o = {};
+  (pk.length ? pk : Object.keys(row)).forEach(k => { if (k in row) o[k] = row[k]; });
+  return o;
+}
+
+// ── Düzenleyici (ekle/düzenle) ──
+function openEditor(mode, row) {
+  EDIT = { table: CUR, mode, row };
+  const pk = META[CUR].pk || [];
+  const cols = META[CUR].columns || [];
+  $('modalTitle').textContent = (mode==='add' ? 'Yeni kayıt — ' : 'Düzenle — ') + CUR;
+  $('modalErr').textContent = '';
+  $('modalFields').innerHTML = cols.map(c => {
+    const isPk = pk.includes(c.name);
+    const ro = (mode==='edit' && isPk) ? 'readonly' : '';
+    let val = (c.name in row) ? row[c.name] : null;
+    const isJson = (c.type==='jsonb' || c.type==='json');
+    const dv = (val===null || val===undefined) ? '' : (typeof val==='object' ? JSON.stringify(val, null, 2) : String(val));
+    const field = isJson
+      ? `<textarea data-c="${c.name}" ${ro}>${dv.replace(/</g,'&lt;')}</textarea>`
+      : `<input data-c="${c.name}" value="${dv.replace(/"/g,'&quot;')}" ${ro}>`;
+    return `<div class="fld"><label>${c.name} <span class="ty">${c.type}${isPk?' · PK':''}</span></label>${field}</div>`;
+  }).join('');
+  $('modal').style.display = 'flex';
+}
+
+function coerce(type, raw) {
+  if (raw === '' ) return null;
+  if (type==='jsonb' || type==='json') return JSON.parse(raw);
+  if (type==='boolean') return raw==='true' || raw===true;
+  if (['integer','bigint','smallint','numeric','double precision','real'].includes(type)) return Number(raw);
+  return raw;
+}
+
+async function saveEditor() {
+  $('modalErr').textContent = '';
+  const cols = META[EDIT.table].columns || [];
+  const pk = META[EDIT.table].pk || [];
+  const values = {};
+  try {
+    $('modalFields').querySelectorAll('[data-c]').forEach(el => {
+      const name = el.dataset.c;
+      const type = (cols.find(c=>c.name===name)||{}).type || 'text';
+      if (EDIT.mode==='edit' && pk.includes(name)) return;   // PK değiştirme
+      values[name] = coerce(type, el.value);
+    });
+  } catch(e) {
+    $('modalErr').textContent = 'JSON hatası: ' + e.message; return;
+  }
+  try {
+    if (EDIT.mode==='add') {
+      await api('insert', { table: EDIT.table, values });
+    } else {
+      await api('update', { table: EDIT.table, pk: pkObj(EDIT.row), values });
+    }
+    $('modal').style.display = 'none';
+    loadRows();
+  } catch(e) {
+    $('modalErr').textContent = e.message;
+  }
+}
+
+async function delRow(row) {
+  if (!confirm('Bu kaydı silmek istediğine emin misin? Geri alınamaz.')) return;
+  try {
+    await api('delete', { table: CUR, pk: pkObj(row) });
+    loadRows();
+  } catch(e) {
+    alert('Silinemedi: ' + e.message);
+  }
+}
+
+// ── Bağlamalar ──
+$('loginBtn').onclick = doLogin;
+$('pass').addEventListener('keydown', e => { if (e.key==='Enter') doLogin(); });
+$('logoutBtn').onclick = logout;
+$('modalCancel').onclick = () => { $('modal').style.display = 'none'; };
+$('modalSave').onclick = saveEditor;
+$('modal').addEventListener('click', e => { if (e.target.id==='modal') $('modal').style.display='none'; });
+</script>
+</body>
+</html>
