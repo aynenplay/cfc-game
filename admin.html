@@ -107,6 +107,31 @@
   .card .num{ font-family:var(--disp); font-weight:900; font-size:30px; color:var(--gold); line-height:1; }
   .card .lbl{ color:var(--dim); font-family:var(--disp); font-weight:600; font-size:14px; margin-top:7px; letter-spacing:.4px; }
 
+  /* Geri bildirim */
+  .fbhead{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:24px 0 12px; }
+  .fbhead h2{ font-family:var(--disp); font-weight:900; font-size:19px; margin:0; letter-spacing:.5px; }
+  .fbhead .sp{ flex:1; }
+  .chip{ background:var(--panel2); color:var(--dim); border:1px solid var(--line); border-radius:20px; padding:5px 13px;
+    font-family:var(--disp); font-weight:700; font-size:13px; cursor:pointer; transition:.12s; }
+  .chip:hover{ color:var(--txt); border-color:var(--goldln); }
+  .chip.active{ color:#fff; background:linear-gradient(180deg,rgba(46,195,107,.28),rgba(31,158,84,.16)); border-color:#2ec36b; }
+  .fblist{ display:flex; flex-direction:column; gap:10px; }
+  .fbitem{ background-image:var(--carbon); border:1px solid var(--line); border-left-width:4px; border-radius:10px; padding:13px 15px; }
+  .fbitem .top{ display:flex; align-items:center; gap:8px; margin-bottom:7px; }
+  .fbbadge{ font-family:var(--disp); font-weight:800; font-size:11px; letter-spacing:.5px; text-transform:uppercase; padding:3px 9px; border-radius:6px; }
+  .fbstat{ font-family:var(--disp); font-weight:700; font-size:11px; color:var(--dim); }
+  .fbstat.yeni{ color:var(--accent); }
+  .fbitem .when{ margin-left:auto; color:#5c6470; font-size:11px; font-family:var(--mono); }
+  .fbitem .msg{ color:var(--txt); font-size:14px; line-height:1.5; white-space:pre-wrap; word-break:break-word; }
+  .fbitem .foot{ display:flex; align-items:center; gap:8px; margin-top:10px; }
+  .fbitem .who{ color:var(--dim); font-size:12px; }
+  .fbitem .acts{ margin-left:auto; display:flex; gap:6px; }
+  .fbitem .acts .btn{ padding:5px 11px; font-size:12.5px; }
+  .fbempty{ color:var(--dim); padding:16px 4px; }
+  .fbsetup{ background-image:var(--carbon); border:1px solid var(--goldln); border-radius:10px; padding:16px; color:var(--dim); line-height:1.6; }
+  .fbsetup b{ color:var(--gold); font-family:var(--disp); }
+  .fbsetup code{ font-family:var(--mono); color:var(--txt); background:#1b1f27; padding:1px 6px; border-radius:5px; }
+
   /* Modal */
   #modal{ display:none; position:fixed; inset:0; background:rgba(0,0,0,.62); align-items:flex-start; justify-content:center; overflow:auto; padding:34px 16px; z-index:50; }
   #modal .box{ width:580px; max-width:100%; padding:22px; }
@@ -254,12 +279,90 @@ function openDash(){
   $('tabs').querySelectorAll('button').forEach(b=>b.classList.remove('active'));
   $('dashBtn').classList.add('active');
   $('main').innerHTML = `<div class="titlebox fadein"><h2>Özet</h2><span class="cnt">CSC Admin · genel bakış</span></div>
-    <div class="cardgrid fadein">${DASH.map(d=>`<div class="card" data-t="${d.t}"><div class="num" id="num-${d.t}">…</div><div class="lbl">${d.label}</div></div>`).join('')}</div>`;
+    <div class="cardgrid fadein">${DASH.map(d=>`<div class="card" data-t="${d.t}"><div class="num" id="num-${d.t}">…</div><div class="lbl">${d.label}</div></div>`).join('')}</div>
+    <div id="fbArea"></div>`;
   $('main').querySelectorAll('.card').forEach(b=>b.onclick=()=>openTable(b.dataset.t));
   DASH.forEach(async d=>{
     try{ const r=await api('list',{table:d.t,limit:1}); const el=$('num-'+d.t); if(el) el.textContent=(r.count||0).toLocaleString('tr'); }
     catch(e){ const el=$('num-'+d.t); if(el) el.textContent='—'; }
   });
+  loadFeedback();
+}
+
+// Geri bildirim
+const FB_TYPES = {
+  sikayet:{ label:'Şikayet', color:'#e23b5a' },
+  istek:{ label:'İstek', color:'#4a9eff' },
+  talep:{ label:'Talep', color:'#2ec36b' }
+};
+const FB_STATUS = { yeni:'Yeni', okundu:'Okundu', cozuldu:'Çözüldü' };
+let FB_DATA = [];
+let FB_FILTER = 'all';
+
+async function loadFeedback(){
+  const area = $('fbArea'); if(!area) return;
+  area.innerHTML = '<div class="fbempty">Yükleniyor…</div>';
+  try {
+    const r = await api('list', { table:'feedback', orderBy:'created_at', orderDir:'desc', limit:100 });
+    FB_DATA = r.rows || [];
+    renderFeedback();
+  } catch(e) {
+    area.innerHTML = `<div class="fbhead"><h2>Geri Bildirimler</h2></div>
+      <div class="fbsetup"><b>Geri bildirim tablosu henüz kurulmadı.</b><br>
+      Supabase SQL editöründe <code>feedback-setup.sql</code>'i çalıştırınca, oyundaki şikayet/istek/talepler burada listelenir.</div>`;
+  }
+}
+
+const _fbEsc = (s) => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+const _fbTime = (ts) => { try{ return new Date(ts).toLocaleString('tr'); }catch(e){ return ts||''; } };
+
+function fbItemHtml(f){
+  const t = FB_TYPES[f.type] || { label:f.type||'?', color:'#8a93a3' };
+  const st = f.status || 'yeni';
+  const who = f.username || (f.user_id ? String(f.user_id).slice(0,8) : 'bilinmiyor');
+  return `<div class="fbitem" style="border-left-color:${t.color}">
+    <div class="top">
+      <span class="fbbadge" style="background:${t.color}22;color:${t.color}">${t.label}</span>
+      <span class="fbstat ${st}">${FB_STATUS[st]||st}</span>
+      <span class="when">${_fbTime(f.created_at)}</span>
+    </div>
+    <div class="msg">${_fbEsc(f.message)}</div>
+    <div class="foot">
+      <span class="who">Gönderen: ${_fbEsc(who)}</span>
+      <span class="acts">
+        ${st!=='okundu'?`<button class="btn" data-fbs="okundu" data-id="${f.id}">Okundu</button>`:''}
+        ${st!=='cozuldu'?`<button class="btn gold" data-fbs="cozuldu" data-id="${f.id}">Çözüldü</button>`:''}
+        <button class="btn red" data-fbd="${f.id}">Sil</button>
+      </span>
+    </div>
+  </div>`;
+}
+
+function renderFeedback(){
+  const area = $('fbArea'); if(!area) return;
+  const counts = { all:FB_DATA.length, sikayet:0, istek:0, talep:0 };
+  FB_DATA.forEach(f=>{ if(counts[f.type]!==undefined) counts[f.type]++; });
+  const chip = (k,lbl)=>`<button class="chip ${FB_FILTER===k?'active':''}" data-f="${k}">${lbl} (${counts[k]||0})</button>`;
+  const items = FB_DATA.filter(f => FB_FILTER==='all' || f.type===FB_FILTER);
+  const head = `<div class="fbhead"><h2>Geri Bildirimler</h2><div class="sp"></div>
+    ${chip('all','Tümü')}${chip('sikayet','Şikayet')}${chip('istek','İstek')}${chip('talep','Talep')}</div>`;
+  const list = items.length
+    ? `<div class="fblist">${items.map(fbItemHtml).join('')}</div>`
+    : '<div class="fbempty">Bu kategoride geri bildirim yok.</div>';
+  area.innerHTML = head + list;
+  area.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{ FB_FILTER=c.dataset.f; renderFeedback(); });
+  area.querySelectorAll('[data-fbs]').forEach(b=>b.onclick=()=>fbStatus(b.dataset.id, b.dataset.fbs));
+  area.querySelectorAll('[data-fbd]').forEach(b=>b.onclick=()=>fbDelete(b.dataset.fbd));
+}
+
+async function fbStatus(id, status){
+  try { await api('update', { table:'feedback', pk:{ id }, values:{ status } }); loadFeedback(); }
+  catch(e){ alert('Güncellenemedi: '+e.message); }
+}
+async function fbDelete(id){
+  if(!confirm('Bu geri bildirimi silmek istediğine emin misin?')) return;
+  try { await api('delete', { table:'feedback', pk:{ id } }); loadFeedback(); }
+  catch(e){ alert('Silinemedi: '+e.message); }
 }
 
 // Sol menü
