@@ -32033,6 +32033,22 @@ function getTeamDevPercent(team) {
 // 🆕 Hat güçleri: GK / DEF / MID / FWD ortalamaları (oyuncu posGroup üzerinden)
 function calcLineStrengths(team) {
   const teamName = team && (team.name || team.teamName) || '';
+  // 🆕 TEK KAYNAK: Supabase teams.team_lines (edge yazar). Varsa direkt oku — frontend hesap YOK.
+  try {
+    const _ut = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName === teamName);
+    const _cc = (team && (team.countryCode || team.cc)) || (_ut ? _userTeam.countryCode : null);
+    let _L = null;
+    if (_cc && window._teamLinesMap) _L = window._teamLinesMap[_cc + ':' + teamName];
+    if (!_L && _cc && typeof _cftGetCountry === 'function') {
+      const c = _cftGetCountry(_cc);
+      if (c && Array.isArray(c.leagues)) {
+        for (const lg of c.leagues) { const t = (lg.teams||[]).find(x => x && x.name === teamName); if (t && t.teamLines) { _L = t.teamLines; break; } }
+      }
+    }
+    if (_L && typeof _L.GK === 'number' && typeof _L.DEF === 'number' && typeof _L.MID === 'number' && typeof _L.FWD === 'number') {
+      return { GK: _L.GK, DEF: _L.DEF, MID: _L.MID, FWD: _L.FWD };
+    }
+  } catch(e) {}
   const isUserTeam = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName === teamName);
   const teamRating = (team && (team.rating || team.overall)) || 70;
   const POSGRP = (typeof POS_GROUP !== 'undefined') ? POS_GROUP
@@ -39947,7 +39963,7 @@ async function bootstrapWorld(){
     while (true) {
       const { data, error } = await window.sb
         .from('teams')
-        .select('country_code,country_name,country_flag,tier,tier_name,tier_color,rank,name,city,population,market_value,rating,team_ovr,team_points,bg,tc,short')
+        .select('country_code,country_name,country_flag,tier,tier_name,tier_color,rank,name,city,population,market_value,rating,team_ovr,team_lines,team_points,bg,tc,short')
         .order('country_code').order('tier').order('rank')
         .range(from, from + PAGE - 1);
       if (error) { console.warn('[bootstrap] teams hata:', error.message); return; }
@@ -39971,7 +39987,7 @@ async function bootstrapWorld(){
       if (!lg) { lg = { tier: t.tier, name: t.tier_name, color: t.tier_color, teams: [] }; db[cc].leagues.push(lg); }
       lg.teams.push({
         rank: t.rank, city: t.city, name: t.name,
-        pop: t.population, oz: t.market_value, rating: t.rating, teamOvr: (Number.isFinite(Number(t.team_ovr)) ? Number(t.team_ovr) : null), teamPoints: (Number.isFinite(Number(t.team_points)) ? Number(t.team_points) : 0),
+        pop: t.population, oz: t.market_value, rating: t.rating, teamOvr: (Number.isFinite(Number(t.team_ovr)) ? Number(t.team_ovr) : null), teamLines: ((t.team_lines && typeof t.team_lines === 'object') ? t.team_lines : null), teamPoints: (Number.isFinite(Number(t.team_points)) ? Number(t.team_points) : 0),
         bg: t.bg, tc: t.tc, short: t.short,
         countryCode: cc, countryKey: cc  // 🆕 helper kodu bekliyor
       });
@@ -74070,14 +74086,18 @@ async function _rkRefreshStats(force) {
     const PAGE = 1000; let from = 0; const fresh = {};
     while (true) {
       const { data, error } = await window.sb.from('teams')
-        .select('country_code,name,team_points,team_ovr,market_value').range(from, from + PAGE - 1);
+        .select('country_code,name,team_points,team_ovr,team_lines,market_value').range(from, from + PAGE - 1);
       if (error || !Array.isArray(data) || data.length === 0) break;
       for (const t of data) if (t && t.name) fresh[(t.country_code || '') + ':' + t.name] = t;
       if (data.length < PAGE) break;
       from += PAGE; if (from > 100000) break;
     }
     window._teamOvrMap = {};
-    for (const k in fresh) { const v = Number(fresh[k].team_ovr); if (Number.isFinite(v) && v > 0) window._teamOvrMap[k] = Math.round(v); }
+    window._teamLinesMap = window._teamLinesMap || {};
+    for (const k in fresh) {
+      const v = Number(fresh[k].team_ovr); if (Number.isFinite(v) && v > 0) window._teamOvrMap[k] = Math.round(v);
+      const L = fresh[k].team_lines; if (L && typeof L === 'object' && typeof L.GK === 'number') window._teamLinesMap[k] = L;
+    }
     for (const cc in _cftDb) {
       const c = _cftDb[cc]; if (!c || !c.leagues) continue;
       for (const lg of c.leagues) for (const t of (lg.teams || [])) {
