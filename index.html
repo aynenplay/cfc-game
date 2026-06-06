@@ -69003,36 +69003,34 @@ async function trCollect(id) {
   const now = Date.now();
   if(now < entry.endTime) { trToast('Antrenman henüz bitmedi!', '#ff9800'); return; }
 
-  // 🆕 SUNUCUDA ATOMİK TOPLA — skills kolonu DB trigger ile korunur; puan/seviye SUNUCUDA hesaplanır.
-  let res = null;
-  try {
-    const r = await window.sb.rpc('train_collect', { p_id: id });
-    if(r.error){ trToast('Toplama hatası: ' + r.error.message, '#ef5350'); return; }
-    res = r.data;
-  } catch(e){ trToast('Toplama hatası.', '#ef5350'); return; }
-  if(!res || !res.ok){
-    trToast((res && res.error === 'not_done') ? 'Antrenman henüz bitmedi!' : 'Toplama başarısız.', '#ff9800');
-    return;
-  }
+  // 🆕 OPTIMISTIC: sonucu istemcide (sunucuyla AYNI formülle) hesaplayıp ANINDA göster.
+  //   train_collect RPC arkada çalışıp kesin değerle sessizce eşitler (skills kolonu sunucu-korumalı).
+  const pos = entry.pos, skillId = entry.skillId;
+  const gainPoints = Math.round((entry.mins||0) * 100 / 3);
+  const gainXP = entry.gainXP || 0;
 
-  // Cache'leri sunucu otoriter değerle güncelle
-  try { if(res.skills) _skillsCache = res.skills; } catch(e){}
-  try { if(Array.isArray(res.active)) _activeCache = res.active; } catch(e){}
+  if(!_skillsCache) _skillsCache = {};
+  if(!_skillsCache[pos]) _skillsCache[pos] = {};
+  const cur = _skillsCache[pos][skillId] || { level: 10, points: 0 };
+  const oldLevel = cur.level || 10;
+  let level = oldLevel, points = (cur.points||0) + (entry.mins * 100 / 3);
+  let _g = 0;
+  while(points >= trPointsNeeded(level) && _g++ < 100000) { points -= trPointsNeeded(level); level++; }
+  const newLevel = level;
+  const leveledUp = newLevel > oldLevel;
+  _skillsCache[pos][skillId] = { level: newLevel, points };
 
-  const oldLevel   = res.oldLevel;
-  const newLevel   = res.level;
-  const leveledUp  = !!res.leveledUp;
-  const gainPoints = (res.gainPoints != null) ? res.gainPoints : Math.round((entry.mins||0) * 100 / 3);
-  const gainXP     = (res.gainXP != null) ? res.gainXP : (entry.gainXP||0);
+  // Aktiften çıkar (optimistic)
+  _activeCache = (Array.isArray(_activeCache) ? _activeCache : active).filter(a => a.id !== id);
 
-  // Oyuncu XP (players tablosu; skills'ten ayrı — sunucunun döndürdüğü gainXP ile)
+  // Oyuncu XP (players tablosu; skills'ten ayrı)
   const userPlayer = ROSTER_DATA.find(p => p.role === 'user');
   let playerLevelUp = null;
   if(userPlayer) {
     playerLevelUp = rosterAwardXp(userPlayer.num, gainXP);
   }
 
-  // Tamamlandı modal
+  // Tamamlandı modal — ANINDA göster
   const skillInfo = (TR_SKILLS[entry.pos]||[]).find(s=>s.id===entry.skillId);
   document.getElementById('trDoneBody').innerHTML = `
     <div class="td3-head">
@@ -69091,6 +69089,21 @@ async function trCollect(id) {
   } catch(e) {}
 
   trRender();
+
+  // 🆕 Arkada sunucu doğrulaması — kesin değerle SESSİZCE eşitle (skills sunucu-otoriter).
+  (async () => {
+    try {
+      const r = await window.sb.rpc('train_collect', { p_id: id });
+      if (r && r.data && r.data.ok) {
+        if (r.data.skills) _skillsCache = r.data.skills;
+        if (Array.isArray(r.data.active)) _activeCache = r.data.active;
+        if (typeof trRenderSkills === 'function') { try { trRenderSkills(); } catch(e){} }
+        else if (typeof trRender === 'function') { try { trRender(); } catch(e){} }
+      } else {
+        console.warn('[trCollect] sunucu reddetti (optimistic kaldi):', r && r.data);
+      }
+    } catch(e) { console.warn('[trCollect] rpc hata:', e); }
+  })();
 }
 
 function trCloseDone() {
