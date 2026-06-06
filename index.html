@@ -72718,28 +72718,52 @@ function wlAddLog(entry){
 }
 
 // ── Public API: currency = 'eur' | 'dia' ──
+// 🆕 ATOMİK CÜZDAN — optimistic (anlık UI) + sunucu RPC (delta, satır kilidi).
+//   Eski 'tüm satırı update' yöntemi sunucu yazımlarını (maaş/imza/ödül) eziyordu.
+//   RPC auth.uid() kullanır → kullanıcı yalnızca KENDİ cüzdanını değiştirebilir (service_role hariç).
+function _wlApplyLocal(d_eur, d_dia, kind){
+  const c = Object.assign({}, WL_DEFAULT, _wlCache || {});
+  c.eur = (Number(c.eur)||0) + (d_eur||0);
+  c.dia = (Number(c.dia)||0) + (d_dia||0);
+  const amt = Math.abs(d_eur||0) + Math.abs(d_dia||0);
+  if(kind==='in'){ c.total_in=(Number(c.total_in)||0)+amt; c.totalIn=c.total_in; }
+  else if(kind==='out'){ c.total_out=(Number(c.total_out)||0)+amt; c.totalOut=c.total_out; }
+  _wlCache = c;
+  if(typeof wlSyncHeader==='function') wlSyncHeader();
+}
+function _wlRpcApply(d_eur, d_dia, kind){
+  if(!window.sb || !authUser || !authUser.id) return;
+  window.sb.rpc('user_wallet_apply', { p_uid: authUser.id, p_eur:d_eur||0, p_dia:d_dia||0, p_kind:kind||'adj' })
+    .then(({data,error})=>{
+      if(error){ console.warn('[Wallet] rpc hata:', error); return; }
+      if(data && data.ok){
+        _wlCache = { eur:Number(data.eur)||0, dia:Number(data.dia)||0,
+          total_in:Number(data.total_in)||0, total_out:Number(data.total_out)||0,
+          totalIn:Number(data.total_in)||0, totalOut:Number(data.total_out)||0 };
+        if(typeof wlSyncHeader==='function') wlSyncHeader();
+      } else if(data && data.ok===false){
+        if(typeof wlLoadFromServer==='function') wlLoadFromServer().then(()=>{ if(typeof wlSyncHeader==='function') wlSyncHeader(); });
+      }
+    }).catch(e=>console.warn('[Wallet] rpc hata:', e));
+}
+
 function wlAddIncome(currency, amount, source){
   if(!amount || amount<=0) return;
-  const d = wlGetData();
-  if(currency==='eur'){ d.eur += amount; }
-  else if(currency==='dia'){ d.dia += amount; }
-  d.totalIn = (d.totalIn||0) + amount;
-  wlSaveData(d);
+  const d_eur = currency==='eur'?amount:0, d_dia = currency==='dia'?amount:0;
+  _wlApplyLocal(d_eur, d_dia, 'in');
+  _wlRpcApply(d_eur, d_dia, 'in');
   wlAddLog({type:'in', cur:currency, amount, source: source||'Gelir'});
 }
 
 function wlDeduct(currency, amount, reason){
   if(!amount || amount<=0) return false;
   const d = wlGetData();
-  if(currency==='eur'){
-    if(d.eur < amount) return false;
-    d.eur -= amount;
-  } else if(currency==='dia'){
-    if(d.dia < amount) return false;
-    d.dia -= amount;
-  } else { return false; }
-  d.totalOut = (d.totalOut||0) + amount;
-  wlSaveData(d);
+  if(currency==='eur'){ if((Number(d.eur)||0) < amount) return false; }
+  else if(currency==='dia'){ if((Number(d.dia)||0) < amount) return false; }
+  else { return false; }
+  const d_eur = currency==='eur'?-amount:0, d_dia = currency==='dia'?-amount:0;
+  _wlApplyLocal(d_eur, d_dia, 'out');
+  _wlRpcApply(d_eur, d_dia, 'out');
   wlAddLog({type:'out', cur:currency, amount, source: reason||'Gider'});
   return true;
 }
