@@ -72878,6 +72878,42 @@ async function _trsLoadFromServer() {
   } catch(e) { console.warn('[treasury] load hata:', e); }
 }
 
+// 🆕 ATOMİK KASA — istemci optimistic (anlık UI) + sunucu RPC (delta, satır kilidi).
+//   Eski 'tüm objeyi upsert' yöntemi sunucu yazımlarını (maç ödülü vb.) eziyordu.
+//   Artık delta gönderiyoruz; dönüşte _trsCache sunucu otoriter değeriyle eşitlenir.
+function _trsApplyLocal(d_eur, d_dia, kind, source){
+  const c = Object.assign({}, TRS_DEFAULT, _trsCache || {});
+  c.eur = (Number(c.eur)||0) + (d_eur||0);
+  c.dia = (Number(c.dia)||0) + (d_dia||0);
+  const amt = Math.abs(d_eur||0) + Math.abs(d_dia||0);
+  if(kind==='in') c.totalIn = (Number(c.totalIn)||0) + amt;
+  else if(kind==='out') c.totalOut = (Number(c.totalOut)||0) + amt;
+  _trsCache = c;
+  if(source){
+    const entry = {ts:Date.now(), type:(kind==='out'?'out':'in'), cur:((d_dia&&!d_eur)?'dia':'eur'), amount:amt, source};
+    if(Array.isArray(_trsLogCache)) _trsLogCache.unshift(entry); else _trsLogCache=[entry];
+  }
+  if(typeof trsSyncHeader==='function') trsSyncHeader();
+}
+
+function _trsRpcApply(d_eur, d_dia, kind, source, extra){
+  if(!window.sb || !_userTeam || !_userTeam.countryCode || !_userTeam.teamName) return;
+  const args = { p_cc:_userTeam.countryCode, p_team:_userTeam.teamName,
+    p_eur:d_eur||0, p_dia:d_dia||0, p_kind:kind||'adj', p_source:source||'' };
+  if(extra && extra.p_don) args.p_don = extra.p_don;
+  if(extra && extra.p_key) args.p_key = extra.p_key;
+  window.sb.rpc('team_treasury_apply', args).then(({data,error})=>{
+    if(error){ console.warn('[treasury] rpc hata:', error); return; }
+    if(data && data.ok && data.treasury){
+      _trsCache = data.treasury;
+      if(typeof trsRender==='function') trsRender();
+      if(typeof trsSyncHeader==='function') trsSyncHeader();
+    } else if(data && data.ok===false){
+      if(typeof _trsLoadFromServer==='function'){ _trsLoadFromServer().then(()=>{ if(typeof trsRender==='function') trsRender(); }); }
+    }
+  }).catch(e=>console.warn('[treasury] rpc hata:', e));
+}
+
 function trsGetData(){
   if (_trsCache) return Object.assign({}, TRS_DEFAULT, _trsCache);
   return Object.assign({}, TRS_DEFAULT);
@@ -72957,11 +72993,9 @@ function trsAddIncome(currency, amount, source){
     wlAddDia(amount, source);
     return;
   }
-  // Euro → takım kasası
-  const d = trsGetData();
-  d.eur += amount; d.totalIn += amount;
-  trsSaveData(d);
-  trsAddLog({type:'in', cur:currency, amount, source: source||'Gelir'});
+  // Euro → takım kasası (ATOMİK RPC delta)
+  _trsApplyLocal(amount, 0, 'in', source||'Gelir');
+  _trsRpcApply(amount, 0, 'in', source||'Gelir');
   trsRender();
 }
 
@@ -72973,12 +73007,11 @@ function trsDeduct(currency, amount, reason){
     // Elmas → cüzdandan düş
     return wlDeductDia(amount, reason);
   }
-  // Euro → takım kasasından
+  // Euro → takım kasasından (ATOMİK RPC delta; yerelde ön kontrol, kesin kontrol sunucuda)
   const d = trsGetData();
-  if(d.eur < amount) return false;
-  d.eur -= amount; d.totalOut += amount;
-  trsSaveData(d);
-  trsAddLog({type:'out', cur:currency, amount, source: reason||'Gider'});
+  if((Number(d.eur)||0) < amount) return false;
+  _trsApplyLocal(-amount, 0, 'out', reason||'Gider');
+  _trsRpcApply(-amount, 0, 'out', reason||'Gider');
   trsRender();
   return true;
 }
@@ -73013,12 +73046,10 @@ function trsTreasuryDiaCanAfford(amount){
 function trsTreasuryDiaDeduct(amount, reason){
   if(!amount || amount<=0) return false;
   const d = trsGetData();
-  if((d.dia || 0) < amount) return false;
-  d.dia = (d.dia || 0) - amount;
-  d.totalOut = (d.totalOut || 0) + amount;
-  trsSaveData(d);
-  if(typeof trsAddLog === 'function') trsAddLog({type:'out', cur:'dia', amount, source: reason||'Gider'});
-  // 🆕 Tüm kasa göstergelerini anlık güncelle (data-trs elementleri)
+  if((Number(d.dia) || 0) < amount) return false;
+  // ATOMİK RPC delta (kasadan elmas düş)
+  _trsApplyLocal(0, -amount, 'out', reason||'Gider');
+  _trsRpcApply(0, -amount, 'out', reason||'Gider');
   if(typeof trsRender === 'function') trsRender();
   return true;
 }
@@ -73115,19 +73146,9 @@ function trsDonate(){
     return;
   }
 
-  // Kasaya DOĞRUDAN ekle (delegasyon yapmadan, çünkü trsAddIncome eur için kasaya gider, dia için cüzdana gider)
-  const d = trsGetData();
-  if(cur==='eur'){
-    d.eur = (d.eur||0) + amount;
-    d.totalIn = (d.totalIn||0) + amount;
-  } else {
-    d.dia = (d.dia||0) + amount;
-  }
-  d.donCount = (d.donCount||0) + 1;
-  trsSaveData(d);
-
-  const userName = (window.authUser && authUser.name) ? authUser.name : 'Sen';
-  trsAddLog({type:'don', cur, amount, source:'Bağış', by:userName});
+  // Kasaya ekle — ATOMİK RPC delta (donate sayacı p_don ile sunucuda artar)
+  _trsApplyLocal(cur==='eur'?amount:0, cur==='dia'?amount:0, 'in', 'Bağış');
+  _trsRpcApply(cur==='eur'?amount:0, cur==='dia'?amount:0, 'in', 'Bağış', { p_don: 1 });
 
   // Görsel feedback
   if(cur==='eur'){
