@@ -31230,6 +31230,7 @@ function liveMatchOpen(matchData, kickoffMs) {
   //   Tıklanan maçta olaylar görünür, o yüzden events+stats dahil.
   if (window._resLiveModalTimer) clearInterval(window._resLiveModalTimer);
   window._resLiveModalTimer = setInterval(async () => {
+    if (document.hidden) return;  // 🆕 sekme gizliyse modal poll yok
     try {
       const mk = m.matchKey || (window._resLiveMatchData && window._resLiveMatchData.matchKey);
       if (mk && window.sb) {
@@ -33115,6 +33116,7 @@ function openMatchScreenV2(opts) {
         };
       }
       const _doBeat = () => {
+        if (document.hidden) return;  // 🆕 sekme gizliyse izleyici beat gönderme
         const mk = window._viewerBeatMatchKey;
         if (!mk) return;
         fetch(`${SUPABASE_URL}/functions/v1/tick-matches?action=viewer_beat&match_key=${encodeURIComponent(mk)}&user_id=${encodeURIComponent(window.authUser.id)}`, {
@@ -35543,6 +35545,7 @@ async function startMatch(){
   // Edge Function'ı da kendimiz tetikleriz (cron'a güvenmek yerine) → akıcı maç izleme
   if (window._matchScreenLiveTimer) clearInterval(window._matchScreenLiveTimer);
   const _pollFn = async () => {
+    if (document.hidden) return;  // 🆕 sekme arka plandaysa boşa poll/işlem yok
     try {
       // match-screen kapatıldıysa timer'ı temizle
       if (!ms || !ms.classList.contains('open')) {
@@ -37295,6 +37298,7 @@ function _liveMatchStartPolling() {
   _liveMatchLoadFromServer().then(_pollRender);
   // Sonra 7sn'de bir poll — gerçek maç dakika ritmi (1 sim-dakika = 7sn). Sadece skor çeker.
   _liveMatchPollTimer = setInterval(() => {
+    if (document.hidden) return;  // 🆕 sekme gizliyse poll yok
     _liveMatchLoadFromServer().then(_pollRender);
   }, 7000);
 }
@@ -53121,7 +53125,7 @@ function showOnlinePlayersModal() {
 
 // Sayfa açılışında ilk fetch + 60sn'de bir tekrar (heartbeat + sayaç tazeleme)
 setTimeout(() => { fetchOnlineStats(); pingLastSeen(); }, 5000);
-setInterval(() => { fetchOnlineStats(); pingLastSeen(); }, 60000);
+setInterval(() => { if (document.hidden) return; fetchOnlineStats(); pingLastSeen(); }, 60000);
 
 
 // 🆕 INBOX POLL — realtime yedeği. Sadece DEĞİŞİKLİK olunca render eder (WhatsApp gibi).
@@ -56111,6 +56115,7 @@ function _resRenderMatches(matches) {
 //   sadece ilgili hücreleri günceller. Tam sayfa render yapmaz (eski sağlıklı 7sn mekanizması).
 //   Bir maç bittiyse (status=finished) tek seferlik tam reflow ile listede 'biten'e geçer.
 async function _resUpdateLiveCells() {
+  if (document.hidden) return;  // 🆕 sekme gizliyse canlı hücre güncelleme yok
   const pg = document.getElementById('page-results');
   if (!pg || !pg.classList.contains('active')) {
     if (window._resLiveCellTimer) { clearInterval(window._resLiveCellTimer); window._resLiveCellTimer = null; }
