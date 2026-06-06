@@ -37412,7 +37412,8 @@ function setTeamJerseys(teamName, setA, setB) {
       setB: { shirt: setB.shirt, short: setB.short, socks: setB.socks },
       changeCount: (prev.changeCount || 0) + 1
     };
-    saveWorldState(state);
+    // 🆕 Hedefli atomik yazım (tüm world_state blob'unu ezmeden) — clobber önleme
+    _wsSetKey(['team_jerseys', teamName], state.team_jerseys[teamName]);
     return true;
   } catch(e) { return false; }
 }
@@ -37619,6 +37620,17 @@ function saveWorldState(state) {
   }
 }
 
+// 🆕 world_state'e HEDEFLİ atomik yazım (tüm blob'u ezmeden tek anahtarı günceller).
+//   Forma / sezon-sonu sıralaması gibi çok-aktörlü yazımlar bununla yapılır → sunucunun
+//   yazdığı nation_points/team_ovr_day vb. ezilmez, iki istemci birbirini ezmez.
+//   p_path: ['team_jerseys','TakımAdı'] gibi; yerel cache çağıran tarafından zaten güncellendi.
+function _wsSetKey(path, value){
+  if(!window.sb) return;
+  window.sb.rpc('world_state_set_key', { p_path: path, p_value: value })
+    .then(({error})=>{ if(error) console.warn('[WorldState] set_key hata:', error); })
+    .catch(e=>console.warn('[WorldState] set_key hata:', e));
+}
+
 // 🆕 SEASON_EPOCH erken init — TDZ önlemi.
 // _autoResetIfNeeded() sayfa yüklenirken çağrılıyor ve dolaylı olarak SEASON_EPOCH'a
 // erişiyor. `let` değişkenleri için Temporal Dead Zone'da `typeof` da exception
@@ -37670,7 +37682,7 @@ function _seedSeason0FinalStandings() {
     }
     const state = loadWorldState();
     state.final_standings[0] = snap;
-    saveWorldState(state);
+    _wsSetKey(['final_standings', '0'], snap);
   } catch(e) { console.warn('[WorldState] Season 0 seed hatası:', e); }
 }
 
@@ -37836,7 +37848,7 @@ function recordFinalStandings(seasonNum) {
     }
     const state = loadWorldState();
     state.final_standings[seasonNum] = snap;
-    saveWorldState(state);
+    _wsSetKey(['final_standings', String(seasonNum)], snap);
   } catch(e) { console.warn('[WorldState] recordFinalStandings hatası:', e); }
 }
 
