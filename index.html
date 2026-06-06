@@ -45957,6 +45957,11 @@ function vtSelectMode(btn, mode) {
   });
 }
 
+// 🆕 Oylamada kullanıcıyı GERÇEK kimliğiyle işaretle (eskiden sabit 'user' → ilk oydan sonra herkes engelleniyordu)
+function _vtMe() {
+  return (typeof authUser !== 'undefined' && authUser && authUser.id) ? ('u:' + authUser.id) : 'user';
+}
+
 function vtStartVote() {
   const votes = vtGetVotes();
   // Aynı modda aktif oylama var mı kontrolü
@@ -45985,7 +45990,7 @@ function vtStartVote() {
     ];
     // Otomatik bot oyları (rastgele) - takım üyesi hissi için
     newVote.options[Math.random() < 0.6 ? 0 : 1].votes += Math.floor(Math.random() * 4) + 1;
-    newVote.votedBy = ['user'];
+    newVote.votedBy = [_vtMe()];
   } else if (_vtCurrentMode === 'captain') {
     const sel = document.getElementById('vtCaptainSelect');
     const num = sel.value;
@@ -45997,7 +46002,7 @@ function vtStartVote() {
       { label: 'Hayır, kalsın', value: '', votes: 0 },
     ];
     newVote.options[Math.random() < 0.5 ? 0 : 1].votes += Math.floor(Math.random() * 3);
-    newVote.votedBy = ['user'];
+    newVote.votedBy = [_vtMe()];
   } else if (_vtCurrentMode === 'custom') {
     const q = document.getElementById('vtCustomQuestion').value.trim();
     const opts = document.getElementById('vtCustomOptions').value.split(',').map(s => s.trim()).filter(Boolean);
@@ -46005,7 +46010,7 @@ function vtStartVote() {
     newVote.question = q;
     newVote.options = opts.map(o => ({ label: o, value: o, votes: 0 }));
     newVote.options[0].votes = 1;
-    newVote.votedBy = ['user'];
+    newVote.votedBy = [_vtMe()];
   }
 
   votes.push(newVote);
@@ -46018,13 +46023,13 @@ function vtCastVote(voteId, optIdx) {
   const votes = vtGetVotes();
   const v = votes.find(x => x.id === voteId);
   if (!v) return;
-  if (v.votedBy && v.votedBy.includes('user')) {
+  if (v.votedBy && v.votedBy.includes(_vtMe())) {
     alert('Bu oylamada zaten oy kullandın');
     return;
   }
   if (!v.options[optIdx]) return;
   v.options[optIdx].votes = (v.options[optIdx].votes || 0) + 1;
-  v.votedBy = (v.votedBy || []).concat('user');
+  v.votedBy = (v.votedBy || []).concat(_vtMe());
   vtSaveVotes(votes);
   vtRenderActiveList();
 }
@@ -46042,7 +46047,7 @@ function vtRenderActiveList() {
   list.innerHTML = votes.map(v => {
     const total = v.options.reduce((s,o) => s + (o.votes||0), 0) || 1;
     const remainHrs = Math.ceil(((v.endsAt||0) - Date.now()) / 3600000);
-    const userVoted = (v.votedBy || []).includes('user');
+    const userVoted = (v.votedBy || []).includes(_vtMe());
     const modeLbl = v.mode === 'formation' ? '📋 Formasyon'
                   : v.mode === 'captain' ? '👑 Kaptan'
                   : '💬 Özel';
@@ -71802,39 +71807,37 @@ function _evIsBeforeFirstWeekComplete() {
 // Friday 17:00 → Friday 07:00 (skor toplama 6g 14s)
 // Friday 07:00 → Friday 17:00 (ödül penceresi 10s)
 function _evRaceCycleInfo() {
+  // 🆕 UTC BAZLI — multiplayer için: tüm oyuncular aynı haftalık döngüyü/weekKey'i görür.
   const now = new Date();
-  const FRIDAY = 5; // 0=Sun, 5=Fri
+  const FRIDAY = 5; // 0=Sun, 5=Fri (UTC)
 
-  // Bu hafta Cuma 17:00'ı bul
+  // Bu hafta Cuma 17:00 UTC
   const thisFriday17 = new Date(now);
-  const dayDiff = (FRIDAY - now.getDay() + 7) % 7;
-  thisFriday17.setDate(now.getDate() + dayDiff);
-  thisFriday17.setHours(17, 0, 0, 0);
+  const dayDiff = (FRIDAY - now.getUTCDay() + 7) % 7;
+  thisFriday17.setUTCDate(now.getUTCDate() + dayDiff);
+  thisFriday17.setUTCHours(17, 0, 0, 0);
 
-  // Eğer "bu hafta Cuma" geçmişse veya bugün Cuma'dan sonraysa, hesabı düzelt
-  // Yarış başlangıcı: en son Cuma 17:00 (geçmiş)
+  // Yarış başlangıcı: en son Cuma 17:00 UTC (geçmiş)
   let startFri17 = new Date(thisFriday17);
   if (now < thisFriday17) {
-    // Henüz bu Cuma 17:00 olmadı → başlangıç önceki Cuma 17:00
-    startFri17.setDate(startFri17.getDate() - 7);
+    startFri17.setUTCDate(startFri17.getUTCDate() - 7);
   }
 
-  // Yarış bitişi: başlangıçtan 6 gün 14 saat sonra (sonraki Cuma 07:00)
+  // Yarış bitişi: sonraki Cuma 07:00 UTC
   const endFri07 = new Date(startFri17);
-  endFri07.setDate(endFri07.getDate() + 7);
-  endFri07.setHours(7, 0, 0, 0);
+  endFri07.setUTCDate(endFri07.getUTCDate() + 7);
+  endFri07.setUTCHours(7, 0, 0, 0);
 
-  // Ödül penceresi bitişi: bitişten 10 saat sonra (Cuma 17:00)
+  // Ödül penceresi bitişi: Cuma 17:00 UTC
   const rewardEndFri17 = new Date(endFri07);
-  rewardEndFri17.setHours(17, 0, 0, 0);
+  rewardEndFri17.setUTCHours(17, 0, 0, 0);
 
-  // Faz tespiti
   let phase;
-  if (now < endFri07) phase = 'racing';      // Yarış devam ediyor (skor topla)
-  else if (now < rewardEndFri17) phase = 'rewards'; // Ödül penceresi
-  else phase = 'racing'; // Cuma 17:00 sonrası → yeni döngünün başlangıcı
+  if (now < endFri07) phase = 'racing';
+  else if (now < rewardEndFri17) phase = 'rewards';
+  else phase = 'racing';
 
-  const startKey = `${startFri17.getFullYear()}-${String(startFri17.getMonth()+1).padStart(2,'0')}-${String(startFri17.getDate()).padStart(2,'0')}`;
+  const startKey = `${startFri17.getUTCFullYear()}-${String(startFri17.getUTCMonth()+1).padStart(2,'0')}-${String(startFri17.getUTCDate()).padStart(2,'0')}`;
 
   return {
     start: startFri17,
