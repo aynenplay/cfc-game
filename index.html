@@ -59232,30 +59232,20 @@ function getEquippedBonuses() {
 }
 
 function saveSkillLevels(pos, levels) {
-  // 🆕 localStorage kaldırıldı — Supabase user_player.skills tek kaynak
-  if (window.sb && authUser && authUser.id) {
-    try {
-      // RAM cache güncelle
-      if (window._skillsCache) {
-        window._skillsCache[pos] = levels;
-      }
-      // Tüm pozisyonları içeren full object'i kaydet
-      const full = {
-        GK: (window._skillsCache && window._skillsCache.GK) || {},
-        DEF: (window._skillsCache && window._skillsCache.DEF) || {},
-        MID: (window._skillsCache && window._skillsCache.MID) || {},
-        FWD: (window._skillsCache && window._skillsCache.FWD) || {}
-      };
-      full[pos] = levels;
-      // Debounced update
-      clearTimeout(window._saveSkillsTimer);
-      window._saveSkillsTimer = setTimeout(() => {
-        window.sb.from('user_player').update({ skills: full }).eq('user_id', authUser.id).then(({error}) => {
-          if (error) console.warn('[skills] save hata:', error.message);
-        });
-      }, 1000);
-    } catch(e) { console.warn('[skills] save hata:', e); }
-  }
+  // 🆕 skills kolonu DB trigger ile korunur → mevki değişimi SUNUCU RPC'si ile (şişirme doğrulamalı).
+  if (!(window.sb && authUser && authUser.id)) return;
+  try {
+    // Yerel cache'i nested formata çevir (trGetData {level,points} bekler)
+    const nested = {};
+    Object.keys(levels||{}).forEach(id => { nested[id] = { level: Number(levels[id])||10, points: 0 }; });
+    if (window._skillsCache) window._skillsCache[pos] = nested;
+    window.sb.rpc('user_player_change_position_skills', { p_new_group: pos, p_new_levels: levels })
+      .then(({data,error})=>{
+        if(error){ console.warn('[skills] pos rpc hata:', error.message); return; }
+        if(data && data.ok && data.skills){ window._skillsCache = data.skills; }
+        else if(data && data.ok===false){ console.warn('[skills] pos reddedildi:', data.error); }
+      }).catch(e=>console.warn('[skills] pos rpc hata:', e));
+  } catch(e){ console.warn('[skills] pos save hata:', e); }
 }
 
 // Oyuncu genel gücü hesapla
@@ -68984,7 +68974,7 @@ function trStartTraining() {
 }
 
 // ── Antrenman topla ──
-function trCollect(id) {
+async function trCollect(id) {
   const active  = trGetActive();
   const entry   = active.find(a => a.id === id);
   if(!entry) return;
@@ -68992,32 +68982,33 @@ function trCollect(id) {
   const now = Date.now();
   if(now < entry.endTime) { trToast('Antrenman henüz bitmedi!', '#ff9800'); return; }
 
-  // Yetenek puanı ekle
-  const data = trGetData(entry.pos);
-  if(!data[entry.skillId]) data[entry.skillId] = { level: 10, points: 0 };
-  const sk = data[entry.skillId];
-
-  sk.points += entry.gainPoints;
-  let leveledUp = false;
-  let oldLevel  = sk.level;
-
-  // Seviye atla (yetenek) — SINIR YOK, points yeterli olduğu sürece atlar
-  while(sk.points >= trPointsNeeded(sk.level)) {
-    sk.points -= trPointsNeeded(sk.level);
-    sk.level++;
-    leveledUp = true;
+  // 🆕 SUNUCUDA ATOMİK TOPLA — skills kolonu DB trigger ile korunur; puan/seviye SUNUCUDA hesaplanır.
+  let res = null;
+  try {
+    const r = await window.sb.rpc('train_collect', { p_id: id });
+    if(r.error){ trToast('Toplama hatası: ' + r.error.message, '#ef5350'); return; }
+    res = r.data;
+  } catch(e){ trToast('Toplama hatası.', '#ef5350'); return; }
+  if(!res || !res.ok){
+    trToast((res && res.error === 'not_done') ? 'Antrenman henüz bitmedi!' : 'Toplama başarısız.', '#ff9800');
+    return;
   }
-  trSaveData(entry.pos, data);
 
-  // Aktiften çıkar
-  const newActive = active.filter(a => a.id !== id);
-  trSaveActive(newActive);
+  // Cache'leri sunucu otoriter değerle güncelle
+  try { if(res.skills) _skillsCache = res.skills; } catch(e){}
+  try { if(Array.isArray(res.active)) _activeCache = res.active; } catch(e){}
 
-  // Kullanıcı oyuncusuna XP ekle (oyuncu seviyesi)
+  const oldLevel   = res.oldLevel;
+  const newLevel   = res.level;
+  const leveledUp  = !!res.leveledUp;
+  const gainPoints = (res.gainPoints != null) ? res.gainPoints : Math.round((entry.mins||0) * 100 / 3);
+  const gainXP     = (res.gainXP != null) ? res.gainXP : (entry.gainXP||0);
+
+  // Oyuncu XP (players tablosu; skills'ten ayrı — sunucunun döndürdüğü gainXP ile)
   const userPlayer = ROSTER_DATA.find(p => p.role === 'user');
   let playerLevelUp = null;
   if(userPlayer) {
-    playerLevelUp = rosterAwardXp(userPlayer.num, entry.gainXP);
+    playerLevelUp = rosterAwardXp(userPlayer.num, gainXP);
   }
 
   // Tamamlandı modal
@@ -69033,15 +69024,15 @@ function trCollect(id) {
     <div class="td3-rows">
       <div class="td3-row">
         <span class="td3-row-lbl">Puan</span>
-        <span class="td3-row-val">+${entry.gainPoints}</span>
+        <span class="td3-row-val">+${gainPoints}</span>
       </div>
       <div class="td3-row">
         <span class="td3-row-lbl">XP</span>
-        <span class="td3-row-val">+${entry.gainXP}</span>
+        <span class="td3-row-val">+${gainXP}</span>
       </div>
       ${leveledUp ? `<div class="td3-row gold">
         <span class="td3-row-lbl">🎉 Yetenek ↑</span>
-        <span class="td3-row-val">${oldLevel} → ${sk.level}</span>
+        <span class="td3-row-val">${oldLevel} → ${newLevel}</span>
       </div>` : ''}
       ${playerLevelUp && playerLevelUp.leveled ? `<div class="td3-row gold">
         <span class="td3-row-lbl">⭐ Seviye ↑</span>
@@ -69051,26 +69042,21 @@ function trCollect(id) {
     <button class="td3-btn" onclick="trCloseDone()">Tamam ✓</button>`;
   document.getElementById('trDoneModal').classList.add('open');
 
-  // Topbar level badge'ini ve player sayfasındaki XP bar'ı güncelle
   if(typeof updateTopbarFromUser === 'function') updateTopbarFromUser();
 
-  // Etkinlik: yaşam boyu sayaç + başarı ilerlemesi
   try{
     if(typeof evIncrementStat === 'function') evIncrementStat('trainings', 1);
-    if(typeof achBump === 'function') achBump('train');   // 🆕 başarı: antrenman sayacı
+    if(typeof achBump === 'function') achBump('train');
     if(typeof evRefreshBadge === 'function') evRefreshBadge();
   }catch(e){}
 
-  // Antrenman Yıldızı yarışması için: train_log'a {ts, energy} ekle
   try{
     const trainLog = getUserTrainLog();
     trainLog.push({ ts: Date.now(), energy: entry.mins });
-    saveUserTrainLog(trainLog, /*immediate*/ true);
+    saveUserTrainLog(trainLog, true);
   }catch(e){}
 
-  // 🆕 Race train leaderboard cache'ini invalidate et — yeni antrenman listede görünmesi için
   try { _evRaceServerLbCache.train = null; } catch(e) {}
-  // Arka planda yeniden yükle ve ilgili sayfaları tazele
   try {
     if (typeof _evRacePreloadServerLb === 'function') {
       _evRacePreloadServerLb().then(() => {
