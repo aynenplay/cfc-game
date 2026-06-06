@@ -40102,16 +40102,10 @@ async function bootstrapWorld(){
     console.info('[bootstrap] _cftDb yüklendi:', Object.keys(db).length, 'ülke /', all.length, 'takım');
     // 🆕 Botları background'da preload et (boot'u bloke etmesin)
     // getOrCreateTeamRoster zaten gerektiğinde fetch ediyor; preload sadece optimizasyon
-    setTimeout(() => {
-      try {
-        if (typeof preloadAllTeamRosters === 'function') {
-          preloadAllTeamRosters();
-        }
-        if (typeof _loadFreeAgentUsers === 'function') {
-          _loadFreeAgentUsers();
-        }
-      } catch(e) { console.warn('[bootstrap] background preload hata:', e); }
-    }, 0);
+    // 🆕 Açılış hızı: arka plan TOPLU preload KALDIRILDI. Tüm takım kadrolarını
+    //   açılışta çekmek ana iş parçacığını uzun süre meşgul edip açılışı yavaşlatıyordu.
+    //   Sıralama sayfası açıldığında preloadAllTeamRosters/_loadFreeAgentUsers
+    //   on-demand (spinner ile) yükleniyor — bkz. rkRenderPlayers.
   } catch(e) { console.warn('[bootstrap] hata:', e); }
 }
 
@@ -40232,7 +40226,7 @@ function authInit(){
             window.sb.from('profiles').select('*').eq('id', userId).maybeSingle(),
             window.sb.from('user_player').select('*').eq('user_id', userId).maybeSingle(),
             window.sb.from('user_wallet').select('*').eq('user_id', userId).maybeSingle(),
-            window.sb.from('players').select('pos, avatar_id, level, xp, overall').eq('user_id', userId).maybeSingle()
+            window.sb.from('players').select('pos, sub_pos, avatar_id, level, xp, overall').eq('user_id', userId).maybeSingle()
           ]);
           const prof = profRes.data;
           const uplayer = upRes.data;
@@ -40249,6 +40243,7 @@ function authInit(){
             authUser.age = prof.age || authUser.age || '25-34';
             authUser.position = (_plr && _plr.pos) || authUser.position || 'MID';
           }
+          authUser.subPos = (_plr && _plr.sub_pos) || authUser.subPos || '';
           if (_plr && _plr.avatar_id) authUser.avatarId = _plr.avatar_id;
           if (!authUser.avatarId && typeof AVATAR_OPTIONS !== 'undefined') {
             authUser.avatarId = AVATAR_OPTIONS[Math.floor(Math.random() * AVATAR_OPTIONS.length)].id;
@@ -40767,7 +40762,7 @@ function doLogin(){
 
       // 🆕 players çek — pos/avatar/stat kanonik kaynak
       const { data: _plr } = await window.sb.from('players')
-        .select('pos, avatar_id, level, xp, overall').eq('user_id', data.user.id).maybeSingle();
+        .select('pos, sub_pos, avatar_id, level, xp, overall').eq('user_id', data.user.id).maybeSingle();
 
       const randomAvatar = AVATAR_OPTIONS[Math.floor(Math.random() * AVATAR_OPTIONS.length)].id;
       authUser = {
@@ -40778,6 +40773,7 @@ function doLogin(){
         nationality: profile?.nationality || 'TR',
         age: profile?.age || '25-34',
         position: (_plr && _plr.pos) || 'MID',
+        subPos: (_plr && _plr.sub_pos) || '',
         avatarId: (_plr && _plr.avatar_id) || randomAvatar
       };
 
@@ -69105,20 +69101,20 @@ async function trCollect(id) {
 
   trRender();
 
-  // 🆕 Arkada sunucu doğrulaması — kesin değerle SESSİZCE eşitle (skills sunucu-otoriter).
-  (async () => {
-    try {
-      const r = await window.sb.rpc('train_collect', { p_id: id });
-      if (r && r.data && r.data.ok) {
-        if (r.data.skills) _skillsCache = r.data.skills;
-        if (Array.isArray(r.data.active)) _activeCache = r.data.active;
-        if (typeof trRenderSkills === 'function') { try { trRenderSkills(); } catch(e){} }
-        else if (typeof trRender === 'function') { try { trRender(); } catch(e){} }
-      } else {
-        console.warn('[trCollect] sunucu reddetti (optimistic kaldi):', r && r.data);
-      }
-    } catch(e) { console.warn('[trCollect] rpc hata:', e); }
-  })();
+  // 🆕 Sunucu doğrulaması — AWAIT edilir: hızlı sekme geçişi/yenilemede istek iptal
+  //   olup toplama SUNUCUYA yazılmadan kaybolmasın. Modal zaten yukarıda gösterildiği
+  //   için his hâlâ ANINDA; burada sadece sunucu onayını bekleyip kesin değerle eşitliyoruz.
+  try {
+    const r = await window.sb.rpc('train_collect', { p_id: id });
+    if (r && r.data && r.data.ok) {
+      if (r.data.skills) _skillsCache = r.data.skills;
+      if (Array.isArray(r.data.active)) _activeCache = r.data.active;
+      if (typeof trRenderSkills === 'function') { try { trRenderSkills(); } catch(e){} }
+      else if (typeof trRender === 'function') { try { trRender(); } catch(e){} }
+    } else {
+      console.warn('[trCollect] sunucu reddetti (optimistic kaldi):', r && r.data);
+    }
+  } catch(e) { console.warn('[trCollect] rpc hata:', e); }
 }
 
 function trCloseDone() {
