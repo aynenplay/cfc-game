@@ -62434,6 +62434,9 @@ function renderStatList(countryCode, tierIdx, statType) {
 // Hem Sıralamalar/lig sayfası hem Takım/Puan Tablosu aynı veri kaynağını kullansın.
 // Sezon ilerlemesine orantılı: gün 1 → 0 puan, gün 33+ → tam puanlar.
 // opts: {season, progress} ile override edilebilir (örn. önceki sezonun final tablosunu çekmek için).
+// 🆕 calcLeagueStandings MEMO: aynı maç verisi (loadedAt) için tekrar tam tarama yapma.
+let _lgStandCache = {};
+let _lgStandCacheAt = -1;
 function calcLeagueStandings(countryCode, tierIdx, opts) {
   // 🆕 SUPABASE TEK KAYNAK — eski _matchResultsLoad cache + lokal fikstür hesabı kaldırıldı.
   //   _matchStateCache.byKey'den ülke+tier'a uyan finished maçları okur, puan tablosu üretir.
@@ -62445,6 +62448,12 @@ function calcLeagueStandings(countryCode, tierIdx, opts) {
   const info = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : { season: 1 };
   const season = (opts && typeof opts.season === 'number') ? opts.season : info.season;
   const tier1 = tierIdx + 1; // 0-based → 1-based
+
+  // 🆕 MEMO: maç verisi değişmediyse cache'ten dön (her render'da tüm maç taraması yapma)
+  const _msAt = (typeof _matchStateCache === 'object' && _matchStateCache && _matchStateCache.loadedAt) || 0;
+  if (_msAt !== _lgStandCacheAt) { _lgStandCache = {}; _lgStandCacheAt = _msAt; }
+  const _lgKey = countryCode + '|' + tierIdx + '|' + season;
+  if (_lgStandCache[_lgKey]) return _lgStandCache[_lgKey].map(o => ({ ...o }));
 
   // Tüm takımlar için sıfır istatistik başlat
   const stats = {};
@@ -62495,7 +62504,9 @@ function calcLeagueStandings(countryCode, tierIdx, opts) {
     if (b.gd !== a.gd) return b.gd - a.gd;
     return b.ag - a.ag;
   });
-  return arr.map((t, i) => ({ ...t, pos: i + 1 }));
+  const _lgOut = arr.map((t, i) => ({ ...t, pos: i + 1 }));
+  _lgStandCache[_lgKey] = _lgOut;
+  return _lgOut.map(o => ({ ...o }));
 }
 
 // Sıralama bölge (renk) hesabı — top/bottom tier göz önünde
