@@ -68565,22 +68565,25 @@ function trGetEnergy() {
 }
 
 function trSaveEnergy(e) {
-  // RAM cache güncelle
+  // 🆕 Yalnızca RAM cache + ekran (optimistic). DB yazımı user_player_spend_energy RPC ile yapılır;
+  //   energy kolonu DB trigger ile korunur → istemci doğrudan yazamaz (hile önleme).
   _energyCache = Object.assign({}, _energyCache || {}, e);
-  // Topbar'ı güncelle
   const dispEl = document.getElementById('energy-display');
   if(dispEl) dispEl.textContent = Math.max(0, e.current);
-  // Debounced Supabase write
-  if (window.sb && authUser && authUser.id) {
-    clearTimeout(_energySaveTimer);
-    _energySaveTimer = setTimeout(async () => {
-      try {
-        await window.sb.from('user_player').update({
-          energy: e.current
-        }).eq('user_id', authUser.id);
-      } catch(err) { console.warn('[Energy] save hata:', err); }
-    }, 500);
-  }
+}
+
+// 🆕 Enerji harcamasını sunucuda atomik uygula (auth.uid → kendi satırı; trigger izin verir).
+function _spendEnergyRpc(amount){
+  if(!window.sb || !authUser || !authUser.id || !amount || amount<=0) return;
+  window.sb.rpc('user_player_spend_energy', { p_amount: Math.round(amount) })
+    .then(({data,error})=>{
+      if(error){ console.warn('[Energy] rpc hata:', error); return; }
+      if(data && typeof data.energy === 'number'){
+        _energyCache = Object.assign({}, _energyCache||{}, { current: data.energy });
+        const dispEl = document.getElementById('energy-display');
+        if(dispEl) dispEl.textContent = Math.max(0, data.energy);
+      }
+    }).catch(e=>console.warn('[Energy] rpc hata:', e));
 }
 
 // ══ DİNAMİK MAX ENERJİ — PERFORMANS MERKEZİ BONUSU ══
@@ -68942,9 +68945,10 @@ function trStartTraining() {
     return;
   }
 
-  // Enerji düş
+  // Enerji düş — optimistic yerel + sunucuda atomik harcama (energy kolonu trigger korumalı)
   energy.current -= cost.energy;
   trSaveEnergy(energy);
+  _spendEnergyRpc(cost.energy);
 
   // Para düş — kullanıcı kişisel cüzdanından (takım kasası değil)
   if(cost.euro > 0) {
