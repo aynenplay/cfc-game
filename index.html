@@ -74416,199 +74416,63 @@ function rkTeamRow(t, rank, isMe){
 }
 
 // ── Render: Takımlar ──
+// ── Render: Takımlar ── (🆕 tek hafif top-50 sorgusu; tüm tablo taraması YOK)
 async function rkRenderTeams(){
   const list = document.getElementById('rkTeamsList');
   if(!list) return;
   if(_rkSearchActive){ rkRenderSearch(); return; }
-  // 🆕 Güç/Puan/Piyasa hepsi teams tablosundan (hafif tek sorgu) — ağır players taraması YOK
+  if(!window.sb){ list.innerHTML = '<div class="lst-empty"><div class="lst-empty-icon">⚠️</div>Bağlantı yok</div>'; return; }
+  const col = (_rkTeamMode==='market') ? 'market_value' : (_rkTeamMode==='coef' ? 'team_points' : 'team_ovr');
   list.innerHTML = '<div class="lst-empty"><div class="lst-empty-icon">⏳</div>Sıralama yükleniyor…</div>';
-  if (typeof _rkRefreshStats === 'function') {
-    try { await _rkRefreshStats(); } catch(e){}
-  }
+  let rows=[];
+  try{
+    const { data, error } = await window.sb.from('teams')
+      .select('country_code, name, team_ovr, team_points, market_value')
+      .order(col, { ascending:false, nullsFirst:false })
+      .limit(50);
+    if(!error && Array.isArray(data)) rows=data;
+    else if(error) console.warn('[rkTeams] sorgu:', error);
+  }catch(e){ console.warn('[rkTeams] exception:', e); }
   // Kullanıcı bu sırada başka sekmeye geçtiyse yazma
-  const teamsTabVisible = (function(){ const e = document.getElementById('rk-teams'); return e && e.style.display !== 'none'; })();
-  if (!teamsTabVisible) return;
-  // Top 50'yi her render'da teams DB'den taze al (sıfırlanmış cf:0 ile)
-  RK_TOP_TEAMS = getTop50Teams();
-
-  // 🆕 Moda göre sırala — eşitlikte kullanıcı takımı önde
-  const sorted = [...RK_TOP_TEAMS].sort((a,b) => {
-    if(_rkTeamMode === 'coef') {
-      return ((b.cf||0) - (a.cf||0)) || ((b._isMe?1:0) - (a._isMe?1:0));
-    }
-    if(_rkTeamMode === 'market') {
-      return ((b.mv||0) - (a.mv||0)) || ((b._isMe?1:0) - (a._isMe?1:0));
-    }
-    return (b.o - a.o) || ((b._isMe?1:0) - (a._isMe?1:0));
+  const teamsTabVisible = (function(){ const e=document.getElementById('rk-teams'); return e && e.style.display!=='none'; })();
+  if(!teamsTabVisible) return;
+  const myCC=(typeof _userTeam!=='undefined'&&_userTeam)?_userTeam.countryCode:null;
+  const myName=(typeof _userTeam!=='undefined'&&_userTeam)?_userTeam.teamName:null;
+  const mapped = rows.map(r=>{
+    const v=_rkTeamVisuals(r.country_code, r.name);
+    return {
+      n:r.name, countryCode:r.country_code, f:v.flag, cn:v.countryName, lg:v.leagueName,
+      o:Math.round(Number(r.team_ovr)||0), cf:Number(r.team_points)||0, mv:Number(r.market_value)||0,
+      bg:v.bg, tc:v.tc, short:v.short,
+      _isMe: !!(myCC && myName && r.country_code===myCC && r.name===myName),
+    };
   });
-  // 🆕 Üst listede kullanıcı takımını vurgula (is-user class)
-  // 🆕 Kullanıcının GERÇEK global puan-sırası + canlı puanı (hero ile AYNI kaynak)
-  let _myGR = null, _myGP = 0;
-  try {
-    const _mc = (typeof _userTeam!=='undefined'&&_userTeam)?_userTeam.countryCode:null;
-    const _mn = (typeof _userTeam!=='undefined'&&_userTeam)?_userTeam.teamName:null;
-    if (_mn && typeof _teamPointsRank==='function') { const r = await _teamPointsRank(_mc,_mn); _myGR = r.rank; _myGP = r.points; }
-  } catch(e){}
-  // coef modunda kullanıcı gerçekten top-50'de değilse üst listeden çıkar (sahte #50 olmasın — altta gerçek sırayla görünür)
-  let _display = sorted;
-  if (_rkTeamMode === 'coef' && _myGR != null && _myGR > 50) _display = sorted.filter(t => !t._isMe);
-  list.innerHTML = '<div class="lst-list">' + _display.slice(0, 50).map((t, i) => rkTeamRow(t, i+1, !!t._isMe)).join('') + '</div>';
+  window.RK_TOP_TEAMS = mapped;
+  list.innerHTML = '<div class="lst-list">' + mapped.map((t,i)=>rkTeamRow(t,i+1,!!t._isMe)).join('') + '</div>';
+  try { await _rkRenderTeamMe(col, mapped); } catch(e){}
+}
 
-  // Benim takımım — kullanıcının takımı (yoksa Ankara fallback)
-  let myTeam = null;
-  try {
-    const myCC = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.countryCode : 'TR';
-    const myName = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : 'Ankara';
-    const country = _cftGetCountry(myCC);
-    if(country && country.leagues) {
-      // Kullanıcının takımı hangi tier'da?
-      for (let ti = 0; ti < country.leagues.length; ti++) {
-        const lg = country.leagues[ti];
-        const t = (lg.teams || []).find(x => x.name === myName);
-        if(t) {
-          myTeam = {
-            n: t.name, f: country.flag, cn: country.name,
-            countryCode: myCC, lg: lg.name,
-            o: _teamPowerFromPlayers(myCC, myName, t.rank),  // 🆕 oyuncu ortalaması
-            rawRating: t.rating || 10,
-            oz: t.oz || 0,
-            mv: (typeof calculateTeamValue === 'function') ? calculateTeamValue({name: myName, countryCode: myCC}) : 0,
-            cf: (t.teamPoints || 0),
-            av: TEAM_AV_BY_COUNTRY[myCC] || '🛡️',
-            bg: t.bg, tc: t.tc, short: t.short,
-          };
-          break;
-        }
-      }
-    }
-  } catch(e) {}
-  if(!myTeam) myTeam = {n:'Ankara', f:'🇹🇷', cn:'Türkiye', lg:'Süper Lig', o:10, cf:0, av:'🌙'};
-
-  // 🆕 Modlar (power/coef) için gerçek sıra hesaplanır
-  // Tüm tier 1 takımlar arası sıra:
-  let myRank = '—';
-  try {
-    const myTeamName    = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName    : 'Ankara';
-    const myCountryCode = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.countryCode : 'TR';
-
-    // 🆕 Tier 0 takımları + kullanıcı takımı (her tier'dan)
-    const compareList = [];
-    for(const [code, country] of _cftAllEntries()) {
-      if(!country.leagues) continue;
-      // Tier 0
-      const tier0 = country.leagues[0];
-      if(tier0 && tier0.teams) {
-        tier0.teams.forEach(t => compareList.push({...t, _code:code}));
-      }
-      // Kullanıcı takımı alt tier'da ise dahil et
-      if(myCountryCode === code) {
-        for(let ti = 1; ti < country.leagues.length; ti++) {
-          const lg = country.leagues[ti];
-          if(!lg || !lg.teams) continue;
-          const myT = lg.teams.find(t => t && t.name === myTeamName);
-          if(myT) { compareList.push({...myT, _code:code}); break; }
-        }
-      }
-    }
-
-    if(_rkTeamMode === 'coef') {
-      // 🆕 Gerçek katsayı sıralaması — takım puanı (team_points) ile
-      const sortedAll = compareList
-        .map(t => ({
-          ...t,
-          _cf: (t.teamPoints || 0),
-          _isMe : (t._code === myCountryCode && t.name === myTeamName),
-        }))
-        .sort((a,b) =>
-          (b._cf - a._cf) ||
-          ((b._isMe?1:0) - (a._isMe?1:0)) ||
-          (a.name > b.name ? 1 : -1)
-        );
-      const idx = sortedAll.findIndex(t => t._isMe);
-      myRank = idx >= 0 ? (idx + 1) : '—';
-    } else if(_rkTeamMode === 'market') {
-      const sortedAll = compareList
-        .map(t => {
-          const _isMe = (t._code === myCountryCode && t.name === myTeamName);
-          const _mv = (typeof calculateTeamValue === 'function')
-            ? calculateTeamValue({name: t.name, countryCode: t._code})
-            : 0;
-          return { ...t, _mv, _isMe };
-        })
-        .sort((a,b) => (b._mv - a._mv) || ((b._isMe?1:0)-(a._isMe?1:0)) || (a.name > b.name ? 1 : -1));
-      const idx = sortedAll.findIndex(t => t._isMe);
-      myRank = idx >= 0 ? (idx + 1) : '—';
-    } else {
-      // 🆕 Oyuncu ortalamasıyla sırala — eşitlikte kullanıcı takımı önde
-      const sortedAll = compareList
-        .map(t => ({
-          ...t,
-          _power: _teamPowerFromPlayers(t._code, t.name, t.rank),
-          _isMe : (t._code === myCountryCode && t.name === myTeamName),
-        }))
-        .sort((a,b) =>
-          (b._power - a._power) ||
-          ((b._isMe?1:0) - (a._isMe?1:0)) ||
-          ((b.oz||0) - (a.oz||0)) ||
-          (a.name > b.name ? 1 : -1)
-        );
-
-      // Kullanıcının takımını bul
-      const idx = sortedAll.findIndex(t => t._isMe);
-      myRank = idx >= 0 ? (idx + 1) : '—';
-    }
-  } catch(e) {}
-
-  if (_rkTeamMode === 'coef' && _myGR != null) myRank = _myGR;
-  const meEl = document.getElementById('rkTeamMe');
-  if(meEl){
-    // 🆕 Serbest oyuncu (takımı yok) → "Senin takımın" satırını gösterme (Ankara fallback'ine düşmesin)
-    if(!(typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName)){ meEl.innerHTML = ''; return; }
-    // 🆕 Kullanıcı takımı top 50'deyse alt panel gizle (zaten yukarıda vurgulu görünüyor)
-    const userInTop50 = (typeof myRank === 'number') && myRank <= 50;
-    if(userInTop50){
-      meEl.innerHTML = '';
-      return;
-    }
-
-    // 🆕 Kullanıcının takımının görsel verilerini ekle (logo) — güç hesabı top 11 ortalaması (üst listeyle tutarlı)
-    let myTeamFull = myTeam;
-    try {
-      if (true && _userTeam) {
-        const country = _cftGetCountry(_userTeam.countryCode);
-        if (country) {
-          for (const lg of (country.leagues || [])) {
-            const t = (lg.teams || []).find(x => x.name === _userTeam.teamName);
-            if (t) {
-              myTeamFull = {
-                ...myTeam,
-                bg: t.bg, tc: t.tc, short: t.short,
-                // 🆕 _teamEffectiveRating yerine _teamPowerFromPlayers (üstteki listeyle aynı hesap)
-                o: _teamPowerFromPlayers(_userTeam.countryCode, _userTeam.teamName, t.rank)
-              };
-              break;
-            }
-          }
-        }
-      } else if (myTeam && myTeam.n === 'Ankara') {
-        // Fallback: Ankara default
-        const tr = _cftGetCountry('TR');
-        const tier1 = tr && tr.leagues && tr.leagues[0];
-        const ank = tier1 && tier1.teams.find(t => t.name === 'Ankara');
-        if (ank) {
-          myTeamFull = {
-            ...myTeam,
-            bg: ank.bg, tc: ank.tc, short: ank.short,
-            o: _teamPowerFromPlayers('TR', 'Ankara', ank.rank)
-          };
-        }
-      }
-    } catch(e) {}
-
-    if (_rkTeamMode === 'coef' && typeof _myGP === 'number') myTeamFull = { ...myTeamFull, cf: _myGP };
-    meEl.innerHTML = `<div style="padding:10px 14px;font-size:10px;color:var(--text3);text-align:center;letter-spacing:.4px;text-transform:uppercase">Senin takımın</div>
-      <div class="lst-list">${rkTeamRow(myTeamFull, myRank, true)}</div>`;
-  }
+// "Senin takımın" alt paneli — top-50 dışındaysa ucuz sayım sorgusuyla sıra
+async function _rkRenderTeamMe(col, top50){
+  const meEl=document.getElementById('rkTeamMe');
+  if(!meEl) return;
+  if(!(typeof _userTeam!=='undefined' && _userTeam && _userTeam.teamName)){ meEl.innerHTML=''; return; }
+  if(top50.some(t=>t._isMe)){ meEl.innerHTML=''; return; }
+  const cc=_userTeam.countryCode, tn=_userTeam.teamName;
+  let myRank='—', myOvr=0, myCf=0, myMv=0;
+  try{
+    const { data:mt } = await window.sb.from('teams')
+      .select('team_ovr, team_points, market_value').eq('country_code',cc).eq('name',tn).maybeSingle();
+    if(mt){ myOvr=Math.round(Number(mt.team_ovr)||0); myCf=Number(mt.team_points)||0; myMv=Number(mt.market_value)||0; }
+    const myVal = (col==='market_value')?myMv:(col==='team_points'?myCf:myOvr);
+    const { count } = await window.sb.from('teams').select('name',{count:'exact',head:true}).gt(col, myVal);
+    if(typeof count==='number') myRank=count+1;
+  }catch(e){}
+  if(_rkActiveTab!=='teams') return;
+  const v=_rkTeamVisuals(cc,tn);
+  const t={n:tn, countryCode:cc, f:v.flag, cn:v.countryName, lg:v.leagueName, o:myOvr, cf:myCf, mv:myMv, bg:v.bg, tc:v.tc, short:v.short, _isMe:true};
+  meEl.innerHTML = '<div style="padding:10px 14px;font-size:10px;color:var(--text3);text-align:center;letter-spacing:.4px;text-transform:uppercase">Senin takımın</div>'
+    + '<div class="lst-list">' + rkTeamRow(t, myRank, true) + '</div>';
 }
 
 // ── Render: Oyuncular ──
@@ -74635,98 +74499,114 @@ async function rkRenderPlayers(){
   const list = document.getElementById('rkPlayersList');
   if(!list) return;
   if(_rkSearchActive){ rkRenderSearch(); return; }
+  if(!window.sb){ list.innerHTML = '<div class="lst-empty"><div class="lst-empty-icon">⚠️</div>Bağlantı yok</div>'; return; }
+  const metric = (_rkPlayerMode==='level') ? 'level' : 'overall';
+  const second = (metric==='level') ? 'overall' : 'level';
+  list.innerHTML = '<div class="lst-empty"><div class="lst-empty-icon">⏳</div>Sıralama yükleniyor…</div>';
+  let rows=[];
+  try{
+    const { data, error } = await window.sb.from('players')
+      .select('id, user_id, name, pos, country_code, team_name, overall, level, avatar, avatar_id, nation')
+      .order(metric, { ascending:false, nullsFirst:false })
+      .order(second, { ascending:false, nullsFirst:false })
+      .limit(50);
+    if(!error && Array.isArray(data)) rows=data;
+    else if(error) console.warn('[rkPlayers] sorgu:', error);
+  }catch(e){ console.warn('[rkPlayers] exception:', e); }
+  if(_rkActiveTab!=='players') return; // sekme değişti
+  const mapped = rows.map(r => _rkMapPlayerRow(r));
+  window._rkPlayersTop50 = mapped;
+  list.innerHTML = '<div class="lst-list">' + mapped.map((p,i)=>rkPlayerRow(p, i+1, !!p._isMe)).join('') + '</div>';
+  try { await _rkRenderPlayerMe(metric, mapped); } catch(e){}
+}
 
-  // 🆕 Supabase'den TAM çek: cache boşsa (preload bitmemişse) bekle ki liste
-  //   herkes için eksiksiz olsun; sonra sıralama cache'ini tazeleyip kur.
-  if (typeof preloadAllTeamRosters === 'function' &&
-      (typeof _teamRosterCache === 'undefined' || !_teamRosterCache || Object.keys(_teamRosterCache).length === 0)) {
-    list.innerHTML = '<div class="lst-empty"><div class="lst-empty-icon">⏳</div>Sıralama yükleniyor…</div>';
-    try { await preloadAllTeamRosters(); } catch(e) {}
-  }
-  if (typeof _loadFreeAgentUsers === 'function' && !_rkFreeUsersLoaded) {
-    try { await _loadFreeAgentUsers(); } catch(e) {}
-  }
-  if (typeof invalidateRkPlayerCache === 'function') invalidateRkPlayerCache();
-  // Kullanıcı bu sırada başka sekmeye geçtiyse yazma
-  if (_rkActiveTab !== 'players') return;
+// players satırını sıralama görünümü objesine çevir (ortak)
+function _rkMapPlayerRow(r){
+  const v=_rkTeamVisuals(r.country_code, r.team_name);
+  const myUid=(window.authUser&&authUser.id)||null;
+  return {
+    n:r.name, f:v.flag, c:r.team_name || 'Serbest',
+    p:r.pos, o:r.overall||10, lv:r.level||0,
+    av:r.avatar || '🧑', avatar_id:r.avatar_id || null,
+    cc:r.country_code, teamName:r.team_name,
+    teamBg:v.bg, teamTc:v.tc, teamShort:v.short,
+    userId:r.user_id || null,
+    _isMe: !!(myUid && r.user_id===myUid),
+  };
+}
 
-  // Dinamik liste — teams DB + kendi takım
-  const allPlayers = buildRkPlayerList().slice(); // shallow copy
-
-  // 🆕 Mode'a göre sıralama — eşitlikte kullanıcı (insan) bot'tan önce gelir
-  // (Çünkü tüm botlar overall:10/level:0 sabit; eşitlikte alfabetik kullanıcıyı dipte tutuyordu)
-  if(_rkPlayerMode === 'level'){
-    // Level azalan, eşitse overall azalan, eşitse kullanıcı önde, sonra isim alfabetik
-    allPlayers.sort((a, b) =>
-      (b.lv||0) - (a.lv||0) ||
-      (b.o||0) - (a.o||0) ||
-      ((b._isMe?1:0) - (a._isMe?1:0)) ||
-      (a.n > b.n ? 1 : -1)
-    );
-  } else {
-    // Overall (yetenek) azalan, eşitse kullanıcı önde, sonra isim alfabetik
-    allPlayers.sort((a, b) =>
-      (b.o||0) - (a.o||0) ||
-      ((b._isMe?1:0) - (a._isMe?1:0)) ||
-      (a.n > b.n ? 1 : -1)
-    );
-  }
-
-  // 🆕 Top 50 göster — kullanıcı yeterli yetenekteyse listenin doğal yerinde görünür
-  // (Eskiden _isMe filtrelenip her zaman alt panele konuyordu — artık dahil ediyoruz)
-  const top50 = allPlayers.slice(0, 50);
-  // 🆕 BUG FIX: Modal'a tıklarken yanlış oyuncu açılıyordu çünkü
-  // openPlayerModalRanking(idx) sıralanmamış listeyi kullanıyordu.
-  // Render sırasındaki sıralı top50'yi global'e kaydet ki modal aynı index'le doğru oyuncuyu açsın.
-  window._rkPlayersTop50 = top50;
-  list.innerHTML = '<div class="lst-list">' + top50.map((p, i) => rkPlayerRow(p, i+1, !!p._isMe)).join('') + '</div>';
-
-  // Benim sıram — listenin tamamında gerçek rank
-  // Kullanıcı her zaman ROSTER_DATA'da var (role='user'), takımsız bile olsa
-  // listede görünür (eğer skill yeterliyse top 50'de, değilse alt panelde).
-  const me = (typeof ROSTER_DATA !== 'undefined') ? ROSTER_DATA.find(r => r.role==='user') : null;
-  const myName = me?.name || (window.authUser && authUser.name) || 'Oyuncu';
-  const myOverall = me?.overall || 10;
-  const myLevel = me?.level || 0;
-  const myPos = me?.pos || 'MID';
-  const myAvatar = me?.avatar || '🙂';
-  let myRank = allPlayers.length; // en kötü ihtimal
-  const myIdx = allPlayers.findIndex(p => p._isMe);
-  if(myIdx >= 0) myRank = myIdx + 1;
-
-  // 🆕 Kullanıcı top 50'deyse: alt "Senin sıran" panelini gösterme (zaten yukarıda görüyor)
-  const userInTop50 = myRank <= 50;
-
-  const meEl = document.getElementById('rkPlayerMe');
-  if(meEl){
-    if(userInTop50){
-      // Kullanıcı zaten ana listede — alt panel boş
-      meEl.innerHTML = '';
-      return;
-    }
-    // Kullanıcının takım logosunu çek
-    let myMyTeamBg = '#444', myMyTeamTc = '#fff', myMyTeamShort = 'FA';
-    let myMyFlag = '🇹🇷';
-    try {
-      if (true && _userTeam) {
-        const country = _cftGetCountry(_userTeam.countryCode);
-        if (country) {
-          myMyFlag = country.flag || '🇹🇷';
-          for (const lg of (country.leagues || [])) {
-            const t = (lg.teams || []).find(x => x.name === _userTeam.teamName);
-            if (t) { myMyTeamBg = t.bg; myMyTeamTc = t.tc; myMyTeamShort = t.short; break; }
-          }
-        }
-      }
-    } catch(e) {}
-
-    meEl.innerHTML = `<div style="padding:10px 14px;font-size:10px;color:var(--text3);text-align:center;letter-spacing:.4px;text-transform:uppercase">Senin sıran</div>
-      <div class="lst-list">${rkPlayerRow(
-        {n:myName, f:myMyFlag, c:(_userTeam?.teamName)||'Serbest', p:myPos, o:myOverall, lv:myLevel, av:myAvatar,
-         teamBg:myMyTeamBg, teamTc:myMyTeamTc, teamShort:myMyTeamShort},
+// "Senin sıran" alt paneli — top-50 dışındaysa ucuz sayım sorgusuyla sıra
+async function _rkRenderPlayerMe(metric, top50){
+  const meEl=document.getElementById('rkPlayerMe');
+  if(!meEl) return;
+  if(top50.some(p=>p._isMe)){ meEl.innerHTML=''; return; }
+  const me=(typeof ROSTER_DATA!=='undefined') ? ROSTER_DATA.find(r=>r.role==='user') : null;
+  const myOverall=me?(me.overall||10):10, myLevel=me?(me.level||0):0;
+  const myVal=(metric==='level')?myLevel:myOverall;
+  let myRank='—';
+  try{
+    const { count } = await window.sb.from('players').select('id',{count:'exact',head:true}).gt(metric, myVal);
+    if(typeof count==='number') myRank=count+1;
+  }catch(e){}
+  if(_rkActiveTab!=='players') return;
+  const myName=me?.name || (window.authUser&&authUser.name) || 'Oyuncu';
+  const myPos=me?.pos || 'MID';
+  const myAvatar=me?.avatar || '🙂';
+  const cc=(typeof _userTeam!=='undefined'&&_userTeam)?_userTeam.countryCode:'TR';
+  const tn=(typeof _userTeam!=='undefined'&&_userTeam)?_userTeam.teamName:null;
+  const v=_rkTeamVisuals(cc, tn);
+  meEl.innerHTML = '<div style="padding:10px 14px;font-size:10px;color:var(--text3);text-align:center;letter-spacing:.4px;text-transform:uppercase">Senin sıran</div>'
+    + '<div class="lst-list">' + rkPlayerRow(
+        {n:myName, f:v.flag, c:(tn||'Serbest'), p:myPos, o:myOverall, lv:myLevel, av:myAvatar,
+         teamBg:v.bg, teamTc:v.tc, teamShort:v.short, cc, _isMe:true},
         myRank, true
-      )}</div>`;
-  }
+      ) + '</div>';
+}
+
+// Takım görselleri (logo renk/kısaltma) + bayrak/ülke/lig adı — gömülü CFT_DB'den (ağ YOK)
+function _rkTeamVisuals(cc, teamName){
+  let bg='#444', tc='#fff', short=(teamName||'').slice(0,3).toUpperCase()||'XX', flag='🏳️', countryName='', leagueName='';
+  try{
+    const country=(typeof _cftGetCountry==='function') ? _cftGetCountry(cc) : null;
+    if(country){
+      flag=country.flag || flag;
+      countryName=country.name || '';
+      for(const lg of (country.leagues||[])){
+        const t=(lg.teams||[]).find(x=>x && x.name===teamName);
+        if(t){ bg=t.bg||bg; tc=t.tc||tc; short=t.short||short; leagueName=lg.name||''; break; }
+      }
+    }
+  }catch(e){}
+  return { bg, tc, short, flag, countryName, leagueName };
+}
+
+// 🆕 Oyuncu araması — sunucuda ilike (yerel tam liste indirme YOK)
+let _rkPlayerSearchSeq=0;
+async function _rkSearchPlayersServer(rawQ){
+  const el=document.getElementById('rkPlayersList');
+  if(!el || !window.sb) return;
+  const seq=++_rkPlayerSearchSeq;
+  el.innerHTML='<div class="lst-empty"><div class="lst-empty-icon">⏳</div>Aranıyor…</div>';
+  const metric=(_rkPlayerMode==='level')?'level':'overall';
+  const second=(metric==='level')?'overall':'level';
+  const safe=String(rawQ||'').replace(/[%_\\]/g,'');
+  let rows=[];
+  try{
+    const { data } = await window.sb.from('players')
+      .select('id, user_id, name, pos, country_code, team_name, overall, level, avatar, avatar_id, nation')
+      .ilike('name', '%'+safe+'%')
+      .order(metric,{ascending:false,nullsFirst:false}).order(second,{ascending:false,nullsFirst:false})
+      .limit(60);
+    if(Array.isArray(data)) rows=data;
+  }catch(e){ console.warn('[rkSearchPlayers]', e); }
+  if(seq!==_rkPlayerSearchSeq) return;            // daha yeni arama başladı
+  if(!_rkSearchActive || _rkActiveTab!=='players') return;
+  const mapped=rows.map(r=>_rkMapPlayerRow(r));
+  window._rkPlayersTop50=mapped;
+  el.innerHTML = mapped.length
+    ? '<div class="lst-list">'+mapped.map((p,i)=>rkPlayerRow(p,i+1,!!p._isMe)).join('')+'</div>'
+    : '<div class="lst-empty"><div class="lst-empty-icon">🔍</div>Eşleşen sonuç yok</div>';
+  const me1=document.getElementById('rkPlayerMe'); if(me1) me1.innerHTML='';
 }
 
 // ── Render: Ülkeler ──
@@ -74900,11 +74780,20 @@ function rkSearchOnInput(){
     return;
   }
   _rkSearchActive = true;
+  // Oyuncu araması sunucuda; diğerleri yerel (CFT_DB / world_state)
+  if(_rkActiveTab==='players'){ _rkSearchPlayersServer(q); return; }
   rkRenderSearch();
 }
 
 function rkRenderSearch(){
   const tab = _rkActiveTab;
+  // Oyuncu araması sunucuda yapılır (yerel tam liste yok)
+  if(tab==='players'){
+    const inp=document.getElementById('rkSearchInput');
+    const q=(inp?inp.value:'').trim();
+    if(q.length>=3) _rkSearchPlayersServer(_rkLower(q));
+    return;
+  }
   const list = _rkSearchListFor(tab);
   let el, nameOf, rowOf, byIndex=false;
   if(tab==='teams'){
@@ -74917,10 +74806,7 @@ function rkRenderSearch(){
     const ws=cur-4; const disp=(cur<=5)?[1,2,3,4,5]:[cur-4,cur-3,cur-2,cur-1,cur];
     const myCC=(typeof _userTeam!=='undefined'&&_userTeam)?_userTeam.countryCode:'TR';
     el=document.getElementById('rkCountriesList'); nameOf=c=>c.n; rowOf=c=>rkCountryRow(c,disp,ws,cur,c.code===myCC);
-  } else {
-    window._rkPlayersTop50 = list;
-    el=document.getElementById('rkPlayersList'); nameOf=p=>p.n; rowOf=(p,i)=>rkPlayerRow(p,i+1,!!p._isMe); byIndex=true;
-  }
+  } else { return; }
   if(!el) return;
   const inp=document.getElementById('rkSearchInput');
   const q=_rkLower((inp?inp.value:'').trim());
