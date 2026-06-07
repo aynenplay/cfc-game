@@ -69109,6 +69109,7 @@ async function _recomputeTeamOvrServer(cc, name){
         }
       }catch(e){}
       // Sıralama > Takımlar açıksa tazele
+      try{ if(typeof _rkListCache==='object' && _rkListCache){ delete _rkListCache['teams|overall']; delete _rkListCache['teams|coef']; delete _rkListCache['teams|market']; } }catch(e){}
       try{ if(typeof _rkActiveTab!=='undefined' && _rkActiveTab==='teams' && typeof rkRenderTeams==='function') rkRenderTeams(); }catch(e){}
     }
     return d;
@@ -74451,7 +74452,7 @@ function rkTab(tab, btn){
   if(tab==='teams')     rkRenderTeams();
   if(tab==='national')  rkRenderNational();
   if(tab==='countries') rkRenderCountries();
-  if(typeof _rkRefreshStats === 'function') _rkRefreshStats().then(ok => { if(ok) rkRerenderActive(); });
+  if(typeof _rkRefreshStats === 'function') _rkRefreshStats(); // fire-and-forget: _teamOvrMap'i tazeler (sıralama re-render TETİKLEMEZ; çifte yük kalktı)
 }
 
 // ── Yardımcı: rank rozet sınıfı ──
@@ -74540,25 +74541,44 @@ function rkTeamRow(t, rank, isMe){
 
 // ── Render: Takımlar ──
 // ── Render: Takımlar ── (🆕 tek hafif top-50 sorgusu; tüm tablo taraması YOK)
+// 🆕 Sıralama liste cache'i — hızlı sekme/sayfa geçişleri yeniden SORGULAMASIN.
+let _rkListCache = {};        // key → { html, meHtml, mapped, at }
+let _rkTeamsSeq = 0;
+let _rkPlayersSeq = 0;
+const _RK_LIST_TTL = 60000;   // 60sn taze say
+
 async function rkRenderTeams(){
   const list = document.getElementById('rkTeamsList');
+  const meEl = document.getElementById('rkTeamMe');
   if(!list) return;
   if(_rkSearchActive){ rkRenderSearch(); return; }
-  if(!window.sb){ list.innerHTML = '<div class="lst-empty"><div class="lst-empty-icon">⚠️</div>Bağlantı yok</div>'; return; }
+  const key = 'teams|' + _rkTeamMode;
+  const cached = _rkListCache[key];
+  // Taze cache → ANINDA göster, sorgu YOK
+  if(cached && (Date.now()-cached.at) < _RK_LIST_TTL){
+    list.innerHTML = cached.html;
+    if(meEl) meEl.innerHTML = cached.meHtml || '';
+    window.RK_TOP_TEAMS = cached.mapped || [];
+    return;
+  }
+  if(!window.sb){ if(!cached) list.innerHTML='<div class="lst-empty"><div class="lst-empty-icon">⚠️</div>Bağlantı yok</div>'; return; }
   const col = (_rkTeamMode==='market') ? 'market_value' : (_rkTeamMode==='coef' ? 'team_points' : 'team_ovr');
-  list.innerHTML = '<div class="lst-empty"><div class="lst-empty-icon">⏳</div>Sıralama yükleniyor…</div>';
-  let rows=[];
+  // Eski içerik varsa koru (boş ekran/flicker yok); yoksa spinner
+  if(cached){ list.innerHTML = cached.html; if(meEl) meEl.innerHTML = cached.meHtml||''; }
+  else { list.innerHTML = '<div class="lst-empty"><div class="lst-empty-icon">⏳</div>Sıralama yükleniyor…</div>'; }
+  const seq = ++_rkTeamsSeq;
+  let rows=[], ok=false;
   try{
     const { data, error } = await window.sb.from('teams')
       .select('country_code, name, team_ovr, team_points, market_value')
       .order(col, { ascending:false, nullsFirst:false })
       .limit(50);
-    if(!error && Array.isArray(data)) rows=data;
+    if(!error && Array.isArray(data)){ rows=data; ok=true; }
     else if(error) console.warn('[rkTeams] sorgu:', error);
   }catch(e){ console.warn('[rkTeams] exception:', e); }
-  // Kullanıcı bu sırada başka sekmeye geçtiyse yazma
-  const teamsTabVisible = (function(){ const e=document.getElementById('rk-teams'); return e && e.style.display!=='none'; })();
-  if(!teamsTabVisible) return;
+  if(seq!==_rkTeamsSeq) return;          // daha yeni render başladı
+  if(_rkActiveTab!=='teams') return;     // sekme değişti
+  if(!ok){ if(!cached) list.innerHTML='<div class="lst-empty"><div class="lst-empty-icon">⚠️</div>Yüklenemedi — sekmeye tekrar dokun</div>'; return; }
   const myCC=(typeof _userTeam!=='undefined'&&_userTeam)?_userTeam.countryCode:null;
   const myName=(typeof _userTeam!=='undefined'&&_userTeam)?_userTeam.teamName:null;
   const mapped = rows.map(r=>{
@@ -74571,16 +74591,18 @@ async function rkRenderTeams(){
     };
   });
   window.RK_TOP_TEAMS = mapped;
-  list.innerHTML = '<div class="lst-list">' + mapped.map((t,i)=>rkTeamRow(t,i+1,!!t._isMe)).join('') + '</div>';
-  try { await _rkRenderTeamMe(col, mapped); } catch(e){}
+  const html = '<div class="lst-list">' + mapped.map((t,i)=>rkTeamRow(t,i+1,!!t._isMe)).join('') + '</div>';
+  list.innerHTML = html;
+  let meHtml = '';
+  try { meHtml = await _rkRenderTeamMe(col, mapped); } catch(e){}
+  _rkListCache[key] = { html, meHtml: meHtml||'', mapped, at: Date.now() };
 }
 
 // "Senin takımın" alt paneli — top-50 dışındaysa ucuz sayım sorgusuyla sıra
 async function _rkRenderTeamMe(col, top50){
   const meEl=document.getElementById('rkTeamMe');
-  if(!meEl) return;
-  if(!(typeof _userTeam!=='undefined' && _userTeam && _userTeam.teamName)){ meEl.innerHTML=''; return; }
-  if(top50.some(t=>t._isMe)){ meEl.innerHTML=''; return; }
+  if(!(typeof _userTeam!=='undefined' && _userTeam && _userTeam.teamName)){ if(meEl) meEl.innerHTML=''; return ''; }
+  if(top50.some(t=>t._isMe)){ if(meEl) meEl.innerHTML=''; return ''; }
   const cc=_userTeam.countryCode, tn=_userTeam.teamName;
   let myRank='—', myOvr=0, myCf=0, myMv=0;
   try{
@@ -74591,11 +74613,12 @@ async function _rkRenderTeamMe(col, top50){
     const { count } = await window.sb.from('teams').select('name',{count:'exact',head:true}).gt(col, myVal);
     if(typeof count==='number') myRank=count+1;
   }catch(e){}
-  if(_rkActiveTab!=='teams') return;
   const v=_rkTeamVisuals(cc,tn);
   const t={n:tn, countryCode:cc, f:v.flag, cn:v.countryName, lg:v.leagueName, o:myOvr, cf:myCf, mv:myMv, bg:v.bg, tc:v.tc, short:v.short, _isMe:true};
-  meEl.innerHTML = '<div style="padding:10px 14px;font-size:10px;color:var(--text3);text-align:center;letter-spacing:.4px;text-transform:uppercase">Senin takımın</div>'
+  const html = '<div style="padding:10px 14px;font-size:10px;color:var(--text3);text-align:center;letter-spacing:.4px;text-transform:uppercase">Senin takımın</div>'
     + '<div class="lst-list">' + rkTeamRow(t, myRank, true) + '</div>';
+  const meEl2=document.getElementById('rkTeamMe'); if(meEl2 && _rkActiveTab==='teams') meEl2.innerHTML = html;
+  return html;
 }
 
 // ── Render: Oyuncular ──
@@ -74620,27 +74643,44 @@ function rkSetPlayerMode(mode){
 
 async function rkRenderPlayers(){
   const list = document.getElementById('rkPlayersList');
+  const meEl = document.getElementById('rkPlayerMe');
   if(!list) return;
   if(_rkSearchActive){ rkRenderSearch(); return; }
-  if(!window.sb){ list.innerHTML = '<div class="lst-empty"><div class="lst-empty-icon">⚠️</div>Bağlantı yok</div>'; return; }
+  const key = 'players|' + _rkPlayerMode;
+  const cached = _rkListCache[key];
+  // Taze cache → ANINDA göster, sorgu YOK
+  if(cached && (Date.now()-cached.at) < _RK_LIST_TTL){
+    list.innerHTML = cached.html;
+    if(meEl) meEl.innerHTML = cached.meHtml || '';
+    window._rkPlayersTop50 = cached.mapped || [];
+    return;
+  }
+  if(!window.sb){ if(!cached) list.innerHTML = '<div class="lst-empty"><div class="lst-empty-icon">⚠️</div>Bağlantı yok</div>'; return; }
   const metric = (_rkPlayerMode==='level') ? 'level' : 'overall';
   const second = (metric==='level') ? 'overall' : 'level';
-  list.innerHTML = '<div class="lst-empty"><div class="lst-empty-icon">⏳</div>Sıralama yükleniyor…</div>';
-  let rows=[];
+  if(cached){ list.innerHTML = cached.html; if(meEl) meEl.innerHTML = cached.meHtml||''; }
+  else { list.innerHTML = '<div class="lst-empty"><div class="lst-empty-icon">⏳</div>Sıralama yükleniyor…</div>'; }
+  const seq = ++_rkPlayersSeq;
+  let rows=[], ok=false;
   try{
     const { data, error } = await window.sb.from('players')
       .select('id, user_id, name, pos, country_code, team_name, overall, level, avatar, avatar_id, nation')
       .order(metric, { ascending:false, nullsFirst:false })
       .order(second, { ascending:false, nullsFirst:false })
       .limit(50);
-    if(!error && Array.isArray(data)) rows=data;
+    if(!error && Array.isArray(data)){ rows=data; ok=true; }
     else if(error) console.warn('[rkPlayers] sorgu:', error);
   }catch(e){ console.warn('[rkPlayers] exception:', e); }
-  if(_rkActiveTab!=='players') return; // sekme değişti
+  if(seq!==_rkPlayersSeq) return;        // daha yeni render başladı
+  if(_rkActiveTab!=='players') return;   // sekme değişti
+  if(!ok){ if(!cached) list.innerHTML='<div class="lst-empty"><div class="lst-empty-icon">⚠️</div>Yüklenemedi — sekmeye tekrar dokun</div>'; return; }
   const mapped = rows.map(r => _rkMapPlayerRow(r));
   window._rkPlayersTop50 = mapped;
-  list.innerHTML = '<div class="lst-list">' + mapped.map((p,i)=>rkPlayerRow(p, i+1, !!p._isMe)).join('') + '</div>';
-  try { await _rkRenderPlayerMe(metric, mapped); } catch(e){}
+  const html = '<div class="lst-list">' + mapped.map((p,i)=>rkPlayerRow(p, i+1, !!p._isMe)).join('') + '</div>';
+  list.innerHTML = html;
+  let meHtml = '';
+  try { meHtml = await _rkRenderPlayerMe(metric, mapped); } catch(e){}
+  _rkListCache[key] = { html, meHtml: meHtml||'', mapped, at: Date.now() };
 }
 
 // players satırını sıralama görünümü objesine çevir (ortak)
@@ -74661,8 +74701,7 @@ function _rkMapPlayerRow(r){
 // "Senin sıran" alt paneli — top-50 dışındaysa ucuz sayım sorgusuyla sıra
 async function _rkRenderPlayerMe(metric, top50){
   const meEl=document.getElementById('rkPlayerMe');
-  if(!meEl) return;
-  if(top50.some(p=>p._isMe)){ meEl.innerHTML=''; return; }
+  if(top50.some(p=>p._isMe)){ if(meEl) meEl.innerHTML=''; return ''; }
   const me=(typeof ROSTER_DATA!=='undefined') ? ROSTER_DATA.find(r=>r.role==='user') : null;
   const myOverall=me?(me.overall||10):10, myLevel=me?(me.level||0):0;
   const myVal=(metric==='level')?myLevel:myOverall;
@@ -74671,19 +74710,20 @@ async function _rkRenderPlayerMe(metric, top50){
     const { count } = await window.sb.from('players').select('id',{count:'exact',head:true}).gt(metric, myVal);
     if(typeof count==='number') myRank=count+1;
   }catch(e){}
-  if(_rkActiveTab!=='players') return;
   const myName=me?.name || (window.authUser&&authUser.name) || 'Oyuncu';
   const myPos=me?.pos || 'MID';
   const myAvatar=me?.avatar || '🙂';
   const cc=(typeof _userTeam!=='undefined'&&_userTeam)?_userTeam.countryCode:'TR';
   const tn=(typeof _userTeam!=='undefined'&&_userTeam)?_userTeam.teamName:null;
   const v=_rkTeamVisuals(cc, tn);
-  meEl.innerHTML = '<div style="padding:10px 14px;font-size:10px;color:var(--text3);text-align:center;letter-spacing:.4px;text-transform:uppercase">Senin sıran</div>'
+  const html = '<div style="padding:10px 14px;font-size:10px;color:var(--text3);text-align:center;letter-spacing:.4px;text-transform:uppercase">Senin sıran</div>'
     + '<div class="lst-list">' + rkPlayerRow(
         {n:myName, f:v.flag, c:(tn||'Serbest'), p:myPos, o:myOverall, lv:myLevel, av:myAvatar,
          teamBg:v.bg, teamTc:v.tc, teamShort:v.short, cc, _isMe:true},
         myRank, true
       ) + '</div>';
+  const meEl2=document.getElementById('rkPlayerMe'); if(meEl2 && _rkActiveTab==='players') meEl2.innerHTML = html;
+  return html;
 }
 
 // Takım görselleri (logo renk/kısaltma) + bayrak/ülke/lig adı — gömülü CFT_DB'den (ağ YOK)
