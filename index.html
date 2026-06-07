@@ -42937,34 +42937,33 @@ function leaveTeamPrompt() {
     msg = `${flag} ${_userTeam.teamName} takımından ayrılmak istediğine emin misin?\n\n` +
           `İstediğin zaman tekrar bir takıma katılabilirsin veya satın alabilirsin.`;
   }
-  if(!confirm(msg)) return;
-
-  // Kaptansa kısmi iade
-  if(isCaptain && _userTeam.purchasePrice) {
-    const refund = Math.round(_userTeam.purchasePrice * 0.4);
-    if(refund > 0 && typeof trsAddIncome === 'function') {
-      trsAddIncome('dia', refund, `Takım Satışı: ${_userTeam.teamName}`);
+  cftConfirm({
+    title: isCaptain ? 'Takımı Sat' : 'Takımdan Ayrıl',
+    message: msg,
+    confirmText: isCaptain ? 'Sat ve Ayrıl' : 'Ayrıl',
+    danger: true,
+    onConfirm: () => {
+      // Kaptansa kısmi iade
+      if(isCaptain && _userTeam && _userTeam.purchasePrice) {
+        const refund = Math.round(_userTeam.purchasePrice * 0.4);
+        if(refund > 0 && typeof trsAddIncome === 'function') {
+          trsAddIncome('dia', refund, `Takım Satışı: ${_userTeam.teamName}`);
+        }
+      }
+      // Career history'de mevcut takımı kapat
+      if (typeof _carCloseCurrentHistory === 'function') {
+        _carCloseCurrentHistory(isCaptain ? 'Takım satıldı' : 'Takımdan ayrıldı');
+      }
+      if (typeof invalidateFixtureCache === 'function') invalidateFixtureCache();
+      _userTeam = null;
+      userTeamSave();
+      rosterClearTeam();
+      applyUserTeamUI();
+      renderSettings();
+      try { if(typeof recomputeUserEnergyBonus === 'function') recomputeUserEnergyBonus(); } catch(e){}
+      showJoinToast(isCaptain ? '🚪 Takım satıldı, elmaslar iade edildi.' : '🚪 Takımdan ayrıldın.');
     }
-  }
-
-  // 🆕 Career history'de mevcut takımı kapat
-  if (typeof _carCloseCurrentHistory === 'function') {
-    _carCloseCurrentHistory(isCaptain ? 'Takım satıldı' : 'Takımdan ayrıldı');
-  }
-
-  // 🆕 Fikstür cache'ini sıfırla
-  if (typeof invalidateFixtureCache === 'function') invalidateFixtureCache();
-
-  _userTeam = null;
-  userTeamSave();
-  rosterClearTeam();
-  applyUserTeamUI();
-  renderSettings();
-
-  // 🆕 Performans Merkezi bonusunu kaldır — current yeni max'a clamp olur
-  try { if(typeof recomputeUserEnergyBonus === 'function') recomputeUserEnergyBonus(); } catch(e){}
-
-  showJoinToast(isCaptain ? '🚪 Takım satıldı, elmaslar iade edildi.' : '🚪 Takımdan ayrıldın.');
+  });
 }
 
 // ── XP & Level Sistemi ──
@@ -44197,13 +44196,19 @@ function renderRoster(filter) {
 function removeBot(num, btn) {
   // Ziyaretçi modunda çalışmaz
   if(typeof _viewingTeam !== 'undefined' && _viewingTeam) return;
-  if(!confirm('Bu botu takımdan çıkarmak istediğine emin misin?')) return;
-  const idx = ROSTER_DATA.findIndex(p => p.num === num);
-  if(idx !== -1) ROSTER_DATA.splice(idx, 1);
-  renderRoster(rosterCurrentFilter);
-  // 🆕 Role strip kaldırıldı — kadro sayısını sadece thb güncelle
-  const thbVal = document.querySelector('.thb-val');
-  if(thbVal) thbVal.textContent = ROSTER_DATA.length;
+  cftConfirm({
+    title: 'Botu Çıkar',
+    message: 'Bu botu takımdan çıkarmak istediğine emin misin?',
+    confirmText: 'Çıkar',
+    danger: true,
+    onConfirm: () => {
+      const idx = ROSTER_DATA.findIndex(p => p.num === num);
+      if(idx !== -1) ROSTER_DATA.splice(idx, 1);
+      renderRoster(rosterCurrentFilter);
+      const thbVal = document.querySelector('.thb-val');
+      if(thbVal) thbVal.textContent = ROSTER_DATA.length;
+    }
+  });
 }
 
 // ══════ OYUNCU PROFİL MODAL ══════
@@ -52422,9 +52427,10 @@ function memberLeaveTeam() {
 
   // Ayrılabilir — eğer canLeaveFreely durumu varsa ekstra onay sor
   if (check.requiresConfirm && check.confirmMsg) {
-    if (!confirm(check.confirmMsg)) return;
+    cftConfirm({ message: check.confirmMsg, confirmText: 'Devam', danger: true,
+      onConfirm: () => { if (typeof leaveTeamPrompt === 'function') leaveTeamPrompt(); } });
+    return;
   }
-
   // leaveTeamPrompt kendi onay sorusu ile takımdan çıkarır
   if (typeof leaveTeamPrompt === 'function') leaveTeamPrompt();
 }
@@ -71518,12 +71524,19 @@ function tmSubmitListing(){
 function tmCancelMyListing(){
   const ex = tmFindUserListing();
   if(!ex) return;
-  if(!confirm('İlanını kaldırmak istediğine emin misin? Takımın hala senin olacak.')) return;
-  tmRemoveListing(ex.id);
-  tmCloseListingModal();
-  tmRefreshListButton();
-  if(typeof renderTeamMarket === 'function') renderTeamMarket();
-  if(typeof showJoinToast === 'function') showJoinToast('🗑️ İlan kaldırıldı.');
+  cftConfirm({
+    title: 'İlanı Kaldır',
+    message: 'İlanını kaldırmak istediğine emin misin? Takımın hala senin olacak.',
+    confirmText: 'Kaldır',
+    danger: true,
+    onConfirm: () => {
+      tmRemoveListing(ex.id);
+      tmCloseListingModal();
+      tmRefreshListButton();
+      if(typeof renderTeamMarket === 'function') renderTeamMarket();
+      if(typeof showJoinToast === 'function') showJoinToast('🗑️ İlan kaldırıldı.');
+    }
+  });
 }
 
 // "Takımı Satışa Çıkar" butonunun durumunu yansıt
