@@ -63114,7 +63114,51 @@ let _trn2ActiveSubTab  = {}; // {champ:'groups', elite:'groups', conv:'groups'}
 //   5 → CON direct,  6 → CON PO
 // Çıktı: qualifiers[trnKey] hem Array (tüm 64, eski iter uyumu) hem .direct/.po (yeni).
 // Sezon 1: teams DB sırası. Sezon ≥ 2: önceki sezon final standings.
+// 🆕 TEK KAYNAK (Faz 1.6): Edge'in tournament_state'e yazdığı kupa adaylarını oku.
+//   Edge, adayları teams.rank'ten seçip fixture.directTeams/poTeams'e yazar (setupTournamentWithPlayoff).
+//   İstemci yeniden ÜRETMEK yerine bunu okur → tüm kullanıcılar AYNI kupa tablosunu görür.
+//   Üç turnuvanın da sunucu state'i yoksa null döner → çağıran yerel hesaba düşer (kurulum öncesi uyum).
+function _trn2HydrateQualTeam(t){
+  const cc = t.countryCode || t.countryKey || '';
+  const country = (typeof _cftGetCountry === 'function') ? _cftGetCountry(cc) : null;
+  let full = { name: t.name };
+  if (country && country.leagues){
+    for (const lg of country.leagues){
+      const f = (lg.teams || []).find(x => x && x.name === t.name);
+      if (f){ full = f; break; }
+    }
+  }
+  return Object.assign({}, full, {
+    name: t.name, countryKey: cc, countryCode: cc,
+    countryName: (country && country.name) || '',
+    countryFlag: (country && country.flag) || '🏳️',
+    rank: t.rank
+  });
+}
+function _trn2QualifiersFromServer(currentSeason){
+  if (typeof _tournamentStateGet !== 'function') return null;
+  const keys = ['champ', 'elite', 'conv'];
+  const out = {};
+  for (const k of keys){
+    const st = _tournamentStateGet(k, currentSeason);
+    const fx = st && st.fixture;
+    const direct = (fx && Array.isArray(fx.directTeams)) ? fx.directTeams : null;
+    const po     = (fx && Array.isArray(fx.poTeams))     ? fx.poTeams     : null;
+    if (!direct || !po || direct.length === 0 || po.length === 0) return null; // eksik → tamamen yerel
+    const bucket = []; bucket.direct = []; bucket.po = [];
+    const n = Math.max(direct.length, po.length);
+    for (let i = 0; i < n; i++){
+      if (direct[i]){ const e = _trn2HydrateQualTeam(direct[i]); bucket.push(e); bucket.direct.push(e); }
+      if (po[i])    { const e = _trn2HydrateQualTeam(po[i]);     bucket.push(e); bucket.po.push(e); }
+    }
+    out[k] = bucket;
+  }
+  return out;
+}
+
 function trn2GetQualifiers(currentSeason) {
+  // 🆕 ÖNCE sunucu (tek kaynak); yoksa aşağıdaki yerel hesaba düş.
+  try { const _srv = _trn2QualifiersFromServer(currentSeason); if (_srv) return _srv; } catch(e) {}
   function _mkQ() { const a = []; a.direct = []; a.po = []; return a; }
   const qualifiers = { champ: _mkQ(), elite: _mkQ(), conv: _mkQ() };
   const prevSeason = currentSeason - 1;
