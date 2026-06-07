@@ -59929,6 +59929,13 @@ async function confirmPosChange() {
     } catch(e) { console.warn('[posChange] Supabase update hata:', e); }
   })();
 
+  // 🆕 Mevki/yetenek değişti → takım gücünü ANINDA tazele (kullanıcı takımdaysa).
+  try{
+    if(typeof _userTeam!=='undefined' && _userTeam && _userTeam.teamName){
+      _recomputeTeamOvrServer(_userTeam.countryCode, _userTeam.teamName);
+    }
+  }catch(e){}
+
   closePosModal();
 
   const subLbl = (typeof SUBPOS_LABEL!=='undefined' && SUBPOS_LABEL[newSub]) ? SUBPOS_LABEL[newSub] : newSub;
@@ -69006,6 +69013,47 @@ function trStartTraining() {
 }
 
 // ── Antrenman topla ──
+// 🆕 ANLIK TAKIM GÜCÜ — yetenek/mevki değişince sunucuda tek-takım team_ovr yeniden hesaplanır,
+//   dönen değerle yerel TEK KAYNAK (_teamOvrMap + CFT_DB.teamOvr) tazelenir → hero, Sıralama>Takımlar
+//   ve ana sayfa maç önizleme ANINDA güncel olur. Tüm dünya taranmaz, sadece bu takım.
+async function _recomputeTeamOvrServer(cc, name){
+  if(!cc || !name) return null;
+  try{
+    const url = `${SUPABASE_URL}/functions/v1/tick-matches?action=recompute_team&cc=${encodeURIComponent(cc)}&name=${encodeURIComponent(name)}`;
+    const r = await fetch(url, { headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY } });
+    const d = r.ok ? await r.json() : null;
+    if(d && d.ok && typeof d.team_ovr === 'number'){
+      const key = cc + ':' + name;
+      const ov = Math.round(d.team_ovr);
+      window._teamOvrMap = window._teamOvrMap || {};
+      window._teamOvrMap[key] = ov;
+      if(d.team_lines && typeof d.team_lines === 'object'){
+        window._teamLinesMap = window._teamLinesMap || {};
+        window._teamLinesMap[key] = d.team_lines;
+      }
+      try{
+        const ctry = (typeof _cftGetCountry==='function') ? _cftGetCountry(cc) : null;
+        if(ctry && ctry.leagues){
+          for(const lg of ctry.leagues){
+            const t=(lg.teams||[]).find(x=>x&&x.name===name);
+            if(t){ t.teamOvr=ov; if(typeof d.market_value==='number') t.oz=d.market_value; break; }
+          }
+        }
+      }catch(e){}
+      // Hero "Ort. Güç" anında (kullanıcının kendi takımıysa)
+      try{
+        if(typeof _userTeam!=='undefined' && _userTeam && _userTeam.countryCode===cc && _userTeam.teamName===name){
+          const _el=document.getElementById('teamHeroPower');
+          if(_el && ov>0) _el.textContent=String(ov);
+        }
+      }catch(e){}
+      // Sıralama > Takımlar açıksa tazele
+      try{ if(typeof _rkActiveTab!=='undefined' && _rkActiveTab==='teams' && typeof rkRenderTeams==='function') rkRenderTeams(); }catch(e){}
+    }
+    return d;
+  }catch(e){ console.warn('[recomputeTeamOvr]', e); return null; }
+}
+
 async function trCollect(id) {
   const active  = trGetActive();
   const entry   = active.find(a => a.id === id);
@@ -69115,6 +69163,13 @@ async function trCollect(id) {
       console.warn('[trCollect] sunucu reddetti (optimistic kaldi):', r && r.data);
     }
   } catch(e) { console.warn('[trCollect] rpc hata:', e); }
+
+  // 🆕 Yetenek arttı → takım gücünü ANINDA tazele (kullanıcı takımdaysa). Bloke etmez.
+  try{
+    if(typeof _userTeam!=='undefined' && _userTeam && _userTeam.teamName){
+      _recomputeTeamOvrServer(_userTeam.countryCode, _userTeam.teamName);
+    }
+  }catch(e){}
 }
 
 function trCloseDone() {
