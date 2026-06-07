@@ -37352,6 +37352,26 @@ const JERSEY_PALETTE = [
 
 // Bir takımın forma setlerini al — kaptan ayarladıysa oradan, yoksa teams DB'den
 // Her set: { shirt, short, socks } — 3 renk
+// 🆕 Takım→renk düz haritası (bir kez kurulur, statik). getTeamJerseys eskiden
+//   özel forma yoksa HER çağrıda tüm CFT_DB'yi (ülke→lig→takım) tarıyordu.
+let _jerseyColorMap = null;
+function _getJerseyColorMap(){
+  if(_jerseyColorMap) return _jerseyColorMap;
+  const m = {};
+  try{
+    for(const cc of _cftGetCountryCodes()){
+      const country = _cftGetCountry(cc);
+      if(!country || !country.leagues) continue;
+      for(const lg of country.leagues){
+        for(const t of (lg.teams||[])){
+          if(t && t.name && !(t.name in m)) m[t.name] = { bg: t.bg || '#1565c0', tc: t.tc || '#90caf9' };
+        }
+      }
+    }
+  }catch(e){}
+  _jerseyColorMap = m;
+  return m;
+}
 function getTeamJerseys(teamName) {
   try {
     const state = loadWorldState();
@@ -37377,24 +37397,11 @@ function getTeamJerseys(teamName) {
     }
   } catch(e) {}
 
-  // Fallback: teams DB'den bg ve tc al
+  // Fallback: teams DB renkleri — 🆕 düz harita (O(1)); eskiden her çağrıda tüm CFT_DB taranıyordu.
   let bg = '#1565c0', tc = '#90caf9';
   try {
-    if (true) {
-      outer: for (const cc of _cftGetCountryCodes()) {
-        const country = _cftGetCountry(cc);
-        if (!country || !country.leagues) continue;
-        for (const lg of country.leagues) {
-          for (const t of (lg.teams || [])) {
-            if (t.name === teamName) {
-              bg = t.bg || bg;
-              tc = t.tc || tc;
-              break outer;
-            }
-          }
-        }
-      }
-    }
+    const _cm = _getJerseyColorMap()[teamName];
+    if (_cm) { bg = _cm.bg || bg; tc = _cm.tc || tc; }
   } catch(e) {}
 
   return {
@@ -53290,6 +53297,13 @@ document.addEventListener('click', (e) => {
 function updateHero() {
   const info = getSeasonInfo();
   const today = new Date();
+  // 🆕 Bildirim/sezon kontrolleri sayfadan bağımsız HER ZAMAN çalışır (davranış korunur).
+  if(typeof checkSeasonEndTrigger === 'function') checkSeasonEndTrigger();
+  if(typeof checkContractRenewalWarning === 'function') checkContractRenewalWarning();
+  if(typeof checkContractExpiration === 'function') checkContractExpiration();
+  if(typeof runAllNotificationChecks === 'function') runAllNotificationChecks();
+  // 🆕 Ana sayfa görünür DEĞİLSE ağır home render'larını ATLA — home'a dönünce showPage updateHero'yu zaten çağırır.
+  try { const _hp = document.getElementById('page-home'); if(!(_hp && _hp.classList.contains('active'))) return; } catch(e){}
   const dateEl = document.getElementById('heroDate');
   const titleEl = document.getElementById('heroTitle');
   const statusEl = document.getElementById('heroStatus');
@@ -53317,10 +53331,7 @@ function updateHero() {
   renderHomeQuickAccessBadges();
   renderHomeEventFeed();
   renderHomeNextMatch();
-  if(typeof checkSeasonEndTrigger === 'function') checkSeasonEndTrigger();
-  if(typeof checkContractRenewalWarning === 'function') checkContractRenewalWarning();
-  if(typeof checkContractExpiration === 'function') checkContractExpiration();
-  if(typeof runAllNotificationChecks === 'function') runAllNotificationChecks();
+  // (bildirim kontrolleri yukarı taşındı — sayfadan bağımsız çalışır)
 
   // Sezon içeriği bloğu
   // - Pre-season + takımı var → gizle (etkinlik feed yeterli)
