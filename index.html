@@ -39050,7 +39050,9 @@ function showPage(name,btn){
   if(name==='rankings') {
     _rkActiveTab = 'players';
     if(typeof rkRenderPlayers==='function') rkRenderPlayers();
-    if(typeof _rkRefreshStats==='function') _rkRefreshStats(true).then(ok => { if(ok && typeof rkRerenderActive==='function') rkRerenderActive(); });
+    // 🆕 force + rerender KALDIRILDI: her açılışta tüm teams tablosunu tarayıp yeniden render etmek
+    //   yavaşlığa/kasmaya yol açıyordu. _teamOvrMap'i throttled (8sn) tazelemek yeterli.
+    if(typeof _rkRefreshStats==='function') _rkRefreshStats();
   }
   if(name==='events') {
     if(typeof evRender === 'function') evRender();
@@ -44516,20 +44518,9 @@ function openPlayerModalRanking(idx) {
   // 🆕 BUG FIX: render sırasındaki sıralı top50'yi kullan, yoksa fallback
   // (Eskiden buildRkPlayerList()'i tekrar çağırıp filter yapıyordu —
   //  sıralama farklı + filter yüzünden YANLIŞ oyuncu açılıyordu)
-  let rk = null;
-  if (window._rkPlayersTop50 && window._rkPlayersTop50[idx]) {
-    rk = window._rkPlayersTop50[idx];
-  } else {
-    // Fallback (yedek): render edilmemişse build et + sıralı al
-    const allPlayers = buildRkPlayerList().slice();
-    const isLvMode = (typeof _rkPlayerMode !== 'undefined' && _rkPlayerMode === 'level');
-    if (isLvMode) {
-      allPlayers.sort((a,b) => (b.lv||0)-(a.lv||0) || (b.o||0)-(a.o||0) || ((b._isMe?1:0)-(a._isMe?1:0)) || (a.n>b.n?1:-1));
-    } else {
-      allPlayers.sort((a,b) => (b.o||0)-(a.o||0) || ((b._isMe?1:0)-(a._isMe?1:0)) || (a.n>b.n?1:-1));
-    }
-    rk = allPlayers.slice(0,50)[idx];
-  }
+  // 🆕 buildRkPlayerList() fallback KALDIRILDI — mobilde ~8000 oyuncuyu bellekte üretip OOM/çökmeye
+  //   yol açıyordu. _rkPlayersTop50 zaten render'da kurulur; yoksa modal açma.
+  const rk = (window._rkPlayersTop50 && window._rkPlayersTop50[idx]) || null;
   if(!rk) return;
 
   // Eğer ROSTER_DATA'daki bir oyuncu ise tam objeyi kullan
