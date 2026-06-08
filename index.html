@@ -32115,6 +32115,20 @@ function getTeamLast5Matches(team) {
 // Maç önizleme ekranı (fillPreMatchPreview) bu değeri okur. Maç önizlemesinde
 // 11 kişilik squad gelse bile fonksiyon teams DB'den tam kadroyu bulur.
 // ═══════════════════════════════════════════════════════════════════
+// 🆕 TEK KAYNAK piyasa değeri: teams.market_value (edge). _cftDb[].oz'a yüklenir
+//   (bootstrap + _rkRefreshStats + antrenman sonrası recompute). Hero ve Sıralama AYNI değeri okur.
+function _teamStoredMV(cc, name){
+  try {
+    const country = (typeof _cftGetCountry === 'function') ? _cftGetCountry(cc) : null;
+    if (country && Array.isArray(country.leagues)) {
+      for (const lg of country.leagues) {
+        const t = (lg.teams || []).find(x => x && x.name === name);
+        if (t && Number.isFinite(Number(t.oz))) return Number(t.oz);
+      }
+    }
+  } catch(e) {}
+  return 0;
+}
 function calculateTeamValue(team) {
   if (!team) return 0;
   const teamName = team.name || team.teamName || '';
@@ -42967,7 +42981,7 @@ function applyUserTeamUI() {
       }
       const mvEl = document.getElementById('teamHeroMarket');
       if (mvEl && typeof calculateTeamValue === 'function') {
-        const _mv = calculateTeamValue({ name: _userTeam.teamName, countryCode: _userTeam.countryCode });
+        const _mv = _teamStoredMV(_userTeam.countryCode, _userTeam.teamName); // 🆕 teams.market_value (sıralama ile AYNI kaynak)
         mvEl.textContent = (typeof _carFmtEUR === 'function') ? _carFmtEUR(_mv) : (_mv + ' €');
       }
     } catch(e) {}
@@ -51659,8 +51673,7 @@ function guestRenderHeader() {
     if (powerEl) powerEl.textContent = String(_teamPowerFromPlayers(v.countryCode, v.teamRef.name, v.teamRef.rank || 1));
     const mvEl = document.getElementById('teamHeroMarket');
     if (mvEl) {
-      let _mv = 0;
-      try { _mv = roster.reduce((s,p)=> s + ((typeof getPlayerMarketValue === 'function') ? getPlayerMarketValue(p) : 0), 0); } catch(e){}
+      let _mv = _teamStoredMV(v.countryCode, v.teamRef.name); // 🆕 teams.market_value (sıralama ile AYNI kaynak)
       mvEl.textContent = (typeof _carFmtEUR === 'function') ? _carFmtEUR(_mv) : (_mv + ' €');
     }
     if (playersEl) playersEl.textContent = String(playerCount);
