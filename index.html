@@ -55539,43 +55539,14 @@ const _resFixtureSeasonCache = {}; // key: "S{seasonNum}" → { dayMap: {1:[...]
 // 🆕 match_state tablosundan fixture cache (RAM)
 // Tüm scheduled+running+finished maçlar burada — bootstrap'ta yüklenir
 let _matchStateCache = null;  // { dayMap: { 1: [...], 2: [...] }, byKey: { '1_1_X_Y': {...} } }
-let _matchEventsCache = null;  // { byKey: { match_key: events_array } } — stats için ayrı
+let _matchEventsCache = { byKey: {}, loadedAt: 0 };  // 🆕 LAZY: her maç açılınca tek tek dolar (8000 maçı toplu yükleme YOK → OOM/çökme fix)
 
 async function _loadFinishedMatchEvents() {
-  // Sadece status='finished' maçlardan events + lineup çek.
-  // Lineup'lar 11'er oyuncu — küçük JSON. events ile birlikte çekiyoruz.
-  if (!window.sb) return null;
-  const PAGE = 500;
-  let all = [];
-  for (let from = 0; from < 100000; from += PAGE) {
-    const { data, error } = await window.sb.from('match_state')
-      .select('match_key,events,home_lineup,away_lineup')
-      .eq('status', 'finished')
-      .range(from, from + PAGE - 1);
-    if (error) { console.warn('[events] hata:', error.message); break; }
-    if (!Array.isArray(data) || data.length === 0) break;
-    all = all.concat(data);
-    if (data.length < PAGE) break;
-  }
-  const byKey = {};
-  for (const m of all) {
-    if (m && m.match_key) {
-      byKey[m.match_key] = {
-        events: m.events,
-        home_lineup: m.home_lineup,
-        away_lineup: m.away_lineup
-      };
-    }
-  }
-  _matchEventsCache = { byKey, loadedAt: Date.now() };
-  console.info(`[events] yüklendi: ${all.length} finished maç (lineup dahil)`);
-  // Stats kullanılan sayfa açıksa yeniden render
-  try {
-    const _activePg = document.querySelector('.page.active');
-    if (_activePg && typeof renderStatsPage === 'function' && _activePg.id === 'page-stats') {
-      renderStatsPage();
-    }
-  } catch(e) {}
+  // 🆕 ARTIK TOPLU YÜKLEME YOK. Eskiden 8000 finished maçın events+lineup (devasa jsonb)
+  //   tek seferde belleğe çekiliyordu → mobilde OOM/çökme + sunucuda statement timeout (500).
+  //   Events/lineup artık TEMBEL yüklenir: maç sonucu modalı açılınca o maç tek satır çekilir
+  //   (showMatchResult içindeki lazy fetch). Bu fonksiyon yalnızca boş cache'i garanti eder.
+  if (!_matchEventsCache || !_matchEventsCache.byKey) _matchEventsCache = { byKey: {}, loadedAt: Date.now() };
   return _matchEventsCache;
 }
 
@@ -55645,8 +55616,8 @@ async function _loadAllMatchStateFromServer() {
     console.info(`[match_state] yüklendi: ${all.length} maç, ${Object.keys(dayMap).length} gün`);
     _matchStateCache = { dayMap, byKey, loadedAt: Date.now() };
 
-    // 🆕 Stats için events ayrı sorguyla — sadece finished maçlar, daha küçük data
-    _loadFinishedMatchEvents().catch(e => console.warn('[events] yükleme hata:', e));
+    // 🆕 KALDIRILDI: 8000 maçın events+lineup'unu toplu yükleme (OOM/çökme + timeout sebebiydi).
+    //   Events/lineup tembel yüklenir (maç sonucu açılınca tek maç). Boş cache yeterli.
 
     // 🆕 Cache yüklendikten sonra açık olan sayfa lig fikstürü ise otomatik yeniden render.
     //   Race condition'da kullanıcı sayfayı açmış ama cache henüz boş olduğu için "maç yok"
