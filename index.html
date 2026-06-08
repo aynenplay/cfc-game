@@ -48805,7 +48805,7 @@ function ntRenderRoster() {
     const ovrColor = (typeof overallColor === 'function') ? overallColor(_ovr) : '#ffd600';
     const dataPos = POSGRP[p.pos] || p.pos;
     const posCls = (typeof posClass === 'function') ? posClass(p.pos) : '';
-    const posLbl = (typeof posLabel === 'function') ? posLabel(p.pos) : p.pos;
+    const posLbl = (typeof subPosOf === 'function') ? subPosOf(p) : ((typeof posLabel === 'function') ? posLabel(p.pos) : p.pos);
 
     // Rozet: USER → KAPTAN, diğerleri → Bot
     const badge = p.isUser
@@ -62426,6 +62426,7 @@ function computePlayerStats(countryCode, tierIdx) {
     players.push({
       name: playerName,
       pos: s.pos || '',
+      subPos: s.subPos || null,
       teamName,
       teamShort: team.short || (teamName || '').slice(0, 3).toUpperCase(),
       teamBg: team.bg || 'rgba(255,255,255,.08)',
@@ -64193,7 +64194,7 @@ function trn2BuildLeadersHtml(trnKey, season) {
       <div class="lst-rank ${_rankClass(i+1)}" style="font-size:13px;width:18px">${i+1}</div>
       ${inlineBadge({tag:'div', cls:'lst-team-logo lst-team-logo-sm', name:p.teamName, bg:p.teamBg, tc:p.teamTc, short:p.teamShort})}
       <div class="lst-info-col">
-        <div class="lst-pname ${p.isUser?'user-mark':''}" style="font-size:11px"><span class="lst-pos-pill ${posCls}">${_posLabel3(p.pos)}</span>${p.name}</div>
+        <div class="lst-pname ${p.isUser?'user-mark':''}" style="font-size:11px"><span class="lst-pos-pill ${posCls}">${(typeof subPosOf==='function')?subPosOf(p):_posLabel3(p.pos)}</span>${p.name}</div>
         <div class="lst-psub" style="font-size:8px">${p.flag} ${p.teamName}</div>
       </div>
       <div class="lst-stat-val ${i<3?'gold':''}" style="font-size:15px;min-width:28px">${val}</div>
@@ -64294,7 +64295,7 @@ function trn2BuildStatHtml(trnKey, season, statType) {
       <div class="lst-rank ${_rankClass(i+1)}" style="font-size:13px;width:22px">${i+1}</div>
       ${inlineBadge({tag:'div', cls:'lst-team-logo lst-team-logo-md', name:p.teamName, bg:p.teamBg, tc:p.teamTc, short:p.teamShort})}
       <div class="lst-info-col">
-        <div class="lst-pname ${p.isUser?'user-mark':''}" style="font-size:12px"><span class="lst-pos-pill ${posCls}">${_posLabel3(p.pos)}</span>${p.name}</div>
+        <div class="lst-pname ${p.isUser?'user-mark':''}" style="font-size:12px"><span class="lst-pos-pill ${posCls}">${(typeof subPosOf==='function')?subPosOf(p):_posLabel3(p.pos)}</span>${p.name}</div>
         <div class="lst-psub" style="font-size:9px">${p.flag} ${p.teamName}</div>
       </div>
       <div class="lst-stat-val ${i<3?'gold':''}" style="font-size:16px;min-width:32px">${val}</div>
@@ -73787,6 +73788,7 @@ function _calcPlayerStatsFromCache(teamFilter) {
         matches: p.matchesPlayed || 0,
         ratingSum: (p.avgMatchRating || 0) * (p.matchRatingsCount || 0),
         pos: p.pos || 'MID',
+        subPos: p.subPos || p.sub_pos || null,
         userId: p.userId || null,
       };
     });
@@ -74579,7 +74581,7 @@ function rkNumCls(rank){
 // ── Oyuncu satırı ──
 function rkPlayerRow(p, rank, isMe){
   // Pozisyon etiketi: GK/DEF/MID/FWD → Türkçe
-  const posLbl3 = (typeof _posLabel3 === 'function') ? _posLabel3(p.p) : (p.p || '');
+  const posLbl3 = (typeof subPosOf === 'function') ? subPosOf({ subPos: p.subPos, sub_pos: p.subPos, pos: p.p, posGroup: p.p }) : (p.p || '');
   const posCls = (p.p || '').toLowerCase();
   const clickHandler = isMe
     ? `onclick="openPlayerModalSelfFromRanking()"`
@@ -74777,7 +74779,7 @@ async function rkRenderPlayers(){
   let rows=[], ok=false;
   try{
     const { data, error } = await window.sb.from('players')
-      .select('id, user_id, name, pos, country_code, team_name, overall, level, avatar, avatar_id, nation')
+      .select('id, user_id, name, pos, sub_pos, country_code, team_name, overall, level, avatar, avatar_id, nation')
       .order(metric, { ascending:false, nullsFirst:false })
       .order(second, { ascending:false, nullsFirst:false })
       .limit(50);
@@ -74802,7 +74804,7 @@ function _rkMapPlayerRow(r){
   const myUid=(window.authUser&&authUser.id)||null;
   return {
     n:r.name, f:v.flag, c:r.team_name || 'Serbest',
-    p:r.pos, o:r.overall||10, lv:r.level||0,
+    p:r.pos, subPos:r.sub_pos||null, o:r.overall||10, lv:r.level||0,
     av:r.avatar || '🧑', avatar_id:r.avatar_id || null,
     cc:r.country_code, teamName:r.team_name,
     teamBg:v.bg, teamTc:v.tc, teamShort:v.short,
@@ -74869,7 +74871,7 @@ async function _rkSearchPlayersServer(rawQ){
   let rows=[];
   try{
     const { data } = await window.sb.from('players')
-      .select('id, user_id, name, pos, country_code, team_name, overall, level, avatar, avatar_id, nation')
+      .select('id, user_id, name, pos, sub_pos, country_code, team_name, overall, level, avatar, avatar_id, nation')
       .ilike('name', '%'+safe+'%')
       .order(metric,{ascending:false,nullsFirst:false}).order(second,{ascending:false,nullsFirst:false})
       .limit(60);
