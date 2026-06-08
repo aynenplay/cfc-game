@@ -36753,6 +36753,51 @@ function showMatchResult() {
 
   // Overlay'i göster
   overlay.classList.add('show');
+
+  // 🆕 YARIŞ DÜZELTMESİ: Edge'in lineup reytingi henüz gelmemişse, gelene kadar arka planda
+  //   çekip ANINDA uygula + ekranı tazele (canlı tahmin asla takılı kalmasın).
+  try {
+    const _lrChk = (typeof _liveMatchCache === 'object' && _liveMatchCache && MS && MS.match_key) ? _liveMatchCache[MS.match_key] : null;
+    const _hasEdge = (lu) => { const a = (lu && Array.isArray(lu.players)) ? lu.players : (Array.isArray(lu) ? lu : []); return a.some(p => p && typeof p.matchRating === 'number'); };
+    const _edgeReady = _lrChk && (_hasEdge(_lrChk.home_lineup) || _hasEdge(_lrChk.away_lineup));
+    if (!_edgeReady && !window._matchEndRatingRetry) {
+      window._matchEndRatingRetry = true;
+      _ensureEdgeMatchRatings(0);
+    } else if (_edgeReady) {
+      window._matchEndRatingRetry = false;
+    }
+  } catch(e) {}
+}
+
+// 🆕 Edge maç reytingi gelene kadar tekrar dene; gelince showMatchResult'ı yeniden çalıştırıp
+//   uygula + KADROLAR'ı tazele. Overlay kapanınca veya ~30sn sonra durur.
+async function _ensureEdgeMatchRatings(attempt) {
+  attempt = attempt || 0;
+  try {
+    const ov = document.getElementById('match-result-overlay');
+    if (!ov || !ov.classList.contains('show')) { window._matchEndRatingRetry = false; return; }
+    if (typeof MS === 'undefined' || !MS || !MS.match_key) { window._matchEndRatingRetry = false; return; }
+    const _hasEdge = (lu) => { const a = (lu && Array.isArray(lu.players)) ? lu.players : (Array.isArray(lu) ? lu : []); return a.some(p => p && typeof p.matchRating === 'number'); };
+    if (window.sb) {
+      try {
+        const { data } = await window.sb.from('match_state')
+          .select('match_key,home_lineup,away_lineup').eq('match_key', MS.match_key).maybeSingle();
+        if (data) {
+          if (typeof _liveMatchCache !== 'object' || !_liveMatchCache) window._liveMatchCache = {};
+          _liveMatchCache[MS.match_key] = { ...(_liveMatchCache[MS.match_key] || {}), home_lineup: data.home_lineup, away_lineup: data.away_lineup };
+        }
+      } catch(e) {}
+    }
+    const lr = (typeof _liveMatchCache === 'object' && _liveMatchCache) ? _liveMatchCache[MS.match_key] : null;
+    if (lr && (_hasEdge(lr.home_lineup) || _hasEdge(lr.away_lineup))) {
+      window._matchEndRatingRetry = false;               // showMatchResult yeniden retry başlatmasın
+      try { if (typeof showMatchResult === 'function') showMatchResult(); } catch(e) {}
+      try { if (typeof renderLineup === 'function') renderLineup(); } catch(e) {}
+      return;
+    }
+  } catch(e) {}
+  if (attempt < 12) { setTimeout(() => _ensureEdgeMatchRatings(attempt + 1), 2500); }
+  else { window._matchEndRatingRetry = false; }
 }
 
 function closeMatchResultOverlay() {
