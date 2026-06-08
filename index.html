@@ -74517,7 +74517,7 @@ let _rkLastStatRefresh = 0;
 //   _cftDb yerinde yamanır, world_state yeniden yüklenir. throttle 8sn (force ile atlanır).
 async function _rkRefreshStats(force) {
   const now = Date.now();
-  if (!force && (now - _rkLastStatRefresh) < 8000) return false;
+  if (!force && (now - _rkLastStatRefresh) < 60000) return false; // 🆕 8sn→60sn: her sayfa/sekme geçişinde tüm takım taraması+world_state yüklemesi yapma
   _rkLastStatRefresh = now;
   if (!window.sb) return false;
   try {
@@ -75062,6 +75062,44 @@ function _rkSearchListFor(tab){
   return list;
 }
 
+// 🆕 Takım araması — SUNUCUDA ilike (yerel tüm-takım taraması + calculateTeamValue fetch fırtınası YOK).
+//    İlk 50 dışındaki takımlar da GERÇEK değerle görünür (team_ovr/team_points/market_value).
+let _rkTeamSearchSeq=0;
+async function _rkSearchTeamsServer(rawQ){
+  const el=document.getElementById('rkTeamsList');
+  if(!el || !window.sb) return;
+  const seq=++_rkTeamSearchSeq;
+  el.innerHTML='<div class="lst-empty"><div class="lst-empty-icon">⏳</div>Aranıyor…</div>';
+  const col=(_rkTeamMode==='market')?'market_value':(_rkTeamMode==='coef'?'team_points':'team_ovr');
+  const safe=String(rawQ||'').replace(/[%_\\]/g,'');
+  let rows=[];
+  try{
+    const { data } = await window.sb.from('teams')
+      .select('country_code, name, team_ovr, team_points, market_value')
+      .ilike('name','%'+safe+'%')
+      .order(col,{ascending:false,nullsFirst:false})
+      .limit(60);
+    if(Array.isArray(data)) rows=data;
+  }catch(e){ console.warn('[rkSearchTeams]', e); }
+  if(seq!==_rkTeamSearchSeq) return;            // daha yeni arama başladı
+  if(!_rkSearchActive || _rkActiveTab!=='teams') return;
+  const myCC=(typeof _userTeam!=='undefined'&&_userTeam)?_userTeam.countryCode:null;
+  const myName=(typeof _userTeam!=='undefined'&&_userTeam)?_userTeam.teamName:null;
+  const mapped=rows.map((r,i)=>{
+    const v=_rkTeamVisuals(r.country_code, r.name);
+    return { n:r.name, countryCode:r.country_code, f:v.flag, cn:v.countryName, lg:v.leagueName,
+      o:Math.round(Number(r.team_ovr)||0), cf:Number(r.team_points)||0, mv:Number(r.market_value)||0,
+      bg:v.bg, tc:v.tc, short:v.short,
+      _isMe: !!(myCC && myName && r.country_code===myCC && r.name===myName), _rank:i+1 };
+  });
+  // Kendi takımın market = kadro toplamı (hero ile birebir)
+  try { const _me=mapped.find(t=>t._isMe); if(_me && typeof calculateTeamValue==='function'){ const _v=calculateTeamValue({name:_me.n,countryCode:_me.countryCode}); if(_v>0) _me.mv=_v; } } catch(e){}
+  el.innerHTML = mapped.length
+    ? '<div class="lst-list">'+mapped.map(t=>rkTeamRow(t,t._rank,!!t._isMe)).join('')+'</div>'
+    : '<div class="lst-empty"><div class="lst-empty-icon">🔍</div>Eşleşen sonuç yok</div>';
+  const me2=document.getElementById('rkTeamMe'); if(me2) me2.innerHTML='';
+}
+
 function rkSearchOnInput(){
   const inp = document.getElementById('rkSearchInput');
   if(!inp) return;
@@ -75074,6 +75112,7 @@ function rkSearchOnInput(){
   _rkSearchActive = true;
   // Oyuncu araması sunucuda; diğerleri yerel (CFT_DB / world_state)
   if(_rkActiveTab==='players'){ _rkSearchPlayersServer(q); return; }
+  if(_rkActiveTab==='teams'){ _rkSearchTeamsServer(q); return; }
   rkRenderSearch();
 }
 
@@ -75084,6 +75123,12 @@ function rkRenderSearch(){
     const inp=document.getElementById('rkSearchInput');
     const q=(inp?inp.value:'').trim();
     if(q.length>=3) _rkSearchPlayersServer(_rkLower(q));
+    return;
+  }
+  if(tab==='teams'){
+    const inp=document.getElementById('rkSearchInput');
+    const q=(inp?inp.value:'').trim();
+    if(q.length>=3) _rkSearchTeamsServer(_rkLower(q));
     return;
   }
   const list = _rkSearchListFor(tab);
