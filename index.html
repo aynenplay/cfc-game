@@ -25914,7 +25914,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-08-skor-home';
+const APP_BUILD = '2026-06-08-gercek-dk-skor';
 
 (function _cacheBustCheck() {
   try {
@@ -55708,8 +55708,11 @@ function _resGetMatchesForDate(targetDate) {
     if (isNaN(t) || t < targetMidnight || t >= dayEndMs) continue;
 
     // Kullanıcı takımıyla ilgili filter YOK — Sonuçlar sayfası tüm dünyayı gösterir.
-    const isFinished = ms.status === 'finished';
-    const isLive = ms.status === 'running';
+    // 🆕 90'a ulaşıp DB'de hâlâ 'running' kalan (finish tick'i takılan) maçları BİTMİŞ say:
+    //    canlı sekmesinden düşer, skoruyla 'sonuç' olarak görünür.
+    const _reached90 = (ms.sim_minute || 0) >= 90;
+    const isFinished = (ms.status === 'finished') || (ms.status === 'running' && _reached90);
+    const isLive = (ms.status === 'running') && !_reached90;
     const isFriendly = ms.tournament_key === 'friendly';
     // 🆕 BUG FIX: cache mapping camelCase (leagueName) kullanır, ms.league_name undefined döner.
     //   Eski snake_case fallback'i tüm lig maçlarını 'Maç' yapıyordu → filter eşleşmiyordu.
@@ -55749,7 +55752,7 @@ function _resGetMatchesForDate(targetDate) {
       as: (isFinished || isLive) ? (ms.away_score ?? null) : null,
       playedAt: isFinished ? t : null,
       isLive: isLive,
-      liveMinute: isLive ? _computeLiveSimMinute(ms) : null,  // 🆕 started_at'ten akıcı dakika (7sn=1 dk)
+      liveMinute: isLive ? (ms.sim_minute ?? 0) : null,  // 🆕 motorun GERÇEK dakikası
       cacheKey: ms.matchKey,
       _raw: ms
     });
@@ -56342,13 +56345,11 @@ async function _resUpdateLiveCells() {
     // 🆕 Dakika = SUNUCU sim_minute (maç ekranı/motorla TUTARLI — listeyle maç arasında sapma olmasın).
     //    Edge her ~7sn tick'lediğinde sim_minute +1 → liste de 7sn'de bir dakika ilerler.
     //    Devre arası (45. dk molası) → "HT".
-    const _isHT = (() => { if (!r.started_at) return false;
-      const _el = Date.now() - new Date(r.started_at).getTime();
-      const _FH = 45*7000, _HE = _FH + 100000; return _el >= _FH && _el < _HE; })();
+    // 🆕 DAKİKA = motorun yazdığı GERÇEK sim_minute (uydurma yok). 45 = devre arası → HT.
+    const _sm = r.sim_minute ?? 0;
     const tmEl = document.getElementById('res-tm-' + idx);
-    const _liveMin = (typeof _computeLiveSimMinute === 'function') ? _computeLiveSimMinute(r) : (r.sim_minute ?? 0);
-    if (tmEl) tmEl.innerHTML = _isHT ? `<div class="res-live-dot"></div>HT`
-                                     : `<div class="res-live-dot"></div>${_liveMin}'`;
+    if (tmEl) tmEl.innerHTML = (_sm === 45) ? `<div class="res-live-dot"></div>HT`
+                                            : `<div class="res-live-dot"></div>${_sm}'`;
   }
   if (anyFinished) renderResultsPage();
 }
