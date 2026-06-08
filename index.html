@@ -42981,7 +42981,7 @@ function applyUserTeamUI() {
       }
       const mvEl = document.getElementById('teamHeroMarket');
       if (mvEl && typeof calculateTeamValue === 'function') {
-        const _mv = _teamStoredMV(_userTeam.countryCode, _userTeam.teamName); // 🆕 teams.market_value (sıralama ile AYNI kaynak)
+        const _mv = calculateTeamValue({ name: _userTeam.teamName, countryCode: _userTeam.countryCode }); // 🆕 kadrodaki oyuncuların gösterilen değerlerinin TOPLAMI (tek doğru)
         mvEl.textContent = (typeof _carFmtEUR === 'function') ? _carFmtEUR(_mv) : (_mv + ' €');
       }
     } catch(e) {}
@@ -51673,7 +51673,7 @@ function guestRenderHeader() {
     if (powerEl) powerEl.textContent = String(_teamPowerFromPlayers(v.countryCode, v.teamRef.name, v.teamRef.rank || 1));
     const mvEl = document.getElementById('teamHeroMarket');
     if (mvEl) {
-      let _mv = _teamStoredMV(v.countryCode, v.teamRef.name); // 🆕 teams.market_value (sıralama ile AYNI kaynak)
+      let _mv = calculateTeamValue({ name: v.teamRef.name, countryCode: v.countryCode }); // 🆕 kadrodaki oyuncuların gösterilen değerlerinin TOPLAMI (tek doğru)
       mvEl.textContent = (typeof _carFmtEUR === 'function') ? _carFmtEUR(_mv) : (_mv + ' €');
     }
     if (playersEl) playersEl.textContent = String(playerCount);
@@ -74709,6 +74709,15 @@ async function rkRenderTeams(){
       _isMe: !!(myCC && myName && r.country_code===myCC && r.name===myName),
     };
   });
+  // 🆕 Kendi takımın: gösterilen piyasa değeri = kadrodaki oyuncuların TOPLAMI (hero ile birebir).
+  //    Botlar zaten teams.market_value = oyuncu toplamı; tek istisna kullanıcı takımı (oyuncusu skills/abilities farkı).
+  try {
+    const _me = mapped.find(t=>t._isMe);
+    if(_me && typeof calculateTeamValue==='function'){
+      const _v = calculateTeamValue({ name:_me.n, countryCode:_me.countryCode });
+      if(_v>0) _me.mv = _v;
+    }
+  } catch(e){}
   window.RK_TOP_TEAMS = mapped;
   const html = '<div class="lst-list">' + mapped.map((t,i)=>rkTeamRow(t,i+1,!!t._isMe)).join('') + '</div>';
   list.innerHTML = html;
@@ -74728,6 +74737,7 @@ async function _rkRenderTeamMe(col, top50){
     const { data:mt } = await window.sb.from('teams')
       .select('team_ovr, team_points, market_value').eq('country_code',cc).eq('name',tn).maybeSingle();
     if(mt){ myOvr=Math.round(Number(mt.team_ovr)||0); myCf=Number(mt.team_points)||0; myMv=Number(mt.market_value)||0; }
+    try { if(typeof calculateTeamValue==="function"){ const _v=calculateTeamValue({name:tn, countryCode:cc}); if(_v>0) myMv=_v; } } catch(e){} // 🆕 kendi takımın: oyuncu toplamı (hero ile aynı)
     const myVal = (col==='market_value')?myMv:(col==='team_points'?myCf:myOvr);
     const { count } = await window.sb.from('teams').select('name',{count:'exact',head:true}).gt(col, myVal);
     if(typeof count==='number') myRank=count+1;
