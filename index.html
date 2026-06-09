@@ -25656,7 +25656,7 @@ body.drawer-open{overflow:hidden}
   <div class="page" id="page-rankings">
     <div class="hm-title-box">
       <div class="hm-title"><span>SIRALAMALAR</span></div>
-      <button class="cal-close-btn" onclick="showPage('home', findNavBtn ? findNavBtn('home') : null)" title="Ana sayfaya dön" aria-label="Kapat">
+      <button class="cal-close-btn" onclick="rkCloseFromSummary()" title="Ana sayfaya dön" aria-label="Kapat">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="6" y1="6" x2="18" y2="18"/>
           <line x1="18" y1="6" x2="6" y2="18"/>
@@ -25934,7 +25934,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-09-siralama-ozeti-4';
+const APP_BUILD = '2026-06-09-siralama-ozeti-5';
 
 (function _cacheBustCheck() {
   try {
@@ -39105,6 +39105,7 @@ function showPage(name,btn){
     // Canlı skor güncellemesi _liveMatchStartPolling ile sağlanır (aşağıda, skor-only).
   }
   if(name==='rankings') {
+    window._rkOpenedFromHome = !!window._rkFromSummaryPending; window._rkFromSummaryPending = false;
     _rkActiveTab = 'players';
     if(typeof rkRenderPlayers==='function') rkRenderPlayers();
     // 🆕 force + rerender KALDIRILDI: her açılışta tüm teams tablosunu tarayıp yeniden render etmek
@@ -55261,9 +55262,23 @@ async function renderHomeRankingSummary(){
     +'</div>';
 }
 
+// 🆕 Sıralama sayfasını kapat: ÖZETTEN açıldıysa ana sayfada bırakılan yere dön, değilse normal (en üst)
+function rkCloseFromSummary(){
+  const fromHome = !!window._rkOpenedFromHome;
+  const y = window._rkReturnY || 0;
+  window._rkOpenedFromHome = false;
+  if(typeof showPage==='function') showPage('home', (typeof findNavBtn==='function')?findNavBtn('home'):null);
+  if(fromHome && y>0){
+    const restore=()=>{ try{ window.scrollTo(0,y); document.documentElement.scrollTop=y; if(document.body) document.body.scrollTop=y; const hp=document.getElementById('page-home'); if(hp) hp.scrollTop=y; }catch(e){} };
+    if(typeof requestAnimationFrame==='function') requestAnimationFrame(restore);
+    setTimeout(restore,80); setTimeout(restore,220);
+  }
+}
+
 // 🆕 Sıralamalar sayfası + ilgili sekme (yeşil ok)
 function goToRankingTab(tab){
   try{
+    try{ const hp=document.getElementById('page-home'); window._rkReturnY = window.scrollY || document.documentElement.scrollTop || (document.body&&document.body.scrollTop) || (hp&&hp.scrollTop) || 0; window._rkFromSummaryPending = true; }catch(e){}
     if(typeof showPage==='function'){
       const navBtn=(typeof findNavBtn==='function')?findNavBtn('rankings'):null;
       showPage('rankings', navBtn);
