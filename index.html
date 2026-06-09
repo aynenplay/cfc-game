@@ -25934,7 +25934,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-09-katilim-akis-3';
+const APP_BUILD = '2026-06-09-katilim-sozlesme-4';
 
 (function _cacheBustCheck() {
   try {
@@ -28930,7 +28930,7 @@ function signUserContract(cc, tn, terms, captainName) {
     durationSeasons: Math.max(1, Math.min(5, Number(terms.durationSeasons)||1)),  // 🆕 1-5 sezon
     endsSeason: info.season + (Math.max(1, Math.min(5, Number(terms.durationSeasons)||1)) - 1),
     capName: captainName || 'Kaptan',
-    canLeaveFreely: false,
+    canLeaveFreely: !!terms.canLeaveFreely,   // 🆕 sözleşmesiz → serbest çıkış (yine maaş alır)
     unpaidInstallments: 0,
     totalPaidInstallments: 0,
     lastPayKey: null,                  // Edge cron idempotency
@@ -42881,7 +42881,13 @@ async function _joinDecide(cc, tn, rating){
         if(!(r && r.ok)){ if(typeof showJoinToast==='function') showJoinToast('⚠️ Katılınamadı, tekrar dene.'); }
       });
     } else {
-      if(typeof joinTeamDirect==='function') joinTeamDirect(cc, tn);
+      // sözleşmesiz → kontratsız serbest çıkış AMA sistem maaşı alsın diye canLeaveFreely:true kontrat kurulur
+      const _me = (typeof ROSTER_DATA!=='undefined'&&Array.isArray(ROSTER_DATA)) ? ROSTER_DATA.find(p=>p&&p.role==='user'&&!p.isBot) : null;
+      const seasonSalary = (typeof getSystemPlayerSalary==='function') ? getSystemPlayerSalary(_me||10) : 0;
+      const capName = (typeof getTeamRealCaptainName==='function') ? getTeamRealCaptainName(cc,tn) : 'Kaptan';
+      const r = (typeof signUserContract==='function') ? signUserContract(cc, tn, { seasonSalary, signingDiamond:0, durationSeasons:1, canLeaveFreely:true }, capName) : {ok:false};
+      if(r && r.ok){ if(typeof showJoinToast==='function') showJoinToast(`✅ ${flag} ${tn} takımına katıldın (sözleşmesiz — istediğinde ayrılabilirsin).`); }
+      else if(typeof joinTeamDirect==='function') joinTeamDirect(cc, tn);
     }
   } else {
     if(typeof hasJoinRequestFor==='function' && hasJoinRequestFor(cc,tn)){ if(typeof showJoinToast==='function') showJoinToast(`📩 ${flag} ${tn} takımına zaten istek gönderdin (beklemede).`); return; }
