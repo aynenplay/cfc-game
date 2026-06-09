@@ -7345,6 +7345,16 @@ body.team-captain .pr-mv.is-custom:hover{color:#ffe082}
   line-height:1;
 }
 .hm-race-row.rank-1 .hm-race-score{color:#ffd54f}
+/* 🆕 SIRALAMA ÖZETİ — 4 kutu renk varyantı + bayrak hücresi */
+.hm-race-col.rksum-players::before{background:linear-gradient(90deg,#00e676,#00b357)}
+.hm-race-col.rksum-teams::before{background:linear-gradient(90deg,#42a5f5,#1e88e5)}
+.hm-race-col.rksum-national::before{background:linear-gradient(90deg,#ef5350,#c62828)}
+.hm-race-col.rksum-ligler::before{background:linear-gradient(90deg,#ffd54f,#ffa726)}
+.hm-race-col.rksum-players .hm-race-col-title{color:#00e676}
+.hm-race-col.rksum-teams .hm-race-col-title{color:#42a5f5}
+.hm-race-col.rksum-national .hm-race-col-title{color:#ef5350}
+.hm-race-col.rksum-ligler .hm-race-col-title{color:#ffd54f}
+.hm-race-flag{width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;line-height:1}
 
 /* Boş state */
 .hm-race-empty{
@@ -22968,6 +22978,14 @@ body.drawer-open{overflow:hidden}
     <div class="hm-feed" id="hmEventFeed">
       <!-- JS ile dinamik dolar -->
     </div>
+
+    <!-- 6) SIRALAMA ÖZETİ -->
+    <div class="hm-title-box">
+      <div class="hm-title">SIRALAMA <span>ÖZETİ</span></div>
+    </div>
+    <div class="hm-feed" id="hmRankSummary">
+      <!-- JS ile dinamik dolar -->
+    </div>
   </div>
   <!-- /HOME -->
 
@@ -25918,7 +25936,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-08-android-flicker-3';
+const APP_BUILD = '2026-06-09-siralama-ozeti-1';
 
 (function _cacheBustCheck() {
   try {
@@ -53494,6 +53512,7 @@ function updateHero() {
   renderHomeSmartAction();
   renderHomeQuickAccessBadges();
   renderHomeEventFeed();
+  if(typeof renderHomeRankingSummary==='function') renderHomeRankingSummary();
   renderHomeNextMatch();
   // (bildirim kontrolleri yukarı taşındı — sayfadan bağımsız çalışır)
 
@@ -55192,6 +55211,68 @@ function hmOpenNextMatch() {
       matchKey: m.matchKey
     });
   }
+}
+
+// \U0001F195 SIRALAMA ÖZETİ — ana sayfada 4 kutu (oyuncu/takım/milli/ligler) ilk 5.
+//   Sıralama tablolarıyla AYNI kaynaktan okunur (yeniden hesap YOK); ana sayfa açılınca güncel.
+async function renderHomeRankingSummary(){
+  const wrap=document.getElementById('hmRankSummary');
+  if(!wrap) return;
+  const ARROW='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>';
+  const esc=(x)=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const rowLogo=(r,bg,tc,short,name,score)=>`<div class="hm-race-row rank-${r}"><span class="hm-race-rank">${r}</span><span class="hm-race-team-logo" style="background:${bg};color:${tc}">${esc(short)}</span><span class="hm-race-name">${esc(name)}</span><span class="hm-race-score">${esc(score)}</span></div>`;
+  const rowFlag=(r,flag,name,score)=>`<div class="hm-race-row rank-${r}"><span class="hm-race-rank">${r}</span><span class="hm-race-flag">${flag||'\U0001F3F3️'}</span><span class="hm-race-name">${esc(name)}</span><span class="hm-race-score">${esc(score)}</span></div>`;
+  const col=(cls,icon,label,tab,rows)=>`<div class="hm-race-col ${cls}"><div class="hm-race-col-title"><span class="hm-race-col-icon">${icon}</span><span class="hm-race-col-label">${label}</span><button class="hm-race-col-go" onclick="event.stopPropagation();goToRankingTab('${tab}')" title="Sıralamalar — ${label}" aria-label="${label} sıralaması">${ARROW}</button></div><div class="hm-race-list">${rows||'<div class="hm-race-empty" style="padding:14px 6px">Veri yok</div>'}</div></div>`;
+
+  // Milli + Ligler: yerel hesap (sıralama ile AYNI kaynak: world_state / teams)
+  let natRows='',ligRows='';
+  try{ const nat=(typeof rkCalcNational==='function')?rkCalcNational().slice(0,5):[];
+    natRows=nat.map((c,i)=>rowFlag(i+1,c.f,c.n,(Number(c.total)||0).toFixed(1))).join(''); }catch(e){}
+  try{ const lig=(typeof rkCalcCountries==='function')?rkCalcCountries().slice(0,5):[];
+    ligRows=lig.map((c,i)=>rowFlag(i+1,c.f,c.n,(Number(c.total)||0).toFixed(1))).join(''); }catch(e){}
+
+  // Oyuncular + Takımlar: sıralamayla AYNI sunucu sorgusu, sadece ilk 5
+  let plRows='',tmRows='';
+  if(window.sb){
+    try{
+      const {data}=await window.sb.from('players')
+        .select('name, country_code, team_name, overall, level')
+        .order('overall',{ascending:false,nullsFirst:false})
+        .order('level',{ascending:false,nullsFirst:false})
+        .limit(5);
+      if(Array.isArray(data)) plRows=data.map((p,i)=>{const v=_rkTeamVisuals(p.country_code,p.team_name);return rowLogo(i+1,v.bg,v.tc,v.short,p.name,Math.round(Number(p.overall)||0));}).join('');
+    }catch(e){}
+    try{
+      const {data}=await window.sb.from('teams')
+        .select('country_code, name, team_points')
+        .order('team_points',{ascending:false,nullsFirst:false})
+        .limit(5);
+      if(Array.isArray(data)) tmRows=data.map((t,i)=>{const v=_rkTeamVisuals(t.country_code,t.name);return rowLogo(i+1,v.bg,v.tc,v.short,t.name,(Number(t.team_points)||0).toFixed(1));}).join('');
+    }catch(e){}
+  }
+
+  wrap.innerHTML='<div class="hm-race-preview">'
+    +col('rksum-players','\U0001F464','OYUNCULAR','players',plRows)
+    +col('rksum-teams','\U0001F6E1️','TAKIMLAR','teams',tmRows)
+    +col('rksum-national','\U0001F3C6','MİLLİ TAKIMLAR','national',natRows)
+    +col('rksum-ligler','\U0001F3DF️','LİGLER','countries',ligRows)
+    +'</div>';
+}
+
+// \U0001F195 Sıralamalar sayfası + ilgili sekme (yeşil ok)
+function goToRankingTab(tab){
+  try{
+    if(typeof showPage==='function'){
+      const navBtn=(typeof findNavBtn==='function')?findNavBtn('rankings'):null;
+      showPage('rankings', navBtn);
+    }
+    setTimeout(()=>{
+      try{ if(tab==='teams' && typeof _rkTeamMode!=='undefined') _rkTeamMode='coef'; }catch(e){}
+      const idx={players:0,teams:1,national:2,countries:3}[tab];
+      const btn=document.querySelectorAll('.rk-tab')[idx]||null;
+      if(typeof rkTab==='function') rkTab(tab, btn);
+    },60);
+  }catch(e){}
 }
 
 function renderHomeEventFeed(forceRefresh) {
