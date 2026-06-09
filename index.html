@@ -25934,7 +25934,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-09-siralama-ozeti-6';
+const APP_BUILD = '2026-06-09-kaptan-devri-1';
 
 (function _cacheBustCheck() {
   try {
@@ -41597,6 +41597,37 @@ function rosterPromoteVice(playerNum){
   rosterToast(`⭐ ${p.name} yardımcı kaptan oldu.`, 'ok');
 }
 
+// 🆕 Kaptanlığı başka bir GERÇEK oyuncuya devret — eski kaptan ÜYE olur (atomik RPC)
+function rosterMakeCaptain(playerNum){
+  if(typeof _viewingTeam !== 'undefined' && _viewingTeam) return;
+  if(!_userTeam || _userTeam.role !== 'captain'){ rosterToast('🔒 Sadece kaptan yetki devredebilir.', 'err'); return; }
+  const p = ROSTER_DATA.find(p => p.num === playerNum);
+  if(!p){ rosterToast('Oyuncu bulunamadı.', 'err'); return; }
+  if(!p.userId || p.isBot){ rosterToast('Sadece gerçek bir oyuncu kaptan yapılabilir.', 'err'); return; }
+  if(p.role === 'captain'){ rosterToast('Bu oyuncu zaten kaptan.', 'err'); return; }
+  const _do = async () => {
+    if(!(window.sb && authUser && authUser.id)){ rosterToast('⚠️ Bağlantı yok.', 'err'); return; }
+    try{
+      const { data, error } = await window.sb.rpc('team_transfer_captaincy', {
+        p_cc: _userTeam.countryCode, p_name: _userTeam.teamName, p_target_user_id: p.userId
+      });
+      const ok = data && (data.ok === true || data === true);
+      if(error || !ok){ rosterToast('Devir başarısız: ' + ((error&&error.message) || (data&&data.error) || 'bilinmeyen'), 'err'); return; }
+      p.role = 'captain';
+      const meRow = ROSTER_DATA.find(x => x.role === 'user'); if(meRow) meRow.role = 'member';
+      _userTeam.role = 'member';
+      if(typeof userTeamSave === 'function') userTeamSave();
+      if(typeof renderRoster === 'function') renderRoster(rosterCurrentFilter || 'all');
+      if(typeof applyUserTeamUI === 'function') applyUserTeamUI();
+      if(typeof closePlayerModal === 'function') closePlayerModal();
+      rosterToast(`👑 ${p.name} artık kaptan. Sen üye oldun.`, 'ok');
+    }catch(e){ rosterToast('Hata: ' + e, 'err'); }
+  };
+  if(typeof cftConfirm === 'function'){
+    cftConfirm({ title:'Kaptanlığı Devret', message:`${p.name} kişisini KAPTAN yapacaksın. Yetki ona geçecek, sen normal üye olacaksın. Onaylıyor musun?`, confirmText:'Kaptan Yap', danger:true, onConfirm:_do });
+  } else { _do(); }
+}
+
 // Yardımcılıktan çıkar
 function rosterDemoteVice(playerNum){
   // Ziyaretçi modunda çalışmaz
@@ -44818,9 +44849,12 @@ async function openPlayerModal(player, ctx) {
       }
       const sellBtn = `<button class="pm-btn pm-btn-sell" onclick="tfListPlayerDirect(${playerNum})">Satışa Çıkar</button>`;
       const kickBtn = `<button class="pm-btn pm-btn-kick" onclick="rosterKickPlayer(${playerNum})">Takımdan Kov</button>`;
+      // 🆕 Kaptan Yap — yalnızca GERÇEK bir oyuncuya (bot değil) devredilir
+      const _targetReal = !!(player && player.userId && !player.isBot);
+      const makeCapBtn = _targetReal ? `<button class="pm-btn pm-btn-promote" onclick="rosterMakeCaptain(${playerNum})">👑 Kaptan Yap</button>` : '';
       const captainBtns = `<div class="pm-captain-actions">
         <div class="pm-cap-title">Kaptan Yetkileri <span class="pm-cap-vice-count">(${viceCount}/3 yardımcı)</span></div>
-        <div class="pm-cap-grid">${primaryBtn}${sellBtn}${kickBtn}</div>
+        <div class="pm-cap-grid">${makeCapBtn}${primaryBtn}${sellBtn}${kickBtn}</div>
       </div>`;
       actionsHtml += captainBtns;
     }
