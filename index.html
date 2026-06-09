@@ -25934,7 +25934,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-09-serbest-avatar-13';
+const APP_BUILD = '2026-06-09-sonuclar-canli-14';
 
 (function _cacheBustCheck() {
   try {
@@ -56318,6 +56318,7 @@ function _resRenderMatches(matches) {
   window._resCurrentMatches = {};
   window._resClickableMatches = [];
   window._resLiveKeys = [];
+  window._resAllKeys = [];
 
   // 🆕 Canlı maç tespiti — kickoff geçti, oyun motoruyla aynı kompakt süre
   // Oyun motoru: 5dk ilk yarı + 100s devre arası + 5dk ikinci yarı = 700 saniye
@@ -56406,6 +56407,8 @@ function _resRenderMatches(matches) {
         </div>
     `;
     g.matches.forEach(m => {
+      // 🆕 Oynanmamış/canlı maç anahtarları (canlı güncelleyici scheduled→running geçişini yakalasın)
+      try { if (!m.played) { const _mk = m.matchKey || `${m.season || 1}_${m.day || 0}_${m.home}_${m.away}`; window._resAllKeys.push(_mk); } } catch(e){}
       const userClass = m.byUser ? ' user-played' : '';
       let scoreCell, hClass = '', aClass = '', timeStr;
       let liveClass = '';
@@ -56480,10 +56483,10 @@ function _resRenderMatches(matches) {
   listEl.innerHTML = html;
 
   // 🆕 Canlı maç varsa: 7 sn'de bir SADECE skor+dakika hücrelerini güncelle (tam render YOK, CPU dostu).
-  if (window._resLiveKeys && window._resLiveKeys.length) {
+  if (window._resAllKeys && window._resAllKeys.length) {
     if (window._resLiveCellTimer) clearInterval(window._resLiveCellTimer);
     window._resLiveCellTimer = setInterval(_resUpdateLiveCells, 7000);
-    try { _resUpdateLiveCells(); } catch(e){}  // 🆕 hemen bir kez güncelle (7sn bekleme)
+    try { _resUpdateLiveCells(); } catch(e){}  // 🆕 hemen bir kez (scheduled→running geçişini de yakalar)
   } else if (window._resLiveCellTimer) {
     clearInterval(window._resLiveCellTimer);
     window._resLiveCellTimer = null;
@@ -56527,26 +56530,32 @@ async function _resUpdateLiveCells() {
     if (window._resLiveCellTimer) { clearInterval(window._resLiveCellTimer); window._resLiveCellTimer = null; }
     return;
   }
-  const keys = window._resLiveKeys || [];
-  if (!keys.length || !window.sb) return;
+  const liveKeys = window._resLiveKeys || [];
+  const allKeys = window._resAllKeys || [];
+  if (!allKeys.length || !window.sb) return;
   let rows = [];
   try {
     const { data } = await window.sb.from('match_state')
       .select('match_key,home_score,away_score,sim_minute,status,started_at')
-      .in('match_key', keys);
+      .in('match_key', allKeys);
     rows = data || [];
   } catch(e) { return; }
-  let anyFinished = false;
+  const _liveSet = new Set(liveKeys);
+  let anyFinished = false, anyNewLive = false;
   for (const r of rows) {
-    const idx = keys.indexOf(r.match_key);
-    if (idx < 0) continue;
-    if (r.status === 'finished') {
-      anyFinished = true;
-      const e = _matchStateCache && _matchStateCache.byKey && _matchStateCache.byKey[r.match_key];
-      if (e) { e.status = 'finished'; e.home_score = r.home_score; e.away_score = r.away_score; }
+    const _running = (r.status === 'running') && ((r.sim_minute || 0) < 90);
+    const _fin = (r.status === 'finished') || ((r.status === 'running') && ((r.sim_minute || 0) >= 90));
+    // cache'i her durumda tazele → liste yeniden çizilince doğru skor/dakika kalsın
+    try { const _cc = _matchStateCache && _matchStateCache.byKey && _matchStateCache.byKey[r.match_key];
+      if (_cc) { _cc.status = r.status; if (typeof r.sim_minute === 'number') _cc.sim_minute = r.sim_minute; if (r.home_score != null) _cc.home_score = r.home_score; if (r.away_score != null) _cc.away_score = r.away_score; } } catch(e){}
+    if (!_liveSet.has(r.match_key)) {
+      if (_running) anyNewLive = true;   // scheduled→running → listeyi bir kez yeniden çiz
       continue;
     }
-    if (r.status !== 'running') continue;
+    const idx = liveKeys.indexOf(r.match_key);
+    if (idx < 0) continue;
+    if (_fin) { anyFinished = true; continue; }
+    if (!_running) continue;
     // 🆕 cache'i de tazele → liste yeniden çizilince skor/dakika doğru kalsın (eski 0-0'a dönmesin)
     try { const _ce = _matchStateCache && _matchStateCache.byKey && _matchStateCache.byKey[r.match_key];
       if (_ce) { _ce.sim_minute = r.sim_minute; _ce.status = r.status; } } catch(e){}
@@ -56584,7 +56593,7 @@ async function _resUpdateLiveCells() {
     if (tmEl) tmEl.innerHTML = (_sm === 45) ? `<div class="res-live-dot"></div>HT`
                                             : `<div class="res-live-dot"></div>${_sm}'`;
   }
-  if (anyFinished) renderResultsPage();
+  if (anyFinished || anyNewLive) renderResultsPage();
 }
 
 // Tarih değiştir (← / →)
