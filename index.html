@@ -25934,7 +25934,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-09-kaptan-devri-1';
+const APP_BUILD = '2026-06-09-katilim-politika-2';
 
 (function _cacheBustCheck() {
   try {
@@ -28729,7 +28729,7 @@ function canUserLeaveTeam() {
   if (_userTeam.role === 'captain') {
     return {
       allowed: false,
-      reason: '⚠️ Kaptan ayrılamaz.\n\nÖnce takımı sat (Ayarlar > Takımı Sat). Satın alma bedelinin %40\'ını elmas olarak geri alırsın.'
+      reason: '⚠️ Kaptan ayrılamaz.\n\nÖnce bir oyuncunun kartından "👑 Kaptan Yap" ile yetkini devret — üye olduktan sonra (sözleşme kuralına göre) ayrılabilirsin.\n\nAlternatif: Ayarlar > Takımı Sat (satın alma bedelinin %40\'ı elmas iade).'
     };
   }
   const c = _userTeam.contract;
@@ -52551,11 +52551,12 @@ function captainEditJoinReqs() {
     if(typeof showJoinToast === 'function') showJoinToast('⚠️ Bu başkasının takımı.');
     return;
   }
-  if(!_userTeam || _userTeam.role !== 'captain') {
-    if(typeof showJoinToast === 'function') showJoinToast('⚠️ Sadece takım kaptanı şartları belirleyebilir.');
+  if(!_userTeam || (_userTeam.role !== 'captain' && _userTeam.role !== 'vice')) {
+    if(typeof showJoinToast === 'function') showJoinToast('⚠️ Sadece kaptan veya yardımcı kaptan şartları belirleyebilir.');
     return;
   }
   const req = _userTeam.joinRequirements || { minSkill: 0, minLevel: 0 };
+  const _curContract = !!(req.contract);
 
   // Modal HTML oluştur
   let m = document.getElementById('captainReqModal');
@@ -52576,6 +52577,15 @@ function captainEditJoinReqs() {
       <div style="background:rgba(33,150,243,.07);border:1px solid rgba(33,150,243,.25);border-radius:8px;padding:10px;margin-bottom:14px;font-size:11px;color:var(--text2);line-height:1.55">
         💡 Şartları karşılayan oyuncular onaysız direkt katılır. Karşılamayanlar onay isteğini gönderir, sen veya yardımcı kaptanlar onaylar.
       </div>
+      <div style="margin-bottom:14px">
+        <label style="display:block;font-size:11px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px;font-weight:700">📋 Katılım Türü</label>
+        <div style="display:flex;gap:8px">
+          <button type="button" id="capReqCtNo" onclick="_capReqSetContract(false)" style="flex:1;padding:9px;border-radius:8px;border:1px solid ${_curContract?'var(--border)':'var(--accent)'};background:${_curContract?'rgba(255,255,255,.04)':'rgba(0,230,118,.12)'};color:${_curContract?'var(--text2)':'var(--accent)'};font-weight:800;font-size:11px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;letter-spacing:.3px;text-transform:uppercase">Sözleşmesiz</button>
+          <button type="button" id="capReqCtYes" onclick="_capReqSetContract(true)" style="flex:1;padding:9px;border-radius:8px;border:1px solid ${_curContract?'#ffd54f':'var(--border)'};background:${_curContract?'rgba(255,213,79,.12)':'rgba(255,255,255,.04)'};color:${_curContract?'#ffd54f':'var(--text2)'};font-weight:800;font-size:11px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;letter-spacing:.3px;text-transform:uppercase">Sözleşmeli</button>
+        </div>
+        <input type="hidden" id="capReqContract" value="${_curContract?1:0}">
+        <div style="font-size:9px;color:var(--text3);margin-top:5px;line-height:1.5">Sözleşmesiz: oyuncu istediği zaman ayrılır. Sözleşmeli: süre (1-5 sezon) bitene dek ayrılamaz. İkisinde de oyuncu sistem maaşını alır.</div>
+      </div>
       <div style="margin-bottom:12px">
         <label style="display:block;font-size:11px;color:var(--text3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px;font-weight:700">⚡ Minimum Yetenek</label>
         <input type="number" id="capReqMinSkill" min="0" max="99" value="${req.minSkill||0}" style="width:100%;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:16px;font-family:'Barlow',sans-serif;font-weight:600;-webkit-text-size-adjust:100%">
@@ -52595,20 +52605,35 @@ function captainEditJoinReqs() {
   document.body.appendChild(m);
 }
 
+function _capReqSetContract(v){
+  const h=document.getElementById('capReqContract'); if(h) h.value = v?1:0;
+  const no=document.getElementById('capReqCtNo'), yes=document.getElementById('capReqCtYes');
+  if(no){ no.style.borderColor=v?'var(--border)':'var(--accent)'; no.style.background=v?'rgba(255,255,255,.04)':'rgba(0,230,118,.12)'; no.style.color=v?'var(--text2)':'var(--accent)'; }
+  if(yes){ yes.style.borderColor=v?'#ffd54f':'var(--border)'; yes.style.background=v?'rgba(255,213,79,.12)':'rgba(255,255,255,.04)'; yes.style.color=v?'#ffd54f':'var(--text2)'; }
+}
+
 function captainSaveJoinReqs() {
-  if(!_userTeam || _userTeam.role !== 'captain') return;
+  if(!_userTeam || (_userTeam.role !== 'captain' && _userTeam.role !== 'vice')) return;
   const minSkill = Math.max(0, Math.min(99, parseInt(document.getElementById('capReqMinSkill').value, 10) || 0));
   const minLevel = Math.max(0, Math.min(99, parseInt(document.getElementById('capReqMinLevel').value, 10) || 0));
-  _userTeam.joinRequirements = { minSkill, minLevel };
+  const contract = (document.getElementById('capReqContract')||{}).value === '1';
+  _userTeam.joinRequirements = { minSkill, minLevel, contract };
   if(typeof userTeamSave === 'function') userTeamSave();
+  // 🆕 Paylaşılan politika (başka oyuncular da okusun) → teams.join_policy
+  if(window.sb){
+    (async()=>{ try{
+      await window.sb.rpc('set_team_join_policy', {
+        p_cc: _userTeam.countryCode, p_name: _userTeam.teamName,
+        p_contract: contract, p_min_skill: minSkill, p_min_level: minLevel
+      });
+      window._teamJoinPolicyCache = window._teamJoinPolicyCache || {};
+      window._teamJoinPolicyCache[_userTeam.countryCode+':'+_userTeam.teamName] = { contract, minSkill, minLevel };
+    }catch(e){ console.warn('[joinPolicy] kaydedilemedi:', e); } })();
+  }
   const m = document.getElementById('captainReqModal');
   if(m) m.remove();
   if(typeof showJoinToast === 'function') {
-    if(minSkill === 0 && minLevel === 0) {
-      showJoinToast('✓ Şartlar kaldırıldı — herkes onaysız katılabilir.');
-    } else {
-      showJoinToast(`✓ Şartlar güncellendi: Min Yetenek ${minSkill}, Min Seviye ${minLevel}`);
-    }
+    showJoinToast(`✓ Kaydedildi · ${contract?'Sözleşmeli':'Sözleşmesiz'} · Min Yetenek ${minSkill}, Min Seviye ${minLevel}`);
   }
 }
 
