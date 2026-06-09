@@ -25934,7 +25934,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-09-ayrilma-sohbet-9';
+const APP_BUILD = '2026-06-09-serbest-teklif-10';
 
 (function _cacheBustCheck() {
   try {
@@ -66252,23 +66252,27 @@ async function renderFreeAgentList(){
   if (window.sb) {
     try {
       const { data, error } = await window.sb.from('players')
-        .select('id, name, pos, pos_group, sub_pos, overall, level, nation, nationality, avatar, is_bot, user_id')
+        .select('id, name, pos, pos_group, sub_pos, overall, level, nation, nationality, avatar, avatar_id, is_bot, user_id')
         .is('team_name', null)
-        .eq('is_bot', true)
+        .order('is_bot', { ascending: true })   // 🆕 takımsız GERÇEK kullanıcılar listenin başında
         .order('overall', { ascending: false })
         .limit(200);
       if (!error && Array.isArray(data)) {
         for (const p of data) {
           agents.push({
             id: 'sb_' + p.id,
+            dbId: p.id,
             playerId: p.name,
-            avatar: p.avatar || '🤖',
+            avatar: p.avatar || (p.is_bot ? '🤖' : '👤'),
+            avatar_id: p.avatar_id || null,
             pos: p.pos || 'MID',
+            posGroup: p.pos_group || null,
             overall: p.overall || 10,
             level: p.level || 0,
             nation: p.nation || '🏳️',
             nationality: p.nationality || '',
             isBot: !!p.is_bot,
+            userId: p.user_id || null,
             kickedFrom: null,
           });
         }
@@ -66298,6 +66302,7 @@ async function renderFreeAgentList(){
   const rosterCount = (typeof ROSTER_DATA !== 'undefined' && ROSTER_DATA) ? ROSTER_DATA.length : 0;
   const rosterFull  = rosterCount >= maxRoster;
 
+  window._tfFreeAgentsCache = agents;
   el.innerHTML = agents.map(a => {
     const ovColor = a.overall>=80?'#ffd600':a.overall>=70?'var(--accent)':a.overall>=60?'var(--accent2)':'#7a8099';
     const kickedFromTxt = a.kickedFrom ? `<span class="tf-fa-tag">Eski: ${a.kickedFrom}</span>` : '';
@@ -66305,10 +66310,11 @@ async function renderFreeAgentList(){
     const userTag = !a.isBot ? `<span class="tf-fa-tag" style="background:rgba(0,230,118,.15);color:var(--accent);border:1px solid rgba(0,230,118,.3)">👤 Gerçek Kullanıcı</span>` : '';
 
     let actionBtn = '';
-    if (canHire && !rosterFull) {
-      // 🆕 Bot vs Gerçek Kullanıcı için farklı buton metni
-      const btnLabel = a.isBot ? '🤝 Takıma Al' : '📨 Davet Et';
-      actionBtn = `<button class="tf-fa-action" onclick="tfHireFreeAgent('${a.id}')">${btnLabel}</button>`;
+    if (!a.isBot) {
+      // 🆕 Gerçek kullanıcı → mevcut TEKLİF SUN modalına yönlendir (direkt alma yok; oyuncu kabul eder)
+      if (canHire) actionBtn = `<button class="tf-fa-action" onclick="tfOfferFreeAgent('${a.id}')">💬 Teklif Sun</button>`;
+    } else if (canHire && !rosterFull) {
+      actionBtn = `<button class="tf-fa-action" onclick="tfHireFreeAgent('${a.id}')">🤝 Takıma Al</button>`;
     } else if (canHire && rosterFull) {
       actionBtn = `<button class="tf-fa-action" disabled title="Kadro dolu (${rosterCount}/${maxRoster})">Kadro Dolu</button>`;
     }
@@ -66327,6 +66333,21 @@ async function renderFreeAgentList(){
       ${actionBtn}
     </div>`;
   }).join('');
+}
+
+// 🆕 Serbest (takımsız) GERÇEK kullanıcıya TEKLİF SUN — mevcut teklif modalını (tfOpenOfferDirect) açar
+function tfOfferFreeAgent(agentId){
+  const a = (window._tfFreeAgentsCache || []).find(x => x.id === agentId);
+  if(!a){ if(typeof rosterToast==='function') rosterToast('Oyuncu bulunamadı.','err'); return; }
+  if(typeof userCanMakeOffer==='function' && !userCanMakeOffer()){ if(typeof rosterToast==='function') rosterToast('🔒 Sadece kaptan/yardımcı kaptan teklif sunabilir.','err'); return; }
+  const player = {
+    id: a.dbId, name: a.playerId, pos: a.pos, posGroup: a.posGroup,
+    overall: a.overall, level: a.level, nation: a.nation, nationality: a.nationality,
+    avatar: a.avatar, avatar_id: a.avatar_id || null,
+    userId: a.userId, user_id: a.userId, isBot: false,
+  };
+  // forceFree: serbest oyuncu → bonservis yok, teklif doğrudan oyuncuya gider (mevcut isFree akışı)
+  if(typeof tfOpenOfferDirect==='function') tfOpenOfferDirect(player, { teamName:'', countryCode:'', forceFree:true });
 }
 
 // 🆕 Boştaki oyuncuyu takıma katmak (sadece kaptan)
@@ -66594,7 +66615,7 @@ function tfOpenOfferDirect(player, ctx) {
     // Takım sahibi (sen) — teklif yok
     return;
   }
-  const isFree = contract.type === 'free';
+  const isFree = (ctx && ctx.forceFree) ? true : (contract.type === 'free');
 
   // 🆕 Sistem belirlemiş bonservis (serbest oyuncuda 0)
   const fee = isFree
@@ -66615,7 +66636,7 @@ function tfOpenOfferDirect(player, ctx) {
     fee: fee,
     seller: ctx.teamName || '—',
     _external: true,
-    _contractStatus: contract.type,        // 'free' | 'active'
+    _contractStatus: (ctx && ctx.forceFree) ? 'free' : contract.type,        // 'free' | 'active'
     _contractLabel: contract.label,
     _countryCode: ctx.countryCode || '',
     _seasonSalary: seasonSalary,
