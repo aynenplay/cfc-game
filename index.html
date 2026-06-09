@@ -25934,7 +25934,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-09-katilim-sozlesme-4';
+const APP_BUILD = '2026-06-09-katilim-modal-5';
 
 (function _cacheBustCheck() {
   try {
@@ -42687,40 +42687,9 @@ function tsmRenderList() {
 
 async function tsmShowJoinConfirm(countryCode, teamName, rating) {
   _tsmJoinTarget = { countryCode, teamName, rating };
-  const flag = (_cftGetCountry(countryCode)||{}).flag || '🏳️';
-
-  // 🆕 KRİTİK: Server'dan en güncel kaptan durumunu çek
-  if (typeof _loadRealCaptainsFromServer === 'function') {
-    _invalidateRealCaptainsCache();
-    try { await _loadRealCaptainsFromServer(); } catch(e) {}
-  }
-
-  // 🆕 Kaptan tipine göre yönlendir
-  // • 'bot' → Bu takıma katılım YOK, sadece satın alma
-  // • 'user' → Şartlarla katılma isteği modalı aç
-  const capType = (typeof getTeamCaptainType === 'function')
-    ? getTeamCaptainType(countryCode, teamName)
-    : 'bot';
-
-  if(capType === 'bot'){
-    if(typeof showBotCaptainRedirectModal === 'function') {
-      showBotCaptainRedirectModal(countryCode, teamName);
-    } else {
-      // Fallback
-      alert(`${flag} ${teamName}: Kaptanı bot olan bu takıma sadece satın alarak girebilirsin.`);
-    }
-    return;
-  }
-
-  // Gerçek kaptanlı takım → şartlarla katılma isteği modalı
-  if(typeof openJoinRequestWithTermsModal === 'function'){
-    openJoinRequestWithTermsModal(countryCode, teamName, rating);
-    return;
-  }
-
-  // Hiçbiri yoksa eski fallback (gerek olmamalı)
-  document.getElementById('jcmTeamName').textContent = `${flag} ${teamName}`;
-  document.getElementById('joinConfirmOverlay').classList.add('open');
+  // 🆕 Politika-tabanlı katılım modalı (bot→satın-al yönlendirmesi KALDIRILDI):
+  //   sözleşmesiz + şart OK → Hemen Katıl · sözleşmeli/şart yetersiz → Katılım İsteği Gönder
+  return _joinDecide(countryCode, teamName, rating);
 }
 
 function closeJoinConfirm() {
@@ -42863,36 +42832,58 @@ function _directContractSeasonPrompt(cc, tn, onPick){
 async function _joinDecide(cc, tn, rating){
   if(typeof userHasTeam==='function' && userHasTeam()){ showNeedTeamToast('Zaten bir takımdasın. Önce takımdan ayrıl.'); return; }
   if(typeof _loadRealCaptainsFromServer === 'function'){ try{ if(typeof _invalidateRealCaptainsCache==='function') _invalidateRealCaptainsCache(); await _loadRealCaptainsFromServer(); }catch(e){} }
-  const capType = (typeof getTeamCaptainType==='function') ? getTeamCaptainType(cc,tn) : 'bot';
-  const flag = (_cftGetCountry(cc)||{}).flag || '🏳️';
-  if(capType === 'bot'){
-    if(typeof showBotCaptainRedirectModal==='function') showBotCaptainRedirectModal(cc, tn);
-    return;
-  }
   const pol = await _fetchTeamJoinPolicy(cc, tn);
   const meets = (typeof userMeetsJoinRequirements==='function') ? userMeetsJoinRequirements({ minSkill: pol.minSkill, minLevel: pol.minLevel }) : true;
-  if(meets){
-    if(pol.contract){
-      _directContractSeasonPrompt(cc, tn, (seasons)=>{
-        const _me = (typeof ROSTER_DATA!=='undefined'&&Array.isArray(ROSTER_DATA)) ? ROSTER_DATA.find(p=>p&&p.role==='user'&&!p.isBot) : null;
-        const seasonSalary = (typeof getSystemPlayerSalary==='function') ? getSystemPlayerSalary(_me||10) : 0;
-        const capName = (typeof getTeamRealCaptainName==='function') ? getTeamRealCaptainName(cc,tn) : 'Kaptan';
-        const r = (typeof signUserContract==='function') ? signUserContract(cc, tn, { seasonSalary, signingDiamond:0, durationSeasons:seasons }, capName) : {ok:false};
-        if(!(r && r.ok)){ if(typeof showJoinToast==='function') showJoinToast('⚠️ Katılınamadı, tekrar dene.'); }
-      });
-    } else {
-      // sözleşmesiz → kontratsız serbest çıkış AMA sistem maaşı alsın diye canLeaveFreely:true kontrat kurulur
-      const _me = (typeof ROSTER_DATA!=='undefined'&&Array.isArray(ROSTER_DATA)) ? ROSTER_DATA.find(p=>p&&p.role==='user'&&!p.isBot) : null;
-      const seasonSalary = (typeof getSystemPlayerSalary==='function') ? getSystemPlayerSalary(_me||10) : 0;
-      const capName = (typeof getTeamRealCaptainName==='function') ? getTeamRealCaptainName(cc,tn) : 'Kaptan';
-      const r = (typeof signUserContract==='function') ? signUserContract(cc, tn, { seasonSalary, signingDiamond:0, durationSeasons:1, canLeaveFreely:true }, capName) : {ok:false};
-      if(r && r.ok){ if(typeof showJoinToast==='function') showJoinToast(`✅ ${flag} ${tn} takımına katıldın (sözleşmesiz — istediğinde ayrılabilirsin).`); }
-      else if(typeof joinTeamDirect==='function') joinTeamDirect(cc, tn);
-    }
+  _showJoinPolicyModal(cc, tn, pol, meets, rating);
+}
+
+// 🆕 Sözleşmesiz DİREKT katılım — canLeaveFreely:true kontrat (sistem maaşı alır, serbest çıkar)
+function _doJoinFree(cc, tn){
+  const flag = (_cftGetCountry(cc)||{}).flag || '🏳️';
+  const _me = (typeof ROSTER_DATA!=='undefined'&&Array.isArray(ROSTER_DATA)) ? ROSTER_DATA.find(p=>p&&p.role==='user'&&!p.isBot) : null;
+  const seasonSalary = (typeof getSystemPlayerSalary==='function') ? getSystemPlayerSalary(_me||10) : 0;
+  const capName = (typeof getTeamRealCaptainName==='function') ? getTeamRealCaptainName(cc,tn) : 'Kaptan';
+  const r = (typeof signUserContract==='function') ? signUserContract(cc, tn, { seasonSalary, signingDiamond:0, durationSeasons:1, canLeaveFreely:true }, capName) : {ok:false};
+  if(r && r.ok){ if(typeof showJoinToast==='function') showJoinToast(`✅ ${flag} ${tn} takımına katıldın (sözleşmesiz — istediğin zaman ayrılabilirsin).`); }
+  else if(typeof joinTeamDirect==='function') joinTeamDirect(cc, tn);
+}
+
+// 🆕 Katılım politikası modalı (eski "sadece satın al" uyarısı yerine)
+function _showJoinPolicyModal(cc, tn, pol, meets, rating){
+  const flag = (_cftGetCountry(cc)||{}).flag || '🏳️';
+  const canDirect = (!pol.contract) && meets;
+  let m = document.getElementById('joinPolicyModal'); if(m) m.remove();
+  m = document.createElement('div'); m.id='joinPolicyModal';
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px';
+  m.onclick=(e)=>{ if(e.target===m) m.remove(); };
+  let icon, desc, btnLabel, btnGrad;
+  if(canDirect){
+    icon='🤝'; btnLabel='🚀 Hemen Katıl'; btnGrad='linear-gradient(135deg,#00b357,#00e676)';
+    desc='Bu takım <b>sözleşmesiz oyuncu kabul ediyor</b>. Hemen katılabilir, istediğin zaman ayrılabilirsin (sistem maaşını alırsın).';
+  } else if(pol.contract){
+    icon='📋'; btnLabel='📨 Katılım İsteği Gönder'; btnGrad='linear-gradient(135deg,#f57c00,#ff9800)';
+    desc='Bu takım <b>sözleşmesiz oyuncu kabul etmiyor</b> (sözleşmeli takım). Katılmak için katılım isteği gönder; kaptan onaylarsa sözleşme imzalanır.';
   } else {
+    icon='📨'; btnLabel='📨 Katılım İsteği Gönder'; btnGrad='linear-gradient(135deg,#f57c00,#ff9800)';
+    desc='Bu takım sözleşmesiz katılıma açık ama <b>katılım şartlarını (min yetenek/seviye) karşılamıyorsun</b>. Kaptan onayı için katılım isteği gönder.';
+  }
+  m.innerHTML = `<div style="background:var(--card);border:1px solid var(--border);border-radius:16px;width:100%;max-width:340px;padding:22px 20px;text-align:center;font-family:'Barlow',sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.6)">
+    <div style="font-size:40px;margin-bottom:8px">${icon}</div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:900;color:var(--text);line-height:1.25;margin-bottom:4px">${flag} ${tn}</div>
+    <div style="font-size:12px;color:var(--text2);line-height:1.55;margin:10px 4px 18px">${desc}</div>
+    <div style="display:flex;gap:8px">
+      <button type="button" onclick="document.getElementById('joinPolicyModal').remove()" style="flex:1;padding:12px;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:9px;color:var(--text2);font-weight:700;font-size:12px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;letter-spacing:.4px;text-transform:uppercase">Vazgeç</button>
+      <button type="button" id="jpmGoBtn" style="flex:1.4;padding:12px;background:${btnGrad};border:none;border-radius:9px;color:#06120a;font-weight:900;font-size:12px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;letter-spacing:.4px;text-transform:uppercase">${btnLabel}</button>
+    </div>
+  </div>`;
+  document.body.appendChild(m);
+  const go = document.getElementById('jpmGoBtn');
+  if(go) go.onclick = ()=>{
+    m.remove();
+    if(canDirect){ _doJoinFree(cc, tn); return; }
     if(typeof hasJoinRequestFor==='function' && hasJoinRequestFor(cc,tn)){ if(typeof showJoinToast==='function') showJoinToast(`📩 ${flag} ${tn} takımına zaten istek gönderdin (beklemede).`); return; }
     if(typeof openJoinRequestWithTermsModal==='function') openJoinRequestWithTermsModal(cc, tn, rating);
-  }
+  };
 }
 
 // Guest banner'ından takıma katılım — duruma göre ya direkt katılır ya istek gönderir
