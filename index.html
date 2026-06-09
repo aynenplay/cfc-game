@@ -25934,7 +25934,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-09-katilim-politika-2';
+const APP_BUILD = '2026-06-09-katilim-akis-3';
 
 (function _cacheBustCheck() {
   try {
@@ -28927,8 +28927,8 @@ function signUserContract(cc, tn, terms, captainName) {
     signingDiamond: signingDia,        // 🆕 imza elması
     yearlySalary: seasonSalary,        // backward compat (eski okuyucular için)
     signingBonus: 0,                   // backward compat (€ kaldırıldı)
-    durationSeasons: 1,                // 🆕 sabit 1 sezon
-    endsSeason: info.season,           // sezon sonu = bu sezon sonu
+    durationSeasons: Math.max(1, Math.min(5, Number(terms.durationSeasons)||1)),  // 🆕 1-5 sezon
+    endsSeason: info.season + (Math.max(1, Math.min(5, Number(terms.durationSeasons)||1)) - 1),
     capName: captainName || 'Kaptan',
     canLeaveFreely: false,
     unpaidInstallments: 0,
@@ -42741,23 +42741,11 @@ async function confirmJoinTeam() {
     try { await _loadRealCaptainsFromServer(); } catch(e) {}
   }
 
-  const capType = (typeof getTeamCaptainType === 'function')
-    ? getTeamCaptainType(cc, tn) : 'bot';
-
+  const _rating = (_tsmJoinTarget && _tsmJoinTarget.rating) || 0;
   closeJoinConfirm();
-
-  if(capType === 'bot'){
-    if(typeof showBotCaptainRedirectModal === 'function'){
-      showBotCaptainRedirectModal(cc, tn);
-    }
-    return;
-  }
-
-  // Gerçek kaptanlı → şartlarla istek modalı aç
-  if(typeof openJoinRequestWithTermsModal === 'function'){
-    openJoinRequestWithTermsModal(cc, tn, _tsmJoinTarget.rating);
-    return;
-  }
+  // 🆕 Merkezî katılım kararı (bot→satın al; gerçek kaptan→şart/politika)
+  _joinDecide(cc, tn, _rating);
+  return;
 
   // (Aşağıdaki kod artık ulaşılmaz — backward compatibility için saklı)
   /*
@@ -42835,6 +42823,72 @@ function hasJoinRequestFor(countryCode, teamName) {
   );
 }
 
+// 🆕 Başka takımın katılım politikasını çek (teams.join_policy) — cache'li
+window._teamJoinPolicyCache = window._teamJoinPolicyCache || {};
+async function _fetchTeamJoinPolicy(cc, tn){
+  const key = cc+':'+tn;
+  if(window._teamJoinPolicyCache[key]) return window._teamJoinPolicyCache[key];
+  let pol = { contract:false, minSkill:0, minLevel:0 };
+  try{
+    if(window.sb){
+      const { data } = await window.sb.from('teams').select('join_policy').eq('country_code',cc).eq('name',tn).maybeSingle();
+      if(data && data.join_policy && typeof data.join_policy==='object'){
+        pol = { contract: !!data.join_policy.contract, minSkill: Number(data.join_policy.minSkill)||0, minLevel: Number(data.join_policy.minLevel)||0 };
+      }
+    }
+  }catch(e){ console.warn('[joinPolicy] cek hata:', e); }
+  window._teamJoinPolicyCache[key] = pol;
+  return pol;
+}
+
+// 🆕 Sözleşmeli takıma direkt katılımda 1-5 sezon seçtirir
+function _directContractSeasonPrompt(cc, tn, onPick){
+  let m = document.getElementById('dcsPromptModal'); if(m) m.remove();
+  m = document.createElement('div'); m.id='dcsPromptModal';
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px';
+  m.onclick=(e)=>{ if(e.target===m) m.remove(); };
+  const btns=[1,2,3,4,5].map(x=>`<button type="button" onclick="window._dcsPick(${x})" style="flex:1;padding:13px 0;border-radius:9px;border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--text);font-weight:900;font-size:17px;cursor:pointer;font-family:'Barlow Condensed',sans-serif">${x}</button>`).join('');
+  m.innerHTML=`<div style="background:var(--card);border:1px solid var(--border);border-radius:14px;width:100%;max-width:330px;padding:20px;font-family:'Barlow',sans-serif">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:var(--text);margin-bottom:6px">📋 Sözleşme Süresi</div>
+    <div style="font-size:11px;color:var(--text2);line-height:1.5;margin-bottom:14px">${tn} sözleşmeli bir takım. Kaç sezon imzalıyorsun? Süre bitene dek ayrılamazsın (sistem maaşını alırsın).</div>
+    <div style="display:flex;gap:7px;margin-bottom:6px">${btns}</div>
+    <div style="font-size:9px;color:var(--text3);text-align:center;margin-bottom:14px">SEZON</div>
+    <button type="button" onclick="document.getElementById('dcsPromptModal').remove()" style="width:100%;padding:11px;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:8px;color:var(--text2);font-weight:700;font-size:12px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;letter-spacing:.4px;text-transform:uppercase">Vazgeç</button>
+  </div>`;
+  document.body.appendChild(m);
+  window._dcsPick = (x)=>{ const mm=document.getElementById('dcsPromptModal'); if(mm) mm.remove(); if(typeof onPick==='function') onPick(x); };
+}
+
+// 🆕 Merkezî katılım kararı: bot→satın al; gerçek kaptan→şart karşılanırsa DİREKT (politikaya göre kontratlı/kontratsız), yoksa istek
+async function _joinDecide(cc, tn, rating){
+  if(typeof userHasTeam==='function' && userHasTeam()){ showNeedTeamToast('Zaten bir takımdasın. Önce takımdan ayrıl.'); return; }
+  if(typeof _loadRealCaptainsFromServer === 'function'){ try{ if(typeof _invalidateRealCaptainsCache==='function') _invalidateRealCaptainsCache(); await _loadRealCaptainsFromServer(); }catch(e){} }
+  const capType = (typeof getTeamCaptainType==='function') ? getTeamCaptainType(cc,tn) : 'bot';
+  const flag = (_cftGetCountry(cc)||{}).flag || '🏳️';
+  if(capType === 'bot'){
+    if(typeof showBotCaptainRedirectModal==='function') showBotCaptainRedirectModal(cc, tn);
+    return;
+  }
+  const pol = await _fetchTeamJoinPolicy(cc, tn);
+  const meets = (typeof userMeetsJoinRequirements==='function') ? userMeetsJoinRequirements({ minSkill: pol.minSkill, minLevel: pol.minLevel }) : true;
+  if(meets){
+    if(pol.contract){
+      _directContractSeasonPrompt(cc, tn, (seasons)=>{
+        const _me = (typeof ROSTER_DATA!=='undefined'&&Array.isArray(ROSTER_DATA)) ? ROSTER_DATA.find(p=>p&&p.role==='user'&&!p.isBot) : null;
+        const seasonSalary = (typeof getSystemPlayerSalary==='function') ? getSystemPlayerSalary(_me||10) : 0;
+        const capName = (typeof getTeamRealCaptainName==='function') ? getTeamRealCaptainName(cc,tn) : 'Kaptan';
+        const r = (typeof signUserContract==='function') ? signUserContract(cc, tn, { seasonSalary, signingDiamond:0, durationSeasons:seasons }, capName) : {ok:false};
+        if(!(r && r.ok)){ if(typeof showJoinToast==='function') showJoinToast('⚠️ Katılınamadı, tekrar dene.'); }
+      });
+    } else {
+      if(typeof joinTeamDirect==='function') joinTeamDirect(cc, tn);
+    }
+  } else {
+    if(typeof hasJoinRequestFor==='function' && hasJoinRequestFor(cc,tn)){ if(typeof showJoinToast==='function') showJoinToast(`📩 ${flag} ${tn} takımına zaten istek gönderdin (beklemede).`); return; }
+    if(typeof openJoinRequestWithTermsModal==='function') openJoinRequestWithTermsModal(cc, tn, rating);
+  }
+}
+
 // Guest banner'ından takıma katılım — duruma göre ya direkt katılır ya istek gönderir
 function requestJoinFromGuest() {
   if(!_viewingTeam) return;
@@ -42847,33 +42901,10 @@ function requestJoinFromGuest() {
   }
   const cc = _viewingTeam.countryCode;
   const tn = _viewingTeam.teamRef.name;
-  const flag = (_cftGetCountry(cc)||{}).flag || '🏳️';
-
-  // 🆕 KAPTAN TİPİNE göre yönlendirme:
-  //   • Bot kaptan → direkt katılım (onaysız, mevcut davranış)
-  //   • Gerçek kullanıcı kaptan → karbon "Katılma Talebi" modalı (direkt GİREMEZ)
-  const elig = (typeof evaluateJoinEligibility === 'function')
-    ? evaluateJoinEligibility(cc, tn)
-    : { canDirect: true, captainType: 'bot' };
-
-  if(elig.captainType === 'user') {
-    // Gerçek kaptanlı takım → şartlarla katılma isteği modalı (direkt katılım yok)
-    if(hasJoinRequestFor(cc, tn)) {
-      showJoinToast(`📩 ${flag} ${tn} takımına zaten istek gönderdin (beklemede).`);
-      return;
-    }
-    const rating = (_viewingTeam.rating != null) ? _viewingTeam.rating
-                 : (_viewingTeam.teamRef && _viewingTeam.teamRef.rating != null ? _viewingTeam.teamRef.rating : 0);
-    if(typeof openJoinRequestWithTermsModal === 'function') {
-      openJoinRequestWithTermsModal(cc, tn, rating);
-    }
-    return;
-  }
-
-  // Bot kaptan / kaptansız → direkt katılım (onaysız)
-  if(typeof joinTeamDirect === 'function') {
-    joinTeamDirect(cc, tn);
-  }
+  const rating = (_viewingTeam.rating != null) ? _viewingTeam.rating
+               : (_viewingTeam.teamRef && _viewingTeam.teamRef.rating != null ? _viewingTeam.teamRef.rating : 0);
+  // 🆕 Merkezî karar: bot→satın al; gerçek kaptan→şart karşılanırsa direkt (politika), yoksa istek
+  _joinDecide(cc, tn, rating);
   return;
 }
 
@@ -51817,7 +51848,11 @@ function getTeamJoinRequirements(countryCode, teamName) {
      && _userTeam.teamName === teamName) {
     return _userTeam.joinRequirements || null;
   }
-  // Bot kaptanlı takımlar için şart yok
+  // 🆕 Başka takım → paylaşılan politika cache'i (teams.join_policy)
+  try {
+    const p = (window._teamJoinPolicyCache||{})[countryCode+':'+teamName];
+    if(p) return { minSkill: p.minSkill||0, minLevel: p.minLevel||0, contract: !!p.contract };
+  } catch(e){}
   return null;
 }
 
