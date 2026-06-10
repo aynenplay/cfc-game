@@ -25939,7 +25939,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-09-sonuclar-mobil-fix-27';
+const APP_BUILD = '2026-06-09-sonuclar-flicker-fix-28';
 
 (function _cacheBustCheck() {
   try {
@@ -56657,7 +56657,23 @@ async function _resUpdateLiveCells() {
     if (tmEl) tmEl.innerHTML = (_sm === 45) ? `<div class="res-live-dot"></div>HT`
                                             : `<div class="res-live-dot"></div>${_sm}'`;
   }
-  if (anyFinished || anyNewLive) renderResultsPage();
+  // 🆕 FLICKER FIX: Tam yeniden-render SADECE üyelik değişince (scheduled↔live↔finished).
+  //   Skor/dakika değişimi hücrelerde yerinde güncelleniyor → her 7sn'de liste baştan
+  //   ÇİZİLMEZ → logolar (img) yeniden yaratılmaz → kaybolup-gelme/flicker biter.
+  let _memSig = '';
+  try {
+    _memSig = rows.map(r => {
+      const _b = (typeof _computeLiveSimMinute === 'function') ? _computeLiveSimMinute(r) : (r.sim_minute || 0);
+      const _r90 = ((r.sim_minute || 0) >= 90) || (_b >= 90);
+      const _st = ((r.status === 'finished') || ((r.status === 'running') && _r90)) ? 'F'
+                : (((r.status === 'running') && !_r90) ? 'L' : 'S');
+      return r.match_key + _st;
+    }).sort().join(',');
+  } catch(e) { _memSig = ''; }
+  if (_memSig && _memSig !== window._resPrevMemSig) {
+    window._resPrevMemSig = _memSig;
+    renderResultsPage();
+  }
 }
 
 // Tarih değiştir (← / →)
