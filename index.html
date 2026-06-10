@@ -25931,7 +25931,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-09-gol-skor-sade-32';
+const APP_BUILD = '2026-06-09-logo-ses-fix-35';
 
 (function _cacheBustCheck() {
   try {
@@ -31464,7 +31464,7 @@ function _resLiveUpdate() {
 
     if (liveRow && (liveRow.status === 'running' || liveRow.status === 'scheduled')) {
       // 🆕 CANLI: server'dan gelen anlık veri (dakika smoothing ile hesaplanır)
-      minute = (liveRow.sim_minute || 0);  // 🆕 TEK KAYNAK: sunucu sim_minute (liste ile birebir aynı)
+      minute = (typeof _computeLiveSimMinute === 'function') ? _computeLiveSimMinute(liveRow) : (liveRow.sim_minute || 0);  // 🆕 liste ile AYNI: started_at saati
       hs = liveRow.home_score || 0;
       as = liveRow.away_score || 0;
       events = Array.isArray(liveRow.events) ? liveRow.events : [];
@@ -55943,6 +55943,15 @@ function _computeLiveSimMinute(ms) {
   return 90;
 }
 
+// Mac TAM SUREYI doldurdu mu? (90. dk DE oynandi -> artik canli degil).
+// _computeLiveSimMinute 90'da CAP'lenir; "90'da mi / 90'i gecti mi" ayrimi icin gerekir.
+function _resPastFullTime(ms){
+  if (!ms) return false;
+  if (!ms.started_at) return ((ms.sim_minute || 0) >= 90) || (ms.status === 'finished');
+  const _FULL = 45*7000 + 100*1000 + 45*7000;   // = FULL_MATCH_END_MS (730000)
+  return (Date.now() - new Date(ms.started_at).getTime()) >= _FULL;
+}
+
 // 🆕 Maç EKRANIYLA AYNI görünür dakika: _computeLiveSimMinute tabanı + server sim_minute'a clamp
 //   (geçme; en fazla 1 dk geriden takip — izleme ekranındaki SERVER SİNK ile birebir).
 function _resClampedLiveMin(ms){
@@ -55973,9 +55982,12 @@ function _resGetMatchesForDate(targetDate) {
     // Kullanıcı takımıyla ilgili filter YOK — Sonuçlar sayfası tüm dünyayı gösterir.
     // 🆕 90'a ulaşıp DB'de hâlâ 'running' kalan (finish tick'i takılan) maçları BİTMİŞ say:
     //    canlı sekmesinden düşer, skoruyla 'sonuç' olarak görünür.
-    const _reached90 = ((ms.sim_minute || 0) >= 90);  // sunucu sim_minute 90 → canlıdan düşer
-    const isFinished = (ms.status === 'finished') || (ms.status === 'running' && _reached90);
-    const isLive = (ms.status === 'running') && !_reached90;
+    // 90. dk DE canlı: maç ancak TAM SÜRE dolunca canlıdan düşer. Server 90'da 'finished'
+    //   yapsa bile istemci saati 90 gösteriyorsa o ~7sn "90'" canlı kalır.
+    const _cmL = (typeof _computeLiveSimMinute === 'function') ? _computeLiveSimMinute(ms) : (ms.sim_minute || 0);
+    const _pastFull = (typeof _resPastFullTime === 'function') ? _resPastFullTime(ms) : (((ms.sim_minute||0)>=90)||(ms.status==='finished'));
+    const isLive = !_pastFull && ((ms.status === 'running') || (ms.status === 'finished' && _cmL >= 90));
+    const isFinished = !isLive && ((ms.status === 'finished') || (ms.status === 'running' && _pastFull));
     const isFriendly = ms.tournament_key === 'friendly';
     // 🆕 BUG FIX: cache mapping camelCase (leagueName) kullanır, ms.league_name undefined döner.
     //   Eski snake_case fallback'i tüm lig maçlarını 'Maç' yapıyordu → filter eşleşmiyordu.
@@ -56015,7 +56027,7 @@ function _resGetMatchesForDate(targetDate) {
       as: (isFinished || isLive) ? (ms.away_score ?? null) : null,
       playedAt: isFinished ? t : null,
       isLive: isLive,
-      liveMinute: isLive ? (ms.sim_minute ?? 0) : null,  // 🆕 TEK KAYNAK: sunucunun oynadığı gerçek dakika (skorla tutarlı)
+      liveMinute: isLive ? ((typeof _computeLiveSimMinute === 'function') ? _computeLiveSimMinute(ms) : (ms.sim_minute ?? 0)) : null,  // 🆕 maç ekranıyla AYNI: started_at saati (1'den başlar, 7sn akar, 90'da biter)
       cacheKey: ms.matchKey,
       _raw: ms
     });
@@ -56563,15 +56575,20 @@ function _resGoalSound(){
 (function(){
   function _unlockResAudio(){
     try {
-      const AC = window.AudioContext || window.webkitAudioContext; if(AC){ window._resAC = window._resAC || new AC(); if (window._resAC.state === 'suspended') window._resAC.resume(); }
+      const AC = window.AudioContext || window.webkitAudioContext; if(!AC) return;
+      window._resAC = window._resAC || new AC();
+      const ac = window._resAC;
+      if (ac.state === 'suspended') { try { ac.resume(); } catch(e){} }
+      // iOS kilidi: gesture icinde kisa SESSIZ buffer cal (AudioContext'i tam acar)
+      try { const b = ac.createBuffer(1, 1, 22050); const sb = ac.createBufferSource(); sb.buffer = b; sb.connect(ac.destination); sb.start(0); } catch(e){}
     } catch(e){}
-    document.removeEventListener('pointerdown', _unlockResAudio);
-    document.removeEventListener('touchstart', _unlockResAudio);
-    document.removeEventListener('click', _unlockResAudio);
+    // listener'lari KALDIRMIYORUZ: iOS arka plana alinca AudioContext yeniden suspend olur,
+    //   her dokunusta tekrar acmak icin acik kalsinlar (passive, zararsiz).
   }
   try {
     document.addEventListener('pointerdown', _unlockResAudio, { passive:true });
     document.addEventListener('touchstart', _unlockResAudio, { passive:true });
+    document.addEventListener('touchend', _unlockResAudio, { passive:true });
     document.addEventListener('click', _unlockResAudio, { passive:true });
   } catch(e){}
 })();
@@ -56596,11 +56613,11 @@ async function _resUpdateLiveCells() {
   const _liveSet = new Set(liveKeys);
   let anyFinished = false, anyNewLive = false, _goalFired = false;
   for (const r of rows) {
-    const _base = (typeof _computeLiveSimMinute === 'function') ? _computeLiveSimMinute(r) : (r.sim_minute || 0);  // ham started_at saati (bitiş ölçütü)
-    const _cm = (r.sim_minute || 0);  // 🆕 TEK KAYNAK: sunucu sim_minute (skorla tutarlı; istemci saati YOK)
-    const _reached90 = ((r.sim_minute || 0) >= 90);   // sunucu sim_minute 90 → bitti
-    const _running = (r.status === 'running') && !_reached90;
-    const _fin = (r.status === 'finished') || ((r.status === 'running') && _reached90);
+    const _cm = (typeof _computeLiveSimMinute === 'function') ? _computeLiveSimMinute(r) : (r.sim_minute || 0);  // gösterilen dakika (1-based, 7sn, 90 cap)
+    const _pastFull = (typeof _resPastFullTime === 'function') ? _resPastFullTime(r) : (((r.sim_minute||0)>=90)||(r.status==='finished'));
+    // 90. dk penceresi canlı kalsın: server bitirse bile saat 90 gösteriyorsa ~7sn canlı.
+    const _running = !_pastFull && ((r.status === 'running') || (r.status === 'finished' && _cm >= 90));
+    const _fin = !_running && ((r.status === 'finished') || ((r.status === 'running') && _pastFull));
     // cache'i her durumda tazele → liste yeniden çizilince doğru skor/dakika kalsın
     try { const _cc = _matchStateCache && _matchStateCache.byKey && _matchStateCache.byKey[r.match_key];
       if (_cc) { _cc.status = r.status; if (typeof r.sim_minute === 'number') _cc.sim_minute = r.sim_minute; if (r.home_score != null) _cc.home_score = r.home_score; if (r.away_score != null) _cc.away_score = r.away_score; } } catch(e){}
@@ -56653,9 +56670,10 @@ async function _resUpdateLiveCells() {
   let _memSig = '';
   try {
     _memSig = rows.map(r => {
-      const _r90 = ((r.sim_minute || 0) >= 90);
-      const _st = ((r.status === 'finished') || ((r.status === 'running') && _r90)) ? 'F'
-                : (((r.status === 'running') && !_r90) ? 'L' : 'S');
+      const _cmS = (typeof _computeLiveSimMinute === 'function') ? _computeLiveSimMinute(r) : (r.sim_minute || 0);
+      const _pf = (typeof _resPastFullTime === 'function') ? _resPastFullTime(r) : (((r.sim_minute||0)>=90)||(r.status==='finished'));
+      const _liveNow = !_pf && ((r.status === 'running') || (r.status === 'finished' && _cmS >= 90));
+      const _st = _liveNow ? 'L' : ((r.status === 'finished' || ((r.status === 'running') && _pf)) ? 'F' : 'S');
       return r.match_key + _st;
     }).sort().join(',');
   } catch(e) { _memSig = ''; }
@@ -56664,8 +56682,15 @@ async function _resUpdateLiveCells() {
       // 🆕 Bu turda gol animasyonu oynuyor → tam re-render satırı+animasyonu siler.
       //   Yeniden çizmeyi ERTELE (imzayı güncelleme); sonraki tur çizer (animasyon ~1.6sn).
     } else {
-      window._resPrevMemSig = _memSig;
-      renderResultsPage();
+      // LOGO TİTREME FİX: tam re-render logo <img>'lerini yeniden yaratır → titreme.
+      //   Üyelik değişse bile en fazla ~12sn'de bir tam çiz (skor/dakika zaten hücrede güncellenir).
+      const _nowR = Date.now();
+      if (!window._resLastFullRender || (_nowR - window._resLastFullRender) > 12000) {
+        window._resPrevMemSig = _memSig;
+        window._resLastFullRender = _nowR;
+        renderResultsPage();
+      }
+      // degilse: imzayi GUNCELLEME -> bir sonraki uygun turda (>=12sn) cizilir
     }
   }
 }
@@ -56746,6 +56771,7 @@ function resSetLeagueFilter(lg) {
 
 // Ana render
 function renderResultsPage() {
+  try { window._resLastFullRender = Date.now(); } catch(e){}  // logo-titreme: oto re-render throttle referansi
   // İlk açılışta bugünü seç
   if (!_resState.selectedDate) {
     const today = new Date();
