@@ -25939,7 +25939,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-09-sonuclar-dakika-unclamp-29';
+const APP_BUILD = '2026-06-09-sonuclar-tek-kaynak-30';
 
 (function _cacheBustCheck() {
   try {
@@ -31472,9 +31472,7 @@ function _resLiveUpdate() {
 
     if (liveRow && (liveRow.status === 'running' || liveRow.status === 'scheduled')) {
       // 🆕 CANLI: server'dan gelen anlık veri (dakika smoothing ile hesaplanır)
-      minute = (typeof _computeLiveSimMinute === 'function')
-        ? _computeLiveSimMinute(liveRow)
-        : (liveRow.sim_minute || 0);
+      minute = (liveRow.sim_minute || 0);  // 🆕 TEK KAYNAK: sunucu sim_minute (liste ile birebir aynı)
       hs = liveRow.home_score || 0;
       as = liveRow.away_score || 0;
       events = Array.isArray(liveRow.events) ? liveRow.events : [];
@@ -55983,7 +55981,7 @@ function _resGetMatchesForDate(targetDate) {
     // Kullanıcı takımıyla ilgili filter YOK — Sonuçlar sayfası tüm dünyayı gösterir.
     // 🆕 90'a ulaşıp DB'de hâlâ 'running' kalan (finish tick'i takılan) maçları BİTMİŞ say:
     //    canlı sekmesinden düşer, skoruyla 'sonuç' olarak görünür.
-    const _reached90 = ((ms.sim_minute || 0) >= 90) || ((typeof _computeLiveSimMinute === 'function' ? _computeLiveSimMinute(ms) : 0) >= 90);  // 🆕 akan saat 90 → canlıdan düşer
+    const _reached90 = ((ms.sim_minute || 0) >= 90);  // sunucu sim_minute 90 → canlıdan düşer
     const isFinished = (ms.status === 'finished') || (ms.status === 'running' && _reached90);
     const isLive = (ms.status === 'running') && !_reached90;
     const isFriendly = ms.tournament_key === 'friendly';
@@ -56025,7 +56023,7 @@ function _resGetMatchesForDate(targetDate) {
       as: (isFinished || isLive) ? (ms.away_score ?? null) : null,
       playedAt: isFinished ? t : null,
       isLive: isLive,
-      liveMinute: isLive ? ((typeof _computeLiveSimMinute === 'function') ? _computeLiveSimMinute(ms) : (ms.sim_minute ?? 0)) : null,  // 🆕 maç ekranıyla BİREBİR AYNI (clamp YOK — started_at saati)
+      liveMinute: isLive ? (ms.sim_minute ?? 0) : null,  // 🆕 TEK KAYNAK: sunucunun oynadığı gerçek dakika (skorla tutarlı)
       cacheKey: ms.matchKey,
       _raw: ms
     });
@@ -56589,8 +56587,8 @@ async function _resUpdateLiveCells() {
   let anyFinished = false, anyNewLive = false;
   for (const r of rows) {
     const _base = (typeof _computeLiveSimMinute === 'function') ? _computeLiveSimMinute(r) : (r.sim_minute || 0);  // ham started_at saati (bitiş ölçütü)
-    const _cm = _base;  // 🆕 GÖSTERİLEN dakika = maç ekranıyla BİREBİR AYNI saf istemci saati (clamp YOK → cron takılsa bile akar, '0→23' glitch biter)
-    const _reached90 = ((r.sim_minute || 0) >= 90) || (_base >= 90);   // ham saat 90 → bitti (maç ekranı finalize ile aynı)
+    const _cm = (r.sim_minute || 0);  // 🆕 TEK KAYNAK: sunucu sim_minute (skorla tutarlı; istemci saati YOK)
+    const _reached90 = ((r.sim_minute || 0) >= 90);   // sunucu sim_minute 90 → bitti
     const _running = (r.status === 'running') && !_reached90;
     const _fin = (r.status === 'finished') || ((r.status === 'running') && _reached90);
     // cache'i her durumda tazele → liste yeniden çizilince doğru skor/dakika kalsın
@@ -56663,8 +56661,7 @@ async function _resUpdateLiveCells() {
   let _memSig = '';
   try {
     _memSig = rows.map(r => {
-      const _b = (typeof _computeLiveSimMinute === 'function') ? _computeLiveSimMinute(r) : (r.sim_minute || 0);
-      const _r90 = ((r.sim_minute || 0) >= 90) || (_b >= 90);
+      const _r90 = ((r.sim_minute || 0) >= 90);
       const _st = ((r.status === 'finished') || ((r.status === 'running') && _r90)) ? 'F'
                 : (((r.status === 'running') && !_r90) ? 'L' : 'S');
       return r.match_key + _st;
