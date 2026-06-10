@@ -25939,7 +25939,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-09-sonuclar-tek-kaynak-30';
+const APP_BUILD = '2026-06-09-gol-animasyon-fix-31';
 
 (function _cacheBustCheck() {
   try {
@@ -56559,12 +56559,30 @@ function _resGoalSound(){
     window._resAC = window._resAC || new AC();
     const ac = window._resAC; if (ac.state === 'suspended') { try{ ac.resume(); }catch(e){} }
     const t = ac.currentTime;
-    const o = ac.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(900, t);
+    // 🆕 Daha belirgin "gol" sesi: yükselen triangle + kısa yankı
+    const o = ac.createOscillator(); o.type = 'triangle';
+    o.frequency.setValueAtTime(523, t); o.frequency.exponentialRampToValueAtTime(880, t+0.14);
     const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.12, t+0.012); g.gain.exponentialRampToValueAtTime(0.0001, t+0.12);
-    o.connect(g).connect(ac.destination); o.start(t); o.stop(t+0.13);
+    g.gain.exponentialRampToValueAtTime(0.24, t+0.02); g.gain.exponentialRampToValueAtTime(0.0001, t+0.5);
+    o.connect(g).connect(ac.destination); o.start(t); o.stop(t+0.52);
   }catch(e){}
 }
+// 🆕 Tarayıcı autoplay: ilk kullanıcı dokunuşunda AudioContext'i aç (yoksa gol sesi hiç çıkmaz)
+(function(){
+  function _unlockResAudio(){
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext; if(AC){ window._resAC = window._resAC || new AC(); if (window._resAC.state === 'suspended') window._resAC.resume(); }
+    } catch(e){}
+    document.removeEventListener('pointerdown', _unlockResAudio);
+    document.removeEventListener('touchstart', _unlockResAudio);
+    document.removeEventListener('click', _unlockResAudio);
+  }
+  try {
+    document.addEventListener('pointerdown', _unlockResAudio, { passive:true });
+    document.addEventListener('touchstart', _unlockResAudio, { passive:true });
+    document.addEventListener('click', _unlockResAudio, { passive:true });
+  } catch(e){}
+})();
 
 async function _resUpdateLiveCells() {
   if (document.hidden) return;  // 🆕 sekme gizliyse canlı hücre güncelleme yok
@@ -56584,7 +56602,7 @@ async function _resUpdateLiveCells() {
     rows = data || [];
   } catch(e) { return; }
   const _liveSet = new Set(liveKeys);
-  let anyFinished = false, anyNewLive = false;
+  let anyFinished = false, anyNewLive = false, _goalFired = false;
   for (const r of rows) {
     const _base = (typeof _computeLiveSimMinute === 'function') ? _computeLiveSimMinute(r) : (r.sim_minute || 0);  // ham started_at saati (bitiş ölçütü)
     const _cm = (r.sim_minute || 0);  // 🆕 TEK KAYNAK: sunucu sim_minute (skorla tutarlı; istemci saati YOK)
@@ -56615,6 +56633,7 @@ async function _resUpdateLiveCells() {
       scEl.textContent = _newSc;
       // 🆕 Skor DEĞİŞTİYSE (gol) → satır yeşil yan + skor pop + GOL rozeti + ses
       if (_prev !== undefined && _prev !== _newSc) {
+        _goalFired = true;   // 🆕 bu turda yeniden-render'ı ertele ki animasyon silinmesin
         try {
           const _pp = String(_prev).split(' - ');
           const _ph = parseInt(_pp[0],10)||0, _pa = parseInt(_pp[1],10)||0;
@@ -56668,8 +56687,13 @@ async function _resUpdateLiveCells() {
     }).sort().join(',');
   } catch(e) { _memSig = ''; }
   if (_memSig && _memSig !== window._resPrevMemSig) {
-    window._resPrevMemSig = _memSig;
-    renderResultsPage();
+    if (_goalFired) {
+      // 🆕 Bu turda gol animasyonu oynuyor → tam re-render satırı+animasyonu siler.
+      //   Yeniden çizmeyi ERTELE (imzayı güncelleme); sonraki tur çizer (animasyon ~1.6sn).
+    } else {
+      window._resPrevMemSig = _memSig;
+      renderResultsPage();
+    }
   }
 }
 
