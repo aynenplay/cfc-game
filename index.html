@@ -25934,7 +25934,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-09-sonuclar-canli-20';
+const APP_BUILD = '2026-06-09-sonuclar-canli-21';
 
 (function _cacheBustCheck() {
   try {
@@ -56552,21 +56552,6 @@ async function _resUpdateLiveCells() {
     rows = data || [];
   } catch(e) { return; }
   const _liveSet = new Set(liveKeys);
-  // 🆕 Canlı satırların skorunu EVENTS'ten (motorun TEK DOĞRU KAYNAĞI) hesapla — yalnızca görünen canlı maçlar (hafif)
-  let _evScore = {};
-  if (liveKeys.length) {
-    try {
-      const { data: _ed } = await window.sb.from('match_state').select('match_key,events,home_score,away_score').in('match_key', liveKeys);
-      for (const _er of (_ed || [])) {
-        if (Array.isArray(_er.events)) {
-          const _gs = _er.events.filter(e => e && e.type === 'goal' && !e.cancelled);
-          _evScore[_er.match_key] = { gh: _gs.filter(e => e.team === 'home').length, ga: _gs.filter(e => e.team === 'away').length };
-        } else {
-          _evScore[_er.match_key] = { gh: _er.home_score ?? 0, ga: _er.away_score ?? 0 };
-        }
-      }
-    } catch(e){}
-  }
   let anyFinished = false, anyNewLive = false;
   for (const r of rows) {
     const _base = (typeof _computeLiveSimMinute === 'function') ? _computeLiveSimMinute(r) : (r.sim_minute || 0);  // ham started_at saati (bitiş ölçütü)
@@ -56590,9 +56575,8 @@ async function _resUpdateLiveCells() {
       if (_ce) { _ce.sim_minute = r.sim_minute; _ce.status = r.status; } } catch(e){}
     const scEl = document.getElementById('res-sc-' + idx);
     if (scEl) {
-      // SKOR = EVENTS'teki açılmış goller (motorun TEK DOĞRU KAYNAĞI; home_score kolonu gecikebilir)
-      const _es = _evScore[r.match_key] || { gh: r.home_score ?? 0, ga: r.away_score ?? 0 };
-      const _gh = _es.gh, _ga = _es.ga;
+      // SKOR = motorun her gol/tick'te yazdığı resmi skor kolonu (scoreboard) — basit ve tek kaynak
+      const _gh = r.home_score ?? 0, _ga = r.away_score ?? 0;
       const _newSc = `${_gh} - ${_ga}`;
       window._resPrevScores = window._resPrevScores || {};
       const _prev = window._resPrevScores[r.match_key];
