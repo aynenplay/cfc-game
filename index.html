@@ -25934,7 +25934,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-09-sonuclar-canli-21';
+const APP_BUILD = '2026-06-09-mac-ekrani-acilis-22';
 
 (function _cacheBustCheck() {
   try {
@@ -31371,8 +31371,34 @@ function liveMatchOpen(matchData, kickoffMs) {
   set('resLmHomeShort', m.homeShort || (m.home || '').slice(0,3).toUpperCase());
   set('resLmAwayShort', m.awayShort || (m.away || '').slice(0,3).toUpperCase());
 
+  // 🆕 Açılışta 0-0 "yetişme" flash'ını önle: listedeki GÜNCEL skor+dakikayı _liveMatchCache'e HEMEN seed et
+  try {
+    const _sk = m.matchKey || cacheKey;
+    if (m.isLive && _sk && typeof _liveMatchCache === 'object' && _liveMatchCache && !_liveMatchCache[_sk]) {
+      _liveMatchCache[_sk] = {
+        match_key: _sk, season: m.season || 1, day_in_season: m.day || 0,
+        home_team: m.home, away_team: m.away, status: 'running',
+        home_score: m.hs ?? 0, away_score: m.as ?? 0, sim_minute: m.liveMinute ?? 0,
+        events: [], started_at: null
+      };
+    }
+  } catch(e){}
+
   _resLiveUpdate();
   overlay.classList.add('open');
+
+  // 🆕 Tam satırı (events/started_at dahil) HEMEN çek → 7sn poll'u bekleme, güncel skor+olaylar anında
+  (async () => {
+    try {
+      const _mk = m.matchKey || cacheKey;
+      if (_mk && window.sb) {
+        const { data: _one } = await window.sb.from('match_state')
+          .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,events,stats,started_at,kickoff_at,tournament_key,tournament_phase,viewer_count')
+          .eq('match_key', _mk).maybeSingle();
+        if (_one && typeof _liveMatchCache === 'object' && _liveMatchCache) { _liveMatchCache[_mk] = _one; _resLiveUpdate(); }
+      }
+    } catch(e){}
+  })();
 
   // 🆕 Her 7sn'de SADECE bu maçın satırını çek (tüm canlı maçları değil — CPU dostu).
   //   Tıklanan maçta olaylar görünür, o yüzden events+stats dahil.
