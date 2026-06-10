@@ -25934,7 +25934,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-09-sonuclar-canli-19';
+const APP_BUILD = '2026-06-09-sonuclar-canli-20';
 
 (function _cacheBustCheck() {
   try {
@@ -55922,6 +55922,15 @@ function _computeLiveSimMinute(ms) {
   return 90;
 }
 
+// 🆕 Maç EKRANIYLA AYNI görünür dakika: _computeLiveSimMinute tabanı + server sim_minute'a clamp
+//   (geçme; en fazla 1 dk geriden takip — izleme ekranındaki SERVER SİNK ile birebir).
+function _resClampedLiveMin(ms){
+  let _d = (typeof _computeLiveSimMinute === 'function') ? _computeLiveSimMinute(ms) : ((ms && ms.sim_minute) || 0);
+  const _ss = (ms && ms.sim_minute) || 0;
+  if (_ss > 0 && _d !== 45) { if (_d > _ss) _d = _ss; if (_d < _ss - 1) _d = _ss - 1; }
+  return _d;
+}
+
 // 🆕 SUPABASE TEK KAYNAK — lokal fikstür hesabı KALDIRILDI.
 //   Eski versiyon buildLeagueFixture + _resFixtureDayCache + _resFixtureSeasonCache +
 //   _matchResultsLoad + encLoad gibi 4-5 ayrı kaynaktan veri topluyordu; bunlar
@@ -55985,7 +55994,7 @@ function _resGetMatchesForDate(targetDate) {
       as: (isFinished || isLive) ? (ms.away_score ?? null) : null,
       playedAt: isFinished ? t : null,
       isLive: isLive,
-      liveMinute: isLive ? (ms.sim_minute ?? 0) : null,  // 🆕 motorun GERÇEK dakikası
+      liveMinute: isLive ? ((typeof _resClampedLiveMin === 'function') ? _resClampedLiveMin(ms) : (ms.sim_minute ?? 0)) : null,  // 🆕 maç ekranıyla AYNI (server'a clamp)
       cacheKey: ms.matchKey,
       _raw: ms
     });
@@ -56560,8 +56569,9 @@ async function _resUpdateLiveCells() {
   }
   let anyFinished = false, anyNewLive = false;
   for (const r of rows) {
-    const _cm = (typeof _computeLiveSimMinute === 'function') ? _computeLiveSimMinute(r) : (r.sim_minute || 0);  // 🆕 akan canlı dakika (görüntü + 90 ölçütü)
-    const _reached90 = ((r.sim_minute || 0) >= 90) || (_cm >= 90);   // akan saat 90 VEYA sunucu 90 → bitti (_resGetMatchesForDate ile AYNI ölçüt → döngü yok)
+    const _base = (typeof _computeLiveSimMinute === 'function') ? _computeLiveSimMinute(r) : (r.sim_minute || 0);  // ham started_at saati (bitiş ölçütü)
+    const _cm = (typeof _resClampedLiveMin === 'function') ? _resClampedLiveMin(r) : _base;  // 🆕 GÖSTERİLEN dakika: maç ekranıyla AYNI (server'a clamp)
+    const _reached90 = ((r.sim_minute || 0) >= 90) || (_base >= 90);   // ham saat 90 → bitti (maç ekranı finalize ile aynı)
     const _running = (r.status === 'running') && !_reached90;
     const _fin = (r.status === 'finished') || ((r.status === 'running') && _reached90);
     // cache'i her durumda tazele → liste yeniden çizilince doğru skor/dakika kalsın
