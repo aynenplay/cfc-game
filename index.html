@@ -25931,7 +25931,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-09-dizilis-11-zorunlu-37';
+const APP_BUILD = '2026-06-09-dizilis-pitch2bench-38';
 
 (function _cacheBustCheck() {
   try {
@@ -46711,6 +46711,10 @@ function makeDraggable(node, idx) {
     const ny = Math.max(2, Math.min(98, startTop  + dy));
     node.style.left = nx + '%';
     node.style.top  = ny + '%';
+    try {
+      const _bl = document.getElementById('benchList');
+      if (_bl) { const _r = _bl.getBoundingClientRect(); _bl.classList.toggle('bench-drop-active', touch.clientX >= _r.left && touch.clientX <= _r.right && touch.clientY >= _r.top && touch.clientY <= _r.bottom); }
+    } catch(_){}
 
     // 🆕 Yakındaki başka oyuncu var mı? Highlight uygula
     const targetIdx = _findSwapTarget(idx, nx, ny, SWAP_THRESHOLD);
@@ -46727,6 +46731,13 @@ function makeDraggable(node, idx) {
     node.style.zIndex = '5';
     node.classList.remove('is-dragging');
     document.querySelectorAll('.fpn.swap-target').forEach(el => el.classList.remove('swap-target'));
+    try { const _bl0 = document.getElementById('benchList'); if (_bl0) _bl0.classList.remove('bench-drop-active'); } catch(_){}
+
+    // 🆕 BENCH üzerine bırakıldıysa → oyuncuyu yedeğe taşı (saha slotu boşalır → "+")
+    {
+      const _pt = (e && e.changedTouches && e.changedTouches[0]) ? e.changedTouches[0] : e;
+      if (_pt && typeof _movePitchToBenchIfDropped === 'function' && _movePitchToBenchIfDropped(idx, _pt.clientX, _pt.clientY)) return;
+    }
 
     // 🆕 Bırakılan yerde başka oyuncu var mı?
     const curLeft = parseFloat(node.style.left);
@@ -46778,6 +46789,32 @@ function _findSwapTarget(srcIdx, x, y, threshold) {
     if (dist <= threshold) return i;
   }
   return -1;
+}
+
+// 🆕 Sahadaki oyuncuyu YEDEĞE taşı — sürükleme bench alanında bittiyse
+function _movePitchToBenchIfDropped(pitchIdx, cx, cy) {
+  if (typeof _canManageSquad === 'function' && !_canManageSquad()) return false;
+  if (typeof cx !== 'number' || typeof cy !== 'number') return false;
+  const benchEl = document.getElementById('benchList');
+  if (!benchEl) return false;
+  const r = benchEl.getBoundingClientRect();
+  if (cx < r.left || cx > r.right || cy < r.top || cy > r.bottom) return false;  // bench üzerinde değil
+  const entry = (activePitchPlayers || [])[pitchIdx];
+  if (!entry || !entry.player) return false;
+  const BENCH_SIZE = 7;
+  if (Array.isArray(benchPlayers) && benchPlayers.length >= BENCH_SIZE) {
+    if (typeof showToast === 'function') showToast('Yedek dolu (7) — önce yedekten birini çıkar');
+    renderPitch();  // yerine geri otursun
+    return true;    // işlendi (swap mantığına düşme)
+  }
+  const pl = entry.player;
+  activePitchPlayers.splice(pitchIdx, 1);   // sahadan çıkar → slot "+" olur
+  if (!Array.isArray(benchPlayers)) benchPlayers = [];
+  benchPlayers.push(pl);
+  renderPitch();
+  renderBench();
+  try { saveTeamStrategy(); } catch(e){}
+  return true;
 }
 
 // ── Swap / Değiştir ──
@@ -79696,6 +79733,7 @@ document.addEventListener('keydown', function(e){
 .fpn-empty .fpn-plus{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:rgba(255,255,255,.7);line-height:1}
 .fpn-empty .fpn-empty-lbl{font-size:7.5px;font-weight:800;color:rgba(255,255,255,.5);letter-spacing:.3px;margin-top:1px}
 .form-tool-btn.disabled,.form-tool-btn:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(.4)}
+#benchList.bench-drop-active{outline:2px dashed var(--accent);outline-offset:2px;border-radius:10px;background:rgba(0,230,118,.06)}
 </style>
 </body>
 </html>
