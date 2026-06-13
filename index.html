@@ -25931,7 +25931,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-09-dizilis-bos-slot-44';
+const APP_BUILD = '2026-06-09-dizilis-uye-readonly-45';
 
 (function _cacheBustCheck() {
   try {
@@ -45975,7 +45975,8 @@ function initFormation() {
     benchPlayers = (bench || []).slice(0, 7);
     renderPitch();
     renderBench();
-    try { saveTeamStrategy(); } catch(e){}
+    // 🆕 Sadece kaptan/yardımcı kaydeder (üye otomatik dizilişi sunucuya yazıp kaptanınkini EZMESİN)
+    if (typeof _canManageSquad === 'function' && _canManageSquad()) { try { saveTeamStrategy(); } catch(e){} }
     return;
   }
 
@@ -46686,6 +46687,8 @@ function makeDraggable(node, idx) {
   const SWAP_THRESHOLD = 9; // % cinsinden — başka oyuncuya bu kadar yaklaşırsa swap
 
   function onStart(e) {
+    // 🆕 Sadece kaptan/yardımcı düzenleyebilir — üyeler salt-okunur
+    if (typeof _canManageSquad === 'function' && !_canManageSquad()) return;
     e.preventDefault();
     const touch = e.touches ? e.touches[0] : e;
     startX = touch.clientX;
@@ -46824,6 +46827,7 @@ function _findSwapTarget(srcIdx, x, y, threshold) {
 
 // 🆕 Sahadaki oyuncuyu YEDEĞE taşı — sürükleme bench alanında bittiyse
 function _movePitchToBenchIfDropped(pitchIdx, cx, cy) {
+  if (typeof _canManageSquad === 'function' && !_canManageSquad()) return false;
   if (typeof cx !== 'number' || typeof cy !== 'number') return false;
   const benchEl = document.querySelector('.form-side-panel') || document.getElementById('benchList');
   if (!benchEl) return false;
@@ -46921,6 +46925,7 @@ function handleBenchClick(idx) {
 let dragBenchIdx = null;
 
 function benchDragStart(e, idx) {
+  if (typeof _canManageSquad === 'function' && !_canManageSquad()) { try { e.preventDefault(); } catch(_){} return; }
   dragBenchIdx = idx;
   e.dataTransfer.effectAllowed = 'move';
   e.dataTransfer.setData('text/plain', idx);
@@ -46939,6 +46944,7 @@ function benchDragEnd(e) {
 }
 
 function doBenchToPitchSwap(pitchIdx) {
+  if (typeof _canManageSquad === 'function' && !_canManageSquad()) return;
   if(dragBenchIdx === null || dragBenchIdx >= benchPlayers.length) return;
   const bPlayer = benchPlayers[dragBenchIdx];
   const pEntry  = activePitchPlayers[pitchIdx];
@@ -46997,6 +47003,9 @@ function openSlotPicker(slotIdx) {
 function _updateSaveLineupBtn() {
   const btn = document.getElementById('btnSaveFormation');
   if (!btn) return;
+  // 🆕 Üyeler kaydedemez → butonu gizle
+  if (typeof _canManageSquad === 'function' && !_canManageSquad()) { btn.style.display = 'none'; return; }
+  btn.style.display = '';
   const cnt = Array.isArray(activePitchPlayers) ? activePitchPlayers.filter(e => e && e.player).length : 0;
   const full = (cnt === 11);
   btn.disabled = !full;
@@ -47112,6 +47121,11 @@ async function flushTeamStrategySave() {
 }
 
 async function saveFormation() {
+  // 🆕 Sadece kaptan/yardımcı kaydedebilir
+  if (typeof _canManageSquad === 'function' && !_canManageSquad()) {
+    if (typeof showToast === 'function') showToast('Sadece kaptan veya yardımcı diziliş kaydedebilir');
+    return;
+  }
   // 🆕 İlk 11 tam dolu değilse kaydetme
   const _liveCnt = Array.isArray(activePitchPlayers) ? activePitchPlayers.filter(e => e && e.player).length : 0;
   if (_liveCnt < 11) {
