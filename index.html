@@ -25849,7 +25849,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-13-mt-dizilis-strateji-64';
+const APP_BUILD = '2026-06-13-mt-kadro-birebir-65';
 
 (function _cacheBustCheck() {
   try {
@@ -49150,27 +49150,46 @@ function ntRenderRoster() {
     const subPosCls = (typeof subPosClass === 'function') ? subPosClass(p) : '';
     const isCap = !!p.isNtCaptain;
 
-    // Rozet: T.D. (kaptan) → 👑 + Sen / Sen / Bot
+    // Rozet (kulüp ile aynı stil): Sen / T.D.(kaptan) / Bot
     let badge = '';
-    if (isCap)         badge = '<span class="pr-badge badge-cap">👑 T.D.</span>' + (p.isUser ? '<span class="pr-badge badge-you">Sen</span>' : '');
+    if (isCap)         badge = (p.isUser ? '<span class="pr-badge badge-you">Sen</span>' : '') + '<span class="pr-badge badge-cap">T.D.</span>';
     else if (p.isUser) badge = '<span class="pr-badge badge-you">Sen</span>';
     else if (p.isBot)  badge = '<span class="pr-badge badge-bot">Bot</span>';
 
-    // Kadro durumu (İlk 11 / Yedek / Kadro Dışı)
+    // Kadro durumu (kulüp ile AYNI — emojisiz, getSquadStatusBadgeHtml)
     const st = (typeof getNtPlayerSquadStatus === 'function') ? getNtPlayerSquadStatus(p) : 'reserve';
-    let squadStatusBadge = '';
-    if (st === 'starter')    squadStatusBadge = '<span class="pr-squad-status pr-squad-starter">⚽ İlk 11</span>';
-    else if (st === 'bench') squadStatusBadge = '<span class="pr-squad-status pr-squad-bench">🪑 Yedek</span>';
-    else                     squadStatusBadge = '<span class="pr-squad-status pr-squad-reserve">📋 Kadro Dışı</span>';
+    const squadBadge = (typeof getSquadStatusBadgeHtml === 'function') ? getSquadStatusBadgeHtml(st) : '';
 
-    // Kulüp logosu (renkli badge) + adı
+    // Durum rozetleri (sarı kart / ceza / sakatlık / moral) — kulüp ile AYNI
+    let statusBadges = '';
+    const yc = p.seasonYellow || 0;
+    const susp = p.suspendMatches || 0;
+    const injured = (p.injuryUntil || 0) > Date.now();
+    if(yc > 0 && susp === 0) statusBadges += `<span class="pr-status-yc" title="Sezon sarı kart sayacı">🟨 ${yc}/4</span>`;
+    if(susp > 0) {
+      const reasonIcon = p.suspendReason === 'red' ? '🟥' : '🟨';
+      const reasonTxt  = p.suspendReason === 'red' ? 'Kırmızı kart' : '4 sarı';
+      statusBadges += `<span class="pr-status-susp" title="${reasonTxt} cezası">${reasonIcon} ${susp} maç</span>`;
+    }
+    if(injured && typeof getInjuryRemainingHours === 'function') {
+      statusBadges += `<span class="pr-status-inj" title="Sakatlık iyileşme süresi">🚑 ${getInjuryRemainingHours(p)}s</span>`;
+    }
+    const morale = (typeof p.morale === 'number') ? p.morale : 70;
+    if (morale < 40) statusBadges += `<span class="pr-status-morale-low" title="Moral: ${morale}/100">😞 Düşük Moral</span>`;
+    else if (morale >= 90) statusBadges += `<span class="pr-status-morale-high" title="Moral: ${morale}/100">🔥 Yüksek Moral</span>`;
+
+    // Kulüp logosu (renkli badge) + adı — MT'ye özel (oyuncular farklı kulüplerden)
     const _cbg = p.clubBg || '#222', _ctc = p.clubTc || '#fff', _csh = p.clubShort || (p.sourceClub || '—').slice(0,3).toUpperCase();
     const clubHtml = p.sourceClub
       ? `<span class="futc-club" title="Kulübü: ${p.sourceClub}"><span class="futc-club-logo" style="background:${_cbg};color:${_ctc}">${_csh}</span>${p.sourceClub}</span>`
       : '';
 
-    // Avatar
-    const avCls = p.isBot ? 'bot-av' : (isCap ? 'captain-av' : '');
+    // Piyasa değeri (kulüp ile AYNI — futc-mv)
+    const mvHtml = (typeof formatMV === 'function' && typeof getPlayerMarketValue === 'function')
+      ? `<span class="futc-mv">${formatMV(getPlayerMarketValue(p))}</span>` : '';
+
+    // Avatar (kulüp ile AYNI)
+    const avatarClass = isCap ? 'captain-av' : (p.isBot ? 'bot-av' : '');
     let avatarHTML = p.avatar || (p.isUser ? '⭐' : '🤖');
     try {
       if (p.isUser && typeof authUser !== 'undefined' && authUser && authUser.avatarId && typeof getAvatarEmoji === 'function') {
@@ -49181,12 +49200,12 @@ function ntRenderRoster() {
     } catch(e) {}
     const onlineDot = (typeof isPlayerOnline === 'function' && isPlayerOnline(p)) ? '<span class="pr-online-dot" title="Çevrimiçi"></span>' : '';
 
-    // Aksiyon (başkan/yardımcı): yedek→ÇIKAR, kadro dışı→+ Maç Kadrosu
+    // Aksiyon (başkan/yardımcı): yedek→Çıkar, kadro dışı→+ Maç Kadrosu (kulüp pr-squad-action)
     let actionBtn = '';
     if (isFedOfficial && !p.isUser) {
       if (st === 'bench') {
         const safeId = String(p.ntId || '').replace(/'/g, "\\'");
-        actionBtn = `<button class="nt-act-btn nt-rmv-btn" onclick="event.stopPropagation();ntKadroConfirmRemove('${safeId}')" title="Havuzdan tamamen çıkar">ÇIKAR</button>`;
+        actionBtn = `<button class="pr-squad-action" onclick="event.stopPropagation();ntKadroConfirmRemove('${safeId}')" title="Havuzdan tamamen çıkar">✕</button>`;
       } else if (st === 'reserve') {
         _ntEnsureBench();
         const benchFull = (Array.isArray(_ntMatchSquadBench) && _ntMatchSquadBench.length >= 7);
@@ -49196,9 +49215,9 @@ function ntRenderRoster() {
       }
     }
 
-    // Forma no (T.D. düzenler)
+    // Forma no (kulüp ile AYNI — T.D. düzenler)
     const numHtml = (isCoach && !p.isUser)
-      ? `<div class="futc-num futc-num-edit" onclick="event.stopPropagation();ntEditJerseyNumber(${p.num}, event)" title="Forma numarasını düzenle (T.D.)">#${p.num}</div>`
+      ? `<div class="futc-num" onclick="event.stopPropagation();ntEditJerseyNumber(${p.num}, event)" title="Forma numarasını düzenle (T.D.)">#${p.num}</div>`
       : `<div class="futc-num">#${p.num}</div>`;
 
     const safeNtId = String(p.ntId || '').replace(/'/g, "\\'");
@@ -49211,13 +49230,14 @@ function ntRenderRoster() {
         <div class="futc-pos ${subPosCls}">${subPos}</div>
       </div>
       <div class="futc-rcol">
-        <div class="futc-av ${avCls}">${avatarHTML}${onlineDot}</div>
+        <div class="futc-av ${avatarClass}">${avatarHTML}${onlineDot}</div>
         <div class="futc-info">
-          <div class="futc-name">${p.name} ${badge}${squadStatusBadge}</div>
+          <div class="futc-name">${p.name} ${badge}${squadBadge}${statusBadges}</div>
           <div class="futc-meta">
             ${clubHtml}
             <span>${p.nation || ''}</span>
             <span>Sv.${p.level || 0}</span>
+            ${mvHtml}
           </div>
         </div>
         <div class="futc-right">
