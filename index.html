@@ -25854,7 +25854,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-13-mt-kadro-futcard-css-66';
+const APP_BUILD = '2026-06-13-mt-dizilis-bench-drag-67';
 
 (function _cacheBustCheck() {
   try {
@@ -49698,6 +49698,7 @@ function ntMakeDraggable(node, idx) {
   let startX, startY, startLeft, startTop, dragging = false;
   let originalLeft, originalTop;
   let didMove = false;
+  let lastX = 0, lastY = 0;   // 🆕 son pointer konumu (yedek bırakma algılaması)
   const SWAP_THRESHOLD = 9;
 
   function _getPitch() {
@@ -49744,10 +49745,16 @@ function ntMakeDraggable(node, idx) {
       didMove = true;
       e.preventDefault();
     }
-    const nx = Math.max(2, Math.min(98, startLeft + dx));
-    const ny = Math.max(2, Math.min(98, startTop  + dy));
+    const nx = Math.max(2, Math.min(135, startLeft + dx));   // 🆕 sağ: yedeğe taşabilsin
+    const ny = Math.max(2, Math.min(108, startTop  + dy));
     node.style.left = nx + '%';
     node.style.top  = ny + '%';
+    node.style.zIndex = '99999';   // 🆕 yedek panelinin üstünde görünsün
+    lastX = touch.clientX; lastY = touch.clientY;
+    try {
+      const _bl = document.querySelector('#nt-formation .form-side-panel');
+      if (_bl) { const _r = _bl.getBoundingClientRect(); _bl.classList.toggle('bench-drop-active', touch.clientX >= _r.left && touch.clientX <= _r.right && touch.clientY >= _r.top && touch.clientY <= _r.bottom); }
+    } catch(_){}
 
     const targetIdx = _ntFindSwapTarget(idx, nx, ny, SWAP_THRESHOLD);
     document.querySelectorAll('#nt-pitchPlayers .fpn.swap-target').forEach(el => el.classList.remove('swap-target'));
@@ -49770,6 +49777,7 @@ function ntMakeDraggable(node, idx) {
     node.style.zIndex = '5';
     node.classList.remove('is-dragging');
     document.querySelectorAll('#nt-pitchPlayers .fpn.swap-target').forEach(el => el.classList.remove('swap-target'));
+    try { const _bl0 = document.querySelector('#nt-formation .form-side-panel'); if (_bl0) _bl0.classList.remove('bench-drop-active'); } catch(_){}
 
     if (!didMove) {
       // Sadece tıklama → click handler tetiklenir, drag yok
@@ -49777,8 +49785,11 @@ function ntMakeDraggable(node, idx) {
     }
 
     // 🆕 Yedek paneline bırakıldı mı? → sahadan çıkar, maç kadrosu yedeğine ekle (kulüp ile aynı)
-    const _ce = (e && e.changedTouches && e.changedTouches[0]) ? e.changedTouches[0] : e;
-    if (typeof _ntMovePitchToBenchIfDropped === 'function' && _ce && _ntMovePitchToBenchIfDropped(idx, _ce.clientX, _ce.clientY)) return;
+    {
+      let _cx = lastX, _cy = lastY;
+      try { if ((!_cx || !_cy) && e) { const _t = (e.changedTouches && e.changedTouches[0]) ? e.changedTouches[0] : e; if (_t) { _cx = _t.clientX; _cy = _t.clientY; } } } catch(_){}
+      if (typeof _ntMovePitchToBenchIfDropped === 'function' && _ntMovePitchToBenchIfDropped(idx, _cx, _cy)) return;
+    }
 
     const curLeft = parseFloat(node.style.left);
     const curTop  = parseFloat(node.style.top);
