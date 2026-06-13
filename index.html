@@ -24832,7 +24832,7 @@ body.drawer-open{overflow:hidden}
         <div class="form-tool-right">
           <button class="form-tool-btn" onclick="ntAutoSmartLineup()" title="En iyi 11'i otomatik diz">🤖 Akıllı Kadro</button>
           <button class="form-tool-btn" onclick="ntOpenStrategyPanel()">⚙️ Strateji</button>
-          <button class="form-tool-btn accent" onclick="ntSaveFormation()">💾 Kaydet</button>
+          <button class="form-tool-btn accent" id="ntSaveFormationBtn" onclick="ntSaveFormation()">💾 Kaydet</button>
         </div>
       </div>
 
@@ -25931,7 +25931,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-09-dizilis-uye-readonly-45';
+const APP_BUILD = '2026-06-09-milli-dizilis-46';
 
 (function _cacheBustCheck() {
   try {
@@ -49623,11 +49623,11 @@ function _ntCompleteLineup() {
       .map((p, i) => ({ p, i }))
       .filter(({ p, i }) => !usedRosterIdx.has(i) && _grp(p) === fam)
       .sort((a, b) => (b.p.overall||0) - (a.p.overall||0));
-    // Yoksa kaleci dışı uygun oyuncu (kaleci slotuna sadece GK)
-    if(candidates.length === 0 && fam !== 'GK') {
+    // 🆕 Uygun yoksa HERHANGİ boşta oyuncu (kaleci dahil — saha asla eksik kalmasın)
+    if(candidates.length === 0) {
       candidates = roster
         .map((p, i) => ({ p, i }))
-        .filter(({ p, i }) => !usedRosterIdx.has(i) && _grp(p) !== 'GK')
+        .filter(({ p, i }) => !usedRosterIdx.has(i))
         .sort((a, b) => (b.p.overall||0) - (a.p.overall||0));
     }
     if(candidates.length > 0) {
@@ -49708,6 +49708,7 @@ function ntMakeDraggable(node, idx) {
 
   function onStart(e) {
     if (e.touches && e.touches.length > 1) return;
+    if (typeof ntCanEditFormation === 'function' && !ntCanEditFormation()) return;  // 🆕 sadece başkan
     const touch = e.touches ? e.touches[0] : e;
     startX = touch.clientX;
     startY = touch.clientY;
@@ -49784,7 +49785,19 @@ function ntMakeDraggable(node, idx) {
       try { if (typeof ntSaveStrategy === 'function') ntSaveStrategy(); } catch(_) {}
       if (typeof ntRenderPitch === 'function') ntRenderPitch();
     } else {
-      // Swap yok → orijinal pozisyona kayma (slot sabit)
+      // 🆕 BOŞ SLOTA bırakıldı mı? → oyuncuyu o boş slota taşı (eski slot "+" olur)
+      const _eIdx = (typeof _ntFindEmptySlotTarget === 'function') ? _ntFindEmptySlotTarget(curLeft, curTop, SWAP_THRESHOLD + 6) : -1;
+      if (_eIdx !== -1 && Array.isArray(_ntActivePitchPlayers) && _ntActivePitchPlayers[idx]) {
+        const _sl = (NT_FORMATIONS[_ntCurrentFormation] || [])[_eIdx];
+        if (_sl) {
+          _ntActivePitchPlayers[idx].slotIdx = _eIdx;
+          _ntActivePitchPlayers[idx].x = _sl.x; _ntActivePitchPlayers[idx].y = _sl.y; _ntActivePitchPlayers[idx].pos = _sl.pos;
+          try { if (typeof ntSaveStrategy === 'function') ntSaveStrategy(); } catch(_){}
+          if (typeof ntRenderPitch === 'function') ntRenderPitch();
+          return;
+        }
+      }
+      // Swap/boş slot yok → orijinal pozisyona kayma (slot sabit)
       node.style.left = originalLeft + '%';
       node.style.top  = originalTop + '%';
     }
@@ -49808,6 +49821,64 @@ function _ntFindSwapTarget(srcIdx, x, y, threshold) {
   return -1;
 }
 
+// 🆕 NT: yakındaki BOŞ formasyon slotunu bul
+function _ntFindEmptySlotTarget(x, y, threshold) {
+  const slots = (typeof NT_FORMATIONS !== 'undefined' && NT_FORMATIONS[_ntCurrentFormation]) ? NT_FORMATIONS[_ntCurrentFormation] : [];
+  const used = new Set((_ntActivePitchPlayers||[]).map(e => (e && e.player) ? e.slotIdx : null));
+  let best = -1, bestDist = Infinity;
+  slots.forEach((sl, i) => {
+    if (used.has(i)) return;
+    const dx = sl.x - x, dy = sl.y - y, dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist <= threshold && dist < bestDist) { bestDist = dist; best = i; }
+  });
+  return best;
+}
+
+// 🆕 NT: bench oyuncusunu boş slota ekle (sürükle-bırak)
+function ntDoBenchToEmptySlot(slotIdx) {
+  if (typeof ntCanEditFormation === 'function' && !ntCanEditFormation()) { if (typeof _ntNoPermToast==='function') _ntNoPermToast(); _ntDragBenchIdx = null; return; }
+  if (_ntDragBenchIdx === null) return;
+  const _sl = (NT_FORMATIONS[_ntCurrentFormation] || [])[slotIdx]; if (!_sl) return;
+  const bPlayer = _ntCurrentSubs && _ntCurrentSubs[_ntDragBenchIdx]; if (!bPlayer) return;
+  const roster = ntEnsureRoster();
+  _ntActivePitchPlayers.push({ rosterIdx: roster.indexOf(bPlayer), slotIdx, pos: _sl.pos, x: _sl.x, y: _sl.y, player: bPlayer });
+  _ntDragBenchIdx = null;
+  try { ntSaveStrategy(); } catch(_){}
+  ntRenderPitch();
+}
+
+// 🆕 NT: boş slota tek-tıkla en uygun oyuncuyu yerleştir
+function ntOpenSlotPicker(slotIdx) {
+  if (typeof ntCanEditFormation === 'function' && !ntCanEditFormation()) { if (typeof _ntNoPermToast==='function') _ntNoPermToast(); return; }
+  const _sl = (NT_FORMATIONS[_ntCurrentFormation] || [])[slotIdx]; if (!_sl) return;
+  const roster = ntEnsureRoster();
+  const onPitch = new Set((_ntActivePitchPlayers||[]).map(e => e && e.player && e.player.num));
+  const avail = (roster||[]).filter(p => p && !onPitch.has(p.num));
+  if (!avail.length) return;
+  const POSGRP = (typeof POS_GROUP !== 'undefined') ? POS_GROUP : null;
+  const _grp = p => p.posGroup || (POSGRP && POSGRP[p.pos]) || (typeof _ntPosFamily==='function'?_ntPosFamily(p.pos):p.pos);
+  const fam = (typeof _ntPosFamily === 'function') ? _ntPosFamily(_sl.pos) : _sl.pos;
+  let pool = avail.filter(p => _grp(p) === fam).sort((a,b)=>(b.overall||0)-(a.overall||0));
+  if (!pool.length) pool = [...avail].sort((a,b)=>(b.overall||0)-(a.overall||0));
+  const chosen = pool[0]; if (!chosen) return;
+  _ntActivePitchPlayers.push({ rosterIdx: roster.indexOf(chosen), slotIdx, pos: _sl.pos, x: _sl.x, y: _sl.y, player: chosen });
+  try { ntSaveStrategy(); } catch(_){}
+  ntRenderPitch();
+}
+
+// 🆕 NT: İlk 11 dolmadan Kaydet pasif + başkan değilse gizle
+function _ntUpdateSaveBtn() {
+  const btn = document.getElementById('ntSaveFormationBtn');
+  if (!btn) return;
+  if (typeof ntCanEditFormation === 'function' && !ntCanEditFormation()) { btn.style.display = 'none'; return; }
+  btn.style.display = '';
+  const cnt = Array.isArray(_ntActivePitchPlayers) ? _ntActivePitchPlayers.filter(e=>e&&e.player).length : 0;
+  const full = (cnt === 11);
+  btn.disabled = !full;
+  btn.classList.toggle('disabled', !full);
+  btn.title = full ? 'Dizilişi kaydet' : ('İlk 11 tamamlanmalı (' + cnt + '/11)');
+}
+
 function ntRenderPitch() {
   const pitchEl = document.getElementById('nt-pitchPlayers');
   const benchEl = document.getElementById('nt-benchList');
@@ -49822,11 +49893,33 @@ function ntRenderPitch() {
     return 'MID';
   };
 
-  // Pitch oyuncular
+  // Pitch oyuncular — TÜM formasyon slotları (boş olana "+")
   pitchEl.innerHTML = '';
-  _ntActivePitchPlayers.forEach((entry, idx) => {
+  const _ntSlots = (typeof NT_FORMATIONS !== 'undefined' && NT_FORMATIONS[_ntCurrentFormation]) ? NT_FORMATIONS[_ntCurrentFormation] : [];
+  const _ntCanEdit = (typeof ntCanEditFormation === 'function') ? ntCanEditFormation() : false;
+  const _ntBySlot = {};
+  (_ntActivePitchPlayers||[]).forEach((e, ai) => { if (e && e.player && typeof e.slotIdx === 'number') _ntBySlot[e.slotIdx] = { entry:e, ai }; });
+  _ntSlots.forEach((_slot, _si) => {
+    const _hit = _ntBySlot[_si];
+    if (!(_hit && _hit.entry && _hit.entry.player)) {
+      const en = document.createElement('div');
+      en.className = 'fpn fpn-empty';
+      en.id = 'nt-fpn_empty_' + _si;
+      en.style.left = _slot.x + '%';
+      en.style.top  = _slot.y + '%';
+      en.dataset.slot = _si;
+      en.innerHTML = '<div class="fpn-empty-card"><div class="fpn-empty-plus">+</div><div class="fpn-empty-pos">' + (_slot.s || _slot.pos) + '</div></div>';
+      en.addEventListener('dragover', e => { e.preventDefault(); en.classList.add('drop-hover'); });
+      en.addEventListener('dragleave', () => en.classList.remove('drop-hover'));
+      en.addEventListener('drop', e => { e.preventDefault(); en.classList.remove('drop-hover'); if (typeof ntDoBenchToEmptySlot === 'function') ntDoBenchToEmptySlot(_si); });
+      if (_ntCanEdit) { en.style.cursor = 'pointer'; en.addEventListener('click', () => { if (typeof ntOpenSlotPicker === 'function') ntOpenSlotPicker(_si); }); }
+      pitchEl.appendChild(en);
+      return;
+    }
+    const entry = _hit.entry;
+    const idx = _hit.ai;
+    entry.x = _slot.x; entry.y = _slot.y; entry.pos = _slot.pos; entry.slotIdx = _si;
     const p = entry.player;
-    if(!p) return;
     const lastName = p.name.split(' ').pop();
     const isUser = !!p.isUser;
     const isCap  = p.role === 'captain';
@@ -49963,8 +50056,8 @@ function ntRenderPitch() {
       </div>`;
     } else {
       benchHtml += `<div class="bench-item bench-empty">
-        <div class="bi-num" style="color:var(--border)">—</div>
-        <div class="bi-circle" style="background:var(--bg3);color:var(--border);font-size:14px">🪑</div>
+        <div class="bi-num" style="color:var(--border)">+</div>
+        <div class="bi-circle" style="background:var(--bg3);color:rgba(255,255,255,.55);font-size:18px;font-weight:900">+</div>
         <div class="bi-info">
           <div class="bi-name" style="color:var(--text3)">Boş Koltuk</div>
           <div class="bi-pos" style="color:var(--border)">—</div>
@@ -49974,6 +50067,7 @@ function ntRenderPitch() {
     }
   }
   benchEl.innerHTML = benchHtml;
+  if (typeof _ntUpdateSaveBtn === 'function') _ntUpdateSaveBtn();
 
   // Ortalamalar
   const ratings = { atk:[], mid:[], def:[], gk:[] };
@@ -50210,6 +50304,8 @@ function ntSetFormation(f) {
 // Kaydet (toast)
 function ntSaveFormation() {
   if(!ntCanEditFormation()) { _ntNoPermToast(); return; }
+  const _cnt = Array.isArray(_ntActivePitchPlayers) ? _ntActivePitchPlayers.filter(e=>e&&e.player).length : 0;
+  if (_cnt < 11) { if (typeof showToast === 'function') showToast('İlk 11 tamamlanmadan kaydedilemez (' + _cnt + '/11)'); return; }
   ntSaveStrategy();
   const toast = document.createElement('div');
   toast.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--accent);color:var(--bg);padding:8px 18px;border-radius:20px;font-size:12px;font-weight:700;z-index:9999;font-family:"Barlow Condensed",sans-serif;letter-spacing:.5px';
