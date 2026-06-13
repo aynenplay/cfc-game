@@ -6611,6 +6611,8 @@ body.team-captain .pr-mv.is-custom:hover{color:#ffe082}
 .pm-role-badge.user{background:rgba(70,209,122,.1);color:#46d17a;border:1px solid rgba(70,209,122,.25)}
 .pm-role-badge.bot{background:rgba(102,179,255,.1);color:#66b3ff;border:1px solid rgba(102,179,255,.25)}
 .pm-role-badge.free{background:rgba(45,212,191,.12);color:#2dd4bf;border:1px solid rgba(45,212,191,.28)}
+.pm-role-badge.nt{background:rgba(0,176,255,.12);color:#5fd0ff;border:1px solid rgba(0,176,255,.32)}
+.pl-nt-badge{display:inline-block;margin-top:5px;font-family:'Barlow',sans-serif;font-size:11px;font-weight:800;color:#5fd0ff;background:rgba(0,176,255,.12);border:1px solid rgba(0,176,255,.32);border-radius:6px;padding:3px 9px;letter-spacing:.3px}
 
 /* Bilgi şeridi — sol renk şeritli karbon kart */
 .pm-info-strip{
@@ -23005,6 +23007,7 @@ body.drawer-open{overflow:hidden}
         <!-- İsim + meta -->
         <div class="pl-hero-info">
           <div class="pl-name" id="plName">—</div>
+          <div class="pl-nt-badge" id="plNtBadge" style="display:none">🌍 Milli Takım Oyuncusu</div>
           <div class="pl-hero-meta-row">
             <span class="pl-pos-pill" id="plPosBadge">Orta Saha</span>
             <span class="pl-hero-flag" id="plFcFlag">🇹🇷</span>
@@ -25861,7 +25864,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-13-mt-kadro-menu-69';
+const APP_BUILD = '2026-06-13-mt-profil-rozet-72';
 
 (function _cacheBustCheck() {
   try {
@@ -44683,6 +44686,30 @@ async function _resolvePlayerFromServer(player, ctx){
   } catch(e){ return null; }
 }
 
+// 🆕 Oyuncu milli takım kadrosunda mı? (uuid seti yüklüyse true/false, değilse null)
+function _isNtSquadPlayerSync(player, cc) {
+  try {
+    const uset = (typeof _ntSquadUuidByCc !== 'undefined') ? _ntSquadUuidByCc[cc] : null;
+    if (!uset) return null;
+    return !!(player && player.id && uset.has(player.id));
+  } catch(e) { return null; }
+}
+// 🆕 Profil modalında 'Milli Takım Oyuncusu' rozetini doldur (gerekiyorsa kadroyu async yükle)
+async function _ntFillProfileNtBadge(player) {
+  try {
+    if (!player) return;
+    const cc = player.nationality || player._cc || player.country_code;
+    if (!cc) return;
+    let member = _isNtSquadPlayerSync(player, cc);
+    if (member === null && typeof _loadNtSquadFromServer === 'function') {
+      await _loadNtSquadFromServer(cc);
+      member = _isNtSquadPlayerSync(player, cc);
+    }
+    const el = document.getElementById('pmNtBadge');
+    if (el && member) el.style.display = '';
+  } catch(e) {}
+}
+
 async function openPlayerModal(player, ctx) {
   const card = document.getElementById('playerModalCard');
   const overlay = document.getElementById('playerModal');
@@ -44897,7 +44924,7 @@ async function openPlayerModal(player, ctx) {
         ${player.nation ? `<span class="pm-flag-emoji">${player.nation}</span>` : ''}
         ${ctx.teamName ? `${(typeof teamLogoUrl === 'function' && teamLogoUrl({name:ctx.teamName})) ? `<img class="pm-team-logo" src="${teamLogoUrl({name:ctx.teamName})}" alt="" loading="lazy">` : ''}<span class="pm-team-line">${ctx.teamName}</span>` : ''}
       </div>
-      ${roleBadge}
+      ${roleBadge}<span class="pm-role-badge nt" id="pmNtBadge" style="display:none">🌍 Milli Takım Oyuncusu</span>
     </div>
     <div class="pm-info-strip">
       <div class="pm-info-cell">
@@ -44917,6 +44944,7 @@ async function openPlayerModal(player, ctx) {
     <div class="pm-actions">${actionsHtml}</div>
   `;
   overlay.classList.add('open');
+  try { if (typeof _ntFillProfileNtBadge === 'function') _ntFillProfileNtBadge(player); } catch(e){}
 }
 
 function closePlayerModal() {
@@ -48651,6 +48679,7 @@ function ntBuildDefaultSquadIds(cc, pool) {
 const _ntSquadCache = {};     // cc -> [ntId|null]
 const _ntSquadLoading = {};   // cc -> Promise
 const _ntSquadLoaded = {};    // cc -> true (boş gelse de tekrar sorgulama)
+const _ntSquadUuidByCc = {};   // 🆕 cc -> Set(uuid) — profil 'Milli Takım Oyuncusu' rozeti için
 let _ntSquadSaveTimer = null;
 
 async function _loadNtSquadFromServer(cc) {
@@ -48666,6 +48695,7 @@ async function _loadNtSquadFromServer(cc) {
     _ntSquadLoaded[cc] = true;
     if (error) { console.warn('[ntSquad] hata:', error); return null; }
     const uuids = (data && Array.isArray(data.data)) ? data.data : null;
+    _ntSquadUuidByCc[cc] = new Set((uuids || []).filter(Boolean));   // 🆕 profil rozeti için
     if (uuids) {
       const pool = _ntPoolCache[cc] || [];
       const byId = {}; pool.forEach(p => { byId[p.id] = p; });
@@ -48789,6 +48819,11 @@ function ntInvitePlayer(ntId) {
   const POSGRP = (typeof POS_GROUP !== 'undefined') ? POS_GROUP : null;
   const pos = (POSGRP && POSGRP[player.pos]) || 'MID';
 
+  // 🆕 MAX 18: kadro doluysa yeni oyuncu alınamaz (19. adam yok)
+  if (ids.filter(Boolean).length >= 18 && !ids.includes(ntId)) {
+    if (typeof showToast === 'function') showToast('Kadro dolu (18/18) — önce bir oyuncuyu çıkar');
+    return;
+  }
   // Önce uygun pozisyonda boş slot ara (sondan başla — yedek slot önce dolsun)
   let target = -1;
   for (let i = NT_SQUAD_SLOTS.length - 1; i >= 0; i--) {
@@ -50615,6 +50650,11 @@ function fedCallupPlayer(payloadStr) {
   let ids = (typeof ntLoadSquadIds === 'function') ? (ntLoadSquadIds(myCC) || []) : [];
   while (ids.length < NT_SQUAD_SLOTS.length) ids.push(null);
 
+  // 🆕 MAX 18: kadro doluysa yeni oyuncu alınamaz (19. adam yok)
+  if (ids.filter(Boolean).length >= 18 && !ids.includes(ntId)) {
+    if (typeof showToast === 'function') showToast('Kadro dolu (18/18) — önce bir oyuncuyu çıkar');
+    return;
+  }
   // Önce uygun pozisyonda boş slot ara (sondan başla — yedek slot önce dolsun)
   let target = -1;
   for (let i = NT_SQUAD_SLOTS.length - 1; i >= 0; i--) {
@@ -50749,6 +50789,11 @@ function fedRemoveFromNT(payloadStr) {
   const idx = ids.indexOf(ntId);
   if (idx === -1) {
     if (typeof showToast === 'function') showToast('Kadroda değil');
+    return;
+  }
+  // 🆕 MIN 12: kadro 12'nin altına düşemez
+  if (ids.filter(Boolean).length <= 12) {
+    if (typeof showToast === 'function') showToast('Minimum 12 oyuncu olmalı — daha fazla çıkaramazsın');
     return;
   }
   ids[idx] = null;
@@ -51120,6 +51165,13 @@ function ntKadroConfirmRemove(ntId) {
   const p = pool.find(x => x && x.ntId === ntId);
   if (!p) return;
 
+  // 🆕 MIN 12 erken uyarı (modal açılmadan)
+  const _idsRem = (typeof ntLoadSquadIds === 'function') ? (ntLoadSquadIds(cc) || []) : [];
+  if (_idsRem.filter(Boolean).length <= 12) {
+    if (typeof showToast === 'function') showToast('Minimum 12 oyuncu olmalı — daha fazla çıkaramazsın');
+    return;
+  }
+
   const ov = document.getElementById('ntConfirmModal');
   const card = document.getElementById('ntConfirmCard');
   if (!ov || !card) return;
@@ -51175,6 +51227,12 @@ function ntDoKadroRemove(ntId) {
   let ids = (typeof ntLoadSquadIds === 'function') ? (ntLoadSquadIds(cc) || []) : [];
   const idx = ids.indexOf(ntId);
   if (idx === -1) { ntCloseConfirm(); return; }
+  // 🆕 MIN 12: kadro 12'nin altına düşemez
+  if (ids.filter(Boolean).length <= 12) {
+    ntCloseConfirm();
+    if (typeof showToast === 'function') showToast('Minimum 12 oyuncu olmalı — daha fazla çıkaramazsın');
+    return;
+  }
   ids[idx] = null;
   if (typeof ntSaveSquadIds === 'function') ntSaveSquadIds(cc, ids);
   if (typeof NT_ROSTER_DATA !== 'undefined') NT_ROSTER_DATA = [];
@@ -60565,6 +60623,21 @@ function renderPlayerPage() {
 
   // Hero — FIFA kart yapısı
   document.getElementById('plName').textContent    = isVisitor ? (vp.name || 'Oyuncu') : (user.name || 'Oyuncu');
+  // 🆕 Milli Takım Oyuncusu rozeti (Oyuncum sayfası)
+  try {
+    const _ntB = document.getElementById('plNtBadge');
+    if (_ntB) {
+      _ntB.style.display = 'none';
+      const _ntP = isVisitor ? vp : (meRoster || null);
+      const _ntCc = (_ntP && _ntP.nationality) || (user && user.nationality);
+      if (_ntP && _ntCc && typeof _isNtSquadPlayerSync === 'function') {
+        let _ntM = _isNtSquadPlayerSync(_ntP, _ntCc);
+        if (_ntM === null && typeof _loadNtSquadFromServer === 'function') {
+          _loadNtSquadFromServer(_ntCc).then(() => { const _m2 = _isNtSquadPlayerSync(_ntP, _ntCc); const _e2 = document.getElementById('plNtBadge'); if (_e2 && _m2) _e2.style.display = ''; }).catch(()=>{});
+        } else if (_ntM) { _ntB.style.display = ''; }
+      }
+    }
+  } catch(e){}
   document.getElementById('plMeta').textContent    = `${flag} · Sv.${lvl} · ${teamLabel}`;
   document.getElementById('plOverall').textContent = overall;
   const badge = document.getElementById('plPosBadge');
