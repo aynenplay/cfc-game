@@ -25931,7 +25931,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-09-logo-ses-fix-35';
+const APP_BUILD = '2026-06-09-ziyaret-kadro-36';
 
 (function _cacheBustCheck() {
   try {
@@ -27469,10 +27469,10 @@ async function _loadTeamRosterFromServer(cc, teamName) {
           statsByComp: (r.stats_by_comp && typeof r.stats_by_comp === 'object') ? r.stats_by_comp : {},
           matchRatings: Array.isArray(r.match_ratings) ? r.match_ratings : [],
           avgMatchRating, matchRatingsCount: mrCount,
-          seasonYellow: 0,
-          suspendMatches: 0,
-          suspendReason: null,
-          injuryUntil: 0,
+          seasonYellow:   r.season_yellow   || 0,
+          suspendMatches: r.suspend_matches || 0,
+          suspendReason:  r.suspend_reason  || null,
+          injuryUntil:    Number(r.injury_until) || 0,
           x: sl.x, y: sl.y,
         };
       });
@@ -44024,8 +44024,11 @@ function isPlayerOnline(p) {
   if (!p) return false;
   // Bot oyuncular asla online değil
   if (p.isBot) return false;
-  // Kendi kullanıcı her zaman online
-  if (p.role === 'user' || p.isUser) return true;
+  // Giriş yapan kullanıcının KENDİ satırı → her zaman online.
+  //   (p.isUser bazı rosterlarda "bot değil" anlamında set ediliyor → onu KULLANMA, yoksa
+  //    ziyaret edilen takımdaki tüm gerçek oyuncular hep online görünür.)
+  const _myId = (typeof authUser !== 'undefined' && authUser) ? authUser.id : null;
+  if (p.role === 'user' || (_myId && (p.userId === _myId || p.user_id === _myId))) return true;
   // Diğer gerçek kullanıcılar: last_seen son 5 dakika içinde mi?
   const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
   if (p.lastSeen) {
@@ -52768,14 +52771,24 @@ function guestRenderRoster() {
   const v = _viewingTeam;
   const list = document.getElementById('rosterList');
   if(!list) return;
-  const players = getOrCreateTeamRoster({ countryCode: v.countryCode, name: v.teamRef.name, rank: v.teamRef.rank || 1 });
+  let players = getOrCreateTeamRoster({ countryCode: v.countryCode, name: v.teamRef.name, rank: v.teamRef.rank || 1 });
 
-  // Filtre uygulanmış olabilir
+  // Modal için cache (sıralama ÖNCESİ tam liste — num ile bakılır)
+  _lastGuestRoster = players;
+
+  // Sıralama: kendi kadro ile AYNI → kaptan, yrd. kaptan, sonra OVR'a göre.
+  //   Eşit OVR'de gerçek kullanıcı bottan üstte (gerçek kullanıcılar artık altta kalmaz).
+  const _ord = { captain:0, vice:1, member:2 };
+  players = [...players].sort((a,b) => {
+    const ra = _ord[a.role] ?? 2, rb = _ord[b.role] ?? 2;
+    if (ra !== rb) return ra - rb;
+    const aReal = !a.isBot, bReal = !b.isBot;
+    if (aReal !== bReal) return aReal ? -1 : 1;
+    return (b.overall || 0) - (a.overall || 0);
+  });
+
   const filter = (typeof rosterCurrentFilter !== 'undefined' ? rosterCurrentFilter : 'all') || 'all';
   const filtered = filter === 'all' ? players : players.filter(p => p.pos === filter);
-
-  // Modal için cache (filtre uygulanmamış tam liste)
-  _lastGuestRoster = players;
 
   if(!filtered.length) {
     list.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text3);font-size:12px">Bu mevkide oyuncu yok.</div>';
@@ -52785,24 +52798,48 @@ function guestRenderRoster() {
   list.innerHTML = filtered.map(p => {
     const isCap  = p.role === 'captain';
     const isVice = p.role === 'vice';
-    let badge;
+    const isBot  = p.isBot;
+    let badge = '';
     if(isCap)       badge = '<span class="pr-badge badge-cap">Kaptan</span>';
     else if(isVice) badge = '<span class="pr-badge badge-ast">Yrd. Kpt.</span>';
-    else            badge = '<span class="pr-badge badge-bot">Bot</span>';
+    else if(isBot)  badge = '<span class="pr-badge badge-bot">Bot</span>';
+    // gerçek üye → rozet yok (kendi kadrodaki gibi)
 
-    const avatarClass = isCap ? 'captain-av' : isVice ? 'asst-av' : 'bot-av';
-    // 🆕 Online göstergesi (şu an guest mode'da hep bot → görünmez; backend gelince gerçek kullanıcılar gösterilir)
+    // Durum rozetleri (sarı/ceza/sakatlık) — kendi kadro ile aynı
+    let statusBadges = '';
+    const yc = p.seasonYellow || 0;
+    const susp = p.suspendMatches || 0;
+    const injured = (p.injuryUntil || 0) > Date.now();
+    if(yc > 0 && susp === 0) statusBadges += `<span class="pr-status-yc" title="Sezon sarı kart sayacı">🟨 ${yc}/4</span>`;
+    if(susp > 0) {
+      const reasonIcon = p.suspendReason === 'red' ? '🟥' : '🟨';
+      const reasonTxt  = p.suspendReason === 'red' ? 'Kırmızı kart' : '4 sarı';
+      statusBadges += `<span class="pr-status-susp" title="${reasonTxt} cezası">${reasonIcon} ${susp} maç</span>`;
+    }
+    if(injured && typeof getInjuryRemainingHours === 'function') {
+      statusBadges += `<span class="pr-status-inj" title="Sakatlık iyileşme süresi">🚑 ${getInjuryRemainingHours(p)}s</span>`;
+    }
+
+    const avatarClass = isCap ? 'captain-av' : isVice ? 'asst-av' : isBot ? 'bot-av' : '';
+    // Avatar: gerçek kullanıcı → seçtiği avatar (avatar_id), bot → emoji (kendi kadrodaki gibi)
+    let avatarHTML;
+    if (!p.isBot && p.avatar_id && typeof getAvatarEmoji === 'function') {
+      avatarHTML = getAvatarEmoji(p.avatar_id, p.pos);
+    } else {
+      avatarHTML = p.avatar || '🤖';
+    }
     const onlineDotHTML = (typeof isPlayerOnline === 'function' && isPlayerOnline(p))
       ? '<span class="pr-online-dot" title="Çevrimiçi"></span>' : '';
-    return `<div class="player-row fut-card clickable" data-pos="${p.pos}" onclick="openPlayerModalGuest(${p.num})">
+
+    return `<div class="player-row fut-card clickable${isCap?' is-cap':''}${isVice?' is-vice':''}" data-pos="${p.pos}" onclick="openPlayerModalGuest(${p.num})">
       <div class="futc-lcol">
         <div class="futc-ovr" style="color:${overallColor(p.overall)}">${p.overall}</div>
         <div class="futc-pos ${subPosClass(p)}">${subPosOf(p)}</div>
       </div>
       <div class="futc-rcol">
-        <div class="futc-av ${avatarClass}">${p.avatar}${onlineDotHTML}</div>
+        <div class="futc-av ${avatarClass}">${avatarHTML}${onlineDotHTML}</div>
         <div class="futc-info">
-          <div class="futc-name">${p.name} ${badge}</div>
+          <div class="futc-name">${p.name} ${badge}${statusBadges}</div>
           <div class="futc-meta">
             <span>${p.nation}</span>
             <span>Sv.${p.level}</span>
