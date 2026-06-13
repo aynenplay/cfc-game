@@ -16131,6 +16131,16 @@ body.drawer-open .hb-btn span:nth-child(3){transform:translateY(-6px) rotate(-45
   box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 0 0 1px rgba(0,230,118,.25),0 4px 12px rgba(0,230,118,.15);
 }
 #page-national .team-tab.active .tx{color:var(--text)}
+
+/* 🆕 Milli takım kadro listesi — kulüp fut-card karbon yapısı + kulüp logosu */
+#nt-roster{padding-bottom:8px}
+#nt-roster .nt-section-title{margin:12px 12px 6px;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:13px;letter-spacing:.4px;color:#cfd3dc}
+#nt-roster .player-row.fut-card{cursor:pointer}
+#nt-roster .player-row.fut-card.is-user{border-color:rgba(70,209,122,.3)}
+#nt-roster .player-row.fut-card.is-cap{border-color:rgba(255,140,40,.28)}
+#nt-roster .futc-club{display:inline-flex;align-items:center;gap:4px;color:#aab0bd;font-weight:700;max-width:150px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#nt-roster .futc-club-logo{width:15px;height:15px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:7.5px;line-height:1;flex-shrink:0;border:1px solid rgba(255,255,255,.14)}
+#nt-roster .futc-num.futc-num-edit{cursor:pointer;color:#7fd4ff}
 .nt-tab-pane{min-height:200px}
 
 /* 🆕 İzleyici modu — Diziliş, Sohbet, Analiz sekme/menü öğeleri + hamburger menü gizli */
@@ -25875,7 +25885,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-13-mt-sekme-karbon-58';
+const APP_BUILD = '2026-06-13-mt-kadro-futcard-59';
 
 (function _cacheBustCheck() {
   try {
@@ -48379,7 +48389,7 @@ function ntRender() {
   const playersEl = document.getElementById('ntHeroPlayers');
   const powerEl = document.getElementById('ntHeroPower');
   if(flagEl && country) flagEl.textContent = country.flag;
-  if(nameEl && country) nameEl.textContent = country.name + ' Milli Takımı';
+  if(nameEl && country) nameEl.textContent = (country.name || '').toLocaleUpperCase('tr');
   if(metaEl && country) metaEl.textContent = 'A Milli Takım';
   if(coachEl) coachEl.textContent = 'T.D. ' + (pres ? pres.captainName : '—') + (pres && pres.isUser ? ' (SEN)' : '');
 
@@ -48704,6 +48714,26 @@ function ntBuildRoster(cc) {
     ntSaveSquadIds(cc, ids);
   }
 
+  // 🆕 Federasyon BAŞKANI (T.D.) kadroda garanti + kaptan işaretlenir (tüm MT'lerde geçerli)
+  let _presNtId = null;
+  try {
+    const _pres = (typeof fedGetPresident === 'function') ? fedGetPresident(cc) : null;
+    if (_pres) {
+      let _pp = pool.find(p => p && p.name === _pres.captainName && p.sourceClub === _pres.teamName);
+      if (!_pp && _pres.isUser) _pp = pool.find(p => p && p.isUser);
+      if (_pp) {
+        _presNtId = _pp.ntId;
+        if (!ids.includes(_presNtId)) {
+          const _pg = ((typeof POS_GROUP !== 'undefined' && POS_GROUP[_pp.pos]) || 'MID');
+          let _tgt = -1;
+          for (let i = 0; i < NT_SQUAD_SLOTS.length; i++) { if (NT_SQUAD_SLOTS[i].pos === _pg && !ids[i]) { _tgt = i; break; } }
+          if (_tgt === -1) for (let i = 0; i < NT_SQUAD_SLOTS.length; i++) { if (NT_SQUAD_SLOTS[i].pos === _pg && ids[i] !== 'USER') { _tgt = i; break; } }
+          if (_tgt !== -1) { ids[_tgt] = _presNtId; if (typeof ntSaveSquadIds === 'function') ntSaveSquadIds(cc, ids); }
+        }
+      }
+    }
+  } catch(e) {}
+
   // Forma numarası override'ları (Supabase user_player.nt_jersey_overrides)
   let numOverrides = {};
   try {
@@ -48721,7 +48751,8 @@ function ntBuildRoster(cc) {
       ...player,
       num: finalNum,
       slotIdx,
-      ntSlotRole: slot.role
+      ntSlotRole: slot.role,
+      isNtCaptain: (id === _presNtId)
     };
   }).filter(x => x !== null);
 }
@@ -49089,134 +49120,116 @@ function ntRenderRoster() {
   const isCoach = ntIsUserCoach();
   const cc = (typeof fedActiveCountry === 'function') ? fedActiveCountry() : 'TR';
 
-  // Kadro (18 kişi) + havuz (kadro dışındakiler)
   let squad = ntEnsureRoster().slice();
 
-  // 🆕 Pro görev: kullanıcı KENDİ milli takım kadrosunda mı? → national_pick
+  // Pro görev: kullanıcı KENDİ milli takım kadrosunda mı?
   try {
     const _userNat = (authUser && authUser.nationality) || null;
-    if (_userNat && cc === _userNat && squad.some(p => p && p.isUser) && typeof achSetFlag === 'function') {
-      achSetFlag('national_pick');
-    }
+    if (_userNat && cc === _userNat && squad.some(p => p && p.isUser) && typeof achSetFlag === 'function') achSetFlag('national_pick');
   } catch(e) {}
 
-  // Kadro sıralama: USER (kaptan) en üstte, sonra overall desc
+  // Sıralama: T.D. (kaptan) en üstte → USER → overall desc
   squad.sort((a, b) => {
+    if (a.isNtCaptain && !b.isNtCaptain) return -1;
+    if (b.isNtCaptain && !a.isNtCaptain) return 1;
     if (a.isUser && !b.isUser) return -1;
     if (b.isUser && !a.isUser) return 1;
-    // 🆕 Saf skill ortalaması (level bonus yok)
     const _aOv = (typeof getPlayerMainOverall === 'function') ? getPlayerMainOverall(a) : (a.overall || 0);
     const _bOv = (typeof getPlayerMainOverall === 'function') ? getPlayerMainOverall(b) : (b.overall || 0);
     return _bOv - _aOv;
   });
 
-  // Tek satır render helper — hem kadro hem havuz için
   const POSGRP = (typeof POS_GROUP !== 'undefined') ? POS_GROUP : { KL:'GK', STB:'DEF', SB:'DEF', DOS:'MID', OS:'MID', SAK:'MID', FWD:'FWD' };
   const isFedOfficial = (typeof fedUserIsOfficial === 'function') && fedUserIsOfficial() &&
                         (typeof _userTeam !== 'undefined') && _userTeam && _userTeam.countryCode === cc;
-  const _row = (p, mode /* 'squad' | 'pool' */) => {
-    // 🆕 Overall — saf skill ortalaması (level bonus yok), kullanıcı için gerçek antrenman seviyelerinden
+
+  const _row = (p) => {
     const _ovr = (typeof getPlayerMainOverall === 'function') ? getPlayerMainOverall(p) : (p.overall || 10);
     const ovrColor = (typeof overallColor === 'function') ? overallColor(_ovr) : '#ffd600';
-    const dataPos = POSGRP[p.pos] || p.pos;
-    const posCls = (typeof posClass === 'function') ? posClass(p.pos) : '';
-    const posLbl = (typeof subPosOf === 'function') ? subPosOf(p) : ((typeof posLabel === 'function') ? posLabel(p.pos) : p.pos);
+    const subPos = (typeof subPosOf === 'function') ? subPosOf(p) : p.pos;
+    const subPosCls = (typeof subPosClass === 'function') ? subPosClass(p) : '';
+    const isCap = !!p.isNtCaptain;
 
-    // Rozet: USER → KAPTAN·SEN, bot → Bot, gerçek oyuncu → rozet yok (kulüp kadrosuyla aynı)
+    // Rozet: T.D. (kaptan) → 👑 + Sen / Sen / Bot
     let badge = '';
-    if (p.isUser)     badge = '<span class="pr-badge badge-cap">👑 KAPTAN · SEN</span>';
-    else if (p.isBot) badge = '<span class="pr-badge badge-bot">🤖 Bot</span>';
+    if (isCap)         badge = '<span class="pr-badge badge-cap">👑 T.D.</span>' + (p.isUser ? '<span class="pr-badge badge-you">Sen</span>' : '');
+    else if (p.isUser) badge = '<span class="pr-badge badge-you">Sen</span>';
+    else if (p.isBot)  badge = '<span class="pr-badge badge-bot">Bot</span>';
 
-    // 🆕 Kadro durum rozeti — 3 durum: İlk 11 / Yedek / Kadro Dışı
+    // Kadro durumu (İlk 11 / Yedek / Kadro Dışı)
+    const st = (typeof getNtPlayerSquadStatus === 'function') ? getNtPlayerSquadStatus(p) : 'reserve';
     let squadStatusBadge = '';
-    let _ntPlayerStatus = 'reserve';
-    if (mode === 'squad') {
-      _ntPlayerStatus = getNtPlayerSquadStatus(p);
-      if (_ntPlayerStatus === 'starter')      squadStatusBadge = '<span class="pr-squad-status pr-squad-starter">⚽ İlk 11</span>';
-      else if (_ntPlayerStatus === 'bench')   squadStatusBadge = '<span class="pr-squad-status pr-squad-bench">🪑 Yedek</span>';
-      else                                    squadStatusBadge = '<span class="pr-squad-status pr-squad-reserve">📋 Kadro Dışı</span>';
-    }
+    if (st === 'starter')    squadStatusBadge = '<span class="pr-squad-status pr-squad-starter">⚽ İlk 11</span>';
+    else if (st === 'bench') squadStatusBadge = '<span class="pr-squad-status pr-squad-bench">🪑 Yedek</span>';
+    else                     squadStatusBadge = '<span class="pr-squad-status pr-squad-reserve">📋 Kadro Dışı</span>';
 
-    // Forma numarası (sadece kadroda + TD ise edit)
-    const numHtml = (mode === 'squad' && isCoach && !p.isUser)
-      ? `<div class="pr-num pr-num-editable" onclick="event.stopPropagation();ntEditJerseyNumber(${p.num}, event)" title="Forma numarasını düzenle (T.D.)">${p.num}</div>`
-      : `<div class="pr-num">${mode === 'squad' ? p.num : '—'}</div>`;
-
-    const clubHtml = p.sourceClub || (p.club && p.club.name)
-      ? `<span class="pr-club" title="Kulübü: ${p.sourceClub || p.club.name}"><span class="pr-club-ball" style="background:${p.clubBg || (p.club&&p.club.bg)};color:${p.clubTc || (p.club&&p.club.tc)}">${p.clubShort || (p.club&&p.club.short)}</span>${p.sourceClub || p.club.name}</span>`
+    // Kulüp logosu (renkli badge) + adı
+    const _cbg = p.clubBg || '#222', _ctc = p.clubTc || '#fff', _csh = p.clubShort || (p.sourceClub || '—').slice(0,3).toUpperCase();
+    const clubHtml = p.sourceClub
+      ? `<span class="futc-club" title="Kulübü: ${p.sourceClub}"><span class="futc-club-logo" style="background:${_cbg};color:${_ctc}">${_csh}</span>${p.sourceClub}</span>`
       : '';
 
-    // 🆕 Aksiyon butonu — durum bazlı:
-    // YEDEK: ÇIKAR (havuzdan tamamen) — mevcut, dokunulmaz
-    // KADRO DIŞI: + Maç Kadrosuna Al (yedek doluysa pasif)
-    // İLK 11: aksiyon yok (önce sahadan çıkarmalı)
+    // Avatar
+    const avCls = p.isBot ? 'bot-av' : (isCap ? 'captain-av' : '');
+    let avatarHTML = p.avatar || (p.isUser ? '⭐' : '🤖');
+    try {
+      if (p.isUser && typeof authUser !== 'undefined' && authUser && authUser.avatarId && typeof getAvatarEmoji === 'function') {
+        const r = getAvatarEmoji(authUser.avatarId, p.pos); if (typeof r === 'string' && r.indexOf('<img') === 0) avatarHTML = r;
+      } else if (!p.isUser && !p.isBot && p.avatar_id && typeof getAvatarEmoji === 'function') {
+        const r = getAvatarEmoji(p.avatar_id, p.pos); if (typeof r === 'string' && r.indexOf('<img') === 0) avatarHTML = r;
+      }
+    } catch(e) {}
+    const onlineDot = (typeof isPlayerOnline === 'function' && isPlayerOnline(p)) ? '<span class="pr-online-dot" title="Çevrimiçi"></span>' : '';
+
+    // Aksiyon (başkan/yardımcı): yedek→ÇIKAR, kadro dışı→+ Maç Kadrosu
     let actionBtn = '';
-    if (mode === 'squad' && isFedOfficial && !p.isUser) {
-      if (_ntPlayerStatus === 'bench') {
+    if (isFedOfficial && !p.isUser) {
+      if (st === 'bench') {
         const safeId = String(p.ntId || '').replace(/'/g, "\\'");
         actionBtn = `<button class="nt-act-btn nt-rmv-btn" onclick="event.stopPropagation();ntKadroConfirmRemove('${safeId}')" title="Havuzdan tamamen çıkar">ÇIKAR</button>`;
-      } else if (_ntPlayerStatus === 'reserve') {
-        const BENCH_SIZE = 7;
+      } else if (st === 'reserve') {
         _ntEnsureBench();
-        const benchFull = (Array.isArray(_ntMatchSquadBench) && _ntMatchSquadBench.length >= BENCH_SIZE);
+        const benchFull = (Array.isArray(_ntMatchSquadBench) && _ntMatchSquadBench.length >= 7);
         actionBtn = benchFull
           ? `<button class="pr-squad-action disabled" title="Yedek dolu">+ Maç Kadrosu</button>`
           : `<button class="pr-squad-action" onclick="event.stopPropagation();confirmNtMatchSquadAdd(${p.num}, event)">+ Maç Kadrosu</button>`;
       }
     }
 
-    const sta = (typeof p.stamina === 'number') ? p.stamina : 100;
-    const staColor = (typeof staminaColor === 'function') ? staminaColor(sta) : '#00e676';
-    const staLbl = (typeof staminaLabel === 'function') ? staminaLabel(sta) : 'Taze';
-    const avCls = p.isBot ? 'bot-av' : '';
+    // Forma no (T.D. düzenler)
+    const numHtml = (isCoach && !p.isUser)
+      ? `<div class="futc-num futc-num-edit" onclick="event.stopPropagation();ntEditJerseyNumber(${p.num}, event)" title="Forma numarasını düzenle (T.D.)">#${p.num}</div>`
+      : `<div class="futc-num">#${p.num}</div>`;
 
-    // 🆕 Avatar: kullanıcı → kendi avatarId, gerçek oyuncu → avatar_id, bot → emoji (kulüp kadrosuyla aynı)
-    let avatarHTML = p.avatar || (p.isUser ? '⭐' : '🤖');
-    try {
-      if (p.isUser && typeof authUser !== 'undefined' && authUser && authUser.avatarId
-          && typeof getAvatarEmoji === 'function') {
-        const result = getAvatarEmoji(authUser.avatarId, p.pos);
-        if (typeof result === 'string' && result.indexOf('<img') === 0) avatarHTML = result;
-      } else if (!p.isUser && !p.isBot && p.avatar_id && typeof getAvatarEmoji === 'function') {
-        const result = getAvatarEmoji(p.avatar_id, p.pos);
-        if (typeof result === 'string' && result.indexOf('<img') === 0) avatarHTML = result;
-      }
-    } catch(e) {}
-
-    // 🆕 Satır tıklanabilir (USER de tıklanabilir, modal "Bu Sensin" gösterir)
     const safeNtId = String(p.ntId || '').replace(/'/g, "\\'");
-    const clickAttr = ` onclick="ntKadroOpenProfile('${safeNtId}')" style="cursor:pointer"`;
+    const cardCls = ['player-row','fut-card','clickable'];
+    if (isCap) cardCls.push('is-cap'); else if (p.isUser) cardCls.push('is-user');
 
-    // 🆕 Online göstergesi (kulüp ile aynı mantık — sadece kullanıcı online)
-    const onlineDotHtml = (typeof isPlayerOnline === 'function' && isPlayerOnline(p))
-      ? '<span class="pr-online-dot" title="Çevrimiçi"></span>' : '';
-
-    return `<div class="player-row${p.isUser ? ' is-user' : ''}" data-pos="${dataPos}"${clickAttr}>
-      <div class="pr-numav">
-        <div class="pr-avatar ${avCls}">${avatarHTML}${onlineDotHtml}</div>
-        ${numHtml}
+    return `<div class="${cardCls.join(' ')}" data-pos="${POSGRP[p.pos] || p.pos}" onclick="ntKadroOpenProfile('${safeNtId}')">
+      <div class="futc-lcol">
+        <div class="futc-ovr" style="color:${ovrColor}">${_ovr}</div>
+        <div class="futc-pos ${subPosCls}">${subPos}</div>
       </div>
-      <div class="pr-info">
-        <div class="pr-name">${p.name} ${badge}${squadStatusBadge}</div>
-        <div class="pr-meta">
-          <span>${p.nation || ''}</span>
-          <span class="pr-pos ${posCls}">${posLbl}</span>
-          <span class="pr-level">Sv.${p.level || 0}</span>
-          ${clubHtml}
+      <div class="futc-rcol">
+        <div class="futc-av ${avCls}">${avatarHTML}${onlineDot}</div>
+        <div class="futc-info">
+          <div class="futc-name">${p.name} ${badge}${squadStatusBadge}</div>
+          <div class="futc-meta">
+            ${clubHtml}
+            <span>${p.nation || ''}</span>
+            <span>Sv.${p.level || 0}</span>
+          </div>
         </div>
-      </div>
-      <div class="pr-right">
-        <div class="pr-overall" style="color:${ovrColor}">${_ovr}</div>
-        ${actionBtn}
+        <div class="futc-right">
+          ${actionBtn}
+          ${numHtml}
+        </div>
       </div>
     </div>`;
   };
 
-  let html = `
-    <div class="nt-section-title">⭐ Milli Takım Kadrosu (${squad.length}/${NT_SQUAD_SLOTS.length})</div>
-  `;
-  html += squad.map(p => _row(p, 'squad')).join('');
-
+  let html = `<div class="nt-section-title">⭐ Milli Takım Kadrosu (${squad.length}/${NT_SQUAD_SLOTS.length})</div>`;
+  html += squad.map(p => _row(p)).join('');
   list.innerHTML = html;
 }
 
