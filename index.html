@@ -25931,7 +25931,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-09-dizilis-ovr-ceza-48';
+const APP_BUILD = '2026-06-09-dizilis-guncel-49';
 
 (function _cacheBustCheck() {
   try {
@@ -51737,7 +51737,12 @@ function ntTab(name, el) {
     }
     ntRenderRoster();
   }
-  else if(name === 'formation' && typeof ntRenderFormation === 'function') ntRenderFormation();
+  else if(name === 'formation' && typeof ntRenderFormation === 'function') {
+    // 🆕 Her açılışta sunucudan GÜNCEL milli takım dizilişini çek (başkan değişikliği herkese yansır)
+    if (typeof _ntStrategyLoadFromServer === 'function') {
+      _ntStrategyLoadFromServer().then(() => { try { _ntActivePitchPlayers = []; } catch(e){} ntRenderFormation(); }).catch(() => ntRenderFormation());
+    } else { ntRenderFormation(); }
+  }
   else if(name === 'chat' && typeof ntRenderChat === 'function') ntRenderChat();
   else if(name === 'fixture' && typeof ntRenderFixture === 'function') ntRenderFixture();
   else if(name === 'standings' && typeof ntRenderStandings === 'function') ntRenderStandings();
@@ -51803,8 +51808,18 @@ function teamTab(name, el) {
   }
   if(name === 'formation') {
     if(_viewingTeam) return; // guard
-    if(activePitchPlayers.length === 0) initFormation();
-    else { renderPitch(); renderBench(); }
+    // 🆕 Her açılışta sunucudan GÜNCEL dizilişi çek → kaptan/yardımcı değişikliği TÜM kullanıcılara yansır
+    if (typeof _teamStrategyLoadFromServer === 'function') {
+      _teamStrategyLoadFromServer().then(() => {
+        try { activePitchPlayers = []; benchPlayers = []; } catch(e){}
+        if (typeof initFormation === 'function') initFormation();
+      }).catch(() => {
+        if(activePitchPlayers.length === 0) initFormation(); else { renderPitch(); renderBench(); }
+      });
+    } else {
+      if(activePitchPlayers.length === 0) initFormation();
+      else { renderPitch(); renderBench(); }
+    }
   }
   if(name === 'fixture') {
     if(_viewingTeam) return;
