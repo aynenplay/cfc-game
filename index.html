@@ -25860,7 +25860,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-13-mt-eurocup-76';
+const APP_BUILD = '2026-06-13-mt-eurocup-s1-77';
 
 (function _cacheBustCheck() {
   try {
@@ -50855,6 +50855,7 @@ function _ntFindUserGroup(cc) {
   };
 }
 
+let _ntEncLoadTried = {};   // 🆕 EURO Cup state bir kez async yükleme bayrağı
 function ntRenderStandings() {
   const box = document.getElementById('ntStandingsContent');
   if (!box) return;
@@ -50866,17 +50867,18 @@ function ntRenderStandings() {
   const _hero = (sub) => `<div class="nt-pane-hero"><div class="h-row"><div class="h-ic" style="background:transparent;padding:0">${logoSm}</div><div class="h-tx"><div class="h-ti">EURO Cup</div><div class="h-sb">${sub}</div></div></div></div>`;
   const _empty = (icon, msg) => `<div class="nt-tr-empty" style="text-align:center;padding:40px 16px;color:var(--text2)"><div style="font-size:46px;margin-bottom:10px">${icon}</div><div style="font-size:13px;line-height:1.5">${msg}</div></div>`;
 
-  // Sezon / kura öncesi
-  if (info) {
-    const { season, dayInSeason, preSeason } = info;
-    if (preSeason) { box.innerHTML = _hero('Sezon henüz başlamadı') + _empty('⏳','EURO Cup sezon başında kurulur.'); return; }
-    if (season < 2) { box.innerHTML = _hero("İlk turnuva Sezon 2'de") + _empty('🏆',"EURO Cup ilk kez <b>Sezon 2</b>'de başlar."); return; }
-    if (dayInSeason < 17) { box.innerHTML = _hero(`Kura ${17 - dayInSeason} gün sonra`) + _empty('🎲',`Kura <b>${17 - dayInSeason} gün</b> sonra çekilecek.`); return; }
+  const _season = info ? info.season : 1;
+  const _preSeason = info ? info.preSeason : false;
+  if (_preSeason) { box.innerHTML = _hero('Sezon henüz başlamadı') + _empty('⏳','EURO Cup sezon içinde kurulur.'); return; }
+
+  // 🆕 State yüklü değilse async yükle + tekrar render (Turnuvalar > EURO Cup ile AYNI kaynak; sezon/gün guard YOK)
+  if (typeof _encLoadFromServer === 'function' && typeof encLoad === 'function' && !encLoad(_season) && !_ntEncLoadTried[_season]) {
+    _ntEncLoadTried[_season] = true;
+    _encLoadFromServer(_season).then(() => { try { if (document.getElementById('ntStandingsContent')) ntRenderStandings(); } catch(e){} }).catch(()=>{});
   }
 
-  const _season = info ? info.season : 2;
   const state = (typeof encEnsureState === 'function') ? encEnsureState(_season) : null;
-  if (!state) { box.innerHTML = _hero('Turnuva verisi yükleniyor…') + _empty('⏳','Birazdan tekrar dene.'); return; }
+  if (!state) { box.innerHTML = _hero('EURO Cup hazırlanıyor') + _empty('🎲','Kura bekleniyor — fikstür belli olunca burada görünecek.'); return; }
 
   const phase = state.phase || 'group';
   const stageLabel = { group:'Grup Aşaması', r16:'Son 16', qf:'Çeyrek Final', sf:'Yarı Final', final:'Final 🏆' }[phase] || 'Grup Aşaması';
@@ -51712,29 +51714,14 @@ function ntRenderFixture() {
     return;
   }
 
-  // EURO Cup S2'den itibaren, kura 17. günde
-  if(season < 2) {
-    el.innerHTML = `<div style="text-align:center;padding:48px 16px;color:var(--text2)">
-      <div style="font-size:48px;margin-bottom:12px">📅</div>
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:var(--gold);margin-bottom:6px">İLK TURNUVA: SEZON 2</div>
-      <div style="font-size:12px;line-height:1.55">EURO National Cup ilk kez Sezon 2'de başlar.<br>Kura çekimi sezonun 17. gününde.</div>
-    </div>`;
-    return;
+  // 🆕 State yüklü değilse async yükle + tekrar render (Turnuvalar ile AYNI kaynak; sezon/gün guard YOK)
+  if (typeof _encLoadFromServer === 'function' && typeof encLoad === 'function' && !encLoad(season) && !_ntEncLoadTried[season]) {
+    _ntEncLoadTried[season] = true;
+    _encLoadFromServer(season).then(() => { try { if (document.getElementById('nt-fixture')) ntRenderFixture(); } catch(e){} }).catch(()=>{});
   }
-  if(dayInSeason < 17) {
-    const remaining = 17 - dayInSeason;
-    el.innerHTML = `<div style="text-align:center;padding:48px 16px;color:var(--text2)">
-      <div style="font-size:48px;margin-bottom:12px">🎲</div>
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:var(--gold);margin-bottom:6px">FİKSTÜR BELİRLENMEDİ</div>
-      <div style="font-size:12px;line-height:1.55">EURO Cup kurası <b>${remaining} gün</b> sonra çekilecek.<br>Kura sonrası grup ve eleme maçları burada listelenir.</div>
-    </div>`;
-    return;
-  }
-
-  // EURO Cup state'ten ülkenin maçlarını çek
   const state = (typeof encEnsureState === 'function') ? encEnsureState(season) : null;
   if(!state || !state.groups) {
-    el.innerHTML = `<div style="padding:48px 16px;text-align:center;color:var(--text2)">EURO Cup verisi yüklenemedi</div>`;
+    el.innerHTML = `<div style="text-align:center;padding:48px 16px;color:var(--text2)"><div style="font-size:46px;margin-bottom:10px">🎲</div><div style="font-size:13px;line-height:1.5">EURO Cup kurası henüz çekilmedi — fikstür belli olunca burada görünür.</div></div>`;
     return;
   }
 
