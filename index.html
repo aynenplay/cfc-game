@@ -25931,7 +25931,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-09-milli-dizilis-46';
+const APP_BUILD = '2026-06-09-dizilis-ovr-ceza-48';
 
 (function _cacheBustCheck() {
   try {
@@ -27152,9 +27152,7 @@ function posPenaltyFactor(ownSub, slotSub) {
 // Bir slotta gösterilecek efektif OVR (baz = slot bölgesi yeteneği × ceza çarpanı)
 function pitchSlotOvr(p, slotSub) {
   if (!slotSub || !SUBPOS_GROUP[slotSub]) slotSub = (typeof subPosOf === 'function') ? subPosOf(p) : 'CM';
-  const slotZone = subPosGroupOf(slotSub);
-  const base = (typeof getPlayerEffectiveRating === 'function')
-    ? getPlayerEffectiveRating(p, slotZone) : (p && (p.overall || p.rating) || 10);
+  const base = (p && (p.overall != null ? p.overall : (p.rating || 10))) || 10;  // 🆕 VAR OLAN stored OVR (yeniden hesap YOK); mevki-dışı cezası aşağıda uygulanır
   const ownSub = (typeof subPosOf === 'function') ? subPosOf(p) : ((p && p.pos) || 'CM');
   return Math.max(1, Math.round(base * posPenaltyFactor(ownSub, slotSub)));
 }
@@ -46484,9 +46482,7 @@ function renderPitch() {
 
     // 🆕 Mevki-dışı OVR cezası: slotun açık alt mevkisine (s) göre
     const _slotSub = entry.s || ((typeof subPosOf === 'function') ? subPosOf(p) : 'CM');
-    const ovr = (typeof pitchSlotOvr === 'function')
-      ? pitchSlotOvr(p, _slotSub)
-      : ((typeof getPlayerEffectiveRating === 'function') ? getPlayerEffectiveRating(p, subPosGroupOf(_slotSub)) : (p.overall || p.rating || 10));
+    const ovr = (typeof pitchSlotOvr === 'function') ? pitchSlotOvr(p, _slotSub) : (p.overall || p.rating || 10);  // 🆕 stored OVR + mevki-dışı cezası (herkese aynı)
 
     // Mevki grubu (üst kenar şerit rengi)
     const posGroup = (typeof POS_GROUP !== 'undefined' && POS_GROUP[entry.pos]) || 'MID';
@@ -46627,8 +46623,7 @@ function renderBench() {
         ? _bn[0] + ' ' + _bn.slice(1).map(w => w.charAt(0).toUpperCase() + '.').join(' ')
         : (p.name.split('_')[1] || p.name);
       const pgrp = (typeof POS_GROUP !== 'undefined' && POS_GROUP[p.pos]) || 'MID';
-      const ovr = (typeof getPlayerEffectiveRating === 'function')
-        ? getPlayerEffectiveRating(p, pgrp) : (p.overall || p.rating || 10);
+      const ovr = (p.overall != null ? p.overall : (p.rating || 10));  // 🆕 VAR OLAN stored OVR
       const tier = (typeof getOvrTier === 'function') ? getOvrTier(ovr) : '';
 
       // Avatar: PNG (kullanıcı/gerçek) → img, yoksa emoji
@@ -49918,7 +49913,7 @@ function ntRenderPitch() {
     }
     const entry = _hit.entry;
     const idx = _hit.ai;
-    entry.x = _slot.x; entry.y = _slot.y; entry.pos = _slot.pos; entry.slotIdx = _si;
+    entry.x = _slot.x; entry.y = _slot.y; entry.pos = _slot.pos; entry.s = _slot.s; entry.slotIdx = _si;
     const p = entry.player;
     const lastName = p.name.split(' ').pop();
     const isUser = !!p.isUser;
@@ -49932,9 +49927,7 @@ function ntRenderPitch() {
 
     // 🆕 Yetenek puanı: oynatıldığı mevkinin ortalaması
     const playedPosGroup = _toPosGroup(entry.pos);
-    const ovr = (typeof getPlayerEffectiveRating === 'function')
-      ? getPlayerEffectiveRating(p, playedPosGroup)
-      : (p.overall || p.rating || 10);
+    const ovr = (typeof pitchSlotOvr === 'function') ? pitchSlotOvr(p, entry.s || entry.pos) : (p.overall || p.rating || 10);  // 🆕 stored OVR + mevki-dışı cezası
 
     const posClass = 'pos-' + playedPosGroup;
 
