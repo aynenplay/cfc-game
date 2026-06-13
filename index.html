@@ -16162,6 +16162,13 @@ body.drawer-open .hb-btn span:nth-child(3){transform:translateY(-6px) rotate(-45
 #nt-roster .futc-club{display:inline-flex;align-items:center;gap:4px;color:#aab0bd;font-weight:700;max-width:150px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 #nt-roster .futc-club-logo{width:15px;height:15px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:7.5px;line-height:1;flex-shrink:0;border:1px solid rgba(255,255,255,.14)}
 #nt-roster .futc-num.futc-num-edit{cursor:pointer;color:#7fd4ff}
+.nt-kadro-menu-btn{width:30px;height:30px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#aeb6c8;font-size:19px;font-weight:900;line-height:.7;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;transition:all .15s}
+.nt-kadro-menu-btn:hover,.nt-kadro-menu-btn:active{background:rgba(255,255,255,.12);color:#fff}
+.nt-cf-menu-actions{display:flex;flex-direction:column;gap:8px;margin:12px 0 4px}
+.nt-cf-menu-btn{width:100%;padding:12px;border-radius:10px;border:1px solid #2a2f3a;background:rgba(255,255,255,.04);color:var(--text);font-size:13px;font-weight:800;cursor:pointer;font-family:'Barlow',sans-serif;-webkit-tap-highlight-color:transparent;transition:all .15s}
+.nt-cf-menu-btn:hover,.nt-cf-menu-btn:active{background:rgba(255,255,255,.09);transform:translateY(-1px)}
+.nt-cf-menu-btn.add{border-color:rgba(0,230,118,.35);color:#46d17a;background:rgba(0,230,118,.06)}
+.nt-cf-menu-btn.danger{border-color:rgba(239,83,80,.35);color:#ef5350;background:rgba(239,83,80,.07)}
 .nt-tab-pane{min-height:200px}
 
 /* 🆕 İzleyici modu — Diziliş, Sohbet, Analiz sekme/menü öğeleri + hamburger menü gizli */
@@ -25854,7 +25861,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-13-mt-dizilis-bench-drag-67';
+const APP_BUILD = '2026-06-13-mt-kadro-menu-69';
 
 (function _cacheBustCheck() {
   try {
@@ -38942,6 +38949,9 @@ function showPage(name,btn){
   if(name !== 'team' && typeof flushTeamStrategySave === 'function') {
     flushTeamStrategySave().catch(e => console.warn('[showPage] strateji flush hata:', e));
   }
+  if(name !== 'national' && typeof flushNtStrategySave === 'function') {
+    flushNtStrategySave().catch(e => console.warn('[showPage] NT strateji flush hata:', e));
+  }
 
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
@@ -48661,6 +48671,8 @@ async function _loadNtSquadFromServer(cc) {
       const byId = {}; pool.forEach(p => { byId[p.id] = p; });
       _ntSquadCache[cc] = uuids.map(u => { const p = u ? byId[u] : null; return p ? p.ntId : null; });
     }
+    // 🆕 Roster cache'i geçersiz kıl → ntBuildRoster sunucu kadrosuyla + başkan/çağrılan garantisiyle YENİDEN kurulsun (kalıcı)
+    try { if (typeof NT_ROSTER_DATA !== 'undefined') NT_ROSTER_DATA = []; if (typeof _ntCachedCC !== 'undefined') _ntCachedCC = null; } catch(_){}
     if (typeof ntRender === 'function') ntRender();
     return _ntSquadCache[cc] || null;
   })();
@@ -49205,19 +49217,11 @@ function ntRenderRoster() {
     } catch(e) {}
     const onlineDot = (typeof isPlayerOnline === 'function' && isPlayerOnline(p)) ? '<span class="pr-online-dot" title="Çevrimiçi"></span>' : '';
 
-    // Aksiyon (başkan/yardımcı): yedek→Çıkar, kadro dışı→+ Maç Kadrosu (kulüp pr-squad-action)
+    // 🆕 Aksiyon: SADECE başkan/yardımcı → oyuncu işlemleri menüsü (⋮) → modal
     let actionBtn = '';
     if (isFedOfficial && !p.isUser) {
-      if (st === 'bench') {
-        const safeId = String(p.ntId || '').replace(/'/g, "\\'");
-        actionBtn = `<button class="pr-squad-action" onclick="event.stopPropagation();ntKadroConfirmRemove('${safeId}')" title="Havuzdan tamamen çıkar">✕</button>`;
-      } else if (st === 'reserve') {
-        _ntEnsureBench();
-        const benchFull = (Array.isArray(_ntMatchSquadBench) && _ntMatchSquadBench.length >= 7);
-        actionBtn = benchFull
-          ? `<button class="pr-squad-action disabled" title="Yedek dolu">+ Maç Kadrosu</button>`
-          : `<button class="pr-squad-action" onclick="event.stopPropagation();confirmNtMatchSquadAdd(${p.num}, event)">+ Maç Kadrosu</button>`;
-      }
+      const _smid = String(p.ntId || '').replace(/'/g, "\\'");
+      actionBtn = `<button class="nt-kadro-menu-btn" onclick="event.stopPropagation();ntKadroMenu('${_smid}')" title="Oyuncu işlemleri" aria-label="Menü">⋮</button>`;
     }
 
     // Forma no (kulüp ile AYNI — T.D. düzenler)
@@ -49493,7 +49497,7 @@ function ntLoadStrategy() {
       if(slots && roster.length) {
         const restored = [];
         data.lineup.forEach(saved => {
-          const player = roster.find(p => p && p.num === saved.num);
+          const player = roster.find(p => p && ((saved.id != null && p.id === saved.id) || p.num === saved.num));
           const slot = slots[saved.slotIdx];
           if(player && slot) {
             restored.push({
@@ -50423,11 +50427,24 @@ function ntSetFormation(f) {
 }
 
 // Kaydet (toast)
+// 🆕 NT diziliş/strateji: bekleyen debounce kaydını HEMEN team_data'ya yaz (çıkışta/kaydet'te kaybolmasın)
+async function flushNtStrategySave() {
+  if (!_ntStrategySaveTimer) return;
+  clearTimeout(_ntStrategySaveTimer); _ntStrategySaveTimer = null;
+  if (!window.sb || !_ntStrategyCache) return;
+  try {
+    const ntName = (typeof _ntCountryName === 'function') ? _ntCountryName() : 'TR';
+    const cc = (typeof fedActiveCountry === 'function') ? fedActiveCountry() : 'TR';
+    await window.sb.from('team_data').upsert({ country_code: cc, team_name: ntName, data_key: 'strategy', data: _ntStrategyCache }, { onConflict: 'country_code,team_name,data_key' });
+  } catch(e) { console.warn('[nt_strategy] flush hata:', e); }
+}
+
 function ntSaveFormation() {
   if(!ntCanEditFormation()) { _ntNoPermToast(); return; }
   const _cnt = Array.isArray(_ntActivePitchPlayers) ? _ntActivePitchPlayers.filter(e=>e&&e.player).length : 0;
   if (_cnt < 11) { if (typeof showToast === 'function') showToast('İlk 11 tamamlanmadan kaydedilemez (' + _cnt + '/11)'); return; }
   ntSaveStrategy();
+  try { flushNtStrategySave(); } catch(_){}
   const toast = document.createElement('div');
   toast.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--accent);color:var(--bg);padding:8px 18px;border-radius:20px;font-size:12px;font-weight:700;z-index:9999;font-family:"Barlow Condensed",sans-serif;letter-spacing:.5px';
   toast.textContent = '✅ Diziliş kaydedildi!';
@@ -51036,6 +51053,60 @@ function ntKadroOpenProfile(ntId) {
 }
 
 // ── KADRO satırı ÇIKAR butonu: Onay modalı ──
+// 🆕 Oyuncu işlemleri menüsü (modal) — sadece başkan/yardımcı görür
+function ntKadroMenu(ntId) {
+  if (!ntId) return;
+  if (typeof fedUserIsOfficial !== 'function' || !fedUserIsOfficial()) return;
+  const cc = (typeof fedActiveCountry === 'function') ? fedActiveCountry() : 'TR';
+  if (typeof _userTeam === 'undefined' || !_userTeam || _userTeam.countryCode !== cc) return;
+  const roster = (typeof ntEnsureRoster === 'function') ? ntEnsureRoster() : [];
+  const p = roster.find(x => x && x.ntId === ntId);
+  if (!p) return;
+  const ov = document.getElementById('ntConfirmModal');
+  const card = document.getElementById('ntConfirmCard');
+  if (!ov || !card) return;
+
+  const isCapUser = (ntId === 'USER' || !!p.isNtCaptain);
+  const st = (typeof getNtPlayerSquadStatus === 'function') ? getNtPlayerSquadStatus(p) : 'reserve';
+  const statusLbl = st === 'starter' ? '⚽ İlk 11' : (st === 'bench' ? '🪑 Yedek (maç kadrosu)' : '📋 Kadro Dışı');
+  const POS_LBL = { GK:'KL', DEF:'DF', MID:'OS', FWD:'FW' };
+  const POS_CLS = { GK:'kl', DEF:'df', MID:'os', FWD:'fw' };
+  const posGrp = (typeof POS_GROUP !== 'undefined' && POS_GROUP[p.pos]) || 'MID';
+  const posShort = POS_LBL[posGrp] || posGrp;
+  const posClsKey = POS_CLS[posGrp] || 'os';
+  const tBg = p.clubBg || '#1976d2', tTc = p.clubTc || '#fff', tShort = p.clubShort || (p.sourceClub || 'TM').slice(0,3).toUpperCase();
+  const safeId = String(ntId).replace(/'/g, "\\'");
+
+  // Kontekst aksiyonlar
+  let actions = '';
+  if (st === 'reserve') actions += `<button class="nt-cf-menu-btn add" onclick="ntCloseConfirm();confirmNtMatchSquadAdd(${p.num})">🎽 Maç Kadrosuna Al</button>`;
+  if (st === 'bench')   actions += `<button class="nt-cf-menu-btn" onclick="ntCloseConfirm();confirmNtMatchSquadRemove(${p.num})">🪑 Maç Kadrosundan Çıkart</button>`;
+  if (!isCapUser)       actions += `<button class="nt-cf-menu-btn danger" onclick="ntCloseConfirm();ntKadroConfirmRemove('${safeId}')">✕ Milli Takımdan Çıkart</button>`;
+  if (!actions) actions = `<div style="color:var(--text3);font-size:11px;text-align:center;padding:10px">Bu oyuncu için işlem yok.${st==='starter'?' (Sahadan çıkarmak için diziliş ekranında yedeğe sürükleyin.)':''}</div>`;
+
+  card.innerHTML = `
+    <div class="nt-cf-h">
+      <div class="ic">⚙️</div>
+      <div class="tx"><div class="ti">Oyuncu İşlemleri</div><div class="sb">${statusLbl}</div></div>
+    </div>
+    <div class="nt-cf-player">
+      <div class="av">${p.avatar || '🤖'}</div>
+      <div class="info">
+        <div class="nm">${p.name || '—'}</div>
+        <div class="meta">
+          <span class="pos pos-${posClsKey}">${posShort}</span>
+          ${inlineBadge({cls:'nt-an-tbadge', name:p.sourceClub, bg:tBg, tc:tTc, short:tShort})}
+          <span style="color:var(--text2,#90caf9);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.sourceClub || ''}</span>
+        </div>
+      </div>
+      <div class="ovr">${p.overall || '—'}</div>
+    </div>
+    <div class="nt-cf-menu-actions">${actions}</div>
+    <div class="nt-cf-actions"><button class="nt-cf-btn cancel" onclick="ntCloseConfirm()">Kapat</button></div>
+  `;
+  ov.classList.add('open');
+}
+
 function ntKadroConfirmRemove(ntId) {
   if (!ntId) return;
   // Yetki kontrolü
@@ -51068,7 +51139,7 @@ function ntKadroConfirmRemove(ntId) {
     <div class="nt-cf-h">
       <div class="ic" style="background:linear-gradient(135deg,#c62828,#ef5350);border-color:rgba(255,255,255,.2)">✕</div>
       <div class="tx">
-        <div class="ti" style="color:#ef5350">Kadrodan Çıkar</div>
+        <div class="ti" style="color:#ef5350">Milli Takımdan Çıkart</div>
         <div class="sb">Bu oyuncu milli takım kadrosundan çıkarılacak</div>
       </div>
     </div>
@@ -51089,7 +51160,7 @@ function ntKadroConfirmRemove(ntId) {
     </div>
     <div class="nt-cf-actions">
       <button class="nt-cf-btn cancel" onclick="ntCloseConfirm()">Vazgeç</button>
-      <button class="nt-cf-btn confirm danger" onclick="ntDoKadroRemove('${safeId}')">✕ Kadrodan Çıkar</button>
+      <button class="nt-cf-btn confirm danger" onclick="ntDoKadroRemove('${safeId}')">✕ Milli Takımdan Çıkart</button>
     </div>
   `;
   ov.classList.add('open');
@@ -51339,7 +51410,7 @@ function ntConfirmRemove(idx) {
     <div class="nt-cf-h">
       <div class="ic" style="background:linear-gradient(135deg,#c62828,#ef5350);border-color:rgba(255,255,255,.2)">✕</div>
       <div class="tx">
-        <div class="ti" style="color:#ef5350">Kadrodan Çıkar</div>
+        <div class="ti" style="color:#ef5350">Milli Takımdan Çıkart</div>
         <div class="sb">Bu oyuncu milli takım kadrosundan çıkarılacak</div>
       </div>
     </div>
@@ -51360,7 +51431,7 @@ function ntConfirmRemove(idx) {
     </div>
     <div class="nt-cf-actions">
       <button class="nt-cf-btn cancel" onclick="ntCloseConfirm()">Vazgeç</button>
-      <button class="nt-cf-btn confirm danger" onclick="ntDoRemove(${idx})">✕ Kadrodan Çıkar</button>
+      <button class="nt-cf-btn confirm danger" onclick="ntDoRemove(${idx})">✕ Milli Takımdan Çıkart</button>
     </div>
   `;
   ov.classList.add('open');
@@ -69332,6 +69403,7 @@ function trFlushPendingSaves() {
   // 🆕 Takım dizilişi/stratejisi: bekleyen debounce kaydını HEMEN yaz (maç başlamadan
   //   son diziliş ayarı garanti team_data'ya gitsin → motor onu kullanır; elle "Kaydet" gerekmez)
   try { if (typeof flushTeamStrategySave === 'function') flushTeamStrategySave(); } catch(e) {}
+  try { if (typeof flushNtStrategySave === 'function') flushNtStrategySave(); } catch(e) {}
 }
 
 function trSaveData(pos, data) {
