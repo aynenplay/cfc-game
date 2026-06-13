@@ -16475,11 +16475,11 @@ body.drawer-open .hb-btn span:nth-child(3){transform:translateY(-6px) rotate(-45
 .nt-confirm-overlay.open{opacity:1;pointer-events:all}
 .nt-confirm-card{
   width:100%;max-width:380px;
-  background:linear-gradient(180deg,#0d1f44 0%,#050d22 100%);
-  border:1px solid rgba(255,213,79,.35);
+  background:repeating-linear-gradient(45deg,#15171c 0 2px,#101216 2px 4px);
+  border:1px solid #20242c;
   border-radius:16px;
   padding:20px 18px 16px;
-  box-shadow:0 16px 50px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,213,79,.08);
+  box-shadow:0 16px 50px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.05);
   transform:scale(.95);transition:transform .2s}
 .nt-confirm-overlay.open .nt-confirm-card{transform:scale(1)}
 .nt-cf-h{display:flex;align-items:center;gap:10px;margin-bottom:12px}
@@ -16498,14 +16498,15 @@ body.drawer-open .hb-btn span:nth-child(3){transform:translateY(-6px) rotate(-45
 .nt-cf-player{
   display:flex;align-items:center;gap:11px;
   padding:11px 12px;margin-bottom:12px;
-  background:rgba(8,21,46,.5);
-  border:1px solid rgba(95,184,255,.22);
+  background:rgba(0,0,0,.28);
+  border:1px solid #20242c;
   border-radius:12px}
 .nt-cf-player .av{width:42px;height:42px;border-radius:50%;
-  background:linear-gradient(135deg,rgba(95,184,255,.2),rgba(25,118,210,.08));
+  background:linear-gradient(145deg,#2a2f3a,#15171c);
   display:flex;align-items:center;justify-content:center;
-  font-size:22px;flex-shrink:0;
-  border:1.5px solid rgba(95,184,255,.3)}
+  font-size:22px;flex-shrink:0;overflow:hidden;
+  border:1px solid rgba(255,255,255,.1)}
+.nt-cf-player .av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
 .nt-cf-player .info{flex:1;min-width:0}
 .nt-cf-player .nm{font-weight:900;font-size:14px;color:var(--text,#e3f2fd);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.15}
@@ -25865,7 +25866,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-13-mt-kulup-logo-73';
+const APP_BUILD = '2026-06-13-mt-islem-modal-74';
 
 (function _cacheBustCheck() {
   try {
@@ -51103,6 +51104,20 @@ function ntKadroOpenProfile(ntId) {
 }
 
 // ── KADRO satırı ÇIKAR butonu: Onay modalı ──
+// 🆕 Modal avatarı: gerçek kullanıcı/bot avatarı (roster ile aynı)
+function _ntModalAvatarHTML(p) {
+  if (!p) return '🤖';
+  let a = p.avatar || (p.isUser ? '⭐' : '🤖');
+  try {
+    if (p.isUser && typeof authUser !== 'undefined' && authUser && authUser.avatarId && typeof getAvatarEmoji === 'function') {
+      const r = getAvatarEmoji(authUser.avatarId, p.pos); if (typeof r === 'string' && r.indexOf('<img') === 0) a = r;
+    } else if (!p.isUser && !p.isBot && p.avatar_id && typeof getAvatarEmoji === 'function') {
+      const r = getAvatarEmoji(p.avatar_id, p.pos); if (typeof r === 'string' && r.indexOf('<img') === 0) a = r;
+    }
+  } catch(e){}
+  return a;
+}
+
 // 🆕 Oyuncu işlemleri menüsü (modal) — sadece başkan/yardımcı görür
 function ntKadroMenu(ntId) {
   if (!ntId) return;
@@ -51131,7 +51146,7 @@ function ntKadroMenu(ntId) {
   let actions = '';
   if (st === 'reserve') actions += `<button class="nt-cf-menu-btn add" onclick="ntCloseConfirm();confirmNtMatchSquadAdd(${p.num})">🎽 Maç Kadrosuna Al</button>`;
   if (st === 'bench')   actions += `<button class="nt-cf-menu-btn" onclick="ntCloseConfirm();confirmNtMatchSquadRemove(${p.num})">🪑 Maç Kadrosundan Çıkart</button>`;
-  if (!isCapUser)       actions += `<button class="nt-cf-menu-btn danger" onclick="ntCloseConfirm();ntKadroConfirmRemove('${safeId}')">✕ Milli Takımdan Çıkart</button>`;
+  if (!isCapUser)       actions += `<button class="nt-cf-menu-btn danger" onclick="ntDoKadroRemove('${safeId}')">✕ Milli Takımdan Çıkart</button>`;
   if (!actions) actions = `<div style="color:var(--text3);font-size:11px;text-align:center;padding:10px">Bu oyuncu için işlem yok.${st==='starter'?' (Sahadan çıkarmak için diziliş ekranında yedeğe sürükleyin.)':''}</div>`;
 
   card.innerHTML = `
@@ -51140,7 +51155,7 @@ function ntKadroMenu(ntId) {
       <div class="tx"><div class="ti">Oyuncu İşlemleri</div><div class="sb">${statusLbl}</div></div>
     </div>
     <div class="nt-cf-player">
-      <div class="av">${p.avatar || '🤖'}</div>
+      <div class="av">${_ntModalAvatarHTML(p)}</div>
       <div class="info">
         <div class="nm">${p.name || '—'}</div>
         <div class="meta">
@@ -51201,7 +51216,7 @@ function ntKadroConfirmRemove(ntId) {
       </div>
     </div>
     <div class="nt-cf-player">
-      <div class="av">${p.avatar || '🤖'}</div>
+      <div class="av">${_ntModalAvatarHTML(p)}</div>
       <div class="info">
         <div class="nm">${p.name || '—'}</div>
         <div class="meta">
@@ -51425,7 +51440,7 @@ function ntConfirmCallup(idx) {
       </div>
     </div>
     <div class="nt-cf-player">
-      <div class="av">${p.avatar || '🤖'}</div>
+      <div class="av">${_ntModalAvatarHTML(p)}</div>
       <div class="info">
         <div class="nm">${p.name || '—'}</div>
         <div class="meta">
@@ -51478,7 +51493,7 @@ function ntConfirmRemove(idx) {
       </div>
     </div>
     <div class="nt-cf-player">
-      <div class="av">${p.avatar || '🤖'}</div>
+      <div class="av">${_ntModalAvatarHTML(p)}</div>
       <div class="info">
         <div class="nm">${p.name || '—'}</div>
         <div class="meta">
