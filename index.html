@@ -25931,7 +25931,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-09-dizilis-pitch2bench-38';
+const APP_BUILD = '2026-06-09-dizilis-pitch2bench-39';
 
 (function _cacheBustCheck() {
   try {
@@ -46793,12 +46793,26 @@ function _findSwapTarget(srcIdx, x, y, threshold) {
 
 // 🆕 Sahadaki oyuncuyu YEDEĞE taşı — sürükleme bench alanında bittiyse
 function _movePitchToBenchIfDropped(pitchIdx, cx, cy) {
-  if (typeof _canManageSquad === 'function' && !_canManageSquad()) return false;
   if (typeof cx !== 'number' || typeof cy !== 'number') return false;
   const benchEl = document.getElementById('benchList');
   if (!benchEl) return false;
-  const r = benchEl.getBoundingClientRect();
-  if (cx < r.left || cx > r.right || cy < r.top || cy > r.bottom) return false;  // bench üzerinde değil
+  // Bırakma noktası bench üzerinde mi? — hem rect hem elementFromPoint (sağlam algılama)
+  let over = false;
+  try {
+    const r = benchEl.getBoundingClientRect();
+    if (r && r.width > 0 && r.height > 0 && cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom) over = true;
+  } catch(_){}
+  if (!over) {
+    try {
+      const _node = document.getElementById('fpn_' + pitchIdx);
+      const _disp = _node ? _node.style.display : null;
+      if (_node) _node.style.display = 'none';        // sürüklenen kart algılamayı engellemesin
+      const elAt = document.elementFromPoint(cx, cy);
+      if (_node) _node.style.display = _disp || '';
+      if (elAt && (elAt === benchEl || benchEl.contains(elAt))) over = true;
+    } catch(_){}
+  }
+  if (!over) return false;
   const entry = (activePitchPlayers || [])[pitchIdx];
   if (!entry || !entry.player) return false;
   const BENCH_SIZE = 7;
