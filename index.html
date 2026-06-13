@@ -16215,6 +16215,14 @@ body.drawer-open .hb-btn span:nth-child(3){transform:translateY(-6px) rotate(-45
 #page-national.nt-guest-mode .thb-menu-wrap{
   display:none !important;
 }
+/* 🆕 Ziyaretçi banner — yalnız guest-mode aktifken görünür */
+#page-national .nt-guest-banner{display:none}
+#page-national.nt-guest-mode .nt-guest-banner{
+  display:flex;align-items:center;gap:10px;margin:10px 14px 0;padding:9px 12px;
+  background:linear-gradient(90deg,rgba(255,213,79,.12),rgba(255,213,79,.06));
+  border:1px solid rgba(255,213,79,.30);border-radius:10px;
+  font-family:'Barlow',sans-serif;font-size:12px;font-weight:600;
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
    MİLLİ TAKIM: GRUP / DAVET / VİTRİN sekmeleri
@@ -24790,6 +24798,13 @@ body.drawer-open{overflow:hidden}
       </div>
     </div>
 
+    <!-- 🆕 Ziyaretçi modu banner — sadece yabancı MT'ye bakarken görünür -->
+    <div class="nt-guest-banner" id="ntGuestBanner">
+      <span class="pl-vb-icon">👁️</span>
+      <span class="pl-vb-text">Ziyaretçi görünümü — bu milli takımda değişiklik yapamazsın.</span>
+      <button class="pl-vb-back" onclick="ntExitGuest()">↩ Kendi Takımım</button>
+    </div>
+
     <!-- Sekme şeridi (team-tabs CSS'i yeniden kullanılıyor) -->
     <div class="team-tabs nt-tabs">
       <button class="team-tab active" data-nt-tab="roster" onclick="ntTab('roster',this)">👥 Kadro</button>
@@ -25931,7 +25946,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-13-mt-bot-online-53';
+const APP_BUILD = '2026-06-13-mt-guest-banner-55';
 
 (function _cacheBustCheck() {
   try {
@@ -39080,24 +39095,21 @@ function showPage(name,btn){
   if(name==='shop') { renderDiamondPacks(); const sb=document.getElementById('shopDiamondBal'); if(sb) sb.textContent=document.getElementById('diamond-display')?.textContent||'0'; }
   if(name==='federation') { if(typeof fedRender === 'function') fedRender(); }
   if(name==='national')   {
+    // 🆕 Nav butonundan (Milli Takım) girince ziyaretçi modundan çık → KENDİ milli takımın
+    if (btn && window._ntViewingCC) {
+      window._ntViewingCC = null;
+      if (typeof NT_ROSTER_DATA !== 'undefined') NT_ROSTER_DATA = [];
+      if (typeof _ntCachedCC !== 'undefined') _ntCachedCC = null;
+    }
     if(typeof ntRender === 'function') ntRender();
-    // 🆕 İzleyici modu otomatik kontrol: yabancı ülke izlenmiyorsa, kullanıcı yetkili değilse + kadroda değilse → izleyici
+    // 🆕 Sekme görünürlüğü: KENDİ milli takımın (ziyaretçi DEĞİL) → TÜM 7 sekme görünür.
+    //   Yabancı milli takım (ziyaretçi modu) → kısıtlı görünüm (Diziliş/Sohbet/Analiz gizli).
+    //   Düzenleme yetkisi AYRICA ntCanEditFormation (başkan/yardımcı) ile sınırlı; üyeler salt görüntüler.
     try {
       const pageEl = document.getElementById('page-national');
-      if (pageEl && !window._ntViewingCC) {
-        const myCC = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.countryCode : null;
-        let isOfficial = false;
-        try { isOfficial = (typeof fedUserIsOfficial === 'function') && fedUserIsOfficial(); } catch(e) {}
-        let inSquad = false;
-        if (myCC && typeof ntLoadSquadIds === 'function') {
-          const ids = ntLoadSquadIds(myCC);
-          inSquad = Array.isArray(ids) && ids.includes('USER');
-        }
-        if (!isOfficial && !inSquad) {
-          pageEl.classList.add('nt-guest-mode');
-        } else {
-          pageEl.classList.remove('nt-guest-mode');
-        }
+      if (pageEl) {
+        if (window._ntViewingCC) pageEl.classList.add('nt-guest-mode');
+        else pageEl.classList.remove('nt-guest-mode');
       }
     } catch(e) {}
     // Açılışta Kadro sekmesini aktif göster
@@ -50775,8 +50787,9 @@ function ntRenderStandings() {
     const av = (t.GF || 0) - (t.GA || 0);
     const avStr = (av > 0 ? '+' : '') + av;
     const isUser = (t.code === cc);
+    const _rowClick = isUser ? '' : ` onclick="ntViewAsGuest('${t.code}')" style="cursor:pointer"`;  // 🆕 yabancı MT → ziyaretçi modu
     html += `
-      <div class="nt-grp-row ${isUser ? 'is-user' : ''}">
+      <div class="nt-grp-row ${isUser ? 'is-user' : ''}"${_rowClick}>
         <span class="rk">${i+1}</span>
         <span class="pl-name">
           <span class="fl">${t.flag || '🏳️'}</span>
