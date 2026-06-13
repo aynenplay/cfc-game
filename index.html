@@ -25931,7 +25931,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-09-dizilis-bench-drop-43';
+const APP_BUILD = '2026-06-09-dizilis-bos-slot-44';
 
 (function _cacheBustCheck() {
   try {
@@ -46431,7 +46431,7 @@ function renderPitch() {
       en.style.left = _slot.x + '%';
       en.style.top  = _slot.y + '%';
       en.dataset.slot = _si;
-      en.innerHTML = '<div class="fpn-empty-circle" style="border-color:' + _c.bg + '"><div class="fpn-plus">+</div><div class="fpn-empty-lbl">' + (_slot.s || _slot.pos) + '</div></div>';
+      en.innerHTML = '<div class="fpn-empty-card"><div class="fpn-empty-plus">+</div><div class="fpn-empty-pos">' + (_slot.s || _slot.pos) + '</div></div>';
       en.addEventListener('dragover', e => { e.preventDefault(); en.classList.add('drop-hover'); });
       en.addEventListener('dragleave', () => en.classList.remove('drop-hover'));
       en.addEventListener('drop', e => { e.preventDefault(); en.classList.remove('drop-hover'); if (typeof doBenchToEmptySlot === 'function') doBenchToEmptySlot(_si); });
@@ -46765,7 +46765,20 @@ function makeDraggable(node, idx) {
         try { renderRoster(); } catch(_) {}
       }
     } else {
-      // SWAP yok → orijinal pozisyona yumuşak geri dön
+      // 🆕 BOŞ SLOTA bırakıldı mı? → sahadaki oyuncuyu o boş slota taşı (eski slotu boşalır)
+      const _emptyIdx = (typeof _findEmptySlotTarget === 'function') ? _findEmptySlotTarget(curLeft, curTop, SWAP_THRESHOLD + 6) : -1;
+      if (_emptyIdx !== -1) {
+        const _sl = (FORMATIONS[currentFormation] || [])[_emptyIdx];
+        if (_sl) {
+          activePitchPlayers[idx].slotIdx = _emptyIdx;
+          activePitchPlayers[idx].x = _sl.x; activePitchPlayers[idx].y = _sl.y;
+          activePitchPlayers[idx].pos = _sl.pos; activePitchPlayers[idx].s = _sl.s;
+          renderPitch();
+          try { saveTeamStrategy(); } catch(e){}
+          return;
+        }
+      }
+      // SWAP/boş slot yok → orijinal pozisyona yumuşak geri dön
       node.style.left = originalLeft + '%';
       node.style.top  = originalTop + '%';
       activePitchPlayers[idx].x = originalLeft;
@@ -46778,6 +46791,20 @@ function makeDraggable(node, idx) {
   document.addEventListener('touchmove',  onMove, {passive:false});
   document.addEventListener('mouseup',    onEnd);
   document.addEventListener('touchend',   onEnd);
+}
+
+// 🆕 Yakındaki BOŞ formasyon slotunu bul (sahadaki oyuncuyu boş slota taşımak için)
+function _findEmptySlotTarget(x, y, threshold) {
+  const slots = (typeof FORMATIONS !== 'undefined' && FORMATIONS[currentFormation]) ? FORMATIONS[currentFormation] : [];
+  const used = new Set((activePitchPlayers||[]).map(e => (e && e.player) ? e.slotIdx : null));
+  let best = -1, bestDist = Infinity;
+  slots.forEach((sl, i) => {
+    if (used.has(i)) return;            // dolu slot
+    const dx = sl.x - x, dy = sl.y - y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist <= threshold && dist < bestDist) { bestDist = dist; best = i; }
+  });
+  return best;
 }
 
 // 🆕 Yakındaki swap hedefini bul (x,y % cinsinden, threshold % cinsinden)
@@ -79761,6 +79788,11 @@ document.addEventListener('keydown', function(e){
 .fpn-empty .fpn-empty-lbl{font-size:7.5px;font-weight:800;color:rgba(255,255,255,.5);letter-spacing:.3px;margin-top:1px}
 .form-tool-btn.disabled,.form-tool-btn:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(.4)}
 #benchList.bench-drop-active{outline:2px dashed var(--accent);outline-offset:2px;border-radius:10px;background:rgba(0,230,118,.06)}
+.fpn-empty-card{width:100%;min-height:84px;border-radius:10px;border:2px dashed rgba(255,255,255,.30);background:repeating-linear-gradient(45deg,rgba(255,255,255,.02) 0 3px,rgba(255,255,255,.05) 3px 6px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;box-shadow:0 3px 8px rgba(0,0,0,.35);transition:all .15s}
+.fpn-empty-plus{font-family:'Barlow Condensed',sans-serif;font-size:30px;font-weight:900;color:rgba(255,255,255,.45);line-height:.9}
+.fpn-empty-pos{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:800;color:rgba(255,255,255,.42);letter-spacing:1px;text-transform:uppercase}
+.fpn.fpn-empty:hover .fpn-empty-card,.fpn.fpn-empty.drop-hover .fpn-empty-card{background:rgba(0,230,118,.14);border-color:var(--accent)}
+.fpn.fpn-empty.drop-hover .fpn-empty-plus,.fpn.fpn-empty.drop-hover .fpn-empty-pos{color:var(--accent)}
 .form-side-panel.bench-drop-active{outline:2px dashed var(--accent);outline-offset:-3px;border-radius:12px;background:rgba(0,230,118,.10)}
 .bench-empty-slot{border:1.6px dashed rgba(255,255,255,.28) !important;background:rgba(255,255,255,.03) !important}
 .bench-empty-slot .bench-plus{font-size:22px;font-weight:900;color:rgba(255,255,255,.6);line-height:1}
