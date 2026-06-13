@@ -17072,6 +17072,24 @@ body.drawer-open .hb-btn span:nth-child(3){transform:translateY(-6px) rotate(-45
 
 .fede-history{margin-top:14px;padding:12px;background:var(--card);border:1px solid var(--border);border-radius:10px}
 .fede-history-title{font-size:10.5px;font-weight:800;color:var(--text2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px}
+.fede-hist-season{border:1px solid #20242c;border-radius:9px;margin-bottom:7px;overflow:hidden;background:rgba(0,0,0,.18)}
+.fede-hist-head{display:flex;align-items:center;gap:8px;padding:10px 11px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.fede-hist-head .fhs-ttl{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:13px;color:#e8ecf4;letter-spacing:.3px}
+.fede-hist-head .fhs-sub{margin-left:auto;font-size:11px;color:#ffd54f;font-weight:700;white-space:nowrap}
+.fede-hist-head .fhs-arr{font-size:17px;color:var(--text3);transition:transform .2s;flex-shrink:0}
+.fede-hist-season.open .fhs-arr{transform:rotate(90deg)}
+.fede-hist-body{display:none;padding:2px 11px 9px;border-top:1px solid #20242c}
+.fede-hist-season.open .fede-hist-body{display:block}
+.fede-hist-cand{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:11.5px}
+.fede-hist-cand:last-child{border-bottom:0}
+.fede-hist-cand .fhc-rank{width:18px;height:18px;border-radius:50%;background:rgba(255,255,255,.06);color:var(--text2);font-weight:900;font-size:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.fede-hist-cand.is-pres .fhc-rank{background:rgba(255,213,79,.2);color:#ffd54f}
+.fede-hist-cand.is-vice .fhc-rank{background:rgba(95,184,255,.18);color:#5fb8ff}
+.fede-hist-cand .fhc-name{flex:1;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.fede-hist-cand .fhc-role{font-size:9px;font-weight:800;color:var(--text3);text-transform:uppercase;flex-shrink:0}
+.fede-hist-cand.is-pres .fhc-role{color:#ffd54f}
+.fede-hist-cand.is-vice .fhc-role{color:#5fb8ff}
+.fede-hist-cand .fhc-votes{font-size:10px;color:var(--text3);flex-shrink:0;min-width:62px;text-align:right}
 .fede-history-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:11px}
 .fede-history-row:last-child{border-bottom:0}
 .fede-history-szn{color:var(--text3);font-weight:700;min-width:60px}
@@ -25860,7 +25878,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-13-mt-yardimci-secim-83';
+const APP_BUILD = '2026-06-13-fed-secim-84';
 
 (function _cacheBustCheck() {
   try {
@@ -47407,7 +47425,16 @@ function fedGetPresident(cc) {
 function fedGetVicePresidents(cc) {
   const state = fedLoad(cc);
   if(!state) return [];
-  return (state.vicePresidentIds || []).map(id => fedFindMember(cc, id)).filter(Boolean);
+  let vps = (state.vicePresidentIds || []).map(id => fedFindMember(cc, id)).filter(Boolean);
+  // 🆕 3'ten az ise influence sıralamasıyla tamamla (başkan + mevcut yardımcılar hariç) → yönetim + MT'de yardımcılar görünür
+  if (vps.length < 3) {
+    const have = new Set(vps.map(v => v.id).concat([state.presidentId]));
+    const extra = computeFederationMembers(cc).slice()
+      .sort((a,b) => (b.influence||0) - (a.influence||0))
+      .filter(m => m && !have.has(m.id));
+    vps = vps.concat(extra).slice(0, 3);
+  }
+  return vps;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -48211,10 +48238,11 @@ function fedRenderElection() {
     const pct = myTotal > 0 ? Math.round((myTally / myTotal) * 100) : 0;
 
     let rightHtml = '';
-    if(phase === 'open') {
-      if(isMember) {
-        rightHtml = `<button class="fede-cand-vote-btn" onclick="fedCastVoteClick('${id}')" ${votedByMe ? 'disabled' : ''}>${votedByMe ? '✓ OYUM' : 'OY VER'}</button>`;
-      }
+    if(isMember && phase !== 'completed') {
+      // 🆕 Oy ver butonu HER ZAMAN görünür; sadece SEÇİM GÜNÜ (phase==='open') aktif
+      const _votingOpen = (phase === 'open');
+      const _lbl = votedByMe ? '✓ OYUM' : (_votingOpen ? 'OY VER' : '🔒 Seçim Günü Değil');
+      rightHtml = `<button class="fede-cand-vote-btn" onclick="fedCastVoteClick('${id}')" ${(!_votingOpen || votedByMe) ? 'disabled' : ''}>${_lbl}</button>`;
     } else if(phase === 'completed') {
       rightHtml = `
         <div style="text-align:right">
@@ -48255,28 +48283,47 @@ function fedRenderElection() {
     </div>
   `;
 
-  // === GEÇMİŞ ===
-  const hist = (state.history || []).slice(-5).reverse();
+  // === GEÇMİŞ — sezon bazlı açılır-kapanır seçim özetleri ===
+  const histAll = (state.history || []).slice().reverse();
   let histHtml = '';
-  if(hist.length > 0) {
-    histHtml = `
-      <div class="fede-history">
-        <div class="fede-history-title">📜 Seçim Geçmişi</div>
-        ${hist.map(h => `
-          <div class="fede-history-row">
-            <span class="fede-history-szn">SEZON ${h.season}</span>
-            <span class="fede-history-name">${h.presName}</span>
-            <span class="fede-history-pres">🏛️</span>
-          </div>
-        `).join('')}
-      </div>
-    `;
+  if(histAll.length > 0) {
+    histHtml = `<div class="fede-history"><div class="fede-history-title">📜 Önceki Seçim Sonuçları</div>` +
+      histAll.map((h, idx) => {
+        const ranked = (h.candidates || []).slice().sort((a,b) => ((h.tally && h.tally[b])||0) - ((h.tally && h.tally[a])||0));
+        const total = (h.tally) ? Object.values(h.tally).reduce((s,v)=>s+(v||0),0) : 0;
+        const _nm = (id) => { const m = fedFindMember(cc, id); return m ? m.captainName : (id === (ranked[0]||h.presidentId) ? (h.presName||'—') : '—'); };
+        const _votes = (id) => (h.tally && h.tally[id]) || 0;
+        const _pct = (id) => total > 0 ? Math.round((_votes(id)/total)*100) : 0;
+        const rowsHtml = (ranked.length ? ranked : [h.presidentId].filter(Boolean)).map((id, ri) => {
+          const role = ri === 0 ? '👑 Başkan' : (ri <= 3 ? 'Yrd. Başkan ' + ri : 'Aday');
+          return `<div class="fede-hist-cand ${ri===0?'is-pres':(ri<=3?'is-vice':'')}">
+            <span class="fhc-rank">${ri+1}</span>
+            <span class="fhc-name">${_nm(id)}</span>
+            <span class="fhc-role">${role}</span>
+            <span class="fhc-votes">${_votes(id)} oy · %${_pct(id)}</span>
+          </div>`;
+        }).join('');
+        return `
+          <div class="fede-hist-season ${idx===0?'open':''}" id="fedHistS_${idx}">
+            <div class="fede-hist-head" onclick="fedToggleHistory(${idx})">
+              <span class="fhs-ttl">${h.season}. Sezon Seçim Sonuçları</span>
+              <span class="fhs-sub">🏛️ ${h.presName||'—'}</span>
+              <span class="fhs-arr">›</span>
+            </div>
+            <div class="fede-hist-body">${rowsHtml || '<div style="padding:8px;color:var(--text3);font-size:11px">Sonuç verisi yok</div>'}</div>
+          </div>`;
+      }).join('') + `</div>`;
   }
 
   root.innerHTML = bannerHtml + ctaHtml + candHtml + rulesHtml + histHtml;
 }
 
 // === Click handler'lar ===
+// 🆕 Önceki sezon seçim özetini aç/kapat
+function fedToggleHistory(idx) {
+  const el = document.getElementById('fedHistS_' + idx);
+  if (el) el.classList.toggle('open');
+}
 function fedApplyCandidacyClick() {
   if(!fedApplyForCandidacy()) {
     fedShowToast('🔒 Oylama başladı, başvuru kapalı', 'err');
