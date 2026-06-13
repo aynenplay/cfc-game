@@ -25931,7 +25931,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-09-anasayfa-guncel-50';
+const APP_BUILD = '2026-06-09-etkinlik-badge-51';
 
 (function _cacheBustCheck() {
   try {
@@ -73611,15 +73611,31 @@ function evRefreshBadge() {
   evRefreshTabBadges();
 }
 
-function evRefreshTabBadges() {
+let _evBadgeLastLoad = 0;
+async function evRefreshTabBadges() {
+  // 🆕 BAYAT STATE FİX: badge'i GÜNCEL server claimed/stat'ından hesapla.
+  //   (claimed liste yüklenmeden hesaplanınca TOPLANMIŞ ödül "toplanabilir" sayılıp
+  //    bildirim fazla görünüyordu → render ile tutarsızlık.) Throttle: en çok 3sn'de bir.
+  try {
+    const _now = Date.now();
+    if (typeof achLoadState === 'function' && (_now - _evBadgeLastLoad > 3000)) {
+      _evBadgeLastLoad = _now;
+      await achLoadState();
+    }
+  } catch(e){}
+
   const qBadge = document.getElementById('evQuestsBadge');
   const aBadge = document.getElementById('evAchBadge');
   if(!qBadge || !aBadge) return;
 
-  // GÖREVLER sekmesi = sadece giriş ödülleri → toplanmamış hak edilmiş gün
+  // GÖREVLER = toplanabilir giriş ödülü GÜN SAYISI (render ile AYNI: hak edilen ama toplanmamış günler)
   let qn = 0;
-  if(evCanClaimStreak()) qn++;
-  // 🆕 Başarı badge — Seri + Pro görev sistemi
+  try {
+    const s = (typeof evGetStreak === 'function') ? evGetStreak() : null;
+    if (s) { for (let d = 1; d <= (s.login_streak || 0); d++) { if (!((s.streak_claimed)||[]).includes(d)) qn++; } }
+  } catch(e){}
+
+  // BAŞARILAR = seri + pro toplanabilir (render ile BİREBİR aynı koşul)
   let an = 0;
   if (typeof ACH_SERIES !== 'undefined' && typeof _achProgress === 'function') {
     for (const a of ACH_SERIES) if (!_achIsClaimed(a[0]) && _achProgress(a[2]) >= a[5]) an++;
