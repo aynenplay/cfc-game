@@ -23483,7 +23483,7 @@ body.drawer-open{overflow:hidden}
       <div class="form-toolbar">
         <button type="button" id="formationPickBtn" class="form-tool-btn" onclick="openFormationModal()">📋 <span id="formationPickLabel">4-3-3</span> <span class="ffp-caret">▾</span></button>
         <button class="form-tool-btn" onclick="openStrategyPanel()">⚙️ Strateji</button>
-        <button class="form-tool-btn accent" onclick="saveFormation()">💾 Kaydet</button>
+        <button class="form-tool-btn accent" id="btnSaveFormation" onclick="saveFormation()">💾 Kaydet</button>
       </div>
 
       <!-- 🆕 Formasyon seçim modalı (maç motoru fmap-grid tasarımı) -->
@@ -25931,7 +25931,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-09-ziyaret-kadro-36';
+const APP_BUILD = '2026-06-09-dizilis-11-zorunlu-37';
 
 (function _cacheBustCheck() {
   try {
@@ -45959,38 +45959,25 @@ function initFormation() {
   activePitchPlayers = [];
   benchPlayers = [];
 
-  // 🆕 İlk açılış: AKILLI YERLEŞTİRME (mevki uyumlu) — eski "rastgele" diziliş kaldırıldı
-  if (typeof ROSTER_DATA !== 'undefined' && ROSTER_DATA.length >= 11) {
-    const eligible = ROSTER_DATA.filter(p =>
-      !(typeof isPlayerSuspended === 'function' && isPlayerSuspended(p)) &&
-      !(typeof isPlayerInjured === 'function' && isPlayerInjured(p))
-    );
-    if (eligible.length >= 11 && typeof _computeSmartLineup === 'function') {
-      const { lineup, bench } = _computeSmartLineup(eligible, slots);
-      activePitchPlayers = lineup;
-      benchPlayers = bench;
-      renderPitch();
-      renderBench();
-      // İlk dizilişi de kaydet
-      try { saveTeamStrategy(); } catch(e){}
-      return;
-    }
+  // 🆕 OTOMATİK İLK 11 — saha asla eksik kalmasın. TÜM kadrodan mevki-uyumlu doldur.
+  //   Cezalı/sakat son sıraya itilir; kaleci yoksa _computeSmartLineup en uygun oyuncuyu kaleciye koyar.
+  //   Kadro 11'den azsa kalan slotlar renderPitch'te "+" boş slot olarak görünür.
+  if (typeof ROSTER_DATA !== 'undefined' && Array.isArray(ROSTER_DATA) && ROSTER_DATA.length > 0 && typeof _computeSmartLineup === 'function') {
+    const _sp = p => (typeof isPlayerSuspended === 'function' && isPlayerSuspended(p));
+    const _ij = p => (typeof isPlayerInjured === 'function' && isPlayerInjured(p));
+    const pool = [...ROSTER_DATA].sort((a,b) => {
+      const ai = (_sp(a)||_ij(a)) ? 1 : 0, bi = (_sp(b)||_ij(b)) ? 1 : 0;
+      if (ai !== bi) return ai - bi;
+      return (b.overall||0) - (a.overall||0);
+    });
+    const { lineup, bench } = _computeSmartLineup(pool, slots);
+    activePitchPlayers = lineup;
+    benchPlayers = (bench || []).slice(0, 7);
+    renderPitch();
+    renderBench();
+    try { saveTeamStrategy(); } catch(e){}
+    return;
   }
-
-  // Fallback: Akıllı yerleştirme yapamadıysak (oyuncu sayısı az veya cezalı/sakat çok)
-  // En azından role + ovr sırasına göre sahaya doldur
-  const sorted = [...ROSTER_DATA].sort((a,b) => {
-    const o = {user:0,captain:1,vice:2,member:3};
-    if(o[a.role]!==o[b.role]) return o[a.role]-o[b.role];
-    return b.overall - a.overall;
-  });
-  const starters = sorted.slice(0, 11);
-  const bench    = sorted.slice(11, 18); // 🆕 Sadece ilk 7 yedek (kalanı kadro dışı)
-  starters.forEach((p, i) => {
-    const slot = slots[i] || slots[0];
-    activePitchPlayers.push({player: p, slotIdx: i, x: slot.x, y: slot.y, pos: slot.pos, s: slot.s});
-  });
-  benchPlayers = bench;
 
   renderPitch();
   renderBench();
@@ -46077,7 +46064,9 @@ function _computeSmartLineup(eligible, slots, opts) {
           }
         }
       } catch(e) {}
-      const score = ovr + posMatch + userBonus + moraleBonus + energyBonus;
+      let _ineligPen = 0;
+      try { if ((typeof isPlayerSuspended === 'function' && isPlayerSuspended(p)) || (typeof isPlayerInjured === 'function' && isPlayerInjured(p))) _ineligPen = -5000; } catch(e){}
+      const score = ovr + posMatch + userBonus + moraleBonus + energyBonus + _ineligPen;
       if (score > bestScore) { bestScore = score; best = p; }
     });
 
@@ -46427,7 +46416,33 @@ function renderPitch() {
   if(!container) return;
   container.innerHTML = '';
 
-  activePitchPlayers.forEach((entry, i) => {
+  const _slots = (typeof FORMATIONS !== 'undefined' && FORMATIONS[currentFormation]) ? FORMATIONS[currentFormation] : [];
+  const _canMng = (typeof _canManageSquad === 'function') ? _canManageSquad() : false;
+  const _bySlot = {};
+  (activePitchPlayers||[]).forEach((e, ai) => { if (e && e.player && typeof e.slotIdx === 'number') _bySlot[e.slotIdx] = { entry:e, ai }; });
+  _slots.forEach((_slot, _si) => {
+    const _hit = _bySlot[_si];
+    if (!(_hit && _hit.entry && _hit.entry.player)) {
+      // 🆕 BOŞ SLOT → "+" (kaptan/yardımcı tıklayıp doldurur; bench'ten sürüklenebilir)
+      const _c = POS_COLORS[_slot.pos] || {bg:'#37474f',tc:'#b0bec5'};
+      const en = document.createElement('div');
+      en.className = 'fpn fpn-empty';
+      en.id = 'fpn_empty_' + _si;
+      en.style.left = _slot.x + '%';
+      en.style.top  = _slot.y + '%';
+      en.dataset.slot = _si;
+      en.innerHTML = '<div class="fpn-empty-circle" style="border-color:' + _c.bg + '"><div class="fpn-plus">+</div><div class="fpn-empty-lbl">' + (_slot.s || _slot.pos) + '</div></div>';
+      en.addEventListener('dragover', e => { e.preventDefault(); en.classList.add('drop-hover'); });
+      en.addEventListener('dragleave', () => en.classList.remove('drop-hover'));
+      en.addEventListener('drop', e => { e.preventDefault(); en.classList.remove('drop-hover'); if (typeof doBenchToEmptySlot === 'function') doBenchToEmptySlot(_si); });
+      if (_canMng) { en.style.cursor = 'pointer'; en.addEventListener('click', () => { if (typeof openSlotPicker === 'function') openSlotPicker(_si); }); }
+      container.appendChild(en);
+      return;
+    }
+    const entry = _hit.entry;
+    const i = _hit.ai;
+    // entry'yi geçerli formasyon slotuna senkronla (formasyon değişince doğru yere otursun)
+    entry.x = _slot.x; entry.y = _slot.y; entry.pos = _slot.pos; entry.s = _slot.s; entry.slotIdx = _si;
     let p = entry.player;
     // 🆕 Tam oyuncu objesini (abilities dahil) ROSTER_DATA'dan çöz — restore edilmiş diziliş
     //   trimmed gelebilir; abilities olmadan getPlayerEffectiveRating overall'a düşer ve mevki-OVR çalışmaz.
@@ -46536,6 +46551,7 @@ function renderPitch() {
 
   // 🆕 İlk 11 ortalamasını güncelle (her render'da)
   if(typeof updateLineupAverage === 'function') updateLineupAverage();
+  if(typeof _updateSaveLineupBtn === 'function') _updateSaveLineupBtn();
 }
 
 // 🆕 Sahadaki 11 oyuncunun yetenek ortalamasını hesapla ve göster
@@ -46847,6 +46863,56 @@ function doBenchToPitchSwap(pitchIdx) {
   try { saveTeamStrategy(); } catch(e){}
 }
 
+// 🆕 Bench oyuncusunu BOŞ slota ekle (sürükle-bırak)
+function doBenchToEmptySlot(slotIdx) {
+  if (typeof _canManageSquad === 'function' && !_canManageSquad()) return;
+  if (typeof dragBenchIdx === 'undefined' || dragBenchIdx === null || dragBenchIdx >= benchPlayers.length) return;
+  const _sl = (FORMATIONS[currentFormation] || [])[slotIdx]; if (!_sl) return;
+  const bPlayer = benchPlayers[dragBenchIdx]; if (!bPlayer) return;
+  benchPlayers.splice(dragBenchIdx, 1);
+  activePitchPlayers.push({ player: bPlayer, slotIdx, x: _sl.x, y: _sl.y, pos: _sl.pos, s: _sl.s });
+  dragBenchIdx = null;
+  renderPitch(); renderBench();
+  try { saveTeamStrategy(); } catch(e){}
+}
+
+// 🆕 Boş slota tek-tıkla EN UYGUN oyuncuyu yerleştir (sahada olmayanlardan, mevki-uyumlu)
+function openSlotPicker(slotIdx) {
+  if (typeof _canManageSquad === 'function' && !_canManageSquad()) {
+    if (typeof showToast === 'function') showToast('Sadece kaptan veya yardımcı diziliş kurabilir');
+    return;
+  }
+  const _sl = (FORMATIONS[currentFormation] || [])[slotIdx]; if (!_sl) return;
+  const onPitch = new Set((activePitchPlayers||[]).map(e => e && e.player && e.player.num));
+  const avail = (typeof ROSTER_DATA !== 'undefined' ? ROSTER_DATA : []).filter(p => p && !onPitch.has(p.num));
+  if (!avail.length) { if (typeof showToast === 'function') showToast('Eklenecek oyuncu yok'); return; }
+  let chosen = null;
+  try {
+    if (typeof _computeSmartLineup === 'function') {
+      const { lineup } = _computeSmartLineup(avail, [_sl], { skipBench: true });
+      if (lineup && lineup[0] && lineup[0].player) chosen = lineup[0].player;
+    }
+  } catch(e){}
+  if (!chosen) chosen = [...avail].sort((a,b)=>(b.overall||0)-(a.overall||0))[0];
+  if (!chosen) return;
+  const bi = benchPlayers.findIndex(b => b && b.num === chosen.num);
+  if (bi >= 0) benchPlayers.splice(bi, 1);
+  activePitchPlayers.push({ player: chosen, slotIdx, x: _sl.x, y: _sl.y, pos: _sl.pos, s: _sl.s });
+  renderPitch(); renderBench();
+  try { saveTeamStrategy(); } catch(e){}
+}
+
+// 🆕 İlk 11 tam dolmadan "Kaydet" butonunu pasif yap
+function _updateSaveLineupBtn() {
+  const btn = document.getElementById('btnSaveFormation');
+  if (!btn) return;
+  const cnt = Array.isArray(activePitchPlayers) ? activePitchPlayers.filter(e => e && e.player).length : 0;
+  const full = (cnt === 11);
+  btn.disabled = !full;
+  btn.classList.toggle('disabled', !full);
+  btn.title = full ? 'Dizilişi kaydet' : ('İlk 11 tamamlanmalı (' + cnt + '/11)');
+}
+
 function showSwapToast(msg) {
   const t = document.createElement('div');
   t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--accent2);color:var(--bg);padding:7px 16px;border-radius:20px;font-size:11px;font-weight:700;z-index:9999;font-family:"Barlow Condensed",sans-serif;letter-spacing:.5px;white-space:nowrap';
@@ -46955,6 +47021,12 @@ async function flushTeamStrategySave() {
 }
 
 async function saveFormation() {
+  // 🆕 İlk 11 tam dolu değilse kaydetme
+  const _liveCnt = Array.isArray(activePitchPlayers) ? activePitchPlayers.filter(e => e && e.player).length : 0;
+  if (_liveCnt < 11) {
+    if (typeof showToast === 'function') showToast('İlk 11 tamamlanmadan kaydedilemez (' + _liveCnt + '/11)');
+    return;
+  }
   // 🆕 GERÇEK KAYIT — strateji + formasyon + diziliş
   // saveTeamStrategy() debounce'lu (500ms). Manuel "Kaydet" tıklanınca
   // pending timer'ı iptal edip ANINDA yazıp toast'ı write sonrası göster.
@@ -79616,6 +79688,14 @@ document.addEventListener('keydown', function(e){
 @media (max-width:820px){#page-results .res-match{content-visibility:auto;contain-intrinsic-size:auto 38px}#page-results .res-league-group{contain:paint}}
 #page-results .res-match-score.res-match-score-live{color:var(--accent);background:rgba(0,230,118,.08);border-color:rgba(0,230,118,.4)}
 #page-results .res-score-vs{background:transparent!important;border:1px solid transparent!important;color:var(--text3)!important;font-size:14px;font-weight:800}
+</style>
+<style id="dizilis-empty-slot-style">
+.fpn.fpn-empty{z-index:1}
+.fpn-empty-circle{width:46px;height:46px;border-radius:50%;border:2px dashed rgba(255,255,255,.35);background:rgba(255,255,255,.05);display:flex;flex-direction:column;align-items:center;justify-content:center;transition:all .15s}
+.fpn.fpn-empty:hover .fpn-empty-circle,.fpn.fpn-empty .fpn-empty-circle.drop-hover{background:rgba(0,230,118,.16);border-color:var(--accent)}
+.fpn-empty .fpn-plus{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:rgba(255,255,255,.7);line-height:1}
+.fpn-empty .fpn-empty-lbl{font-size:7.5px;font-weight:800;color:rgba(255,255,255,.5);letter-spacing:.3px;margin-top:1px}
+.form-tool-btn.disabled,.form-tool-btn:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(.4)}
 </style>
 </body>
 </html>
