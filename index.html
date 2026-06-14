@@ -25891,7 +25891,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-14-trn-yukselen-95';
+const APP_BUILD = '2026-06-14-trn-yukselen-96';
 
 (function _cacheBustCheck() {
   try {
@@ -66604,8 +66604,27 @@ function encRenderKnockout(state) {
   if (!state || !state.knockout) {
     // Şema modu — kura öncesi VEYA knockout henüz kurulmadı (gruplar oynanıyor)
     const emptyM = () => ({ home: null, away: null });
+    // 🆕 Gruplar tamamlandıysa (her takım 3 maç) Son 16'yı kendi gruplarından türet (cross-pairing A1-B2…)
+    //    EURO'da iki takım da kendi gruplarından gelir — üst lig bağımlılığı yok, CHM gibi.
+    let _preR16 = null;
+    try {
+      if (state && Array.isArray(state.groups) && state.groups.length === 8 && typeof encCalcStandings === 'function') {
+        const _L = ['A','B','C','D','E','F','G','H'];
+        const _byL = {};
+        state.groups.forEach((g, i) => { _byL[g.id || _L[i]] = encCalcStandings(g); });
+        const _done = Object.values(_byL).every(arr => arr.length >= 2 && arr.every(x => (x.P||0) >= 3));
+        if (_done) {
+          const _cr = [['A','B'],['B','A'],['C','D'],['D','C'],['E','F'],['F','E'],['G','H'],['H','G']];
+          _preR16 = _cr.map(p => {
+            const h = _byL[p[0]] && _byL[p[0]][0], aw = _byL[p[1]] && _byL[p[1]][1];
+            if (!h || !aw) return emptyM();
+            return { home: { name: h.name, short: h.code, flag: h.flag }, away: { name: aw.name, short: aw.code, flag: aw.flag } };
+          });
+        }
+      }
+    } catch(e){}
     rounds = [
-      { name: 'Son 16',        matches: Array.from({length: 8}, emptyM) },
+      { name: 'Son 16',        matches: _preR16 || Array.from({length: 8}, emptyM) },
       { name: 'Çeyrek Final',  matches: Array.from({length: 4}, emptyM) },
       { name: 'Yarı Final',    matches: Array.from({length: 2}, emptyM) },
       { name: '🏆 Final',      matches: Array.from({length: 1}, emptyM) },
