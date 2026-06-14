@@ -25891,7 +25891,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-13-fed-aday-91';
+const APP_BUILD = '2026-06-14-trn-yukselen-92';
 
 (function _cacheBustCheck() {
   try {
@@ -65156,7 +65156,7 @@ function trn2RenderTrn(trnKey, season) {
   if(subtab==='playoff')       html += _wrap(trn2BuildPlayoffHtml(playoff, trnKey, season));
   else if(subtab==='playoff2') html += _wrap(trn2BuildPlayoff2Html(trn2BuildPlayoff2(trnKey, season), trnKey, season));
   else if(subtab==='groups')   html += trn2BuildGroupsHtml(groups, trnKey, season);
-  else if(subtab==='bracket')  html += _wrap(trn2BuildBracketHtml(trn2BuildBracket(groups,season,trnKey), trnKey));
+  else if(subtab==='bracket')  html += _wrap(trn2BuildBracketHtml(trn2BuildBracket(groups,season,trnKey), trnKey, season));
   else if(subtab==='schedule') html += _wrap(trn2BuildScheduleHtml(trnKey, season));
   else if(subtab==='goals')    html += _wrap(trn2BuildStatHtml(trnKey, season, 'goals'));
   else if(subtab==='assists')  html += _wrap(trn2BuildStatHtml(trnKey, season, 'assists'));
@@ -65723,7 +65723,7 @@ function encGroupToggle(id) {
 }
 
 // ── Eleme braketi HTML ──
-function trn2BuildBracketHtml(bracket, trnKey) {
+function trn2BuildBracketHtml(bracket, trnKey, season) {
   const trnColor = {champ:'var(--gold)', elite:'#00b0ff', conv:'var(--accent)', enc:'var(--gold)'}[trnKey] || 'var(--gold)';
   
   // 🆕 BOŞ BRACKET — server'da henüz knockout kurulmamış (gruplar bitmedi)
@@ -65743,24 +65743,59 @@ function trn2BuildBracketHtml(bracket, trnKey) {
           { name: 'Yarı Final',   count: 2 },
           { name: 'Final 🏆',     count: 1 }
         ];
-    let html = `<div style="padding:0 10px 6px;font-size:10px;color:var(--text3)">Eleme turu fikstürü, grup aşaması tamamlandığında otomatik oluşturulacak.</div>
+    // 🆕 Kendi grupları biten takımlar (server fixture.r32Qualified) → ilk turda yerleştir, rakip bekleniyor
+    let _qual = null;
+    try {
+      const _seasonN = (typeof season === 'number') ? season : ((typeof getSeasonInfo==='function') ? getSeasonInfo().season : 1);
+      const _st = (typeof _tournamentStateGet==='function') ? _tournamentStateGet(trnKey, _seasonN) : null;
+      if (_st && _st.fixture && Array.isArray(_st.fixture.r32Qualified) && _st.fixture.r32Qualified.length) _qual = _st.fixture.r32Qualified;
+    } catch(e){}
+    function _qualDisp(q){
+      let short='?', bg='#37474f', tc='#fff';
+      try { const c=(typeof _cftGetCountry==='function')?_cftGetCountry(q.countryCode):null;
+        if(c) for(const lg of (c.leagues||[])){ const x=(lg.teams||[]).find(t=>t.name===q.name); if(x){ short=x.short||short; bg=x.bg||bg; tc=x.tc||tc; break; } } } catch(e){}
+      return { name:q.name, short, bg, tc, group:q.group, groupRank:q.groupRank };
+    }
+    const _infoTxt = _qual
+      ? 'Gruplarını tamamlayan takımlar elemeye yükseldi. Rakipler, üst lig grupları bittikçe eşleştirilecek.'
+      : 'Eleme turu fikstürü, grup aşaması tamamlandığında otomatik oluşturulacak.';
+    let html = `<div style="padding:0 10px 6px;font-size:10px;color:var(--text3)">${_infoTxt}</div>
     <div class="trn2-bracket-wrap"><div class="trn2-bracket">`;
-    PHASES.forEach(ph => {
+    PHASES.forEach((ph, phi) => {
       html += `<div class="trn2-br-round">
         <div class="trn2-br-round-title" style="color:${trnColor}">${ph.name}</div>`;
-      for (let i = 0; i < ph.count; i++) {
-        html += `<div class="trn2-br-match" style="opacity:0.5">
-          <div class="trn2-br-team">
-            <div class="trn2-br-logo" style="background:#37474f;color:#fff">?</div>
-            <span class="trn2-br-tname" style="color:var(--text3)">— Belli değil —</span>
-            <span class="trn2-br-score">-</span>
-          </div>
-          <div class="trn2-br-team">
-            <div class="trn2-br-logo" style="background:#37474f;color:#fff">?</div>
-            <span class="trn2-br-tname" style="color:var(--text3)">— Belli değil —</span>
-            <span class="trn2-br-score">-</span>
-          </div>
-        </div>`;
+      if (phi === 0 && _qual) {
+        for (let i = 0; i < ph.count; i++) {
+          const q = _qual[i];
+          const d = q ? _qualDisp(q) : null;
+          html += `<div class="trn2-br-match">
+            <div class="trn2-br-team">
+              <div class="trn2-br-logo" style="background:${d?d.bg:'#37474f'};color:${d?d.tc:'#fff'}">${d?d.short:'?'}</div>
+              <span class="trn2-br-tname">${d?d.name:'—'}${d?` <span style="font-size:8px;color:var(--text3)">${d.group}${d.groupRank}</span>`:''}</span>
+              <span class="trn2-br-score" style="color:var(--accent)">✓</span>
+            </div>
+            <div class="trn2-br-team" style="opacity:.5">
+              <div class="trn2-br-logo" style="background:#37474f;color:#fff">?</div>
+              <span class="trn2-br-tname" style="color:var(--text3)">— bekleniyor —</span>
+              <span class="trn2-br-score">-</span>
+            </div>
+          </div>`;
+        }
+      } else {
+        for (let i = 0; i < ph.count; i++) {
+          html += `<div class="trn2-br-match" style="opacity:0.5">
+            <div class="trn2-br-team">
+              <div class="trn2-br-logo" style="background:#37474f;color:#fff">?</div>
+              <span class="trn2-br-tname" style="color:var(--text3)">— Belli değil —</span>
+              <span class="trn2-br-score">-</span>
+            </div>
+            <div class="trn2-br-team">
+              <div class="trn2-br-logo" style="background:#37474f;color:#fff">?</div>
+              <span class="trn2-br-tname" style="color:var(--text3)">— Belli değil —</span>
+              <span class="trn2-br-score">-</span>
+            </div>
+          </div>`;
+        }
       }
       html += `</div>`;
     });
