@@ -25904,7 +25904,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-14-trn-banner-102';
+const APP_BUILD = '2026-06-14-mt-yardimci-103';
 
 (function _cacheBustCheck() {
   try {
@@ -48950,11 +48950,9 @@ function ntBuildRoster(cc) {
     let _capPlayer = null;
     const _pres = (typeof fedGetPresident === 'function') ? fedGetPresident(cc) : null;
     if (_pres) {
+      // KAPTAN = SADECE federasyon başkanı; kullanıcı zorla kaptan yapılmaz
       _capPlayer = pool.find(p => p && p.name === _pres.captainName && p.sourceClub === _pres.teamName);
       if (!_capPlayer && _pres.isUser) _capPlayer = pool.find(p => p && p.isUser);
-    }
-    if (!_capPlayer && typeof fedUserRole === 'function' && fedUserRole(cc) === 'president') {
-      _capPlayer = pool.find(p => p && p.isUser);
     }
     if (_capPlayer) {
       _presNtId = _capPlayer.ntId;
@@ -48975,16 +48973,15 @@ function ntBuildRoster(cc) {
     numOverrides = all[cc] || {};
   } catch(e) {}
 
-  // 🆕 Seçimle belirlenen federasyon yardımcı başkanlarının ntId'leri (havuzdaki oyuncularla eşle)
+  // 🆕 MT yardımcıları = KAPTAN tarafından atanır (nt_vices uuid listesi; federasyon seçimi DEĞİL)
   let _viceNtIds = [];
   try {
-    const _vps = (typeof fedGetVicePresidents === 'function') ? fedGetVicePresidents(cc) : [];
-    (_vps || []).forEach(vp => {
-      if (!vp) return;
-      let _vp = pool.find(p => p && p.name === vp.captainName && p.sourceClub === vp.teamName);
-      if (!_vp && vp.isUser) _vp = pool.find(p => p && p.isUser);
-      if (_vp && _vp.ntId !== _presNtId) _viceNtIds.push(_vp.ntId);
-    });
+    const _vuuids = (typeof ntLoadVices === 'function') ? (ntLoadVices(cc) || []) : [];
+    if (_vuuids.length) {
+      pool.forEach(p => {
+        if (p && p.id && _vuuids.includes(p.id) && p.ntId !== _presNtId) _viceNtIds.push(p.ntId);
+      });
+    }
   } catch(e){}
   return ids.map((id, slotIdx) => {
     if (!id) return null;
@@ -51204,6 +51201,14 @@ function ntKadroMenu(ntId) {
   if (st === 'reserve') actions += `<button class="nt-cf-menu-btn add" onclick="ntCloseConfirm();confirmNtMatchSquadAdd(${p.num})">🎽 Maç Kadrosuna Al</button>`;
   if (st === 'bench')   actions += `<button class="nt-cf-menu-btn" onclick="ntCloseConfirm();confirmNtMatchSquadRemove(${p.num})">🪑 Maç Kadrosundan Çıkart</button>`;
   if (!isCapUser)       actions += `<button class="nt-cf-menu-btn danger" onclick="ntDoKadroRemove('${safeId}')">✕ Milli Takımdan Çıkart</button>`;
+  // 🆕 Sadece MT kaptanı (federasyon başkanı) yardımcı atayabilir/alabilir
+  if (!isCapUser && typeof _ntIsUserCaptain === 'function' && _ntIsUserCaptain()) {
+    const _ccM = (typeof fedActiveCountry === 'function') ? fedActiveCountry() : 'TR';
+    const _pIsVice = !!(p && p.id && typeof ntLoadVices === 'function' && (ntLoadVices(_ccM) || []).includes(p.id));
+    actions += _pIsVice
+      ? `<button class="nt-cf-menu-btn" onclick="ntCloseConfirm();ntRemoveVice('${safeId}')">⛔ Yetkiyi Al</button>`
+      : `<button class="nt-cf-menu-btn" onclick="ntCloseConfirm();ntAddVice('${safeId}')">⭐ Yardımcı Kaptan Yap</button>`;
+  }
   if (!actions) actions = `<div style="color:var(--text3);font-size:11px;text-align:center;padding:10px">Bu oyuncu için işlem yok.${st==='starter'?' (Sahadan çıkarmak için diziliş ekranında yedeğe sürükleyin.)':''}</div>`;
 
   card.innerHTML = `
