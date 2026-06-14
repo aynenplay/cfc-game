@@ -25891,7 +25891,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-14-trn-yukselen-96';
+const APP_BUILD = '2026-06-14-trn-eleme-97';
 
 (function _cacheBustCheck() {
   try {
@@ -64897,6 +64897,14 @@ function trn2BuildBracket(groups, season, trnKey) {
       const pairs = _srvFix[info.phase];
       if (!Array.isArray(pairs) || pairs.length === 0) break;  // bu tur henüz kurulmadı
 
+      const _kd = (info.phase === 'r32') ? (trnKey==='conv'?[22,24]:trnKey==='elite'?[21,23]:[0,0])
+        : (info.phase === 'r16') ? [25,26]
+        : (info.phase === 'qf') ? [27,28]
+        : (info.phase === 'sf') ? [29,30]
+        : (info.phase === 'final') ? [(trnKey==='conv'?31:trnKey==='elite'?32:33), 0]
+        : [0,0];
+      const _l1iso = (_kd[0] && typeof _trnMatchDateISO==='function') ? _trnMatchDateISO(season, _kd[0]) : null;
+      const _l2iso = (_kd[1] && typeof _trnMatchDateISO==='function') ? _trnMatchDateISO(season, _kd[1]) : null;
       const matches = pairs.map((p, idx) => {
         const t1 = _bracketFullTeam(p.home || { name: (p.home && p.home.name), countryKey: (p.home && p.home.countryCode) });
         const t2 = _bracketFullTeam(p.away || { name: (p.away && p.away.name), countryKey: (p.away && p.away.countryCode) });
@@ -64930,9 +64938,16 @@ function trn2BuildBracket(groups, season, trnKey) {
           }
         }
 
+        let _aggH = '', _aggA = '';
+        if (info.twoLeg) {
+          if (leg1 && leg2) { _aggH = leg1.hs + leg2.as; _aggA = leg1.as + leg2.hs; }
+          else if (leg1) { _aggH = leg1.hs; _aggA = leg1.as; }
+        } else if (leg1) { _aggH = leg1.hs; _aggA = leg1.as; }
         return {
           home: t1, away: t2,
           leg1, leg2,
+          hs: _aggH, as: _aggA,
+          leg1Date: _l1iso, leg2Date: _l2iso,
           winner,
           twoLeg: info.twoLeg,
           fromServer: true
@@ -65847,23 +65862,30 @@ function trn2BuildBracketHtml(bracket, trnKey, season, groups) {
   // FAZ 3: maç için detay etiketi (iki maç / agg / uzatma / penaltı)
   function _matchDetailBadge(m) {
     if (!m) return '';
-    if (m.twoLeg && m.leg1 && m.leg2) {
-      // İki maçlı: "1.M 2-1 · 2.M 0-1" + Pen/UZ etiketi
-      let detail = `1.M ${m.leg1.hs}-${m.leg1.as} · 2.M ${m.leg2.hs}-${m.leg2.as}`;
-      if (m.pens) {
-        detail += ` <span style="color:#ef5350;font-weight:800">Pen ${m.pens.homePens}-${m.pens.awayPens}</span>`;
-      } else if (m.et) {
-        detail += ` <span style="color:#ff9800;font-weight:800">UZT</span>`;
+    const _MSB = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+    const _fmtB = (iso) => { if(!iso) return ''; const _d=new Date(iso+'T00:00:00'); return isNaN(_d.getTime())?'':`${_d.getDate()} ${_MSB[_d.getMonth()]}`; };
+    const _wrap = (txt) => `<div style="font-size:9px;color:var(--text3);text-align:center;margin-top:2px;letter-spacing:.3px">${txt}</div>`;
+    if (m.twoLeg) {
+      const l1 = m.leg1, l2 = m.leg2;
+      if (l1 && l2) {
+        // İki ayak da oynandı: skorlar + toplam + Pen/UZT
+        let detail = `1.M ${l1.hs}-${l1.as} · 2.M ${l2.hs}-${l2.as}`;
+        if (m.pens) detail += ` <span style="color:#ef5350;font-weight:800">Pen ${m.pens.homePens}-${m.pens.awayPens}</span>`;
+        else if (m.et) detail += ` <span style="color:#ff9800;font-weight:800">UZT</span>`;
+        return _wrap(detail);
       }
-      return `<div style="font-size:9px;color:var(--text3);text-align:center;margin-top:2px;letter-spacing:.3px">${detail}</div>`;
+      if (l1 && !l2) {
+        // 1. maç oynandı → skoru + 2. maç tarihi
+        return _wrap(`1.M ${l1.hs}-${l1.as} · 2.M 📅 ${_fmtB(m.leg2Date)}`);
+      }
+      // Hiç oynanmadı → iki maçın tarihleri
+      if (m.leg1Date || m.leg2Date) return _wrap(`1.M 📅 ${_fmtB(m.leg1Date)} · 2.M 📅 ${_fmtB(m.leg2Date)}`);
+      return '';
     }
     // Tek maç (Final)
-    if (m.pens) {
-      return `<div style="font-size:9px;color:#ef5350;text-align:center;margin-top:2px;font-weight:800">Pen ${m.pens.homePens}-${m.pens.awayPens}</div>`;
-    }
-    if (m.et) {
-      return `<div style="font-size:9px;color:#ff9800;text-align:center;margin-top:2px;font-weight:800">UZATMA</div>`;
-    }
+    if (m.pens) return `<div style="font-size:9px;color:#ef5350;text-align:center;margin-top:2px;font-weight:800">Pen ${m.pens.homePens}-${m.pens.awayPens}</div>`;
+    if (m.et) return `<div style="font-size:9px;color:#ff9800;text-align:center;margin-top:2px;font-weight:800">UZATMA</div>`;
+    if (m.leg1Date && !(m.leg1 && m.leg1.played)) return _wrap(`📅 ${_fmtB(m.leg1Date)}`);
     return '';
   }
 
