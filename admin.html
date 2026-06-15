@@ -1367,12 +1367,13 @@ function ntAction(act,i){
   if(act==='teamdata'){ openTableFiltered('team_data','country_code', r.cc||'', openNTs); return; }
 }
 
-// ===== FEDERASYONLAR — federation_state (gerçek veri, kart) =====
+// ===== FEDERASYONLAR — gerçek üye + olaylar =====
 let FSTATE={ search:'' };
-let FDATA={ all:[], rows:[], count:0, who:{} };
+let FDATA={ all:[], rows:[], count:0, who:{}, teamsByCc:{} };
+const FED_PHASE={ open:'Seçim açık', voting:'Oylama', completed:'Tamamlandı', closed:'Kapalı', none:'Seçim yok' };
 function FApplyFilter(){
   const q=(FSTATE.search||'').trim().toLowerCase();
-  FDATA.rows = q ? FDATA.all.filter(x=>(((x.country_name||'')+' '+(x.country_code||'')).toLowerCase().indexOf(q)>=0)) : FDATA.all.slice();
+  FDATA.rows = q ? FDATA.all.filter(x=>((x.name+' '+x.cc).toLowerCase().indexOf(q)>=0)) : FDATA.all.slice();
   FDATA.count=FDATA.rows.length;
 }
 async function openFeds(){
@@ -1386,53 +1387,82 @@ async function openFeds(){
 async function loadFeds(){
   if(!$('fList')) $('main').innerHTML='<div class="msg">Yükleniyor…</div>';
   try{
-    const [fs,pf]=await Promise.all([
-      api('list',{ table:'federation_state', limit:2000 }),
+    const [tm,fs,pf]=await Promise.all([
+      api('list',{ table:'teams', limit:2000 }),
+      api('list',{ table:'federation_state', limit:2000 }).catch(()=>({rows:[]})),
       api('list',{ table:'profiles', limit:2000 }).catch(()=>({rows:[]}))
     ]);
     FDATA.who={}; (pf.rows||[]).forEach(p=>{ const id=p.user_id||p.id; if(id!=null) FDATA.who[id]=p.display_name||p.username||p.name; });
-    FDATA.all=(fs.rows||[]).map(f=>{ const cc=String(f.country_code||'').toUpperCase(); return Object.assign({}, f, { _cc:cc, _name:f.country_name||CC_NAME[cc]||cc, _flag:f.country_flag||ccFlag(cc) }); }).sort((x,y)=>x._name.localeCompare(y._name,'tr'));
+    const fedByCc={}; (fs.rows||[]).forEach(fr=>{ const cc=String(fr.country_code||'').toUpperCase(); if(cc) fedByCc[cc]=fr; });
+    FDATA.teamsByCc={};
+    (tm.rows||[]).forEach(t=>{ const cc=String(t.country_code||'').toUpperCase(); if(!cc) return; (FDATA.teamsByCc[cc]=FDATA.teamsByCc[cc]||[]).push(t.name||t.team_name||''); });
+    const ccs=new Set([...Object.keys(FDATA.teamsByCc), ...Object.keys(fedByCc)]);
+    FDATA.all=[...ccs].map(cc=>{ const teams=FDATA.teamsByCc[cc]||[]; return { cc, name:CC_NAME[cc]||cc, flag:ccFlag(cc), memberCount:teams.length, fed:fedByCc[cc]||null }; }).sort((x,y)=>x.name.localeCompare(y.name,'tr'));
     FApplyFilter(); renderFeds();
   }catch(e){ $('main').innerHTML='<div class="msg err">'+uEsc(e.message)+'</div>'; }
 }
 function fedCardsHTML(){
-  return FDATA.rows.map((f,i)=>{
-    const pres=nWho(FDATA.who, f.captain);
-    const memberN=nCount(f.members); const voteN=nCount(f.votes);
-    const vices=nArr(f.vice).map(v=>nWho(FDATA.who,v)).filter(x=>x&&x!=='—');
+  return FDATA.rows.map((r,i)=>{
+    const fed=r.fed;
+    const pres=fed?nWho(FDATA.who, fed.president):'—';
+    const cands=fed?nArr(fed.candidates):[];
+    const votes=(fed&&fed.votes&&typeof fed.votes==='object'&&!Array.isArray(fed.votes))?fed.votes:{};
+    const totalVotes=Object.values(votes).reduce((a,b)=>a+(Number(b)||0),0);
+    const phase=fed?(FED_PHASE[fed.phase]||fed.phase||'—'):'—';
+    const vices=fed?nArr(fed.vice).map(v=>nWho(FDATA.who,v)).filter(x=>x&&x!=='—'):[];
     const viceCells=[0,1].map(k=>{ const nm=vices[k]; return `<div class="u-wl-c" style="border-color:rgba(255,213,79,.3)"><span class="ic">🅰️</span><div class="tx"><div class="v">${nm?uEsc(nm):'—'}</div><div class="l">Yardımcı ${k+1}</div></div></div>`; }).join('');
-    const memChips=nArr(f.members).map(m=>nWho(FDATA.who,m)).filter(x=>x&&x!=='—').slice(0,24);
-    const memHtml=memChips.length?('<div class="chips" style="padding:0 12px 8px">'+memChips.map(n=>'<span class="u-rolebadge" style="background:rgba(255,255,255,.05);color:var(--dim);padding:3px 8px;border-radius:14px">'+uEsc(n)+'</span>').join(' ')+(memberN>memChips.length?(' <span style="font-size:11px;color:#5c6470">+'+(memberN-memChips.length)+'</span>'):'')+'</div>'):'<div class="u-empty">Üye yok.</div>';
+    // adaylar + oy
+    const candRows = cands.length ? cands.map(c=>{ const nm=nWho(FDATA.who,c); const v=Number(votes[c]||(c&&c.id?votes[c.id]:0))||0; return {nm,v}; }).sort((x,y)=>y.v-x.v) : [];
+    const candHtml = candRows.length ? '<div class="nt-sq">'+candRows.map(c=>`<div class="nt-pl"><span class="ov" style="color:var(--gold)">${c.v}</span><span class="nm">${uEsc(c.nm)}</span><span class="ps">oy</span></div>`).join('')+'</div>' : '<div class="u-empty">Aday/seçim yok.</div>';
+    // üyeler (kulüpler)
+    const mem=(FDATA.teamsByCc[r.cc]||[]).filter(Boolean).slice(0,30);
+    const memHtml=mem.length?('<div class="chips" style="padding:0 12px 8px">'+mem.map(n=>'<span class="u-rolebadge" style="background:rgba(255,255,255,.05);color:var(--dim);padding:3px 8px;border-radius:14px">'+uEsc(n)+'</span>').join(' ')+(r.memberCount>mem.length?(' <span style="font-size:11px;color:#5c6470">+'+(r.memberCount-mem.length)+'</span>'):'')+'</div>'):'<div class="u-empty">Üye (kulüp) yok.</div>';
     return `
     <div class="u-card">
       <div class="u-head">
-        <div class="n-flag">${f._flag}</div>
+        <div class="n-flag">${r.flag}</div>
         <div class="u-info">
-          <div class="u-name">${uEsc(f._name)} <span class="u-rolebadge" style="background:rgba(255,213,79,.16);color:var(--gold)">Federasyon</span></div>
-          <div class="u-meta"><span>Başkan (T.D.): <b>${uEsc(pres)}</b></span></div>
+          <div class="u-name">${uEsc(r.name)} <span class="u-rolebadge" style="background:rgba(255,213,79,.16);color:var(--gold)">Federasyon</span></div>
+          <div class="u-meta"><span>Başkan (T.D.): <b>${uEsc(pres)}</b></span><span>${phase}</span></div>
         </div>
-        <div class="u-ovr"><div class="n" style="color:var(--gold)">${memberN}</div><div class="p">ÜYE</div></div>
+        <div class="u-ovr"><div class="n" style="color:var(--gold)">${r.memberCount}</div><div class="p">ÜYE</div></div>
         <div class="u-chev"><svg viewBox="0 0 24 24" width="15" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg></div>
       </div>
-      <div class="u-body">
+      <div class="u-body" data-cc="${uEsc(r.cc)}" data-loaded="0">
         <div class="u-secl g"><span class="dot"></span>Federasyon</div>
         <div class="u-fields">
-          <div class="u-f"><div class="l">Ülke</div><div class="v">${f._flag} ${uEsc(f._name)} (${uEsc(f._cc)})</div></div>
+          <div class="u-f"><div class="l">Ülke</div><div class="v">${r.flag} ${uEsc(r.name)} (${uEsc(r.cc)})</div></div>
           <div class="u-f"><div class="l">Başkan / T.D.</div><div class="v">${uEsc(pres)}</div></div>
-          <div class="u-f"><div class="l">Üye Sayısı</div><div class="v">${memberN}</div></div>
-          <div class="u-f"><div class="l">Oy Sayısı</div><div class="v">${voteN}</div></div>
+          <div class="u-f"><div class="l">Üye (kulüp)</div><div class="v">${r.memberCount}</div></div>
+          <div class="u-f"><div class="l">Seçim Fazı</div><div class="v">${uEsc(phase)}</div></div>
+          <div class="u-f"><div class="l">Aday Sayısı</div><div class="v">${candRows.length}</div></div>
+          <div class="u-f"><div class="l">Toplam Oy</div><div class="v">${totalVotes}</div></div>
         </div>
         <div class="u-secl"><span class="dot"></span>Yardımcılar (Kaptan Yetkisi)</div>
         <div class="u-wl">${viceCells}</div>
-        <div class="u-secl"><span class="dot"></span>Üyeler (${memberN})</div>
+        <div class="u-secl"><span class="dot"></span>Adaylar & Oylar</div>
+        ${candHtml}
+        <div class="u-secl"><span class="dot"></span>Son Oy Olayları</div>
+        <div class="nt-sq" data-events><div class="u-empty">yükleniyor…</div></div>
+        <div class="u-secl"><span class="dot"></span>Üyeler (${r.memberCount})</div>
         ${memHtml}
         <div class="u-acts">
-          <button class="u-act player" data-act="edit" data-i="${i}">Federasyonu Düzenle</button>
-          <button class="u-act wallet" data-act="votes" data-i="${i}">Oylar (${voteN})</button>
+          ${fed?`<button class="u-act player" data-act="edit" data-i="${i}">Federasyonu Düzenle</button>`:`<button class="u-act" data-act="edit" data-i="${i}" style="opacity:.55">Federasyon kaydı yok</button>`}
+          <button class="u-act wallet" data-act="votes" data-i="${i}">Tüm Oylar</button>
         </div>
       </div>
     </div>`;
   }).join('');
+}
+async function fedEvents(body){
+  if(!body || body.dataset.loaded==='1') return; body.dataset.loaded='1';
+  const cc=String(body.dataset.cc||'').toUpperCase();
+  try{
+    const r=await api('list',{ table:'federation_votes', limit:40, search:cc, searchCol:'country_code', orderBy:'election_season', orderDir:'desc' });
+    const rows=(r.rows||[]).filter(v=>String(v.country_code||'').toUpperCase()===cc);
+    const ev=body.querySelector('[data-events]'); if(!ev) return;
+    ev.innerHTML = rows.length ? rows.slice(0,25).map(v=>`<div class="nt-pl"><span class="nm">${uEsc(v.voter_team||'?')} <span style="color:#5c6470">→</span> ${uEsc(v.candidate_team||'?')}</span><span class="ps">S${uEsc(v.election_season!=null?v.election_season:'?')}</span></div>`).join('') : '<div class="u-empty">Henüz oy/seçim olayı yok.</div>';
+  }catch(e){ const ev=body.querySelector('[data-events]'); if(ev) ev.innerHTML='<div class="u-empty">Olaylar yüklenemedi.</div>'; }
 }
 function renderFeds(){
   const head=`
@@ -1454,13 +1484,13 @@ function fedPaint(){
   const list=$('fList'); if(!list) return;
   list.innerHTML = FDATA.rows.length?fedCardsHTML():'<div class="msg">Eşleşen federasyon yok.</div>';
   const cnt=$('fCnt'); if(cnt) cnt.textContent=FDATA.count+' federasyon';
-  list.querySelectorAll('.u-head').forEach(h=>h.onclick=()=>h.parentElement.classList.toggle('open'));
+  list.querySelectorAll('.u-head').forEach(h=>h.onclick=()=>{ const c=h.parentElement; c.classList.toggle('open'); if(c.classList.contains('open')) fedEvents(c.querySelector('.u-body')); });
   list.querySelectorAll('.u-act').forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); fedAction(b.dataset.act,+b.dataset.i); });
 }
 function fedAction(act,i){
-  const f=FDATA.rows[i]; if(!f) return;
-  if(act==='edit'){ openEditor('edit', f, 'federation_state', loadFeds); return; }
-  if(act==='votes'){ openTableFiltered('federation_votes','country_code', f._cc||'', openFeds); return; }
+  const r=FDATA.rows[i]; if(!r) return;
+  if(act==='edit'){ if(!r.fed){ alert(r.name+' için federation_state kaydı yok.'); return; } openEditor('edit', r.fed, 'federation_state', loadFeds); return; }
+  if(act==='votes'){ openTableFiltered('federation_votes','country_code', r.cc||'', openFeds); return; }
 }
 
 
