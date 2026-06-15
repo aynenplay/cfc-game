@@ -308,6 +308,34 @@
   .ban-durs button.on{ background:linear-gradient(180deg,rgba(226,59,90,.25),rgba(226,59,90,.10)); border-color:var(--red); color:#fff; }
   .ban-durs button.perm.on{ background:linear-gradient(180deg,rgba(226,59,90,.45),rgba(226,59,90,.2)); }
   #banErr{ color:var(--red); font-size:13px; min-height:18px; margin-top:10px; }
+  /* Oyuncu modalı */
+  #playerModal{ display:none; position:fixed; inset:0; background:rgba(0,0,0,.66); align-items:flex-start; justify-content:center; overflow:auto; padding:30px 14px; z-index:60; }
+  #playerModal .box{ width:520px; max-width:100%; padding:0; overflow:hidden; }
+  .pm-head{ display:flex; align-items:center; gap:12px; padding:16px 16px 14px; border-bottom:1px solid var(--line); background:radial-gradient(120% 80% at 90% -20%,rgba(66,165,245,.10),transparent 55%); }
+  .pm-badge{ width:54px; height:54px; border-radius:13px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; justify-content:center; background:linear-gradient(150deg,#2563a8,#13243a); border:1px solid rgba(66,165,245,.45); }
+  .pm-badge .ovr{ font-family:var(--disp); font-size:23px; font-weight:900; color:#fff; line-height:1; }
+  .pm-badge .pos{ font-size:8px; font-weight:800; color:#bcd9f5; letter-spacing:.5px; margin-top:2px; }
+  .pm-id{ flex:1; min-width:0; }
+  .pm-name{ font-family:var(--disp); font-size:18px; font-weight:900; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pm-sub{ font-size:12px; color:var(--dim); margin-top:2px; }
+  .pm-x{ width:32px; height:32px; flex-shrink:0; border-radius:9px; display:flex; align-items:center; justify-content:center; background:rgba(226,59,90,.14); border:1px solid rgba(226,59,90,.4); color:var(--red); cursor:pointer; }
+  .pm-x:hover{ background:rgba(226,59,90,.24); }
+  .pm-stats{ display:grid; grid-template-columns:repeat(3,1fr); gap:9px; padding:14px 16px 6px; }
+  .pm-stat{ display:flex; flex-direction:column; gap:4px; }
+  .pm-stat span{ font-family:var(--disp); font-size:10px; font-weight:800; letter-spacing:.5px; text-transform:uppercase; color:var(--dim); }
+  .pm-stat input{ width:100%; text-align:center; font-family:var(--disp); font-weight:900; font-size:16px; }
+  .pm-note{ font-size:11.5px; color:#6b7280; padding:4px 16px 10px; }
+  #pmSkills{ padding:0 16px 8px; max-height:46vh; overflow-y:auto; }
+  .pm-cat{ margin-bottom:14px; }
+  .pm-cat-h{ font-family:var(--disp); font-weight:800; font-size:13px; letter-spacing:.4px; padding:6px 0 8px; position:sticky; top:0; background:var(--panel); }
+  .pm-grid{ display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+  .pm-sk{ display:flex; align-items:center; gap:8px; background:rgba(0,0,0,.25); border:1px solid var(--line); border-radius:9px; padding:6px 8px; }
+  .pm-sk .nm{ flex:1; min-width:0; font-size:12px; font-weight:600; color:var(--txt); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pm-sk input{ width:52px; flex-shrink:0; text-align:center; padding:5px 4px; font-family:var(--disp); font-weight:900; font-size:14px; }
+  .pm-sk .bar{ flex:0 0 34px; height:5px; border-radius:3px; background:rgba(255,255,255,.08); overflow:hidden; }
+  .pm-sk .bar i{ display:block; height:100%; }
+  #pmErr{ color:var(--red); font-size:13px; min-height:16px; padding:0 16px; }
+  #playerModal .mbtns{ padding:8px 16px 16px; }
 </style>
 </head>
 <body>
@@ -398,6 +426,28 @@
   </div>
 </div>
 
+<div id="playerModal">
+  <div class="box carbon">
+    <div class="pm-head">
+      <div class="pm-badge"><div class="ovr" id="pmOvr">–</div><div class="pos" id="pmPos"></div></div>
+      <div class="pm-id"><div class="pm-name" id="pmName"></div><div class="pm-sub" id="pmSub"></div></div>
+      <button class="pm-x" id="pmClose" title="Kapat"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+    </div>
+    <div class="pm-stats">
+      <label class="pm-stat"><span>OVR</span><input id="pmInOvr" type="number" min="1" max="99"></label>
+      <label class="pm-stat"><span>Seviye</span><input id="pmInLvl" type="number" min="0"></label>
+      <label class="pm-stat"><span>XP</span><input id="pmInXp" type="number" min="0"></label>
+    </div>
+    <div class="pm-note">Yetenekler 1–99 arası. Boş bırakılan yetenek değişmez.</div>
+    <div id="pmSkills"></div>
+    <div id="pmErr"></div>
+    <div class="mbtns">
+      <button class="btn" id="pmCancel">Vazgeç</button>
+      <button class="btn green" id="pmSave">Kaydet</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // Türkçe etiketler
 const TABLE_TR = {
@@ -447,6 +497,7 @@ let GRID_BACK=null;
 const $ = (id) => document.getElementById(id);
 const CC_NAME = {"TR": "Türkiye", "AF": "Afganistan", "DE": "Almanya", "US": "Amerika Birleşik Devletleri", "AD": "Andorra", "AO": "Angola", "AG": "Antigua ve Barbuda", "AR": "Arjantin", "AL": "Arnavutluk", "AU": "Avustralya", "AT": "Avusturya", "AZ": "Azerbaycan", "BS": "Bahamalar", "BH": "Bahreyn", "BD": "Bangladeş", "BB": "Barbados", "BY": "Belarus", "BE": "Belçika", "BZ": "Belize", "BJ": "Benin", "BT": "Bhutan", "AE": "Birleşik Arap Emirlikleri", "GB": "Birleşik Krallık", "BO": "Bolivya", "BA": "Bosna-Hersek", "BW": "Botsvana", "BR": "Brezilya", "BN": "Brunei", "BG": "Bulgaristan", "BF": "Burkina Faso", "BI": "Burundi", "DZ": "Cezayir", "DJ": "Cibuti", "TD": "Çad", "CZ": "Çekya", "CN": "Çin", "DK": "Danimarka", "TL": "Doğu Timor", "DM": "Dominika", "DO": "Dominik Cumhuriyeti", "EC": "Ekvador", "GQ": "Ekvator Ginesi", "SV": "El Salvador", "ID": "Endonezya", "ER": "Eritre", "AM": "Ermenistan", "EE": "Estonya", "SZ": "Esvatini", "ET": "Etiyopya", "MA": "Fas", "FJ": "Fiji", "CI": "Fildişi Sahili", "PH": "Filipinler", "PS": "Filistin", "FI": "Finlandiya", "FR": "Fransa", "GA": "Gabon", "GM": "Gambiya", "GH": "Gana", "GN": "Gine", "GW": "Gine-Bissau", "GD": "Granada", "GT": "Guatemala", "GY": "Guyana", "ZA": "Güney Afrika", "KR": "Güney Kore", "SS": "Güney Sudan", "GE": "Gürcistan", "HT": "Haiti", "IN": "Hindistan", "HR": "Hırvatistan", "NL": "Hollanda", "HN": "Honduras", "IQ": "Irak", "EN": "İngiltere", "IR": "İran", "IE": "İrlanda", "SC": "İskoçya", "ES": "İspanya", "IL": "İsrail", "SE": "İsveç", "CH": "İsviçre", "IT": "İtalya", "IS": "İzlanda", "JM": "Jamaika", "JP": "Japonya", "KH": "Kamboçya", "CM": "Kamerun", "CA": "Kanada", "ME": "Karadağ", "QA": "Katar", "KZ": "Kazakistan", "KE": "Kenya", "CY": "Kıbrıs", "KG": "Kırgızistan", "KI": "Kiribati", "CO": "Kolombiya", "KM": "Komorlar", "CG": "Kongo Cumhuriyeti", "CD": "Kongo Dem. Cumhuriyeti", "XK": "Kosova", "CR": "Kosta Rika", "KW": "Kuveyt", "KP": "Kuzey Kore", "MK": "Kuzey Makedonya", "CU": "Küba", "LA": "Laos", "LS": "Lesoto", "LV": "Letonya", "LR": "Liberya", "LY": "Libya", "LI": "Lihtenştayn", "LT": "Litvanya", "LB": "Lübnan", "LU": "Lüksemburg", "HU": "Macaristan", "MG": "Madagaskar", "MW": "Malavi", "MV": "Maldivler", "MY": "Malezya", "ML": "Mali", "MT": "Malta", "MH": "Marshall Adaları", "MX": "Meksika", "FM": "Mikronezya", "EG": "Mısır", "MN": "Moğolistan", "MD": "Moldova", "MC": "Monako", "MR": "Moritanya", "MZ": "Mozambik", "MM": "Myanmar", "NA": "Namibya", "NR": "Nauru", "NP": "Nepal", "NE": "Nijer", "NG": "Nijerya", "NI": "Nikaragua", "NO": "Norveç", "CF": "Orta Afrika Cumhuriyeti", "UZ": "Özbekistan", "PK": "Pakistan", "PW": "Palau", "PA": "Panama", "PG": "Papua Yeni Gine", "PY": "Paraguay", "PE": "Peru", "PL": "Polonya", "PT": "Portekiz", "RO": "Romanya", "RW": "Ruanda", "RU": "Rusya", "KN": "Saint Kitts ve Nevis", "LC": "Saint Lucia", "VC": "Saint Vincent ve Grenadinler", "WS": "Samoa", "SM": "San Marino", "ST": "Sao Tome ve Principe", "SN": "Senegal", "RS": "Sırbistan", "SL": "Sierra Leone", "SG": "Singapur", "SK": "Slovakya", "SI": "Slovenya", "SB": "Solomon Adaları", "SO": "Somali", "LK": "Sri Lanka", "SD": "Sudan", "SR": "Surinam", "SY": "Suriye", "SA": "Suudi Arabistan", "CL": "Şili", "TJ": "Tacikistan", "TZ": "Tanzanya", "TH": "Tayland", "TW": "Tayvan", "TG": "Togo", "TO": "Tonga", "TT": "Trinidad ve Tobago", "TN": "Tunus", "TV": "Tuvalu", "TM": "Türkmenistan", "UG": "Uganda", "UA": "Ukrayna", "OM": "Umman", "UY": "Uruguay", "JO": "Ürdün", "VU": "Vanuatu", "VA": "Vatikan", "VE": "Venezuela", "VN": "Vietnam", "YE": "Yemen", "NZ": "Yeni Zelanda", "GR": "Yunanistan", "ZM": "Zambiya", "ZW": "Zimbabve"};
 function ccFlag(cc){ cc=String(cc||'').toUpperCase(); if(!cc) return '🏳️'; if(cc==='EN') return '🏴\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}'; if(cc==='SC') return '🏴\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}'; if(!/^[A-Z]{2}$/.test(cc)) return '🏳️'; return cc.replace(/./g,c=>String.fromCodePoint(0x1F1E6+c.charCodeAt(0)-65)); }
+const SKILL_DEFS = [{"cat": "🧤 Kaleci", "color": "#9575cd", "skills": [{"id": "refleks", "name": "Refleks"}, {"id": "top_tutma", "name": "TopTutma"}, {"id": "hava_hak", "name": "HavaHakimiyeti"}, {"id": "kal_poz", "name": "KaleciPozisyonu"}, {"id": "bire_bir", "name": "BireBirKurtarış"}, {"id": "penalti_kur", "name": "PenaltıKurtarma"}, {"id": "uzak_kur", "name": "UzaktanŞutKurtarma"}, {"id": "yakin_kur", "name": "YakınMesafeKurtarma"}, {"id": "degaj", "name": "Degaj"}, {"id": "ayak_kur", "name": "AyaklaOyunKurma"}, {"id": "konsant", "name": "Konsantrasyon"}, {"id": "soguk", "name": "Soğukkanlılık"}, {"id": "ziplay", "name": "ZıplamaErişimi"}, {"id": "kal_guc", "name": "KaleciGücü"}, {"id": "denge", "name": "DengeKontrolü"}]}, {"cat": "🛡️ Defans", "color": "#5c8dd4", "skills": [{"id": "markaj", "name": "Markaj"}, {"id": "mudahale", "name": "Müdahale"}, {"id": "blok", "name": "Blok"}, {"id": "sav_poz", "name": "SavunmaPozisyonu"}, {"id": "sav_kafa", "name": "SavunmaKafaVuruşu"}, {"id": "fiz_muc", "name": "FizikselMücadele"}, {"id": "ayakta_kal", "name": "AyaktaKalma"}, {"id": "geri_kosu", "name": "GeriKoşuHızı"}, {"id": "geriden_pas", "name": "GeridenPas"}, {"id": "alan_kapat", "name": "AlanKapatma"}]}, {"cat": "⚙️ Orta Saha", "color": "#66bb6a", "skills": [{"id": "kisa_pas", "name": "KısaPas"}, {"id": "uzun_pas", "name": "UzunPas"}, {"id": "top_kontrol", "name": "TopKontrol"}, {"id": "teknik", "name": "TeknikBeceri"}, {"id": "oyun_gorusu", "name": "OyunGörüşü"}, {"id": "tempo", "name": "TempoYönetimi"}, {"id": "dayanikli", "name": "Dayanıklılık"}, {"id": "yon_deg", "name": "YönDeğiştirme"}, {"id": "karar", "name": "KararVerme"}, {"id": "top_calma", "name": "TopÇalma"}]}, {"cat": "⚽ Hücum", "color": "#ef5350", "skills": [{"id": "bitiricilik", "name": "Bitiricilik"}, {"id": "sut_guc", "name": "ŞutGücü"}, {"id": "uzak_vurus", "name": "UzaktanVuruş"}, {"id": "gol_poz", "name": "GolPozisyonuAlma"}, {"id": "huc_kafa", "name": "HücumKafaVuruşu"}, {"id": "ilk_dok", "name": "İlkDokunuş"}, {"id": "pat_hiz", "name": "PatlayıcıHız"}, {"id": "calim", "name": "ÇalımYeteneği"}, {"id": "baski_alt", "name": "BaskıAltındaBitirme"}, {"id": "topsuz_kosu", "name": "TopsuzKoşu"}]}];
 const ROLE_TR={ captain:'Kaptan', vice:'Yardımcı Kaptan', vicecaptain:'Yardımcı Kaptan', member:'Üye', user:'Oyuncu', manager:'Menajer', owner:'Sahip / Kurucu', founder:'Kurucu', starter:'İlk 11', sub:'Yedek' };
 function uCountry(p){ const cc=String(p.nationality||p.country_code||'').toUpperCase(); if(!cc) return {flag:'',name:'—',cc:''}; return {flag:ccFlag(cc), name:CC_NAME[cc]||cc, cc}; }
 function uBanInfo(p){ const bu=p.ban_until||p.banned_until; if(!bu) return null; const t=new Date(bu); if(isNaN(t)||t<=new Date()) return null; return {until:t, perm:t.getFullYear()>=9999, reason:p.ban_reason||p.banned_reason||''}; }
@@ -952,7 +1003,7 @@ function uOnSearch(){
 function uAction(act,i){
   const p=UDATA.rows[i]; if(!p) return; const id=uUid(p);
   if(act==='profile'){ openEditor('edit', p, 'profiles', loadUsers); return; }
-  if(act==='player'){ const up=UDATA.pMap[id]; if(!up){ alert('Bu kullanıcının oyuncu kaydı yok.'); return; } openEditor('edit', up, 'user_player', loadUsers); return; }
+  if(act==='player'){ openPlayerModal(p); return; }
   if(act==='wallet'){ const w=UDATA.wMap[id]; if(!w){ alert('Bu kullanıcının cüzdan kaydı yok.'); return; } openEditor('edit', w, 'user_wallet', loadUsers); return; }
   if(act==='ban'){ openBanModal(p); return; }
   if(act==='unban'){ uUnban(p); return; }
@@ -1249,6 +1300,65 @@ function uWalletStart(cell){
   inp.addEventListener('blur',save);
 }
 
+// ===== Oyuncu (yetenek) modalı =====
+let PM_TARGET=null;
+function _pmColor(v){ v=Math.max(0,Math.min(99,Number(v)||0)); if(v>=85) return '#2ec36b'; if(v>=70) return '#9acd32'; if(v>=55) return '#ffd54f'; if(v>=40) return '#ffa726'; return '#e23b5a'; }
+function openPlayerModal(p){
+  PM_TARGET=p; const id=uUid(p);
+  const pl=UDATA.plMap[id]||{}; const up=UDATA.pMap[id]||{}; const pj=up.player||{};
+  const name=p.name||pj.name||p.username||'Oyuncu';
+  const ovr=(pl.overall!=null)?pl.overall:((up.overall!=null)?up.overall:'');
+  const lvl=(pl.level!=null)?pl.level:((up.level!=null)?up.level:'');
+  const xp=(pl.xp!=null)?pl.xp:((up.xp!=null)?up.xp:'');
+  const pos=pl.pos||up.position||pj.pos||''; const sub=pl.sub_pos||'';
+  $('pmName').textContent=name;
+  $('pmSub').textContent=(p.username?('@'+p.username):'')+(pos?(' · '+pos+((sub&&sub!==pos)?(' / '+sub):'')):'');
+  $('pmOvr').textContent=(ovr!==''?ovr:'–'); $('pmPos').textContent=pos||'';
+  $('pmInOvr').value=ovr; $('pmInLvl').value=lvl; $('pmInXp').value=xp;
+  const skills=(up.skills&&typeof up.skills==='object')?up.skills:{};
+  $('pmSkills').innerHTML = SKILL_DEFS.map(cat=>`
+    <div class="pm-cat">
+      <div class="pm-cat-h" style="color:${cat.color}">${cat.cat}</div>
+      <div class="pm-grid">
+        ${cat.skills.map(sk=>{ const v=(skills[sk.id]!=null)?skills[sk.id]:''; const vv=Number(v)||0; return `
+        <div class="pm-sk">
+          <span class="nm" title="${uEsc(sk.name)}">${uEsc(sk.name)}</span>
+          <div class="bar"><i style="width:${Math.max(0,Math.min(100,vv))}%;background:${_pmColor(vv)}"></i></div>
+          <input type="number" min="1" max="99" data-sk="${sk.id}" value="${v}">
+        </div>`; }).join('')}
+      </div>
+    </div>`).join('');
+  $('pmSkills').querySelectorAll('input[data-sk]').forEach(inp=>{
+    inp.addEventListener('input',()=>{ const bar=inp.parentElement.querySelector('.bar i'); const vv=Number(inp.value)||0; bar.style.width=Math.max(0,Math.min(100,vv))+'%'; bar.style.background=_pmColor(vv); });
+  });
+  $('pmErr').textContent = (UDATA.pMap[id]?'':'Not: user_player kaydı yok — yetenekler kaydedilemez (OVR/Seviye/XP kaydedilebilir).');
+  $('playerModal').style.display='flex';
+}
+async function savePlayerModal(){
+  if(!PM_TARGET) return; const id=uUid(PM_TARGET); $('pmErr').textContent='';
+  const up=UDATA.pMap[id], pl=UDATA.plMap[id];
+  const skills=Object.assign({}, (up&&typeof up.skills==='object')?up.skills:{});
+  $('pmSkills').querySelectorAll('input[data-sk]').forEach(inp=>{ const v=inp.value.trim(); if(v==='') delete skills[inp.dataset.sk]; else skills[inp.dataset.sk]=Math.max(1,Math.min(99,Math.round(Number(v)))); });
+  const ovr=$('pmInOvr').value.trim(), lvl=$('pmInLvl').value.trim(), xp=$('pmInXp').value.trim();
+  try{
+    const ops=[];
+    if(up) ops.push(api('update',{ table:'user_player', pk:pkObj(up,'user_player'), values:{ skills } }));
+    if(pl){
+      const pv={};
+      if(ovr!=='') pv.overall=Math.round(Number(ovr));
+      if(lvl!=='') pv.level=Math.round(Number(lvl));
+      if(xp!=='') pv.xp=Math.round(Number(xp));
+      if(Object.keys(pv).length) ops.push(api('update',{ table:'players', pk:pkObj(pl,'players'), values:pv }));
+    }
+    if(!ops.length){ $('pmErr').textContent='Kaydedilecek bir şey yok.'; return; }
+    await Promise.all(ops);
+    if(up) up.skills=skills;
+    if(pl){ if(ovr!=='') pl.overall=Math.round(Number(ovr)); if(lvl!=='') pl.level=Math.round(Number(lvl)); if(xp!=='') pl.xp=Math.round(Number(xp)); }
+    $('playerModal').style.display='none';
+    uApplyFilter(); uPaintList();
+  }catch(e){ $('pmErr').textContent=e.message; }
+}
+
 // ===== Engelleme (ban) =====
 let BAN_TARGET=null, BAN_DUR=null;
 function openBanModal(p){
@@ -1291,6 +1401,9 @@ $('banApply').onclick = applyBan;
 $('banReason').onchange = (e) => { $('banReasonOther').style.display = e.target.value==='__other__' ? 'block' : 'none'; };
 $('banDurs').addEventListener('click', e => { const b=e.target.closest('button'); if(!b) return; $('banDurs').querySelectorAll('button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); BAN_DUR=b.dataset.d; });
 $('banModal').addEventListener('click', e => { if(e.target.id==='banModal') $('banModal').style.display='none'; });
+$('pmClose').onclick = $('pmCancel').onclick = () => { $('playerModal').style.display='none'; };
+$('pmSave').onclick = savePlayerModal;
+$('playerModal').addEventListener('click', e => { if(e.target.id==='playerModal') $('playerModal').style.display='none'; });
 $('modal').addEventListener('click', e => { if (e.target.id==='modal') $('modal').style.display='none'; });
 
 // İkonları tek base64'ten ata
