@@ -280,6 +280,26 @@
   .t-st:last-child{ border-right:0; }
   .t-st .n{ font-family:var(--disp); font-size:15px; font-weight:900; }
   .t-st .l{ font-size:7.5px; font-weight:700; color:#5c6470; text-transform:uppercase; letter-spacing:.2px; margin-top:1px; }
+  .u-banbadge{ font-size:8.5px; font-weight:800; padding:2px 6px; border-radius:5px; background:rgba(226,59,90,.18); color:var(--red); vertical-align:middle; letter-spacing:.3px; }
+  .u-hint{ color:#5c6470; font-weight:600; text-transform:none; letter-spacing:0; font-size:9.5px; }
+  .u-click{ cursor:pointer; transition:.12s; }
+  .u-click:hover{ border-color:var(--goldln); filter:brightness(1.12); }
+  .u-act.ban{ border-color:rgba(226,59,90,.45); color:var(--red); }
+  .u-act.unban{ border-color:rgba(46,195,107,.4); color:var(--accent); }
+  /* Ban modal */
+  #banModal{ display:none; position:fixed; inset:0; background:rgba(0,0,0,.62); align-items:flex-start; justify-content:center; overflow:auto; padding:34px 16px; z-index:55; }
+  #banModal .box{ width:440px; max-width:100%; padding:22px; }
+  #banModal h3{ font-family:var(--disp); font-weight:900; font-size:18px; margin:0 0 14px; }
+  #banModal h3 span{ color:var(--gold); }
+  .ban-l{ font-family:var(--disp); font-weight:800; font-size:12px; letter-spacing:.5px; text-transform:uppercase; color:var(--dim); margin:14px 0 7px; }
+  #banReason{ width:100%; }
+  #banReasonOther{ width:100%; margin-top:8px; }
+  .ban-durs{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .ban-durs button{ padding:11px 6px; background:var(--panel2); border:1px solid var(--line); color:var(--txt); font-weight:800; font-size:14px; transition:.12s; }
+  .ban-durs button:hover{ border-color:var(--goldln); }
+  .ban-durs button.on{ background:linear-gradient(180deg,rgba(226,59,90,.25),rgba(226,59,90,.10)); border-color:var(--red); color:#fff; }
+  .ban-durs button.perm.on{ background:linear-gradient(180deg,rgba(226,59,90,.45),rgba(226,59,90,.2)); }
+  #banErr{ color:var(--red); font-size:13px; min-height:18px; margin-top:10px; }
 </style>
 </head>
 <body>
@@ -338,6 +358,38 @@
   </div>
 </div>
 
+<div id="banModal">
+  <div class="box carbon">
+    <h3>Kullanıcıyı Engelle — <span id="banName"></span></h3>
+    <div class="ban-l">Sebep</div>
+    <select id="banReason">
+      <option value="Hakaret / küfür / kötü dil">Hakaret / küfür / kötü dil</option>
+      <option value="Hile / bug istismarı">Hile / bug istismarı</option>
+      <option value="Spam / reklam">Spam / reklam</option>
+      <option value="Çoklu hesap kullanımı">Çoklu hesap kullanımı</option>
+      <option value="Uygunsuz isim / avatar / içerik">Uygunsuz isim / avatar / içerik</option>
+      <option value="Takım & sohbet tacizi">Takım & sohbet tacizi</option>
+      <option value="Şike / adil olmayan oyun">Şike / adil olmayan oyun</option>
+      <option value="__other__">Diğer (özel sebep yaz)</option>
+    </select>
+    <input id="banReasonOther" placeholder="Özel sebep yaz…" style="display:none">
+    <div class="ban-l">Süre</div>
+    <div class="ban-durs" id="banDurs">
+      <button data-d="3">3 Gün</button>
+      <button data-d="7">7 Gün</button>
+      <button data-d="15">15 Gün</button>
+      <button data-d="30">1 Ay</button>
+      <button data-d="90">3 Ay</button>
+      <button data-d="perm" class="perm">Süresiz</button>
+    </div>
+    <div id="banErr"></div>
+    <div class="mbtns">
+      <button class="btn" id="banCancel">Vazgeç</button>
+      <button class="btn red" id="banApply">Engelle</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // Türkçe etiketler
 const TABLE_TR = {
@@ -385,6 +437,10 @@ let STATE={ offset:0, limit:50, search:'', searchCol:'' };
 let EDIT=null;
 let GRID_BACK=null;
 const $ = (id) => document.getElementById(id);
+const CC_NAME = {"TR": "Türkiye", "AF": "Afganistan", "DE": "Almanya", "US": "Amerika Birleşik Devletleri", "AD": "Andorra", "AO": "Angola", "AG": "Antigua ve Barbuda", "AR": "Arjantin", "AL": "Arnavutluk", "AU": "Avustralya", "AT": "Avusturya", "AZ": "Azerbaycan", "BS": "Bahamalar", "BH": "Bahreyn", "BD": "Bangladeş", "BB": "Barbados", "BY": "Belarus", "BE": "Belçika", "BZ": "Belize", "BJ": "Benin", "BT": "Bhutan", "AE": "Birleşik Arap Emirlikleri", "GB": "Birleşik Krallık", "BO": "Bolivya", "BA": "Bosna-Hersek", "BW": "Botsvana", "BR": "Brezilya", "BN": "Brunei", "BG": "Bulgaristan", "BF": "Burkina Faso", "BI": "Burundi", "DZ": "Cezayir", "DJ": "Cibuti", "TD": "Çad", "CZ": "Çekya", "CN": "Çin", "DK": "Danimarka", "TL": "Doğu Timor", "DM": "Dominika", "DO": "Dominik Cumhuriyeti", "EC": "Ekvador", "GQ": "Ekvator Ginesi", "SV": "El Salvador", "ID": "Endonezya", "ER": "Eritre", "AM": "Ermenistan", "EE": "Estonya", "SZ": "Esvatini", "ET": "Etiyopya", "MA": "Fas", "FJ": "Fiji", "CI": "Fildişi Sahili", "PH": "Filipinler", "PS": "Filistin", "FI": "Finlandiya", "FR": "Fransa", "GA": "Gabon", "GM": "Gambiya", "GH": "Gana", "GN": "Gine", "GW": "Gine-Bissau", "GD": "Granada", "GT": "Guatemala", "GY": "Guyana", "ZA": "Güney Afrika", "KR": "Güney Kore", "SS": "Güney Sudan", "GE": "Gürcistan", "HT": "Haiti", "IN": "Hindistan", "HR": "Hırvatistan", "NL": "Hollanda", "HN": "Honduras", "IQ": "Irak", "EN": "İngiltere", "IR": "İran", "IE": "İrlanda", "SC": "İskoçya", "ES": "İspanya", "IL": "İsrail", "SE": "İsveç", "CH": "İsviçre", "IT": "İtalya", "IS": "İzlanda", "JM": "Jamaika", "JP": "Japonya", "KH": "Kamboçya", "CM": "Kamerun", "CA": "Kanada", "ME": "Karadağ", "QA": "Katar", "KZ": "Kazakistan", "KE": "Kenya", "CY": "Kıbrıs", "KG": "Kırgızistan", "KI": "Kiribati", "CO": "Kolombiya", "KM": "Komorlar", "CG": "Kongo Cumhuriyeti", "CD": "Kongo Dem. Cumhuriyeti", "XK": "Kosova", "CR": "Kosta Rika", "KW": "Kuveyt", "KP": "Kuzey Kore", "MK": "Kuzey Makedonya", "CU": "Küba", "LA": "Laos", "LS": "Lesoto", "LV": "Letonya", "LR": "Liberya", "LY": "Libya", "LI": "Lihtenştayn", "LT": "Litvanya", "LB": "Lübnan", "LU": "Lüksemburg", "HU": "Macaristan", "MG": "Madagaskar", "MW": "Malavi", "MV": "Maldivler", "MY": "Malezya", "ML": "Mali", "MT": "Malta", "MH": "Marshall Adaları", "MX": "Meksika", "FM": "Mikronezya", "EG": "Mısır", "MN": "Moğolistan", "MD": "Moldova", "MC": "Monako", "MR": "Moritanya", "MZ": "Mozambik", "MM": "Myanmar", "NA": "Namibya", "NR": "Nauru", "NP": "Nepal", "NE": "Nijer", "NG": "Nijerya", "NI": "Nikaragua", "NO": "Norveç", "CF": "Orta Afrika Cumhuriyeti", "UZ": "Özbekistan", "PK": "Pakistan", "PW": "Palau", "PA": "Panama", "PG": "Papua Yeni Gine", "PY": "Paraguay", "PE": "Peru", "PL": "Polonya", "PT": "Portekiz", "RO": "Romanya", "RW": "Ruanda", "RU": "Rusya", "KN": "Saint Kitts ve Nevis", "LC": "Saint Lucia", "VC": "Saint Vincent ve Grenadinler", "WS": "Samoa", "SM": "San Marino", "ST": "Sao Tome ve Principe", "SN": "Senegal", "RS": "Sırbistan", "SL": "Sierra Leone", "SG": "Singapur", "SK": "Slovakya", "SI": "Slovenya", "SB": "Solomon Adaları", "SO": "Somali", "LK": "Sri Lanka", "SD": "Sudan", "SR": "Surinam", "SY": "Suriye", "SA": "Suudi Arabistan", "CL": "Şili", "TJ": "Tacikistan", "TZ": "Tanzanya", "TH": "Tayland", "TW": "Tayvan", "TG": "Togo", "TO": "Tonga", "TT": "Trinidad ve Tobago", "TN": "Tunus", "TV": "Tuvalu", "TM": "Türkmenistan", "UG": "Uganda", "UA": "Ukrayna", "OM": "Umman", "UY": "Uruguay", "JO": "Ürdün", "VU": "Vanuatu", "VA": "Vatikan", "VE": "Venezuela", "VN": "Vietnam", "YE": "Yemen", "NZ": "Yeni Zelanda", "GR": "Yunanistan", "ZM": "Zambiya", "ZW": "Zimbabve"};
+function ccFlag(cc){ cc=String(cc||'').toUpperCase(); if(!cc) return '🏳️'; if(cc==='EN') return '🏴\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}'; if(cc==='SC') return '🏴\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}'; if(!/^[A-Z]{2}$/.test(cc)) return '🏳️'; return cc.replace(/./g,c=>String.fromCodePoint(0x1F1E6+c.charCodeAt(0)-65)); }
+function uCountry(p){ const cc=String(p.nationality||p.country_code||'').toUpperCase(); if(!cc) return {flag:'',name:'—',cc:''}; return {flag:ccFlag(cc), name:CC_NAME[cc]||cc, cc}; }
+function uBanInfo(p){ const bu=p.ban_until||p.banned_until; if(!bu) return null; const t=new Date(bu); if(isNaN(t)||t<=new Date()) return null; return {until:t, perm:t.getFullYear()>=9999, reason:p.ban_reason||p.banned_reason||''}; }
 
 // API
 async function api(op, payload={}) {
@@ -755,11 +811,15 @@ function renderUsers(){
     </div>`;
   const cards=UDATA.rows.map((p,i)=>{
     const id=uUid(p);
-    const nm=p.display_name||p.username||p.name||'(isimsiz)';
-    const flag=p.country_flag||'';
-    const init=(String(nm).trim()[0]||'?').toUpperCase();
+    const realName=p.name||p.display_name||p.username||'(isimsiz)';
+    const uname=p.username||'';
+    const ctry=uCountry(p);
+    const flag=ctry.flag;
+    const nm=realName;
+    const init=(String(realName).trim()[0]||'?').toUpperCase();
     const team=p.team_name||'Takımsız';
     const joined=p.created_at?('Katılım: '+new Date(p.created_at).toLocaleDateString('tr')):'';
+    const ban=uBanInfo(p);
     const pb=uPlayerBits(UDATA.pMap[id]);
     const w=UDATA.wMap[id]||{};
     const ovrTag=(pb&&pb.ovr!=='–')?`<div class="u-ovr"><div class="n">${uEsc(pb.ovr)}</div><div class="p">${uEsc(pb.pos||'')}</div></div>`:'';
@@ -787,9 +847,9 @@ function renderUsers(){
       <div class="u-head">
         <div class="u-av">${uEsc(init)}${flag?`<span class="flag">${flag}</span>`:''}</div>
         <div class="u-info">
-          <div class="u-name">${uEsc(nm)}</div>
-          <div class="u-mail">${uEsc(p.email||'')}</div>
-          <div class="u-meta"><span><b>${uEsc(team)}</b></span>${joined?`<span>${uEsc(joined)}</span>`:''}</div>
+          <div class="u-name">${uEsc(realName)}${ban?` <span class="u-banbadge">⛔ ENGELLİ</span>`:''}</div>
+          <div class="u-mail">${uname?('@'+uEsc(uname)):''}${p.email?` · ${uEsc(p.email)}`:''}</div>
+          <div class="u-meta"><span><b>${uEsc(team)}</b></span>${flag?`<span>${flag} ${uEsc(ctry.name)}</span>`:''}${joined?`<span>${uEsc(joined)}</span>`:''}</div>
         </div>
         ${ovrTag}
         <div class="u-chev"><svg viewBox="0 0 24 24" width="15" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg></div>
@@ -797,21 +857,23 @@ function renderUsers(){
       <div class="u-body">
         <div class="u-secl"><span class="dot"></span>Profil</div>
         <div class="u-fields">
-          <div class="u-f"><div class="l">Kullanıcı Adı</div><div class="v">${uEsc(p.username||'—')}</div></div>
-          <div class="u-f"><div class="l">Ülke</div><div class="v">${flag} ${uEsc(p.country_name||p.country_code||'—')}</div></div>
+          <div class="u-f"><div class="l">Ad Soyad</div><div class="v">${uEsc(realName)}</div></div>
+          <div class="u-f"><div class="l">Kullanıcı Adı</div><div class="v">${uname?('@'+uEsc(uname)):'—'}</div></div>
+          <div class="u-f"><div class="l">Ülke</div><div class="v">${flag} ${uEsc(ctry.name)}</div></div>
           <div class="u-f"><div class="l">User ID</div><div class="v">${uEsc(String(id||'—'))}</div></div>
           <div class="u-f"><div class="l">E-posta</div><div class="v">${uEsc(p.email||'—')}</div></div>
+          ${ban?`<div class="u-f" style="border-color:rgba(226,59,90,.4)"><div class="l" style="color:var(--red)">Engel Bitiş</div><div class="v">${ban.perm?'Süresiz':ban.until.toLocaleDateString('tr')}</div></div>`:''}
         </div>
         ${playerSec}
-        <div class="u-secl gold"><span class="dot"></span>Cüzdan</div>
+        <div class="u-secl gold"><span class="dot"></span>Cüzdan <span class="u-hint">· düzenlemek için dokun</span></div>
         <div class="u-wl">
-          <div class="u-wl-c eur"><span class="ic">💶</span><div class="tx"><div class="v">${eur}</div><div class="l">Para (€)</div></div></div>
-          <div class="u-wl-c dia"><span class="ic">💎</span><div class="tx"><div class="v">${dia}</div><div class="l">Elmas</div></div></div>
+          <div class="u-wl-c eur u-click" data-act="wallet" data-i="${i}"><span class="ic">💶</span><div class="tx"><div class="v">${eur}</div><div class="l">Para (€)</div></div></div>
+          <div class="u-wl-c dia u-click" data-act="wallet" data-i="${i}"><span class="ic">💎</span><div class="tx"><div class="v">${dia}</div><div class="l">Elmas</div></div></div>
         </div>
         <div class="u-acts">
           <button class="u-act edit" data-act="profile" data-i="${i}">Profili Düzenle</button>
           <button class="u-act player" data-act="player" data-i="${i}">Oyuncuyu Düzenle</button>
-          <button class="u-act wallet" data-act="wallet" data-i="${i}">Cüzdanı Düzenle</button>
+          ${ban?`<button class="u-act unban" data-act="unban" data-i="${i}">Engeli Kaldır</button>`:`<button class="u-act ban" data-act="ban" data-i="${i}">Kullanıcıyı Engelle</button>`}
           <button class="u-act del" data-act="del" data-i="${i}">Kullanıcıyı Sil</button>
         </div>
       </div>
@@ -831,13 +893,15 @@ function renderUsers(){
   if(pv) pv.onclick=()=>{ USTATE.offset=Math.max(0,USTATE.offset-USTATE.limit); loadUsers(); };
   if(nx) nx.onclick=()=>{ USTATE.offset+=USTATE.limit; loadUsers(); };
   $('main').querySelectorAll('.u-head').forEach(h=>h.onclick=()=>h.parentElement.classList.toggle('open'));
-  $('main').querySelectorAll('.u-act').forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); uAction(b.dataset.act,+b.dataset.i); });
+  $('main').querySelectorAll('.u-act,.u-click').forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); uAction(b.dataset.act,+b.dataset.i); });
 }
 function uAction(act,i){
   const p=UDATA.rows[i]; if(!p) return; const id=uUid(p);
   if(act==='profile'){ openEditor('edit', p, 'profiles', loadUsers); return; }
   if(act==='player'){ const up=UDATA.pMap[id]; if(!up){ alert('Bu kullanıcının oyuncu kaydı yok.'); return; } openEditor('edit', up, 'user_player', loadUsers); return; }
   if(act==='wallet'){ const w=UDATA.wMap[id]; if(!w){ alert('Bu kullanıcının cüzdan kaydı yok.'); return; } openEditor('edit', w, 'user_wallet', loadUsers); return; }
+  if(act==='ban'){ openBanModal(p); return; }
+  if(act==='unban'){ uUnban(p); return; }
   if(act==='del'){ uDelUser(p); return; }
 }
 async function uDelUser(p){
@@ -1098,6 +1162,36 @@ function ntAction(act,i){
   if(act==='votes'){ openTableFiltered('federation_votes','country_code', f.country_code||'', openNTs); return; }
 }
 
+// ===== Engelleme (ban) =====
+let BAN_TARGET=null, BAN_DUR=null;
+function openBanModal(p){
+  BAN_TARGET=p; BAN_DUR=null;
+  $('banName').textContent = p.name||p.username||'';
+  $('banErr').textContent='';
+  $('banReason').selectedIndex=0;
+  $('banReasonOther').style.display='none'; $('banReasonOther').value='';
+  $('banDurs').querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+  $('banModal').style.display='flex';
+}
+async function applyBan(){
+  if(!BAN_TARGET) return;
+  if(BAN_DUR==null){ $('banErr').textContent='Lütfen bir süre seç.'; return; }
+  let reason=$('banReason').value;
+  if(reason==='__other__'){ reason=$('banReasonOther').value.trim(); if(!reason){ $('banErr').textContent='Özel sebep yaz.'; return; } }
+  let until;
+  if(BAN_DUR==='perm') until='9999-12-31T23:59:59+00:00';
+  else { const d=new Date(); d.setDate(d.getDate()+Number(BAN_DUR)); until=d.toISOString(); }
+  try{
+    await api('update',{ table:'profiles', pk:pkObj(BAN_TARGET,'profiles'), values:{ ban_until:until, ban_reason:reason } });
+    $('banModal').style.display='none'; loadUsers();
+  }catch(e){ $('banErr').textContent=e.message; }
+}
+async function uUnban(p){
+  if(!confirm('"'+(p.name||p.username||'')+'" için engeli kaldırmak istediğine emin misin?')) return;
+  try{ await api('update',{ table:'profiles', pk:pkObj(p,'profiles'), values:{ ban_until:null, ban_reason:null } }); loadUsers(); }
+  catch(e){ alert('Olmadı: '+e.message); }
+}
+
 // Bağlamalar
 $('loginBtn').onclick = doLogin;
 $('pass').addEventListener('keydown', e => { if (e.key==='Enter') doLogin(); });
@@ -1105,6 +1199,11 @@ $('logoutBtn').onclick = logout;
 $('dashBtn').onclick = openDash;
 $('modalCancel').onclick = () => { $('modal').style.display='none'; };
 $('modalSave').onclick = saveEditor;
+$('banCancel').onclick = () => { $('banModal').style.display='none'; };
+$('banApply').onclick = applyBan;
+$('banReason').onchange = (e) => { $('banReasonOther').style.display = e.target.value==='__other__' ? 'block' : 'none'; };
+$('banDurs').addEventListener('click', e => { const b=e.target.closest('button'); if(!b) return; $('banDurs').querySelectorAll('button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); BAN_DUR=b.dataset.d; });
+$('banModal').addEventListener('click', e => { if(e.target.id==='banModal') $('banModal').style.display='none'; });
 $('modal').addEventListener('click', e => { if (e.target.id==='modal') $('modal').style.display='none'; });
 
 // İkonları tek base64'ten ata
