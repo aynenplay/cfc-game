@@ -706,10 +706,9 @@ async function fbDelete(id){
 const NAV = [
   { cat:'KULLANICILAR',   tables:['__users__','feedback'] },
   { cat:'OYUNCULAR',      tables:['players'] },
-  { cat:'TAKIMLAR',       tables:['__clubs__'] },
+  { cat:'TAKIMLAR',       tables:['__clubs__','__nts__'] },
   { cat:'LİGLER',         tables:[] },
   { cat:'TURNUVALAR',     tables:['tournament_state'] },
-  { cat:'MİLLİ TAKIMLAR', tables:['__nts__'] },
   { cat:'SONUÇLAR',       tables:['match_results','match_state','match_viewers'] },
   { cat:'FİKSTÜR',        tables:[] },
   { cat:'TAKVİM',         tables:[] },
@@ -1239,7 +1238,7 @@ async function openTableFiltered(t, col, val, back){
 
 // ===== MİLLİ TAKIMLAR — federation_state =====
 let NSTATE={ offset:0, limit:60, search:'', searchCol:'' };
-let NDATA={ rows:[], count:0, who:{} };
+let NDATA={ all:[], rows:[], count:0, who:{} };
 const nWho=(who,v)=> v==null?'—':(who[v]||String(v));
 function nCount(x){ if(x==null) return 0; if(Array.isArray(x)) return x.length; if(typeof x==='object') return Object.keys(x).length; if(typeof x==='number') return x; return 0; }
 function nArr(x){ if(Array.isArray(x)) return x; if(x&&typeof x==='object') return Object.values(x); return []; }
@@ -1251,89 +1250,92 @@ async function openNTs(){
   document.body.classList.remove('navopen');
   await loadNTs();
 }
+function NTApplyFilter(){
+  const q=(NSTATE.search||'').trim().toLowerCase();
+  NDATA.rows = q ? NDATA.all.filter(x=>((x.name+' '+x.cc).toLowerCase().indexOf(q)>=0)) : NDATA.all.slice();
+  NDATA.count=NDATA.rows.length;
+}
 async function loadNTs(){
-  $('main').innerHTML='<div class="msg">Yükleniyor…</div>';
+  if(!$('nList')) $('main').innerHTML='<div class="msg">Yükleniyor…</div>';
   try{
-    const [fs, pf]=await Promise.all([
-      api('list',{ table:'federation_state', limit:NSTATE.limit, offset:NSTATE.offset, search:NSTATE.search||undefined, searchCol:NSTATE.search?'country_name':undefined }),
+    const [tm, fs, pf]=await Promise.all([
+      api('list',{ table:'teams', limit:2000 }),
+      api('list',{ table:'federation_state', limit:2000 }).catch(()=>({rows:[]})),
       api('list',{ table:'profiles', limit:2000 }).catch(()=>({rows:[]}))
     ]);
-    NDATA.rows=fs.rows||[]; NDATA.count=fs.count||0;
     NDATA.who={}; (pf.rows||[]).forEach(p=>{ const id=p.user_id||p.id; if(id!=null) NDATA.who[id]=p.display_name||p.username||p.name; });
-    renderNTs();
+    const fedByCc={}; (fs.rows||[]).forEach(fr=>{ if(fr.country_code) fedByCc[String(fr.country_code).toUpperCase()]=fr; });
+    const map={};
+    (tm.rows||[]).forEach(t=>{ const cc=String(t.country_code||'').toUpperCase(); if(!cc) return; if(!map[cc]) map[cc]={ teamCount:0, ovrSum:0 }; map[cc].teamCount++; map[cc].ovrSum+=(Number(t.team_ovr!=null?t.team_ovr:t.ovr)||0); });
+    NDATA.all=Object.keys(map).map(cc=>{ const m=map[cc]; return { cc, name:CC_NAME[cc]||cc, flag:ccFlag(cc), teamCount:m.teamCount, ovrAvg:m.teamCount?Math.round(m.ovrSum/m.teamCount):0, fed:fedByCc[cc]||null }; }).sort((x,y)=>x.name.localeCompare(y.name,'tr'));
+    NTApplyFilter(); renderNTs();
   }catch(e){ $('main').innerHTML='<div class="msg err">'+uEsc(e.message)+'</div>'; }
 }
-function renderNTs(){
-  const totalPages=Math.max(1,Math.ceil(NDATA.count/NSTATE.limit));
-  const curPage=Math.floor(NSTATE.offset/NSTATE.limit)+1;
-  const head=`
-    <div class="titlebox fadein">
-      <button class="backbtn" id="nBack">‹ Geri</button>
-      <h2>Milli Takımlar</h2>
-      <span class="cnt">${NDATA.count} federasyon</span>
-      <div class="sp"></div>
-      <input id="nSval" placeholder="ülke ara…" value="${uEsc(NSTATE.search)}">
-      <button class="btn gold" id="nSbtn">Ara</button>
-    </div>`;
-  const cards=NDATA.rows.map((f,i)=>{
-    const flag=f.country_flag||'🏳️';
-    const cc=f.country_code||'';
-    const name=f.country_name||cc||'(ülke)';
-    const pres=nWho(NDATA.who, f.captain);
-    const vices=nArr(f.vice).map(v=>nWho(NDATA.who,v)).filter(x=>x&&x!=='—');
-    const memberN=nCount(f.members); const voteN=nCount(f.votes);
-    const viceCells=[0,1].map(k=>{ const nm=vices[k];
-      return `<div class="u-wl-c" style="border-color:rgba(255,213,79,.3)"><span class="ic">🅰️</span><div class="tx"><div class="v">${nm?uEsc(nm):'—'}</div><div class="l">Yardımcı ${k+1}</div></div></div>`;
-    }).join('');
+function ntCardsHTML(){
+  return NDATA.rows.map((r,i)=>{
+    const fed=r.fed; const pres=fed?nWho(NDATA.who, fed.captain):'—';
+    const memberN=fed?nCount(fed.members):0; const voteN=fed?nCount(fed.votes):0;
+    const vices=fed?nArr(fed.vice).map(v=>nWho(NDATA.who,v)).filter(x=>x&&x!=='—'):[];
+    const viceCells=[0,1].map(k=>{ const nm=vices[k]; return `<div class="u-wl-c" style="border-color:rgba(255,213,79,.3)"><span class="ic">🅰️</span><div class="tx"><div class="v">${nm?uEsc(nm):'—'}</div><div class="l">Yardımcı ${k+1}</div></div></div>`; }).join('');
     return `
     <div class="u-card">
       <div class="u-head">
-        <div class="n-flag">${flag}</div>
+        <div class="n-flag">${r.flag}</div>
         <div class="u-info">
-          <div class="u-name">${uEsc(name)}</div>
-          <div class="u-meta"><span>Başkan (T.D.): <b>${uEsc(pres)}</b></span></div>
+          <div class="u-name">${uEsc(r.name)} <span class="u-rolebadge">Milli Takım</span></div>
+          <div class="u-meta"><span>Başkan (T.D.): <b>${uEsc(pres)}</b></span><span>${r.teamCount} kulüp</span></div>
         </div>
-        <div class="u-ovr"><div class="n" style="color:var(--blue)">${memberN}</div><div class="p">ÜYE</div></div>
+        <div class="u-ovr"><div class="n" style="color:var(--blue)">${r.ovrAvg||'–'}</div><div class="p">OVR</div></div>
         <div class="u-chev"><svg viewBox="0 0 24 24" width="15" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg></div>
       </div>
       <div class="u-body">
-        <div class="u-secl b"><span class="dot"></span>Federasyon</div>
+        <div class="u-secl b"><span class="dot"></span>Milli Takım</div>
         <div class="u-fields">
-          <div class="u-f"><div class="l">Ülke Kodu</div><div class="v">${flag} ${uEsc(cc)}</div></div>
+          <div class="u-f"><div class="l">Ülke</div><div class="v">${r.flag} ${uEsc(r.name)} (${uEsc(r.cc)})</div></div>
           <div class="u-f"><div class="l">Başkan / T.D.</div><div class="v">${uEsc(pres)}</div></div>
-          <div class="u-f"><div class="l">Üye Sayısı</div><div class="v">${memberN}</div></div>
-          <div class="u-f"><div class="l">Oy Sayısı</div><div class="v">${voteN}</div></div>
+          <div class="u-f"><div class="l">Kulüp Sayısı</div><div class="v">${r.teamCount}</div></div>
+          <div class="u-f"><div class="l">Ort. Kulüp OVR</div><div class="v">${r.ovrAvg||'–'}</div></div>
+          <div class="u-f"><div class="l">Federasyon Üyesi</div><div class="v">${memberN}</div></div>
+          <div class="u-f"><div class="l">Oy</div><div class="v">${voteN}</div></div>
         </div>
-        <div class="u-secl g"><span class="dot"></span>Yardımcılar (Kaptan Yetkisi)</div>
-        <div class="u-wl">${viceCells}</div>
+        ${fed?`<div class="u-secl g"><span class="dot"></span>Yardımcılar (Kaptan Yetkisi)</div><div class="u-wl">${viceCells}</div>`:'<div class="u-empty">Bu ülke için federasyon kaydı yok (başkan seçilmemiş).</div>'}
         <div class="u-acts">
-          <button class="u-act player" data-act="edit" data-i="${i}">Federasyonu Düzenle</button>
+          ${fed?`<button class="u-act player" data-act="edit" data-i="${i}">Federasyonu Düzenle</button>`:`<button class="u-act" data-act="edit" data-i="${i}" style="opacity:.55">Federasyon Yok</button>`}
           <button class="u-act wallet" data-act="votes" data-i="${i}">Oylar (${voteN})</button>
         </div>
       </div>
     </div>`;
   }).join('');
-  const page=`
-    <div class="page">
-      <button class="btn" id="nPrev" ${NSTATE.offset<=0?'disabled':''}>‹ Önceki</button>
-      <span class="cnt">${curPage} / ${totalPages}</span>
-      <button class="btn" id="nNext" ${curPage>=totalPages?'disabled':''}>Sonraki ›</button>
+}
+function renderNTs(){
+  const head=`
+    <div class="titlebox fadein">
+      <button class="backbtn" id="nBack">‹ Geri</button>
+      <h2>Milli Takımlar</h2>
+      <span class="cnt" id="nCnt">${NDATA.count} milli takım</span>
+      <div class="sp"></div>
+      <input id="nSval" placeholder="ülke ara…" value="${uEsc(NSTATE.search)}" autocomplete="off">
     </div>`;
-  $('main').innerHTML = head + `<div class="u-list fadein">${cards||'<div class="msg">Kayıt yok.</div>'}</div>` + (NDATA.rows.length?page:'');
+  $('main').innerHTML = head + `<div class="u-list fadein" id="nList"></div>`;
   $('nBack').onclick=openDash;
-  $('nSbtn').onclick=()=>{ NSTATE.search=$('nSval').value.trim(); NSTATE.offset=0; loadNTs(); };
-  $('nSval').addEventListener('keydown',e=>{ if(e.key==='Enter') $('nSbtn').click(); });
-  const pv=$('nPrev'),nx=$('nNext');
-  if(pv) pv.onclick=()=>{ NSTATE.offset=Math.max(0,NSTATE.offset-NSTATE.limit); loadNTs(); };
-  if(nx) nx.onclick=()=>{ NSTATE.offset+=NSTATE.limit; loadNTs(); };
-  $('main').querySelectorAll('.u-head').forEach(h=>h.onclick=()=>h.parentElement.classList.toggle('open'));
-  $('main').querySelectorAll('.u-act').forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); ntAction(b.dataset.act,+b.dataset.i); });
+  const inp=$('nSval');
+  inp.addEventListener('input', ()=>{ clearTimeout(window._ntT); window._ntT=setTimeout(()=>{ NSTATE.search=inp.value.trim(); NTApplyFilter(); ntPaint(); }, 110); });
+  ntPaint();
+  if(NSTATE.search){ inp.focus(); try{ inp.setSelectionRange(inp.value.length,inp.value.length); }catch(e){} }
+}
+function ntPaint(){
+  const list=$('nList'); if(!list) return;
+  list.innerHTML = NDATA.rows.length?ntCardsHTML():'<div class="msg">Eşleşen ülke yok.</div>';
+  const cnt=$('nCnt'); if(cnt) cnt.textContent=NDATA.count+' milli takım';
+  list.querySelectorAll('.u-head').forEach(h=>h.onclick=()=>h.parentElement.classList.toggle('open'));
+  list.querySelectorAll('.u-act').forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); ntAction(b.dataset.act,+b.dataset.i); });
 }
 function ntAction(act,i){
-  const f=NDATA.rows[i]; if(!f) return;
-  if(act==='edit'){ openEditor('edit', f, 'federation_state', loadNTs); return; }
-  if(act==='votes'){ openTableFiltered('federation_votes','country_code', f.country_code||'', openNTs); return; }
+  const r=NDATA.rows[i]; if(!r) return;
+  if(act==='edit'){ if(!r.fed){ alert(r.name+' için federasyon kaydı yok (başkan seçilmemiş).'); return; } openEditor('edit', r.fed, 'federation_state', loadNTs); return; }
+  if(act==='votes'){ openTableFiltered('federation_votes','country_code', r.cc||'', openNTs); return; }
 }
+
 
 // ===== Cüzdan & Enerji satır-içi düzenleme =====
 function uWalletStart(cell){
