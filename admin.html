@@ -754,7 +754,7 @@ async function delRow(row) {
 
 // ===== KULLANICILAR — tek sayfa (profil + oyuncu + cüzdan) =====
 let USTATE={ offset:0, limit:30, search:'', searchCol:'' };
-let UDATA={ rows:[], count:0, pMap:{}, wMap:{} };
+let UDATA={ all:[], rows:[], count:0, plMap:{}, pMap:{}, wMap:{}, pLoaded:false };
 const uEsc = v => (v==null?'':String(v)).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const uUid = p => p.user_id || p.id;
 function uTextCols(){
@@ -770,52 +770,49 @@ async function openUsers(){
   document.body.classList.remove('navopen');
   await loadUsers();
 }
-function uHasCol(c){ return ((META.profiles&&META.profiles.columns)||[]).some(x=>x.name===c); }
-async function uFetchProfiles(){
-  const q=USTATE.search;
+function uApplyFilter(){
+  const q=(USTATE.search||'').trim().toLowerCase();
   if(q && q.length>=2){
-    let cols=['name','username','display_name'].filter(uHasCol);
-    if(!cols.length) cols=[uTextCols()[0]];
-    const arr=await Promise.all(cols.map(c=>api('list',{ table:'profiles', limit:USTATE.limit, search:q, searchCol:c }).catch(()=>({rows:[]}))));
-    const seen=new Set(), rows=[];
-    arr.forEach(r=>(r.rows||[]).forEach(p=>{ const k=p.id||p.user_id; if(!seen.has(k)){ seen.add(k); rows.push(p); } }));
-    return { rows, count:rows.length };
+    const rows=UDATA.all.filter(p=>(((p.name||'')+' '+(p.username||'')).toLowerCase().indexOf(q)>=0));
+    UDATA.count=rows.length; UDATA.rows=rows.slice(0,300);
+  } else {
+    UDATA.count=UDATA.all.length; UDATA.rows=UDATA.all.slice(USTATE.offset, USTATE.offset+USTATE.limit);
   }
-  return api('list',{ table:'profiles', limit:USTATE.limit, offset:USTATE.offset });
 }
 async function loadUsers(){
   if(!$('uList')) $('main').innerHTML='<div class="msg">Yükleniyor…</div>';
   try{
-    const needMaps=!UDATA.pLoaded;
-    const tasks=[ uFetchProfiles() ];
-    if(needMaps){
-      tasks.push(api('list',{ table:'user_player', limit:2000 }).catch(()=>({rows:[]})));
-      tasks.push(api('list',{ table:'user_wallet', limit:2000 }).catch(()=>({rows:[]})));
-    }
-    const r=await Promise.all(tasks);
-    UDATA.rows=r[0].rows||[]; UDATA.count=r[0].count||0;
-    if(needMaps){
-      UDATA.pMap={}; (r[1].rows||[]).forEach(x=>{ if(x.user_id!=null) UDATA.pMap[x.user_id]=x; });
-      UDATA.wMap={}; (r[2].rows||[]).forEach(x=>{ if(x.user_id!=null) UDATA.wMap[x.user_id]=x; });
+    if(!UDATA.pLoaded){
+      const [pf,pl,up,wl]=await Promise.all([
+        api('list',{ table:'profiles', limit:2000 }),
+        api('list',{ table:'players', limit:2000 }).catch(()=>({rows:[]})),
+        api('list',{ table:'user_player', limit:2000 }).catch(()=>({rows:[]})),
+        api('list',{ table:'user_wallet', limit:2000 }).catch(()=>({rows:[]}))
+      ]);
+      UDATA.all=pf.rows||[];
+      UDATA.plMap={}; (pl.rows||[]).forEach(x=>{ if(x.user_id!=null) UDATA.plMap[x.user_id]=x; });
+      UDATA.pMap={};  (up.rows||[]).forEach(x=>{ if(x.user_id!=null) UDATA.pMap[x.user_id]=x; });
+      UDATA.wMap={};  (wl.rows||[]).forEach(x=>{ if(x.user_id!=null) UDATA.wMap[x.user_id]=x; });
       UDATA.pLoaded=true;
     }
+    uApplyFilter();
     if($('uList') && $('uSval')) uPaintList(); else renderUsers();
   }catch(e){ $('main').innerHTML='<div class="msg err">'+uEsc(e.message)+'</div>'; }
 }
-function uPlayerBits(up){
-  if(!up) return null;
-  const pj = up.player||{};
-  const ovr = up.overall!=null?up.overall:(pj.overall!=null?pj.overall:'–');
-  const pos = up.position||pj.pos||pj.position||'';
-  const num = up.num!=null?up.num:(pj.num!=null?pj.num:'');
+function uPlayerBits(pl, up){
+  if(!pl && !up) return null;
+  pl=pl||{}; up=up||{}; const pj=up.player||{};
+  const ovr = (pl.overall!=null)?pl.overall:((up.overall!=null)?up.overall:((pj.overall!=null)?pj.overall:'–'));
+  const pos = pl.pos||up.position||pj.pos||pj.position||'';
+  const num = (up.num!=null)?up.num:((pj.num!=null)?pj.num:'');
   const name = pj.name||up.name||'';
-  const level = up.level!=null?up.level:'–';
-  const xp = up.xp!=null?up.xp:null;
-  const ab = up.abilities||pj.abilities||up.skills||pj.skills;
-  const aCount = Array.isArray(ab)?ab.length:(ab&&typeof ab==='object'?Object.keys(ab).length:0);
+  const level = (pl.level!=null)?pl.level:((up.level!=null)?up.level:'–');
+  const xp = (pl.xp!=null)?pl.xp:((up.xp!=null)?up.xp:null);
+  const sk = up.skills||up.abilities||pj.abilities||pj.skills;
+  const aCount = Array.isArray(sk)?sk.length:((sk&&typeof sk==='object')?Object.keys(sk).length:0);
   const eq = up.equipment||{};
   const eqCount = (eq&&typeof eq==='object')?Object.values(eq).filter(v=>v!=null&&v!=='').length:0;
-  const tro = up.trophies; const tCount = Array.isArray(tro)?tro.length:0;
+  const tro = up.trophies; const tCount=Array.isArray(tro)?tro.length:0;
   return { ovr, pos, num, name, level, xp, aCount, eqCount, tCount };
 }
 function uCardsHTML(){
@@ -830,7 +827,7 @@ function uCardsHTML(){
     const team=p.team_name||'Takımsız';
     const joined=p.created_at?('Katılım: '+new Date(p.created_at).toLocaleDateString('tr')):'';
     const ban=uBanInfo(p);
-    const pb=uPlayerBits(UDATA.pMap[id]);
+    const pb=uPlayerBits(UDATA.plMap[id], UDATA.pMap[id]);
     const w=UDATA.wMap[id]||{};
     const ovrTag=(pb&&pb.ovr!=='–')?`<div class="u-ovr"><div class="n">${uEsc(pb.ovr)}</div><div class="p">${uEsc(pb.pos||'')}</div></div>`:'';
     const playerSec=pb?`
@@ -934,10 +931,7 @@ let _uSearchT=null;
 function uOnSearch(){
   const v=$('uSval').value.trim();
   clearTimeout(_uSearchT);
-  _uSearchT=setTimeout(()=>{
-    if(v.length===1) return; // tek harf bekle
-    USTATE.search=v; USTATE.offset=0; loadUsers();
-  }, 240);
+  _uSearchT=setTimeout(()=>{ USTATE.search=v; USTATE.offset=0; uApplyFilter(); uPaintList(); }, 110);
 }
 
 function uAction(act,i){
