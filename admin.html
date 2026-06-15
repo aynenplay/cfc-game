@@ -1098,14 +1098,14 @@ async function uDelUser(p){
 // ===== TAKIMLAR — kulüpler (teams + team_data + team_chat) =====
 const TIERC={ '1':'#00e676','2':'#42a5f5','3':'#ab47bc','4':'#ffa726','5':'#ef5350','6':'#8d6e63' };
 let CSTATE={ offset:0, limit:30, search:'', searchCol:'' };
-let CDATA={ rows:[], count:0, mgr:{} };
+let CDATA={ rows:[], count:0, mgr:{}, rankMap:{}, rankLoaded:false };
 function cTextCols(){
   const cols=((META.teams&&META.teams.columns)||[]).filter(c=>['text','character varying','uuid'].includes(c.type)).map(c=>c.name);
   const pref=['name','team_name','city','country','country_code'].filter(c=>cols.includes(c));
   return pref.length?pref:(cols.length?cols:['name']);
 }
 async function openClubs(){
-  CUR='__clubs__'; CSTATE={ offset:0, limit:30, search:'', searchCol:'' }; GRID_BACK=null;
+  CUR='__clubs__'; CSTATE={ offset:0, limit:30, search:'', searchCol:'' }; GRID_BACK=null; CDATA.rankLoaded=false;
   $('dashBtn').classList.remove('active');
   $('nav').querySelectorAll('.sub').forEach(b=>b.classList.toggle('active', b.dataset.t==='__clubs__'));
   const act=$('nav').querySelector('.sub.active'); if(act) act.closest('.cat').classList.add('open');
@@ -1150,11 +1150,9 @@ function renderClubs(){
     const tname=t.tier_name||(tier?('Lig '+tier):'—');
     const tcol=TIERC[tier]||'#8a93a3';
     const ovr=t.team_ovr!=null?t.team_ovr:(t.ovr!=null?t.ovr:'–');
-    const rank=t.rank!=null?('#'+t.rank):'';
-    const pts=t.points!=null?t.points:(t.team_points!=null?t.team_points:'—');
     const mgr=CDATA.mgr[t.user_id]||CDATA.mgr[t.owner]||'—';
     const city=t.city||'';
-    const jp=t.join_policy||'—';
+    const _jpRaw=t.join_policy; const jp=(_jpRaw&&typeof _jpRaw==='object')?(_jpRaw.type||_jpRaw.mode||_jpRaw.policy||_jpRaw.value||'Özel'):((_jpRaw!=null&&_jpRaw!=='')?_jpRaw:'—');
     return `
     <div class="u-card">
       <div class="u-head">
@@ -1163,14 +1161,13 @@ function renderClubs(){
           <div class="u-name">${uEsc(name)}</div>
           <div class="u-meta"><span class="t-pill"><i style="background:${tcol}"></i><b>${uEsc(tname)}</b></span>${city?`<span>${uEsc(city)}</span>`:''}</div>
         </div>
-        <div class="u-ovr"><div class="n">${uEsc(ovr)}</div><div class="p" data-hrank>${uEsc(rank)}</div></div>
+        <div class="u-ovr"><div class="n">${uEsc(ovr)}</div><div class="p">OVR</div></div>
         <div class="u-chev"><svg viewBox="0 0 24 24" width="15" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg></div>
       </div>
       <div class="u-body" data-name="${uEsc(name)}" data-cc="${uEsc(t.country_code||'')}" data-tier="${t.tier!=null?t.tier:''}" data-loaded="0">
         <div class="u-secl"><span class="dot"></span>Takım</div>
         <div class="u-fields">
           <div class="u-f"><div class="l">Lig</div><div class="v">${uEsc(tname)}</div></div>
-          <div class="u-f"><div class="l">Sıra · Puan</div><div class="v">${rank||'—'} · ${uEsc(pts)} p</div></div>
           <div class="u-f"><div class="l">Takım OVR</div><div class="v">${uEsc(ovr)}</div></div>
           <div class="u-f"><div class="l">Menajer (Kaptan)</div><div class="v" data-mgr>…</div></div>
           <div class="u-f"><div class="l">Şehir / Ülke</div><div class="v">${flag} ${uEsc(city||t.country||t.country_code||'—')}</div></div>
