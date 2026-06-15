@@ -763,26 +763,43 @@ function uTextCols(){
   return pref.length?pref:(cols.length?cols:['email']);
 }
 async function openUsers(){
-  CUR='__users__'; USTATE={ offset:0, limit:30, search:'', searchCol:'' };
+  CUR='__users__'; USTATE={ offset:0, limit:30, search:'', searchCol:'' }; UDATA.pLoaded=false;
   $('dashBtn').classList.remove('active');
   $('nav').querySelectorAll('.sub').forEach(b=>b.classList.toggle('active', b.dataset.t==='__users__'));
   const act=$('nav').querySelector('.sub.active'); if(act) act.closest('.cat').classList.add('open');
   document.body.classList.remove('navopen');
   await loadUsers();
 }
+function uHasCol(c){ return ((META.profiles&&META.profiles.columns)||[]).some(x=>x.name===c); }
+async function uFetchProfiles(){
+  const q=USTATE.search;
+  if(q && q.length>=2){
+    let cols=['name','username','display_name'].filter(uHasCol);
+    if(!cols.length) cols=[uTextCols()[0]];
+    const arr=await Promise.all(cols.map(c=>api('list',{ table:'profiles', limit:USTATE.limit, search:q, searchCol:c }).catch(()=>({rows:[]}))));
+    const seen=new Set(), rows=[];
+    arr.forEach(r=>(r.rows||[]).forEach(p=>{ const k=p.id||p.user_id; if(!seen.has(k)){ seen.add(k); rows.push(p); } }));
+    return { rows, count:rows.length };
+  }
+  return api('list',{ table:'profiles', limit:USTATE.limit, offset:USTATE.offset });
+}
 async function loadUsers(){
-  $('main').innerHTML='<div class="msg">Yükleniyor…</div>';
-  if(!USTATE.searchCol){ USTATE.searchCol=uTextCols()[0]; }
+  if(!$('uList')) $('main').innerHTML='<div class="msg">Yükleniyor…</div>';
   try{
-    const [pf, pl, wl] = await Promise.all([
-      api('list',{ table:'profiles', limit:USTATE.limit, offset:USTATE.offset, search:USTATE.search||undefined, searchCol:USTATE.search?USTATE.searchCol:undefined }),
-      api('list',{ table:'user_player', limit:2000 }).catch(()=>({rows:[]})),
-      api('list',{ table:'user_wallet', limit:2000 }).catch(()=>({rows:[]}))
-    ]);
-    UDATA.rows=pf.rows||[]; UDATA.count=pf.count||0;
-    UDATA.pMap={}; (pl.rows||[]).forEach(r=>{ if(r.user_id!=null) UDATA.pMap[r.user_id]=r; });
-    UDATA.wMap={}; (wl.rows||[]).forEach(r=>{ if(r.user_id!=null) UDATA.wMap[r.user_id]=r; });
-    renderUsers();
+    const needMaps=!UDATA.pLoaded;
+    const tasks=[ uFetchProfiles() ];
+    if(needMaps){
+      tasks.push(api('list',{ table:'user_player', limit:2000 }).catch(()=>({rows:[]})));
+      tasks.push(api('list',{ table:'user_wallet', limit:2000 }).catch(()=>({rows:[]})));
+    }
+    const r=await Promise.all(tasks);
+    UDATA.rows=r[0].rows||[]; UDATA.count=r[0].count||0;
+    if(needMaps){
+      UDATA.pMap={}; (r[1].rows||[]).forEach(x=>{ if(x.user_id!=null) UDATA.pMap[x.user_id]=x; });
+      UDATA.wMap={}; (r[2].rows||[]).forEach(x=>{ if(x.user_id!=null) UDATA.wMap[x.user_id]=x; });
+      UDATA.pLoaded=true;
+    }
+    if($('uList') && $('uSval')) uPaintList(); else renderUsers();
   }catch(e){ $('main').innerHTML='<div class="msg err">'+uEsc(e.message)+'</div>'; }
 }
 function uPlayerBits(up){
@@ -801,22 +818,8 @@ function uPlayerBits(up){
   const tro = up.trophies; const tCount = Array.isArray(tro)?tro.length:0;
   return { ovr, pos, num, name, level, xp, aCount, eqCount, tCount };
 }
-function renderUsers(){
-  const tc=uTextCols();
-  const totalPages=Math.max(1,Math.ceil(UDATA.count/USTATE.limit));
-  const curPage=Math.floor(USTATE.offset/USTATE.limit)+1;
-  const cn={ display_name:'Ad', username:'Kullanıcı Adı', name:'Ad', email:'E-posta' };
-  const head=`
-    <div class="titlebox fadein">
-      <button class="backbtn" id="uBack">‹ Geri</button>
-      <h2>Kullanıcılar</h2>
-      <span class="cnt">${UDATA.count} kullanıcı</span>
-      <div class="sp"></div>
-      <select id="uScol">${tc.map(c=>`<option value="${c}" ${c===USTATE.searchCol?'selected':''}>${cn[c]||colLabel(c)}</option>`).join('')}</select>
-      <input id="uSval" placeholder="ara…" value="${uEsc(USTATE.search)}">
-      <button class="btn gold" id="uSbtn">Ara</button>
-    </div>`;
-  const cards=UDATA.rows.map((p,i)=>{
+function uCardsHTML(){
+  return UDATA.rows.map((p,i)=>{
     const id=uUid(p);
     const realName=p.name||p.display_name||p.username||'(isimsiz)';
     const uname=p.username||'';
@@ -889,23 +892,54 @@ function renderUsers(){
       </div>
     </div>`;
   }).join('');
-  const page=`
+}
+function renderUsers(){
+  const head=`
+    <div class="titlebox fadein">
+      <button class="backbtn" id="uBack">‹ Geri</button>
+      <h2>Kullanıcılar</h2>
+      <span class="cnt" id="uCnt">${UDATA.count} kullanıcı</span>
+      <div class="sp"></div>
+      <input id="uSval" placeholder="İsim / kullanıcı adı (en az 2 harf)…" value="${uEsc(USTATE.search)}" autocomplete="off">
+    </div>`;
+  $('main').innerHTML = head + `<div class="u-list fadein" id="uList"></div><div id="uPage"></div>`;
+  $('uBack').onclick=openDash;
+  const inp=$('uSval');
+  inp.addEventListener('input', uOnSearch);
+  inp.addEventListener('keydown', e=>{ if(e.key==='Escape'){ inp.value=''; uOnSearch(); } });
+  uPaintList();
+  if(USTATE.search){ inp.focus(); try{ inp.setSelectionRange(inp.value.length,inp.value.length); }catch(e){} }
+}
+function uPaintList(){
+  const list=$('uList'); if(!list) return;
+  list.innerHTML = UDATA.rows.length ? uCardsHTML() : `<div class="msg">${USTATE.search?'Eşleşen kullanıcı yok.':'Kayıt yok.'}</div>`;
+  const cnt=$('uCnt'); if(cnt) cnt.textContent = USTATE.search ? (UDATA.count+' sonuç') : (UDATA.count+' kullanıcı');
+  const totalPages=Math.max(1,Math.ceil(UDATA.count/USTATE.limit));
+  const curPage=Math.floor(USTATE.offset/USTATE.limit)+1;
+  const pg=$('uPage');
+  if(pg) pg.innerHTML = (!USTATE.search && UDATA.rows.length) ? `
     <div class="page">
       <button class="btn" id="uPrev" ${USTATE.offset<=0?'disabled':''}>‹ Önceki</button>
       <span class="cnt">${curPage} / ${totalPages}</span>
       <button class="btn" id="uNext" ${curPage>=totalPages?'disabled':''}>Sonraki ›</button>
-    </div>`;
-  $('main').innerHTML = head + `<div class="u-list fadein">${cards||'<div class="msg">Kayıt yok.</div>'}</div>` + (UDATA.rows.length?page:'');
-  $('uBack').onclick=openDash;
-  $('uSbtn').onclick=()=>{ USTATE.search=$('uSval').value.trim(); USTATE.searchCol=$('uScol').value; USTATE.offset=0; loadUsers(); };
-  $('uSval').addEventListener('keydown',e=>{ if(e.key==='Enter') $('uSbtn').click(); });
+    </div>` : '';
+  list.querySelectorAll('.u-head').forEach(h=>h.onclick=()=>h.parentElement.classList.toggle('open'));
+  list.querySelectorAll('.u-act').forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); uAction(b.dataset.act,+b.dataset.i); });
+  list.querySelectorAll('.u-wedit').forEach(c=>c.onclick=ev=>{ ev.stopPropagation(); uWalletStart(c); });
   const pv=$('uPrev'),nx=$('uNext');
   if(pv) pv.onclick=()=>{ USTATE.offset=Math.max(0,USTATE.offset-USTATE.limit); loadUsers(); };
   if(nx) nx.onclick=()=>{ USTATE.offset+=USTATE.limit; loadUsers(); };
-  $('main').querySelectorAll('.u-head').forEach(h=>h.onclick=()=>h.parentElement.classList.toggle('open'));
-  $('main').querySelectorAll('.u-act').forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); uAction(b.dataset.act,+b.dataset.i); });
-  $('main').querySelectorAll('.u-wedit').forEach(c=>c.onclick=ev=>{ ev.stopPropagation(); uWalletStart(c); });
 }
+let _uSearchT=null;
+function uOnSearch(){
+  const v=$('uSval').value.trim();
+  clearTimeout(_uSearchT);
+  _uSearchT=setTimeout(()=>{
+    if(v.length===1) return; // tek harf bekle
+    USTATE.search=v; USTATE.offset=0; loadUsers();
+  }, 240);
+}
+
 function uAction(act,i){
   const p=UDATA.rows[i]; if(!p) return; const id=uUid(p);
   if(act==='profile'){ openEditor('edit', p, 'profiles', loadUsers); return; }
