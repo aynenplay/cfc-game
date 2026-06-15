@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, interactive-widget=resizes-content">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
 <!-- Cache: Cloudflare _headers yönetiyor, tarayıcı ETag ile 304 dönebilir -->
 <meta http-equiv="Cache-Control" content="max-age=0, must-revalidate">
 <title>City Soccer Club</title>
@@ -24601,15 +24601,19 @@ body.drawer-open{overflow:hidden}
         <div class="tf-offer-player" id="tfPurchasePlayer"></div>
 
         <div class="tf-offer-info" style="background:rgba(0,176,255,.06);border-color:rgba(0,176,255,.2)">
-          📋 Pazar yerindeki şartlar satıcı tarafından zaten belirlenmiştir. Sadece bonservis ödemesi yapılır — sözleşme müzakeresi yoktur.
+          📋 Bonservis teklifini kendin girebilirsin. Satıcının belirlediği fiyatın <b>altında</b> teklif veremezsin.
         </div>
 
-        <div class="tf-modal-section">Bonservis Ücreti</div>
-        <div class="tf-summary" style="margin-bottom:14px">
+        <div class="tf-modal-section">Bonservis Teklifin (€)</div>
+        <div class="tf-summary" style="margin-bottom:6px">
           <div class="tf-sum-row total">
             <span id="tfPurchaseLabel">Satıcı kasasına</span>
-            <b id="tfPurchaseFee" style="color:var(--gold);font-size:16px">0 €</b>
+            <input id="tfPurchaseAmount" type="number" inputmode="numeric" oninput="tfPurchaseAmtChanged()" style="width:150px;text-align:right;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:8px;color:var(--gold);font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:17px;padding:6px 9px">
           </div>
+        </div>
+        <div style="font-size:10.5px;color:var(--text3);margin-bottom:12px;display:flex;justify-content:space-between">
+          <span>Minimum (satıcı fiyatı): <b id="tfPurchaseMin" style="color:var(--text2)">0 €</b></span>
+          <b id="tfPurchaseFee" style="color:var(--gold)"></b>
         </div>
 
         <div class="tf-modal-btns">
@@ -26001,7 +26005,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-15-satis-karbon-132';
+const APP_BUILD = '2026-06-15-zoom-fix-134';
 
 (function _cacheBustCheck() {
   try {
@@ -67277,6 +67281,7 @@ function tfRender() {
     const sellerCC = item.sellerCC || '';
     const subPosTxt = item.subPos || item.sub_pos || _tfPosLabel(item.pos);
     const grpTxt = _tfPosLabel(item.pos);
+    const avEmoji = (typeof getAvatarEmoji==='function' && (item.avatarId||item.avatar_id)) ? (getAvatarEmoji(item.avatarId||item.avatar_id, item.pos)||item.avatar||'🤖') : (item.avatar||'🤖');
     const feeStr = (() => {
       const fEur = (typeof item.feeEur === 'number') ? item.feeEur : (item.fee || 0);
       const fDia = (typeof item.feeDia === 'number') ? item.feeDia : 0;
@@ -67305,7 +67310,7 @@ function tfRender() {
     return `<div class="sc ${isMine?'mine':''}">
       ${isMine?`<div class="sc-tag">${canApprove?'SENİN İLANIN':'TAKIMININ İLANI'}</div>`:''}
       <div class="sc-top" onclick="tfOpenSaleCard('${item.id}')" style="cursor:pointer">
-        <div class="sc-av">${item.avatar||'🤖'}<span class="pos">${grpTxt}</span></div>
+        <div class="sc-av">${avEmoji}<span class="pos">${grpTxt}</span></div>
         <div class="sc-id">
           <div class="sc-name">${item.playerId}</div>
           <div class="sc-sub"><span class="sc-nat">${item.nation||''}</span><span class="sc-subpos">${subPosTxt}</span></div>
@@ -67609,12 +67614,23 @@ function tfOpenOffer(id) {
   }
   const labelEl = document.getElementById('tfPurchaseLabel');
   if(labelEl) labelEl.textContent = `${_tfTarget.seller||'Satıcı'} kasasına`;
-  const feeEl = document.getElementById('tfPurchaseFee');
-  if(feeEl) feeEl.textContent = fmtFee(fee);
+  const amtEl = document.getElementById('tfPurchaseAmount');
+  if(amtEl){ amtEl.value = fee; amtEl.min = fee; amtEl.step = 50000; }
+  const minEl = document.getElementById('tfPurchaseMin'); if(minEl) minEl.textContent = fmtFee(fee);
+  const feeEl = document.getElementById('tfPurchaseFee'); if(feeEl) feeEl.textContent = 'Teklif: ' + fmtFee(fee);
 
   document.getElementById('tfPurchaseModal').classList.add('open');
 }
 
+function tfPurchaseAmtChanged(){
+  if(!_tfTarget) return;
+  const minFee = _tfTarget.fee || 0;
+  const amtEl = document.getElementById('tfPurchaseAmount');
+  let v = amtEl ? Math.round(Number(amtEl.value)||0) : minFee;
+  const fmtFee = x => x>=1000000?(x/1000000).toFixed(1)+'M €':x>0?Math.round(x/1000)+'K €':'Ücretsiz';
+  const feeEl = document.getElementById('tfPurchaseFee');
+  if(feeEl){ if(v < minFee){ feeEl.textContent = 'Min '+fmtFee(minFee)+' altına inemez'; feeEl.style.color='var(--red)'; } else { feeEl.textContent = 'Teklif: '+fmtFee(v); feeEl.style.color='var(--gold)'; } }
+}
 function tfClosePurchase() {
   const m = document.getElementById('tfPurchaseModal');
   if(m) m.classList.remove('open');
@@ -67635,8 +67651,15 @@ function tfConfirmPurchase() {
     }
   }
 
-  const fee = _tfTarget.fee || 0;
+  const minFee = _tfTarget.fee || 0;
   const fmtFee = v => v>=1000000?(v/1000000).toFixed(1)+'M €':v>0?Math.round(v/1000)+'K €':'Ücretsiz';
+  // 🆕 Kullanıcının girdiği teklif (kaptan fiyatının altında olamaz)
+  const _amtEl = document.getElementById('tfPurchaseAmount');
+  let fee = _amtEl ? Math.round(Number(_amtEl.value)||0) : minFee;
+  if(fee < minFee){
+    if(typeof tfShowToast === 'function') tfShowToast(`❌ Teklif satıcı fiyatının altında olamaz (min ${fmtFee(minFee)}).`, 'var(--red)');
+    return;
+  }
 
   // Kasa kontrolü
   const balance = (typeof trsGetBalance === 'function') ? trsGetBalance('eur') : 0;
@@ -68112,6 +68135,7 @@ function executeSell(){
     overall: player.overall || 50,
     nation: player.nation || '🏳️',
     avatar: player.avatar || '🤖',
+    avatarId: player.avatarId || player.avatar_id || null,
     feeEur: _tfSellEur,
     feeDia: _tfSellDia,
     fee: _tfSellEur,            // Backward compat — eski "fee" alanı
