@@ -282,7 +282,9 @@
   .t-st .l{ font-size:7.5px; font-weight:700; color:#5c6470; text-transform:uppercase; letter-spacing:.2px; margin-top:1px; }
   .nt-sq{ display:flex; flex-direction:column; gap:5px; margin:0 12px 8px; }
   .nt-pl{ display:flex; align-items:center; gap:9px; background:rgba(0,0,0,.22); border:1px solid var(--line); border-radius:8px; padding:6px 9px; }
+  .nt-pl .num{ font-family:var(--disp); font-weight:800; font-size:11px; color:#5c6470; min-width:26px; text-align:center; }
   .nt-pl .ov{ font-family:var(--disp); font-weight:900; font-size:14px; color:var(--blue); min-width:26px; text-align:center; }
+  .nt-pl.empty{ opacity:.6; }
   .nt-pl .nm{ flex:1; min-width:0; font-size:12.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .nt-pl .ps{ font-size:9px; font-weight:800; color:#5c6470; letter-spacing:.3px; }
   .u-wl3{ grid-template-columns:repeat(3,1fr); }
@@ -525,7 +527,7 @@
 <script>
 // Türkçe etiketler
 const TABLE_TR = {
-  achievement_defs:'Başarı Tanımları', federation_state:'Federasyon', federation_votes:'Federasyon Oyları',
+  achievement_defs:'Başarı Tanımları', federation_state:'Federasyonlar', federation_votes:'Federasyon Oyları',
   friendly_matches:'Hazırlık Maçları', item_listings:'Item İlanları', match_results:'Maç Sonuçları',
   match_state:'Canlı Maçlar', match_viewers:'Maç İzleyiciler', match_writes:'Maç Kilidi',
   player_transfer_listings:'Oyuncu Transfer İlanları', players:'Oyuncular', profiles:'Profiller',
@@ -711,7 +713,7 @@ async function fbDelete(id){
 // Sol menü — akordeon (ana başlık → tablolar)
 const NAV = [
   { cat:'KULLANICILAR',   tables:['__users__','__players__','feedback'] },
-  { cat:'TAKIMLAR',       tables:['__clubs__','__nts__'] },
+  { cat:'TAKIMLAR',       tables:['__clubs__','__nts__','federation_state'] },
   { cat:'LİGLER',         tables:[] },
   { cat:'TURNUVALAR',     tables:['tournament_state'] },
   { cat:'SONUÇLAR',       tables:['match_results','match_state','match_viewers'] },
@@ -722,7 +724,6 @@ const NAV = [
   { cat:'MAĞAZA',         tables:['shop_stocks'] },
   { cat:'ETKİNLİK',       tables:['achievement_defs','toto_pools'] },
   { cat:'ANTRENMAN',      tables:[] },
-  { cat:'FEDERASYON',     tables:['federation_state','federation_votes'] },
   { cat:'CSC MEDIA',      tables:['social_posts','social_likes','social_follows'] },
   { cat:'İNBOX',          tables:['user_inbox'] },
   { cat:'AYARLAR',        tables:['match_writes'] }
@@ -1255,6 +1256,7 @@ async function openNTs(){
   document.body.classList.remove('navopen');
   await loadNTs();
 }
+const NT_SLOTS=[{n:1,p:'GK',r:'starter'},{n:12,p:'GK',r:'sub'},{n:2,p:'DEF',r:'starter'},{n:3,p:'DEF',r:'starter'},{n:4,p:'DEF',r:'starter'},{n:5,p:'DEF',r:'starter'},{n:13,p:'DEF',r:'sub'},{n:14,p:'DEF',r:'sub'},{n:6,p:'MID',r:'starter'},{n:8,p:'MID',r:'starter'},{n:10,p:'MID',r:'starter'},{n:7,p:'MID',r:'starter'},{n:15,p:'MID',r:'sub'},{n:16,p:'MID',r:'sub'},{n:9,p:'FWD',r:'starter'},{n:11,p:'FWD',r:'starter'},{n:17,p:'FWD',r:'sub'},{n:19,p:'FWD',r:'sub'}];
 function NTApplyFilter(){
   const q=(NSTATE.search||'').trim().toLowerCase();
   NDATA.rows = q ? NDATA.all.filter(x=>((x.name+' '+x.cc).toLowerCase().indexOf(q)>=0)) : NDATA.all.slice();
@@ -1278,20 +1280,20 @@ function ntCardsHTML(){
         <div class="n-flag">${r.flag}</div>
         <div class="u-info">
           <div class="u-name">${uEsc(r.name)} <span class="u-rolebadge">Milli Takım</span></div>
-          <div class="u-meta"><span><b>${r.teamCount}</b> kulüp</span><span>Ort. kulüp OVR ${r.ovrAvg||'–'}</span></div>
+          <div class="u-meta"><span>Ulusal kadro · 18 kişi</span></div>
         </div>
-        <div class="u-ovr"><div class="n" style="color:var(--blue)">${r.ovrAvg||'–'}</div><div class="p">OVR</div></div>
+        <div class="u-ovr"><div class="n" style="color:var(--blue)" data-ntovr>–</div><div class="p">OVR</div></div>
         <div class="u-chev"><svg viewBox="0 0 24 24" width="15" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg></div>
       </div>
       <div class="u-body" data-cc="${uEsc(r.cc)}" data-loaded="0">
         <div class="u-secl b"><span class="dot"></span>Takım Verisi</div>
         <div class="u-fields">
           <div class="u-f"><div class="l">Ülke</div><div class="v">${r.flag} ${uEsc(r.name)} (${uEsc(r.cc)})</div></div>
-          <div class="u-f"><div class="l">Kulüp Sayısı</div><div class="v">${r.teamCount}</div></div>
-          <div class="u-f"><div class="l">Ort. Kulüp OVR</div><div class="v">${r.ovrAvg||'–'}</div></div>
           <div class="u-f"><div class="l">Milli Oyuncu</div><div class="v" data-natcount>…</div></div>
+          <div class="u-f"><div class="l">Kadro OVR (ilk 11)</div><div class="v" data-kadrovr>…</div></div>
+          <div class="u-f"><div class="l">Kadro Kaynağı</div><div class="v" data-src>…</div></div>
         </div>
-        <div class="u-secl"><span class="dot"></span>En İyi 11 (milli oyuncular)</div>
+        <div class="u-secl"><span class="dot"></span>Kadro (18 kişi · gerçek)</div>
         <div class="nt-sq" data-squad><div class="u-empty">yükleniyor…</div></div>
         <div class="u-acts">
           <button class="u-act player" data-act="players" data-i="${i}">Milli Oyuncular</button>
@@ -1326,14 +1328,37 @@ function ntPaint(){
 }
 async function ntSquad(body){
   if(!body || body.dataset.loaded==='1') return; body.dataset.loaded='1';
-  const cc=body.dataset.cc;
+  const cc=String(body.dataset.cc||'').toUpperCase();
   try{
-    const r=await api('list',{ table:'players', limit:60, search:cc, searchCol:'nationality', orderBy:'overall', orderDir:'desc' });
-    const rows=(r.rows||[]).filter(p=>String(p.nationality||p.country_code||'').toUpperCase()===String(cc).toUpperCase());
-    const cnt=body.querySelector('[data-natcount]'); if(cnt) cnt.textContent=(r.count!=null?r.count:rows.length);
+    const [pr, td]=await Promise.all([
+      api('list',{ table:'players', limit:200, search:cc, searchCol:'nationality', orderBy:'overall', orderDir:'desc' }),
+      api('list',{ table:'team_data', limit:50, search:cc, searchCol:'country_code' }).catch(()=>({rows:[]}))
+    ]);
+    const nats=(pr.rows||[]).filter(p=>String(p.nationality||p.country_code||'').toUpperCase()===cc);
+    const byId={}; nats.forEach(p=>{ if(p.id!=null) byId[p.id]=p; });
+    let squadRow=null; (td.rows||[]).forEach(r=>{ if(r.data_key==='nt_squad') squadRow=r; });
+    let squad;
+    if(squadRow && Array.isArray(squadRow.data) && squadRow.data.length){
+      squad = squadRow.data.slice(0,18).map((uid,i)=>({ p: uid?byId[uid]:null, slot:NT_SLOTS[i]||{} }));
+    } else {
+      const grp={GK:[],DEF:[],MID:[],FWD:[]};
+      nats.forEach(p=>{ const g=_pmGroupOf(p.pos||p.pos_group); (grp[g]||grp.MID).push(p); });
+      const cnt={GK:0,DEF:0,MID:0,FWD:0};
+      squad = NT_SLOTS.map(slot=>({ p:(grp[slot.p]||[])[cnt[slot.p]++]||null, slot }));
+    }
+    const st=squad.filter(x=>x.slot.r==='starter'&&x.p).map(x=>Number(x.p.overall)||0);
+    const ovr=st.length?Math.round(st.reduce((a,b)=>a+b,0)/st.length):0;
+    const setT=(sel,val)=>{ const e=body.querySelector(sel); if(e) e.textContent=val; };
+    const badge=body.parentElement.querySelector('[data-ntovr]'); if(badge) badge.textContent=ovr||'–';
+    setT('[data-natcount]', (pr.count!=null?pr.count:nats.length));
+    setT('[data-kadrovr]', ovr||'–');
+    setT('[data-src]', squadRow?'Özel (kaydedilmiş)':'Varsayılan (en iyi)');
     const sq=body.querySelector('[data-squad]'); if(!sq) return;
-    const top=rows.slice(0,11);
-    sq.innerHTML = top.length ? top.map(p=>{ const pos=p.sub_pos||p.pos||p.pos_group||''; return `<div class="nt-pl"><span class="ov">${(p.overall!=null)?p.overall:'–'}</span><span class="nm">${uEsc(p.name||'(isimsiz)')}</span><span class="ps">${uEsc(pos)}</span></div>`; }).join('') : '<div class="u-empty">Bu ülkede milli oyuncu bulunamadı.</div>';
+    sq.innerHTML = squad.map(x=>{ const p=x.p; const num=(x.slot.n!=null)?x.slot.n:''; const role=(x.slot.r==='sub')?'Yedek':'İlk 11';
+      if(!p) return `<div class="nt-pl empty"><span class="num">#${num}</span><span class="nm" style="color:#5c6470">— boş (${x.slot.p||''}) —</span><span class="ps">${role}</span></div>`;
+      const pos=p.sub_pos||p.pos||p.pos_group||'';
+      return `<div class="nt-pl"><span class="num">#${num}</span><span class="ov">${(p.overall!=null)?p.overall:'–'}</span><span class="nm">${uEsc(p.name||'(isimsiz)')}</span><span class="ps">${uEsc(pos)} · ${role}</span></div>`;
+    }).join('');
   }catch(e){ const sq=body.querySelector('[data-squad]'); if(sq) sq.innerHTML='<div class="u-empty">Kadro yüklenemedi.</div>'; }
 }
 function ntAction(act,i){
