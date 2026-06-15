@@ -1429,8 +1429,10 @@ async function loadFeds(){
     const fedByCc={}; (fs.rows||[]).forEach(fr=>{ const cc=String(fr.country_code||'').toUpperCase(); if(cc) fedByCc[cc]=fr; });
     FDATA.teamsByCc={};
     (tm.rows||[]).forEach(t=>{ const cc=String(t.country_code||'').toUpperCase(); if(!cc) return; (FDATA.teamsByCc[cc]=FDATA.teamsByCc[cc]||[]).push(t.name||t.team_name||''); });
-    const ccs=new Set([...Object.keys(FDATA.teamsByCc), ...Object.keys(fedByCc)]);
-    FDATA.all=[...ccs].map(cc=>{ const teams=FDATA.teamsByCc[cc]||[]; return { cc, name:CC_NAME[cc]||cc, flag:ccFlag(cc), memberCount:teams.length, fed:fedByCc[cc]||null }; }).sort((x,y)=>x.name.localeCompare(y.name,'tr'));
+    FDATA.membersByCc={};
+    (pf.rows||[]).forEach(p=>{ const cc=String(p.nationality||p.country_code||'').toUpperCase(); if(!cc) return; (FDATA.membersByCc[cc]=FDATA.membersByCc[cc]||[]).push(p.display_name||p.username||p.name||'(isimsiz)'); });
+    const ccs=new Set([...Object.keys(FDATA.teamsByCc), ...Object.keys(fedByCc), ...Object.keys(FDATA.membersByCc)]);
+    FDATA.all=[...ccs].map(cc=>{ const mem=FDATA.membersByCc[cc]||[]; return { cc, name:CC_NAME[cc]||cc, flag:ccFlag(cc), memberCount:mem.length, members:mem, fed:fedByCc[cc]||null }; }).sort((x,y)=>x.name.localeCompare(y.name,'tr'));
     FApplyFilter(); renderFeds();
   }catch(e){ $('main').innerHTML='<div class="msg err">'+uEsc(e.message)+'</div>'; }
 }
@@ -1448,8 +1450,8 @@ function fedCardsHTML(){
     const candRows = cands.length ? cands.map(c=>{ const nm=nWho(FDATA.who,c); const v=Number(votes[c]||(c&&c.id?votes[c.id]:0))||0; return {nm,v}; }).sort((x,y)=>y.v-x.v) : [];
     const candHtml = candRows.length ? '<div class="nt-sq">'+candRows.map(c=>`<div class="nt-pl"><span class="ov" style="color:var(--gold)">${c.v}</span><span class="nm">${uEsc(c.nm)}</span><span class="ps">oy</span></div>`).join('')+'</div>' : '<div class="u-empty">Aday/seçim yok.</div>';
     // üyeler (kulüpler)
-    const mem=(FDATA.teamsByCc[r.cc]||[]).filter(Boolean).slice(0,30);
-    const memHtml=mem.length?('<div class="chips" style="padding:0 12px 8px">'+mem.map(n=>'<span class="u-rolebadge" style="background:rgba(255,255,255,.05);color:var(--dim);padding:3px 8px;border-radius:14px">'+uEsc(n)+'</span>').join(' ')+(r.memberCount>mem.length?(' <span style="font-size:11px;color:#5c6470">+'+(r.memberCount-mem.length)+'</span>'):'')+'</div>'):'<div class="u-empty">Üye (kulüp) yok.</div>';
+    const mem=(r.members||[]).filter(Boolean).slice(0,40);
+    const memHtml=mem.length?('<div class="chips" style="padding:0 12px 8px">'+mem.map(n=>'<span class="u-rolebadge" style="background:rgba(255,255,255,.05);color:var(--dim);padding:3px 8px;border-radius:14px">'+uEsc(n)+'</span>').join(' ')+(r.memberCount>mem.length?(' <span style="font-size:11px;color:#5c6470">+'+(r.memberCount-mem.length)+'</span>'):'')+'</div>'):'<div class="u-empty">Gerçek üye (kayıtlı kullanıcı) yok.</div>';
     return `
     <div class="u-card">
       <div class="u-head">
@@ -1466,7 +1468,7 @@ function fedCardsHTML(){
         <div class="u-fields">
           <div class="u-f"><div class="l">Ülke</div><div class="v">${r.flag} ${uEsc(r.name)} (${uEsc(r.cc)})</div></div>
           <div class="u-f"><div class="l">Başkan / T.D.</div><div class="v">${uEsc(pres)}</div></div>
-          <div class="u-f"><div class="l">Üye (kulüp)</div><div class="v">${r.memberCount}</div></div>
+          <div class="u-f"><div class="l">Gerçek Üye (kullanıcı)</div><div class="v">${r.memberCount}</div></div>
           <div class="u-f"><div class="l">Seçim Fazı</div><div class="v">${uEsc(phase)}</div></div>
           <div class="u-f"><div class="l">Aday Sayısı</div><div class="v">${candRows.length}</div></div>
           <div class="u-f"><div class="l">Toplam Oy</div><div class="v">${totalVotes}</div></div>
@@ -1477,10 +1479,10 @@ function fedCardsHTML(){
         ${candHtml}
         <div class="u-secl"><span class="dot"></span>Son Oy Olayları</div>
         <div class="nt-sq" data-events><div class="u-empty">yükleniyor…</div></div>
-        <div class="u-secl"><span class="dot"></span>Üyeler (${r.memberCount})</div>
+        <div class="u-secl"><span class="dot"></span>Gerçek Üyeler · kayıtlı kullanıcılar (${r.memberCount})</div>
         ${memHtml}
         <div class="u-acts">
-          ${fed?`<button class="u-act player" data-act="edit" data-i="${i}">Federasyonu Düzenle</button>`:`<button class="u-act" data-act="edit" data-i="${i}" style="opacity:.55">Federasyon kaydı yok</button>`}
+          <button class="u-act edit" data-act="edit" data-i="${i}">Başkan / Yardımcı / Seçim Düzenle</button>
           <button class="u-act wallet" data-act="votes" data-i="${i}">Tüm Oylar</button>
         </div>
       </div>
@@ -1522,7 +1524,7 @@ function fedPaint(){
 }
 function fedAction(act,i){
   const r=FDATA.rows[i]; if(!r) return;
-  if(act==='edit'){ if(!r.fed){ alert(r.name+' için federation_state kaydı yok.'); return; } openEditor('edit', r.fed, 'federation_state', loadFeds); return; }
+  if(act==='edit'){ if(r.fed) openEditor('edit', r.fed, 'federation_state', loadFeds); else openEditor('add', { country_code:r.cc }, 'federation_state', loadFeds); return; }
   if(act==='votes'){ openTableFiltered('federation_votes','country_code', r.cc||'', openFeds); return; }
 }
 
