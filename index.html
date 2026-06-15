@@ -24728,7 +24728,6 @@ body.drawer-open{overflow:hidden}
   <!-- RANKINGS PAGE -->
   <!-- TAKVİM SAYFASI — Sezon 40 günlük takvim -->
   <div class="page" id="page-calendar">
-    <button class="hm-back-btn" onclick="goBackPage()" title="Geri" aria-label="Geri"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 5 8 12 15 19"/></svg></button>
       <button class="cal-close-btn" onclick="showPage('home', findNavBtn ? findNavBtn('home') : null)" title="Ana sayfaya dön" aria-label="Kapat">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <line x1="6" y1="6" x2="18" y2="18"/>
@@ -25953,7 +25952,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-14-takvim-btn-124';
+const APP_BUILD = '2026-06-14-ekipman-ziyaretci-126';
 
 (function _cacheBustCheck() {
   try {
@@ -41277,7 +41276,7 @@ function doLogoutConfirmed(){
     localStorage.removeItem('cft_auth');
     // 🆕 RAM cache'leri sıfırla (Supabase'ten yeniden yüklenecek)
     try { _wlCache = null; _energyCache = null; _trsCache = null; _inboxCache = null; } catch(e){}
-    try { _userMatchLogCache = null; _userXpLogCache = null; _eqDataCache = null; } catch(e){}
+    try { _userMatchLogCache = null; _userXpLogCache = null; _eqDataCache = null; _eqDataLoaded = false; } catch(e){}
     try { _marketValCache = null; _marketValHistCache = null; _joinRequestsCache = null; } catch(e){}
     try { _careerHistoryCache = null; _achStateCache = { stats:{}, claimed:[], players:{} }; _coachProfileCache = null; } catch(e){}
     try { _skillsCache = null; _activeCache = null; } catch(e){}
@@ -45557,6 +45556,7 @@ async function playerViewProfile(playerJson) {
 
   // Ziyaretçi modu state'i kaydet
   _visitedPlayerData = { player, ctx };
+  try { _loadVisitorEq(player); } catch(e){}
   closePlayerModal();
 
   // Player sayfasına git (renderPlayerPage ziyaretçi modunu algılar)
@@ -45571,6 +45571,7 @@ async function playerViewProfile(playerJson) {
 
 // Ziyaretçi modundan çıkış — return action'a göre geri dön
 function exitVisitorMode() {
+  try { _visitorEqCache = null; } catch(e){}
   const action = _visitedReturnAction;
   // State'leri temizle (showPage/viewTeam çağrılırken yeni state set edilebilir)
   _visitedPlayerData = null;
@@ -61353,12 +61354,37 @@ function saveEqData(data, immediate) {
   }
 }
 
+// 🆕 Ziyaretçi modu: bakılan oyuncunun ekipmanı (salt-okunur)
+let _visitorEqCache = null;
+function _eqIsVisitor(){ return !!(typeof _visitedPlayerData !== 'undefined' && _visitedPlayerData && _visitedPlayerData.player); }
+async function _loadVisitorEq(player) {
+  try {
+    const uid = player && (player.userId || player.user_id || player.uid);
+    if (!uid || !window.sb) { _visitorEqCache = null; }
+    else {
+      const { data } = await window.sb.from('user_player').select('equipment').eq('user_id', uid).maybeSingle();
+      _visitorEqCache = (data && data.equipment && Object.keys(data.equipment).length > 0) ? data.equipment : null;
+    }
+  } catch(e) { _visitorEqCache = null; }
+  try { const tab=document.getElementById('pl-equipment'); if (tab && tab.style.display!=='none' && typeof renderEquipment==='function') renderEquipment(); } catch(e){}
+}
+function _getVisitorEqData() {
+  const def = { unlockedSlots:[true,false,false,false,false], activeSlots:[null,null,null,null,null], wardrobe:[] };
+  if (!_visitorEqCache) return def;
+  const d = JSON.parse(JSON.stringify(_visitorEqCache));
+  if (Array.isArray(d.unlockedSlots) && d.unlockedSlots.length > 5) d.unlockedSlots = d.unlockedSlots.slice(0,5);
+  if (Array.isArray(d.activeSlots) && d.activeSlots.length > 5) d.activeSlots = d.activeSlots.slice(0,5);
+  while ((d.unlockedSlots||[]).length < 5) (d.unlockedSlots = d.unlockedSlots||[]).push(false);
+  while ((d.activeSlots||[]).length < 5) (d.activeSlots = d.activeSlots||[]).push(null);
+  if (!Array.isArray(d.wardrobe)) d.wardrobe = [];
+  return d;
+}
 let _eqData      = null;
 let _slotToOpen  = null;
 let _slotToPlace = null;
 
 function renderEquipment() {
-  _eqData = getEqData();
+  _eqData = _eqIsVisitor() ? _getVisitorEqData() : getEqData();
   // 🆕 Bilgilendirme bandı — başlık dolap durumuna göre değişir; her zaman görünür
   const bannerTitle = document.getElementById('eqEmptyBannerTitle');
   if (bannerTitle) {
@@ -61896,6 +61922,7 @@ function _eqBlockTouchMove(e) {
 }
 
 function eqInitAllDrag() {
+  if (_eqIsVisitor()) return; // 🆕 ziyaretçi: düzenleme/sürükleme yok
   // Tüm draggable elementlere event ekle
   document.querySelectorAll('#pl-equipment [data-eq-drag]').forEach(el => {
     if (el._eqDragSetup) return; // tekrar bağlama
@@ -61909,6 +61936,7 @@ function eqInitAllDrag() {
 }
 
 function _eqOnPointerDown(e) {
+  if (_eqIsVisitor()) return; // 🆕 ziyaretçi: sürükleme yok
   // Sadece sol click veya touch
   if (e.pointerType === 'mouse' && e.button !== 0) return;
   const sourceEl = e.currentTarget;
@@ -62063,6 +62091,7 @@ function _eqOnPointerDown(e) {
 
 // Drop işlemi — kaynak ve hedefe göre eyleme dök
 function eqDropHandler(payload, dest) {
+  if (_eqIsVisitor()) return; // 🆕 ziyaretçi: değişiklik yok
   // payload = { source: 'slot'|'wardrobe', itemId, slotIdx }
   // dest    = { type: 'slot'|'wardrobe', idx }
   const item = _eqData.wardrobe.find(w => w.id === payload.itemId);
