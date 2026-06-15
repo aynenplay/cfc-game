@@ -269,6 +269,17 @@
   .u-act.wallet{ border-color:var(--goldln); color:var(--gold); }
   .u-act.del{ border-color:rgba(226,59,90,.45); color:var(--red); }
   .u-act:hover{ filter:brightness(1.12); }
+  /* Takımlar / Milli Takımlar ek */
+  .t-logo{ width:46px; height:46px; border-radius:12px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-family:var(--disp); font-weight:900; font-size:16px; position:relative; box-shadow:0 2px 8px rgba(0,0,0,.4); }
+  .t-logo .flag{ position:absolute; bottom:-3px; right:-3px; font-size:14px; background:var(--panel); border-radius:50%; width:19px; height:19px; display:flex; align-items:center; justify-content:center; }
+  .n-flag{ width:46px; height:46px; border-radius:12px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:30px; background:linear-gradient(145deg,#222732,#13161c); border:1px solid var(--line); }
+  .t-pill{ display:inline-flex; align-items:center; gap:4px; }
+  .t-pill i{ width:7px; height:7px; border-radius:50%; }
+  .t-stat{ display:grid; grid-template-columns:repeat(6,1fr); margin:0 12px 8px; border:1px solid var(--line); border-radius:11px; overflow:hidden; background:rgba(0,0,0,.22); }
+  .t-st{ text-align:center; padding:7px 1px; border-right:1px solid rgba(255,255,255,.05); }
+  .t-st:last-child{ border-right:0; }
+  .t-st .n{ font-family:var(--disp); font-size:15px; font-weight:900; }
+  .t-st .l{ font-size:7.5px; font-weight:700; color:#5c6470; text-transform:uppercase; letter-spacing:.2px; margin-top:1px; }
 </style>
 </head>
 <body>
@@ -372,6 +383,7 @@ const colLabel   = (n) => COL_TR[n]  || prettify(n);
 let TOKEN=null, META=null, CUR=null;
 let STATE={ offset:0, limit:50, search:'', searchCol:'' };
 let EDIT=null;
+let GRID_BACK=null;
 const $ = (id) => document.getElementById(id);
 
 // API
@@ -422,7 +434,7 @@ function openDash(){
   $('main').innerHTML = `<div class="titlebox fadein"><h2>Özet</h2><span class="cnt">CSC Admin · genel bakış</span></div>
     <div class="cardgrid fadein">${DASH.map(d=>`<div class="card" data-t="${d.t}"><div class="num" id="num-${d.t}">…</div><div class="lbl">${d.label}</div></div>`).join('')}</div>
     <div id="fbArea"></div>`;
-  $('main').querySelectorAll('.card').forEach(b=>b.onclick=()=>b.dataset.t==='profiles'?openUsers():openTable(b.dataset.t));
+  $('main').querySelectorAll('.card').forEach(b=>b.onclick=()=>{ const t=b.dataset.t; if(t==='profiles') openUsers(); else if(t==='teams') openClubs(); else openTable(t); });
   DASH.forEach(async d=>{
     try{ const r=await api('list',{table:d.t,limit:1}); const el=$('num-'+d.t); if(el) el.textContent=(r.count||0).toLocaleString('tr'); }
     catch(e){ const el=$('num-'+d.t); if(el) el.textContent='—'; }
@@ -510,10 +522,10 @@ async function fbDelete(id){
 const NAV = [
   { cat:'KULLANICILAR',   tables:['__users__','feedback'] },
   { cat:'OYUNCULAR',      tables:['players'] },
-  { cat:'TAKIMLAR',       tables:['teams','team_data','team_chat'] },
+  { cat:'TAKIMLAR',       tables:['__clubs__'] },
   { cat:'LİGLER',         tables:[] },
   { cat:'TURNUVALAR',     tables:['tournament_state'] },
-  { cat:'MİLLİ TAKIMLAR', tables:[] },
+  { cat:'MİLLİ TAKIMLAR', tables:['__nts__'] },
   { cat:'SONUÇLAR',       tables:['match_results','match_state','match_viewers'] },
   { cat:'FİKSTÜR',        tables:[] },
   { cat:'TAKVİM',         tables:[] },
@@ -527,30 +539,31 @@ const NAV = [
   { cat:'İNBOX',          tables:['user_inbox'] },
   { cat:'AYARLAR',        tables:['match_writes'] }
 ];
+const VIRT = { '__users__':'Kullanıcılar', '__clubs__':'Takımlar', '__nts__':'Milli Takımlar' };
 const CHEV = '<svg class="chev" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg>';
 
 function buildNav() {
   const mapped = new Set();
   NAV.forEach(c => c.tables.forEach(t => mapped.add(t)));
-  ['profiles','user_player','user_wallet'].forEach(t => mapped.add(t)); // tek Kullanıcılar sayfası
+  ['profiles','user_player','user_wallet','teams','team_data','team_chat'].forEach(t => mapped.add(t)); // konsolide sayfalar
   const cats = NAV.slice();
   const others = Object.keys(META).filter(t => !mapped.has(t)).sort();
   if (others.length) cats.push({ cat:'DİĞER', tables:others });
 
   $('nav').innerHTML = cats.map(c => {
-    const tabs = c.tables.filter(t => t==='__users__' || META[t]);
+    const tabs = c.tables.filter(t => VIRT[t] || META[t]);
     const subs = tabs.length
-      ? tabs.map(t => `<button class="sub" data-t="${t}">${t==='__users__'?'Kullanıcılar':tableLabel(t)}</button>`).join('')
+      ? tabs.map(t => `<button class="sub" data-t="${t}">${VIRT[t]||tableLabel(t)}</button>`).join('')
       : '<div class="soon">Yakında</div>';
     return `<div class="cat"><button class="cathead"><span>${c.cat}</span>${CHEV}</button><div class="subwrap">${subs}</div></div>`;
   }).join('');
 
   $('nav').querySelectorAll('.cathead').forEach(h => h.onclick = () => h.parentElement.classList.toggle('open'));
-  $('nav').querySelectorAll('.sub').forEach(b => b.onclick = () => b.dataset.t==='__users__' ? openUsers() : openTable(b.dataset.t));
+  $('nav').querySelectorAll('.sub').forEach(b => b.onclick = () => { const t=b.dataset.t; if(t==='__users__') openUsers(); else if(t==='__clubs__') openClubs(); else if(t==='__nts__') openNTs(); else openTable(t); });
 }
 
 async function openTable(t) {
-  CUR=t; STATE={ offset:0, limit:50, search:'', searchCol:'' };
+  CUR=t; STATE={ offset:0, limit:50, search:'', searchCol:'' }; GRID_BACK=null;
   $('dashBtn').classList.remove('active');
   $('nav').querySelectorAll('.sub').forEach(b => b.classList.toggle('active', b.dataset.t===t));
   const act = $('nav').querySelector('.sub.active');
@@ -611,7 +624,7 @@ function renderGrid(rows, count) {
   $('sbtn').onclick = () => { STATE.search=$('sval').value.trim(); STATE.searchCol=$('scol').value; STATE.offset=0; loadRows(); };
   $('sval').addEventListener('keydown', e => { if (e.key==='Enter') $('sbtn').click(); });
   $('addBtn').onclick = () => openEditor('add', {});
-  const bk=$('backBtn'); if(bk) bk.onclick = openDash;
+  const bk=$('backBtn'); if(bk) bk.onclick = GRID_BACK || openDash;
   const prev=$('prev'), next=$('next');
   if (prev) prev.onclick = () => { STATE.offset=Math.max(0,STATE.offset-STATE.limit); loadRows(); };
   if (next) next.onclick = () => { STATE.offset+=STATE.limit; loadRows(); };
@@ -832,6 +845,257 @@ async function uDelUser(p){
   if(!confirm('"'+nm+'" kullanıcısının profilini silmek istediğine emin misin? Geri alınamaz.')) return;
   try{ await api('delete',{ table:'profiles', pk:pkObj(p,'profiles') }); loadUsers(); }
   catch(e){ alert('Silinemedi: '+e.message); }
+}
+
+// ===== TAKIMLAR — kulüpler (teams + team_data + team_chat) =====
+const TIERC={ '1':'#00e676','2':'#42a5f5','3':'#ab47bc','4':'#ffa726','5':'#ef5350','6':'#8d6e63' };
+let CSTATE={ offset:0, limit:30, search:'', searchCol:'' };
+let CDATA={ rows:[], count:0, mgr:{} };
+function cTextCols(){
+  const cols=((META.teams&&META.teams.columns)||[]).filter(c=>['text','character varying','uuid'].includes(c.type)).map(c=>c.name);
+  const pref=['name','team_name','city','country','country_code'].filter(c=>cols.includes(c));
+  return pref.length?pref:(cols.length?cols:['name']);
+}
+async function openClubs(){
+  CUR='__clubs__'; CSTATE={ offset:0, limit:30, search:'', searchCol:'' }; GRID_BACK=null;
+  $('dashBtn').classList.remove('active');
+  $('nav').querySelectorAll('.sub').forEach(b=>b.classList.toggle('active', b.dataset.t==='__clubs__'));
+  const act=$('nav').querySelector('.sub.active'); if(act) act.closest('.cat').classList.add('open');
+  document.body.classList.remove('navopen');
+  await loadClubs();
+}
+async function loadClubs(){
+  $('main').innerHTML='<div class="msg">Yükleniyor…</div>';
+  if(!CSTATE.searchCol) CSTATE.searchCol=cTextCols()[0];
+  try{
+    const [tm, pf] = await Promise.all([
+      api('list',{ table:'teams', limit:CSTATE.limit, offset:CSTATE.offset, search:CSTATE.search||undefined, searchCol:CSTATE.search?CSTATE.searchCol:undefined }),
+      api('list',{ table:'profiles', limit:2000 }).catch(()=>({rows:[]}))
+    ]);
+    CDATA.rows=tm.rows||[]; CDATA.count=tm.count||0;
+    CDATA.mgr={}; (pf.rows||[]).forEach(p=>{ const id=p.user_id||p.id; if(id!=null) CDATA.mgr[id]=p.display_name||p.username||p.name; });
+    renderClubs();
+  }catch(e){ $('main').innerHTML='<div class="msg err">'+uEsc(e.message)+'</div>'; }
+}
+function renderClubs(){
+  const tc=cTextCols();
+  const totalPages=Math.max(1,Math.ceil(CDATA.count/CSTATE.limit));
+  const curPage=Math.floor(CSTATE.offset/CSTATE.limit)+1;
+  const cn={ name:'Ad', team_name:'Ad', city:'Şehir', country:'Ülke', country_code:'Ülke Kodu' };
+  const head=`
+    <div class="titlebox fadein">
+      <button class="backbtn" id="cBack">‹ Geri</button>
+      <h2>Takımlar</h2>
+      <span class="cnt">${CDATA.count} kulüp</span>
+      <div class="sp"></div>
+      <select id="cScol">${tc.map(c=>`<option value="${c}" ${c===CSTATE.searchCol?'selected':''}>${cn[c]||colLabel(c)}</option>`).join('')}</select>
+      <input id="cSval" placeholder="ara…" value="${uEsc(CSTATE.search)}">
+      <button class="btn gold" id="cSbtn">Ara</button>
+    </div>`;
+  const sv=v=>v!=null?v:'–';
+  const cards=CDATA.rows.map((t,i)=>{
+    const name=t.name||t.team_name||'(isimsiz)';
+    const flag=t.country_flag||'';
+    const bg=t.bg||t.color||'#2a2f3a';
+    const init=(String(name).replace(/[^A-Za-zÇĞİÖŞÜçğıöşü ]/g,'').split(/\s+/).map(w=>w[0]).join('').slice(0,3).toUpperCase())||'?';
+    const tier=t.tier!=null?String(t.tier):'';
+    const tname=t.tier_name||(tier?('Lig '+tier):'—');
+    const tcol=TIERC[tier]||'#8a93a3';
+    const ovr=t.team_ovr!=null?t.team_ovr:(t.ovr!=null?t.ovr:'–');
+    const rank=t.rank!=null?('#'+t.rank):'';
+    const pts=t.points!=null?t.points:(t.team_points!=null?t.team_points:'—');
+    const mgr=CDATA.mgr[t.user_id]||CDATA.mgr[t.owner]||'—';
+    const city=t.city||'';
+    const jp=t.join_policy||'—';
+    return `
+    <div class="u-card">
+      <div class="u-head">
+        <div class="t-logo" style="background:${uEsc(bg)};color:#fff">${uEsc(init)}${flag?`<span class="flag">${flag}</span>`:''}</div>
+        <div class="u-info">
+          <div class="u-name">${uEsc(name)}</div>
+          <div class="u-meta"><span class="t-pill"><i style="background:${tcol}"></i><b>${uEsc(tname)}</b></span>${city?`<span>${uEsc(city)}</span>`:''}</div>
+        </div>
+        <div class="u-ovr"><div class="n">${uEsc(ovr)}</div><div class="p">${uEsc(rank)}</div></div>
+        <div class="u-chev"><svg viewBox="0 0 24 24" width="15" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg></div>
+      </div>
+      <div class="u-body" data-name="${uEsc(name)}" data-loaded="0">
+        <div class="u-secl"><span class="dot"></span>Takım</div>
+        <div class="u-fields">
+          <div class="u-f"><div class="l">Lig</div><div class="v">${uEsc(tname)}</div></div>
+          <div class="u-f"><div class="l">Sıra · Puan</div><div class="v">${rank||'—'} · ${uEsc(pts)} p</div></div>
+          <div class="u-f"><div class="l">Takım OVR</div><div class="v">${uEsc(ovr)}</div></div>
+          <div class="u-f"><div class="l">Menajer</div><div class="v">${uEsc(mgr)}</div></div>
+          <div class="u-f"><div class="l">Şehir / Ülke</div><div class="v">${flag} ${uEsc(city||t.country||t.country_code||'—')}</div></div>
+          <div class="u-f"><div class="l">Katılım</div><div class="v">${uEsc(jp)}</div></div>
+        </div>
+        <div class="u-secl"><span class="dot"></span>Sezon</div>
+        <div class="t-stat">
+          <div class="t-st"><div class="n">${sv(t.played)}</div><div class="l">O</div></div>
+          <div class="t-st"><div class="n" style="color:var(--accent)">${sv(t.won)}</div><div class="l">G</div></div>
+          <div class="t-st"><div class="n" style="color:var(--gold)">${sv(t.draw)}</div><div class="l">B</div></div>
+          <div class="t-st"><div class="n" style="color:var(--red)">${sv(t.lost)}</div><div class="l">M</div></div>
+          <div class="t-st"><div class="n">${sv(t.gf)}</div><div class="l">AG</div></div>
+          <div class="t-st"><div class="n">${sv(t.ga)}</div><div class="l">YG</div></div>
+        </div>
+        <div class="u-secl b"><span class="dot"></span>Kadro & Sohbet</div>
+        <div class="u-wl">
+          <div class="u-wl-c" style="border-color:rgba(66,165,245,.3)"><span class="ic">👥</span><div class="tx"><div class="v" data-kadro>…</div><div class="l">Takım Verisi</div></div></div>
+          <div class="u-wl-c" style="border-color:rgba(255,213,79,.3)"><span class="ic">💬</span><div class="tx"><div class="v" data-chat>…</div><div class="l">Sohbet Mesajı</div></div></div>
+        </div>
+        <div class="u-acts">
+          <button class="u-act edit" data-act="edit" data-i="${i}">Takımı Düzenle</button>
+          <button class="u-act player" data-act="data" data-i="${i}">Kadro / Veri</button>
+          <button class="u-act wallet" data-act="chat" data-i="${i}">Sohbeti Aç</button>
+          <button class="u-act del" data-act="del" data-i="${i}">Takımı Sil</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  const page=`
+    <div class="page">
+      <button class="btn" id="cPrev" ${CSTATE.offset<=0?'disabled':''}>‹ Önceki</button>
+      <span class="cnt">${curPage} / ${totalPages}</span>
+      <button class="btn" id="cNext" ${curPage>=totalPages?'disabled':''}>Sonraki ›</button>
+    </div>`;
+  $('main').innerHTML = head + `<div class="u-list fadein">${cards||'<div class="msg">Kayıt yok.</div>'}</div>` + (CDATA.rows.length?page:'');
+  $('cBack').onclick=openDash;
+  $('cSbtn').onclick=()=>{ CSTATE.search=$('cSval').value.trim(); CSTATE.searchCol=$('cScol').value; CSTATE.offset=0; loadClubs(); };
+  $('cSval').addEventListener('keydown',e=>{ if(e.key==='Enter') $('cSbtn').click(); });
+  const pv=$('cPrev'),nx=$('cNext');
+  if(pv) pv.onclick=()=>{ CSTATE.offset=Math.max(0,CSTATE.offset-CSTATE.limit); loadClubs(); };
+  if(nx) nx.onclick=()=>{ CSTATE.offset+=CSTATE.limit; loadClubs(); };
+  $('main').querySelectorAll('.u-head').forEach(h=>h.onclick=()=>{ const c=h.parentElement; c.classList.toggle('open'); if(c.classList.contains('open')) clubCounts(c.querySelector('.u-body')); });
+  $('main').querySelectorAll('.u-act').forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); clubAction(b.dataset.act,+b.dataset.i); });
+}
+async function clubCounts(body){
+  if(!body || body.dataset.loaded==='1') return; body.dataset.loaded='1';
+  const name=body.dataset.name;
+  try{
+    const [d,c]=await Promise.all([
+      api('list',{ table:'team_data', limit:1, search:name, searchCol:'team_name' }).catch(()=>({count:0})),
+      api('list',{ table:'team_chat', limit:1, search:name, searchCol:'team_name' }).catch(()=>({count:0}))
+    ]);
+    const ek=body.querySelector('[data-kadro]'), ch=body.querySelector('[data-chat]');
+    if(ek) ek.textContent=(d.count||0); if(ch) ch.textContent=(c.count||0);
+  }catch(e){}
+}
+function clubAction(act,i){
+  const t=CDATA.rows[i]; if(!t) return; const name=t.name||t.team_name;
+  if(act==='edit'){ openEditor('edit', t, 'teams', loadClubs); return; }
+  if(act==='data'){ openTableFiltered('team_data','team_name',name,openClubs); return; }
+  if(act==='chat'){ openTableFiltered('team_chat','team_name',name,openClubs); return; }
+  if(act==='del'){ clubDel(t); return; }
+}
+async function clubDel(t){
+  const name=t.name||t.team_name||'';
+  if(!confirm('"'+name+'" takımını silmek istediğine emin misin? Geri alınamaz.')) return;
+  try{ await api('delete',{ table:'teams', pk:pkObj(t,'teams') }); loadClubs(); }
+  catch(e){ alert('Silinemedi: '+e.message); }
+}
+async function openTableFiltered(t, col, val, back){
+  CUR=t; STATE={ offset:0, limit:50, search:val||'', searchCol:col }; GRID_BACK=back||null;
+  $('dashBtn').classList.remove('active');
+  $('nav').querySelectorAll('.sub').forEach(b=>b.classList.remove('active'));
+  document.body.classList.remove('navopen');
+  await loadRows();
+}
+
+// ===== MİLLİ TAKIMLAR — federation_state =====
+let NSTATE={ offset:0, limit:60, search:'', searchCol:'' };
+let NDATA={ rows:[], count:0, who:{} };
+const nWho=(who,v)=> v==null?'—':(who[v]||String(v));
+function nCount(x){ if(x==null) return 0; if(Array.isArray(x)) return x.length; if(typeof x==='object') return Object.keys(x).length; if(typeof x==='number') return x; return 0; }
+function nArr(x){ if(Array.isArray(x)) return x; if(x&&typeof x==='object') return Object.values(x); return []; }
+async function openNTs(){
+  CUR='__nts__'; NSTATE={ offset:0, limit:60, search:'', searchCol:'' }; GRID_BACK=null;
+  $('dashBtn').classList.remove('active');
+  $('nav').querySelectorAll('.sub').forEach(b=>b.classList.toggle('active', b.dataset.t==='__nts__'));
+  const act=$('nav').querySelector('.sub.active'); if(act) act.closest('.cat').classList.add('open');
+  document.body.classList.remove('navopen');
+  await loadNTs();
+}
+async function loadNTs(){
+  $('main').innerHTML='<div class="msg">Yükleniyor…</div>';
+  try{
+    const [fs, pf]=await Promise.all([
+      api('list',{ table:'federation_state', limit:NSTATE.limit, offset:NSTATE.offset, search:NSTATE.search||undefined, searchCol:NSTATE.search?'country_name':undefined }),
+      api('list',{ table:'profiles', limit:2000 }).catch(()=>({rows:[]}))
+    ]);
+    NDATA.rows=fs.rows||[]; NDATA.count=fs.count||0;
+    NDATA.who={}; (pf.rows||[]).forEach(p=>{ const id=p.user_id||p.id; if(id!=null) NDATA.who[id]=p.display_name||p.username||p.name; });
+    renderNTs();
+  }catch(e){ $('main').innerHTML='<div class="msg err">'+uEsc(e.message)+'</div>'; }
+}
+function renderNTs(){
+  const totalPages=Math.max(1,Math.ceil(NDATA.count/NSTATE.limit));
+  const curPage=Math.floor(NSTATE.offset/NSTATE.limit)+1;
+  const head=`
+    <div class="titlebox fadein">
+      <button class="backbtn" id="nBack">‹ Geri</button>
+      <h2>Milli Takımlar</h2>
+      <span class="cnt">${NDATA.count} federasyon</span>
+      <div class="sp"></div>
+      <input id="nSval" placeholder="ülke ara…" value="${uEsc(NSTATE.search)}">
+      <button class="btn gold" id="nSbtn">Ara</button>
+    </div>`;
+  const cards=NDATA.rows.map((f,i)=>{
+    const flag=f.country_flag||'🏳️';
+    const cc=f.country_code||'';
+    const name=f.country_name||cc||'(ülke)';
+    const pres=nWho(NDATA.who, f.captain);
+    const vices=nArr(f.vice).map(v=>nWho(NDATA.who,v)).filter(x=>x&&x!=='—');
+    const memberN=nCount(f.members); const voteN=nCount(f.votes);
+    const viceCells=[0,1].map(k=>{ const nm=vices[k];
+      return `<div class="u-wl-c" style="border-color:rgba(255,213,79,.3)"><span class="ic">🅰️</span><div class="tx"><div class="v">${nm?uEsc(nm):'—'}</div><div class="l">Yardımcı ${k+1}</div></div></div>`;
+    }).join('');
+    return `
+    <div class="u-card">
+      <div class="u-head">
+        <div class="n-flag">${flag}</div>
+        <div class="u-info">
+          <div class="u-name">${uEsc(name)}</div>
+          <div class="u-meta"><span>Başkan (T.D.): <b>${uEsc(pres)}</b></span></div>
+        </div>
+        <div class="u-ovr"><div class="n" style="color:var(--blue)">${memberN}</div><div class="p">ÜYE</div></div>
+        <div class="u-chev"><svg viewBox="0 0 24 24" width="15" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg></div>
+      </div>
+      <div class="u-body">
+        <div class="u-secl b"><span class="dot"></span>Federasyon</div>
+        <div class="u-fields">
+          <div class="u-f"><div class="l">Ülke Kodu</div><div class="v">${flag} ${uEsc(cc)}</div></div>
+          <div class="u-f"><div class="l">Başkan / T.D.</div><div class="v">${uEsc(pres)}</div></div>
+          <div class="u-f"><div class="l">Üye Sayısı</div><div class="v">${memberN}</div></div>
+          <div class="u-f"><div class="l">Oy Sayısı</div><div class="v">${voteN}</div></div>
+        </div>
+        <div class="u-secl g"><span class="dot"></span>Yardımcılar (Kaptan Yetkisi)</div>
+        <div class="u-wl">${viceCells}</div>
+        <div class="u-acts">
+          <button class="u-act player" data-act="edit" data-i="${i}">Federasyonu Düzenle</button>
+          <button class="u-act wallet" data-act="votes" data-i="${i}">Oylar (${voteN})</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  const page=`
+    <div class="page">
+      <button class="btn" id="nPrev" ${NSTATE.offset<=0?'disabled':''}>‹ Önceki</button>
+      <span class="cnt">${curPage} / ${totalPages}</span>
+      <button class="btn" id="nNext" ${curPage>=totalPages?'disabled':''}>Sonraki ›</button>
+    </div>`;
+  $('main').innerHTML = head + `<div class="u-list fadein">${cards||'<div class="msg">Kayıt yok.</div>'}</div>` + (NDATA.rows.length?page:'');
+  $('nBack').onclick=openDash;
+  $('nSbtn').onclick=()=>{ NSTATE.search=$('nSval').value.trim(); NSTATE.offset=0; loadNTs(); };
+  $('nSval').addEventListener('keydown',e=>{ if(e.key==='Enter') $('nSbtn').click(); });
+  const pv=$('nPrev'),nx=$('nNext');
+  if(pv) pv.onclick=()=>{ NSTATE.offset=Math.max(0,NSTATE.offset-NSTATE.limit); loadNTs(); };
+  if(nx) nx.onclick=()=>{ NSTATE.offset+=NSTATE.limit; loadNTs(); };
+  $('main').querySelectorAll('.u-head').forEach(h=>h.onclick=()=>h.parentElement.classList.toggle('open'));
+  $('main').querySelectorAll('.u-act').forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); ntAction(b.dataset.act,+b.dataset.i); });
+}
+function ntAction(act,i){
+  const f=NDATA.rows[i]; if(!f) return;
+  if(act==='edit'){ openEditor('edit', f, 'federation_state', loadNTs); return; }
+  if(act==='votes'){ openTableFiltered('federation_votes','country_code', f.country_code||'', openNTs); return; }
 }
 
 // Bağlamalar
