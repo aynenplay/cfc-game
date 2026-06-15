@@ -280,6 +280,11 @@
   .t-st:last-child{ border-right:0; }
   .t-st .n{ font-family:var(--disp); font-size:15px; font-weight:900; }
   .t-st .l{ font-size:7.5px; font-weight:700; color:#5c6470; text-transform:uppercase; letter-spacing:.2px; margin-top:1px; }
+  .nt-sq{ display:flex; flex-direction:column; gap:5px; margin:0 12px 8px; }
+  .nt-pl{ display:flex; align-items:center; gap:9px; background:rgba(0,0,0,.22); border:1px solid var(--line); border-radius:8px; padding:6px 9px; }
+  .nt-pl .ov{ font-family:var(--disp); font-weight:900; font-size:14px; color:var(--blue); min-width:26px; text-align:center; }
+  .nt-pl .nm{ flex:1; min-width:0; font-size:12.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .nt-pl .ps{ font-size:9px; font-weight:800; color:#5c6470; letter-spacing:.3px; }
   .u-wl3{ grid-template-columns:repeat(3,1fr); }
   .u-wl3 .u-wl-c{ padding:8px 7px; gap:7px; }
   .u-wl3 .u-wl-c .ic{ font-size:16px; }
@@ -1258,50 +1263,39 @@ function NTApplyFilter(){
 async function loadNTs(){
   if(!$('nList')) $('main').innerHTML='<div class="msg">Yükleniyor…</div>';
   try{
-    const [tm, fs, pf]=await Promise.all([
-      api('list',{ table:'teams', limit:2000 }),
-      api('list',{ table:'federation_state', limit:2000 }).catch(()=>({rows:[]})),
-      api('list',{ table:'profiles', limit:2000 }).catch(()=>({rows:[]}))
-    ]);
-    NDATA.who={}; (pf.rows||[]).forEach(p=>{ const id=p.user_id||p.id; if(id!=null) NDATA.who[id]=p.display_name||p.username||p.name; });
-    const fedByCc={}; (fs.rows||[]).forEach(fr=>{ if(fr.country_code) fedByCc[String(fr.country_code).toUpperCase()]=fr; });
+    const tm=await api('list',{ table:'teams', limit:2000 });
     const map={};
     (tm.rows||[]).forEach(t=>{ const cc=String(t.country_code||'').toUpperCase(); if(!cc) return; if(!map[cc]) map[cc]={ teamCount:0, ovrSum:0 }; map[cc].teamCount++; map[cc].ovrSum+=(Number(t.team_ovr!=null?t.team_ovr:t.ovr)||0); });
-    NDATA.all=Object.keys(map).map(cc=>{ const m=map[cc]; return { cc, name:CC_NAME[cc]||cc, flag:ccFlag(cc), teamCount:m.teamCount, ovrAvg:m.teamCount?Math.round(m.ovrSum/m.teamCount):0, fed:fedByCc[cc]||null }; }).sort((x,y)=>x.name.localeCompare(y.name,'tr'));
+    NDATA.all=Object.keys(map).map(cc=>{ const m=map[cc]; return { cc, name:CC_NAME[cc]||cc, flag:ccFlag(cc), teamCount:m.teamCount, ovrAvg:m.teamCount?Math.round(m.ovrSum/m.teamCount):0 }; }).sort((x,y)=>x.name.localeCompare(y.name,'tr'));
     NTApplyFilter(); renderNTs();
   }catch(e){ $('main').innerHTML='<div class="msg err">'+uEsc(e.message)+'</div>'; }
 }
 function ntCardsHTML(){
   return NDATA.rows.map((r,i)=>{
-    const fed=r.fed; const pres=fed?nWho(NDATA.who, fed.captain):'—';
-    const memberN=fed?nCount(fed.members):0; const voteN=fed?nCount(fed.votes):0;
-    const vices=fed?nArr(fed.vice).map(v=>nWho(NDATA.who,v)).filter(x=>x&&x!=='—'):[];
-    const viceCells=[0,1].map(k=>{ const nm=vices[k]; return `<div class="u-wl-c" style="border-color:rgba(255,213,79,.3)"><span class="ic">🅰️</span><div class="tx"><div class="v">${nm?uEsc(nm):'—'}</div><div class="l">Yardımcı ${k+1}</div></div></div>`; }).join('');
     return `
     <div class="u-card">
       <div class="u-head">
         <div class="n-flag">${r.flag}</div>
         <div class="u-info">
           <div class="u-name">${uEsc(r.name)} <span class="u-rolebadge">Milli Takım</span></div>
-          <div class="u-meta"><span>Başkan (T.D.): <b>${uEsc(pres)}</b></span><span>${r.teamCount} kulüp</span></div>
+          <div class="u-meta"><span><b>${r.teamCount}</b> kulüp</span><span>Ort. kulüp OVR ${r.ovrAvg||'–'}</span></div>
         </div>
         <div class="u-ovr"><div class="n" style="color:var(--blue)">${r.ovrAvg||'–'}</div><div class="p">OVR</div></div>
         <div class="u-chev"><svg viewBox="0 0 24 24" width="15" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg></div>
       </div>
-      <div class="u-body">
-        <div class="u-secl b"><span class="dot"></span>Milli Takım</div>
+      <div class="u-body" data-cc="${uEsc(r.cc)}" data-loaded="0">
+        <div class="u-secl b"><span class="dot"></span>Takım Verisi</div>
         <div class="u-fields">
           <div class="u-f"><div class="l">Ülke</div><div class="v">${r.flag} ${uEsc(r.name)} (${uEsc(r.cc)})</div></div>
-          <div class="u-f"><div class="l">Başkan / T.D.</div><div class="v">${uEsc(pres)}</div></div>
           <div class="u-f"><div class="l">Kulüp Sayısı</div><div class="v">${r.teamCount}</div></div>
           <div class="u-f"><div class="l">Ort. Kulüp OVR</div><div class="v">${r.ovrAvg||'–'}</div></div>
-          <div class="u-f"><div class="l">Federasyon Üyesi</div><div class="v">${memberN}</div></div>
-          <div class="u-f"><div class="l">Oy</div><div class="v">${voteN}</div></div>
+          <div class="u-f"><div class="l">Milli Oyuncu</div><div class="v" data-natcount>…</div></div>
         </div>
-        ${fed?`<div class="u-secl g"><span class="dot"></span>Yardımcılar (Kaptan Yetkisi)</div><div class="u-wl">${viceCells}</div>`:'<div class="u-empty">Bu ülke için federasyon kaydı yok (başkan seçilmemiş).</div>'}
+        <div class="u-secl"><span class="dot"></span>En İyi 11 (milli oyuncular)</div>
+        <div class="nt-sq" data-squad><div class="u-empty">yükleniyor…</div></div>
         <div class="u-acts">
-          ${fed?`<button class="u-act player" data-act="edit" data-i="${i}">Federasyonu Düzenle</button>`:`<button class="u-act" data-act="edit" data-i="${i}" style="opacity:.55">Federasyon Yok</button>`}
-          <button class="u-act wallet" data-act="votes" data-i="${i}">Oylar (${voteN})</button>
+          <button class="u-act player" data-act="players" data-i="${i}">Milli Oyuncular</button>
+          <button class="u-act wallet" data-act="teamdata" data-i="${i}">Takım Verisi (team_data)</button>
         </div>
       </div>
     </div>`;
@@ -1327,14 +1321,27 @@ function ntPaint(){
   const list=$('nList'); if(!list) return;
   list.innerHTML = NDATA.rows.length?ntCardsHTML():'<div class="msg">Eşleşen ülke yok.</div>';
   const cnt=$('nCnt'); if(cnt) cnt.textContent=NDATA.count+' milli takım';
-  list.querySelectorAll('.u-head').forEach(h=>h.onclick=()=>h.parentElement.classList.toggle('open'));
+  list.querySelectorAll('.u-head').forEach(h=>h.onclick=()=>{ const c=h.parentElement; c.classList.toggle('open'); if(c.classList.contains('open')) ntSquad(c.querySelector('.u-body')); });
   list.querySelectorAll('.u-act').forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); ntAction(b.dataset.act,+b.dataset.i); });
+}
+async function ntSquad(body){
+  if(!body || body.dataset.loaded==='1') return; body.dataset.loaded='1';
+  const cc=body.dataset.cc;
+  try{
+    const r=await api('list',{ table:'players', limit:60, search:cc, searchCol:'nationality', orderBy:'overall', orderDir:'desc' });
+    const rows=(r.rows||[]).filter(p=>String(p.nationality||p.country_code||'').toUpperCase()===String(cc).toUpperCase());
+    const cnt=body.querySelector('[data-natcount]'); if(cnt) cnt.textContent=(r.count!=null?r.count:rows.length);
+    const sq=body.querySelector('[data-squad]'); if(!sq) return;
+    const top=rows.slice(0,11);
+    sq.innerHTML = top.length ? top.map(p=>{ const pos=p.sub_pos||p.pos||p.pos_group||''; return `<div class="nt-pl"><span class="ov">${(p.overall!=null)?p.overall:'–'}</span><span class="nm">${uEsc(p.name||'(isimsiz)')}</span><span class="ps">${uEsc(pos)}</span></div>`; }).join('') : '<div class="u-empty">Bu ülkede milli oyuncu bulunamadı.</div>';
+  }catch(e){ const sq=body.querySelector('[data-squad]'); if(sq) sq.innerHTML='<div class="u-empty">Kadro yüklenemedi.</div>'; }
 }
 function ntAction(act,i){
   const r=NDATA.rows[i]; if(!r) return;
-  if(act==='edit'){ if(!r.fed){ alert(r.name+' için federasyon kaydı yok (başkan seçilmemiş).'); return; } openEditor('edit', r.fed, 'federation_state', loadNTs); return; }
-  if(act==='votes'){ openTableFiltered('federation_votes','country_code', r.cc||'', openNTs); return; }
+  if(act==='players'){ openTableFiltered('players','nationality', r.cc||'', openNTs); return; }
+  if(act==='teamdata'){ openTableFiltered('team_data','country_code', r.cc||'', openNTs); return; }
 }
+
 
 
 // ===== Cüzdan & Enerji satır-içi düzenleme =====
