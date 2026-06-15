@@ -1163,16 +1163,16 @@ function renderClubs(){
           <div class="u-name">${uEsc(name)}</div>
           <div class="u-meta"><span class="t-pill"><i style="background:${tcol}"></i><b>${uEsc(tname)}</b></span>${city?`<span>${uEsc(city)}</span>`:''}</div>
         </div>
-        <div class="u-ovr"><div class="n">${uEsc(ovr)}</div><div class="p">${uEsc(rank)}</div></div>
+        <div class="u-ovr"><div class="n">${uEsc(ovr)}</div><div class="p" data-hrank>${uEsc(rank)}</div></div>
         <div class="u-chev"><svg viewBox="0 0 24 24" width="15" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg></div>
       </div>
-      <div class="u-body" data-name="${uEsc(name)}" data-loaded="0">
+      <div class="u-body" data-name="${uEsc(name)}" data-cc="${uEsc(t.country_code||'')}" data-tier="${t.tier!=null?t.tier:''}" data-loaded="0">
         <div class="u-secl"><span class="dot"></span>Takım</div>
         <div class="u-fields">
           <div class="u-f"><div class="l">Lig</div><div class="v">${uEsc(tname)}</div></div>
           <div class="u-f"><div class="l">Sıra · Puan</div><div class="v">${rank||'—'} · ${uEsc(pts)} p</div></div>
           <div class="u-f"><div class="l">Takım OVR</div><div class="v">${uEsc(ovr)}</div></div>
-          <div class="u-f"><div class="l">Menajer</div><div class="v">${uEsc(mgr)}</div></div>
+          <div class="u-f"><div class="l">Menajer (Kaptan)</div><div class="v" data-mgr>…</div></div>
           <div class="u-f"><div class="l">Şehir / Ülke</div><div class="v">${flag} ${uEsc(city||t.country||t.country_code||'—')}</div></div>
           <div class="u-f"><div class="l">Katılım</div><div class="v">${uEsc(jp)}</div></div>
         </div>
@@ -1229,21 +1229,26 @@ async function clubCounts(body){
   clubSeason(body, name);
 }
 async function clubSeason(body, name){
+  // Menajer (kaptan)
+  try{
+    const cap=await api('list',{ table:'players', limit:60, search:name, searchCol:'team_name' }).catch(()=>({rows:[]}));
+    const tm=(cap.rows||[]).filter(p=>String(p.team_name||'')===name);
+    let captain=tm.find(p=>String(p.role||'').toLowerCase()==='captain') || tm.find(p=>p.user_team_data&&typeof p.user_team_data==='object'&&p.user_team_data.role==='captain');
+    if(!captain) captain=tm.slice().sort((x,y)=>(Number(y.overall)||0)-(Number(x.overall)||0))[0];
+    const mgrEl=body.querySelector('[data-mgr]'); if(mgrEl) mgrEl.textContent = captain?((captain.name||'—')+(captain.user_id?' · kullanıcı':'')):'—';
+  }catch(e){ const mgrEl=body.querySelector('[data-mgr]'); if(mgrEl) mgrEl.textContent='—'; }
+  // Sezon galibiyet/averaj — yalnız takımın kendi maçları (hafif)
   try{
     const [hm,am]=await Promise.all([
-      api('list',{ table:'match_state', limit:400, search:name, searchCol:'home_team' }).catch(()=>({rows:[]})),
-      api('list',{ table:'match_state', limit:400, search:name, searchCol:'away_team' }).catch(()=>({rows:[]}))
+      api('list',{ table:'match_state', limit:200, search:name, searchCol:'home_team' }).catch(()=>({rows:[]})),
+      api('list',{ table:'match_state', limit:200, search:name, searchCol:'away_team' }).catch(()=>({rows:[]}))
     ]);
     const fin=[...(hm.rows||[]),...(am.rows||[])].filter(m=>m.status==='finished' && !m.tournament_key && (m.home_team===name||m.away_team===name));
     let season=null; fin.forEach(m=>{ const sn=Number(m.season)||0; if(season===null||sn>season) season=sn; });
     const st={o:0,g:0,b:0,m:0,ag:0,yg:0};
-    fin.filter(m=>Number(m.season)===season).forEach(m=>{
-      const home=m.home_team===name; const hs=Number(m.home_score)||0, as_=Number(m.away_score)||0;
-      const gf=home?hs:as_, ga=home?as_:hs; st.o++; st.ag+=gf; st.yg+=ga;
-      if(gf>ga) st.g++; else if(gf<ga) st.m++; else st.b++;
-    });
+    fin.filter(m=>Number(m.season)===season).forEach(m=>{ const home=m.home_team===name; const hs=Number(m.home_score)||0,as_=Number(m.away_score)||0; const gf=home?hs:as_,ga=home?as_:hs; st.o++;st.ag+=gf;st.yg+=ga; if(gf>ga)st.g++; else if(gf<ga)st.m++; else st.b++; });
     const setn=(sel,v)=>{ const e=body.querySelector(sel); if(e) e.textContent=v; };
-    setn('[data-st-o]',st.o); setn('[data-st-g]',st.g); setn('[data-st-b]',st.b); setn('[data-st-m]',st.m); setn('[data-st-ag]',st.ag); setn('[data-st-yg]',st.yg);
+    setn('[data-st-o]',st.o);setn('[data-st-g]',st.g);setn('[data-st-b]',st.b);setn('[data-st-m]',st.m);setn('[data-st-ag]',st.ag);setn('[data-st-yg]',st.yg);
   }catch(e){}
 }
 function clubAction(act,i){
