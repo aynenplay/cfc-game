@@ -24525,9 +24525,9 @@ body.drawer-open{overflow:hidden}
       </div>
       <div class="tf-filter-pills">
         <button class="tf-pill active" data-pos="all" onclick="tfFilter('all',this)">Tümü</button>
-        <button class="tf-pill" data-pos="GK"  onclick="tfFilter('GK',this)">KL</button>
-        <button class="tf-pill" data-pos="DEF" onclick="tfFilter('DEF',this)">DF</button>
-        <button class="tf-pill" data-pos="MID" onclick="tfFilter('MID',this)">OS</button>
+        <button class="tf-pill" data-pos="GK"  onclick="tfFilter('GK',this)">GK</button>
+        <button class="tf-pill" data-pos="DEF" onclick="tfFilter('DEF',this)">DEF</button>
+        <button class="tf-pill" data-pos="MID" onclick="tfFilter('MID',this)">MID</button>
         <button class="tf-pill" data-pos="FWD" onclick="tfFilter('FWD',this)">FW</button>
       </div>
     </div>
@@ -25952,7 +25952,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-15-isim-129';
+const APP_BUILD = '2026-06-15-transfer-130';
 
 (function _cacheBustCheck() {
   try {
@@ -67229,12 +67229,12 @@ function tfRender() {
     const overallColor = item.overall>=80?'#ffd600':item.overall>=70?'var(--accent)':'var(--accent2)';
 
     return `<div class="tf-card ${isMine?'my-listed':''}">
-      <div class="tf-card-top">
+      <div class="tf-card-top" onclick="tfOpenSaleCard('${item.id}')" style="cursor:pointer">
         <div class="tf-avatar">${item.avatar||'🤖'}</div>
         <div class="tf-player-info">
           <div class="tf-player-name">${item.playerId}${isMine?' 🏷️':''}</div>
           <div class="tf-player-meta">
-            <span class="tf-pos-badge ${_tfPosClass(item.pos)}">${_tfPosLabel(item.pos)}</span>
+            <span class="tf-pos-badge ${_tfPosClass(item.pos)}">${item.subPos||item.sub_pos||_tfPosLabel(item.pos)}</span>
             <span class="tf-ovr" style="color:${overallColor}">${item.overall}</span>
             <span class="tf-nation">${item.nation||''}</span>
           </div>
@@ -67308,6 +67308,7 @@ async function renderFreeAgentList(){
             avatar_id: p.avatar_id || null,
             pos: p.pos || 'MID',
             posGroup: p.pos_group || null,
+            subPos: p.sub_pos || null,
             overall: p.overall || 10,
             level: p.level || 0,
             nation: p.nation || '🏳️',
@@ -67344,6 +67345,7 @@ async function renderFreeAgentList(){
   const rosterFull  = rosterCount >= maxRoster;
 
   window._tfFreeAgentsCache = agents;
+  window._tfFaLast = agents;
   el.innerHTML = agents.map(a => {
     const ovColor = a.overall>=80?'#ffd600':a.overall>=70?'var(--accent)':a.overall>=60?'var(--accent2)':'#7a8099';
     const _faAv = (typeof getAvatarEmoji==='function') ? getAvatarEmoji(a.avatar_id, a.pos) : (a.avatar||(a.isBot?'🤖':'👤'));
@@ -67363,10 +67365,10 @@ async function renderFreeAgentList(){
 
     return `<div class="tf-fa-card">
       <div class="tf-fa-avatar">${_faAv}</div>
-      <div class="tf-fa-info">
+      <div class="tf-fa-info" onclick="tfOpenFaCard('${a.id}')" style="cursor:pointer">
         <div class="tf-fa-name">${a.playerId} ${userTag}${kickedFromTxt}</div>
         <div class="tf-fa-meta">
-          <span class="tf-fa-pos pos-${_tfPosClass(a.pos)}">${_tfPosLabel(a.pos)}</span>
+          <span class="tf-fa-pos pos-${_tfPosClass(a.pos)}">${a.subPos||a.sub_pos||_tfPosLabel(a.pos)}</span>
           <span>${a.nation||'🏳️'}</span>
           <span>Sv.${a.level||0}</span>
         </div>
@@ -67502,7 +67504,7 @@ function _tfPosGroup(playerPos) {
   return 'MID'; // bilinmeyen → orta saha
 }
 // 🆕 Kısa Türkçe etiket: KL/DF/OS/FW
-const _TF_POS_LABEL_SHORT = { GK:'KL', DEF:'DF', MID:'OS', FWD:'FW' };
+const _TF_POS_LABEL_SHORT = { GK:'GK', DEF:'DEF', MID:'MID', FWD:'FW' };
 function _tfPosLabel(playerPos) {
   return _TF_POS_LABEL_SHORT[_tfPosGroup(playerPos)] || 'OS';
 }
@@ -67510,6 +67512,25 @@ function _tfPosClass(playerPos) {
   return _tfPosGroup(playerPos).toLowerCase(); // gk/def/mid/fwd
 }
 
+function tfOpenSaleCard(id){
+  try{
+    const list = (typeof getTfList==='function') ? (getTfList()||[]) : [];
+    const it = list.find(x=>x && String(x.id)===String(id)); if(!it) return;
+    const grp = (typeof _tfPosGroup==='function') ? _tfPosGroup(it.pos) : (it.pos||'MID');
+    const player = { name:it.playerId, pos:it.pos, posGroup:grp, subPos:it.subPos||it.sub_pos||null, overall:it.overall, avatar:it.avatar, nation:it.nation, id:(it._playerDbId||it.playerDbId||it.dbId||null) };
+    const ctx = { teamName:it.seller||'', teamLookupName:it.seller||'', countryCode:(it._countryCode||'') };
+    if(typeof openPlayerModal==='function') openPlayerModal(player, ctx);
+  }catch(e){ console.warn('tfOpenSaleCard', e); }
+}
+function tfOpenFaCard(id){
+  try{
+    const arr = window._tfFaLast || [];
+    const a = arr.find(x=>x && String(x.id)===String(id)); if(!a) return;
+    const player = { id:(a.dbId||a.id||null), name:a.playerId, pos:a.pos, posGroup:a.posGroup, subPos:a.subPos||a.sub_pos||null, overall:a.overall, level:a.level, nation:a.nation, nationality:a.nationality, avatar:a.avatar, avatar_id:a.avatar_id, isBot:a.isBot, userId:a.userId };
+    const ctx = { teamName:'Serbest', countryCode:'', forceFree:true };
+    if(typeof openPlayerModal==='function') openPlayerModal(player, ctx);
+  }catch(e){ console.warn('tfOpenFaCard', e); }
+}
 function tfFilter(pos, btn) {
   _tfFilter = pos;
   document.querySelectorAll('.tf-pill').forEach(b=>b.classList.remove('active'));
@@ -68046,6 +68067,7 @@ function executeSell(){
     id: 'tf_' + Date.now(),
     playerId: player.name || '—',
     pos: player.pos || 'MID',
+    subPos: player.subPos || player.sub_pos || null,
     overall: player.overall || 50,
     nation: player.nation || '🏳️',
     avatar: player.avatar || '🤖',
