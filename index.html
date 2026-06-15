@@ -25952,7 +25952,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-06-14-ekipman-ziyaretci-126';
+const APP_BUILD = '2026-06-15-ban-127';
 
 (function _cacheBustCheck() {
   try {
@@ -40345,6 +40345,32 @@ function syncUserToRoster() {
 }
 
 // 🆕 Supabase'ten teams yükle — _cftDb'yi RAM'de doldur
+function showBanScreen(until, reason){
+  try{ var _ex=document.getElementById('ban-screen'); if(_ex) _ex.remove(); }catch(e){}
+  var perm = until.getFullYear() >= 9999;
+  var whenTxt = perm ? 'Süresiz (kalıcı engel)' : until.toLocaleString('tr-TR',{ day:'2-digit', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  var safeReason = String(reason||'Belirtilmemiş').replace(/</g,'&lt;');
+  var el = document.createElement('div');
+  el.id='ban-screen';
+  el.style.cssText='position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;background:radial-gradient(900px 500px at 50% -10%,rgba(226,59,90,.12),transparent 60%),#08090c;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#eef1f6';
+  el.innerHTML = '<div style="max-width:420px;width:100%;text-align:center">'
+    + '<div style="width:84px;height:84px;border-radius:22px;margin:0 auto 18px;display:flex;align-items:center;justify-content:center;font-size:42px;background:rgba(226,59,90,.14);border:1px solid rgba(226,59,90,.45)">⛔</div>'
+    + '<h1 style="font-size:24px;font-weight:900;margin:0 0 6px;letter-spacing:.3px">Hesabın Engellendi</h1>'
+    + '<p style="color:#9aa1ad;font-size:14px;margin:0 0 20px;line-height:1.5">Bu hesap yönetici tarafından askıya alındı. Aşağıdaki süre boyunca oyuna giriş yapamazsın.</p>'
+    + '<div style="text-align:left;background:#14171d;border:1px solid #262b34;border-radius:14px;padding:16px 16px 6px;margin-bottom:16px">'
+    + '<div style="font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#6b7280">Engellenme Sebebi</div>'
+    + '<div style="font-size:15px;font-weight:700;margin:4px 0 14px;color:#ff8a9b">' + safeReason + '</div>'
+    + '<div style="font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#6b7280">Tekrar Oyna</div>'
+    + '<div style="font-size:15px;font-weight:700;margin:4px 0 14px;color:' + (perm?'#ff8a9b':'#2ec36b') + '">' + whenTxt + '</div>'
+    + '</div>'
+    + '<button id="ban-logout" style="width:100%;padding:13px;border:none;border-radius:11px;background:#1b1f27;color:#e7eaf0;font-weight:800;font-size:15px;cursor:pointer">Çıkış Yap</button>'
+    + '<p style="color:#5c6470;font-size:11.5px;margin:14px 0 0">Hata olduğunu düşünüyorsan yöneticiyle iletişime geç.</p>'
+    + '</div>';
+  document.body.appendChild(el);
+  try{ var _a=document.getElementById('auth-screen'); if(_a) _a.classList.add('hidden'); }catch(e){}
+  var lo=document.getElementById('ban-logout'); if(lo) lo.onclick=async function(){ try{ await window.sb.auth.signOut(); }catch(e){} location.reload(); };
+}
+
 async function bootstrapWorld(){
   try {
     if (!window.sb) return;
@@ -40516,6 +40542,7 @@ function authInit(){
             window.sb.from('players').select('pos, sub_pos, avatar_id, level, xp, overall').eq('user_id', userId).maybeSingle()
           ]);
           const prof = profRes.data;
+          if (prof && prof.ban_until) { const _bt = new Date(prof.ban_until); if (!isNaN(_bt) && _bt > new Date()) { showBanScreen(_bt, prof.ban_reason); return; } }
           const uplayer = upRes.data;
           const _plr = plrRes.data;
 
