@@ -288,6 +288,7 @@
   .u-wl-c.en{ border-color:rgba(255,193,7,.32); } .u-wl-c.en .v{ color:#ffc107; }
   .u-winput{ width:100%; max-width:78px; background:var(--bg); border:1px solid var(--gold); color:var(--txt); border-radius:6px; padding:2px 5px; font-family:var(--disp); font-weight:900; font-size:14px; }
   .u-rolebadge{ font-size:8px; font-weight:800; padding:1px 5px; border-radius:5px; background:rgba(66,165,245,.16); color:var(--blue); letter-spacing:.3px; vertical-align:middle; }
+  .u-botbadge{ font-size:8px; font-weight:800; padding:1px 5px; border-radius:5px; background:rgba(138,147,163,.16); color:#8a93a3; letter-spacing:.3px; vertical-align:middle; }
   .u-banbadge{ font-size:8.5px; font-weight:800; padding:2px 6px; border-radius:5px; background:rgba(226,59,90,.18); color:var(--red); vertical-align:middle; letter-spacing:.3px; }
   .u-hint{ color:#5c6470; font-weight:600; text-transform:none; letter-spacing:0; font-size:9.5px; }
   .u-click{ cursor:pointer; transition:.12s; }
@@ -618,7 +619,7 @@ function openDash(){
   $('main').innerHTML = `<div class="titlebox fadein"><h2>Özet</h2><span class="cnt">CSC Admin · genel bakış</span></div>
     <div class="cardgrid fadein">${DASH.map(d=>`<div class="card" data-t="${d.t}"><div class="num" id="num-${d.t}">…</div><div class="lbl">${d.label}</div></div>`).join('')}</div>
     <div id="fbArea"></div>`;
-  $('main').querySelectorAll('.card').forEach(b=>b.onclick=()=>{ const t=b.dataset.t; if(t==='profiles') openUsers(); else if(t==='teams') openClubs(); else openTable(t); });
+  $('main').querySelectorAll('.card').forEach(b=>b.onclick=()=>{ const t=b.dataset.t; if(t==='profiles') openUsers(); else if(t==='teams') openClubs(); else if(t==='players') openPlayers(); else openTable(t); });
   DASH.forEach(async d=>{
     try{ const r=await api('list',{table:d.t,limit:1}); const el=$('num-'+d.t); if(el) el.textContent=(r.count||0).toLocaleString('tr'); }
     catch(e){ const el=$('num-'+d.t); if(el) el.textContent='—'; }
@@ -704,7 +705,7 @@ async function fbDelete(id){
 
 // Sol menü — akordeon (ana başlık → tablolar)
 const NAV = [
-  { cat:'KULLANICILAR',   tables:['__users__','players','feedback'] },
+  { cat:'KULLANICILAR',   tables:['__users__','__players__','feedback'] },
   { cat:'TAKIMLAR',       tables:['__clubs__','__nts__'] },
   { cat:'LİGLER',         tables:[] },
   { cat:'TURNUVALAR',     tables:['tournament_state'] },
@@ -721,13 +722,13 @@ const NAV = [
   { cat:'İNBOX',          tables:['user_inbox'] },
   { cat:'AYARLAR',        tables:['match_writes'] }
 ];
-const VIRT = { '__users__':'Kullanıcılar', '__clubs__':'Takımlar', '__nts__':'Milli Takımlar' };
+const VIRT = { '__users__':'Kullanıcılar', '__players__':'Oyuncular', '__clubs__':'Takımlar', '__nts__':'Milli Takımlar' };
 const CHEV = '<svg class="chev" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg>';
 
 function buildNav() {
   const mapped = new Set();
   NAV.forEach(c => c.tables.forEach(t => mapped.add(t)));
-  ['profiles','user_player','user_wallet','teams','team_data','team_chat'].forEach(t => mapped.add(t)); // konsolide sayfalar
+  ['profiles','user_player','user_wallet','teams','team_data','team_chat','players'].forEach(t => mapped.add(t)); // konsolide sayfalar
   const cats = NAV.slice();
   const others = Object.keys(META).filter(t => !mapped.has(t)).sort();
   if (others.length) cats.push({ cat:'DİĞER', tables:others });
@@ -741,7 +742,7 @@ function buildNav() {
   }).join('');
 
   $('nav').querySelectorAll('.cathead').forEach(h => h.onclick = () => h.parentElement.classList.toggle('open'));
-  $('nav').querySelectorAll('.sub').forEach(b => b.onclick = () => { const t=b.dataset.t; if(t==='__users__') openUsers(); else if(t==='__clubs__') openClubs(); else if(t==='__nts__') openNTs(); else openTable(t); });
+  $('nav').querySelectorAll('.sub').forEach(b => b.onclick = () => { const t=b.dataset.t; if(t==='__users__') openUsers(); else if(t==='__players__') openPlayers(); else if(t==='__clubs__') openClubs(); else if(t==='__nts__') openNTs(); else openTable(t); });
 }
 
 async function openTable(t) {
@@ -1518,6 +1519,107 @@ async function savePlayerModal(){
     if(pl){ const ovr=$('pmInOvr').value.trim(); if(ovr!=='') pl.overall=Math.round(Number(ovr)); const lvl=$('pmInLvl').value.trim(); if(lvl!=='') pl.level=Math.round(Number(lvl)); const xp=$('pmInXp').value.trim(); if(xp!=='') pl.xp=Math.round(Number(xp)); pl.pos=$('pmInPos').value; pl.pos_group=$('pmInPos').value; pl.sub_pos=$('pmInSub').value; }
     $('playerModal').style.display='none'; uApplyFilter(); uPaintList();
   }catch(e){ $('pmErr').textContent=e.message; }
+}
+
+// ===== OYUNCULAR — players (gerçek veri, kart) =====
+let PSTATE={ offset:0, limit:30, search:'' };
+let PDATA={ rows:[], count:0 };
+async function openPlayers(){
+  CUR='__players__'; PSTATE={ offset:0, limit:30, search:'' }; GRID_BACK=null;
+  $('dashBtn').classList.remove('active');
+  $('nav').querySelectorAll('.sub').forEach(b=>b.classList.toggle('active', b.dataset.t==='__players__'));
+  const act=$('nav').querySelector('.sub.active'); if(act) act.closest('.cat').classList.add('open');
+  document.body.classList.remove('navopen');
+  await loadPlayers();
+}
+async function loadPlayers(){
+  $('main').innerHTML='<div class="msg">Yükleniyor…</div>';
+  try{
+    const r=await api('list',{ table:'players', limit:PSTATE.limit, offset:PSTATE.offset, search:PSTATE.search||undefined, searchCol:PSTATE.search?'name':undefined });
+    PDATA.rows=r.rows||[]; PDATA.count=r.count||0;
+    renderPlayers();
+  }catch(e){ $('main').innerHTML='<div class="msg err">'+uEsc(e.message)+'</div>'; }
+}
+function renderPlayers(){
+  const totalPages=Math.max(1,Math.ceil(PDATA.count/PSTATE.limit));
+  const curPage=Math.floor(PSTATE.offset/PSTATE.limit)+1;
+  const head=`
+    <div class="titlebox fadein">
+      <button class="backbtn" id="pBack">‹ Geri</button>
+      <h2>Oyuncular</h2>
+      <span class="cnt">${PDATA.count} oyuncu</span>
+      <div class="sp"></div>
+      <input id="pSval" placeholder="oyuncu adı ara…" value="${uEsc(PSTATE.search)}" autocomplete="off">
+      <button class="btn gold" id="pSbtn">Ara</button>
+    </div>`;
+  const sv=v=>v!=null?v:'–';
+  const cards=PDATA.rows.map((pl,i)=>{
+    const name=pl.name||'(isimsiz)';
+    const cc=String(pl.country_code||pl.nationality||'').toUpperCase();
+    const flag=cc?ccFlag(cc):'';
+    const init=(String(name).trim()[0]||'?').toUpperCase();
+    const ovr=(pl.overall!=null)?pl.overall:'–';
+    const pos=pl.pos||pl.pos_group||''; const sub=pl.sub_pos||'';
+    const posTxt=pos?(pos+((sub&&sub!==pos)?(' · '+sub):'')):'—';
+    const team=pl.team_name||'Takımsız';
+    const num=(pl.num!=null)?pl.num:'';
+    const isUser=!!pl.user_id;
+    const badge=isUser?'<span class="u-rolebadge">KULLANICI</span>':'<span class="u-botbadge">BOT</span>';
+    return `
+    <div class="u-card">
+      <div class="u-head">
+        <div class="u-av">${uEsc(init)}${flag?`<span class="flag">${flag}</span>`:''}</div>
+        <div class="u-info">
+          <div class="u-name">${num!==''?`<span style="color:var(--blue)">#${uEsc(num)}</span> `:''}${uEsc(name)} ${badge}</div>
+          <div class="u-meta"><span><b>${uEsc(team)}</b></span><span>${uEsc(posTxt)}</span></div>
+        </div>
+        <div class="u-ovr"><div class="n">${uEsc(ovr)}</div><div class="p">${uEsc(sub||pos)}</div></div>
+        <div class="u-chev"><svg viewBox="0 0 24 24" width="15" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg></div>
+      </div>
+      <div class="u-body">
+        <div class="u-secl"><span class="dot"></span>Oyuncu</div>
+        <div class="u-fields">
+          <div class="u-f"><div class="l">OVR</div><div class="v">${uEsc(ovr)}</div></div>
+          <div class="u-f"><div class="l">Mevki</div><div class="v">${uEsc(posTxt)}</div></div>
+          <div class="u-f"><div class="l">Seviye · XP</div><div class="v">${sv(pl.level)} · ${sv(pl.xp)}</div></div>
+          <div class="u-f"><div class="l">Reyting</div><div class="v">${sv(pl.rating)}</div></div>
+          <div class="u-f"><div class="l">Takım</div><div class="v">${flag} ${uEsc(team)}</div></div>
+          <div class="u-f"><div class="l">Tür</div><div class="v">${isUser?'👤 Kullanıcı':'🤖 Bot'}</div></div>
+          ${isUser?`<div class="u-f"><div class="l">User ID</div><div class="v">${uEsc(String(pl.user_id))}</div></div>`:''}
+          <div class="u-f"><div class="l">Maç · G · MOTM</div><div class="v">${sv(pl.matches_played)} · ${sv(pl.wins_total)} · ${sv(pl.motm_total)}</div></div>
+        </div>
+        <div class="u-acts">
+          <button class="u-act edit" data-act="edit" data-i="${i}">Düzenle (tüm alanlar)</button>
+          <button class="u-act del" data-act="del" data-i="${i}">Sil</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  const page=`
+    <div class="page">
+      <button class="btn" id="pPrev" ${PSTATE.offset<=0?'disabled':''}>‹ Önceki</button>
+      <span class="cnt">${curPage} / ${totalPages}</span>
+      <button class="btn" id="pNext" ${curPage>=totalPages?'disabled':''}>Sonraki ›</button>
+    </div>`;
+  $('main').innerHTML = head + `<div class="u-list fadein">${cards||'<div class="msg">Kayıt yok.</div>'}</div>` + (PDATA.rows.length?page:'');
+  $('pBack').onclick=openDash;
+  $('pSbtn').onclick=()=>{ PSTATE.search=$('pSval').value.trim(); PSTATE.offset=0; loadPlayers(); };
+  $('pSval').addEventListener('keydown',e=>{ if(e.key==='Enter') $('pSbtn').click(); });
+  const pv=$('pPrev'),nx=$('pNext');
+  if(pv) pv.onclick=()=>{ PSTATE.offset=Math.max(0,PSTATE.offset-PSTATE.limit); loadPlayers(); };
+  if(nx) nx.onclick=()=>{ PSTATE.offset+=PSTATE.limit; loadPlayers(); };
+  $('main').querySelectorAll('.u-head').forEach(h=>h.onclick=()=>h.parentElement.classList.toggle('open'));
+  $('main').querySelectorAll('.u-act').forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); playerAction(b.dataset.act,+b.dataset.i); });
+}
+function playerAction(act,i){
+  const pl=PDATA.rows[i]; if(!pl) return;
+  if(act==='edit'){ openEditor('edit', pl, 'players', loadPlayers); return; }
+  if(act==='del'){ playerDel(pl); return; }
+}
+async function playerDel(pl){
+  if(!confirm('"'+(pl.name||'')+'" oyuncusunu silmek istediğine emin misin? Geri alınamaz.')) return;
+  try{ await api('delete',{ table:'players', pk:pkObj(pl,'players') }); loadPlayers(); }
+  catch(e){ alert('Silinemedi: '+e.message); }
 }
 
 // ===== Engelleme (ban) =====
