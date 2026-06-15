@@ -713,7 +713,7 @@ async function fbDelete(id){
 // Sol menü — akordeon (ana başlık → tablolar)
 const NAV = [
   { cat:'KULLANICILAR',   tables:['__users__','__players__','feedback'] },
-  { cat:'TAKIMLAR',       tables:['__clubs__','__nts__','federation_state'] },
+  { cat:'TAKIMLAR',       tables:['__clubs__','__nts__','__feds__'] },
   { cat:'LİGLER',         tables:[] },
   { cat:'TURNUVALAR',     tables:['tournament_state'] },
   { cat:'SONUÇLAR',       tables:['match_results','match_state','match_viewers'] },
@@ -728,13 +728,13 @@ const NAV = [
   { cat:'İNBOX',          tables:['user_inbox'] },
   { cat:'AYARLAR',        tables:['match_writes'] }
 ];
-const VIRT = { '__users__':'Kullanıcılar', '__players__':'Oyuncular', '__clubs__':'Takımlar', '__nts__':'Milli Takımlar' };
+const VIRT = { '__users__':'Kullanıcılar', '__players__':'Oyuncular', '__clubs__':'Takımlar', '__nts__':'Milli Takımlar', '__feds__':'Federasyonlar' };
 const CHEV = '<svg class="chev" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg>';
 
 function buildNav() {
   const mapped = new Set();
   NAV.forEach(c => c.tables.forEach(t => mapped.add(t)));
-  ['profiles','user_player','user_wallet','teams','team_data','team_chat','players'].forEach(t => mapped.add(t)); // konsolide sayfalar
+  ['profiles','user_player','user_wallet','teams','team_data','team_chat','players','federation_state'].forEach(t => mapped.add(t)); // konsolide sayfalar
   const cats = NAV.slice();
   const others = Object.keys(META).filter(t => !mapped.has(t)).sort();
   if (others.length) cats.push({ cat:'DİĞER', tables:others });
@@ -748,7 +748,7 @@ function buildNav() {
   }).join('');
 
   $('nav').querySelectorAll('.cathead').forEach(h => h.onclick = () => h.parentElement.classList.toggle('open'));
-  $('nav').querySelectorAll('.sub').forEach(b => b.onclick = () => { const t=b.dataset.t; if(t==='__users__') openUsers(); else if(t==='__players__') openPlayers(); else if(t==='__clubs__') openClubs(); else if(t==='__nts__') openNTs(); else openTable(t); });
+  $('nav').querySelectorAll('.sub').forEach(b => b.onclick = () => { const t=b.dataset.t; if(t==='__users__') openUsers(); else if(t==='__players__') openPlayers(); else if(t==='__clubs__') openClubs(); else if(t==='__nts__') openNTs(); else if(t==='__feds__') openFeds(); else openTable(t); });
 }
 
 async function openTable(t) {
@@ -1365,6 +1365,102 @@ function ntAction(act,i){
   const r=NDATA.rows[i]; if(!r) return;
   if(act==='players'){ openTableFiltered('players','nationality', r.cc||'', openNTs); return; }
   if(act==='teamdata'){ openTableFiltered('team_data','country_code', r.cc||'', openNTs); return; }
+}
+
+// ===== FEDERASYONLAR — federation_state (gerçek veri, kart) =====
+let FSTATE={ search:'' };
+let FDATA={ all:[], rows:[], count:0, who:{} };
+function FApplyFilter(){
+  const q=(FSTATE.search||'').trim().toLowerCase();
+  FDATA.rows = q ? FDATA.all.filter(x=>(((x.country_name||'')+' '+(x.country_code||'')).toLowerCase().indexOf(q)>=0)) : FDATA.all.slice();
+  FDATA.count=FDATA.rows.length;
+}
+async function openFeds(){
+  CUR='__feds__'; FSTATE={ search:'' }; GRID_BACK=null;
+  $('dashBtn').classList.remove('active');
+  $('nav').querySelectorAll('.sub').forEach(b=>b.classList.toggle('active', b.dataset.t==='__feds__'));
+  const act=$('nav').querySelector('.sub.active'); if(act) act.closest('.cat').classList.add('open');
+  document.body.classList.remove('navopen');
+  await loadFeds();
+}
+async function loadFeds(){
+  if(!$('fList')) $('main').innerHTML='<div class="msg">Yükleniyor…</div>';
+  try{
+    const [fs,pf]=await Promise.all([
+      api('list',{ table:'federation_state', limit:2000 }),
+      api('list',{ table:'profiles', limit:2000 }).catch(()=>({rows:[]}))
+    ]);
+    FDATA.who={}; (pf.rows||[]).forEach(p=>{ const id=p.user_id||p.id; if(id!=null) FDATA.who[id]=p.display_name||p.username||p.name; });
+    FDATA.all=(fs.rows||[]).map(f=>{ const cc=String(f.country_code||'').toUpperCase(); return Object.assign({}, f, { _cc:cc, _name:f.country_name||CC_NAME[cc]||cc, _flag:f.country_flag||ccFlag(cc) }); }).sort((x,y)=>x._name.localeCompare(y._name,'tr'));
+    FApplyFilter(); renderFeds();
+  }catch(e){ $('main').innerHTML='<div class="msg err">'+uEsc(e.message)+'</div>'; }
+}
+function fedCardsHTML(){
+  return FDATA.rows.map((f,i)=>{
+    const pres=nWho(FDATA.who, f.captain);
+    const memberN=nCount(f.members); const voteN=nCount(f.votes);
+    const vices=nArr(f.vice).map(v=>nWho(FDATA.who,v)).filter(x=>x&&x!=='—');
+    const viceCells=[0,1].map(k=>{ const nm=vices[k]; return `<div class="u-wl-c" style="border-color:rgba(255,213,79,.3)"><span class="ic">🅰️</span><div class="tx"><div class="v">${nm?uEsc(nm):'—'}</div><div class="l">Yardımcı ${k+1}</div></div></div>`; }).join('');
+    const memChips=nArr(f.members).map(m=>nWho(FDATA.who,m)).filter(x=>x&&x!=='—').slice(0,24);
+    const memHtml=memChips.length?('<div class="chips" style="padding:0 12px 8px">'+memChips.map(n=>'<span class="u-rolebadge" style="background:rgba(255,255,255,.05);color:var(--dim);padding:3px 8px;border-radius:14px">'+uEsc(n)+'</span>').join(' ')+(memberN>memChips.length?(' <span style="font-size:11px;color:#5c6470">+'+(memberN-memChips.length)+'</span>'):'')+'</div>'):'<div class="u-empty">Üye yok.</div>';
+    return `
+    <div class="u-card">
+      <div class="u-head">
+        <div class="n-flag">${f._flag}</div>
+        <div class="u-info">
+          <div class="u-name">${uEsc(f._name)} <span class="u-rolebadge" style="background:rgba(255,213,79,.16);color:var(--gold)">Federasyon</span></div>
+          <div class="u-meta"><span>Başkan (T.D.): <b>${uEsc(pres)}</b></span></div>
+        </div>
+        <div class="u-ovr"><div class="n" style="color:var(--gold)">${memberN}</div><div class="p">ÜYE</div></div>
+        <div class="u-chev"><svg viewBox="0 0 24 24" width="15" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg></div>
+      </div>
+      <div class="u-body">
+        <div class="u-secl g"><span class="dot"></span>Federasyon</div>
+        <div class="u-fields">
+          <div class="u-f"><div class="l">Ülke</div><div class="v">${f._flag} ${uEsc(f._name)} (${uEsc(f._cc)})</div></div>
+          <div class="u-f"><div class="l">Başkan / T.D.</div><div class="v">${uEsc(pres)}</div></div>
+          <div class="u-f"><div class="l">Üye Sayısı</div><div class="v">${memberN}</div></div>
+          <div class="u-f"><div class="l">Oy Sayısı</div><div class="v">${voteN}</div></div>
+        </div>
+        <div class="u-secl"><span class="dot"></span>Yardımcılar (Kaptan Yetkisi)</div>
+        <div class="u-wl">${viceCells}</div>
+        <div class="u-secl"><span class="dot"></span>Üyeler (${memberN})</div>
+        ${memHtml}
+        <div class="u-acts">
+          <button class="u-act player" data-act="edit" data-i="${i}">Federasyonu Düzenle</button>
+          <button class="u-act wallet" data-act="votes" data-i="${i}">Oylar (${voteN})</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+function renderFeds(){
+  const head=`
+    <div class="titlebox fadein">
+      <button class="backbtn" id="fBack">‹ Geri</button>
+      <h2>Federasyonlar</h2>
+      <span class="cnt" id="fCnt">${FDATA.count} federasyon</span>
+      <div class="sp"></div>
+      <input id="fSval" placeholder="ülke ara…" value="${uEsc(FSTATE.search)}" autocomplete="off">
+    </div>`;
+  $('main').innerHTML = head + `<div class="u-list fadein" id="fList"></div>`;
+  $('fBack').onclick=openDash;
+  const inp=$('fSval');
+  inp.addEventListener('input', ()=>{ clearTimeout(window._fT); window._fT=setTimeout(()=>{ FSTATE.search=inp.value.trim(); FApplyFilter(); fedPaint(); }, 110); });
+  fedPaint();
+  if(FSTATE.search){ inp.focus(); try{ inp.setSelectionRange(inp.value.length,inp.value.length); }catch(e){} }
+}
+function fedPaint(){
+  const list=$('fList'); if(!list) return;
+  list.innerHTML = FDATA.rows.length?fedCardsHTML():'<div class="msg">Eşleşen federasyon yok.</div>';
+  const cnt=$('fCnt'); if(cnt) cnt.textContent=FDATA.count+' federasyon';
+  list.querySelectorAll('.u-head').forEach(h=>h.onclick=()=>h.parentElement.classList.toggle('open'));
+  list.querySelectorAll('.u-act').forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); fedAction(b.dataset.act,+b.dataset.i); });
+}
+function fedAction(act,i){
+  const f=FDATA.rows[i]; if(!f) return;
+  if(act==='edit'){ openEditor('edit', f, 'federation_state', loadFeds); return; }
+  if(act==='votes'){ openTableFiltered('federation_votes','country_code', f._cc||'', openFeds); return; }
 }
 
 
