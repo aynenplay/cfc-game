@@ -285,6 +285,12 @@
   .nt-pl .num{ font-family:var(--disp); font-weight:800; font-size:11px; color:#5c6470; min-width:26px; text-align:center; }
   .nt-pl .ov{ font-family:var(--disp); font-weight:900; font-size:14px; color:var(--blue); min-width:26px; text-align:center; }
   .nt-pl.empty{ opacity:.6; }
+  .nt-hidden{ display:none; }
+  .nt-clk{ cursor:pointer; transition:.12s; }
+  .nt-clk:hover{ border-color:rgba(66,165,245,.45); }
+  .nt-hint{ font-size:10.5px; color:#5c6470; margin-bottom:5px; }
+  .nt-sqbtn{ width:calc(100% - 24px); margin:0 12px 8px; height:36px; border-radius:10px; border:1px solid rgba(66,165,245,.4); background:rgba(66,165,245,.08); color:var(--blue); font-family:var(--disp); font-weight:800; font-size:13px; cursor:pointer; }
+  .nt-sqbtn:hover{ filter:brightness(1.15); }
   .nt-pl .nm{ flex:1; min-width:0; font-size:12.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .nt-pl .ps{ font-size:9px; font-weight:800; color:#5c6470; letter-spacing:.3px; }
   .u-wl3{ grid-template-columns:repeat(3,1fr); }
@@ -1172,12 +1178,12 @@ function renderClubs(){
         </div>
         <div class="u-secl"><span class="dot"></span>Sezon</div>
         <div class="t-stat">
-          <div class="t-st"><div class="n">${sv(t.played)}</div><div class="l">O</div></div>
-          <div class="t-st"><div class="n" style="color:var(--accent)">${sv(t.won)}</div><div class="l">G</div></div>
-          <div class="t-st"><div class="n" style="color:var(--gold)">${sv(t.draw)}</div><div class="l">B</div></div>
-          <div class="t-st"><div class="n" style="color:var(--red)">${sv(t.lost)}</div><div class="l">M</div></div>
-          <div class="t-st"><div class="n">${sv(t.gf)}</div><div class="l">AG</div></div>
-          <div class="t-st"><div class="n">${sv(t.ga)}</div><div class="l">YG</div></div>
+          <div class="t-st"><div class="n" data-st-o>…</div><div class="l">O</div></div>
+          <div class="t-st"><div class="n" style="color:var(--accent)" data-st-g>…</div><div class="l">G</div></div>
+          <div class="t-st"><div class="n" style="color:var(--gold)" data-st-b>…</div><div class="l">B</div></div>
+          <div class="t-st"><div class="n" style="color:var(--red)" data-st-m>…</div><div class="l">M</div></div>
+          <div class="t-st"><div class="n" data-st-ag>…</div><div class="l">AG</div></div>
+          <div class="t-st"><div class="n" data-st-yg>…</div><div class="l">YG</div></div>
         </div>
         <div class="u-secl b"><span class="dot"></span>Kadro & Sohbet</div>
         <div class="u-wl">
@@ -1219,6 +1225,25 @@ async function clubCounts(body){
     ]);
     const ek=body.querySelector('[data-kadro]'), ch=body.querySelector('[data-chat]');
     if(ek) ek.textContent=(d.count||0); if(ch) ch.textContent=(c.count||0);
+  }catch(e){}
+  clubSeason(body, name);
+}
+async function clubSeason(body, name){
+  try{
+    const [hm,am]=await Promise.all([
+      api('list',{ table:'match_state', limit:400, search:name, searchCol:'home_team' }).catch(()=>({rows:[]})),
+      api('list',{ table:'match_state', limit:400, search:name, searchCol:'away_team' }).catch(()=>({rows:[]}))
+    ]);
+    const fin=[...(hm.rows||[]),...(am.rows||[])].filter(m=>m.status==='finished' && !m.tournament_key && (m.home_team===name||m.away_team===name));
+    let season=null; fin.forEach(m=>{ const sn=Number(m.season)||0; if(season===null||sn>season) season=sn; });
+    const st={o:0,g:0,b:0,m:0,ag:0,yg:0};
+    fin.filter(m=>Number(m.season)===season).forEach(m=>{
+      const home=m.home_team===name; const hs=Number(m.home_score)||0, as_=Number(m.away_score)||0;
+      const gf=home?hs:as_, ga=home?as_:hs; st.o++; st.ag+=gf; st.yg+=ga;
+      if(gf>ga) st.g++; else if(gf<ga) st.m++; else st.b++;
+    });
+    const setn=(sel,v)=>{ const e=body.querySelector(sel); if(e) e.textContent=v; };
+    setn('[data-st-o]',st.o); setn('[data-st-g]',st.g); setn('[data-st-b]',st.b); setn('[data-st-m]',st.m); setn('[data-st-ag]',st.ag); setn('[data-st-yg]',st.yg);
   }catch(e){}
 }
 function clubAction(act,i){
@@ -1294,10 +1319,12 @@ function ntCardsHTML(){
           <div class="u-f"><div class="l">Kadro Kaynağı</div><div class="v" data-src>…</div></div>
         </div>
         <div class="u-secl"><span class="dot"></span>Kadro (18 kişi · gerçek)</div>
-        <div class="nt-sq" data-squad><div class="u-empty">yükleniyor…</div></div>
+        <button class="nt-sqbtn" data-i="${i}">👥 Kadroyu Göster (18 kişi)</button>
+        <div class="nt-sq nt-hidden" data-squad><div class="u-empty">yükleniyor…</div></div>
         <div class="u-acts">
           <button class="u-act player" data-act="players" data-i="${i}">Milli Oyuncular</button>
-          <button class="u-act wallet" data-act="teamdata" data-i="${i}">Takım Verisi (team_data)</button>
+          <button class="u-act edit" data-act="squadedit" data-i="${i}">Kadroyu Düzenle</button>
+          <button class="u-act wallet" data-act="teamdata" data-i="${i}">Takım Verisi</button>
         </div>
       </div>
     </div>`;
@@ -1324,6 +1351,7 @@ function ntPaint(){
   list.innerHTML = NDATA.rows.length?ntCardsHTML():'<div class="msg">Eşleşen ülke yok.</div>';
   const cnt=$('nCnt'); if(cnt) cnt.textContent=NDATA.count+' milli takım';
   list.querySelectorAll('.u-head').forEach(h=>h.onclick=()=>{ const c=h.parentElement; c.classList.toggle('open'); if(c.classList.contains('open')) ntSquad(c.querySelector('.u-body')); });
+  list.querySelectorAll('.nt-sqbtn').forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); const body=b.closest('.u-body'); ntSquad(body); const sq=body.querySelector('[data-squad]'); sq.classList.toggle('nt-hidden'); b.textContent = sq.classList.contains('nt-hidden')?'👥 Kadroyu Göster (18 kişi)':'👥 Kadroyu Gizle'; });
   list.querySelectorAll('.u-act').forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); ntAction(b.dataset.act,+b.dataset.i); });
 }
 async function ntSquad(body){
@@ -1354,16 +1382,19 @@ async function ntSquad(body){
     setT('[data-kadrovr]', ovr||'–');
     setT('[data-src]', squadRow?'Özel (kaydedilmiş)':'Varsayılan (en iyi)');
     const sq=body.querySelector('[data-squad]'); if(!sq) return;
-    sq.innerHTML = squad.map(x=>{ const p=x.p; const num=(x.slot.n!=null)?x.slot.n:''; const role=(x.slot.r==='sub')?'Yedek':'İlk 11';
+    body._squad=squad;
+    sq.innerHTML = `<div class="nt-hint">Bir oyuncuya dokun → düzenle</div>` + squad.map((x,si)=>{ const p=x.p; const num=(x.slot.n!=null)?x.slot.n:''; const role=(x.slot.r==='sub')?'Yedek':'İlk 11';
       if(!p) return `<div class="nt-pl empty"><span class="num">#${num}</span><span class="nm" style="color:#5c6470">— boş (${x.slot.p||''}) —</span><span class="ps">${role}</span></div>`;
       const pos=p.sub_pos||p.pos||p.pos_group||'';
-      return `<div class="nt-pl"><span class="num">#${num}</span><span class="ov">${(p.overall!=null)?p.overall:'–'}</span><span class="nm">${uEsc(p.name||'(isimsiz)')}</span><span class="ps">${uEsc(pos)} · ${role}</span></div>`;
+      return `<div class="nt-pl nt-clk" data-sqi="${si}"><span class="num">#${num}</span><span class="ov">${(p.overall!=null)?p.overall:'–'}</span><span class="nm">${uEsc(p.name||'(isimsiz)')}</span><span class="ps">${uEsc(pos)} · ${role}</span></div>`;
     }).join('');
+    sq.querySelectorAll('[data-sqi]').forEach(row=>row.onclick=()=>{ const it=body._squad[+row.dataset.sqi]; if(it&&it.p) openEditor('edit', it.p, 'players', loadNTs); });
   }catch(e){ const sq=body.querySelector('[data-squad]'); if(sq) sq.innerHTML='<div class="u-empty">Kadro yüklenemedi.</div>'; }
 }
 function ntAction(act,i){
   const r=NDATA.rows[i]; if(!r) return;
   if(act==='players'){ openTableFiltered('players','nationality', r.cc||'', openNTs); return; }
+  if(act==='squadedit'){ openTableFiltered('team_data','country_code', r.cc||'', openNTs); return; }
   if(act==='teamdata'){ openTableFiltered('team_data','country_code', r.cc||'', openNTs); return; }
 }
 
