@@ -280,6 +280,13 @@
   .t-st:last-child{ border-right:0; }
   .t-st .n{ font-family:var(--disp); font-size:15px; font-weight:900; }
   .t-st .l{ font-size:7.5px; font-weight:700; color:#5c6470; text-transform:uppercase; letter-spacing:.2px; margin-top:1px; }
+  .u-wl3{ grid-template-columns:repeat(3,1fr); }
+  .u-wl3 .u-wl-c{ padding:8px 7px; gap:7px; }
+  .u-wl3 .u-wl-c .ic{ font-size:16px; }
+  .u-wedit{ cursor:pointer; }
+  .u-wedit:hover{ border-color:var(--goldln); filter:brightness(1.1); }
+  .u-wl-c.en{ border-color:rgba(255,193,7,.32); } .u-wl-c.en .v{ color:#ffc107; }
+  .u-winput{ width:100%; max-width:78px; background:var(--bg); border:1px solid var(--gold); color:var(--txt); border-radius:6px; padding:2px 5px; font-family:var(--disp); font-weight:900; font-size:14px; }
   .u-banbadge{ font-size:8.5px; font-weight:800; padding:2px 6px; border-radius:5px; background:rgba(226,59,90,.18); color:var(--red); vertical-align:middle; letter-spacing:.3px; }
   .u-hint{ color:#5c6470; font-weight:600; text-transform:none; letter-spacing:0; font-size:9.5px; }
   .u-click{ cursor:pointer; transition:.12s; }
@@ -842,6 +849,8 @@ function renderUsers(){
         </div>`:`<div class="u-secl player"><span class="dot"></span>Kullanıcı Oyuncusu</div><div class="u-empty">Oyuncu kaydı yok</div>`;
     const eur=(w.eur!=null)?Number(w.eur).toLocaleString('tr'):'—';
     const dia=(w.dia!=null)?Number(w.dia).toLocaleString('tr'):'—';
+    const _enr=UDATA.pMap[id];
+    const en=(_enr&&typeof _enr.energy==='number')?Number(_enr.energy).toLocaleString('tr'):'—';
     return `
     <div class="u-card">
       <div class="u-head">
@@ -865,10 +874,11 @@ function renderUsers(){
           ${ban?`<div class="u-f" style="border-color:rgba(226,59,90,.4)"><div class="l" style="color:var(--red)">Engel Bitiş</div><div class="v">${ban.perm?'Süresiz':ban.until.toLocaleDateString('tr')}</div></div>`:''}
         </div>
         ${playerSec}
-        <div class="u-secl gold"><span class="dot"></span>Cüzdan <span class="u-hint">· düzenlemek için dokun</span></div>
-        <div class="u-wl">
-          <div class="u-wl-c eur u-click" data-act="wallet" data-i="${i}"><span class="ic">💶</span><div class="tx"><div class="v">${eur}</div><div class="l">Para (€)</div></div></div>
-          <div class="u-wl-c dia u-click" data-act="wallet" data-i="${i}"><span class="ic">💎</span><div class="tx"><div class="v">${dia}</div><div class="l">Elmas</div></div></div>
+        <div class="u-secl gold"><span class="dot"></span>Cüzdan & Enerji <span class="u-hint">· değere dokun, düzenle</span></div>
+        <div class="u-wl u-wl3">
+          <div class="u-wl-c en u-wedit" data-f="energy" data-i="${i}"><span class="ic">⚡</span><div class="tx"><div class="v">${en}</div><div class="l">Enerji</div></div></div>
+          <div class="u-wl-c eur u-wedit" data-f="eur" data-i="${i}"><span class="ic">💶</span><div class="tx"><div class="v">${eur}</div><div class="l">Para (€)</div></div></div>
+          <div class="u-wl-c dia u-wedit" data-f="dia" data-i="${i}"><span class="ic">💎</span><div class="tx"><div class="v">${dia}</div><div class="l">Elmas</div></div></div>
         </div>
         <div class="u-acts">
           <button class="u-act edit" data-act="profile" data-i="${i}">Profili Düzenle</button>
@@ -893,7 +903,8 @@ function renderUsers(){
   if(pv) pv.onclick=()=>{ USTATE.offset=Math.max(0,USTATE.offset-USTATE.limit); loadUsers(); };
   if(nx) nx.onclick=()=>{ USTATE.offset+=USTATE.limit; loadUsers(); };
   $('main').querySelectorAll('.u-head').forEach(h=>h.onclick=()=>h.parentElement.classList.toggle('open'));
-  $('main').querySelectorAll('.u-act,.u-click').forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); uAction(b.dataset.act,+b.dataset.i); });
+  $('main').querySelectorAll('.u-act').forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); uAction(b.dataset.act,+b.dataset.i); });
+  $('main').querySelectorAll('.u-wedit').forEach(c=>c.onclick=ev=>{ ev.stopPropagation(); uWalletStart(c); });
 }
 function uAction(act,i){
   const p=UDATA.rows[i]; if(!p) return; const id=uUid(p);
@@ -1160,6 +1171,39 @@ function ntAction(act,i){
   const f=NDATA.rows[i]; if(!f) return;
   if(act==='edit'){ openEditor('edit', f, 'federation_state', loadNTs); return; }
   if(act==='votes'){ openTableFiltered('federation_votes','country_code', f.country_code||'', openNTs); return; }
+}
+
+// ===== Cüzdan & Enerji satır-içi düzenleme =====
+function uWalletStart(cell){
+  if(cell.querySelector('input')) return;
+  const f=cell.dataset.f, i=+cell.dataset.i, p=UDATA.rows[i]; if(!p) return;
+  const id=uUid(p);
+  let cur=0;
+  if(f==='energy'){ const up=UDATA.pMap[id]; if(!up){ alert('Bu kullanıcının oyuncu kaydı yok, enerji atanamaz.'); return; } cur=(typeof up.energy==='number')?up.energy:0; }
+  else { const w=UDATA.wMap[id]; if(!w){ alert('Bu kullanıcının cüzdan kaydı yok.'); return; } cur=Number(w[f])||0; }
+  const vEl=cell.querySelector('.v'); const old=vEl.textContent;
+  vEl.innerHTML='<input class="u-winput" type="number" step="1">';
+  const inp=vEl.querySelector('input'); inp.value=cur; inp.focus(); inp.select();
+  let done=false;
+  const cancel=()=>{ if(done) return; done=true; vEl.textContent=old; };
+  const save=async()=>{
+    if(done) return; done=true;
+    const nv=Math.round(Number(inp.value));
+    if(!isFinite(nv)){ vEl.textContent=old; return; }
+    vEl.textContent='…';
+    try{
+      if(f==='energy'){
+        await api('update',{ table:'user_player', pk:pkObj(UDATA.pMap[id],'user_player'), values:{ energy:nv } });
+        UDATA.pMap[id].energy=nv;
+      } else {
+        await api('update',{ table:'user_wallet', pk:pkObj(UDATA.wMap[id],'user_wallet'), values:{ [f]:nv } });
+        UDATA.wMap[id][f]=nv;
+      }
+      vEl.textContent=nv.toLocaleString('tr');
+    }catch(e){ vEl.textContent=old; alert('Kaydedilemedi: '+e.message); }
+  };
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); inp.blur(); } else if(e.key==='Escape'){ done=true; vEl.textContent=old; } });
+  inp.addEventListener('blur',save);
 }
 
 // ===== Engelleme (ban) =====
