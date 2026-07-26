@@ -26216,7 +26216,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-26-arsiv-143';
+const APP_BUILD = '2026-07-26-arsiv-144';
 
 (function _cacheBustCheck() {
   try {
@@ -78710,7 +78710,7 @@ function hbCloseDrawer(){
    ══════════════════════════════════════════════════════════════ */
 var _arSeason = null, _arCC = null, _arTab = 'ozet';
 var _arArcCC = null, _arArcTier = '';   // Arşiv sekmesi filtreleri ('__all' = tüm ülkeler, '' = tüm takımlar)
-var _arCache = { league:{}, cups:{}, finals:null, trophies:null, euro:{}, total:null };
+var _arCache = { league:{}, cups:{}, finals:null, trophies:null, euro:{}, total:null, cupChamps:null };
 var _AR_TIER_MULT = {0:1.0,1:0.55,2:0.32,3:0.20,4:0.12,5:0.07};
 var _AR_CURVE = [5000000,3000000,2000000,1400000,1000000,800000,650000,550000,450000,380000,320000,270000,220000,180000,150000,120000];
 var _AR_CUPS = [
@@ -78800,6 +78800,22 @@ async function _arPens(season, home, away){
   }catch(e){}
   return null;
 }
+async function _arCupChampsFromTrophies(){
+  if(_arCache.cupChamps) return _arCache.cupChamps;
+  var map={};
+  try{
+    var trs = await _arFetchTrophies();
+    trs.forEach(function(r){
+      (Array.isArray(r.data)?r.data:[]).forEach(function(t){
+        if(!t || !t.type || t.type==='league' || t.season==null) return;
+        if(!map[t.season]) map[t.season]={};
+        map[t.season][t.type]={name:r.team_name, cc:r.country_code};
+      });
+    });
+  }catch(e){}
+  _arCache.cupChamps=map;
+  return map;
+}
 async function _arFetchCups(season){
   if(_arCache.cups[season]) return _arCache.cups[season];
   var out={};
@@ -78819,6 +78835,15 @@ async function _arFetchCups(season){
       }
       out[m.tournament_key]={win:win,lose:lose,hs:hs,as:as,extra:extra,home:m.home_team,away:m.away_team};
     }
+    // 🆕 Beraberlik/penaltı → kazanan match_state'te yok; team_data.trophies'ten tamamla
+    var champs = (await _arCupChampsFromTrophies())[season] || {};
+    Object.keys(out).forEach(function(k){
+      if(!out[k].win && champs[k] && champs[k].name){
+        out[k].win = champs[k].name;
+        out[k].lose = (champs[k].name===out[k].home) ? out[k].away : out[k].home;
+        if(!out[k].extra) out[k].extra = 'penaltılarla';
+      }
+    });
   }catch(e){ console.warn('[arşiv] kupa hata:',e); }
   _arCache.cups[season]=out;
   return out;
@@ -79135,6 +79160,11 @@ async function _arRenderKupa(){
           + '<span class="tag">ŞAMPİYON</span></div>'
           + '<div class="ar-final">'+_arSideHtml(isNat,d.home)+'<span class="sc">'+d.hs+' – '+d.as+'</span>'+_arSideHtml(isNat,d.away)
           + (d.extra?'<span class="lo">'+_arEsc(d.extra)+'</span>':'')+'</div>';
+      } else if(d){
+        // final oynandı ama kazanan tespit edilemedi (beraberlik + penaltı kaydı yok)
+        var isNat2 = (c.k==='enc');
+        h+='<div class="ar-final">'+_arSideHtml(isNat2,d.home)+'<span class="sc">'+d.hs+' – '+d.as+'</span>'+_arSideHtml(isNat2,d.away)+'</div>'
+          + '<div class="ar-cb ar-empty" style="padding:10px 12px">Final oynandı · kazanan penaltılarla belirlendi (kayıt yok)</div>';
       } else {
         h+='<div class="ar-cb ar-empty" style="padding:18px 12px">⏳ Final henüz oynanmadı.</div>';
       }
@@ -79212,6 +79242,16 @@ async function _arRenderArsiv(){
       if(!bySeason[m.season]) bySeason[m.season]={};
       if(w) bySeason[m.season][m.tournament_key]=w;
     });
+    // trophies kaynaklı şampiyonlarla tamamla (beraberlik/penaltı finalleri)
+    try{
+      var champMap = await _arCupChampsFromTrophies();
+      Object.keys(champMap).forEach(function(sk){
+        if(!bySeason[sk]) bySeason[sk]={};
+        Object.keys(champMap[sk]).forEach(function(tk){
+          if(!bySeason[sk][tk]) bySeason[sk][tk]=champMap[sk][tk].name;
+        });
+      });
+    }catch(e){}
     var h=head;
     h+='<div class="ar-card"><div class="ar-ch"><div class="ic" style="background:rgba(255,214,0,.12);border:1px solid rgba(255,214,0,.3)">📜</div>'
       + '<div class="ti"><b>Sezon Sezon Kazananlar</b><span>tüm turnuvalar</span></div></div>'
