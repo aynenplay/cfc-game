@@ -26216,7 +26216,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-26-arsiv-kupa-147';
+const APP_BUILD = '2026-07-26-arsiv-euro-149';
 
 (function _cacheBustCheck() {
   try {
@@ -64451,7 +64451,8 @@ function lg2RenderFixture() {
   const _filtered = _allFromMs.filter(m => 
     m.countryCode === _lg2Country && 
     m.tier === _tier1based &&
-    !m.tournament_key
+    !m.tournament_key &&
+    m.season === season          // 🆕 sadece BU sezon (geçmiş sezon maçları karışmasın)
   );
   // 🆕 Cache boşsa async yükle, yüklendikten sonra tekrar render
   if (_allFromMs.length === 0 && typeof _loadAllMatchStateFromServer === 'function' && !window._lg2FixLoadingFlag) {
@@ -65657,7 +65658,7 @@ function trn2BuildLeadersHtml(trnKey, season) {
     const qualifyingTeams = teams.filter(t => slots.includes(t.rank));
     if(!qualifyingTeams.length) return;
 
-    const tierStats = computePlayerStats(cc, 0);
+    const tierStats = computePlayerStats(cc, 0, { season: season, buckets: [(typeof _bucketOfTrn==='function' ? _bucketOfTrn(trnKey) : null) || 'lig'] });
     // Sadece hak kazanan takımların oyuncularını al
     const filtered = tierStats.filter(p => qualifyingTeams.some(t => t.name === p.teamName));
     allPlayers.push(...filtered);
@@ -65745,7 +65746,7 @@ function trn2BuildStatHtml(trnKey, season, statType) {
     const teams = country.leagues[0].teams || [];
     const qualifyingTeams = teams.filter(t => slots.includes(t.rank));
     if(!qualifyingTeams.length) return;
-    const tierStats = computePlayerStats(cc, 0);
+    const tierStats = computePlayerStats(cc, 0, { season: season, buckets: [(typeof _bucketOfTrn==='function' ? _bucketOfTrn(trnKey) : null) || 'lig'] });
     const filtered = tierStats.filter(p => qualifyingTeams.some(t => t.name === p.teamName));
     allPlayers.push(...filtered);
   });
@@ -78911,7 +78912,16 @@ async function _arFetchAllFinals(){
     var r = await window.sb.from('match_state')
       .select('season,tournament_key,home_team,away_team,home_score,away_score,status')
       .eq('tournament_phase','final').order('season');
-    _arCache.finals = (r.data||[]).filter(function(m){ return m && m.status==='finished' && m.tournament_key; });
+    var fr = (r.data||[]).filter(function(m){ return m && m.status==='finished' && m.tournament_key; });
+    // beraberlikte kazananı penaltıdan çöz (özellikle EURO Cup / milli finaller)
+    for(var fi=0; fi<fr.length; fi++){
+      var fm=fr[fi];
+      if(Number(fm.home_score)===Number(fm.away_score)){
+        var pp = await _arPens(fm.season, fm.home_team, fm.away_team);
+        if(pp) fm._pens = pp;
+      }
+    }
+    _arCache.finals = fr;
   }catch(e){ _arCache.finals=[]; }
   return _arCache.finals;
 }
@@ -79294,6 +79304,7 @@ async function _arRenderArsiv(){
     finals.forEach(function(m){
       var hs=+m.home_score, as=+m.away_score, w=null;
       if(hs>as) w=m.home_team; else if(as>hs) w=m.away_team;
+      else if(Array.isArray(m._pens) && m._pens.length===2) w=(m._pens[0]>m._pens[1])?m.home_team:m.away_team;
       if(!bySeason[m.season]) bySeason[m.season]={};
       if(w) bySeason[m.season][m.tournament_key]=w;
     });
@@ -79312,14 +79323,15 @@ async function _arRenderArsiv(){
       + '<div class="ti"><b>Sezon Sezon Kazananlar</b><span>tüm turnuvalar</span></div></div>'
       + '<div class="ar-cb" style="padding:4px 12px 8px;overflow-x:auto"><table class="ar-tbl">'
       + '<tr><th>SZN</th><th>'+_arCupLogo('champ',13)+'CHM</th><th>'+_arCupLogo('elite',13)+'ELI</th>'
-      + '<th>'+_arCupLogo('conv',13)+'CON</th><th>'+_arCupLogo('enc',13)+'MİLLİ</th></tr>';
+      + '<th>'+_arCupLogo('conv',13)+'CON</th><th>'+_arCupLogo('enc',13)+'EURO CUP</th></tr>';
     for(var sN=1; sN<=cur; sN++){
       var b=bySeason[sN]||{};
       var any=b.champ||b.elite||b.conv||b.enc;
       if(!any){
         h+='<tr><td class="rk">'+sN+'</td><td colspan="4" style="color:var(--accent,#00e676);font-size:11px">'+(sN===cur?'● Devam ediyor':'—')+'</td></tr>';
       } else {
-        h+='<tr><td class="rk">'+sN+'</td><td>'+_arEsc(b.champ||'—')+'</td><td>'+_arEsc(b.elite||'—')+'</td><td>'+_arEsc(b.conv||'—')+'</td><td>'+_arEsc(b.enc||'—')+'</td></tr>';
+        var _encCell = b.enc ? (_arFlag(_arNatCC(b.enc))+' '+_arEsc(b.enc)) : '—';
+        h+='<tr><td class="rk">'+sN+'</td><td>'+_arEsc(b.champ||'—')+'</td><td>'+_arEsc(b.elite||'—')+'</td><td>'+_arEsc(b.conv||'—')+'</td><td>'+_encCell+'</td></tr>';
       }
     }
     h+='</table></div></div>';
