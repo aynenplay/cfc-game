@@ -26216,7 +26216,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-26-arsiv-kupa-146';
+const APP_BUILD = '2026-07-26-arsiv-kupa-147';
 
 (function _cacheBustCheck() {
   try {
@@ -78999,7 +78999,7 @@ function arInit(){
     _arCC = (typeof _userTeam!=='undefined' && _userTeam && _userTeam.countryCode) ? _userTeam.countryCode : null;
     if(!_arCC){ try{ _arCC=(_cftGetCountryCodes()||[])[0]||'TR'; }catch(e){ _arCC='TR'; } }
   }
-  if(_arArcCC==null) _arArcCC=_arCC;
+  if(_arArcCC==null) _arArcCC='__all';   // varsayılan: 🌍 Tüm Ülkeler · Tüm takımlar
   arRenderSeasons();
   arRender();
 }
@@ -79355,8 +79355,24 @@ async function _arRenderArsiv(){
       if(!gmap[k]) gmap[k]={cc:e.cc, nm:e.nm, list:[]};
       gmap[k].list.push(e);
     });
-    var lead=Object.keys(gmap).map(function(k){ return gmap[k]; })
-      .sort(function(a,b){ return b.list.length-a.list.length || a.nm.localeCompare(b.nm,'tr'); }).slice(0,20);
+    // Kupa önem sırası: CHM(0) > ELI(1) > CON(2) > Milli(3) > Süper Lig(4) > 1.Lig(5) ...
+    function _trophyRank(e){
+      if(e.type==='champ') return 0;
+      if(e.type==='elite') return 1;
+      if(e.type==='conv')  return 2;
+      if(e.type==='enc')   return 3;
+      var ti = (e.tierIdx!=null) ? Number(e.tierIdx) : 99;
+      return 3 + Math.max(1, ti);   // tier1 → 4, tier2 → 5, ...
+    }
+    var lead=Object.keys(gmap).map(function(k){
+      var g=gmap[k];
+      g.rank = Math.min.apply(null, g.list.map(_trophyRank));
+      g.list.sort(function(a,b){ return _trophyRank(a)-_trophyRank(b); });
+      return g;
+    }).sort(function(a,b){
+      if(a.rank!==b.rank) return a.rank-b.rank;             // önce en önemli kupa
+      return a.nm.localeCompare(b.nm,'tr');                  // sonra alfabetik
+    }).slice(0,20);
 
     var scope = (_arArcCC==='__all') ? '🌍 Tüm ülkeler' : (_arFlag(_arArcCC)+' '+_arCName(_arArcCC));
     if(_arArcTier!=='') scope += ' · '+_arTierName(_arArcCC, Number(_arArcTier));
