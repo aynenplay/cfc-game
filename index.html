@@ -25961,6 +25961,19 @@ body.drawer-open{overflow:hidden}
   .ar-spin{width:26px;height:26px;border:2.5px solid rgba(255,255,255,.12);border-top-color:var(--gold,#ffd600);border-radius:50%;
     margin:0 auto 10px;animation:arSpin .8s linear infinite}
   @keyframes arSpin{to{transform:rotate(360deg)}}
+  #page-archive .hm-title-box{text-align:center;padding:9px 46px}
+  #page-archive .hm-back-btn,#page-archive .cal-close-btn{z-index:4}
+  .ar-tm .ar-mini{width:16px;height:16px;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;
+    font-size:7.5px;font-weight:900;overflow:hidden;flex-shrink:0;font-family:'Barlow Condensed',sans-serif}
+  .ar-tm .ar-mini img{width:100%;height:100%;object-fit:contain}
+  .ar-tbl td.lg{width:22px;padding-right:0}
+  .ar-tbl .ar-mini{width:18px;height:18px;border-radius:5px;display:flex;align-items:center;justify-content:center;
+    font-size:8px;font-weight:900;overflow:hidden;font-family:'Barlow Condensed',sans-serif}
+  .ar-tbl .ar-mini img{width:100%;height:100%;object-fit:contain}
+  .ar-tbl td.tn{cursor:pointer}
+  .ar-cupic img{width:30px;height:30px;object-fit:contain;margin:0 !important}
+  .ar-natflag{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+    font-size:20px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.10);flex-shrink:0}
   </style>
   <div class="page" id="page-archive">
     <div class="hm-title-box">
@@ -26190,7 +26203,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-26-arsiv-138';
+const APP_BUILD = '2026-07-26-arsiv-139';
 
 (function _cacheBustCheck() {
   try {
@@ -78729,9 +78742,9 @@ async function _arFetchLeague(season, cc){
   if(_arCache.league[key]) return _arCache.league[key];
   var rows=[], from=0;
   while(true){
-    var r = await window.sb.from('match_results')
+    var r = await window.sb.from('match_state')
       .select('tier,home_team,away_team,home_score,away_score')
-      .eq('season',season).eq('country_code',cc).not('tier','is',null)
+      .eq('season',season).eq('country_code',cc).not('tier','is',null).eq('status','finished')
       .range(from, from+999);
     if(r.error || !r.data || !r.data.length) break;
     rows = rows.concat(r.data);
@@ -78763,28 +78776,35 @@ async function _arFetchLeague(season, cc){
   return out;
 }
 
-/* ── Veri: kupa finalleri (sezon) ── */
+/* ── Veri: kupa finalleri (sezon) — match_state kaynaklı (kesin faz bilgisi) ── */
+async function _arPens(season, home, away){
+  try{
+    var r = await window.sb.from('match_results').select('data')
+      .eq('season',season).eq('home_team',home).eq('away_team',away).limit(1);
+    var d = r.data && r.data[0] && r.data[0].data;
+    if(d && Array.isArray(d.pens) && d.pens.length===2) return d.pens;
+  }catch(e){}
+  return null;
+}
 async function _arFetchCups(season){
   if(_arCache.cups[season]) return _arCache.cups[season];
   var out={};
   try{
-    var r = await window.sb.from('match_results')
-      .select('tournament_key,home_team,away_team,home_score,away_score,data,country_code')
+    var r = await window.sb.from('match_state')
+      .select('tournament_key,home_team,away_team,home_score,away_score,status')
       .eq('season',season).eq('tournament_phase','final');
-    (r.data||[]).forEach(function(m){
-      if(!m.tournament_key) return;
-      var hs=+m.home_score, as=+m.away_score, win=null, lose=null, extra='';
+    var rows=(r.data||[]).filter(function(m){ return m && m.status==='finished' && m.tournament_key; });
+    for(var i=0;i<rows.length;i++){
+      var m=rows[i], hs=+m.home_score, as=+m.away_score, win=null, lose=null, extra='';
       if(hs>as){ win=m.home_team; lose=m.away_team; }
       else if(as>hs){ win=m.away_team; lose=m.home_team; }
       else {
-        var pens = m.data && m.data.pens;
-        if(Array.isArray(pens)&&pens.length===2){
-          if(pens[0]>pens[1]){ win=m.home_team; lose=m.away_team; } else { win=m.away_team; lose=m.home_team; }
-          extra=' · pen '+pens[0]+'-'+pens[1];
-        }
+        var p = await _arPens(season, m.home_team, m.away_team);
+        if(p){ if(p[0]>p[1]){ win=m.home_team; lose=m.away_team; } else { win=m.away_team; lose=m.home_team; }
+               extra='pen '+p[0]+'-'+p[1]; }
       }
       out[m.tournament_key]={win:win,lose:lose,hs:hs,as:as,extra:extra,home:m.home_team,away:m.away_team};
-    });
+    }
   }catch(e){ console.warn('[arşiv] kupa hata:',e); }
   _arCache.cups[season]=out;
   return out;
@@ -78794,10 +78814,10 @@ async function _arFetchCups(season){
 async function _arFetchAllFinals(){
   if(_arCache.finals) return _arCache.finals;
   try{
-    var r = await window.sb.from('match_results')
-      .select('season,tournament_key,home_team,away_team,home_score,away_score,data')
+    var r = await window.sb.from('match_state')
+      .select('season,tournament_key,home_team,away_team,home_score,away_score,status')
       .eq('tournament_phase','final').order('season');
-    _arCache.finals = r.data||[];
+    _arCache.finals = (r.data||[]).filter(function(m){ return m && m.status==='finished' && m.tournament_key; });
   }catch(e){ _arCache.finals=[]; }
   return _arCache.finals;
 }
@@ -79009,7 +79029,8 @@ async function _arRenderLig(){
       h+='<div class="ar-card"><div class="ar-ch"><div class="ic" style="background:rgba(255,214,0,.10);border:1px solid rgba(255,214,0,.24)">'+ic+'</div>'
         + '<div class="ti"><b>'+_arEsc(_arTierName(_arCC,t))+'</b><span>'+total+' takım · Sezon '+_arSeason+'</span></div></div>';
       if(champ){
-        h+='<div class="ar-champ"><span class="mdl">🏆</span><span class="nm">'+_arEsc(champ.name)+'</span>'
+        h+='<div class="ar-champ" style="cursor:pointer" onclick="viewTeam(\''+_arJs(_arCC)+'\',\''+_arJs(champ.name)+'\')"><span class="mdl">🏆</span>'
+          + _arBadge(_arCC,champ.name,'ar-crest')+'<span class="nm">'+_arEsc(champ.name)+'</span>'
           + '<span class="pt">'+champ.p+' PUAN · '+((champ.gf-champ.ga)>=0?'+':'')+(champ.gf-champ.ga)+'</span></div>';
       }
       var ups=[], dns=[];
@@ -79022,23 +79043,24 @@ async function _arRenderLig(){
         h+='<div class="ar-mv">';
         if(ups.length){
           h+='<div class="ar-mvl up">⬆️ '+_arEsc(_arTierName(_arCC,t-1))+'\'e yükselenler</div>';
-          ups.forEach(function(u){ h+='<span class="ar-tm up'+(isMine(u.n)?' me':'')+'" onclick="viewTeam(\''+_arJs(_arCC)+'\',\''+_arJs(u.n)+'\')"><span class="r">'+u.r+'</span> '+_arEsc(u.n)+(isMine(u.n)?' ★':'')+'</span>'; });
+          ups.forEach(function(u){ h+='<span class="ar-tm up'+(isMine(u.n)?' me':'')+'" onclick="viewTeam(\''+_arJs(_arCC)+'\',\''+_arJs(u.n)+'\')"><span class="r">'+u.r+'</span>'+_arBadge(_arCC,u.n,'ar-mini')+_arEsc(u.n)+(isMine(u.n)?' ★':'')+'</span>'; });
         }
         if(dns.length){
           h+='<div class="ar-mvl dn" style="margin-top:9px">⬇️ '+_arEsc(_arTierName(_arCC,t+1))+'\'e düşenler</div>';
-          dns.forEach(function(u){ h+='<span class="ar-tm dn'+(isMine(u.n)?' me':'')+'" onclick="viewTeam(\''+_arJs(_arCC)+'\',\''+_arJs(u.n)+'\')"><span class="r">'+u.r+'</span> '+_arEsc(u.n)+(isMine(u.n)?' ★':'')+'</span>'; });
+          dns.forEach(function(u){ h+='<span class="ar-tm dn'+(isMine(u.n)?' me':'')+'" onclick="viewTeam(\''+_arJs(_arCC)+'\',\''+_arJs(u.n)+'\')"><span class="r">'+u.r+'</span>'+_arBadge(_arCC,u.n,'ar-mini')+_arEsc(u.n)+(isMine(u.n)?' ★':'')+'</span>'; });
         }
         h+='</div>';
       }
       var fid='arFull_'+_arCC+'_'+t;
-      h+='<div class="ar-full" id="'+fid+'"><table class="ar-tbl"><tr><th></th><th>TAKIM</th><th style="text-align:center">O</th><th style="text-align:center">G</th><th style="text-align:center">B</th><th style="text-align:center">M</th><th style="text-align:center">AV</th><th style="text-align:center">P</th></tr>';
+      h+='<div class="ar-full" id="'+fid+'"><table class="ar-tbl"><tr><th></th><th></th><th>TAKIM</th><th style="text-align:center">O</th><th style="text-align:center">G</th><th style="text-align:center">B</th><th style="text-align:center">M</th><th style="text-align:center">AV</th><th style="text-align:center">P</th></tr>';
       arr.forEach(function(x,idx){
         var pos=idx+1, cls='';
         if(isMine(x.name)) cls='me';
         else if(pos<=4 && t>minT) cls='up';
         else if(pos>total-4 && t<maxT) cls='dn';
         var d=x.gf-x.ga;
-        h+='<tr class="'+cls+'"><td class="rk">'+pos+'</td><td>'+_arEsc(x.name)+'</td><td class="num">'+x.gp+'</td><td class="num">'+x.w+'</td><td class="num">'+x.d+'</td><td class="num">'+x.l+'</td><td class="num">'+(d>0?'+':'')+d+'</td><td class="pt">'+x.p+'</td></tr>';
+        h+='<tr class="'+cls+'"><td class="rk">'+pos+'</td><td class="lg">'+_arBadge(_arCC,x.name,'ar-mini')+'</td>'
+          +'<td class="tn" onclick="viewTeam(\''+_arJs(_arCC)+'\',\''+_arJs(x.name)+'\')">'+_arEsc(x.name)+'</td><td class="num">'+x.gp+'</td><td class="num">'+x.w+'</td><td class="num">'+x.d+'</td><td class="num">'+x.l+'</td><td class="num">'+(d>0?'+':'')+d+'</td><td class="pt">'+x.p+'</td></tr>';
       });
       h+='</table></div><button class="ar-more" onclick="arToggleFull(\''+fid+'\',this)">TÜM PUAN DURUMU ▾</button></div>';
     });
@@ -79057,16 +79079,20 @@ async function _arRenderKupa(){
     var h='';
     _AR_CUPS.forEach(function(c){
       var d=cups[c.k];
-      h+='<div class="ar-cup '+c.cls+'"><div class="ar-cuph"><div class="ar-cupic">'+c.ic+'</div>'
+      h+='<div class="ar-cup '+c.cls+'"><div class="ar-cuph"><div class="ar-cupic">'+_arCupLogo(c.k,30)+'</div>'
         + '<div class="ar-cupt"><b>'+_arEsc(c.n)+'</b><span>Sezon '+_arSeason+' · '+_arEsc(c.sub)+'</span></div></div>';
       if(d && d.win){
         var isNat = (c.k==='enc');
-        var sub = isNat ? 'Milli Takım' : (_arFlag(_arGuessCC(d.win))+' '+_arEsc(_arCName(_arGuessCC(d.win))));
-        h+='<div class="ar-win"'+(isNat?'':' onclick="viewTeam(\''+_arJs(_arGuessCC(d.win))+'\',\''+_arJs(d.win)+'\')"')+'>'
-          + (isNat ? '<div class="ar-crest" style="background:#6a1b9a">'+_arEsc(String(d.win).slice(0,3).toUpperCase())+'</div>' : _arBadge(_arGuessCC(d.win), d.win,'ar-crest'))
+        var wcc = isNat ? _arNatCC(d.win) : _arGuessCC(d.win);
+        var sub = isNat ? 'Milli Takım' : (_arFlag(wcc)+' '+_arEsc(_arCName(wcc)));
+        var click = isNat
+          ? (wcc ? ' onclick="ntViewAsGuest(\''+_arJs(wcc)+'\')"' : '')
+          : (wcc ? ' onclick="viewTeam(\''+_arJs(wcc)+'\',\''+_arJs(d.win)+'\')"' : '');
+        h+='<div class="ar-win"'+click+'>'
+          + (isNat ? '<div class="ar-natflag">'+_arFlag(wcc)+'</div>' : _arBadge(wcc, d.win,'ar-crest'))
           + '<div class="wi"><div class="n">'+_arEsc(d.win)+'</div><div class="s">'+sub+'</div></div>'
           + '<span class="tag">ŞAMPİYON</span></div>'
-          + '<div class="ar-final"><span class="lo">'+_arEsc(d.home)+'</span><span class="sc">'+d.hs+' – '+d.as+'</span><span>'+_arEsc(d.away)+'</span>'
+          + '<div class="ar-final">'+_arSideHtml(isNat,d.home)+'<span class="sc">'+d.hs+' – '+d.as+'</span>'+_arSideHtml(isNat,d.away)
           + (d.extra?'<span class="lo">'+_arEsc(d.extra)+'</span>':'')+'</div>';
       } else {
         h+='<div class="ar-cb ar-empty" style="padding:18px 12px">⏳ Final henüz oynanmadı.</div>';
@@ -79079,15 +79105,34 @@ async function _arRenderKupa(){
     body.innerHTML='<div class="ar-card"><div class="ar-cb ar-empty"><div class="e">⚠️</div>Veri yüklenemedi.</div></div>';
   }
 }
-function _arGuessCC(name){
+var _arNameIdx=null;
+function _arBuildIdx(){
+  if(_arNameIdx) return _arNameIdx;
+  var idx={team:{}, country:{}};
   try{
-    var codes=_cftGetCountryCodes()||[];
-    for(var i=0;i<codes.length;i++){
-      var c=_cftGetCountry(codes[i]); var lgs=(c&&c.leagues)||[];
-      for(var j=0;j<lgs.length;j++){ if((lgs[j].teams||[]).some(function(t){return t.name===name;})) return codes[i]; }
-    }
+    (_cftGetCountryCodes()||[]).forEach(function(cc){
+      var c=_cftGetCountry(cc); if(!c) return;
+      if(c.name) idx.country[String(c.name).toLowerCase()]=cc;
+      idx.country[String(cc).toLowerCase()]=cc;
+      (c.leagues||[]).forEach(function(lg){
+        (lg.teams||[]).forEach(function(t){ if(t&&t.name&&!idx.team[t.name]) idx.team[t.name]=cc; });
+      });
+    });
   }catch(e){}
-  return '';
+  _arNameIdx=idx; return idx;
+}
+function _arGuessCC(name){ var i=_arBuildIdx(); return i.team[name]||''; }
+function _arSideHtml(isNat, name){
+  var cc = isNat ? _arNatCC(name) : _arGuessCC(name);
+  var mini = isNat ? '<span style="font-size:14px">'+_arFlag(cc)+'</span>' : _arBadge(cc,name,'ar-mini');
+  var click = cc ? (isNat ? ' onclick="ntViewAsGuest(\''+_arJs(cc)+'\')"' : ' onclick="viewTeam(\''+_arJs(cc)+'\',\''+_arJs(name)+'\')"') : '';
+  return '<span style="display:inline-flex;align-items:center;gap:5px;cursor:'+(cc?'pointer':'default')+'"'+click+'>'+mini+_arEsc(name)+'</span>';
+}
+function _arNatCC(name){ var i=_arBuildIdx(); return i.country[String(name||'').toLowerCase()]||''; }
+function _arCupLogo(k,size){
+  var map={champ:'champ',elite:'elite',conv:'conv',enc:'natcup'};
+  try{ if(typeof _cupLogoInline==='function'){ var h=_cupLogoInline(map[k]||k,size||30); if(h) return h; } }catch(e){}
+  return {champ:'🏆',elite:'🥈',conv:'🥉',enc:'🌍'}[k]||'🏅';
 }
 
 /* ── SEKME: ARŞİV ── */
@@ -79100,14 +79145,15 @@ async function _arRenderArsiv(){
     finals.forEach(function(m){
       var hs=+m.home_score, as=+m.away_score, w=null;
       if(hs>as) w=m.home_team; else if(as>hs) w=m.away_team;
-      else { var p=m.data&&m.data.pens; if(Array.isArray(p)&&p.length===2) w=(p[0]>p[1])?m.home_team:m.away_team; }
+      else { w=null; }
       if(!bySeason[m.season]) bySeason[m.season]={};
       if(w) bySeason[m.season][m.tournament_key]=w;
     });
     var h='<div class="ar-card"><div class="ar-ch"><div class="ic" style="background:rgba(255,214,0,.12);border:1px solid rgba(255,214,0,.3)">📜</div>'
       + '<div class="ti"><b>Sezon Sezon Kazananlar</b><span>tüm turnuvalar</span></div></div>'
       + '<div class="ar-cb" style="padding:4px 12px 8px;overflow-x:auto"><table class="ar-tbl">'
-      + '<tr><th>SZN</th><th>🏆 CHM</th><th>🥈 ELI</th><th>🥉 CON</th><th>🌍 MİLLİ</th></tr>';
+      + '<tr><th>SZN</th><th>'+_arCupLogo('champ',14)+'CHM</th><th>'+_arCupLogo('elite',14)+'ELI</th>'
+      + '<th>'+_arCupLogo('conv',14)+'CON</th><th>'+_arCupLogo('enc',14)+'MİLLİ</th></tr>';
     for(var sN=1; sN<=cur; sN++){
       var b=bySeason[sN]||{};
       var any=b.champ||b.elite||b.conv||b.enc;
@@ -79142,7 +79188,9 @@ async function _arRenderArsiv(){
       + '<div class="ti"><b>Kupa Sıralaması</b><span>en çok kupa kazanan takımlar</span></div></div><div class="ar-cb">';
     if(!lead.length) h+='<div class="ar-empty" style="padding:14px">Henüz kupa kazanan yok.</div>';
     lead.forEach(function(x,i){
-      h+='<div class="ar-lead"><span class="rk'+(i===0?' g1':(i===1?' g2':(i===2?' g3':'')))+'">'+(i+1)+'</span>'
+      h+='<div class="ar-lead" style="cursor:pointer" onclick="viewTeam(\''+_arJs(x.cc)+'\',\''+_arJs(x.nm)+'\')">'
+        + '<span class="rk'+(i===0?' g1':(i===1?' g2':(i===2?' g3':'')))+'">'+(i+1)+'</span>'
+        + _arBadge(x.cc,x.nm,'ar-crest')
         + '<span class="nm">'+_arEsc(x.nm)+' '+_arFlag(x.cc)+'</span><span class="ct">🏆 '+x.c+'</span></div>';
     });
     h+='</div></div>';
