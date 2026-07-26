@@ -26216,7 +26216,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-26-sezon-istatistik-145';
+const APP_BUILD = '2026-07-26-arsiv-kupa-146';
 
 (function _cacheBustCheck() {
   try {
@@ -79324,37 +79324,66 @@ async function _arRenderArsiv(){
     }
     h+='</table></div></div>';
 
-    // ── Kupa sıralaması (filtreli) ──
+    // ── Kupa kazananlar (SEÇİLİ SEZON + ülke + kazanıldığı lig) ──
     var trs = await _arFetchTrophies();
-    var cnt={};
+    var entries=[];   // {cc, nm, type, tierIdx}
     trs.forEach(function(r){
-      var arr=Array.isArray(r.data)?r.data:[];
-      if(!arr.length) return;
-      cnt[r.country_code+'|'+r.team_name]=(cnt[r.country_code+'|'+r.team_name]||0)+arr.length;
-    });
-    Object.keys(bySeason).forEach(function(sN){
-      var b=bySeason[sN];
-      ['champ','elite','conv'].forEach(function(ck){
-        if(!b[ck]) return;
-        var cc=_arGuessCC(b[ck]); if(!cc) return;
-        cnt[cc+'|'+b[ck]]=(cnt[cc+'|'+b[ck]]||0)+1;
+      (Array.isArray(r.data)?r.data:[]).forEach(function(t){
+        if(!t || t.season !== _arSeason) return;
+        entries.push({ cc:r.country_code, nm:r.team_name, type:t.type||'league', tierIdx:(t.tierIdx!=null?t.tierIdx:null) });
       });
     });
-    var lead=Object.keys(cnt).map(function(k){ var p=k.split('|'); return {cc:p[0], nm:p[1], c:cnt[k]}; });
-    if(_arArcCC && _arArcCC!=='__all') lead=lead.filter(function(x){ return x.cc===_arArcCC; });
-    if(_arArcTier!=='') lead=lead.filter(function(x){ return String(_arTeamTier(x.cc,x.nm))===String(_arArcTier); });
-    lead.sort(function(a,b){ return b.c-a.c || a.nm.localeCompare(b.nm,'tr'); });
-    var leadTop=lead.slice(0,15);
+    // finallerden gelen kupa şampiyonlarını da ekle (trophies'te eksikse)
+    var bs = bySeason[_arSeason] || {};
+    ['champ','elite','conv','enc'].forEach(function(ck){
+      if(!bs[ck]) return;
+      var exists = entries.some(function(e){ return e.type===ck && e.nm===bs[ck]; });
+      if(exists) return;
+      var ecc = (ck==='enc') ? _arNatCC(bs[ck]) : _arGuessCC(bs[ck]);
+      entries.push({ cc:ecc, nm:bs[ck], type:ck, tierIdx:null });
+    });
+
+    // filtreler
+    var filt = entries.slice();
+    if(_arArcCC && _arArcCC!=='__all') filt = filt.filter(function(e){ return e.cc===_arArcCC; });
+    if(_arArcTier!=='') filt = filt.filter(function(e){ return e.type==='league' && String(e.tierIdx)===String(_arArcTier); });
+
+    // takıma göre grupla
+    var gmap={};
+    filt.forEach(function(e){
+      var k=e.cc+'|'+e.nm;
+      if(!gmap[k]) gmap[k]={cc:e.cc, nm:e.nm, list:[]};
+      gmap[k].list.push(e);
+    });
+    var lead=Object.keys(gmap).map(function(k){ return gmap[k]; })
+      .sort(function(a,b){ return b.list.length-a.list.length || a.nm.localeCompare(b.nm,'tr'); }).slice(0,20);
+
     var scope = (_arArcCC==='__all') ? '🌍 Tüm ülkeler' : (_arFlag(_arArcCC)+' '+_arCName(_arArcCC));
     if(_arArcTier!=='') scope += ' · '+_arTierName(_arArcCC, Number(_arArcTier));
     h+='<div class="ar-card"><div class="ar-ch"><div class="ic" style="background:rgba(255,214,0,.12);border:1px solid rgba(255,214,0,.3)">👑</div>'
-      + '<div class="ti"><b>Kupa Sıralaması</b><span>'+_arEsc(scope)+' · tüm sezonlar · '+lead.length+' takım</span></div></div><div class="ar-cb">';
-    if(!leadTop.length) h+='<div class="ar-empty" style="padding:14px">Bu filtrede kupa kazanan takım yok.</div>';
-    leadTop.forEach(function(x,i){
-      h+='<div class="ar-lead" style="cursor:pointer" onclick="viewTeam(\''+_arJs(x.cc)+'\',\''+_arJs(x.nm)+'\')">'
+      + '<div class="ti"><b>Kupa Kazananlar</b><span>'+_arEsc(scope)+' · Sezon '+_arSeason+' · '+filt.length+' kupa</span></div></div><div class="ar-cb">';
+    if(!lead.length){
+      h+='<div class="ar-empty" style="padding:16px">Bu filtrede Sezon '+_arSeason+' kupası yok.</div>';
+    }
+    lead.forEach(function(x,i){
+      var chips='';
+      x.list.forEach(function(e){
+        if(e.type==='league'){
+          chips+='<span class="ar-chip" style="padding:3px 8px;font-size:10px">🏆 '+_arEsc(_arTierName(e.cc, e.tierIdx))+'</span>';
+        } else {
+          var cd=_AR_CUPS.filter(function(c){return c.k===e.type;})[0];
+          chips+='<span class="ar-chip blue" style="padding:3px 8px;font-size:10px">'+_arCupLogo(e.type,12)+' '+_arEsc(cd?cd.n.split(' ')[0]:e.type)+'</span>';
+        }
+      });
+      var isNatOnly = x.list.every(function(e){ return e.type==='enc'; });
+      var click = x.cc ? (isNatOnly ? ' onclick="ntViewAsGuest(\''+_arJs(x.cc)+'\')"' : ' onclick="viewTeam(\''+_arJs(x.cc)+'\',\''+_arJs(x.nm)+'\')"') : '';
+      h+='<div class="ar-lead" style="cursor:pointer;align-items:flex-start"'+click+'>'
         + '<span class="rk'+(i===0?' g1':(i===1?' g2':(i===2?' g3':'')))+'">'+(i+1)+'</span>'
-        + _arBadge(x.cc,x.nm,'ar-crest')
-        + '<span class="nm">'+_arEsc(x.nm)+' '+_arFlag(x.cc)+'</span><span class="ct">🏆 '+x.c+'</span></div>';
+        + (isNatOnly ? '<div class="ar-natflag" style="width:30px;height:30px;font-size:16px">'+_arFlag(x.cc)+'</div>' : _arBadge(x.cc,x.nm,'ar-crest'))
+        + '<span class="nm" style="display:flex;flex-direction:column;gap:4px">'
+        +   '<span>'+_arEsc(x.nm)+' '+(x.cc?_arFlag(x.cc):'')+'</span>'
+        +   '<span style="display:flex;flex-wrap:wrap;gap:4px">'+chips+'</span></span>'
+        + '<span class="ct">🏆 '+x.list.length+'</span></div>';
     });
     h+='</div></div>';
 
