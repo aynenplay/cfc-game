@@ -26224,7 +26224,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-26-arsiv-cifte-151';
+const APP_BUILD = '2026-07-26-arsiv-bolge-153';
 
 (function _cacheBustCheck() {
   try {
@@ -75761,6 +75761,18 @@ function buildRkPlayerList() {
   // Kullanıcı oyuncusunun gerçek loguna bak (cft_user_match_log)
   let userMatchLog = [];
   try { userMatchLog = getUserMatchLog(); } catch(e) {}
+  // 🆕 SADECE BU SEZON — eskiden tüm kariyer toplanıyordu (gol sayısı sezon değişince sıfırlanmıyordu)
+  try {
+    const _sN = (typeof getSeasonInfo==='function') ? getSeasonInfo().season : 1;
+    const _r  = (typeof _seasonRangeMs==='function') ? _seasonRangeMs(_sN) : [0, Infinity];
+    userMatchLog = (userMatchLog || []).filter(m => {
+      if (!m) return false;
+      if (m.season != null) return Number(m.season) === _sN;
+      const _t = m.date ? new Date(m.date).getTime() : (m.ts || 0);
+      if (!_t) return false;
+      return _t >= _r[0] && _t < _r[1];
+    });
+  } catch(e) {}
   const userTotals = userMatchLog.reduce((acc, m) => {
     acc.goals    += m.goals    || 0;
     acc.assists  += m.assists  || 0;
@@ -75780,10 +75792,11 @@ function buildRkPlayerList() {
     } else {
       const sk = `${p.teamName}_${p.n}`;
       const s = playerStats[sk];
-      if (s && s.matches > 0) {
+      const _rc = s ? ((s.ratingCount != null) ? s.ratingCount : s.matches) : 0;
+      if (s && (s.matches > 0 || _rc > 0)) {
         p.goals = s.goals;
         p.assists = s.assists;
-        p.rating = s.ratingSum / s.matches;
+        p.rating = _rc > 0 ? (s.ratingSum / _rc) : 6.5;
         p.matches = s.matches;
       } else {
         p.goals = 0;
@@ -78784,6 +78797,9 @@ var _AR_CUPS = [
   {k:'enc',   n:'MİLLİ TAKIMLAR KUPASI', ic:'🌍', cls:'n', sub:'milli takımlar'}
 ];
 var _AR_PHASE_RANK = { group:0, r32:1, r16:2, qf:3, sf:4, final:5 };
+// Ligler sayfasındaki bölge renkleri (getStandingsZone ile birebir)
+var _AR_ZONE_COL = { 'chm-d':'#1976d2','chm-p':'#64b5f6','eli-d':'#2e7d32','eli-p':'#81c784',
+                     'con-d':'#e65100','con-p':'#ffb74d', promo:'#00e676', rel:'#ef5350' };
 var _AR_PHASE_NAME = { group:'Grup Aşaması', r32:'Son 32', r16:'Son 16', qf:'Çeyrek Final', sf:'Yarı Final', final:'Final' };
 
 function _arEsc(x){ return String(x==null?'':x).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
@@ -79195,13 +79211,19 @@ async function _arRenderLig(){
       arr.forEach(function(x,idx){
         var pos=idx+1, cls='';
         if(isMine(x.name)) cls='me';
-        else if(pos<=4 && t>minT) cls='up';
-        else if(pos>total-4 && t<maxT) cls='dn';
+        var _zone = (typeof getStandingsZone==='function') ? getStandingsZone(pos, t===minT, t===maxT) : 'normal';
+        var _zc = _AR_ZONE_COL[_zone] || '';
         var d=x.gf-x.ga;
-        h+='<tr class="'+cls+'"><td class="rk">'+pos+'</td><td class="lg">'+_arBadge(_arCC,x.name,'ar-mini')+'</td>'
-          +'<td class="tn" onclick="viewTeam(\''+_arJs(_arCC)+'\',\''+_arJs(x.name)+'\')">'+_arEsc(x.name)+'</td><td class="num">'+x.gp+'</td><td class="num">'+x.w+'</td><td class="num">'+x.d+'</td><td class="num">'+x.l+'</td><td class="num">'+(d>0?'+':'')+d+'</td><td class="pt">'+x.p+'</td></tr>';
+        h+='<tr class="'+cls+'"'+(_zc?' style="box-shadow:inset 3px 0 0 '+_zc+'"':'')+'>'
+          +'<td class="rk"'+(_zc?' style="color:'+_zc+';font-weight:900"':'')+'>'+pos+'</td><td class="lg">'+_arBadge(_arCC,x.name,'ar-mini')+'</td>'
+          +'<td class="tn" onclick="viewTeam(\''+_arJs(_arCC)+'\',\''+_arJs(x.name)+'\')">'+_arEsc(x.name)+'</td><td class="num">'+x.gp+'</td><td class="num">'+x.w+'</td><td class="num">'+x.d+'</td><td class="num">'+x.l+'</td><td class="num">'+(d>0?'+':'')+d+'</td><td class="pt"'+(_zc?' style="color:'+_zc+'"':'')+'>'+x.p+'</td></tr>';
       });
-      h+='</table></div><button class="ar-more" onclick="arToggleFull(\''+fid+'\',this)">TÜM PUAN DURUMU ▾</button></div>';
+      var _lgd = (t===minT)
+        ? '<span style="color:#1976d2">●</span>1 CHM &nbsp;<span style="color:#64b5f6">●</span>2 CHM-PO &nbsp;<span style="color:#2e7d32">●</span>3 ELI &nbsp;<span style="color:#81c784">●</span>4 ELI-PO &nbsp;<span style="color:#e65100">●</span>5 CON &nbsp;<span style="color:#ffb74d">●</span>6 CON-PO &nbsp;<span style="color:#ef5350">●</span>13-16 Düşme'
+        : (t===maxT ? '<span style="color:#00e676">●</span>1-4 Yükselme'
+                    : '<span style="color:#00e676">●</span>1-4 Yükselme &nbsp;<span style="color:#ef5350">●</span>13-16 Düşme');
+      h+='</table><div style="padding:7px 4px 2px;font-size:9px;color:var(--text3,#6b7280);line-height:1.7">'+_lgd+'</div>';
+      h+='</div><button class="ar-more" onclick="arToggleFull(\''+fid+'\',this)">TÜM PUAN DURUMU ▾</button></div>';
     });
     body.innerHTML=h;
   }catch(e){
