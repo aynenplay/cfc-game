@@ -24512,7 +24512,7 @@ body.drawer-open{overflow:hidden}
       <!-- 🆕 Arama kutusu ve bölge filtreleri kaldırıldı (sade liste) -->
 
       <!-- Ülke + Lig listesi -->
-      <div id="lg2CountryList" class="lg2-country-list"></div>
+      <div id="lg2CountryList" class="lg2-country-list" style="margin-top:12px"></div>
     </div>
 
     <!-- Lig Detay Görünümü -->
@@ -26209,7 +26209,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-26-ligler-sade-156';
+const APP_BUILD = '2026-07-26-kupa-detay-162';
 
 (function _cacheBustCheck() {
   try {
@@ -26704,7 +26704,6 @@ const CFT_LANGUAGES = [
   {code:'fr', flag:'🇫🇷', name:'French',    native:'Français',   supported:false},
   {code:'it', flag:'🇮🇹', name:'Italian',   native:'Italiano',   supported:false},
   {code:'pt', flag:'🇵🇹', name:'Portuguese',native:'Português',  supported:false},
-  {code:'ar', flag:'🇸🇦', name:'Arabic',    native:'العربية',   supported:false},
   {code:'ru', flag:'🇷🇺', name:'Russian',   native:'Русский',    supported:false},
 ];
 
@@ -53838,6 +53837,10 @@ async function guestRenderFacilities() {
   const v = _viewingTeam;
   const wrap = document.getElementById('team-facility');
   if(!wrap) return;
+  // 🆕 Kendi takımının tesis arayüzünü sakla — ziyaret bitince geri yüklenecek.
+  //   (Eskiden innerHTML ezildiği için #facGrid kayboluyor, kendi takımına dönünce
+  //    ziyaret edilen takımın tesisleri ekranda kalıyordu.)
+  try { if (window._facOwnHtml == null) window._facOwnHtml = wrap.innerHTML; } catch(e) {}
 
   // Loading state
   wrap.innerHTML = `
@@ -56204,6 +56207,20 @@ function jrsSave() {
 // ═══════════════════════════════════════════════════════════════════
 //  TAKIM TROFE VİTRİNİ — team_data.trophies
 // ═══════════════════════════════════════════════════════════════════
+// 🆕 Kupa adı çözücü — lig kupalarında hangi lig olduğunu yazar (ör. "5. Lig").
+//   Sunucu kupayı {season, type:'league', tierIdx} olarak yazıyor; leagueName alanı yok.
+function _tvLeagueNameOf(cc, tierIdx) {
+  const ti = Number(tierIdx);
+  try {
+    const c = (typeof _cftGetCountry === 'function') ? _cftGetCountry(cc) : null;
+    const lg = ((c && c.leagues) || []).find(l => Number(l.tier) === ti);
+    if (lg && lg.name) return lg.name;
+  } catch(e) {}
+  if (!isFinite(ti)) return 'Lig';
+  if (ti <= 1) return 'Süper Lig';
+  return (ti - 1) + '. Lig';
+}
+
 async function renderTrophyShelf() {
   // 🆕 Ziyaretçi modunda başka takımın kupaları, yoksa kullanıcının kendi takımı
   const isVisitor = (typeof _viewingTeam !== 'undefined' && _viewingTeam);
@@ -56246,6 +56263,11 @@ async function renderTrophyShelf() {
     return;
   }
 
+  // Kupaların ait olduğu ülke (lig adını çözmek için)
+  const _shelfCC = isVisitor
+    ? _viewingTeam.countryCode
+    : ((typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.countryCode : '');
+
   // Sezona göre azalan (en yeni üstte)
   const sorted = trophies.slice().sort((a, b) => (b.season || 0) - (a.season || 0));
 
@@ -56256,7 +56278,7 @@ async function renderTrophyShelf() {
     const isConv   = t.type === 'conv';
     // Renk sınıfı
     let cls = 'silver';
-    if (isLeague && t.tierIdx === 0) cls = 'gold';   // Süper Lig
+    if (isLeague && Number(t.tierIdx) <= 1) cls = 'gold';   // Süper Lig (tier 1 tabanlı)
     else if (isChamp) cls = 'gold';                  // Champions
     else if (isElite) cls = 'silver';
     else if (isConv) cls = 'silver';
@@ -56264,20 +56286,21 @@ async function renderTrophyShelf() {
     const isEuro = isChamp || isElite || isConv;
     const colorCls = isEuro ? 'euro' : (cls === 'gold' ? 'gold' : 'silver');
     // İkon: lig şampiyonu/champ → kupa, diğerleri madalya
-    const useTrophy = (isLeague && t.tierIdx === 0) || isChamp;
+    const useTrophy = (isLeague && Number(t.tierIdx) <= 1) || isChamp;
     const icon = useTrophy
       ? '<svg viewBox="0 0 24 24"><use href="#ic-tv-trophy"/></svg>'
       : '<svg viewBox="0 0 24 24"><use href="#ic-tv-medal"/></svg>';
-    // İsim
+    // İsim — lig kupalarında hangi lig olduğu yazılır
     let name = 'Kupa';
-    if (isLeague) name = t.leagueName || 'Lig';
-    else if (isChamp) name = 'Championship';
-    else if (isElite) name = 'Elite';
-    else if (isConv) name = 'Convergence';
-    return `<div class="tv-trophy ${colorCls}">
+    if (isLeague) name = t.leagueName || _tvLeagueNameOf(_shelfCC, t.tierIdx);
+    else if (isChamp) name = 'Championship League';
+    else if (isElite) name = 'Elite League';
+    else if (isConv) name = 'Convergence League';
+    else if (t.type === 'enc') name = 'EURO Nations Cup';
+    return `<div class="tv-trophy ${colorCls}" title="${teamLabel ? teamLabel + ' · ' : ''}${name} Şampiyonu · Sezon ${t.season || '?'}">
       <div class="tv-trophy-ic">${icon}</div>
       <div class="tv-trophy-nm">${name}</div>
-      <div class="tv-trophy-yr">Sezon ${t.season || '?'}</div>
+      <div class="tv-trophy-yr">Şampiyon · Sezon ${t.season || '?'}</div>
     </div>`;
   }).join('');
 }
@@ -59445,13 +59468,13 @@ function _euEuroMatchRowHtml(m, userCountry) {
   return `
     <div class="lg-scene-row eu-match-row${isUserRow ? ' is-user' : ''}">
       <div class="eu-team-l">
-        ${inlineBadge({cls:'eu-crest', name:m.home.name, bg:homeBg, tc:homeTc, short:homeShort})}
-        <span class="eu-tname" title="${m.homeName||''}">${m.homeFlag||''} ${m.homeName||'—'}</span>
+        <div class="eu-crest" style="background:transparent!important;border:none!important;box-shadow:none!important;display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1">${m.homeFlag||'🏳️'}</div>
+        <span class="eu-tname" title="${m.homeName||''}">${m.homeName||'—'}</span>
       </div>
       <div class="eu-score">${score}</div>
       <div class="eu-team-r">
-        <span class="eu-tname" title="${m.awayName||''}">${m.awayName||'—'} ${m.awayFlag||''}</span>
-        ${inlineBadge({cls:'eu-crest', name:m.away.name, bg:awayBg, tc:awayTc, short:awayShort})}
+        <span class="eu-tname" title="${m.awayName||''}">${m.awayName||'—'}</span>
+        <div class="eu-crest" style="background:transparent!important;border:none!important;box-shadow:none!important;display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1">${m.awayFlag||'🏳️'}</div>
       </div>
     </div>
   `;
@@ -59501,8 +59524,8 @@ function _euRenderEuroGroupMini(season, userCountry) {
       return `
         <div class="lg-scene-row${isUser ? ' is-user' : ''}">
           <div class="lg-scene-rank">${ti+1}</div>
-          <div class="lg-scene-crest" style="background:${bg};color:${tc}">${short}</div>
-          <div class="lg-scene-tname" title="${t.name||''}">${t.flag||''} ${t.name||'—'}</div>
+          <div class="lg-scene-crest" style="background:transparent!important;border:none!important;box-shadow:none!important;display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1">${t.flag||'🏳️'}</div>
+          <div class="lg-scene-tname" title="${t.name||''}">${t.name||'—'}</div>
           <div class="lg-scene-pts">${t.pts||0}</div>
         </div>
       `;
@@ -60403,6 +60426,14 @@ function renderFacilities() {
   if(typeof _viewingTeam !== 'undefined' && _viewingTeam) {
     return guestRenderFacilities();
   }
+  // 🆕 Ziyaretçi görünümünden dönüldüyse orijinal tesis arayüzünü geri yükle
+  try {
+    const _fw = document.getElementById('team-facility');
+    if (_fw && window._facOwnHtml != null && !document.getElementById('facGrid')) {
+      _fw.innerHTML = window._facOwnHtml;
+    }
+  } catch(e) {}
+
   const grid = document.getElementById('facGrid');
   if(!grid) return;
 
@@ -61275,6 +61306,123 @@ function toggleSkillCat(idx) {
   document.getElementById('skillCat'+idx).classList.toggle('collapsed');
 }
 
+
+// 🆕 ZİYARETÇİ KARİYER GÖRÜNÜMÜ — başka bir oyuncunun profilinde "Kariyer" sekmesi.
+//   Eskiden renderCareerPage() çağrılıyordu ve o hep KENDİ verini gösteriyordu.
+//   Burada ziyaret edilen oyuncunun DB alanları kullanılır (goals_total, match_ratings, stats_by_comp).
+function renderCareerPageVisitor(p) {
+  if (!p) return;
+  const _num = (v) => (typeof v === 'number' && isFinite(v)) ? v : 0;
+  const mr = Array.isArray(p.matchRatings) ? p.matchRatings
+           : (Array.isArray(p.match_ratings) ? p.match_ratings : []);
+  const sbc = (p.statsByComp && typeof p.statsByComp === 'object') ? p.statsByComp
+            : ((p.stats_by_comp && typeof p.stats_by_comp === 'object') ? p.stats_by_comp : {});
+  const totM = _num(p.matchesPlayed != null ? p.matchesPlayed : p.matches_played);
+  const totG = _num(p.goalsTotal   != null ? p.goalsTotal   : p.goals_total);
+  const totA = _num(p.assistsTotal != null ? p.assistsTotal : p.assists_total);
+  const cnt = (arr, f) => arr.reduce((s,x)=> s + (f(x)||0), 0);
+  const W = mr.filter(m=>m && m.result==='W').length;
+  const D = mr.filter(m=>m && m.result==='D').length;
+  const L = mr.filter(m=>m && m.result==='L').length;
+  const YC = cnt(mr, m=>m.yellows); const RC = cnt(mr, m=>m.reds);
+  const cell = (v,l,c) => `<div class="car-stat-card"><div class="car-stat-value${c?' '+c:''}">${v}</div><div class="car-stat-label">${l}</div></div>`;
+
+  // Kariyer özeti
+  const g1 = document.getElementById('carStatsGrid');
+  if (g1) g1.innerHTML = cell(totM,'Maç') + cell(totG,'Gol','green') + cell(totA,'Asist','acc')
+        + cell(W,'Galibiyet','green') + cell(D,'Beraberlik') + cell(L,'Mağlubiyet','red');
+
+  // Bu sezon (stats_by_comp + sezon içi match_ratings)
+  let sN = 1; try { sN = getSeasonInfo().season || 1; } catch(e) {}
+  const rng = (typeof _seasonRangeMs==='function') ? _seasonRangeMs(sN) : [0, Infinity];
+  const inSeason = mr.filter(m => m && m.ts && m.ts >= rng[0] && m.ts < rng[1]);
+  let sg=0, sa=0, sm=0;
+  Object.keys(sbc).forEach(function(b){
+    const v = sbc[b] && sbc[b]['s'+sN];
+    if (v) { sg += _num(v.g); sa += _num(v.a); sm += _num(v.m); }
+  });
+  const g2 = document.getElementById('carSeasonStatsGrid');
+  if (g2) g2.innerHTML = cell(sm,'Maç') + cell(sg,'Gol','green') + cell(sa,'Asist','acc')
+        + cell(inSeason.filter(m=>m.result==='W').length,'Galibiyet')
+        + cell(cnt(inSeason,m=>m.yellows),'Sarı Kart')
+        + cell(cnt(inSeason,m=>m.reds),'Kırmızı','red');
+
+  // Yarışmalara göre (tüm zamanlar)
+  const g3 = document.getElementById('carCompGrid');
+  if (g3) {
+    const COMPS = [
+      { key:'lig', icon:'🏟️', name:'Lig' },
+      { key:'chm', icon:'🏆', name:'Şampiyonlar Ligi' },
+      { key:'eli', icon:'🥈', name:'Elit Lig' },
+      { key:'con', icon:'🥉', name:'Konferans Ligi' },
+      { key:'enc', icon:'🌍', name:'EURO Nations Cup' },
+    ];
+    let any = false;
+    g3.innerHTML = COMPS.map(function(c){
+      const t = (typeof statsByCompGetTotal==='function') ? statsByCompGetTotal(sbc, c.key) : {g:0,a:0,m:0};
+      if ((t.m||0) > 0) any = true;
+      return `<div class="car-comp-row${(t.m||0)>0?'':' is-empty'}" style="${(t.m||0)>0?'':'opacity:.45'}">
+        <div class="car-comp-ic">${c.icon}</div>
+        <div class="car-comp-name">${c.name}</div>
+        <div class="car-comp-nums">
+          <span class="car-comp-num"><b>${t.m||0}</b><span class="car-comp-num-lbl">Maç</span></span>
+          <span class="car-comp-num"><b>${t.g||0}</b><span class="car-comp-num-lbl">Gol</span></span>
+          <span class="car-comp-num"><b>${t.a||0}</b><span class="car-comp-num-lbl">Asist</span></span>
+        </div></div>`;
+    }).join('');
+    if (!any) g3.innerHTML = '<div class="car-table-empty">Henüz yarışma verisi yok</div>';
+  }
+
+  // Form (son 5)
+  const fe = document.getElementById('carForm');
+  if (fe) {
+    if (!mr.length) fe.innerHTML = '<div class="car-form-empty">Henüz maç oynanmadı</div>';
+    else {
+      const last5 = mr.slice(-5);
+      const cells = last5.map(function(m){
+        const cls = String(m.result||'').toLowerCase();
+        const lbl = m.result==='W' ? 'G' : (m.result==='D' ? 'B' : 'M');
+        return `<div class="car-form-cell ${cls}">${lbl}</div>`;
+      }).join('');
+      fe.innerHTML = Array(Math.max(0,5-last5.length)).fill('<div class="car-form-cell q">?</div>').join('') + cells;
+    }
+  }
+
+  // Ziyaretçide olmayan bölümler
+  const th = document.getElementById('carTeamHistory');
+  if (th) th.innerHTML = '<div class="car-table-empty">Takım geçmişi yalnızca kendi profilinde görünür</div>';
+  const mv = document.getElementById('carMvChart');
+  if (mv) mv.innerHTML = '<div class="car-table-empty">Piyasa değeri geçmişi yalnızca kendi profilinde görünür</div>';
+  const tr = document.getElementById('carTrophies');
+  if (tr) tr.innerHTML = '<div class="car-table-empty">Başarı verisi yok</div>';
+
+  // Son maçlar
+  const me = document.getElementById('carMatches');
+  if (me) {
+    if (!mr.length) me.innerHTML = '<div class="car-table-empty">Henüz maç oynanmadı</div>';
+    else {
+      me.innerHTML = mr.slice().reverse().slice(0,10).map(function(m){
+        const cls = String(m.result||'').toLowerCase();
+        const lbl = m.result==='W' ? 'G' : (m.result==='D' ? 'B' : 'M');
+        const own = m.isHome ? m.home : m.away;
+        const opp = m.opp || (m.isHome ? m.away : m.home) || '—';
+        const score = m.isHome ? `${m.hs}-${m.as}` : `${m.as}-${m.hs}`;
+        const st = [];
+        if (m.goals)   st.push(`<span class="car-match-stat-g">⚽${m.goals}</span>`);
+        if (m.assists) st.push(`<span class="car-match-stat-a">🅰️${m.assists}</span>`);
+        if (m.yellows) st.push(`<span class="car-match-stat-y">🟨${m.yellows}</span>`);
+        if (m.reds)    st.push(`<span class="car-match-stat-r">🟥${m.reds}</span>`);
+        return `<div class="car-match-row">
+            <div class="car-match-result ${cls}">${lbl}</div>
+            <div class="car-match-teams">${own||'—'} <span style="color:var(--text3)">vs</span> ${opp}</div>
+            <div class="car-match-score">${score}</div>
+            <div class="car-match-stats">${st.join('')}</div>
+          </div>`;
+      }).join('');
+    }
+  }
+}
+
 function plTab(name, btn) {
   document.querySelectorAll('.pl-tab').forEach(t=>t.classList.remove('active'));
   if(btn) btn.classList.add('active');
@@ -61282,7 +61430,12 @@ function plTab(name, btn) {
   document.getElementById('pl-equipment').style.display = name==='equipment'?'block':'none';
   document.getElementById('pl-history').style.display   = name==='history'?'block':'none';
   if(name==='equipment') renderEquipment();
-  if(name==='history' && typeof renderCareerPage === 'function') renderCareerPage();
+  if(name==='history') {
+    // 🆕 Ziyaretçi modunda ziyaret edilen oyuncunun kariyeri gösterilir (kendi verin değil)
+    const _vp = (typeof _visitedPlayerData !== 'undefined' && _visitedPlayerData) ? _visitedPlayerData.player : null;
+    if (_vp && typeof renderCareerPageVisitor === 'function') renderCareerPageVisitor(_vp);
+    else if (typeof renderCareerPage === 'function') renderCareerPage();
+  }
 }
 
 function renderPlayerHistory() {
