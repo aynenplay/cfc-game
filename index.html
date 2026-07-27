@@ -26209,7 +26209,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-26-kupa-detay-162';
+const APP_BUILD = '2026-07-27-canli-poll-164';
 
 (function _cacheBustCheck() {
   try {
@@ -37704,32 +37704,21 @@ let _liveMatchPollTimer = null;
 async function _liveMatchLoadFromServer() {
   if (!window.sb) return;
   try {
-    // 🆕 1) running olan TÜM maçları yükle (SADECE skor+meta — events/stats ÇEKİLMEZ, CPU dostu)
-    const { data: runningData, error: e1 } = await window.sb.from('match_state')
-      .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,started_at,kickoff_at,tournament_key,tournament_phase,viewer_count')
-      .eq('status', 'running')
-      .order('kickoff_at', { ascending: false })
-      .limit(500);
-    if (e1) { console.warn('[live_match running] hata:', e1.message); }
-    
-    // 🆕 2) scheduled — yakın gelecek (önümüzdeki 4 saat) — SADECE skor+meta
-    const { data: schedData, error: e2 } = await window.sb.from('match_state')
-      .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,started_at,kickoff_at,tournament_key,tournament_phase,viewer_count')
-      .eq('status', 'scheduled')
-      .gte('kickoff_at', new Date(Date.now() - 30 * 60 * 1000).toISOString())
-      .lte('kickoff_at', new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString())
+    // 🆕 TEK SORGU: running + yakın scheduled + EURO Nations (eskiden 3 ayrı sorguydu)
+    //   PostgREST .or() ile birleştirildi → istek sayısı 1/3'e indi.
+    const _lmNow = Date.now();
+    const _lmFrom = new Date(_lmNow - 30 * 60 * 1000).toISOString();
+    const _lmTo   = new Date(_lmNow + 4 * 60 * 60 * 1000).toISOString();
+    const { data: liveRows, error: e1 } = await window.sb.from('match_state')
+      .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,started_at,kickoff_at,tournament_key,tournament_phase')
+      .or('status.eq.running,and(status.eq.scheduled,kickoff_at.gte.' + _lmFrom + ',kickoff_at.lte.' + _lmTo + '),tournament_key.eq.enc')
       .order('kickoff_at', { ascending: true })
-      .limit(500);
-    if (e2) { console.warn('[live_match scheduled] hata:', e2.message); }
-    
-    // 🆕 3) Tüm EURO Nations Cup planlanmış maçları (gün 34+ için) — SADECE skor+meta
-    const { data: encData, error: e3 } = await window.sb.from('match_state')
-      .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,started_at,kickoff_at,tournament_key,tournament_phase,viewer_count')
-      .eq('tournament_key', 'enc')
-      .order('day_in_season', { ascending: true })
-      .limit(500);
-    if (e3) { console.warn('[live_match enc] hata:', e3.message); }
-    
+      .limit(1000);
+    if (e1) { console.warn('[live_match] hata:', e1.message); }
+    const runningData = liveRows || [];
+    const schedData = [];
+    const encData = [];
+
     const cache = {};
     for (const r of (runningData || [])) cache[r.match_key] = r;
     for (const r of (schedData || [])) cache[r.match_key] = r;
@@ -37801,11 +37790,27 @@ function _liveMatchStartPolling() {
   };
   // İlk yükleme
   _liveMatchLoadFromServer().then(_pollRender);
-  // Sonra 7sn'de bir poll — gerçek maç dakika ritmi (1 sim-dakika = 7sn). Sadece skor çeker.
-  _liveMatchPollTimer = setInterval(() => {
-    if (document.hidden) return;  // 🆕 sekme gizliyse poll yok
-    _liveMatchLoadFromServer().then(_pollRender);
-  }, 7000);
+  // 🆕 ADAPTİF ARALIK: ekranda/DB'de canlı maç varken 7 sn (1 sim-dakika ritmi),
+  //   canlı maç yokken 45 sn. Sekme gizliyken hiç sorgu yok.
+  const _lmTick = () => {
+    if (document.hidden) return;
+    _liveMatchLoadFromServer().then(() => {
+      _pollRender();
+      // canlı maç sayısına göre aralığı ayarla
+      let liveCount = 0;
+      try {
+        for (const k in _liveMatchCache) { if (_liveMatchCache[k] && _liveMatchCache[k].status === 'running') liveCount++; }
+      } catch(e) {}
+      const want = liveCount > 0 ? 7000 : 45000;
+      if (want !== window._lmPollMs) {
+        window._lmPollMs = want;
+        if (_liveMatchPollTimer) clearInterval(_liveMatchPollTimer);
+        _liveMatchPollTimer = setInterval(_lmTick, want);
+      }
+    });
+  };
+  window._lmPollMs = 7000;
+  _liveMatchPollTimer = setInterval(_lmTick, 7000);
 }
 
 function _liveMatchStopPolling() {
@@ -56850,98 +56855,210 @@ async function _loadFinishedMatchEvents() {
   return _matchEventsCache;
 }
 
-async function _loadAllMatchStateFromServer() {
+// ══════════════════════════════════════════════════════════════════
+// 🆕 KATMANLI MATCH_STATE YÜKLEME (maliyet/hız optimizasyonu)
+//   Eskiden: filtresiz TÜM tablo (~55.000 satır, ~13 MB) her açılışta + her
+//   realtime olayında yeniden indiriliyordu. Şimdi sadece gereken dilim çekilir:
+//     • çekirdek : bu sezon + kullanıcının ülkesi + turnuvalar/hazırlık + bugünün dünyası
+//     • talep     : başka ülkenin ligi (_msEnsureCountry), başka gün (_msEnsureDay)
+//   Cache DEĞİŞTİRİLMEZ, ÜZERİNE EKLENİR — daha önce çekilen veri korunur.
+// ══════════════════════════════════════════════════════════════════
+const _MS_COLS = 'match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,started_at,kickoff_at,tournament_key,tournament_phase';
+window._msScope = window._msScope || { season: null, countries: {}, days: {}, coreAt: 0 };
+
+function _msDayKey(d) {
+  const x = new Date(d);
+  return x.getFullYear() + '-' + String(x.getMonth()+1).padStart(2,'0') + '-' + String(x.getDate()).padStart(2,'0');
+}
+
+// DB satırı → frontend formatı
+function _msFmtRow(m) {
+  const fmt = {
+    season: m.season,
+    day: m.day_in_season,
+    countryCode: m.country_code,
+    tier: m.tier,
+    tierIdx: m.tier,
+    leagueName: m.league_name,
+    leagueFlag: '🏳️',
+    home: m.home_team,
+    away: m.away_team,
+    homeShort: (m.home_team || '').slice(0, 3).toUpperCase(),
+    awayShort: (m.away_team || '').slice(0, 3).toUpperCase(),
+    matchKey: m.match_key,
+    scheduledTime: m.kickoff_at ? (() => {
+      const d = new Date(m.kickoff_at);
+      if (isNaN(d.getTime())) return '';
+      return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+    })() : '',
+    matchDate: m.kickoff_at ? new Date(m.kickoff_at).toISOString().slice(0, 10) : '',
+    matchDateTime: m.kickoff_at,
+    competition: m.tournament_key ? 'tournament' : 'league',
+    tournament_key: m.tournament_key,
+    tournament_phase: m.tournament_phase,
+    status: m.status,
+    sim_minute: m.sim_minute,
+    home_score: m.home_score,
+    away_score: m.away_score
+  };
+  try {
+    if (m.country_code) {
+      const c = _cftGetCountry(m.country_code);
+      if (c && c.flag) fmt.leagueFlag = c.flag;
+    }
+  } catch(e) {}
+  return fmt;
+}
+
+// Satırları cache'e EKLE (var olanı güncelle)
+function _msMerge(rows) {
+  if (!Array.isArray(rows) || !rows.length) return 0;
+  if (!_matchStateCache || !_matchStateCache.byKey) _matchStateCache = { dayMap: {}, byKey: {}, loadedAt: 0 };
+  const byKey = _matchStateCache.byKey, dayMap = _matchStateCache.dayMap;
+  let n = 0;
+  for (const m of rows) {
+    if (!m || !m.match_key) continue;
+    const fmt = _msFmtRow(m);
+    const existed = !!byKey[m.match_key];
+    byKey[m.match_key] = fmt;
+    const d = m.day_in_season;
+    if (!dayMap[d]) dayMap[d] = [];
+    if (existed) {
+      const i = dayMap[d].findIndex(x => x && x.matchKey === m.match_key);
+      if (i >= 0) dayMap[d][i] = fmt; else dayMap[d].push(fmt);
+    } else {
+      dayMap[d].push(fmt);
+    }
+    n++;
+  }
+  _matchStateCache.loadedAt = Date.now();
+  return n;
+}
+
+// Sayfalı sorgu (filtreyi build fonksiyonu kurar)
+async function _msQuery(build) {
+  const out = [];
+  const PAGE = 1000;
+  for (let from = 0; from < 30000; from += PAGE) {
+    let q = window.sb.from('match_state').select(_MS_COLS);
+    q = build(q);
+    const { data, error } = await q.range(from, from + PAGE - 1);
+    if (error) { console.warn('[match_state] sorgu hatası:', error.message); break; }
+    if (!Array.isArray(data) || data.length === 0) break;
+    out.push(...data);
+    if (data.length < PAGE) break;
+  }
+  return out;
+}
+
+// Açık sayfayı tazele (veri geldikten sonra)
+function _msRefreshActivePage() {
+  try {
+    const _activePg = document.querySelector('.page.active');
+    if (!_activePg) return;
+    const _id = _activePg.id;
+    if ((_id === 'page-lg2' || _id === 'page-lig' || _id === 'page-leagues') && typeof lg2RenderFixture === 'function') {
+      const det = document.getElementById('lg-view-detail');
+      if (det && det.style.display && det.style.display !== 'none') lg2RenderFixture();
+    }
+    if (_id === 'page-home') {
+      if (typeof renderHomeNextMatch === 'function') renderHomeNextMatch();
+      if (typeof renderHomeLeagueTicker === 'function') renderHomeLeagueTicker();
+    }
+  } catch(e) {}
+}
+
+// ── ÇEKİRDEK KAPSAM ──
+async function _msLoadCore() {
   if (!window.sb) return null;
   try {
-    const PAGE = 1000;
-    let all = [];
-    for (let from = 0; from < 100000; from += PAGE) {
-      const { data, error } = await window.sb.from('match_state')
-        .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,started_at,kickoff_at,tournament_key,tournament_phase')
-        .order('day_in_season')
-        .order('match_key')
-        .range(from, from + PAGE - 1);
-      if (error) { console.warn('[match_state] hata:', error.message); break; }
-      if (!Array.isArray(data) || data.length === 0) break;
-      all = all.concat(data);
-      if (data.length < PAGE) break;
-    }
-    
-    const dayMap = {};
-    const byKey = {};
-    for (const m of all) {
-      // Frontend formatına çevir
-      const fmt = {
-        season: m.season,
-        day: m.day_in_season,
-        countryCode: m.country_code,
-        tier: m.tier,
-        tierIdx: m.tier,
-        leagueName: m.league_name,
-        leagueFlag: '🏳️',  // bayrak _cftDb'den alınır
-        home: m.home_team,
-        away: m.away_team,
-        homeShort: (m.home_team || '').slice(0, 3).toUpperCase(),
-        awayShort: (m.away_team || '').slice(0, 3).toUpperCase(),
-        matchKey: m.match_key,
-        scheduledTime: m.kickoff_at ? (() => {
-          const d = new Date(m.kickoff_at);
-          if (isNaN(d.getTime())) return '';
-          return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
-        })() : '',
-        matchDate: m.kickoff_at ? new Date(m.kickoff_at).toISOString().slice(0, 10) : '',
-        matchDateTime: m.kickoff_at,
-        competition: m.tournament_key ? 'tournament' : 'league',
-        tournament_key: m.tournament_key,
-        tournament_phase: m.tournament_phase,
-        // Canlı/bitmiş durumu
-        status: m.status,
-        sim_minute: m.sim_minute,
-        home_score: m.home_score,
-        away_score: m.away_score
-        // events kolonu çekilmiyor (44 MB transfer, timeout sebebi).
-        // Canlı maç ekranı kendi events'ini ayrıca sorgulayacak.
-      };
-      // Bayrak: _cftDb'den
-      if (m.country_code) {
-        const c = _cftGetCountry(m.country_code);
-        if (c && c.flag) fmt.leagueFlag = c.flag;
-      }
-      
-      if (!dayMap[m.day_in_season]) dayMap[m.day_in_season] = [];
-      dayMap[m.day_in_season].push(fmt);
-      byKey[m.match_key] = fmt;
-    }
-    
-    console.info(`[match_state] yüklendi: ${all.length} maç, ${Object.keys(dayMap).length} gün`);
-    _matchStateCache = { dayMap, byKey, loadedAt: Date.now() };
-
-    // 🆕 KALDIRILDI: 8000 maçın events+lineup'unu toplu yükleme (OOM/çökme + timeout sebebiydi).
-    //   Events/lineup tembel yüklenir (maç sonucu açılınca tek maç). Boş cache yeterli.
-
-    // 🆕 Cache yüklendikten sonra açık olan sayfa lig fikstürü ise otomatik yeniden render.
-    //   Race condition'da kullanıcı sayfayı açmış ama cache henüz boş olduğu için "maç yok"
-    //   gösterilmiş olabilir. Yükleme bitince re-render ile veri görünür.
+    let S = 1;
+    try { S = (getSeasonInfo().season) || 1; } catch(e) {}
+    let cc = null;
     try {
-      const _activePg = document.querySelector('.page.active');
-      if (_activePg) {
-        const _id = _activePg.id;
-        if ((_id === 'page-lg2' || _id === 'page-lig') && typeof lg2RenderFixture === 'function') {
-          lg2RenderFixture();
-        }
-        if (_id === 'page-home') {
-          if (typeof renderHomeNextMatch === 'function') renderHomeNextMatch();
-          if (typeof renderHomeLeagueTicker === 'function') renderHomeLeagueTicker();
-        }
-      }
+      cc = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.countryCode)
+        ? _userTeam.countryCode
+        : ((typeof authUser !== 'undefined' && authUser && authUser.nationality) || null);
     } catch(e) {}
 
+    const now = new Date();
+    const d0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const t0 = new Date(d0.getTime() - 12 * 3600 * 1000).toISOString();
+    const t1 = new Date(d0.getTime() + 36 * 3600 * 1000).toISOString();
+
+    const jobs = [];
+    if (cc) jobs.push(_msQuery(q => q.eq('season', S).eq('country_code', cc)));          // kendi ülken (tüm ligler)
+    jobs.push(_msQuery(q => q.eq('season', S).is('tier', null)));                        // turnuvalar + hazırlık
+    jobs.push(_msQuery(q => q.gte('kickoff_at', t0).lt('kickoff_at', t1)));              // bugünün dünyası
+    const res = await Promise.all(jobs);
+    let n = 0;
+    res.forEach(r => { n += _msMerge(r); });
+
+    window._msScope.season = S;
+    window._msScope.coreAt = Date.now();
+    if (cc) window._msScope.countries[S + '|' + cc] = true;
+    window._msScope.days[_msDayKey(d0)] = true;
+
+    console.info('[match_state] çekirdek yüklendi: +' + n + ' satır · toplam ' +
+      Object.keys((_matchStateCache && _matchStateCache.byKey) || {}).length);
+
+    _msRefreshActivePage();
     return _matchStateCache;
   } catch(e) {
-    console.warn('[match_state] yükleme hatası:', e);
+    console.warn('[match_state] çekirdek yükleme hatası:', e);
     return null;
   }
 }
+
+// ── TALEP ÜZERİNE: bir ülkenin sezonluk lig maçları ──
+async function _msEnsureCountry(cc, season) {
+  if (!window.sb || !cc) return;
+  let S = season;
+  if (S == null) { try { S = (getSeasonInfo().season) || 1; } catch(e) { S = 1; } }
+  const key = S + '|' + cc;
+  if (window._msScope.countries[key]) return;
+  window._msScope.countries[key] = true;
+  try {
+    const rows = await _msQuery(q => q.eq('season', S).eq('country_code', cc));
+    _msMerge(rows);
+    console.info('[match_state] ülke yüklendi:', cc, 'S' + S, '+' + rows.length);
+  } catch(e) {
+    window._msScope.countries[key] = false;
+    console.warn('[match_state] ülke yükleme hatası:', cc, e);
+  }
+}
+
+// ── TALEP ÜZERİNE: belirli bir takvim gününün tüm dünya maçları ──
+async function _msEnsureDay(dateObj) {
+  if (!window.sb) return;
+  const d = new Date(dateObj || Date.now());
+  const d0 = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const key = _msDayKey(d0);
+  if (window._msScope.days[key]) return;
+  window._msScope.days[key] = true;
+  try {
+    const t0 = d0.toISOString();
+    const t1 = new Date(d0.getTime() + 86400000).toISOString();
+    const rows = await _msQuery(q => q.gte('kickoff_at', t0).lt('kickoff_at', t1));
+    _msMerge(rows);
+    console.info('[match_state] gün yüklendi:', key, '+' + rows.length);
+  } catch(e) {
+    window._msScope.days[key] = false;
+    console.warn('[match_state] gün yükleme hatası:', key, e);
+  }
+}
+
+// Realtime olayından gelen satırı doğrudan cache'e işle (yeniden sorgu YOK)
+function _msApplyRealtimeRow(payload) {
+  try {
+    const r = payload && (payload.new || payload.record);
+    if (!r || !r.match_key) return false;
+    return _msMerge([r]) > 0;
+  } catch(e) { return false; }
+}
+
+// Eski ad korunuyor — tüm çağrı yerleri çalışsın
+async function _loadAllMatchStateFromServer() { return _msLoadCore(); }
 
 function _resBuildSeasonFixtures(seasonNum) {
   // 🆕 Bellek cache LAYER'I KALDIRILDI.
@@ -57819,16 +57936,18 @@ function renderResultsPage() {
   // 🆕 CANLI SKOR TAZELE: match_state cache'i bayatsa (maçlar 0-0/scheduled iken yüklenmiş)
   //   liste eski skoru gösterir. Sayfa açılınca güncel status+skoru çek, gelince yeniden render et.
   //   Throttle 8sn → spam yok; re-render kendi içinde throttle'a takılır → sonsuz döngü yok.
+  // 🆕 Katmanlı: tüm tabloyu değil, SEÇİLİ GÜNÜ garanti et (bir kez). Canlı skor/dakika
+  //   ayrıca _liveMatchLoadFromServer + _resUpdateLiveCells ile akmaya devam eder.
   try {
-    if (typeof _loadAllMatchStateFromServer === 'function' && window.sb) {
-      const _now = Date.now();
-      if (!window._resMsRefreshAt || (_now - window._resMsRefreshAt) > 8000) {
-        window._resMsRefreshAt = _now;
-        _loadAllMatchStateFromServer().then(() => {
-          const pg = document.getElementById('page-results');
-          if (pg && pg.classList.contains('active')) renderResultsPage();
-        }).catch(()=>{});
-      }
+    if (typeof _msEnsureDay === 'function' && window.sb) {
+      _msEnsureDay(_resState.selectedDate).then(() => {
+        const pg = document.getElementById('page-results');
+        if (pg && pg.classList.contains('active') && !window._resDayRerenderLock) {
+          window._resDayRerenderLock = true;
+          setTimeout(() => { window._resDayRerenderLock = false; }, 300);
+          renderResultsPage();
+        }
+      }).catch(()=>{});
     }
   } catch(e) {}
 
@@ -63892,6 +64011,19 @@ function lg2OpenLeague(countryKey, tierIdx) {
   _lg2Country = countryKey;
   _lg2TierIdx = tierIdx;
   _lg2ViewTab = 'table';
+
+  // 🆕 Katmanlı yükleme: bu ülkenin sezonluk maçları cache'te yoksa talep üzerine çek,
+  //   gelince açık görünümü tazele (puan tablosu / fikstür).
+  try {
+    if (typeof _msEnsureCountry === 'function') {
+      _msEnsureCountry(countryKey).then(() => {
+        const det = document.getElementById('lg-view-detail');
+        if (!det || det.style.display === 'none') return;
+        if (_lg2ViewTab === 'table' && typeof lg2RenderTable === 'function') lg2RenderTable();
+        else if (_lg2ViewTab === 'fixture' && typeof lg2RenderFixture === 'function') lg2RenderFixture();
+      });
+    }
+  } catch(e) {}
 
   const country = _cftGetCountry(countryKey);
   if(!country) return;
@@ -78617,10 +78749,16 @@ setTimeout(async ()=>{
       //   (aşağıda 'rt-match-state') tüm güncellemeleri kapsıyor.
 
 
+      // 🆕 Realtime olayı geldiğinde TÜM tabloyu yeniden çekmek yerine gelen satır
+      //   doğrudan cache'e işlenir (sorgu YOK). Maliyet ve CPU açısından kritik fark.
+      let _rtPending = [];
       const _refreshMatchState = _rtDebounce(async () => {
         try {
-          if (typeof _loadAllMatchStateFromServer === 'function') {
-            await _loadAllMatchStateFromServer();
+          if (_rtPending.length) {
+            const batch = _rtPending; _rtPending = [];
+            let applied = 0;
+            for (const p of batch) { if (_msApplyRealtimeRow(p)) applied++; }
+            if (applied) { try { _msRefreshActivePage(); } catch(e) {} }
           }
           // Ana sayfa maç önizleme paneli realtime'da YENİDEN ÇİZİLMEZ (flicker sebebi).
           //   Panel sayfa geçişinde (showPage → page-home) tazelenir; geri sayım kendi 1sn timer'ıyla akar.
@@ -78655,7 +78793,10 @@ setTimeout(async ()=>{
       }, 500);
       
       window.sb.channel('rt-match-state')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'match_state' }, _refreshMatchState)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'match_state' }, (payload) => {
+          try { _rtPending.push(payload); } catch(e) {}
+          _refreshMatchState();
+        })
         .subscribe();
       
       // 3) players — takım kadrosu (yeni katılım, ayrılma, online durumu)
