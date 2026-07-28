@@ -26363,7 +26363,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-27-transfer-gecmis-175';
+const APP_BUILD = '2026-07-27-transfer-gecmis-177';
 
 (function _cacheBustCheck() {
   try {
@@ -58976,6 +58976,8 @@ function renderCareerPage() {
       }).join('');
     }
   }
+  // 🆕 Transfer geçmişi (yoksa kariyer başlangıcı) — kendi profili
+  try { if (typeof _ptrFillInto === 'function') _ptrFillInto('carTeamHistory', userPlayer, true); } catch(e) {}
 
   // ─── PİYASA DEĞERİ GRAFİĞİ ───
   const mvChartEl = document.getElementById('carMvChart');
@@ -61939,16 +61941,80 @@ function _ptrHtml(rows) {
     </div>`).join('');
 }
 
+// 🆕 Kayıtlı transfer yoksa: oyuna katılım tarihini baz alan "kariyer başlangıcı" satırı
+function _ptrSeasonOfTs(ts) {
+  if (!ts) return null;
+  let curS = 1;
+  try { curS = (getSeasonInfo().season) || 1; } catch(e) {}
+  if (typeof _seasonRangeMs === 'function') {
+    for (let k = 1; k <= curS; k++) {
+      const r = _seasonRangeMs(k);
+      if (ts >= r[0] && ts < r[1]) return k;
+    }
+    if (ts < _seasonRangeMs(1)[0]) return 1;   // sezon öncesi kayıt → S1
+  }
+  return curS;
+}
+
+function _ptrStartRow(p, isSelf) {
+  let ts = null, team = null;
+  // 1) Kendi profilinde: takım geçmişinin ilk kaydı (katılım tarihi + ilk takım)
+  if (isSelf) {
+    try {
+      const ch = (typeof getCareerHistory === 'function') ? getCareerHistory() : [];
+      if (ch && ch.length) {
+        const first = ch[0];
+        if (first && first.joinDate) ts = new Date(first.joinDate).getTime();
+        team = (first && first.teamName) || null;
+      }
+    } catch(e) {}
+    // Hesap oluşturma tarihi (takım geçmişi yoksa)
+    if (!ts) {
+      try { if (authUser && authUser.created_at) ts = new Date(authUser.created_at).getTime(); } catch(e) {}
+    }
+  }
+  // 2) Herkes için: en eski maç kaydı (gerçek veri, ziyaretçide de çalışır)
+  if (!ts || !team) {
+    try {
+      const mr = Array.isArray(p && (p.matchRatings || p.match_ratings)) ? (p.matchRatings || p.match_ratings) : [];
+      const withTs = mr.filter(x => x && x.ts).sort((a, b) => a.ts - b.ts);
+      if (withTs.length) {
+        if (!ts) ts = withTs[0].ts;
+        if (!team) team = withTs[0].isHome ? withTs[0].home : withTs[0].away;
+      }
+    } catch(e) {}
+  }
+  if (!team) team = (p && (p.teamName || p.team_name)) || null;
+  if (!team) return '';
+  const dStr = ts ? new Date(ts).toLocaleDateString('tr', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+  const sn = _ptrSeasonOfTs(ts);
+  return '<div class="car-season-sec-t">🔁 Transferler</div>' + `
+    <div class="car-sr">
+      <div class="car-sr-s">S${sn || '?'}</div>
+      <div class="car-sr-i">
+        <div class="car-sr-t">🎬 Kariyer başlangıcı <span style="color:var(--text3)">→</span> ${team}</div>
+        <div class="car-sr-m">${dStr}${isSelf ? ' · oyuna katılım' : ' · ilk maç kaydı'}</div>
+      </div>
+      <div style="flex-shrink:0;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:12px;color:var(--text3);text-align:right">Bedelsiz</div>
+    </div>`;
+}
+
 // Takım geçmişi kutusuna transfer listesini asenkron ekle
-function _ptrFillInto(elId, p) {
+function _ptrFillInto(elId, p, isSelf) {
   const el = document.getElementById(elId);
   if (!el) return;
   const nm = (p && (p.name)) || null;
   const uid = (p && (p.userId || p.user_id)) || null;
   _ptrLoad(nm, uid).then(rows => {
     const cur = document.getElementById(elId);
-    if (!cur || !rows || !rows.length) return;
-    cur.insertAdjacentHTML('beforeend', _ptrHtml(rows));
+    if (!cur) return;
+    if (rows && rows.length) {
+      cur.insertAdjacentHTML('beforeend', _ptrHtml(rows));
+    } else {
+      // Kayıtlı transfer yok → kariyer başlangıcı (bedelsiz)
+      const startHtml = _ptrStartRow(p, !!isSelf);
+      if (startHtml) cur.insertAdjacentHTML('beforeend', startHtml);
+    }
   }).catch(()=>{});
 }
 
@@ -62150,7 +62216,7 @@ function renderCareerPageVisitor(p) {
   // 🆕 SEZON KIRILIMI (takım geçmişi + başarılar) — gerçek veriden
   const _rows = _carSeasonRows(p);
   const th = document.getElementById('carTeamHistory');
-  if (th) { th.innerHTML = _carSeasonListHtml(_rows); _ptrFillInto('carTeamHistory', p); }
+  if (th) { th.innerHTML = _carSeasonListHtml(_rows); _ptrFillInto('carTeamHistory', p, false); }
   const tr = document.getElementById('carTrophies');
   if (tr) tr.innerHTML = _carSeasonListHtml(_rows);
   // Piyasa değeri: başka oyuncunun geçmişi saklanmıyor → güncel değeri göster
