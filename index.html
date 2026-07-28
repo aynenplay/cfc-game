@@ -2203,6 +2203,26 @@ select.form-input option{background:var(--bg)}
 #tacViewerPanel.tac-note .tac-note-t{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:13px;color:var(--text)}
 #tacViewerPanel.tac-note .tac-note-s{font-size:10.5px;color:var(--text3);line-height:1.4}
 
+/* 🆕 Kariyer: sezonluk performans satırları + MV çizgi grafiği */
+.car-season-list{display:flex;flex-direction:column;gap:2px}
+.car-sr{display:flex;align-items:center;gap:8px;padding:9px 8px;border-bottom:1px solid rgba(255,255,255,.045)}
+.car-sr:last-child{border-bottom:none}
+.car-sr-s{width:32px;flex-shrink:0;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:13.5px;color:var(--gold,#ffd600);text-align:center}
+.car-sr-i{flex:1;min-width:0}
+.car-sr-t{font-size:12px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.car-sr-m{font-size:9.5px;color:var(--text3);margin-top:1px}
+.car-sr-n{width:44px;flex-shrink:0;text-align:center}
+.car-sr-n b{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:14px;color:var(--text)}
+.car-sr-n span{display:block;font-size:8.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px}
+.car-sr-n.rt b{color:var(--accent2,#00b0ff)}
+.car-season-sec-t{font-size:10px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--text3);padding:12px 4px 6px}
+.car-mvc{padding:4px 2px}
+.car-mvc-head{display:flex;align-items:flex-end;justify-content:space-between;padding:0 4px 6px}
+.car-mvc-val{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:20px;color:var(--text)}
+.car-mvc-sub{font-size:9.5px;color:var(--text3)}
+.car-mvc-chg{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:14px}
+.car-mvc-x{display:flex;justify-content:space-between;font-size:9px;color:var(--text3);padding:2px 4px 0}
+
 /* 🆕 Başkanlar Galerisi */
 .fed-pres-list{display:flex;flex-direction:column;gap:2px}
 .fed-pres-row{display:flex;align-items:center;gap:9px;padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.045)}
@@ -26343,7 +26363,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-27-federasyon-173';
+const APP_BUILD = '2026-07-27-transfer-gecmis-175';
 
 (function _cacheBustCheck() {
   try {
@@ -58658,7 +58678,7 @@ function _carRecordMarketValue(value) {
 // view: 'all' | sezon numarası (int)
 function carCompSetView(view) {
   window._carCompSeasonView = view;
-  if (typeof renderCareerPage === 'function') renderCareerPage();
+  if (typeof renderCareerTab === 'function') renderCareerTab();
 }
 
 // Ana render fonksiyonu
@@ -58965,28 +58985,19 @@ function renderCareerPage() {
     if (mvList.length === 0) {
       mvChartEl.innerHTML = '<div class="car-mv-empty">Piyasa değeri geçmişi yok</div>';
     } else {
-      // Son 14 noktayı göster
-      const points = mvList.slice(-14);
-      const maxV = Math.max(...points.map(p => p.value)) || 1;
-      mvChartEl.innerHTML = points.map(p => {
-        const pct = Math.max(5, Math.round((p.value / maxV) * 100));
-        const date = new Date(p.day);
-        const lbl = `${date.getDate()}/${date.getMonth() + 1}`;
-        return `
-          <div class="car-mv-bar-wrap" title="${lbl}: ${_carFmtEUR(p.value)}">
-            <div class="car-mv-bar" style="height:${pct}%"></div>
-            <div class="car-mv-bar-label">${lbl}</div>
-          </div>
-        `;
-      }).join('');
+      // 🆕 Çizgi grafik (transfermarkt tarzı) — son 30 nokta
+      mvChartEl.innerHTML = _carMvChartHtml(mvList.slice(-30));
     }
   }
 
-  // ─── TROFELER ───
+  // ─── TROFELER + SEZON KIRILIMI ───
+  const _mySeasonRows = (typeof _carSeasonRows === 'function' && userPlayer) ? _carSeasonRows(userPlayer) : [];
+  const _mySeasonHtml = _mySeasonRows.length
+    ? ('<div class="car-season-sec-t">📅 Sezonluk Performans</div>' + _carSeasonListHtml(_mySeasonRows)) : '';
   const trophiesEl = document.getElementById('carTrophies');
   if (trophiesEl) {
     if (trophies.length === 0) {
-      trophiesEl.innerHTML = '<div class="car-trophies-empty">Henüz kupa kazanılmadı</div>';
+      trophiesEl.innerHTML = '<div class="car-trophies-empty">Henüz kupa kazanılmadı</div>' + _mySeasonHtml;
     } else {
       trophiesEl.innerHTML = trophies.map(t => {
         let icon = '🏆';
@@ -61859,13 +61870,201 @@ function renderPlayerPage() {
   </div>`;
   // 🆕 Piyasa değeri yukarıda (renderPlayerPage başında) zaten set edildi — eski override kaldırıldı
   // Kariyer tab açıksa yenile
-  if(document.getElementById('pl-history')?.style.display !== 'none' && typeof renderCareerPage === 'function') renderCareerPage();
+  if(document.getElementById('pl-history')?.style.display !== 'none' && typeof renderCareerTab === 'function') renderCareerTab();
 }
 
 function toggleSkillCat(idx) {
   document.getElementById('skillCat'+idx).classList.toggle('collapsed');
 }
 
+
+
+
+// ══════════════════════════════════════════════════════════
+// 🆕 TRANSFER GEÇMİŞİ (player_transfers) — bonservis + imza elması
+// ══════════════════════════════════════════════════════════
+async function _ptrRecord(item, offer) {
+  if (!window.sb || !item || !offer) return;
+  let season = null, day = null;
+  try { const i = getSeasonInfo(); season = i.season; day = i.dayInSeason; } catch(e) {}
+  const row = {
+    player_user_id: item.playerUserId || item.userId || (item.sellerUserId ? null : null) || null,
+    player_name:    item.playerId || item.playerName || '—',
+    from_team:      item.sellerTeam || item.seller || null,
+    from_cc:        item.countryCode || item.cc || null,
+    to_team:        offer.fromTeam || null,
+    to_cc:          offer.fromCC || null,
+    fee_eur:        Number(offer.transferFee || offer.fee || 0) || 0,
+    fee_dia:        Number(offer.signingDiamond || 0) || 0,
+    season:         season,
+    day_in_season:  day
+  };
+  try { await window.sb.from('player_transfers').insert(row); }
+  catch(e) { console.warn('[player_transfers] insert hata:', e); }
+}
+
+var _ptrCache = {};
+async function _ptrLoad(playerName, userId) {
+  const key = (userId || '') + '|' + (playerName || '');
+  if (_ptrCache[key]) return _ptrCache[key];
+  if (!window.sb || (!playerName && !userId)) return [];
+  try {
+    let q = window.sb.from('player_transfers')
+      .select('player_name,from_team,from_cc,to_team,to_cc,fee_eur,fee_dia,season,created_at')
+      .order('created_at', { ascending: false }).limit(30);
+    q = userId ? q.eq('player_user_id', userId) : q.eq('player_name', playerName);
+    const { data } = await q;
+    _ptrCache[key] = data || [];
+    return _ptrCache[key];
+  } catch(e) { return []; }
+}
+
+function _ptrHtml(rows) {
+  if (!rows || !rows.length) return '';
+  const money = r => {
+    const parts = [];
+    if (r.fee_eur > 0) parts.push(Number(r.fee_eur).toLocaleString('tr') + ' €');
+    if (r.fee_dia > 0) parts.push(Number(r.fee_dia).toLocaleString('tr') + ' 💎');
+    return parts.length ? parts.join(' + ') : 'Bonservissiz';
+  };
+  const dt = r => { const d = new Date(r.created_at); return isNaN(d.getTime()) ? '' : d.toLocaleDateString('tr', { day: '2-digit', month: 'short', year: 'numeric' }); };
+  return '<div class="car-season-sec-t">🔁 Transferler</div>' + rows.map(r => `
+    <div class="car-sr">
+      <div class="car-sr-s">S${r.season || '?'}</div>
+      <div class="car-sr-i">
+        <div class="car-sr-t">${r.from_team || '—'} <span style="color:var(--text3)">→</span> ${r.to_team || '—'}</div>
+        <div class="car-sr-m">${dt(r)}</div>
+      </div>
+      <div style="flex-shrink:0;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:12.5px;color:var(--accent,#00e676);text-align:right">${money(r)}</div>
+    </div>`).join('');
+}
+
+// Takım geçmişi kutusuna transfer listesini asenkron ekle
+function _ptrFillInto(elId, p) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const nm = (p && (p.name)) || null;
+  const uid = (p && (p.userId || p.user_id)) || null;
+  _ptrLoad(nm, uid).then(rows => {
+    const cur = document.getElementById(elId);
+    if (!cur || !rows || !rows.length) return;
+    cur.insertAdjacentHTML('beforeend', _ptrHtml(rows));
+  }).catch(()=>{});
+}
+
+// 🆕 KARİYER SEKMESİ TEK GİRİŞ NOKTASI — ziyaretçi modunda başkasının,
+//   kendi profilinde kendi verini render eder. (Eskiden yetenek render'ı
+//   doğrudan renderCareerPage() çağırdığı için ziyarette kendi verin görünüyordu.)
+function renderCareerTab() {
+  try {
+    const vp = (typeof _visitedPlayerData !== 'undefined' && _visitedPlayerData) ? _visitedPlayerData.player : null;
+    if (vp && typeof renderCareerPageVisitor === 'function') { renderCareerPageVisitor(vp); return; }
+  } catch(e) {}
+  if (typeof renderCareerPage === 'function') renderCareerPage();
+}
+
+// ── Sezon kırılımı: her sezon için takım + gol/asist/maç/reyting (HER oyuncu için gerçek veri) ──
+function _carSeasonRows(p) {
+  const num = v => (typeof v === 'number' && isFinite(v)) ? v : 0;
+  const sbc = (p && (p.statsByComp || p.stats_by_comp)) || {};
+  const mr  = Array.isArray(p && (p.matchRatings || p.match_ratings)) ? (p.matchRatings || p.match_ratings) : [];
+  let curS = 1; try { curS = (getSeasonInfo().season) || 1; } catch(e) {}
+
+  const map = {};
+  // stats_by_comp → sezon toplamları
+  Object.keys(sbc).forEach(bucket => {
+    const b = sbc[bucket];
+    if (!b || typeof b !== 'object') return;
+    Object.keys(b).forEach(sk => {
+      const sn = parseInt(String(sk).replace(/^s/, ''), 10);
+      if (!isFinite(sn)) return;
+      if (!map[sn]) map[sn] = { season: sn, g: 0, a: 0, m: 0, rSum: 0, rCnt: 0, teams: {} };
+      map[sn].g += num(b[sk].g); map[sn].a += num(b[sk].a); map[sn].m += num(b[sk].m);
+    });
+  });
+  // match_ratings → reyting + o sezon oynadığı takım(lar)
+  mr.forEach(x => {
+    if (!x || typeof x.rating !== 'number') return;
+    let sn = null;
+    if (x.ts && typeof _seasonRangeMs === 'function') {
+      for (let k = 1; k <= curS; k++) {
+        const r = _seasonRangeMs(k);
+        if (x.ts >= r[0] && x.ts < r[1]) { sn = k; break; }
+      }
+    }
+    if (sn == null) sn = curS;
+    if (!map[sn]) map[sn] = { season: sn, g: 0, a: 0, m: 0, rSum: 0, rCnt: 0, teams: {} };
+    map[sn].rSum += x.rating; map[sn].rCnt++;
+    const own = x.isHome ? x.home : x.away;
+    if (own) map[sn].teams[own] = (map[sn].teams[own] || 0) + 1;
+  });
+
+  return Object.values(map).map(r => {
+    const tl = Object.keys(r.teams).sort((a, b) => r.teams[b] - r.teams[a]);
+    return {
+      season: r.season, g: r.g, a: r.a, m: r.m,
+      rating: r.rCnt > 0 ? Math.round((r.rSum / r.rCnt) * 10) / 10 : null,
+      team: tl[0] || (p && (p.teamName || p.team_name)) || '—',
+      teams: tl
+    };
+  }).sort((x, y) => y.season - x.season);   // en güncel sezon üstte
+}
+
+// Sezon listesi HTML — ilk 5 görünür, kalanı kaydırmayla
+function _carSeasonListHtml(rows) {
+  if (!rows.length) return '<div class="car-table-empty">Sezon verisi yok</div>';
+  const row = r => `
+    <div class="car-sr">
+      <div class="car-sr-s">S${r.season}</div>
+      <div class="car-sr-i">
+        <div class="car-sr-t">${r.team}${r.teams && r.teams.length > 1 ? ' <span style="color:var(--text3);font-size:9.5px">+' + (r.teams.length - 1) + ' takım</span>' : ''}</div>
+        <div class="car-sr-m">${r.m} maç</div>
+      </div>
+      <div class="car-sr-n"><b>${r.g}</b><span>gol</span></div>
+      <div class="car-sr-n"><b>${r.a}</b><span>asist</span></div>
+      <div class="car-sr-n rt"><b>${r.rating != null ? r.rating.toFixed(1) : '—'}</b><span>reyting</span></div>
+    </div>`;
+  const scroll = rows.length > 5 ? ' style="max-height:290px;overflow-y:auto;-webkit-overflow-scrolling:touch"' : '';
+  return `<div class="car-season-list"${scroll}>${rows.map(row).join('')}</div>`
+       + (rows.length > 5 ? '<div style="text-align:center;font-size:9.5px;color:var(--text3);padding:5px">↕ daha eski sezonlar için kaydır</div>' : '');
+}
+
+// 🆕 Piyasa değeri ÇİZGİ GRAFİĞİ (transfermarkt tarzı, SVG)
+function _carMvChartHtml(points) {
+  const pts = (points || []).filter(p => p && isFinite(p.value));
+  if (pts.length < 2) return '<div class="car-mv-empty">Grafik için yeterli veri yok</div>';
+  const W = 320, H = 120, PAD_L = 6, PAD_R = 6, PAD_T = 10, PAD_B = 18;
+  const vals = pts.map(p => p.value);
+  const maxV = Math.max(...vals), minV = Math.min(...vals);
+  const span = (maxV - minV) || Math.max(1, maxV * 0.1);
+  const x = i => PAD_L + (i / (pts.length - 1)) * (W - PAD_L - PAD_R);
+  const y = v => PAD_T + (1 - (v - minV) / span) * (H - PAD_T - PAD_B);
+  const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ');
+  const area = line + ` L${x(pts.length - 1).toFixed(1)},${(H - PAD_B).toFixed(1)} L${x(0).toFixed(1)},${(H - PAD_B).toFixed(1)} Z`;
+  const first = pts[0].value, last = pts[pts.length - 1].value;
+  const up = last >= first;
+  const col = up ? 'var(--accent,#00e676)' : '#ff5c7a';
+  const fmt = v => (typeof _carFmtEUR === 'function') ? _carFmtEUR(v) : (v.toLocaleString('tr') + ' €');
+  const dLbl = d => { const dt = new Date(d); return isNaN(dt.getTime()) ? '' : `${dt.getDate()}/${dt.getMonth() + 1}`; };
+  const dots = pts.map((p, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(p.value).toFixed(1)}" r="${i === pts.length - 1 ? 3.2 : 1.8}" fill="${col}"><title>${dLbl(p.day)} · ${fmt(p.value)}</title></circle>`).join('');
+  const pct = first > 0 ? Math.round(((last - first) / first) * 100) : 0;
+  return `
+    <div class="car-mvc">
+      <div class="car-mvc-head">
+        <div><div class="car-mvc-val">${fmt(last)}</div><div class="car-mvc-sub">güncel piyasa değeri</div></div>
+        <div class="car-mvc-chg" style="color:${col}">${up ? '▲' : '▼'} ${pct > 0 ? '+' : ''}${pct}%</div>
+      </div>
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:120px;display:block">
+        <defs><linearGradient id="mvg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${col}" stop-opacity=".28"/><stop offset="100%" stop-color="${col}" stop-opacity="0"/>
+        </linearGradient></defs>
+        <path d="${area}" fill="url(#mvg)"/>
+        <path d="${line}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+        ${dots}
+      </svg>
+      <div class="car-mvc-x"><span>${dLbl(pts[0].day)}</span><span>${dLbl(pts[pts.length - 1].day)}</span></div>
+    </div>`;
+}
 
 // 🆕 ZİYARETÇİ KARİYER GÖRÜNÜMÜ — başka bir oyuncunun profilinde "Kariyer" sekmesi.
 //   Eskiden renderCareerPage() çağrılıyordu ve o hep KENDİ verini gösteriyordu.
@@ -61948,13 +62147,21 @@ function renderCareerPageVisitor(p) {
     }
   }
 
-  // Ziyaretçide olmayan bölümler
+  // 🆕 SEZON KIRILIMI (takım geçmişi + başarılar) — gerçek veriden
+  const _rows = _carSeasonRows(p);
   const th = document.getElementById('carTeamHistory');
-  if (th) th.innerHTML = '<div class="car-table-empty">Takım geçmişi yalnızca kendi profilinde görünür</div>';
-  const mv = document.getElementById('carMvChart');
-  if (mv) mv.innerHTML = '<div class="car-table-empty">Piyasa değeri geçmişi yalnızca kendi profilinde görünür</div>';
+  if (th) { th.innerHTML = _carSeasonListHtml(_rows); _ptrFillInto('carTeamHistory', p); }
   const tr = document.getElementById('carTrophies');
-  if (tr) tr.innerHTML = '<div class="car-table-empty">Başarı verisi yok</div>';
+  if (tr) tr.innerHTML = _carSeasonListHtml(_rows);
+  // Piyasa değeri: başka oyuncunun geçmişi saklanmıyor → güncel değeri göster
+  const mv = document.getElementById('carMvChart');
+  if (mv) {
+    let mvNow = 0;
+    try { mvNow = (typeof getPlayerMarketValue === 'function') ? getPlayerMarketValue(p) : 0; } catch(e) {}
+    mv.innerHTML = mvNow
+      ? `<div class="car-mvc"><div class="car-mvc-head"><div><div class="car-mvc-val">${(typeof formatMV==='function')?formatMV(mvNow):mvNow.toLocaleString('tr')+' €'}</div><div class="car-mvc-sub">güncel piyasa değeri · geçmiş grafiği yalnızca kendi profilinde</div></div></div></div>`
+      : '<div class="car-mv-empty">Piyasa değeri verisi yok</div>';
+  }
 
   // Son maçlar
   const me = document.getElementById('carMatches');
@@ -61992,9 +62199,7 @@ function plTab(name, btn) {
   if(name==='equipment') renderEquipment();
   if(name==='history') {
     // 🆕 Ziyaretçi modunda ziyaret edilen oyuncunun kariyeri gösterilir (kendi verin değil)
-    const _vp = (typeof _visitedPlayerData !== 'undefined' && _visitedPlayerData) ? _visitedPlayerData.player : null;
-    if (_vp && typeof renderCareerPageVisitor === 'function') renderCareerPageVisitor(_vp);
-    else if (typeof renderCareerPage === 'function') renderCareerPage();
+    if (typeof renderCareerTab === 'function') renderCareerTab();
   }
 }
 
@@ -68912,6 +69117,9 @@ function tfConfirmOffer() {
   const offer = {
     id: 'off_'+Date.now(),
     from: myName,
+    // 🆕 Transfer kaydı için alıcı takım bilgisi
+    fromTeam: (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName) ? _userTeam.teamName : null,
+    fromCC:   (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.countryCode) ? _userTeam.countryCode : null,
     // 🆕 Yeni alanlar
     transferFee:    fee,
     signingDiamond: signingDia,       // ELMAS (önceden € idi)
@@ -69277,6 +69485,9 @@ function tfAcceptOffer() {
   const item = list.find(l=>l.id===_tfIncomingOffer.itemId);
   const offer = item?.offers[_tfIncomingOffer.offerIdx];
   if(!item||!offer) return;
+
+  // 🆕 KALICI TRANSFER KAYDI (player_transfers) — kariyer sayfasında bedelleriyle görünür
+  try { _ptrRecord(item, offer); } catch(e) { console.warn('[transfer kayıt]', e); }
 
   // Oyuncuyu listeden çıkar (transfer gerçekleşti)
   const newList = list.filter(l=>l.id!==_tfIncomingOffer.itemId);
