@@ -2203,6 +2203,29 @@ select.form-input option{background:var(--bg)}
 #tacViewerPanel.tac-note .tac-note-t{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:13px;color:var(--text)}
 #tacViewerPanel.tac-note .tac-note-s{font-size:10.5px;color:var(--text3);line-height:1.4}
 
+/* 🆕 Oyuncum hero: sol mevki haritası + kariyer başlangıcı */
+#page-player .pl-hero-top{align-items:flex-start}
+.pl-pmap{width:96px;flex-shrink:0}
+.pl-pitch{width:96px;height:140px;border-radius:11px;border:1px solid #232830;overflow:hidden;
+  background:linear-gradient(180deg,#0f1a12,#0b1310)}
+.pl-pitch svg{display:block;width:100%;height:100%}
+.pl-pitch .pl-ln{stroke:rgba(255,255,255,.12);stroke-width:.8;fill:none}
+.pl-pitch .pdot{fill:#252b33;stroke:rgba(255,255,255,.08);stroke-width:.6}
+.pl-pitch .pdot.p1{fill:var(--accent,#00e676);stroke:rgba(0,230,118,.5);stroke-width:2.6}
+.pl-pitch .pdot.p2{fill:rgba(0,176,255,.85);stroke:rgba(0,176,255,.3);stroke-width:2}
+.pl-pitch .pdot.p3{fill:rgba(255,214,0,.7);stroke:rgba(255,214,0,.28);stroke-width:1.6}
+.pl-pitch .ptxt{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:7px;fill:#0a0b0e}
+.pl-pitch .ptxt.dim{fill:rgba(255,255,255,.42)}
+.pl-pmap-lg{margin-top:6px;display:flex;flex-direction:column;gap:3px}
+.pl-pmap-lg div{display:flex;align-items:center;gap:5px;font-size:9px;color:var(--text2)}
+.pl-pmap-lg i{width:7px;height:7px;border-radius:50%;flex-shrink:0;font-style:normal}
+.pl-pmap-lg i.z1{background:var(--accent,#00e676)}
+.pl-pmap-lg i.z2{background:rgba(0,176,255,.85)}
+.pl-pmap-lg i.z3{background:rgba(255,214,0,.7)}
+.pl-start-row{display:flex;align-items:center;gap:6px;margin-top:7px;padding-top:6px;
+  border-top:1px dashed rgba(255,255,255,.08);font-size:10.5px;color:var(--text3)}
+.pl-start-row b{color:var(--text2);font-weight:700}
+
 /* 🆕 Kariyer: sezonluk performans satırları + MV çizgi grafiği */
 .car-season-list{display:flex;flex-direction:column;gap:2px}
 .car-sr{display:flex;align-items:center;gap:8px;padding:9px 8px;border-bottom:1px solid rgba(255,255,255,.045)}
@@ -23337,8 +23360,13 @@ body.drawer-open{overflow:hidden}
         </div>
       </div>
 
-      <!-- Üst row: avatar + info -->
+      <!-- Üst row: mevki haritası + avatar + info -->
       <div class="pl-hero-top">
+        <!-- 🆕 SOL: MEVKİ HARİTASI (1./2./3. bölge) -->
+        <div class="pl-pmap" id="plPosMapWrap">
+          <div class="pl-pitch" id="plPosMap"></div>
+          <div class="pl-pmap-lg" id="plPosMapLegend"></div>
+        </div>
         <!-- Avatar wrap + sağ üst köşe OVR rozeti -->
         <div class="pl-avatar-wrap pl-hero-avatar-wrap">
           <div class="pl-avatar pl-hero-avatar" id="plAvatar">🧑</div>
@@ -23365,6 +23393,8 @@ body.drawer-open{overflow:hidden}
             <span class="pl-hero-money-lbl">Güncel Maaş</span>
             <span class="pl-hero-mv" id="plSalaryRow" title="Sistem tarafından belirlenen sezon maaşı"><span id="plSalaryVal">—</span></span>
           </div>
+          <!-- 🆕 Kariyer başlangıcı -->
+          <div class="pl-start-row" id="plCareerStart" style="display:none"></div>
         </div>
       </div>
 
@@ -26363,7 +26393,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-27-transfer-gecmis-177';
+const APP_BUILD = '2026-07-27-oyuncu-hero-178';
 
 (function _cacheBustCheck() {
   try {
@@ -61611,6 +61641,92 @@ function _renderVisitorBanner(isVisitor, vp, vctx) {
   pageEl.insertBefore(banner, pageEl.firstChild);
 }
 
+
+// ══════════════════════════════════════════════════════════
+// 🆕 OYUNCUM HERO — MEVKİ HARİTASI (1./2./3. bölge) + KARİYER BAŞLANGICI
+// ══════════════════════════════════════════════════════════
+const _PMAP_XY = {
+  ST:[50,19], LF:[24,27], RF:[76,27],
+  AM:[50,46], LM:[17,62], RM:[83,62], CM:[50,70],
+  DM:[50,93], LB:[20,110], CB:[50,114], RB:[80,110],
+  GK:[50,134]
+};
+// Birincil mevkiye göre 2. ve 3. bölge (komşu mevkiler)
+const _PMAP_NEAR = {
+  GK:[], 
+  CB:['LB','RB'], LB:['CB','LM'], RB:['CB','RM'],
+  DM:['CM','CB'], CM:['DM','AM'], AM:['CM','ST'],
+  LM:['LB','LF'], RM:['RB','RF'],
+  ST:['LF','RF'], LF:['ST','LM'], RF:['ST','RM']
+};
+function _plSubPosOf(p, posGroup) {
+  const sp = (p && (p.subPos || p.sub_pos)) || null;
+  if (sp && _PMAP_XY[sp]) return sp;
+  const g = posGroup || (p && p.pos) || 'MID';
+  return ({ GK:'GK', DEF:'CB', MID:'CM', FWD:'ST' })[g] || 'CM';
+}
+function _plRenderPosMap(p, posGroup) {
+  const el = document.getElementById('plPosMap');
+  const lg = document.getElementById('plPosMapLegend');
+  if (!el) return;
+  const primary = _plSubPosOf(p, posGroup);
+  const near = _PMAP_NEAR[primary] || [];
+  const zone = {}; zone[primary] = 'p1';
+  if (near[0]) zone[near[0]] = 'p2';
+  if (near[1]) zone[near[1]] = 'p3';
+
+  const dots = Object.keys(_PMAP_XY).map(code => {
+    const [x, y] = _PMAP_XY[code];
+    const z = zone[code] || '';
+    const r = z === 'p1' ? 8.6 : (z === 'p2' ? 7.6 : (z === 'p3' ? 7.2 : 6.6));
+    return `<circle cx="${x}" cy="${y}" r="${r}" class="pdot ${z}"/>` +
+           `<text x="${x}" y="${(y + 2.6).toFixed(1)}" text-anchor="middle" class="ptxt ${z ? '' : 'dim'}">${code}</text>`;
+  }).join('');
+
+  el.innerHTML = `<svg viewBox="0 0 100 145">
+      <rect x="3" y="3" width="94" height="139" rx="4" class="pl-ln"/>
+      <line x1="3" y1="72.5" x2="97" y2="72.5" class="pl-ln"/>
+      <circle cx="50" cy="72.5" r="12.5" class="pl-ln"/>
+      <rect x="28" y="3" width="44" height="19" class="pl-ln"/>
+      <rect x="28" y="123" width="44" height="19" class="pl-ln"/>
+      ${dots}
+    </svg>`;
+
+  if (lg) {
+    const nameOf = c => (typeof SUBPOS_LABEL !== 'undefined' && SUBPOS_LABEL[c]) ? SUBPOS_LABEL[c] : c;
+    let h = `<div><i class="z1"></i> 1. ${nameOf(primary)}</div>`;
+    if (near[0]) h += `<div><i class="z2"></i> 2. ${nameOf(near[0])}</div>`;
+    if (near[1]) h += `<div><i class="z3"></i> 3. ${nameOf(near[1])}</div>`;
+    lg.innerHTML = h;
+  }
+}
+
+// Kariyer başlangıcı satırı (kendi profilinde katılım tarihi, ziyarette ilk maç)
+function _plRenderCareerStart(p, isVisitor) {
+  const el = document.getElementById('plCareerStart');
+  if (!el) return;
+  let ts = null;
+  if (!isVisitor) {
+    try {
+      const ch = (typeof getCareerHistory === 'function') ? getCareerHistory() : [];
+      if (ch && ch.length && ch[0] && ch[0].joinDate) ts = new Date(ch[0].joinDate).getTime();
+    } catch(e) {}
+    if (!ts) { try { if (authUser && authUser.created_at) ts = new Date(authUser.created_at).getTime(); } catch(e) {} }
+  }
+  if (!ts) {
+    try {
+      const mr = Array.isArray(p && (p.matchRatings || p.match_ratings)) ? (p.matchRatings || p.match_ratings) : [];
+      const w = mr.filter(x => x && x.ts).sort((a, b) => a.ts - b.ts);
+      if (w.length) ts = w[0].ts;
+    } catch(e) {}
+  }
+  if (!ts) { el.style.display = 'none'; return; }
+  const d = new Date(ts);
+  const sn = (typeof _ptrSeasonOfTs === 'function') ? _ptrSeasonOfTs(ts) : null;
+  el.innerHTML = `🎬 Kariyer başlangıcı: <b>${d.toLocaleDateString('tr', { day: '2-digit', month: 'short', year: 'numeric' })}${sn ? ' · S' + sn : ''}</b>`;
+  el.style.display = '';
+}
+
 function renderPlayerPage() {
   // 🆕 Ziyaretçi modu kontrolü
   const isVisitor = !!(typeof _visitedPlayerData !== 'undefined' && _visitedPlayerData && _visitedPlayerData.player);
@@ -61695,6 +61811,12 @@ function renderPlayerPage() {
         if (_ntM === null && typeof _loadNtSquadFromServer === 'function') {
           _loadNtSquadFromServer(_ntCc).then(() => { const _m2 = _isNtSquadPlayerSync(_ntP, _ntCc); const _e2 = document.getElementById('plNtBadge'); if (_e2 && _m2) _e2.style.display = ''; }).catch(()=>{});
         } else if (_ntM) { _ntB.style.display = ''; }
+        // 🆕 🌍 yerine ülke bayrağı
+        try {
+          const _c = (typeof _cftGetCountry === 'function' && _ntCc) ? _cftGetCountry(_ntCc) : null;
+          const _fl = (_c && _c.flag) || (_ntP && _ntP.nation) || '🌍';
+          _ntB.textContent = _fl + ' Milli Takım Oyuncusu';
+        } catch(e) {}
       }
     }
   } catch(e){}
@@ -61703,6 +61825,9 @@ function renderPlayerPage() {
   const badge = document.getElementById('plPosBadge');
   badge.textContent  = cfg.label;
   badge.className    = 'pl-pos-pill ' + cfg.badge;
+  // 🆕 Mevki haritası + kariyer başlangıcı
+  try { _plRenderPosMap(isVisitor ? vp : (meRoster || {}), pos); } catch(e) { console.warn('[posMap]', e); }
+  try { _plRenderCareerStart(isVisitor ? vp : (meRoster || {}), isVisitor); } catch(e) {}
   // Avatar: 
   //   - Ziyaretçi: vp.avatar_id varsa PNG (profiles tablosundan), yoksa vp.avatar emoji, yoksa pos fallback
   //   - Kendisi: authUser.avatarId
