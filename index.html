@@ -26466,7 +26466,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-27-mac-detay-186';
+const APP_BUILD = '2026-07-27-anasayfa-188';
 
 (function _cacheBustCheck() {
   try {
@@ -36905,9 +36905,20 @@ async function _startMatchInternal(){
 
       // 1) Kullanıcı tarafı için garanti inşa
       if (isUserSide) {
-        // a) localStorage'tan kayıtlı diziliş + bench yükle
+        // a) Kayıtlı diziliş + yedekleri yükle (sunucudan gelen strateji önbelleğinden)
         if (typeof loadTeamStrategy === 'function') {
           try { loadTeamStrategy(); } catch(e){}
+          // 🆕 Strateji önbelleği henüz gelmediyse çek ve tekrar dene (maç ekranı açıkken de düzelsin)
+          try {
+            if ((typeof _teamStrategyCache === 'undefined' || !_teamStrategyCache)
+                && typeof _teamStrategyLoadFromServer === 'function') {
+              _teamStrategyLoadFromServer().then(() => {
+                try { loadTeamStrategy(); } catch(e){}
+                try { if (typeof renderMatchSubPitch === 'function') renderMatchSubPitch(); } catch(e){}
+                try { if (typeof renderMatchSubBench === 'function') renderMatchSubBench(); } catch(e){}
+              }).catch(()=>{});
+            }
+          } catch(e) {}
         }
         // b) İlk 11 hâlâ eksikse smart auto-fill
         if (typeof activePitchPlayers !== 'undefined' && activePitchPlayers.length < 11
@@ -42210,6 +42221,25 @@ async function _rosterRefreshFromServer(countryCode) {
 
     // ROSTER_DATA'yı yeniden inşa et
     ROSTER_DATA = _buildRosterFromPlayers(data, countryCode);
+    // 🆕 Takım verisi hazır → ana sayfa panellerini tazele (lig sahnesi dahil)
+    try { if (typeof _msRefreshHomePanels === 'function') _msRefreshHomePanels(true); } catch(e) {}
+
+    // 🆕 KAYITLI DİZİLİŞİ OTOMATİK UYGULA — kadro hazır olduğu anda son kaydedilen
+    //   ilk 11 + yedekler belleğe yüklenir. Eskiden bu yalnızca Takım > Diziliş sayfası
+    //   açılınca (initFormation) oluyordu; o yüzden sayfaya girip kaydetmeden maça
+    //   çıkınca diziliş boş görünüyordu.
+    try {
+      if (typeof loadTeamStrategy === 'function') {
+        if (typeof _teamStrategyCache !== 'undefined' && _teamStrategyCache) loadTeamStrategy();
+        else if (typeof _teamStrategyLoadFromServer === 'function') {
+          _teamStrategyLoadFromServer().then(() => {
+            try { loadTeamStrategy(); } catch(e) {}
+            try { if (typeof renderPitch === 'function') renderPitch(); } catch(e) {}
+            try { if (typeof renderBench === 'function') renderBench(); } catch(e) {}
+          }).catch(()=>{});
+        }
+      }
+    } catch(e) { console.warn('[diziliş] otomatik yükleme hatası:', e); }
 
     // Hero "Ort. Güç" = TEK KAYNAK (teams.team_ovr). Frontend hesap YOK; sadece okuma.
     try {
@@ -57668,15 +57698,37 @@ function _msRefreshActivePage() {
 // 🆕 Ana sayfa panelleri — veri geldiğinde TEK yerden tazelenir (ek sorgu yok, sadece render).
 //   Katmanlı yüklemeden sonra paneller boş açılıp sayfa geçişi bekliyordu; bu onu çözer.
 let _msHomeRefreshTimer = null;
-function _msRefreshHomePanels() {
+let _msHomeTries = 0;
+// 🆕 Ana sayfa tam yüklenene kadar dene: takım (_userTeam), ülke DB (_cftDb) ve maç
+//   önbelleği farklı zamanlarda geliyor; biri eksikken render "veri yok" basıp kalıyordu.
+function _msHomeReady() {
+  try {
+    if (typeof _userTeam === 'undefined' || !_userTeam || !_userTeam.countryCode) return false;
+    if (typeof _cftGetCountry !== 'function') return false;
+    const c = _cftGetCountry(_userTeam.countryCode);
+    if (!c || !Array.isArray(c.leagues) || !c.leagues.length) return false;
+    if (!_matchStateCache || !_matchStateCache.byKey) return false;
+    return true;
+  } catch(e) { return false; }
+}
+function _msRefreshHomePanels(reset) {
+  if (reset) _msHomeTries = 0;
   clearTimeout(_msHomeRefreshTimer);
   _msHomeRefreshTimer = setTimeout(() => {
+    const ready = _msHomeReady();
     try { if (typeof updateHero === 'function') updateHero(); } catch(e) {}
     try { if (typeof renderHomeNextMatch === 'function') renderHomeNextMatch(); } catch(e) {}
     try { if (typeof renderHomeLeagueScene === 'function') renderHomeLeagueScene(); } catch(e) {}
     try { if (typeof renderHomeLeagueTicker === 'function') renderHomeLeagueTicker(); } catch(e) {}
     try { if (typeof renderHomeEuro === 'function') renderHomeEuro(); } catch(e) {}
     try { if (typeof renderHomeSummary === 'function') renderHomeSummary(); } catch(e) {}
+    // Veri henüz tam değilse kısa aralıklarla tekrar dene (en fazla ~8 sn)
+    if (!ready && _msHomeTries < 10) {
+      _msHomeTries++;
+      _msHomeRefreshTimer = setTimeout(() => _msRefreshHomePanels(), 800);
+    } else {
+      _msHomeTries = 0;
+    }
   }, 60);
 }
 
@@ -57716,7 +57768,7 @@ async function _msLoadCore() {
 
     _msRefreshActivePage();
     // Ana sayfa açık olmasa bile panelleri hazırla (kullanıcı geçince hazır olsun)
-    _msRefreshHomePanels();
+    _msRefreshHomePanels(true);
     return _matchStateCache;
   } catch(e) {
     console.warn('[match_state] çekirdek yükleme hatası:', e);
