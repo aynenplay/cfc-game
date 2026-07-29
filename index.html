@@ -26466,7 +26466,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-27-turnuva-detay-185';
+const APP_BUILD = '2026-07-27-mac-detay-186';
 
 (function _cacheBustCheck() {
   try {
@@ -32276,10 +32276,12 @@ async function resOpenFinishedMatch(matchKey) {
   let awayLineup = [];
   let entry = (typeof _matchEventsCache !== 'undefined' && _matchEventsCache && _matchEventsCache.byKey)
     ? _matchEventsCache.byKey[key] : null;
+  // 🆕 Maç oynanırken alınmış önbellek eksik/eski olur → bitmiş maçta yeniden çek
+  if (entry && entry._status && entry._status !== 'finished') entry = null;
   if (!entry && window.sb) {
     try {
       const { data, error } = await window.sb.from('match_state')
-        .select('events,stats,home_lineup,away_lineup')
+        .select('events,stats,home_lineup,away_lineup,home_score,away_score,status,sim_minute')
         .eq('match_key', key)
         .maybeSingle();
       if (!error && data) {
@@ -32287,7 +32289,11 @@ async function resOpenFinishedMatch(matchKey) {
           events: data.events,
           stats: data.stats,
           home_lineup: data.home_lineup,
-          away_lineup: data.away_lineup
+          away_lineup: data.away_lineup,
+          _hs: data.home_score,
+          _as: data.away_score,
+          _status: data.status,
+          _min: data.sim_minute
         };
         // Cache'e koy ki bir daha çekmesin
         if (typeof _matchEventsCache !== 'undefined' && _matchEventsCache && _matchEventsCache.byKey) {
@@ -32297,6 +32303,21 @@ async function resOpenFinishedMatch(matchKey) {
     } catch(e) { console.warn('[fm] events fetch hata:', e); }
   }
   if (entry) {
+    // 🆕 Skor: sunucudaki gerçek değer (liste satırı bayatsa düzeltir)
+    try {
+      if (typeof entry._hs === 'number' && typeof entry._as === 'number') {
+        if (hsEl) hsEl.textContent = entry._hs;
+        if (asEl) asEl.textContent = entry._as;
+        if (hNameEl) hNameEl.className = 'res-fm-team-name' + (entry._hs > entry._as ? ' winner' : '');
+        if (aNameEl) aNameEl.className = 'res-fm-team-name' + (entry._as > entry._hs ? ' winner' : '');
+        // Liste önbelleğini de düzelt ki listede de doğru görünsün
+        if (m) { m.hs = entry._hs; m.as = entry._as; }
+        try {
+          const _c = (_matchStateCache && _matchStateCache.byKey) ? _matchStateCache.byKey[key] : null;
+          if (_c) { _c.home_score = entry._hs; _c.away_score = entry._as; if (entry._status) _c.status = entry._status; }
+        } catch(e) {}
+      }
+    } catch(e) {}
     events = Array.isArray(entry.events) ? entry.events : [];
     homeLineup = (entry.home_lineup && Array.isArray(entry.home_lineup.players))
       ? entry.home_lineup.players : (Array.isArray(entry.home_lineup) ? entry.home_lineup : []);
@@ -32313,16 +32334,21 @@ async function resOpenFinishedMatch(matchKey) {
       goalsEl.innerHTML = '<div class="res-fm-no-goals">Maçta gol atılmadı</div>';
     } else {
       goalsEl.innerHTML = goals.map(g => {
-        const teamName = g.team === 'home' ? m.home : m.away;
-        const teamShort = g.team === 'home' ? (m.homeShort || teamName.slice(0,3).toUpperCase())
-                                            : (m.awayShort || teamName.slice(0,3).toUpperCase());
-        const assistHtml = g.assist ? `<div class="res-fm-goal-assist">↳ Asist: ${g.assist}</div>` : '';
+        // 🆕 Kendi kalesine: golü SAYAN taraf rakiptir → doğru takıma yaz
+        const own = !!(g.isOwnGoal || g.ownGoal);
+        const scoringSide = own ? (g.team === 'home' ? 'away' : 'home') : g.team;
+        const teamName = scoringSide === 'home' ? m.home : m.away;
+        const teamShort = scoringSide === 'home' ? (m.homeShort || (m.home || '').slice(0,3).toUpperCase())
+                                                 : (m.awayShort || (m.away || '').slice(0,3).toUpperCase());
+        const assistHtml = (!own && g.assist) ? `<div class="res-fm-goal-assist">↳ Asist: ${g.assist}</div>` : '';
+        const pen = (g.isPenalty || g.penalty) ? ' <span style="color:var(--text3);font-size:9.5px">(P)</span>' : '';
+        const ownTag = own ? ' <span style="color:#ff8fa3;font-size:9.5px">(k.k.)</span>' : '';
         return `
           <div class="res-fm-goal">
             <div class="res-fm-goal-min">${g.min}'</div>
-            <div class="res-fm-goal-icon">⚽</div>
+            <div class="res-fm-goal-icon">${own ? '🥅' : '⚽'}</div>
             <div class="res-fm-goal-info">
-              <div class="res-fm-goal-scorer">${g.player || '?'}</div>
+              <div class="res-fm-goal-scorer">${g.player || '?'}${ownTag}${pen}</div>
               ${assistHtml}
             </div>
             <div class="res-fm-goal-team">${teamShort}</div>
@@ -32379,7 +32405,17 @@ async function resOpenFinishedMatch(matchKey) {
   // Status
   const statusEl = document.getElementById('resFmStatus');
   if (statusEl) {
-    statusEl.innerHTML = `⚽ Maç tamamlandı · <b>90'</b>`;
+    const _st = entry && entry._status;
+    if (_st && _st !== 'finished') {
+      statusEl.innerHTML = `🔴 Devam ediyor · <b>${(entry._min || 0)}'</b>`;
+    } else {
+      const _gc = goals.length;
+      const _sh = (entry && typeof entry._hs === 'number') ? entry._hs : m.hs;
+      const _sa = (entry && typeof entry._as === 'number') ? entry._as : m.as;
+      const _mismatch = (Number(_sh) + Number(_sa)) !== _gc;
+      statusEl.innerHTML = `⚽ Maç tamamlandı · <b>90'</b>` +
+        (_mismatch ? ` <span style="color:var(--text3);font-size:10px">· ${_gc} gol kaydı</span>` : '');
+    }
   }
 }
 
