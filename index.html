@@ -2203,6 +2203,11 @@ select.form-input option{background:var(--bg)}
 #tacViewerPanel.tac-note .tac-note-t{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:13px;color:var(--text)}
 #tacViewerPanel.tac-note .tac-note-s{font-size:10.5px;color:var(--text3);line-height:1.4}
 
+/* 🆕 Uzatma rozeti + sakatlık değişikliği bilgisi */
+.ms-et-badge{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:9px;font-size:9px;font-weight:900;
+  letter-spacing:.4px;background:rgba(255,152,0,.18);border:1px solid rgba(255,152,0,.5);color:#ffb74d}
+#tacSubsAutoInfo{font-size:9.5px;color:#ffb74d;margin-top:2px}
+
 /* 🆕 Canlı diziliş görünümü (maç ekranı — izleyici / iki takım) */
 .mlp-2col{display:flex;gap:8px;padding:8px 6px}
 .mlp-wrap{flex:1;min-width:0}
@@ -22279,7 +22284,7 @@ body.drawer-open{overflow:hidden}
       <!-- ALT SEKME: DİZİLİŞ (oyuncu değiştirme sahası) -->
       <div id="tacSub-lineup">
         <div class="tac-section">
-          <div class="tac-hdr">🔄 Oyuncu Değişikliği <span class="tac-subs-info">Hak: <span id="tacSubsLeft">5</span>/5</span></div>
+          <div class="tac-hdr">🔄 Oyuncu Değişikliği <span class="tac-subs-info">Hak: <span id="tacSubsLeft">5</span>/5</span></div><div id="tacSubsAutoInfo"></div>
           <div class="tac-subs-help" id="tacSubsHelp">Sahadaki bir oyuncuya tıkla → yedeklerden birini seç. Veya yedeği sahaya sürükle.</div>
           <div class="form-main-area">
             <div class="form-pitch-wrap">
@@ -26466,7 +26471,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-27-anasayfa-188';
+const APP_BUILD = '2026-07-27-mac-tutarlilik-192';
 
 (function _cacheBustCheck() {
   try {
@@ -34222,6 +34227,59 @@ function buildSubstitutesList() {
 // 🆕 SAHA: takım sayfasındaki #pitchPlayers'ı render et, sonra DOM clone et
 
 // ══════════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════
+// 🆕 CANLI MAÇ TUTARLILIK YARDIMCILARI
+// ══════════════════════════════════════════════════════════
+// 1) Değişiklik hakkı SUNUCUDAKİ olaylardan türetilir (istemci sayacı ayrışmasın).
+//    Sakatlık kaynaklı otomatik değişiklikler de hakkı tüketir (motorla aynı kural).
+function _msSyncSubsFromServer() {
+  try {
+    if (typeof MS === 'undefined' || !MS) return;
+    const evs = (MS.script && Array.isArray(MS.script.evs)) ? MS.script.evs
+              : (Array.isArray(MS.events) ? MS.events : []);
+    if (!evs.length) return;
+    const ut = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : null;
+    let mySide = null;
+    if (ut && typeof curHome !== 'undefined' && curHome && curHome.name === ut) mySide = 'home';
+    else if (ut && typeof curAway !== 'undefined' && curAway && curAway.name === ut) mySide = 'away';
+    if (!mySide) return;
+    let used = 0, auto = 0;
+    evs.forEach(e => {
+      if (!e || e.type !== 'sub' || e.team !== mySide) return;
+      used++; if (e.isAuto) auto++;
+    });
+    const left = Math.max(0, 5 - used);
+    if (MS.subsLeft !== left) {
+      MS.subsLeft = left;
+      const el = document.getElementById('tacSubsLeft');
+      if (el) el.textContent = left;
+      if (auto > 0) {
+        const info = document.getElementById('tacSubsAutoInfo');
+        if (info) info.textContent = auto + ' hak sakatlık değişikliğine gitti';
+      }
+    }
+  } catch(e) {}
+}
+
+// 2) Görünen dakika SUNUCUYU AŞMASIN (tick gecikirse ekran ileri gidiyordu)
+function _msClampDisplayMinute(serverMin) {
+  try {
+    if (typeof MS === 'undefined' || !MS) return;
+    const sm = Number(serverMin);
+    if (!isFinite(sm) || sm <= 0) return;
+    if (typeof MS._displayMin === 'number' && MS._displayMin > sm) MS._displayMin = sm;
+  } catch(e) {}
+}
+
+// 3) Uzatma göstergesi — olaylarda extraTime varsa veya 90+ dakika
+function _msExtraTimeBadge(evs, minute) {
+  try {
+    const has = Array.isArray(evs) && evs.some(e => e && (e.extraTime || e.type === 'extraTimeStart'));
+    return (has || (Number(minute) || 0) > 90) ? '<span class="ms-et-badge">UZT</span>' : '';
+  } catch(e) { return ''; }
+}
+
 // 🆕 CANLI DİZİLİŞ GÖRÜNÜMÜ — maç ekranı taktik sekmesi
 //   Eskiden takım sayfasının sahası klonlanıyordu: izleyicide KENDİ takımın
 //   görünüyor, kırmızı kart / sakatlık / oyuncu değişimi yansımıyordu.
@@ -35488,8 +35546,9 @@ function _attachLivePlayerStats() {
       r += assists * 0.35;
       r -= yellows * 0.25;
       r -= reds * 1.2;
-      if (theirs >= 3 && p.pos === 'KL') r -= 0.4 * matchProgress;
-      if (theirs === 0 && p.pos === 'KL' && minNow > 30) r += 0.3 * matchProgress;
+      const _isGK = (p.pos === 'KL' || p.pos === 'GK' || p.posGroup === 'GK' || p.pos_group === 'GK');
+      if (theirs >= 3 && _isGK) r -= 0.4 * matchProgress;
+      if (theirs === 0 && _isGK && minNow > 30) r += 0.3 * matchProgress;
       p.matchRating  = Math.max(4.0, Math.min(10.0, +r.toFixed(1)));
       p.matchGoals   = goals;
       p.matchAssists = assists;
@@ -36291,6 +36350,17 @@ function showGoal(scorer,min){
 
 function updateClock(min){
   const el=document.getElementById('matchClock');
+  // 🆕 Uzatma göstergesi — 90+ dakika veya extraTime olayı varsa saatin yanında UZT
+  try {
+    if (el) {
+      const _evs = (MS && MS.script && Array.isArray(MS.script.evs)) ? MS.script.evs : [];
+      const _mn = Math.floor((MS && (MS._displayMin || MS.minute)) || 0);
+      const _et = (typeof _msExtraTimeBadge === 'function') ? _msExtraTimeBadge(_evs, _mn) : '';
+      el.setAttribute('data-et', _et ? '1' : '0');
+      if (_et && el.querySelector && !el.querySelector('.ms-et-badge')) el.insertAdjacentHTML('beforeend', _et);
+      if (!_et && el.querySelector) { const _b = el.querySelector('.ms-et-badge'); if (_b) _b.remove(); }
+    }
+  } catch(e) {}
   const badge=document.getElementById('statusBadge');
   if(min===0){el.textContent="0'";el.className='match-clock';badge.className='status-badge sb-live';badge.innerHTML='<div class="live-dot"></div> CANLI';}
   else if(min===45 && MS && MS.inHalftime){el.textContent='HT';el.className='match-clock ht';badge.className='status-badge sb-ht';badge.innerHTML='⏸ DEVRE ARASI';}
@@ -36795,10 +36865,18 @@ async function startMatch(){
           let stats;
           if (liveRow.stats && typeof liveRow.stats === 'object' && Array.isArray(liveRow.stats.possession)) {
             stats = liveRow.stats;
+            window._msLastServerStats = stats;   // 🆕 son gerçek veriyi sakla
+          } else if (window._msLastServerStats) {
+            // 🆕 Sunucu verisi gecikti → ÖNCEKİ GERÇEK veriyi koru (uydurma hesap yapma;
+            //   eskiden olaylardan yeniden hesaplanıyor ve sayılar oynuyordu)
+            stats = window._msLastServerStats;
           } else {
             const visibleEvs = allEvs2.filter(e => ((e.min !== undefined ? e.min : e.minute) || 0) <= visMin);
             stats = _computeMatchStatsFromEvents(visibleEvs, visMin);
           }
+          // 🆕 Dakika kilidi + değişiklik hakkı senkronu
+          try { _msClampDisplayMinute(liveRow.sim_minute); } catch(e) {}
+          try { _msSyncSubsFromServer(); } catch(e) {}
           if (typeof updateStats === 'function') {
             updateStats(stats, 1);
           }
