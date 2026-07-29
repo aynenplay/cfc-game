@@ -26471,7 +26471,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-27-mac-tutarlilik-192';
+const APP_BUILD = '2026-07-27-acilis-veri-194';
 
 (function _cacheBustCheck() {
   try {
@@ -41041,6 +41041,17 @@ async function userTeamLoadFromServer() {
     } else {
       _userTeam = null;
     }
+    // 🆕 KRİTİK: çekirdek maç yüklemesi açılışta _userTeam henüz belli olmadığı için
+    //   kendi ülkenin maçlarını atlıyordu (lig sahnesi + maç önizleme boş kalıyordu).
+    //   Takım belli olur olmaz o ülkenin tüm sezon maçlarını çek ve panelleri doldur.
+    try {
+      if (_userTeam && _userTeam.countryCode && typeof _msEnsureCountry === 'function') {
+        _msEnsureCountry(_userTeam.countryCode).then(() => {
+          try { if (typeof _msRefreshHomePanels === 'function') _msRefreshHomePanels(true); } catch(e) {}
+          try { if (typeof _msRefreshActivePage === 'function') _msRefreshActivePage(); } catch(e) {}
+        }).catch(()=>{});
+      }
+    } catch(e) {}
   } catch(e) { console.warn('[userTeam] load hata:', e); _userTeam = null; }
 }
 
@@ -57838,6 +57849,9 @@ async function _msLoadCore() {
 
     window._msScope.season = S;
     window._msScope.coreAt = Date.now();
+    // 🆕 Takım henüz yüklenmediyse ülke dilimi eksik kaldı — userTeamLoadFromServer
+    //   tamamlanınca _msEnsureCountry ile tamamlanacak.
+    window._msScope.pendingCountry = !cc;
     if (cc) window._msScope.countries[S + '|' + cc] = true;
     window._msScope.days[_msDayKey(d0)] = true;
 
@@ -80339,6 +80353,26 @@ setTimeout(async ()=>{
   try { if (typeof renderResultsPage === 'function') renderResultsPage(); } catch(e) {}
 
   document.getElementById('splash').classList.add('hide');
+
+  // 🆕 AÇILIŞ EMNİYETİ — hangi veri en son gelirse gelsin ana sayfa dolsun.
+  //   Takım belliyse ülkenin sezon maçları garanti çekilir, sonra paneller tazelenir.
+  (function _bootFillHome(){
+    let tries = 0;
+    const tick = async () => {
+      tries++;
+      try {
+        const ut = (typeof _userTeam !== 'undefined') ? _userTeam : null;
+        if (ut && ut.countryCode && typeof _msEnsureCountry === 'function') {
+          await _msEnsureCountry(ut.countryCode);
+        }
+        if (typeof _msRefreshHomePanels === 'function') _msRefreshHomePanels(true);
+        const ready = (typeof _msHomeReady === 'function') ? _msHomeReady() : true;
+        if (ready || tries >= 8) return;
+      } catch(e) {}
+      setTimeout(tick, 1000);
+    };
+    setTimeout(tick, 300);
+  })();
   
   // 🆕 KRİTİK OLMAYAN VERİLER — arka planda paralel yüklenir, UI bekletmez
   // Bunlar açılış anında gerekmez, sayfaya girince/etkileşimde kullanılır
