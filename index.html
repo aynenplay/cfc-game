@@ -2247,6 +2247,14 @@ select.form-input option{background:var(--bg)}
 .bet-odd.sel{background:rgba(0,230,118,.16);border-color:rgba(0,230,118,.5)}
 .bet-odd.sel .v{color:var(--accent,#00e676)}
 .bet-note{flex-shrink:0;font-size:8.5px;color:#ffb74d;width:138px;text-align:center;line-height:1.3}
+/* 🆕 Sayfalama düğmesi */
+.bet-more{margin:8px 12px 4px;padding:11px;border-radius:11px;text-align:center;cursor:pointer;
+  border:1px solid rgba(0,176,255,.4);background:rgba(0,176,255,.09);color:#00b0ff;
+  font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:12.5px;letter-spacing:.5px}
+.bet-more span{display:block;font-family:'Barlow',sans-serif;font-weight:600;font-size:9.5px;
+  letter-spacing:0;color:var(--text3);margin-top:1px}
+.bet-more:active{transform:scale(.99)}
+.bet-endnote{margin:8px 12px 4px;text-align:center;font-size:9.5px;color:var(--text3)}
 .bet-empty{margin:20px 14px;padding:26px 16px;text-align:center;color:var(--text3);font-size:12px;
   border:1px dashed var(--border,#20242c);border-radius:12px}
 /* çekmece */
@@ -26561,7 +26569,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-28-toto-207';
+const APP_BUILD = '2026-07-30-toto-208';
 
 (function _cacheBustCheck() {
   try {
@@ -40095,7 +40103,7 @@ function showPage(name,btn){
     trRender();
   }
   if(name==='entertainment') {
-    try { _betLastAuto = 0; if (typeof betRender === 'function') betRender(); } catch(e) {}
+    try { _betLastAuto = 0; _betLimit = BET_PAGE; if (typeof betRender === 'function') betRender(); } catch(e) {}
     // Canlı skor güncellemesi _liveMatchStartPolling ile sağlanır (aşağıda, skor-only).
   }
   if(name==='rankings') {
@@ -69108,7 +69116,15 @@ function _trn2ScrollActiveStab(el) {
 const BET_MIN_LEGS = 5, BET_MAX_LEGS = 15;
 const BET_MIN_STAKE = 5, BET_MAX_STAKE = 20000;
 const BET_MAX_PAYOUT_C = 2500000, BET_MAX_ODDS_C = 500;
-const BET_DAILY_CAP = 100000;
+const BET_DAILY_CAP = 100000;              // günlük KAZANÇ tavanı
+// 🆕 Günlük sınırlar
+const BET_MAX_SLIPS_DAY = 10;              // günde en fazla 10 kupon
+const BET_DAILY_STAKE_CAP = 50000;         // günde en fazla 50.000 € yatırım
+// 🆕 Bülten: yakın maçlar + sayfalama (binlerce satır DOM'u şişirip sekmeyi çökertiyordu)
+const BET_HORIZON_H = 48;                  // sadece önümüzdeki 48 saat
+const BET_PAGE = 60;                       // her seferde 60 satır
+let _betLimit = BET_PAGE;
+let _betCrestCache = {};                   // takım arması HTML önbelleği (O(1824) taramayı önler)
 let _betTab = 'bulletin';
 let _betFilter = 'all';
 let _betSlip = [];            // [{match_key,pick,odds,home,away,kickoff,label}]
@@ -69147,11 +69163,11 @@ function betRenderWallet() {
   if (!el) return;
   let eur = 0;
   try { eur = (typeof wlGetData === 'function') ? (Number(wlGetData().eur) || 0) : 0; } catch(e) {}
-  const used = _betDailyUsed();
+  const used = _betDailyUsed(), cntD = _betDailyCount();
   el.innerHTML = `<div class="ic">💰</div>
     <div><div class="k">Cüzdan</div><div class="v">${eur.toLocaleString('tr')} €</div></div>
-    <div class="lim">Kupon: ${BET_MIN_STAKE} € – ${BET_MAX_STAKE.toLocaleString('tr')} €<br>
-      Günlük kalan: ${Math.max(0, BET_DAILY_CAP - used).toLocaleString('tr')} €</div>`;
+    <div class="lim">Bugün <b>${cntD}/${BET_MAX_SLIPS_DAY}</b> kupon<br>
+      Kalan yatırım: ${Math.max(0, BET_DAILY_STAKE_CAP - used).toLocaleString('tr')} €</div>`;
 }
 
 function _betDailyUsed() {
@@ -69160,6 +69176,14 @@ function _betDailyUsed() {
     const t = new Date(); const t0 = new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
     return arr.filter(s => new Date(s.created_at).getTime() >= t0)
               .reduce((a, s) => a + (Number(s.stake) || 0), 0);
+  } catch(e) { return 0; }
+}
+// 🆕 Bugün oynanan kupon sayısı
+function _betDailyCount() {
+  try {
+    const arr = Array.isArray(_betMySlips) ? _betMySlips : [];
+    const t = new Date(); const t0 = new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
+    return arr.filter(s => new Date(s.created_at).getTime() >= t0).length;
   } catch(e) { return 0; }
 }
 
@@ -69181,7 +69205,12 @@ function _betBulletinMatches() {
     out.push({ ms, t, hasOdds, isMine });
   }
   out.sort((a, b) => a.t - b.t);
-  return out;
+  // 🆕 Sadece önümüzdeki 48 saat; o aralık boşsa en yakın 60 maç
+  const lim = now + BET_HORIZON_H * 3600 * 1000;
+  let win = out.filter(x => x.t <= lim);
+  if (!win.length) win = out.slice(0, 60);
+  if (win.length > 500) win = win.slice(0, 500);
+  return win;
 }
 
 function betRenderFilters() {
@@ -69207,7 +69236,8 @@ function betRenderFilters() {
   });
   el.innerHTML = h;
 }
-function betSetFilter(f) { _betFilter = f; betRenderFilters(); betRenderBulletin(); }
+function betSetFilter(f) { _betFilter = f; _betLimit = BET_PAGE; betRenderFilters(); betRenderBulletin(); }
+function betMore() { _betLimit += BET_PAGE; betRenderBulletin(); }
 
 function betRenderBulletin() {
   const el = document.getElementById('betList');
@@ -69224,13 +69254,26 @@ function betRenderBulletin() {
     return;
   }
   const TRNNM = { champ:'🏆 Championship League', elite:'🥈 Elite League', conv:'🥉 Convergence League', enc:'⭐ EURO Nations Cup' };
-  const crest = (cc, nm) => (typeof inlineBadge === 'function')
-    ? inlineBadge({ tag:'span', cls:'bet-crest', name:nm, cc:cc || '' })
-    : `<span class="bet-crest" style="background:#37474f">${String(nm||'?').slice(0,3).toUpperCase()}</span>`;
+  // 🆕 Arma HTML'i önbellekten: inlineBadge isim aramasi tum ulke/lig/takimi tariyor,
+  //    satir basina 2 kez cagrilinca sekme kilitleniyordu.
+  const crest = (cc, nm) => {
+    const ck = (cc || '') + '|' + (nm || '');
+    let v = _betCrestCache[ck];
+    if (v === undefined) {
+      v = (typeof inlineBadge === 'function')
+        ? inlineBadge({ tag:'span', cls:'bet-crest', name:nm, cc:cc || '' })
+        : `<span class="bet-crest" style="background:#37474f">${String(nm||'?').slice(0,3).toUpperCase()}</span>`;
+      _betCrestCache[ck] = v;
+    }
+    return v;
+  };
   const short = n => String(n || '').length > 11 ? String(n).slice(0, 10) + '…' : String(n || '');
 
+  // 🆕 Sayfalama: aynı anda en fazla _betLimit satır DOM'a girer
+  const totalN = list.length;
+  const view = list.slice(0, _betLimit);
   let h = '', lastGrp = null;
-  list.forEach(x => {
+  view.forEach(x => {
     const ms = x.ms;
     const grpKey = ms.tournament_key ? ('T' + ms.tournament_key) : ('C' + (ms.countryCode||'') + (ms.tier||''));
     if (grpKey !== lastGrp) {
@@ -69265,6 +69308,12 @@ function betRenderBulletin() {
         <div class="bet-side r"><span class="nm">${short(ms.away)}</span>${crest(ms.countryCode, ms.away)}</div>
       </div>`;
   });
+  if (totalN > view.length) {
+    h += `<div class="bet-more" onclick="betMore()">DAHA FAZLA GÖSTER · +${BET_PAGE}
+      <span>${totalN - view.length} maç daha</span></div>`;
+  } else if (totalN > BET_PAGE) {
+    h += `<div class="bet-endnote">Bültenin sonu · önümüzdeki ${BET_HORIZON_H} saatin maçları</div>`;
+  }
   // 🆕 İçerik değişmediyse DOM'a dokunma (titreme/zıplama ve gereksiz yük olmasın)
   if (el._betLastHtml === h) return;
   el._betLastHtml = h;
@@ -69302,7 +69351,7 @@ function betAddStake(v) {
 function betMaxStake() {
   const el = document.getElementById('betStake'); if (!el) return;
   let eur = 0; try { eur = Number(wlGetData().eur) || 0; } catch(e) {}
-  const left = Math.max(0, BET_DAILY_CAP - _betDailyUsed());
+  const left = Math.max(0, BET_DAILY_STAKE_CAP - _betDailyUsed());
   el.value = Math.max(BET_MIN_STAKE, Math.min(BET_MAX_STAKE, Math.floor(Math.min(eur, left))));
   betRenderSlip();
 }
@@ -69355,6 +69404,15 @@ async function betPlay() {
   if (_betSlip.length < BET_MIN_LEGS || _betSlip.length > BET_MAX_LEGS) { _betToast(`Kupon ${BET_MIN_LEGS}-${BET_MAX_LEGS} maç olmalı`); return; }
   if (stake < BET_MIN_STAKE || stake > BET_MAX_STAKE) { _betToast('Misli sınırların dışında'); return; }
   if (!window.sb || !authUser || !authUser.id) { _betToast('Oturum yok'); return; }
+  // 🆕 Günlük sınırlar — kuponlar yüklü değilse önce çek
+  if (!Array.isArray(_betMySlips)) { try { await betLoadMySlips(true); } catch(e) {} }
+  if (_betDailyCount() >= BET_MAX_SLIPS_DAY) {
+    _betToast(`Günlük kupon sınırı: ${BET_MAX_SLIPS_DAY} kupon (00:00'da sıfırlanır)`); return;
+  }
+  if (_betDailyUsed() + stake > BET_DAILY_STAKE_CAP) {
+    const kalan = Math.max(0, BET_DAILY_STAKE_CAP - _betDailyUsed());
+    _betToast(`Günlük yatırım tavanı ${BET_DAILY_STAKE_CAP.toLocaleString('tr')} € · kalan ${kalan.toLocaleString('tr')} €`); return;
+  }
   // Başlamış maç var mı?
   const now = Date.now();
   for (const l of _betSlip) {
