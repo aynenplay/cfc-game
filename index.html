@@ -26846,7 +26846,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-30-eglence-213';
+const APP_BUILD = '2026-07-30-braket-215';
 
 (function _cacheBustCheck() {
   try {
@@ -67319,6 +67319,27 @@ function trn2GetUserStatus(trnKey, season) {
   return { trnKey, userRank, inPlayoff: true, won: true, group: userGroup, rankInGroup: userRankInGroup };
 }
 
+// 🆕 Takım adı → ülke kodu dizini (braket kazananlarında cc gelmiyor)
+let _brkCcIdx = null;
+function _bracketCcByName(nm) {
+  if (!nm) return null;
+  if (!_brkCcIdx) {
+    _brkCcIdx = {};
+    try {
+      for (const cc of _cftGetCountryCodes()) {
+        const c = _cftGetCountry(cc);
+        if (!c) continue;
+        for (const lg of (c.leagues || [])) {
+          for (const t of (lg.teams || [])) {
+            if (t && t.name && _brkCcIdx[t.name] == null) _brkCcIdx[t.name] = cc;
+          }
+        }
+      }
+    } catch(e) {}
+  }
+  return _brkCcIdx[nm] || null;
+}
+
 // ── Eleme braketi (FAZ 3: iki maçlı sistem, Final hariç) ──
 function trn2BuildBracket(groups, season, trnKey) {
   // 🆕 ÖNCE Supabase tournament_state'ten knockout fikstürünü dene (tek doğruluk kaynağı)
@@ -67343,12 +67364,18 @@ function trn2BuildBracket(groups, season, trnKey) {
   }
 
   // teams DB'den tam takım nesnesi (rating + players) — hem server hem lokal mantık için lazım
+  // 🆕 KRİTİK: eleme turu fikstürleri kazananlardan üretiliyor ve kazananlar SADECE
+  //    isim taşıyor (countryCode yok). Eskiden burada null dönülüyor, çağıran taraf
+  //    da `.filter(x=>x)` ile eşleşmeleri atıyordu → Son 16/Çeyrek/Yarı/Final BOŞ.
+  //    Artık ülke kodu isimden çözülüyor, çözülemezse en azından isim gösteriliyor.
   function _bracketFullTeam(t) {
     if (!t) return null;
-    const cc = t.countryKey || t.countryCode;
     const nm = t.name;
-    if (!cc || !nm) return null;
-    if (false || !_cftGetCountry(cc)) return null;
+    if (!nm) return null;
+    let cc = t.countryKey || t.countryCode;
+    if (!cc) cc = _bracketCcByName(nm);
+    if (!cc) return { name: nm };
+    if (!_cftGetCountry(cc)) return { name: nm, countryCode: cc, countryKey: cc };
     const country = _cftGetCountry(cc);
     for (const lg of (country.leagues || [])) {
       const found = (lg.teams || []).find(x => x.name === nm);
@@ -67406,7 +67433,13 @@ function trn2BuildBracket(groups, season, trnKey) {
       const matches = pairs.map((p, idx) => {
         const t1 = _bracketFullTeam(p.home || { name: (p.home && p.home.name), countryKey: (p.home && p.home.countryCode) });
         const t2 = _bracketFullTeam(p.away || { name: (p.away && p.away.name), countryKey: (p.away && p.away.countryCode) });
-        if (!t1 || !t2) return null;
+        // 🆕 Takım çözülemediyse eşleşmeyi ATMA — "Belirleniyor" olarak göster,
+        //    yoksa tüm tur boş görünüyor (Son 16 / Çeyrek / Yarı / Final hatası).
+        if (!t1 || !t2) {
+          return { home: t1 || null, away: t2 || null, leg1: null, leg2: null,
+                   hs: '', as: '', leg1Date: _l1iso, leg2Date: _l2iso,
+                   winner: null, twoLeg: info.twoLeg, tbd: true, fromServer: true };
+        }
 
         // Leg 1: t1 evinde, t2 deplasman
         const srvL1 = (_knockoutFromServer[info.phase] || {})[`${t1.name}|${t2.name}`];
@@ -76864,6 +76897,11 @@ async function evClaimStreakDay(day) {
     if (Array.isArray(data.streak_claimed)) _userStreakCache.streak_claimed = data.streak_claimed;
     else if (!_userStreakCache.streak_claimed.includes(day)) _userStreakCache.streak_claimed.push(day);
 
+    // 🆕 ÖDÜL ANİMASYONU: buton yeniden render'da silinecek → konumu şimdi al
+    const _rect = (typeof wlSrcRect === 'function') ? wlSrcRect() : null;
+    const _rEur = Number(data.eur) || 0, _rDia = Number(data.dia) || 0;
+    if (_rect) { wlHoldHeader('eur', _rEur > 0); wlHoldHeader('dia', _rDia > 0); }
+
     // 🆕 Önce UI'ı anında güncelle — ödülü aldığı an rozet düşsün
     if (typeof evRender === 'function') evRender();
     if (typeof evRefreshBadge === 'function') evRefreshBadge();
@@ -76879,6 +76917,12 @@ async function evClaimStreakDay(day) {
       if (typeof wlLoadFromServer === 'function') await wlLoadFromServer();
       if (typeof _energyLoadFromServer === 'function') await _energyLoadFromServer();
     } catch(e2) {}
+    // 🆕 Cüzdana uçuş animasyonu (elmas → euro)
+    try {
+      if (_rect && typeof wlFlyRewards === 'function') {
+        wlFlyRewards(_rect, [{ cur:'dia', amount:_rDia }, { cur:'eur', amount:_rEur }]);
+      } else { wlHoldHeader('eur', false); wlHoldHeader('dia', false); }
+    } catch(e3) { wlHoldHeader('eur', false); wlHoldHeader('dia', false); }
   } catch(e) { console.warn('[streak] claim exception:', e); }
 }
 
@@ -77878,16 +77922,22 @@ function _wlFmtHeader(cur, n) {
   return cur === 'dia' ? Number(n).toLocaleString('tr') : Number(n).toLocaleString('tr') + ' €';
 }
 
+// srcEl bir DOM öğesi VEYA {left,top,width,height} dikdörtgeni olabilir.
+//   Dikdörtgen desteği önemli: bazı "Topla" butonları ödül alınır alınmaz
+//   yeniden render edilip DOM'dan siliniyor → önce rect alıp sonra uçuruyoruz.
 function wlFlyReward(srcEl, cur, amount, onDone) {
   amount = Math.round(Number(amount) || 0);
   const tgt = _wlHeaderEl(cur);
-  if (!amount || amount <= 0 || !tgt || !srcEl || !srcEl.getBoundingClientRect) {
+  const br = (srcEl && typeof srcEl.getBoundingClientRect === 'function')
+    ? srcEl.getBoundingClientRect()
+    : (srcEl && isFinite(srcEl.left) ? srcEl : null);
+  if (!amount || amount <= 0 || !tgt || !br) {
+    _WL_HOLD[cur] = false;
     try { wlSyncHeader(); } catch(e) {}
     if (onDone) onDone();
     return;
   }
   const chip = _wlChipEl(cur);
-  const br = srcEl.getBoundingClientRect();
   const tr = tgt.getBoundingClientRect();
   if (!br.width || !tr.width) { try { wlSyncHeader(); } catch(e) {} if (onDone) onDone(); return; }
 
@@ -77947,13 +77997,40 @@ function _wlLandCount(cur, fromVal, amount) {
   requestAnimationFrame(step);
 }
 
+// 🆕 Birden fazla para birimi: sırayla uçur (önce elmas, sonra euro)
+function wlFlyRewards(src, list, onDone) {
+  const arr = (list || []).filter(x => x && x.amount > 0);
+  if (!arr.length) { try { wlSyncHeader(); } catch(e) {} if (onDone) onDone(); return; }
+  let i = 0;
+  const next = () => {
+    if (i >= arr.length) { if (onDone) onDone(); return; }
+    const it = arr[i++];
+    wlFlyReward(src, it.cur, it.amount, next);
+  };
+  next();
+}
+// 🆕 Tıklanan ödül butonunun konumunu (yeniden render'dan ÖNCE) sakla
+function wlSrcRect() {
+  try {
+    const el = _wlSrcEl;
+    if (el && document.body.contains(el)) {
+      const r = el.getBoundingClientRect();
+      if (r && r.width) return { left: r.left, top: r.top, width: r.width, height: r.height };
+    }
+  } catch(e) {}
+  return null;
+}
+// 🆕 Uçuş başlayana kadar başlık rakamını dondur
+function wlHoldHeader(cur, on) { try { _WL_HOLD[cur] = !!on; } catch(e) {} }
+
 // ── Oyundaki TÜM "Ödülü Al / Topla" butonlarını otomatik yakala ──
 //   Tıklanan öğe ödül butonuna benziyorsa referansı sakla; wlAddIncome
 //   çağrıldığında animasyon oradan başlar.
 let _wlSrcEl = null, _wlSrcAt = 0;
 document.addEventListener('click', (ev) => {
   try {
-    const el = ev.target && ev.target.closest ? ev.target.closest('button,[onclick],.claim,.ev-claim-btn,.ach-claim-btn') : null;
+    const el = ev.target && ev.target.closest
+      ? ev.target.closest('button,[onclick],.claim,.ev-claim-btn,.ach-claim-btn,.ev-race-claim-btn,.ev-quest-btn,.bet-claim-btn,.sc-claim-mini') : null;
     if (!el) return;
     const sig = ((el.className || '') + ' ' + (el.textContent || '')).toLowerCase();
     if (/claim|collect|topla|ödül|odul|al\b/.test(sig)) { _wlSrcEl = el; _wlSrcAt = Date.now(); }
@@ -79472,6 +79549,10 @@ async function achClaim(id) {
   if (sDef) { eur = sDef[6]; dia = sDef[7]; }
   else { const pDef = ACH_PRO.find(a => a[0] === id); if (pDef) { eur = pDef[4]; dia = pDef[5]; } }
 
+  // 🆕 ÖDÜL ANİMASYONU: buton achRenderAll() ile silinecek → konumu şimdi al
+  const _aRect = (typeof wlSrcRect === 'function') ? wlSrcRect() : null;
+  if (_aRect) { wlHoldHeader('eur', eur > 0); wlHoldHeader('dia', dia > 0); }
+
   // 🆕 ANINDA (beklemesiz): cüzdana ekle + claimed + render + rozet + toast
   if (_wlCache) { _wlCache.eur = (_wlCache.eur || 0) + eur; _wlCache.dia = (_wlCache.dia || 0) + dia; wlSyncHeader(); }
   if (!Array.isArray(_achStateCache.claimed)) _achStateCache.claimed = [];
@@ -79483,6 +79564,12 @@ async function achClaim(id) {
     if (dia) parts.push(`+${dia} 💎`);
     rosterToast(`Görev ödülü: ${parts.join('  ')}`, 'ok');
   }
+  // 🆕 Cüzdana uçuş animasyonu (elmas → euro)
+  try {
+    if (_aRect && typeof wlFlyRewards === 'function') {
+      wlFlyRewards(_aRect, [{ cur:'dia', amount:dia }, { cur:'eur', amount:eur }]);
+    } else { wlHoldHeader('eur', false); wlHoldHeader('dia', false); }
+  } catch(e) { wlHoldHeader('eur', false); wlHoldHeader('dia', false); }
 
   // Arka planda sunucuya kalıcı yaz (cüzdan + claimed atomik). Başarısızsa geri al.
   try {
@@ -79490,6 +79577,7 @@ async function achClaim(id) {
     if (error || !data || data.ok !== true) {
       // already_claimed → sunucuda zaten alınmış, KORU; aksi halde GERİ AL (cüzdan + claimed)
       if (!(data && data.reason === 'already_claimed')) {
+        wlHoldHeader('eur', false); wlHoldHeader('dia', false);
         if (_wlCache) { _wlCache.eur = (_wlCache.eur || 0) - eur; _wlCache.dia = (_wlCache.dia || 0) - dia; wlSyncHeader(); }
         _achStateCache.claimed = _achStateCache.claimed.filter(x => x !== id);
         achRenderAll();
