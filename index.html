@@ -27132,7 +27132,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-30-kuponkart-229';
+const APP_BUILD = '2026-07-30-milli-230';
 
 (function _cacheBustCheck() {
   try {
@@ -49073,7 +49073,8 @@ function _fedMapState(cc, row, votesByTeam) {
     if (vid && cid) votes[vid] = cid;
   });
   const _srvPresId = toId(row.president_team);
-  let _presId = _srvPresId || _defPres;
+  // 🆕 Sunucuda başkan yoksa UYDURMA başkan üretme — bot kaptan devralır.
+  let _presId = _srvPresId || null;
   let _viceIds = (row.vice_president_teams || []).map(toId).filter(Boolean);
   if (!_viceIds.length) _viceIds = _defVices.filter(id => id !== _presId).slice(0, 3);
   return {
@@ -50507,7 +50508,8 @@ async function _loadNtPoolFromServer(cc) {
         abilities: r.abilities, role: r.role || 'member',
         nation: r.nation || flag, nationality: r.nationality || cc,
         avatar: r.avatar || (r.is_bot ? '🤖' : '👤'),
-        avatar_id: r.avatar_id || null, user_id: r.user_id || null, lastSeen: r.last_seen || null,
+        avatar_id: r.avatar_id || null, user_id: r.user_id || null, userId: r.user_id || null,
+        lastSeen: r.last_seen || null,
         isBot: !!r.is_bot, isUser: !!(myUid && r.user_id === myUid),
         ntId: (myUid && r.user_id === myUid) ? 'USER' : ((r.team_name || 'FA') + '|' + r.num),
         sourceClub: r.team_name || 'Serbest', clubCC: r.country_code || cc,
@@ -50541,6 +50543,37 @@ function _ntShuffle(arr, cc, salt) {
 }
 
 // 🆕 Default kadro: pool'dan deterministik 18 oyuncu (NT_SQUAD_SLOTS pozisyonlarına uygun)
+// 🆕 Kaptan gerçek kullanıcı mı? (federasyon başkanı = milli takım T.D.)
+//    Bot kaptanlı ülkelerde kadro OTOMATİK: o uyruktan en yüksek OVR'li 18 oyuncu.
+//    Sunucudaki kuralla birebir aynı olsun diye burada da OVR sıralı seçiyoruz.
+function ntCaptainIsUser(cc) {
+  try {
+    const st = (typeof fedLoad === 'function') ? fedLoad(cc) : null;
+    if (!st || !st.serverPresidentId) return false;        // sunucuda başkan yok → bot kaptan
+    const pres = (typeof fedGetPresident === 'function') ? fedGetPresident(cc) : null;
+    return !!(pres && pres.isUser);
+  } catch(e) { return false; }
+}
+
+// 🆕 Bot kaptanlı ülke kadrosu: uyruk havuzundan OVR'a göre en iyi 18 (sunucu ile aynı kural)
+function ntBuildAutoSquadIds(cc, pool) {
+  const slots = NT_SQUAD_SLOTS;
+  const ids = new Array(slots.length).fill(null);
+  const POSGRP = (typeof POS_GROUP !== 'undefined') ? POS_GROUP : null;
+  const grp = p => (POSGRP && POSGRP[p.pos]) || 'MID';
+  const byPos = { GK: [], DEF: [], MID: [], FWD: [] };
+  (pool || []).forEach(p => { const g = grp(p); if (byPos[g]) byPos[g].push(p); });
+  const ovr = p => Number(p.overall || p.rating || 0);
+  Object.keys(byPos).forEach(k => byPos[k].sort((a, b) => ovr(b) - ovr(a)));
+  const used = new Set();
+  slots.forEach((sl, i) => {
+    const list = byPos[sl.pos] || [];
+    const pick = list.find(p => !used.has(p.ntId));
+    if (pick) { used.add(pick.ntId); ids[i] = pick.ntId; }
+  });
+  return ids;
+}
+
 function ntBuildDefaultSquadIds(cc, pool) {
   const POSGRP = (typeof POS_GROUP !== 'undefined') ? POS_GROUP
     : { KL:'GK', STB:'DEF', SB:'DEF', DOS:'MID', OS:'MID', SAK:'MID', FWD:'FWD' };
@@ -50725,24 +50758,13 @@ function ntBuildRoster(cc) {
       if (typeof _loadNtSquadFromServer === 'function') _loadNtSquadFromServer(cc).catch(()=>{});
       return [];
     }
-    // Sunucu yüklendi ve GERÇEKTEN kadro yok → ilk kez varsayılan kur + kaydet
-    ids = ntBuildDefaultSquadIds(cc, pool);
-    ntSaveSquadIds(cc, ids);
-  }
-
-  // User TD ise user'ın kadroda olmasını garanti et (kaptan)
-  const isCoach = (typeof ntIsUserCoach === 'function') && ntIsUserCoach();
-  const userP = pool.find(p => p.isUser);
-  if (isCoach && userP && !ids.includes('USER')) {
-    const POSGRP = (typeof POS_GROUP !== 'undefined') ? POS_GROUP : null;
-    const ug = (POSGRP && POSGRP[userP.pos]) || 'MID';
-    let target = -1;
-    for (let i = NT_SQUAD_SLOTS.length - 1; i >= 0; i--) {
-      if (NT_SQUAD_SLOTS[i].pos === ug) { target = i; break; }
-    }
-    if (target === -1) target = 0;
-    ids[target] = 'USER';
-    ntSaveSquadIds(cc, ids);
+    // 🆕 Sunucuda kadro yok:
+    //    • Kaptan BOT ise → otomatik kadro (uyruk havuzundan en iyi 18). SUNUCUYA YAZILMAZ,
+    //      sunucu maç anında aynı kuralı kendisi uyguluyor. Böylece "kimin tarayıcısı
+    //      açıksa ortak kadroyu yazıyor" yarışı ortadan kalkıyor.
+    //    • Kaptan GERÇEK KULLANICI ise → kadro BOŞ görünür, seçim tamamen ona ait.
+    ids = ntCaptainIsUser(cc) ? new Array(NT_SQUAD_SLOTS.length).fill(null)
+                              : ntBuildAutoSquadIds(cc, pool);
   }
 
   // 🆕 KAPTAN = Federasyon başkanı (T.D.). Kadroda garanti + kaptan işaretlenir.
@@ -50757,7 +50779,7 @@ function ntBuildRoster(cc) {
     }
     if (_capPlayer) {
       _presNtId = _capPlayer.ntId;
-      if (!ids.includes(_presNtId)) {
+      if (false && !ids.includes(_presNtId)) {   // 🆕 render'dan sunucuya yazma kaldırıldı
         const _pg = ((typeof POS_GROUP !== 'undefined' && POS_GROUP[_capPlayer.pos]) || 'MID');
         let _tgt = -1;
         for (let i = 0; i < NT_SQUAD_SLOTS.length; i++) { if (NT_SQUAD_SLOTS[i].pos === _pg && !ids[i]) { _tgt = i; break; } }
@@ -52619,12 +52641,30 @@ function fedCallupCheck(player, ctx) {
 }
 
 // Federasyon yetkilisi: oyuncuyu milli takıma davet et (zorunlu, onay gerekmez)
+// 🆕 Uyruk denetimi — Almanya'da oynayan Türk ✔ / Türkiye'de oynayan Alman ✘
+//    Tek ölçüt oyuncunun uyruğu; kulübünün ülkesi asla ölçüt değil.
+function _ntEligible(cc, p) {
+  if (!p) return false;
+  const nat = p.nationality || p.nation || null;
+  if (!nat) return true;                        // veri yoksa engellemeyelim
+  return String(nat).toUpperCase() === String(cc).toUpperCase();
+}
+
 function fedCallupPlayer(payloadStr) {
   let payload;
   try { payload = JSON.parse(payloadStr); }
   catch(e) { return; }
   const { player, ctx } = payload;
   if (!player || !ctx) return;
+
+  // 🆕 Uyruk kontrolü
+  try {
+    const _cc = (typeof fedActiveCountry === 'function') ? fedActiveCountry() : (_userTeam && _userTeam.countryCode);
+    if (!_ntEligible(_cc, player)) {
+      if (typeof showToast === 'function') showToast('Bu oyuncu bu ülkenin uyruğunda değil');
+      return;
+    }
+  } catch(e) {}
 
   const check = fedCallupCheck(player, ctx);
   if (!check.allowed) {
@@ -52743,8 +52783,25 @@ function fedCallupPlayer(payloadStr) {
         ts: Date.now()
       }
     };
-    msgs.unshift(newMsg);
-    saveInboxMsgs(msgs);
+    // 🆕 HATA DÜZELTMESİ: saveInboxMsgs her zaman OTURUM AÇAN kullanıcının kutusuna
+    //    yazıyordu → davet, daveti yapan başkanın kendi gelen kutusuna düşüyordu.
+    //    Artık mesaj DAVET EDİLEN oyuncunun user_id'sine yazılıyor.
+    const _hedefUid = (poolPlayer && poolPlayer.userId) || (player && (player.userId || player.user_id)) || null;
+    if (_hedefUid && window.sb) {
+      (async () => {
+        try {
+          const { data: row } = await window.sb.from('user_inbox')
+            .select('messages').eq('user_id', _hedefUid).maybeSingle();
+          const list = (row && Array.isArray(row.messages)) ? row.messages : [];
+          list.unshift(newMsg);
+          await window.sb.from('user_inbox').upsert(
+            { user_id: _hedefUid, messages: list.slice(0, 100), updated_at: new Date().toISOString() },
+            { onConflict: 'user_id' });
+        } catch(e) { console.warn('[nt] davet mesajı gönderilemedi:', e); }
+      })();
+    } else if (!_hedefUid) {
+      // Bot oyuncu → mesaj gerekmez
+    }
     if (typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
   } catch(e) {}
 
