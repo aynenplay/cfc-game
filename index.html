@@ -26526,7 +26526,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-27-antrenman-xp-198';
+const APP_BUILD = '2026-07-27-turnuva-sezon-199';
 
 (function _cacheBustCheck() {
   try {
@@ -57965,6 +57965,15 @@ async function _msLoadCore() {
   try {
     let S = 1;
     try { S = (getSeasonInfo().season) || 1; } catch(e) {}
+    // 🆕 world_state henüz gelmediyse sezon yanlış hesaplanır → yükleyip tekrar dene
+    try {
+      const _wsReady = (typeof _worldStateCache !== 'undefined' && _worldStateCache)
+        || (typeof loadWorldState === 'function' && loadWorldState() && loadWorldState().gameStartDate);
+      if (!_wsReady && typeof _worldStateLoadFromServer === 'function') {
+        await _worldStateLoadFromServer().catch(()=>{});
+        try { S = (getSeasonInfo().season) || S; } catch(e) {}
+      }
+    } catch(e) {}
     let cc = null;
     try {
       cc = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.countryCode)
@@ -57985,6 +57994,10 @@ async function _msLoadCore() {
     let n = 0;
     res.forEach(r => { n += _msMerge(r); });
 
+    // 🆕 Sezon sonradan değişirse (world_state geç geldi) çekirdeği tekrar çek
+    if (window._msScope.season != null && window._msScope.season !== S) {
+      window._msScope.countries = {}; window._msScope.days = {};
+    }
     window._msScope.season = S;
     window._msScope.coreAt = Date.now();
     // 🆕 Takım henüz yüklenmediyse ülke dilimi eksik kaldı — userTeamLoadFromServer
@@ -80254,13 +80267,15 @@ setTimeout(async ()=>{
   try { await bootstrapWorld(); } catch(e) { console.warn('bootstrapWorld hata:', e); }
   // 🆕 Geri kalan 6 yükleme paralel — birbirinden bağımsız tablolar
   await Promise.all([
+    // 🆕 SIRA ÖNEMLİ: sezon bilgisi (world_state) ve takım, maç verisinden ÖNCE gelmeli.
+    //   Aksi halde _msLoadCore yanlış sezonu çekiyor → turnuva grupları/puanları sıfır görünüyordu.
     _worldStateLoadFromServer().catch(e => console.warn('worldState load hata:', e)),
-    _loadAllMatchStateFromServer().catch(e => console.warn('match_state load hata:', e)),
-    // _matchResultsLoadFromServer SİLİNDİ — match_state tek kaynak
     _tournamentStateLoadFromServer().catch(e => console.warn('tournamentState load hata:', e)),
     _frmLoadFromServer().catch(e => console.warn('friendly load hata:', e)),
     userTeamLoadFromServer().catch(e => console.warn('userTeamLoadFromServer hata:', e)),
   ]);
+  // Sezon + takım hazır → maç verisi çekirdeği (doğru sezonla)
+  await _loadAllMatchStateFromServer().catch(e => console.warn('match_state load hata:', e));
 
   // 🆕 Yenileme sonrası kadroyu yükle (login akışıyla aynı) — yoksa takım sayfası realtime event gelene kadar boş kalır
   if (typeof userHasTeam === 'function' && userHasTeam() && _userTeam && _userTeam.countryCode) {
