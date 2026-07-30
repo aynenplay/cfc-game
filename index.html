@@ -21905,6 +21905,15 @@ body.drawer-open{overflow:hidden}
 .tplc-exp svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:2.4;transition:transform .2s}
 .tplc-toto.open .tplc-exp svg{transform:rotate(180deg)}
 
+/* 🆕 CSC Media — kupon oyna butonu ve sayaç */
+.tplc-play{margin:0 13px 12px;padding:10px;border-radius:11px;text-align:center;cursor:pointer;
+  font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:13px;letter-spacing:.5px;
+  border:1px solid rgba(0,230,118,.5);background:linear-gradient(135deg,rgba(0,230,118,.18),rgba(0,230,118,.05));
+  color:#00e676}
+.tplc-play:active{transform:scale(.99)}
+.cfcmd-act-play.played{color:#00e676}
+.cfcmd-act-play.kapali{opacity:.45}
+
 /* 🆕 Kuponlarım — CSC Media paylaş butonu */
 .tcp-share{width:30px;height:30px;border-radius:9px;flex-shrink:0;display:flex;align-items:center;
   justify-content:center;cursor:pointer;transition:.15s;
@@ -27035,7 +27044,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-30-mediapaylas-222';
+const APP_BUILD = '2026-07-30-kuponoyna-223';
 
 (function _cacheBustCheck() {
   try {
@@ -70450,7 +70459,9 @@ async function betShareSlip(ev, slipId, btn) {
           }
         } catch(e) {}
       }
-      return { p: pick, h: l.home, a: l.away, s: sc, o: Number(l.odds).toFixed(2), r };
+      let ts = 0; try { ts = new Date(l.kickoff).getTime() || 0; } catch(e) {}
+      return { p: pick, h: l.home, a: l.away, s: sc, o: Number(l.odds).toFixed(2), r,
+               k: l.match_key, pk: String(l.pick), ts };
     });
 
     // 🆕 Kullanıcı avatarı + adı + bayrağı (oyuncu şablonuyla aynı kaynak)
@@ -81437,6 +81448,20 @@ async function cfcMdRenderPosts(posts, container) {
     }
   } catch(e) { console.warn('[social] renderPosts reacts:', e); }
 
+  // 🆕 Kupon oynama sayaçları (social_plays)
+  _cfcMdCachePosts(posts);
+  let playCounts = {}, myPlays = {};
+  try {
+    const totoIds = posts.filter(p => p.kind === 'tpl-toto').map(p => p.id);
+    if (window.sb && totoIds.length) {
+      const { data: pl } = await window.sb.from('social_plays').select('post_id, user_id').in('post_id', totoIds);
+      (pl || []).forEach(r => {
+        playCounts[r.post_id] = (playCounts[r.post_id] || 0) + 1;
+        if (r.user_id === myId) myPlays[r.post_id] = true;
+      });
+    }
+  } catch(e) {}
+
   container.innerHTML = posts.map(p => {
     const liked    = myReactions[p.id] === 'like';
     const disliked = myReactions[p.id] === 'dislike';
@@ -81454,7 +81479,8 @@ async function cfcMdRenderPosts(posts, container) {
       avatarHTML = p.authorAvatar || '⚽';
     }
     const isMine = (p.authorId === myId);
-    const cardHtml = (p.kind === 'tpl-player' || p.kind === 'tpl-team') ? _cfcMdTemplateCardHtml(p) : '';
+    const cardHtml = (p.kind === 'tpl-player' || p.kind === 'tpl-team' || p.kind === 'tpl-toto') ? _cfcMdTemplateCardHtml(p) : '';
+    const playHtml = _cfcMdPlayBar(p, playCounts, myPlays);
     return `<div class="cfcmd-post${isMine ? ' is-mine' : ''}">
       ${isMine ? `<button class="cfcmd-post-del" onclick="cfcMdAskDelete('${p.id}')" aria-label="Gönderiyi sil" title="Gönderiyi sil">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -81481,6 +81507,7 @@ async function cfcMdRenderPosts(posts, container) {
           <svg class="cfcmd-icon cfcmd-icon-dislike" viewBox="0 0 24 24" fill="${disliked?'currentColor':'none'}" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M17 2v11M22 11V4a2 2 0 0 0-2-2h-3v11h3a2 2 0 0 0 2-2zM3.21 14.39A2 2 0 0 0 5 15h5.12l-.92 4.39a1 1 0 0 0 .17.84 1 1 0 0 0 .8.39h.5a1 1 0 0 0 .76-.35L17 13V2H6.44a2 2 0 0 0-2 1.68l-1.28 8.32a2 2 0 0 0 .05.79z"/></svg>
           <span>${dislikeC}</span>
         </button>
+        ${playHtml}
       </div>
     </div>`;
   }).join('');
@@ -81544,6 +81571,20 @@ async function cfcMdRenderProfile() {
     }
   } catch(e) {}
   
+  // 🆕 Kupon oynama sayaçları (social_plays)
+  _cfcMdCachePosts(userPosts);
+  let playCounts = {}, myPlays = {};
+  try {
+    const totoIds = userPosts.filter(p => p.kind === 'tpl-toto').map(p => p.id);
+    if (window.sb && totoIds.length) {
+      const { data: pl } = await window.sb.from('social_plays').select('post_id, user_id').in('post_id', totoIds);
+      (pl || []).forEach(r => {
+        playCounts[r.post_id] = (playCounts[r.post_id] || 0) + 1;
+        if (r.user_id === myId) myPlays[r.post_id] = true;
+      });
+    }
+  } catch(e) {}
+
   const totalLikes = userPosts.reduce((s, p) => s + ((postCounts[p.id] && postCounts[p.id].like) || 0), 0);
   const totalDislikes = userPosts.reduce((s, p) => s + ((postCounts[p.id] && postCounts[p.id].dislike) || 0), 0);
   const followerCount = cfcMdGetFollowerCount(viewedUser.id);
@@ -81573,7 +81614,8 @@ async function cfcMdRenderProfile() {
     const postAvatar = !viewingOther ? (my.avatar || p.authorAvatar || '⚽')
                                      : (viewedUser.avatar || p.authorAvatar || '⚽');
     const isMine = !viewingOther && p.authorId === myId;
-    const cardHtml = (p.kind === 'tpl-player' || p.kind === 'tpl-team') ? _cfcMdTemplateCardHtml(p) : '';
+    const cardHtml = (p.kind === 'tpl-player' || p.kind === 'tpl-team' || p.kind === 'tpl-toto') ? _cfcMdTemplateCardHtml(p) : '';
+    const playHtml = _cfcMdPlayBar(p, playCounts, myPlays);
     return `<div class="cfcmd-post${isMine ? ' is-mine' : ''}">
       ${isMine ? `<button class="cfcmd-post-del" onclick="cfcMdAskDelete('${p.id}')" aria-label="Gönderiyi sil" title="Gönderiyi sil">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -81600,6 +81642,7 @@ async function cfcMdRenderProfile() {
           <svg class="cfcmd-icon cfcmd-icon-dislike" viewBox="0 0 24 24" fill="${disliked?'currentColor':'none'}" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M17 2v11M22 11V4a2 2 0 0 0-2-2h-3v11h3a2 2 0 0 0 2-2zM3.21 14.39A2 2 0 0 0 5 15h5.12l-.92 4.39a1 1 0 0 0 .17.84 1 1 0 0 0 .8.39h.5a1 1 0 0 0 .76-.35L17 13V2H6.44a2 2 0 0 0-2 1.68l-1.28 8.32a2 2 0 0 0 .05.79z"/></svg>
           <span>${dislikeC}</span>
         </button>
+        ${playHtml}
       </div>
     </div>`;
   }).join('');
@@ -81920,6 +81963,8 @@ function _cfcMdTemplateCardHtml(p) {
       </div>
       <div class="tplc-legs">${legRows}</div>
       <div class="tplc-exp">TÜM MAÇLARI GÖSTER <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+      ${_cfcMdCouponPlayable(c) ? `<div class="tplc-play" onclick="cfcMdPlayCoupon(event,'${p.id}')">
+        🎯 BU KUPONU OYNA</div>` : ''}
     </div>`;
   }
 
@@ -81953,6 +81998,111 @@ function _cfcMdTemplateCardHtml(p) {
   }
   return '';
 }
+// 🆕 Görüntülenen gönderi önbelleği (kupon oynama için karta erişim)
+window._cfcMdPostCache = window._cfcMdPostCache || {};
+function _cfcMdCachePosts(list) {
+  try { (list || []).forEach(p => { if (p && p.id) window._cfcMdPostCache[p.id] = p; }); } catch(e) {}
+}
+function _cfcMdFindPost(id) {
+  try { return window._cfcMdPostCache[id] || null; } catch(e) { return null; }
+}
+
+// 🆕 Kupon oynanabilir mi? (hiçbir maçı başlamamış olmalı)
+function _cfcMdCouponPlayable(c) {
+  try {
+    const legs = (c && Array.isArray(c.legs)) ? c.legs : [];
+    if (!legs.length) return false;
+    const now = Date.now();
+    for (const l of legs) {
+      if (!l || !l.k) return false;                      // match_key yok → oynatamayız
+      const ms = (typeof _matchStateCache !== 'undefined' && _matchStateCache && _matchStateCache.byKey)
+        ? _matchStateCache.byKey[l.k] : null;
+      if (ms) {
+        if (ms.status !== 'scheduled') return false;
+        const t = new Date(ms.matchDateTime).getTime();
+        if (isFinite(t) && t <= now) return false;
+      } else {
+        if (!l.ts || l.ts <= now) return false;
+      }
+    }
+    return true;
+  } catch(e) { return false; }
+}
+
+// 🆕 Aksiyon satırındaki "oynayan sayısı" butonu
+function _cfcMdPlayBar(p, playCounts, myPlays) {
+  if (!p || p.kind !== 'tpl-toto') return '';
+  const n = (playCounts && playCounts[p.id]) || 0;
+  const ben = !!(myPlays && myPlays[p.id]);
+  const acik = _cfcMdCouponPlayable(p.card);
+  return `<button class="cfcmd-post-action cfcmd-act-play${ben ? ' played' : ''}${acik ? '' : ' kapali'}"
+      onclick="cfcMdPlayCoupon(event,'${p.id}')" aria-label="Bu kuponu oyna"
+      title="${acik ? 'Bu kuponu oyna' : 'Maçlar başladı'}">
+      <svg class="cfcmd-icon" viewBox="0 0 24 24" fill="${ben ? 'currentColor' : 'none'}" stroke="currentColor"
+        stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round">
+        <path d="M3 9V6a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v3a2.5 2.5 0 0 0 0 6v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a2.5 2.5 0 0 0 0-6z"/>
+        <path d="M9 8v8"/>
+      </svg>
+      <span>${n}</span>
+    </button>`;
+}
+
+// 🆕 Paylaşılan kuponu kendi kuponuna aktar → Toto sayfasına git
+async function cfcMdPlayCoupon(ev, postId) {
+  try { if (ev) { ev.stopPropagation(); ev.preventDefault(); } } catch(e) {}
+  try {
+    const post = (typeof _cfcMdFindPost === 'function') ? _cfcMdFindPost(postId) : null;
+    const card = post && post.card ? post.card : (_cfcMdPostCache && _cfcMdPostCache[postId] && _cfcMdPostCache[postId].card);
+    if (!card) { if (typeof tfShowToast === 'function') tfShowToast('❌ Kupon bulunamadı', '#ef5350'); return; }
+    if (!_cfcMdCouponPlayable(card)) {
+      if (typeof tfShowToast === 'function') tfShowToast('⏱ Kuponun maçları başladı', '#ffb74d');
+      return;
+    }
+    const legs = Array.isArray(card.legs) ? card.legs : [];
+    const yeni = [];
+    let atlanan = 0;
+    for (const l of legs) {
+      const ms = (_matchStateCache && _matchStateCache.byKey) ? _matchStateCache.byKey[l.k] : null;
+      if (!ms || !ms.odds || ms.status !== 'scheduled') { atlanan++; continue; }
+      const pick = String(l.pk || (l.p === '0' ? 'X' : l.p));
+      const o = Number(ms.odds[pick]);
+      if (!isFinite(o) || o <= 0) { atlanan++; continue; }
+      // Kendi takımının maçı olamaz
+      const myTeam = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : null;
+      if (myTeam && (ms.home === myTeam || ms.away === myTeam)) { atlanan++; continue; }
+      yeni.push({ match_key: l.k, pick, odds: o, home: ms.home, away: ms.away, kickoff: ms.matchDateTime });
+    }
+    if (!yeni.length) { if (typeof tfShowToast === 'function') tfShowToast('❌ Maçlar artık oynanamıyor', '#ef5350'); return; }
+
+    // Kuponu doldur → Toto bültenine git → paneli aç
+    _betSlip = yeni.slice(0, (typeof BET_MAX_LEGS !== 'undefined' ? BET_MAX_LEGS : 15));
+    _betMain = 'toto'; _betTab = 'bulletin'; _betTotoTab = 'bulletin';
+    const st = document.getElementById('betStake');
+    if (st) st.value = (typeof BET_STAKE_DEFAULT !== 'undefined' ? BET_STAKE_DEFAULT : 10);
+    if (typeof showPage === 'function') showPage('entertainment');
+    setTimeout(() => {
+      try {
+        if (typeof betMain === 'function') betMain('toto');
+        if (typeof betOpenSheet === 'function') betOpenSheet();
+      } catch(e) {}
+    }, 240);
+    if (typeof tfShowToast === 'function') {
+      tfShowToast(atlanan ? `🎯 ${yeni.length} maç aktarıldı (${atlanan} maç düştü)` : `🎯 ${yeni.length} maç kuponuna aktarıldı`, 'var(--accent)');
+    }
+
+    // Oynama sayacına ekle (kişi başına bir kez)
+    try {
+      if (window.sb && typeof cfcMdGetMyId === 'function') {
+        await window.sb.from('social_plays').upsert(
+          { post_id: postId, user_id: cfcMdGetMyId() }, { onConflict: 'post_id,user_id' });
+      }
+    } catch(e) {}
+  } catch(e) {
+    console.warn('[social] kupon oynama hatası:', e);
+    if (typeof tfShowToast === 'function') tfShowToast('❌ Kupon aktarılamadı', '#ef5350');
+  }
+}
+
 // 🆕 Kupon kartı: özet ↔ tüm maçlar
 function cfcMdTotoToggle(ev, el) {
   try { if (ev) { ev.stopPropagation(); ev.preventDefault(); } } catch(e) {}
