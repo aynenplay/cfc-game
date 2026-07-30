@@ -26823,7 +26823,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-30-odulal-211';
+const APP_BUILD = '2026-07-30-toto-212';
 
 (function _cacheBustCheck() {
   try {
@@ -40357,7 +40357,9 @@ function showPage(name,btn){
     trRender();
   }
   if(name==='entertainment') {
-    try { _betLastAuto = 0; _betLimit = BET_PAGE; _betDay = 0; if (typeof betRender === 'function') betRender(); } catch(e) {}
+    try { _betLastAuto = 0; _betLimit = BET_PAGE; _betDay = 0;
+      if (typeof betLoadFixtures === 'function') betLoadFixtures(false);
+      if (typeof betRender === 'function') betRender(); } catch(e) {}
     // Canlı skor güncellemesi _liveMatchStartPolling ile sağlanır (aşağıda, skor-only).
   }
   if(name==='rankings') {
@@ -69403,7 +69405,10 @@ function betTab(t, btn) {
 // Ana render
 function betRender() {
   try { betRenderWallet(); } catch(e) {}
-  if (_betTab === 'bulletin') { betRenderDays(); betRenderFilters(); betRenderBulletin(); betRenderSlip(); }
+  if (_betTab === 'bulletin') {
+    try { betLoadFixtures(false); } catch(e) {}           // 🆕 3 günlük tam fikstür
+    betRenderDays(); betRenderFilters(); betRenderBulletin(); betRenderSlip();
+  }
   else if (_betTab === 'slips') { betLoadMySlips(false); }   // 🆕 önbellek varsa sorgu yok
   else if (_betTab === 'scratch') { try { scRender(); } catch(e) {} }   // 🆕 Kazı Kazan
   else { betRenderStats(); }
@@ -69461,10 +69466,17 @@ function _betDayBounds(d) {
 function _betDayLabel(d) {
   const n = new Date();
   const dt = new Date(n.getFullYear(), n.getMonth(), n.getDate() + d);
-  const AY = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
-  const GN = ['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
-  const ad = d === 0 ? 'BUGÜN' : (d === 1 ? 'YARIN' : GN[dt.getDay()].toUpperCase());
-  return { ad, tarih: dt.getDate() + ' ' + AY[dt.getMonth()] + (d === 2 ? '' : ' · ' + GN[dt.getDay()]) };
+  const AY = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+  const GN = ['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi'];
+  const GNB = ['PAZAR','PAZARTESİ','SALI','ÇARŞAMBA','PERŞEMBE','CUMA','CUMARTESİ'];
+  const ad = d === 0 ? 'BUGÜN' : (d === 1 ? 'YARIN' : GNB[dt.getDay()]);
+  const ay = AY[dt.getMonth()].slice(0, 3);
+  return {
+    ad,
+    tarih: dt.getDate() + ' ' + ay + (d === 2 ? '' : ' · ' + GN[dt.getDay()]),
+    gun: GN[dt.getDay()],
+    tam: dt.getDate() + ' ' + AY[dt.getMonth()] + ' · ' + GN[dt.getDay()]
+  };
 }
 
 // ── Bülten verisi: SADECE oynanmamış maçlar, cache'ten (tek dünya) ──
@@ -69507,6 +69519,36 @@ function _betFutureCounts() {
   }
   return c;
 }
+// 🆕 Bülten fikstürü: katmanlı yükleyici yalnızca kendi ülkeni + bugünü çekiyor,
+//    bu yüzden diğer ülkelerin yarın/ertesi gün maçları bültende görünmüyordu.
+//    Burada 3 günlük pencereyi TÜM DÜNYA için tek seferde çekip cache'e katıyoruz.
+let _betFix = { at: 0, busy: false, ok: false, n: 0 };
+async function betLoadFixtures(force) {
+  if (_betFix.busy) return;
+  if (!force && _betFix.ok && (Date.now() - _betFix.at) < 300000) return;   // 5 dk önbellek
+  if (!window.sb) return;
+  _betFix.busy = true;
+  try {
+    const n0 = new Date();
+    const a0 = new Date(n0.getFullYear(), n0.getMonth(), n0.getDate()).toISOString();
+    const a1 = new Date(n0.getFullYear(), n0.getMonth(), n0.getDate() + BET_DAYS).toISOString();
+    const rows = await _msQuery(q => q
+      .eq('status', 'scheduled')
+      .gte('kickoff_at', a0).lt('kickoff_at', a1)
+      .order('kickoff_at', { ascending: true }));
+    if (rows && rows.length) { _msMerge(rows); _betFix.n = rows.length; }
+    _betFix.ok = true; _betFix.at = Date.now();
+  } catch(e) { console.warn('[toto] fikstür yükleme hatası:', e); }
+  _betFix.busy = false;
+  // Veri geldi → bülteni yeniden çiz
+  try {
+    if (_betTab === 'bulletin') {
+      const el = document.getElementById('betList'); if (el) el._betLastHtml = null;
+      betRenderDays(); betRenderFilters(); betRenderBulletin();
+    }
+  } catch(e) {}
+}
+
 function betRenderDays() {
   const el = document.getElementById('betDays');
   if (!el) return;
@@ -69515,7 +69557,7 @@ function betRenderDays() {
   for (let i = 0; i < BET_DAYS; i++) {
     const L = _betDayLabel(i);
     h += `<div class="bet-dpill ${_betDay===i?'on':''} ${c[i]?'':'empty'}" onclick="betSetDay(${i})">
-        <b>${L.ad}</b><span>${L.tarih} · ${c[i]} maç</span></div>`;
+        <b>${L.ad}</b><span>${L.tarih}<br>${c[i]} maç</span></div>`;
   }
   if (el._h === h) return;
   el._h = h; el.innerHTML = h;
@@ -69561,9 +69603,13 @@ function betRenderBulletin() {
       ? x.ms.tournament_key === _betFilter.slice(2)
       : (x.ms.countryCode === _betFilter.slice(2) && !x.ms.tournament_key)));
   }
+  if (!list.length && _betFix.busy) {
+    el.innerHTML = '<div class="bet-empty">⏳ Fikstür yükleniyor…</div>';
+    return;
+  }
   if (!list.length) {
     const L0 = _betDayLabel(_betDay);
-    el.innerHTML = `<div class="bet-empty">📭 ${L0.ad} (${L0.tarih}) için oynanabilir maç yok.<br>
+    el.innerHTML = `<div class="bet-empty">📭 ${L0.tam} için oynanabilir maç yok.<br>
       <span style="font-size:10px">Bültende yalnızca <b>henüz başlamamış</b> maçlar listelenir.</span></div>`;
     return;
   }
@@ -69600,7 +69646,7 @@ function betRenderBulletin() {
         title = `${fl} ${cn} · ${(typeof _leagueNameOf==='function') ? _leagueNameOf(ms.countryCode, ms.tier, ms.leagueName) : (ms.leagueName||'Lig')}`;
       }
       const LG = _betDayLabel(_betDay);
-      h += `<div class="bet-grp"><b>${title}</b><i></i><em>${LG.tarih}</em></div>`;
+      h += `<div class="bet-grp"><b>${title}</b><i></i><em>${LG.tam}</em></div>`;
     }
     const d = new Date(x.t);
     const hh = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
@@ -69628,7 +69674,7 @@ function betRenderBulletin() {
       <span>${totalN - view.length} maç daha</span></div>`;
   } else if (totalN > BET_PAGE) {
     const LE = _betDayLabel(_betDay);
-    h += `<div class="bet-endnote">Bültenin sonu · ${LE.ad} ${LE.tarih} · ${totalN} maç</div>`;
+    h += `<div class="bet-endnote">Bültenin sonu · ${LE.tam} · ${totalN} maç</div>`;
   }
   // 🆕 İçerik değişmediyse DOM'a dokunma (titreme/zıplama ve gereksiz yük olmasın)
   if (el._betLastHtml === h) return;
