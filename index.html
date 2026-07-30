@@ -2282,8 +2282,22 @@ select.form-input option{background:var(--bg)}
 .sc-claim-mini.dia{border-color:rgba(77,208,225,.45);background:rgba(77,208,225,.13);color:#4dd0e1}
 .sc-claim-mini:disabled{opacity:.45;cursor:default}
 /* ══ 🆕 KAZI KAZAN ══ */
+/* iki ana bölüm başlığı */
+.bet-mtabs{display:flex;gap:8px;margin:0 12px 10px}
+.bet-mtab{flex:1;position:relative;overflow:hidden;padding:10px 6px 9px;border-radius:13px;cursor:pointer;
+  border:1px solid var(--border,#20242c);text-align:center;
+  background:repeating-linear-gradient(45deg,#15171c 0 2px,#101216 2px 4px);transition:.15s}
+.bet-mtab:after{content:'';position:absolute;inset:0;opacity:0;pointer-events:none;transition:.18s;
+  background:radial-gradient(100% 80% at 50% 0%,rgba(255,214,0,.22),transparent 70%)}
+.bet-mtab em{font-style:normal;font-size:19px;line-height:1;display:block}
+.bet-mtab b{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:13.5px;
+  letter-spacing:.6px;color:var(--text2);margin-top:3px}
+.bet-mtab span{display:block;font-size:8.5px;color:var(--text3);letter-spacing:.2px;margin-top:1px}
+.bet-mtab.active{border-color:rgba(255,214,0,.5);transform:translateY(-1px)}
+.bet-mtab.active:after{opacity:1}
+.bet-mtab.active b{color:var(--gold,#ffd600)}
 .bet-tabs{flex-wrap:nowrap}
-#page-entertainment .bet-tab{font-size:10.5px;padding:9px 2px;letter-spacing:.2px}
+#page-entertainment .bet-tab{font-size:11px;padding:9px 3px;letter-spacing:.2px}
 .sc-lim{display:flex;align-items:center;gap:9px;margin:0 12px 9px;padding:8px 11px;border-radius:11px;
   border:1px solid var(--border,#20242c);background:rgba(0,0,0,.3)}
 .sc-lim .t{font-size:10.5px;color:var(--text2);flex-shrink:0}
@@ -25286,16 +25300,24 @@ body.drawer-open{overflow:hidden}
       </button>
     </div>
 
-    <!-- 🆕 BAHİS — üst sekmeler -->
-    <div class="bet-tabs">
-      <button class="bet-tab active" id="betTabBul"   onclick="betTab('bulletin',this)">🎯 BÜLTEN</button>
-      <button class="bet-tab"        id="betTabSlips" onclick="betTab('slips',this)">🎫 KUPONLAR</button>
-      <button class="bet-tab"        id="betTabStats" onclick="betTab('stats',this)">📊 İSTATİSTİK</button>
-      <button class="bet-tab"        id="betTabScr"   onclick="betTab('scratch',this)">🎰 KAZI KAZAN</button>
+    <!-- 🆕 İKİ ANA BÖLÜM -->
+    <div class="bet-mtabs">
+      <button class="bet-mtab active" id="betMainToto" onclick="betMain('toto',this)">
+        <em>🎯</em><b>TOTO</b><span>Oranlı bahis</span></button>
+      <button class="bet-mtab"        id="betMainScr"  onclick="betMain('scratch',this)">
+        <em>🎰</em><b>KAZI KAZAN</b><span>3 aynı sembol</span></button>
     </div>
 
     <!-- Cüzdan şeridi -->
     <div class="bet-wallet" id="betWallet"></div>
+
+    <!-- ═══ TOTO ═══ -->
+    <div id="bet-toto">
+    <div class="bet-tabs">
+      <button class="bet-tab active" id="betTabBul"   onclick="betTab('bulletin',this)">🎯 BÜLTEN</button>
+      <button class="bet-tab"        id="betTabSlips" onclick="betTab('slips',this)">🎫 KUPONLARIM</button>
+      <button class="bet-tab"        id="betTabStats" onclick="betTab('stats',this)">📊 İSTATİSTİK</button>
+    </div>
 
     <!-- BÜLTEN -->
     <div id="bet-bulletin">
@@ -25314,8 +25336,9 @@ body.drawer-open{overflow:hidden}
     <div id="bet-stats" style="display:none">
       <div id="betStatsBox"></div>
     </div>
+    </div><!-- /bet-toto -->
 
-    <!-- 🆕 KAZI KAZAN -->
+    <!-- ═══ KAZI KAZAN ═══ -->
     <div id="bet-scratch" style="display:none">
       <div class="sc-lim" id="scLim"></div>
       <div id="scFree"></div>
@@ -26823,7 +26846,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-30-toto-212';
+const APP_BUILD = '2026-07-30-eglence-213';
 
 (function _cacheBustCheck() {
   try {
@@ -40359,7 +40382,8 @@ function showPage(name,btn){
   if(name==='entertainment') {
     try { _betLastAuto = 0; _betLimit = BET_PAGE; _betDay = 0;
       if (typeof betLoadFixtures === 'function') betLoadFixtures(false);
-      if (typeof betRender === 'function') betRender(); } catch(e) {}
+      if (typeof betMain === 'function') betMain(_betMain || 'toto');
+      else if (typeof betRender === 'function') betRender(); } catch(e) {}
     // Canlı skor güncellemesi _liveMatchStartPolling ile sağlanır (aşağıda, skor-only).
   }
   if(name==='rankings') {
@@ -69382,15 +69406,43 @@ const BET_PAGE = 60;                       // her seferde 60 satır
 let _betDay = 0;                           // 0=bugün 1=yarın 2=ertesi gün
 let _betLimit = BET_PAGE;
 let _betCrestCache = {};                   // takım arması HTML önbelleği (O(1824) taramayı önler)
+let _betMain = 'toto';        // 🆕 üst bölüm: toto | scratch
+let _betTotoTab = 'bulletin'; // 🆕 Toto içindeki son sekme
 let _betTab = 'bulletin';
 let _betFilter = 'all';
 let _betSlip = [];            // [{match_key,pick,odds,home,away,kickoff,label}]
 let _betMySlips = null;
 let _betPlaying = false;
 
+// 🆕 Üst bölüm değiştir: TOTO ↔ KAZI KAZAN
+function betMain(m, btn) {
+  _betMain = m;
+  ['betMainToto','betMainScr'].forEach(id => {
+    const e = document.getElementById(id); if (e) e.classList.remove('active');
+  });
+  if (btn) btn.classList.add('active');
+  else { const e = document.getElementById(m === 'scratch' ? 'betMainScr' : 'betMainToto'); if (e) e.classList.add('active'); }
+  const show = (id, on) => { const e = document.getElementById(id); if (e) e.style.display = on ? 'block' : 'none'; };
+  show('bet-toto',    m === 'toto');
+  show('bet-scratch', m === 'scratch');
+  if (m === 'scratch') { _betTab = 'scratch'; }
+  else {
+    _betTab = _betTotoTab || 'bulletin';
+    const ids = { bulletin:'betTabBul', slips:'betTabSlips', stats:'betTabStats' };
+    ['betTabBul','betTabSlips','betTabStats'].forEach(id => {
+      const e = document.getElementById(id); if (e) e.classList.toggle('active', id === ids[_betTab]);
+    });
+    show('bet-bulletin', _betTab === 'bulletin');
+    show('bet-slips',    _betTab === 'slips');
+    show('bet-stats',    _betTab === 'stats');
+  }
+  betRender();
+}
+
 function betTab(t, btn) {
   _betTab = t;
-  ['betTabBul','betTabSlips','betTabStats','betTabScr'].forEach(id => {
+  if (t !== 'scratch') _betTotoTab = t;
+  ['betTabBul','betTabSlips','betTabStats'].forEach(id => {
     const e = document.getElementById(id); if (e) e.classList.remove('active');
   });
   if (btn) btn.classList.add('active');
@@ -69398,7 +69450,6 @@ function betTab(t, btn) {
   show('bet-bulletin', t === 'bulletin');
   show('bet-slips',    t === 'slips');
   show('bet-stats',    t === 'stats');
-  show('bet-scratch',  t === 'scratch');   // 🆕
   betRender();
 }
 
@@ -70075,7 +70126,9 @@ async function scBuy(free) {
         bakiye_yetersiz: 'Bakiye yetersiz',
         kullanici_yok: 'Oturum yok'
       };
-      _scToast(MSG[j && j.error] || ('Bilet alınamadı: ' + ((j && j.error) || 'hata')));
+      const errTxt = (j && (j.error || j.message)) || ('HTTP ' + r.status);
+      _scToast(MSG[j && j.error] || ('Bilet alınamadı · ' + errTxt));
+      console.warn('[kazıkazan] satın alma hatası:', r.status, j);
       _scBusy = false; scSyncHead(); if (bb) bb.disabled = false; return;
     }
     if (free) _scTier = 'b';
