@@ -26526,7 +26526,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-27-turnuva-sezon-199';
+const APP_BUILD = '2026-07-27-toto-kupon-201';
 
 (function _cacheBustCheck() {
   try {
@@ -74212,7 +74212,12 @@ function totoRenderMyCoupons() {
     return d.getTime();
   })();
   const selectedDayEnd = selectedDayMs + 86400000;
-  const coupons = allCoupons.filter(c => {
+  const _cpTs = (c) => {
+    if (c && typeof c.targetDateMs === 'number') return c.targetDateMs;
+    const ms = parseInt(String((c && c.id) || '').replace('tp_', ''), 10);
+    return isNaN(ms) ? 0 : ms;
+  };
+  const coupons0 = allCoupons.filter(c => {
     if (typeof c.targetDateMs === 'number') {
       return c.targetDateMs >= selectedDayMs && c.targetDateMs < selectedDayEnd;
     }
@@ -74228,6 +74233,9 @@ function totoRenderMyCoupons() {
     // Hiç tarih yoksa sadece bugün göster
     return _totoSelectedDayOffset === 0;
   });
+  // 🆕 KUPONLARIM: gün filtresi YOK — tüm geçmiş kuponlar, en yeni tarih en üstte
+  const coupons = allCoupons.slice().sort((a, b) => _cpTs(b) - _cpTs(a));
+  void coupons0;
 
   // Tarih başlığı
   const dateLabel = (() => {
@@ -74244,7 +74252,7 @@ function totoRenderMyCoupons() {
   if(!coupons.length) {
     el.innerHTML = `<div style="padding:14px 14px 0">
       <div style="text-align:center;font-size:11px;color:var(--text2);font-family:'Barlow Condensed',sans-serif;letter-spacing:.4px;background:rgba(255,255,255,.03);padding:8px;border-radius:8px;margin-bottom:10px">${dateLabel}</div>
-      <div style="padding:30px;text-align:center;color:var(--text3);font-size:12px">📭 Bu tarihte kupon yok.<br><span style="font-size:10px">Diğer tarihleri kontrol edebilir veya Kupon Yap sekmesinden yeni kupon oynayabilirsin.</span></div>
+      <div style="padding:30px;text-align:center;color:var(--text3);font-size:12px">📭 Henüz kupon oynamadın.<br><span style="font-size:10px">Diğer tarihleri kontrol edebilir veya Kupon Yap sekmesinden yeni kupon oynayabilirsin.</span></div>
     </div>`;
     return;
   }
@@ -74254,9 +74262,34 @@ function totoRenderMyCoupons() {
   const pickCls     = {'1':'p1','0':'p0','2':'p2'};
   const PRIZE_RATES = {5:0.10, 6:0.20, 7:0.30, 8:0.40};
 
-  const dateHeader = `<div style="text-align:center;font-size:11px;color:var(--text2);font-family:'Barlow Condensed',sans-serif;letter-spacing:.4px;background:rgba(255,255,255,.03);padding:8px;border-radius:8px;margin:0 14px 10px">${dateLabel}</div>`;
+  // 🆕 Üst başlık: toplam kupon özeti (tek gün değil)
+  const _cpWin = coupons.filter(c => c.status === 'win').length;
+  const _cpPend = coupons.filter(c => c.status === 'pending').length;
+  const dateHeader = `<div style="text-align:center;font-size:11px;color:var(--text2);font-family:'Barlow Condensed',sans-serif;letter-spacing:.4px;background:rgba(255,255,255,.03);padding:8px;border-radius:8px;margin:0 14px 10px">🎫 ${coupons.length} kupon · 🏆 ${_cpWin} kazanan · ⏳ ${_cpPend} devam</div>`;
+
+  // 🆕 Gün değiştikçe tarih başlığı bas (en yeni üstte)
+  let _lastDayKey = null;
+  const _dayHeaderFor = (ts) => {
+    const d = new Date(ts || 0);
+    if (!ts || isNaN(d.getTime())) return '';
+    const key = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
+    if (key === _lastDayKey) return '';
+    _lastDayKey = key;
+    const months = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+    const days = ['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi'];
+    const t = new Date(); const t0 = new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
+    const d0 = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    let prefix = '';
+    if (d0 === t0) prefix = 'Bugün · ';
+    else if (d0 === t0 - 86400000) prefix = 'Dün · ';
+    return `<div style="display:flex;align-items:center;gap:8px;margin:14px 14px 8px">
+        <span style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:12px;letter-spacing:.5px;color:var(--gold,#ffd600)">📅 ${prefix}${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()} · ${days[d.getDay()]}</span>
+        <span style="flex:1;height:1px;background:linear-gradient(90deg,rgba(255,214,0,.35),transparent)"></span>
+      </div>`;
+  };
 
   el.innerHTML = dateHeader + coupons.map(c => {
+    const _dayHdr = _dayHeaderFor(_cpTs(c));
     const matches = totoGenMatches(c.league, c.couponPart||0, c.dayOffset||0, (typeof c.targetDateMs === 'number' ? c.targetDateMs : undefined));
 
     // 🆕 Sonuçları her render'da cache'ten taze çek
@@ -74456,7 +74489,7 @@ function totoRenderMyCoupons() {
     const rate = c.correct && c.correct >= 5 ? Math.round((PRIZE_RATES[c.correct]||0) * 100) : 0;
     const cardCls = c.status === 'win' ? 'is-win' : (c.status === 'lose' ? 'is-lose' : 'is-pending');
 
-    return `<div class="toto-coupon-card ${cardCls}" data-cid="${c.id}">
+    return _dayHdr + `<div class="toto-coupon-card ${cardCls}" data-cid="${c.id}">
       <div class="toto-cc-summary" onclick="_totoToggleCoupon('${c.id}')">
         <div class="toto-cc-sum-id">${couponShortId}</div>
         <div class="toto-cc-sum-mid">
