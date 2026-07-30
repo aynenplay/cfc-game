@@ -2322,6 +2322,23 @@ select.form-input option{background:var(--bg)}
 .tcp-row.big span{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:11px;letter-spacing:.6px;color:var(--text2)}
 .tcp-row.big b{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:18px;color:var(--gold,#ffd600)}
 .tcp-row.big b.gri{color:var(--text3)}
+/* 🆕 Kuponlarım — katlanır başlık */
+.tcp{cursor:default}
+.tcp-bar{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
+.tcp-bar .mid{flex:1;min-width:0}
+.tcp-bar .mid b{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:12.5px;
+  letter-spacing:.3px;color:var(--text);line-height:1.2}
+.tcp-bar .mid span{font-size:9px;color:var(--text3)}
+.tcp-bar .amt{text-align:right;flex-shrink:0}
+.tcp-bar .amt b{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:15px;line-height:1.1}
+.tcp-bar .amt b.w{color:var(--gold,#ffd600)} .tcp-bar .amt b.g{color:var(--text3)}
+.tcp-bar .amt span{font-size:8px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px}
+.tcp-bar .ar{flex-shrink:0;color:var(--text3);font-size:11px;transition:transform .18s}
+.tcp.open .tcp-bar .ar{transform:rotate(90deg)}
+.tcp-body{display:none}
+.tcp.open .tcp-body{display:block}
+.tcp.open .tcp-bar{padding-bottom:9px;border-bottom:1px dashed rgba(255,255,255,.13);margin-bottom:0}
+
 /* ══ 🆕 KAZI KAZAN ══ */
 /* iki ana bölüm başlığı */
 .bet-mtabs{display:flex;gap:8px;margin:0 12px 10px}
@@ -25422,9 +25439,9 @@ body.drawer-open{overflow:hidden}
       </div>
       <div class="bet-slip-rows" id="betSlipRows"></div>
       <div class="bet-stake">
-        <input id="betStake" type="number" inputmode="numeric" value="1000" min="5" max="20000" oninput="betRenderSlip()" />
+        <input id="betStake" type="number" inputmode="numeric" value="10" min="5" max="5000" oninput="betRenderSlip()" />
+        <button onclick="betAddStake(100)">+100</button>
         <button onclick="betAddStake(1000)">+1K</button>
-        <button onclick="betAddStake(5000)">+5K</button>
         <button onclick="betMaxStake()">MAX</button>
       </div>
       <div class="bet-slip-sum">
@@ -25432,7 +25449,7 @@ body.drawer-open{overflow:hidden}
         <div><div class="k">Olası Kazanç</div><div class="v win" id="betPotWin">—</div></div>
       </div>
       <button class="bet-play" id="betPlayBtn" onclick="betPlay()">KUPONU OYNA</button>
-      <div class="bet-cap">Kupon 5–15 maç · misli 5 – 20.000 € · kazanç tavanı 2.500.000 € · oran tavanı 500</div>
+      <div class="bet-cap">Kupon 5–15 maç · misli 5 – 5.000 € · kazanç tavanı 2.500.000 € · oran tavanı 500</div>
     </div>
     </div>
 
@@ -26897,7 +26914,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-30-fis-218';
+const APP_BUILD = '2026-07-30-kupon-219';
 
 (function _cacheBustCheck() {
   try {
@@ -69496,7 +69513,8 @@ function _trn2ScrollActiveStab(el) {
 //   Eski Toto arayüzü kaldırıldı; totoRender/totoTab bu sisteme yönlendirildi.
 // ══════════════════════════════════════════════════════════════════
 const BET_MIN_LEGS = 5, BET_MAX_LEGS = 15;
-const BET_MIN_STAKE = 5, BET_MAX_STAKE = 20000;
+const BET_MIN_STAKE = 5, BET_MAX_STAKE = 5000;      // 🆕 kupon tavanı 5.000 €
+const BET_STAKE_DEFAULT = 10;                        // 🆕 açılış mislisi
 const BET_MAX_PAYOUT_C = 2500000, BET_MAX_ODDS_C = 500;
 const BET_DAILY_CAP = 100000;              // günlük KAZANÇ tavanı
 // 🆕 Günlük sınırlar
@@ -69514,6 +69532,7 @@ let _betTab = 'bulletin';
 let _betFilter = 'all';
 let _betSlip = [];            // [{match_key,pick,odds,home,away,kickoff,label}]
 let _betMySlips = null;
+let _betOpenSlip = null;      // 🆕 açık olan kuponun id'si (varsayılan: en son oynanan)
 let _betPlaying = false;
 
 // 🆕 Üst bölüm değiştir: TOTO ↔ KAZI KAZAN
@@ -69859,7 +69878,12 @@ function betRemoveLeg(matchKey) {
   _betSlip = _betSlip.filter(l => l.match_key !== matchKey);
   betRenderBulletin(); betRender();
 }
-function betClearSlip() { _betSlip = []; betRenderBulletin(); betRender(); }
+function betClearSlip() {
+  _betSlip = [];
+  const st = document.getElementById('betStake');
+  if (st) st.value = BET_STAKE_DEFAULT;             // 🆕 varsayılana dön
+  betRenderBulletin(); betRender();
+}
 function betAddStake(v) {
   const el = document.getElementById('betStake'); if (!el) return;
   el.value = Math.min(BET_MAX_STAKE, (Number(el.value) || 0) + v);
@@ -69962,6 +69986,9 @@ async function betPlay() {
     }
     _betSlip = [];
     _betMySlips = null;
+    _betOpenSlip = null;                            // 🆕 yeni kupon açık gelsin
+    const _st = document.getElementById('betStake');
+    if (_st) _st.value = BET_STAKE_DEFAULT;
     _betToast('✅ Kupon oynandı');
     betRender();
     betRenderBulletin();
@@ -69997,6 +70024,10 @@ function betRenderMySlips() {
   if (!el) return;
   const arr = Array.isArray(_betMySlips) ? _betMySlips : [];
   if (!arr.length) { el.innerHTML = '<div class="bet-empty">🎫 Henüz kupon oynamadın.<br><span style="font-size:10px">Bülten sekmesinden 5–15 maç seç.</span></div>'; return; }
+  // 🆕 Varsayılan: yalnızca en son oynanan kupon açık (liste created_at DESC geliyor)
+  if (_betOpenSlip == null || !arr.some(x => String(x.id) === String(_betOpenSlip))) {
+    _betOpenSlip = arr[0] && arr[0].id != null ? String(arr[0].id) : null;
+  }
   const AY = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
   const AYU = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
   const GN = ['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi'];
@@ -70075,20 +70106,45 @@ function betRenderMySlips() {
              <span class="shn"></span>🏆 ÖDÜLÜ AL · ${(Number(s.payout)||0).toLocaleString('tr')} €</button>`;
     }
 
-    h += `<div class="tcp ${s.status}">
-        <div class="tcp-h">${st}<span class="tcp-no">${fisNo(s.id)}</span>
-          <span class="tcp-dt">${iki(d.getHours())}:${iki(d.getMinutes())}</span></div>
-        <div class="tcp-legs">${shown}${more}</div>
-        <div class="tcp-tot">
-          <div class="tcp-row"><span>Misli</span><b>${misli} €</b></div>
-          <div class="tcp-row"><span>Toplam oran</span><b>${oran}</b></div>
-          <div class="tcp-row"><span>İsabet</span><b>${isabet}</b></div>
-          <div class="tcp-row big"><span>${bigK}</span><b class="${bigC.trim()}">${bigV}</b></div>
+    const acik = String(s.id) === String(_betOpenSlip);
+    // Başlık satırındaki kısa özet
+    const barAmt = s.status === 'lost'
+      ? `<b class="g">—</b><span>${misli} € misli</span>`
+      : `<b class="${s.status === 'won' ? 'w' : ''}">${(s.status === 'won' ? (Number(s.payout)||0) : (Number(s.potential_win)||0)).toLocaleString('tr')} €</b>
+         <span>${s.status === 'won' ? 'kazanç' : 'olası'}</span>`;
+    const odulBekliyor = (s.status === 'won' && (Number(s.payout) || 0) > 0 && !s.claimed_at)
+      ? ' <span style="color:var(--gold,#ffd600)">· 🏆 ödül bekliyor</span>' : '';
+
+    h += `<div class="tcp ${s.status}${acik ? ' open' : ''}" id="tcp_${s.id}">
+        <div class="tcp-bar" onclick="betToggleSlip('${s.id}')">
+          ${st}
+          <span class="mid"><b>${legs.length} maç · ${oran}</b>
+            <span>${fisNo(s.id)} · ${iki(d.getHours())}:${iki(d.getMinutes())} · ${isabet}${odulBekliyor}</span></span>
+          <span class="amt">${barAmt}</span>
+          <span class="ar">▸</span>
         </div>
-        ${claimHtml}
+        <div class="tcp-body">
+          <div class="tcp-legs">${shown}${more}</div>
+          <div class="tcp-tot">
+            <div class="tcp-row"><span>Misli</span><b>${misli} €</b></div>
+            <div class="tcp-row"><span>Toplam oran</span><b>${oran}</b></div>
+            <div class="tcp-row"><span>İsabet</span><b>${isabet}</b></div>
+            <div class="tcp-row big"><span>${bigK}</span><b class="${bigC.trim()}">${bigV}</b></div>
+          </div>
+          ${claimHtml}
+        </div>
       </div>`;
   });
   el.innerHTML = h;
+}
+
+// 🆕 Kupon başlığına tıkla → detayı aç/kapat (aynı anda tek kupon açık)
+function betToggleSlip(id) {
+  const ayni = String(_betOpenSlip) === String(id);
+  _betOpenSlip = ayni ? null : String(id);
+  document.querySelectorAll('#betSlipList .tcp').forEach(el => {
+    el.classList.toggle('open', !ayni && el.id === 'tcp_' + id);
+  });
 }
 
 // 🆕 Toto ödülünü cüzdana al (sunucu yatırır, animasyon buradan)
