@@ -2250,6 +2250,37 @@ select.form-input option{background:var(--bg)}
 .bet-note{flex-shrink:0;font-size:8.5px;color:#ffb74d;width:138px;text-align:center;line-height:1.3}
 /* 🆕 Sayfalama düğmesi */
 
+
+/* ══ 🆕 ÖDÜL UÇUŞ ANİMASYONU (varyant C — sayan) ══ */
+.wlfly{position:fixed;z-index:99999;pointer-events:none;white-space:nowrap;border-radius:12px;
+  padding:6px 12px;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:17px;
+  border:1px solid rgba(0,230,118,.55);color:var(--accent,#00e676);
+  background:linear-gradient(135deg,rgba(0,230,118,.22),rgba(0,230,118,.06));
+  box-shadow:0 6px 24px rgba(0,230,118,.22);backdrop-filter:blur(3px)}
+.wlfly.dia{border-color:rgba(77,208,225,.55);color:#4dd0e1;
+  background:linear-gradient(135deg,rgba(77,208,225,.22),rgba(77,208,225,.06));
+  box-shadow:0 6px 24px rgba(77,208,225,.22)}
+.wl-bump{transition:transform .19s cubic-bezier(.34,1.56,.64,1);display:inline-block;transform-origin:center}
+.wl-glow{animation:wlGlow .52s ease}
+@keyframes wlGlow{0%{box-shadow:0 0 0 0 rgba(255,214,0,0)}
+  35%{box-shadow:0 0 0 5px rgba(255,214,0,.16)}100%{box-shadow:0 0 0 0 rgba(255,214,0,0)}}
+/* Toto kupon / kazı kazan ödül al butonu */
+.bet-claim-btn{width:100%;margin-top:8px;padding:11px;border-radius:11px;cursor:pointer;position:relative;
+  overflow:hidden;border:1px solid rgba(0,230,118,.5);background:linear-gradient(135deg,#00e676,#00a152);
+  color:#04220f;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:13px;letter-spacing:.6px}
+.bet-claim-btn.dia{border-color:rgba(77,208,225,.5);background:linear-gradient(135deg,#4dd0e1,#0097a7);color:#02272c}
+.bet-claim-btn:active{transform:scale(.985)}
+.bet-claim-btn:disabled{opacity:.5;cursor:default}
+.bet-claim-btn .shn{position:absolute;top:0;left:-40%;width:40%;height:100%;pointer-events:none;
+  background:linear-gradient(100deg,transparent,rgba(255,255,255,.35),transparent);animation:btShn 2.6s infinite}
+@keyframes btShn{0%{left:-40%}55%{left:130%}100%{left:130%}}
+.bet-claimed{margin-top:8px;padding:9px;border-radius:11px;text-align:center;font-size:11px;
+  color:var(--accent,#00e676);border:1px dashed rgba(0,230,118,.35);background:rgba(0,230,118,.05)}
+.sc-claim-mini{padding:5px 11px;border-radius:8px;cursor:pointer;flex-shrink:0;
+  font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:11px;letter-spacing:.3px;
+  border:1px solid rgba(0,230,118,.45);background:rgba(0,230,118,.13);color:var(--accent,#00e676)}
+.sc-claim-mini.dia{border-color:rgba(77,208,225,.45);background:rgba(77,208,225,.13);color:#4dd0e1}
+.sc-claim-mini:disabled{opacity:.45;cursor:default}
 /* ══ 🆕 KAZI KAZAN ══ */
 .bet-tabs{flex-wrap:nowrap}
 #page-entertainment .bet-tab{font-size:10.5px;padding:9px 2px;letter-spacing:.2px}
@@ -26792,7 +26823,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-30-kazikazan-210';
+const APP_BUILD = '2026-07-30-odulal-211';
 
 (function _cacheBustCheck() {
   try {
@@ -69752,7 +69783,7 @@ async function betLoadMySlips(force) {
   el.innerHTML = '<div class="bet-empty">⏳ Yükleniyor…</div>';
   try {
     const { data } = await window.sb.from('bet_slips')
-      .select('id,stake,total_odds,potential_win,status,legs,payout,created_at,settled_at')
+      .select('id,stake,total_odds,potential_win,status,legs,payout,created_at,settled_at,claimed_at')
       .eq('user_id', authUser.id).order('created_at', { ascending: false }).limit(60);
     _betMySlips = data || [];
   } catch(e) { _betMySlips = []; }
@@ -69806,6 +69837,14 @@ function betRenderMySlips() {
     const more = legs.length > 6 ? `<div class="bet-cline" style="justify-content:center;color:var(--text3);font-size:9.5px">+${legs.length-6} maç daha</div>` : '';
     const winTxt = s.status === 'won' ? (Number(s.payout)||0).toLocaleString('tr') + ' €'
                  : (s.status === 'lost' ? '—' : (Number(s.potential_win)||0).toLocaleString('tr') + ' €');
+    // 🆕 Ödülü Al — kazandıysa ve henüz alınmadıysa
+    let claimHtml = '';
+    if (s.status === 'won' && (Number(s.payout) || 0) > 0) {
+      claimHtml = s.claimed_at
+        ? `<div class="bet-claimed">✅ Ödül alındı · ${(Number(s.payout)||0).toLocaleString('tr')} €</div>`
+        : `<button class="bet-claim-btn" id="betClaim_${s.id}" onclick="betClaimPrize('${s.id}',this)">
+             <span class="shn"></span>🏆 ÖDÜLÜ AL · ${(Number(s.payout)||0).toLocaleString('tr')} €</button>`;
+    }
     h += `<div class="bet-cpn ${s.status}">
         <div class="bet-cpn-h">${st}<span>${legs.length} maç · ${hit}/${done || 0} tuttu</span>
           <span class="dt">${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}</span></div>
@@ -69816,9 +69855,49 @@ function betRenderMySlips() {
           <div><div class="k">${s.status === 'won' ? 'Kazanç' : (s.status === 'lost' ? 'Sonuç' : 'Olası')}</div>
             <div class="v ${s.status === 'won' ? 'win' : ''}">${winTxt}</div></div>
         </div>
+        ${claimHtml}
       </div>`;
   });
   el.innerHTML = h;
+}
+
+// 🆕 Toto ödülünü cüzdana al (sunucu yatırır, animasyon buradan)
+async function betClaimPrize(slipId, btn) {
+  if (!slipId || !btn || btn.disabled) return;
+  if (!window.authUser || !window.authUser.id) { _betToast('Oturum yok'); return; }
+  btn.disabled = true;
+  const shn = btn.querySelector('.shn'); if (shn) shn.remove();
+  const eskiHtml = btn.innerHTML;
+  btn.innerHTML = '⏳ ALINIYOR…';
+  try {
+    const u = `${SUPABASE_URL}/functions/v1/tick-matches?action=bet_claim`
+            + `&user=${encodeURIComponent(authUser.id)}&slip=${encodeURIComponent(slipId)}&apikey=${SUPABASE_KEY}`;
+    const r = await fetch(u, { headers: { Authorization: 'Bearer ' + SUPABASE_KEY } });
+    const j = await r.json();
+    if (!j || !j.ok) {
+      const MSG = { zaten_alindi:'Bu ödül zaten alınmış', kazanan_kupon_degil:'Kupon kazanmamış',
+                    yetki_yok:'Yetki yok', kupon_bulunamadi:'Kupon bulunamadı', odul_yok:'Ödül yok' };
+      _betToast(MSG[j && j.error] || ('Ödül alınamadı: ' + ((j && j.error) || 'hata')));
+      btn.disabled = false; btn.innerHTML = eskiHtml; return;
+    }
+    const kazanc = Number(j.eur) || 0;
+    // Cüzdan gerçeğini sunucudan al, sonra animasyonu oynat
+    try { if (typeof wlLoadFromServer === 'function') await wlLoadFromServer(); } catch(e) {}
+    wlFlyReward(btn, 'eur', kazanc, () => {
+      const box = document.createElement('div');
+      box.className = 'bet-claimed';
+      box.innerHTML = '✅ Ödül alındı · ' + kazanc.toLocaleString('tr') + ' €';
+      try { btn.replaceWith(box); } catch(e) { btn.innerHTML = '✅ ALINDI'; }
+      if (Array.isArray(_betMySlips)) {
+        const it = _betMySlips.find(x => String(x.id) === String(slipId));
+        if (it) it.claimed_at = new Date().toISOString();
+      }
+      try { betRenderWallet(); } catch(e) {}
+    });
+  } catch(e) {
+    _betToast('Hata: ' + e);
+    btn.disabled = false; btn.innerHTML = eskiHtml;
+  }
 }
 
 
@@ -70067,12 +70146,14 @@ function scFinish() {
   } else if (card.outcome === 'dia' && Number(card.prize_dia) > 0) {
     h = `<div class="sc-res dia"><div class="h">💎 ELMAS KAZANDIN</div>
       <div class="a">${_scFmt(card.prize_dia)} 💎${Number(card.prize_eur) > 0 ? ' + ' + _scFmt(card.prize_eur) + ' €' : ''}</div>
-      <div class="s">Cüzdanına eklendi${card.capped ? ' · günlük tavan uygulandı' : ''}</div></div>`;
+      <div class="s">Ödülünü almak için aşağıdaki butona bas${card.capped ? ' · günlük tavan uygulandı' : ''}</div>
+      ${_scClaimBtnHtml(card)}</div>`;
   } else {
     const jack = card.outcome === 'm50';
     h = `<div class="sc-res win"><div class="h">${jack ? '🏆 JACKPOT!' : '🎉 KAZANDIN'}</div>
       <div class="a">${_scFmt(card.prize_eur)} €</div>
-      <div class="s">${card.symbol || ''} ×3 · ${String(card.mult).replace('.', ',')}× bilet bedeli${card.capped ? ' · günlük tavan uygulandı' : ''}</div></div>`;
+      <div class="s">${card.symbol || ''} ×3 · ${String(card.mult).replace('.', ',')}× bilet bedeli${card.capped ? ' · günlük tavan uygulandı' : ''}</div>
+      ${_scClaimBtnHtml(card)}</div>`;
   }
   if (box) box.innerHTML = h;
   const bb = document.getElementById('scBuyBtn'); if (bb) bb.disabled = false;
@@ -70091,7 +70172,7 @@ async function scLoadHist() {
   if (_scHist === null) el.innerHTML = '<div class="bet-empty">⏳ Yükleniyor…</div>';
   try {
     const { data } = await window.sb.from('scratch_cards')
-      .select('tier,cost,is_free,outcome,symbol,mult,prize_eur,prize_dia,created_at')
+      .select('id,tier,cost,is_free,outcome,symbol,mult,prize_eur,prize_dia,created_at,claimed_at')
       .eq('user_id', authUser.id).order('created_at', { ascending: false }).limit(10);
     _scHist = data || [];
   } catch(e) { _scHist = []; }
@@ -70114,13 +70195,73 @@ function scRenderHist() {
       : '';
     const lbl = r.outcome === 'empty' ? 'Boş'
       : (r.outcome === 'dia' ? 'Elmas' : String(r.mult).replace('.', ',') + '×');
-    const am = Number(r.prize_dia) > 0
-      ? `<span class="am d">+${r.prize_dia} 💎</span>`
-      : (Number(r.prize_eur) > 0 ? `<span class="am w">+${_scFmt(r.prize_eur)} €</span>` : '<span class="am l">—</span>');
+    const pe = Number(r.prize_eur) || 0, pd = Number(r.prize_dia) || 0;
+    const am = pd > 0
+      ? `<span class="am d">+${pd} 💎${pe > 0 ? ' +' + _scFmt(pe) + ' €' : ''}</span>`
+      : (pe > 0 ? `<span class="am w">+${_scFmt(pe)} €</span>` : '<span class="am l">—</span>');
+    // 🆕 Alınmamış ödül varsa satırdan da alınabilsin
+    const mini = (!r.claimed_at && (pe > 0 || pd > 0))
+      ? `<button class="sc-claim-mini ${pd > 0 ? 'dia' : ''}" onclick="scClaimPrize('${r.id}',this)">AL</button>` : '';
     h += `<div class="sc-hrow"><div class="tg">${T.ic}</div>
-        <div class="nm"><b>${T.n} BİLET${r.is_free ? ' · 🎁' : ''}</b><span>${lbl} · ${dt}</span></div>${am}</div>`;
+        <div class="nm"><b>${T.n} BİLET${r.is_free ? ' · 🎁' : ''}</b><span>${lbl} · ${dt}${r.claimed_at ? '' : (pe>0||pd>0 ? ' · ⏳ ödül bekliyor' : '')}</span></div>${am}${mini}</div>`;
   });
   el.innerHTML = h;
+}
+
+// 🆕 Kazı kazan ödül butonu
+function _scClaimBtnHtml(card) {
+  if (!card || card.claimed_at) return '';
+  const pe = Number(card.prize_eur) || 0, pd = Number(card.prize_dia) || 0;
+  if (pe <= 0 && pd <= 0) return '';
+  const dia = pd > 0;
+  const txt = dia
+    ? (pd + ' 💎' + (pe > 0 ? ' + ' + _scFmt(pe) + ' €' : ''))
+    : (_scFmt(pe) + ' €');
+  return `<button class="bet-claim-btn ${dia ? 'dia' : ''}" onclick="scClaimPrize('${card.id}',this)">
+      <span class="shn"></span>${dia ? '💎' : '🏆'} ÖDÜLÜ AL · ${txt}</button>`;
+}
+
+async function scClaimPrize(cardId, btn) {
+  if (!cardId || !btn || btn.disabled) return;
+  if (!window.authUser || !window.authUser.id) { _scToast('Oturum yok'); return; }
+  btn.disabled = true;
+  const shn = btn.querySelector('.shn'); if (shn) shn.remove();
+  const eski = btn.innerHTML;
+  btn.innerHTML = '⏳ ALINIYOR…';
+  try {
+    const u = `${SUPABASE_URL}/functions/v1/tick-matches?action=scratch_claim`
+            + `&user=${encodeURIComponent(authUser.id)}&card=${encodeURIComponent(cardId)}&apikey=${SUPABASE_KEY}`;
+    const r = await fetch(u, { headers: { Authorization: 'Bearer ' + SUPABASE_KEY } });
+    const j = await r.json();
+    if (!j || !j.ok) {
+      const MSG = { zaten_alindi:'Bu ödül zaten alınmış', odul_yok:'Ödül yok',
+                    yetki_yok:'Yetki yok', bilet_bulunamadi:'Bilet bulunamadı' };
+      _scToast(MSG[j && j.error] || ('Ödül alınamadı: ' + ((j && j.error) || 'hata')));
+      btn.disabled = false; btn.innerHTML = eski; return;
+    }
+    const pe = Number(j.eur) || 0, pd = Number(j.dia) || 0;
+    try { if (typeof wlLoadFromServer === 'function') await wlLoadFromServer(); } catch(e) {}
+    // Elmas + euro birlikteyse iki uçuş: önce elmas, sonra euro
+    const bitir = () => {
+      const box = document.createElement('div');
+      box.className = 'bet-claimed';
+      box.innerHTML = '✅ Ödül alındı · ' + (pd > 0 ? pd + ' 💎' : '') + (pd > 0 && pe > 0 ? ' + ' : '') + (pe > 0 ? _scFmt(pe) + ' €' : '');
+      try { btn.replaceWith(box); } catch(e) { btn.innerHTML = '✅ ALINDI'; }
+      if (_scCard && String(_scCard.id) === String(cardId)) _scCard.claimed_at = new Date().toISOString();
+      _scHist = null; scLoadHist();
+      try { betRenderWallet(); } catch(e) {}
+    };
+    if (pd > 0 && pe > 0) {
+      wlFlyReward(btn, 'dia', pd, () => wlFlyReward(btn, 'eur', pe, bitir));
+    } else if (pd > 0) {
+      wlFlyReward(btn, 'dia', pd, bitir);
+    } else {
+      wlFlyReward(btn, 'eur', pe, bitir);
+    }
+  } catch(e) {
+    _scToast('Hata: ' + e);
+    btn.disabled = false; btn.innerHTML = eski;
+  }
 }
 
 function scOpenInfo()  { const e = document.getElementById('scInfoOv'); if (e) e.classList.add('on'); }
@@ -77603,12 +77744,126 @@ function wlSyncHeader(){
   try{
     const d = wlGetData();
     const diaEl = document.getElementById('diamond-display');
-    if(diaEl) diaEl.textContent = d.dia.toLocaleString('tr');
+    // 🆕 Ödül uçuşu sürerken rakamı erken güncellemeyelim
+    if(diaEl && !(window._WL_HOLD||{}).dia) diaEl.textContent = d.dia.toLocaleString('tr');
     const monEl = document.getElementById('money-display');
-    if(monEl) monEl.textContent = d.eur.toLocaleString('tr') + ' €';
+    if(monEl && !(window._WL_HOLD||{}).eur) monEl.textContent = d.eur.toLocaleString('tr') + ' €';
     const shopBal = document.getElementById('shopDiamondBal');
     if(shopBal) shopBal.textContent = d.dia.toLocaleString('tr');
   }catch(e){}
+}
+
+
+// ══════════════════════════════════════════════════════════════════
+// 🆕 ÖDÜL UÇUŞ ANİMASYONU (varyant C — sayan)
+//   wlFlyReward(srcEl, 'eur'|'dia', amount) → tutar butondan kalkar,
+//   ilgili cüzdan rozetine uçar, varışta rakam sayarak yükselir + büyüyüp döner.
+//   Uçuş boyunca başlık güncellemesi askıya alınır (rakam erken zıplamasın).
+// ══════════════════════════════════════════════════════════════════
+window._WL_HOLD = window._WL_HOLD || { eur: false, dia: false };
+const _WL_HOLD = window._WL_HOLD;
+function _wlHeaderEl(cur) {
+  return document.getElementById(cur === 'dia' ? 'diamond-display' : 'money-display');
+}
+function _wlChipEl(cur) {
+  const e = _wlHeaderEl(cur);
+  if (!e) return null;
+  // rozet kabı: en yakın üst öğe (yoksa kendisi)
+  return e.closest('[class*="coin"],[class*="chip"],[class*="wallet"],[class*="bal"]') || e.parentElement || e;
+}
+function _wlParseNum(txt) {
+  const t = String(txt || '').replace(/[^\d]/g, '');
+  return t ? parseInt(t, 10) : 0;
+}
+function _wlFmtHeader(cur, n) {
+  return cur === 'dia' ? Number(n).toLocaleString('tr') : Number(n).toLocaleString('tr') + ' €';
+}
+
+function wlFlyReward(srcEl, cur, amount, onDone) {
+  amount = Math.round(Number(amount) || 0);
+  const tgt = _wlHeaderEl(cur);
+  if (!amount || amount <= 0 || !tgt || !srcEl || !srcEl.getBoundingClientRect) {
+    try { wlSyncHeader(); } catch(e) {}
+    if (onDone) onDone();
+    return;
+  }
+  const chip = _wlChipEl(cur);
+  const br = srcEl.getBoundingClientRect();
+  const tr = tgt.getBoundingClientRect();
+  if (!br.width || !tr.width) { try { wlSyncHeader(); } catch(e) {} if (onDone) onDone(); return; }
+
+  // Uçuş süresince başlık dondurulur
+  const fromVal = _wlParseNum(tgt.textContent);
+  _WL_HOLD[cur] = true;
+
+  const f = document.createElement('div');
+  f.className = 'wlfly' + (cur === 'dia' ? ' dia' : '');
+  f.textContent = '+' + (cur === 'dia' ? amount.toLocaleString('tr') + ' 💎' : amount.toLocaleString('tr') + ' €');
+  document.body.appendChild(f);
+  const fw = f.offsetWidth, fh = f.offsetHeight;
+  const x0 = br.left + br.width / 2 - fw / 2, y0 = br.top + br.height / 2 - fh / 2;
+  const x1 = tr.left + tr.width / 2 - fw / 2, y1 = tr.top + tr.height / 2 - fh / 2;
+  f.style.left = x0 + 'px'; f.style.top = y0 + 'px';
+  const dx = x1 - x0, dy = y1 - y0;
+
+  const finish = () => {
+    try { f.remove(); } catch(e) {}
+    _WL_HOLD[cur] = false;
+    _wlLandCount(cur, fromVal, amount);
+    if (chip) { chip.classList.add('wl-glow'); setTimeout(() => chip.classList.remove('wl-glow'), 560); }
+    if (onDone) { try { onDone(); } catch(e) {} }
+  };
+
+  if (!f.animate) { setTimeout(finish, 120); return; }
+  const an = f.animate([
+    { transform: 'translate(0,0) scale(1)', opacity: 1 },
+    { transform: `translate(${dx * 0.18}px,${dy * 0.18}px) scale(1.12)`, opacity: 1, offset: 0.18 },
+    { transform: `translate(${dx}px,${dy}px) scale(.34)`, opacity: 0 }
+  ], { duration: 700, easing: 'cubic-bezier(.45,.05,.35,1)', fill: 'forwards' });
+  an.onfinish = finish;
+  setTimeout(() => { if (_WL_HOLD[cur]) finish(); }, 1400);   // emniyet
+}
+
+// Varışta: rakam 0,5 sn boyunca sayarak yükselir, aynı anda büyüyüp eski boyuna döner
+function _wlLandCount(cur, fromVal, amount) {
+  const el = _wlHeaderEl(cur);
+  if (!el) { try { wlSyncHeader(); } catch(e) {} return; }
+  let target = fromVal + amount;
+  try {
+    const d = wlGetData();
+    const real = cur === 'dia' ? Number(d.dia) : Number(d.eur);
+    if (isFinite(real) && real > 0) target = Math.round(real);
+  } catch(e) {}
+  el.classList.add('wl-bump');
+  el.style.transform = 'scale(1.34)';
+  setTimeout(() => { el.style.transform = 'scale(1)'; }, 195);
+  const t0 = performance.now(), D = 500;
+  const step = (t) => {
+    const p = Math.min(1, (t - t0) / D);
+    const e = 1 - Math.pow(1 - p, 3);
+    el.textContent = _wlFmtHeader(cur, Math.round(fromVal + (target - fromVal) * e));
+    if (p < 1) requestAnimationFrame(step);
+    else { el.textContent = _wlFmtHeader(cur, target); try { wlSyncHeader(); } catch(e) {} }
+  };
+  requestAnimationFrame(step);
+}
+
+// ── Oyundaki TÜM "Ödülü Al / Topla" butonlarını otomatik yakala ──
+//   Tıklanan öğe ödül butonuna benziyorsa referansı sakla; wlAddIncome
+//   çağrıldığında animasyon oradan başlar.
+let _wlSrcEl = null, _wlSrcAt = 0;
+document.addEventListener('click', (ev) => {
+  try {
+    const el = ev.target && ev.target.closest ? ev.target.closest('button,[onclick],.claim,.ev-claim-btn,.ach-claim-btn') : null;
+    if (!el) return;
+    const sig = ((el.className || '') + ' ' + (el.textContent || '')).toLowerCase();
+    if (/claim|collect|topla|ödül|odul|al\b/.test(sig)) { _wlSrcEl = el; _wlSrcAt = Date.now(); }
+  } catch(e) {}
+}, true);
+function _wlTakeSrc() {
+  const el = (_wlSrcEl && (Date.now() - _wlSrcAt) < 4000 && document.body.contains(_wlSrcEl)) ? _wlSrcEl : null;
+  _wlSrcEl = null;
+  return el;
 }
 
 function wlGetLog(){
@@ -77664,12 +77919,17 @@ function _wlRpcApply(d_eur, d_dia, kind){
     }).catch(e=>console.warn('[Wallet] rpc hata:', e));
 }
 
-function wlAddIncome(currency, amount, source){
+function wlAddIncome(currency, amount, source, opts){
   if(!amount || amount<=0) return;
   const d_eur = currency==='eur'?amount:0, d_dia = currency==='dia'?amount:0;
+  // 🆕 Ödül butonundan tetiklendiyse animasyonu başlat (başlık uçuş bitince güncellenir)
+  let src = null;
+  if (!(opts && opts.noFly)) { try { src = _wlTakeSrc(); } catch(e) {} }
+  if (src) { try { _WL_HOLD[currency] = true; } catch(e) {} }
   _wlApplyLocal(d_eur, d_dia, 'in');
   _wlRpcApply(d_eur, d_dia, 'in');
   wlAddLog({type:'in', cur:currency, amount, source: source||'Gelir'});
+  if (src) { try { _WL_HOLD[currency] = false; wlFlyReward(src, currency, amount); } catch(e) { try { wlSyncHeader(); } catch(_) {} } }
 }
 
 function wlDeduct(currency, amount, reason){
