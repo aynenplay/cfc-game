@@ -28,6 +28,10 @@ body.drawer-open{overflow-x:hidden}
    Tek kuralla tüm modalları kapsar (her overlay sınıfı "-overlay" ile biter, ".open" ile açılır). */
 body:has([class*="-overlay"].open){overflow:hidden}
 [class*="-overlay"]{overscroll-behavior:contain}
+/* 🆕 Toto kupon paneli açıkken de arka sayfa kaymasın (:has desteği + JS sınıfı yedeği) */
+body:has(.bet-slip.on){overflow:hidden}
+body.bet-lock{overflow:hidden;position:relative}
+.bet-ov{overscroll-behavior:contain;touch-action:none}
 
 /* ═══════════════════════════════════════════════════════════════════
    🔒 METİN SEÇİMİ / KOPYALAMA KAPALI — oyunun her yerinde
@@ -2527,9 +2531,13 @@ select.form-input option{background:var(--bg)}
 .bet-empty{margin:20px 14px;padding:26px 16px;text-align:center;color:var(--text3);font-size:12px;
   border:1px dashed var(--border,#20242c);border-radius:12px}
 /* çekmece */
-.bet-slip{position:fixed;left:0;right:0;bottom:0;z-index:940;padding:0;background:none;border:none;
-  transform:translateY(102%);transition:transform .3s cubic-bezier(.3,1.1,.5,1);pointer-events:none}
+.bet-slip{position:fixed;left:0;right:0;bottom:var(--kb,0px);z-index:940;padding:0;background:none;border:none;
+  transform:translateY(102%);transition:transform .3s cubic-bezier(.3,1.1,.5,1),bottom .18s ease;pointer-events:none}
 .bet-slip.on{transform:translateY(0);pointer-events:auto}
+/* 🆕 Klavye açıkken liste kısalsın, misli alanı görünür kalsın */
+.bet-slip.kb .bet-slip-rows{max-height:20vh}
+.bet-slip.kb .bet-sheet-handle{margin-bottom:7px}
+.bet-slip.kb .bet-slip-head{padding-bottom:8px}
 .bet-slip-head{display:flex;align-items:center;gap:9px;padding-bottom:11px;margin-bottom:0;
   border-bottom:1px solid rgba(255,255,255,.07)}
 .bet-slip-head .cnt{width:32px;height:32px;border-radius:10px;background:var(--gold,#ffd600);color:#231a04;flex-shrink:0;
@@ -2546,7 +2554,8 @@ select.form-input option{background:var(--bg)}
 .bet-slip-clear:active{transform:scale(.92)}
 
 /* 🆕 Kupon satırları — büyük dokunma alanı */
-.bet-slip-rows{max-height:44vh;overflow-y:auto;margin:7px 0 2px;padding-right:2px}
+.bet-slip-rows{max-height:44vh;overflow-y:auto;margin:7px 0 2px;padding-right:2px;
+  overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .bet-slip-rows::-webkit-scrollbar{width:3px}
 .bet-slip-rows::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:2px}
 .bet-srow{display:flex;align-items:center;gap:9px;padding:9px 10px;margin-bottom:5px;border-radius:11px;
@@ -21946,6 +21955,13 @@ body.drawer-open{overflow:hidden}
 .tplc-pill.tpl-toto.devam{color:#00b0ff;background:rgba(0,176,255,.06)}
 .tplc-pill .sag{margin-left:auto;letter-spacing:.3px;font-size:10px;opacity:.85;display:flex;align-items:center;gap:4px}
 .tplc-ovr.blue{color:#00b0ff}
+/* 🆕 Kupon kartı: sol kolondaki oran 5-6 karakter olabiliyor (29.04 / 500.00) —
+   31 px punto kolonu taşırıyordu. Yalnızca toto kartında küçültülüp sığdırılıyor. */
+.tplc-toto .tplc-lcol{width:76px;padding:11px 4px}
+.tplc-toto .tplc-ovr{font-size:20px;line-height:1.05;letter-spacing:-.2px;white-space:nowrap;
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;text-align:center}
+.tplc-toto .tplc-ovr-l{font-size:7px;letter-spacing:.5px}
+.tplc-toto .tplc-pos{font-size:10px;padding:2px 7px}
 .tplc-pos.pos-leg{background:rgba(0,176,255,.14);color:#00b0ff}
 .tplc-ab-v.wht{color:#fff} .tplc-ab-v.gri{color:#6b7280}
 .tplc-toto{cursor:pointer}
@@ -25618,7 +25634,8 @@ body.drawer-open{overflow:hidden}
     </div>
 
     <!-- 🆕 KUPON PANELİ -->
-    <div class="bet-ov" id="betOv" onclick="betCloseSheet()"></div>
+    <div class="bet-ov" id="betOv" onclick="betCloseSheet()"
+      ontouchmove="event.preventDefault()" onwheel="event.preventDefault()"></div>
     <div class="bet-slip" id="betSlipDrawer">
       <div class="bet-sheet-in">
       <div class="bet-sheet-handle"></div>
@@ -27115,7 +27132,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-30-kuponpanel-227';
+const APP_BUILD = '2026-07-30-kuponkart-229';
 
 (function _cacheBustCheck() {
   try {
@@ -70234,13 +70251,52 @@ function betOpenSheet() {
   const sh = document.getElementById('betSlipDrawer');
   if (ov) ov.classList.add('on');
   if (sh) sh.classList.add('on');
+  document.body.classList.add('bet-lock');     // 🆕 arka sayfa kilidi
+  _betKbBind();                                 // 🆕 klavye hizalama
   betRenderSlip();
 }
 function betCloseSheet() {
   const ov = document.getElementById('betOv');
   const sh = document.getElementById('betSlipDrawer');
   if (ov) ov.classList.remove('on');
-  if (sh) sh.classList.remove('on');
+  if (sh) { sh.classList.remove('on'); sh.classList.remove('kb'); sh.style.setProperty('--kb', '0px'); }
+  document.body.classList.remove('bet-lock');
+  try { const st = document.getElementById('betStake'); if (st) st.blur(); } catch(e) {}
+}
+
+// 🆕 KLAVYE HİZALAMA — mobil klavye açılınca görünür alan küçülür ama sabit konumlu
+//    panel ekranın altına yapışık kaldığı için misli alanı klavyenin ARKASINDA kalıyordu.
+//    visualViewport ile klavye yüksekliğini ölçüp paneli o kadar yukarı alıyoruz.
+let _betKbBound = false;
+function _betKbUpdate() {
+  const sh = document.getElementById('betSlipDrawer');
+  if (!sh) return;
+  const vv = window.visualViewport;
+  if (!vv || !sh.classList.contains('on')) { sh.style.setProperty('--kb', '0px'); sh.classList.remove('kb'); return; }
+  const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+  sh.style.setProperty('--kb', (kb > 90 ? kb : 0) + 'px');   // 90 px altı = klavye değil
+  sh.classList.toggle('kb', kb > 90);
+}
+function _betKbBind() {
+  if (_betKbBound) { _betKbUpdate(); return; }
+  _betKbBound = true;
+  const vv = window.visualViewport;
+  if (vv) {
+    vv.addEventListener('resize', _betKbUpdate);
+    vv.addEventListener('scroll', _betKbUpdate);
+  }
+  // Odaklanınca alanı görünür yap (visualViewport olmayan tarayıcılar için yedek)
+  const st = document.getElementById('betStake');
+  if (st) {
+    st.addEventListener('focus', () => {
+      setTimeout(() => {
+        _betKbUpdate();
+        try { st.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch(e) {}
+      }, 260);
+    });
+    st.addEventListener('blur', () => setTimeout(_betKbUpdate, 120));
+  }
+  _betKbUpdate();
 }
 
 // 🆕 Seçilen oran kutusundan KUPONUM butonuna uçan fiş
