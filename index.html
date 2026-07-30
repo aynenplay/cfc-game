@@ -26561,7 +26561,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-28-toto-205';
+const APP_BUILD = '2026-07-28-toto-206';
 
 (function _cacheBustCheck() {
   try {
@@ -40095,7 +40095,7 @@ function showPage(name,btn){
     trRender();
   }
   if(name==='entertainment') {
-    totoRender();
+    try { _betLastAuto = 0; if (typeof betRender === 'function') betRender(); } catch(e) {}
     // Canlı skor güncellemesi _liveMatchStartPolling ile sağlanır (aşağıda, skor-only).
   }
   if(name==='rankings') {
@@ -69132,7 +69132,7 @@ function betTab(t, btn) {
 function betRender() {
   try { betRenderWallet(); } catch(e) {}
   if (_betTab === 'bulletin') { betRenderFilters(); betRenderBulletin(); betRenderSlip(); }
-  else if (_betTab === 'slips') { betLoadMySlips(true); }
+  else if (_betTab === 'slips') { betLoadMySlips(false); }   // 🆕 önbellek varsa sorgu yok
   else { betRenderStats(); }
   // Çekmece sadece bültende ve seçim varken
   const dr = document.getElementById('betSlipDrawer');
@@ -69267,6 +69267,9 @@ function betRenderBulletin() {
         ${right}
       </div>`;
   });
+  // 🆕 İçerik değişmediyse DOM'a dokunma (titreme/zıplama ve gereksiz yük olmasın)
+  if (el._betLastHtml === h) return;
+  el._betLastHtml = h;
   el.innerHTML = h;
 }
 
@@ -69397,7 +69400,11 @@ async function betLoadMySlips(force) {
   const el = document.getElementById('betSlipList');
   if (!el) return;
   if (_betMySlips && !force) { betRenderMySlips(); return; }
-  if (!window.sb || !authUser || !authUser.id) { el.innerHTML = '<div class="bet-empty">Oturum yok</div>'; return; }
+  if (!window.sb || !authUser || !authUser.id) {
+    _betMySlips = [];                       // 🆕 null bırakma (sonsuz yeniden deneme sebebi)
+    el.innerHTML = '<div class="bet-empty">Oturum yok</div>';
+    return;
+  }
   el.innerHTML = '<div class="bet-empty">⏳ Yükleniyor…</div>';
   try {
     const { data } = await window.sb.from('bet_slips')
@@ -69469,7 +69476,16 @@ function betRenderMySlips() {
 function betRenderStats() {
   const el = document.getElementById('betStatsBox');
   if (!el) return;
-  if (!_betMySlips) { betLoadMySlips(true).then(() => betRenderStats()); el.innerHTML = '<div class="bet-empty">⏳ Yükleniyor…</div>'; return; }
+  if (!_betMySlips) {
+    el.innerHTML = '<div class="bet-empty">⏳ Yükleniyor…</div>';
+    // 🆕 Tek denemeyle sınırla — eskiden veri gelmeyince sonsuz döngüye giriyordu
+    if (!window._betStatsTried) {
+      window._betStatsTried = true;
+      betLoadMySlips(true).then(() => { window._betStatsTried = false; if (_betTab === 'stats') betRenderStats(); })
+        .catch(() => { window._betStatsTried = false; });
+    }
+    return;
+  }
   const arr = _betMySlips;
   const won = arr.filter(s => s.status === 'won');
   const lost = arr.filter(s => s.status === 'lost');
@@ -69496,8 +69512,27 @@ function _betToast(msg) {
   console.info('[bahis]', msg);
 }
 
+// 🆕 POLL KISITI: canlı maç poll'u (7sn) totoRender çağırıyor. Her seferinde tüm bülteni
+//   yeniden çizmek listeyi zıplatıyor, dokunmayı bozuyor ve uzun oturumda hafızayı yiyordu.
+//   Artık en fazla 20 saniyede bir, kupon düzenlenmiyorken ve sekme görünürken çizilir.
+let _betLastAuto = 0;
+function betAutoRefresh() {
+  try {
+    const pg = document.getElementById('page-entertainment');
+    if (!pg || !pg.classList.contains('active')) return;      // sayfa kapalıysa hiç uğraşma
+    if (document.hidden) return;
+    const now = Date.now();
+    if (now - _betLastAuto < 20000) return;                    // en fazla 20 sn'de bir
+    _betLastAuto = now;
+    if (_betTab !== 'bulletin') return;                        // sadece bülten tazelenir
+    // Kupon çekmecesi açıkken listeyi yeniden çizmeyelim (seçim kaybı/zıplama olmasın)
+    if (_betSlip.length > 0) { betRenderSlip(); return; }
+    betRenderFilters(); betRenderBulletin();
+  } catch(e) {}
+}
+
 // Eski Toto çağrıları → yeni sisteme yönlendir (bozulma olmasın)
-function totoRender() { try { betRender(); } catch(e) {} }
+function totoRender() { try { betAutoRefresh(); } catch(e) {} }
 function totoTab(t, btn) {
   const map = { coupons:'bulletin', mycoupons:'slips', popular:'stats' };
   try { betTab(map[t] || 'bulletin', btn); } catch(e) {}
