@@ -27885,7 +27885,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-31-inboxtemiz-253';
+const APP_BUILD = '2026-07-31-inboxacil-254';
 
 (function _cacheBustCheck() {
   try {
@@ -74198,6 +74198,40 @@ async function _inboxLoadFromServer() {
     window._inboxChanged = (_sig !== window._inboxSig);
     window._inboxSig = _sig;
     _inboxCache = _newArr;
+
+    // 🆕 ACİL KORUMA — hatalı sürümde gelen kutusu binlerce sahte
+    //   "hazırlık maçı cevabı" mesajıyla şişebiliyor. Bu blob her açılışta
+    //   indiriliyor/parse ediliyor ve uygulamayı boğuyor. Yükler yüklenmez buda.
+    try {
+      const _once = _inboxCache.length;
+      if (_once > 250) {
+        // 1) aynı hazırlık maçı için tekrar eden mesajları at
+        const _gor = new Set();
+        _inboxCache = _inboxCache.filter(m => {
+          const mid = m && m.friendlyData && m.friendlyData.matchId;
+          if (m && m.type === 'friendly_response' && mid) {
+            if (_gor.has(mid)) return false;
+            _gor.add(mid);
+          }
+          return true;
+        });
+        // 2) hâlâ çok fazlaysa en yeni 250 mesajı tut
+        if (_inboxCache.length > 250) {
+          _inboxCache = _inboxCache
+            .slice()
+            .sort((a, b) => (b && b.ts || 0) - (a && a.ts || 0))
+            .slice(0, 250);
+        }
+        if (_inboxCache.length !== _once) {
+          console.warn('[inbox] şişmiş kutu budandı:', _once, '→', _inboxCache.length);
+          try { saveInboxMsgs(_inboxCache); } catch(e) {}
+        }
+      }
+    } catch(e) {}
+
+    // 🆕 Sahte hazırlık bildirimlerini yükleme biter bitmez temizle
+    try { if (typeof _frmPruneInbox === 'function') setTimeout(_frmPruneInbox, 1500); } catch(e) {}
+
     const _curIds = new Set(_inboxCache.map(m => m && m.id).filter(Boolean));
     if (_inboxSeenIds && _inboxCache.some(m => m && !m.read && !_inboxSeenIds.has(m.id))) _inboxPlayDing();
     _inboxSeenIds = _curIds;
