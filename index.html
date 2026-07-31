@@ -27767,7 +27767,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-31-skorbordB-247';
+const APP_BUILD = '2026-07-31-livefix-248';
 
 (function _cacheBustCheck() {
   try {
@@ -35151,6 +35151,56 @@ function openMatchScreenV2(opts) {
       if (typeof startMatch === 'function') startMatch();
     }
   } catch(e) { console.warn('[openMatchScreenV2] live auto-start hata:', e); }
+
+  // 🆕 SUNUCU DOĞRULAMASI — kickoff bilgisi hiç gelmediyse veya yanlışsa ekran
+  //   PRE'de kalıyordu (maç sunucuda oynanırken!). Artık açılışta match_state'e
+  //   bakıyoruz: satır 'running' ise önizlemeyi kapatıp canlı moda geçiyoruz.
+  (async () => {
+    try {
+      if (!window.sb || !curHome || !curAway) return;
+      const msEl0 = document.getElementById('match-screen');
+      if (!msEl0 || !msEl0.classList.contains('open')) return;
+      const { data: _rows } = await window.sb.from('match_state')
+        .select('match_key,status,sim_minute,home_score,away_score,started_at,kickoff_at')
+        .eq('home_team', curHome.name)
+        .eq('away_team', curAway.name)
+        .order('kickoff_at', { ascending: false })
+        .limit(6);
+      if (!_rows || !_rows.length) return;
+      const _row = _rows.find(r => r.status === 'running')
+                || _rows.find(r => r.status === 'scheduled')
+                || _rows[0];
+      if (!_row) return;
+      if (!MS.match_key) MS.match_key = _row.match_key;
+      // Kickoff'u sunucudan al — yerel saat yanlışsa startMatch "henüz başlamadı" diyordu
+      const _ko = _row.started_at ? new Date(_row.started_at).getTime()
+                : (_row.kickoff_at ? new Date(_row.kickoff_at).getTime() : 0);
+      if (_row.status === 'running') {
+        const msEl = document.getElementById('match-screen');
+        if (!msEl || !msEl.classList.contains('open')) return;
+        MS.kickoffMs = _ko || (Date.now() - 1000);
+        msEl.classList.remove('preview-mode');
+        const _sb2 = document.getElementById('statusBadge');
+        if (_sb2) { _sb2.className = 'status-badge sb-live'; _sb2.innerHTML = '🔴 CANLI'; }
+        // Skoru/dakikayı beklemeden bas — poll 7sn sonra tazeleyecek
+        try {
+          const _sh = document.getElementById('scoreH'), _sa = document.getElementById('scoreA');
+          if (_sh) _sh.textContent = _row.home_score ?? 0;
+          if (_sa) _sa.textContent = _row.away_score ?? 0;
+          const _ck = document.getElementById('matchClock');
+          if (_ck && (_row.sim_minute || 0) > 0) _ck.textContent = (_row.sim_minute || 0) + "'";
+        } catch(e) {}
+        if (!MS.running && !MS.finished && typeof startMatch === 'function') startMatch();
+        console.log('[match-screen] sunucuda CANLI bulundu → önizleme kapatıldı:', _row.match_key);
+      } else if (_ko && Date.now() >= _ko && _row.status === 'scheduled') {
+        // Saati gelmiş ama sunucu henüz tick atmamış: yine de izleme moduna geç
+        MS.kickoffMs = _ko;
+        const msEl = document.getElementById('match-screen');
+        if (msEl) msEl.classList.remove('preview-mode');
+        if (!MS.running && !MS.finished && typeof startMatch === 'function') startMatch();
+      }
+    } catch(e) { console.warn('[openMatchScreenV2] sunucu canlı kontrolü hata:', e); }
+  })();
 
   // 🆕 İZLEYİCİ BEAT — match-screen açıldıktan sonra her 15sn beat at.
   //   match_key opts.matchKey'den veya MS.match_key'den okunur.
@@ -55579,10 +55629,27 @@ let _frmMatchesCache = [];
 async function _frmLoadFromServer() {
   if (!window.sb) { _frmMatchesCache = []; return; }
   try {
-    const { data, error } = await window.sb.from('friendly_matches')
-      .select('id, match_data, created_at');
+    // 🆕 SADECE KENDİ DAVETLERİM — eskiden tüm dünyanın hazırlık maçları çekiliyordu.
+    //   Başka oyuncuların bekleyen davetlerine de bu istemci bot cevabı üretiyor,
+    //   her cevap benim gelen kutuma mesaj düşürüyordu (bitmeyen bildirim yağmuru).
+    const _uid = (window.authUser && window.authUser.id)
+              || (window._userTeam && window._userTeam.userId) || null;
+    let _q = window.sb.from('friendly_matches').select('id, user_id, match_data, created_at');
+    // user_id'si boş ESKİ kayıtlar da gelsin (takım adıyla eleyeceğiz)
+    if (_uid) _q = _q.or('user_id.eq.' + _uid + ',user_id.is.null');
+    const { data, error } = await _q;
     if (error) { console.warn('[frm] load hata:', error); _frmMatchesCache = []; return; }
-    _frmMatchesCache = (data || []).map(r => r.match_data || {});
+    const _myTeam = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName) ? _userTeam.teamName : null;
+    _frmMatchesCache = (data || [])
+      .filter(r => {
+        if (!r) return false;
+        if (!_uid) return true;
+        if (r.user_id === _uid) return true;
+        // eski (user_id boş) kayıt: yalnızca benim takımımın daveti ise al
+        const md = r.match_data || {};
+        return !r.user_id && _myTeam && md.fromTeam === _myTeam;
+      })
+      .map(r => r.match_data || {});
     console.info('[frm] yüklendi:', _frmMatchesCache.length, 'hazırlık maçı');
   } catch(e) { console.warn('[frm] load hata:', e); _frmMatchesCache = []; }
 }
@@ -55596,13 +55663,17 @@ function frmGetMatches() {
 async function _frmUpsertOne(match) {
   if (!window.sb || !match || !match.id) return;
   try {
-    const uid = (window._userTeam && window._userTeam.userId) || null;
-    await window.sb.from('friendly_matches').upsert({
+    const uid = (window.authUser && window.authUser.id)
+             || (window._userTeam && window._userTeam.userId) || null;
+    const { error } = await window.sb.from('friendly_matches').upsert({
       id: match.id,
       user_id: uid,
       match_data: match,
       updated_at: new Date().toISOString()
     }, { onConflict: 'id' });
+    // 🆕 Yazma başarısızsa durum sunucuda 'pending' kalıyor ve bot cevabı
+    //   her yeniden yüklemede tekrar üretiliyordu — sessiz geçme, bildir.
+    if (error) console.warn('[frm] upsert REDDEDİLDİ:', error.message, match.id);
   } catch(e) { console.warn('[frm] upsert hata:', e); }
 }
 
@@ -56185,6 +56256,11 @@ function frmBotRespond(matchId) {
   if (idx === -1) return;
   const match = all[idx];
   if (match.status !== 'pending') return;
+  // 🆕 AYNI DAVETE İKİNCİ KEZ CEVAP YOK — sunucuya yazma başarısız olsa bile
+  //   bu oturumda bir daha cevap üretilmez (bildirim tekrarının kök nedeni).
+  if (!window._frmResponded) window._frmResponded = {};
+  if (window._frmResponded[matchId]) return;
+  window._frmResponded[matchId] = true;
 
   // %75 onay, %25 ret
   const accept = Math.random() < 0.75;
@@ -56238,8 +56314,12 @@ function frmBotRespond(matchId) {
     }
   };
   const msgs = getInboxMsgs();
-  msgs.unshift(msg);
-  saveInboxMsgs(msgs);
+  // 🆕 TEKRAR KORUMASI — aynı maç için gelen kutusunda zaten mesaj varsa ekleme
+  if (!msgs.some(x => x && (x.id === msg.id ||
+      (x.friendlyData && x.friendlyData.matchId === matchId)))) {
+    msgs.unshift(msg);
+    saveInboxMsgs(msgs);
+  }
   if (typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
   // 🆕 Onaylandıysa: ana sayfa "yaklaşan maç" paneli ve takım fikstür sekmesini yenile
   if (accept) {
