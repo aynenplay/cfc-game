@@ -27974,7 +27974,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-01-seritsade-263';
+const APP_BUILD = '2026-08-01-karttiklama-264';
 
 (function _cacheBustCheck() {
   try {
@@ -58038,6 +58038,36 @@ function _hmApplyStadBg() {
   } catch(e) {}
 }
 
+// 🆕 Şerit kartına dokununca RAKİP TAKIM SAYFASI açılır (ziyaretçi modu).
+//   Milli takım maçında rakip bir ülke olduğu için sayfa açılmaz.
+function hmNxOpenTeam(i) {
+  try {
+    const it = (window._hmNxItems || [])[i];
+    if (!it || !it.ad || it.ad === '?') return;
+    if (it.tur === 'national') return;               // ülke — kulüp sayfası yok
+    const benim = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName) || null;
+    if (benim && it.ad === benim) {
+      if (typeof exitGuestMode === 'function' && typeof _viewingTeam !== 'undefined' && _viewingTeam) {
+        try { exitGuestMode(true); return; } catch(e) {}
+      }
+      if (typeof showPage === 'function') showPage('team', null);
+      return;
+    }
+    // Ülke kodu: karttan gelmezse takım adından bul
+    let cc = it.cc || null;
+    if (!cc && typeof _cftGetCountryCodes === 'function') {
+      for (const xcc of _cftGetCountryCodes()) {
+        const c = _cftGetCountry(xcc);
+        if (!c || !c.leagues) continue;
+        if (c.leagues.some(lg => (lg.teams || []).some(t => t.name === it.ad))) { cc = xcc; break; }
+      }
+    }
+    if (cc && typeof viewTeam === 'function') viewTeam(cc, it.ad);
+    else if (typeof showToast === 'function') showToast('Takım sayfası bulunamadı');
+  } catch(e) { console.warn('[hmNx] takım açma hatası:', e); }
+}
+window.hmNxOpenTeam = hmNxOpenTeam;
+
 function _hmRenderNextStrip(list) {
   try { _hmApplyStadBg(); } catch(e) {}
   const _HM_NX_RENK = { league:'#00b0ff', tournament:'#ffd54f', national:'#7CFFB2', friendly:'#9aa3b2' };
@@ -58056,6 +58086,7 @@ function _hmRenderNextStrip(list) {
     [it.ad, it.comp, it.tur, it.ev ? 1 : 0, it.d && it.d.getTime()].join('~')).join('|');
   if (host.dataset.sig === _sig && host.style.display !== 'none') return;
   host.dataset.sig = _sig;
+  window._hmNxItems = items;      // 🆕 kart tıklaması bu listeden okur
   host.style.display = 'block';
   host.innerHTML =
     '<div class="hm-nx-row">' + items.map((it, i) => {
@@ -58063,7 +58094,7 @@ function _hmRenderNextStrip(list) {
       const gun = isNaN(it.d.getTime()) ? '—' : (it.d.getDate() + ' ' + _HM_NX_AY[it.d.getMonth()]);
       const ic = it.bayrak ? it.bayrak : _escapeHtml(it.kisa);
       return '<div class="hm-nxc" style="--cmp:' + renk + '" data-i="' + i + '"' +
-        ' role="button" tabindex="0" onclick="hmGoFixture()">' +
+        ' role="button" tabindex="0" onclick="hmNxOpenTeam(' + i + ')">' +
         '<div class="nxh">' + (it.ev ? 'EV' : 'DEP') + '</div>' +
         '<div class="nxd">' + gun + '</div>' +
         '<div class="nxc-crest"' + (it.bayrak ? ' data-flag="1"' : '') +
