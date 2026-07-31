@@ -27885,7 +27885,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-31-izleyicisaha-251';
+const APP_BUILD = '2026-07-31-frmfix-252';
 
 (function _cacheBustCheck() {
   try {
@@ -55782,20 +55782,24 @@ async function _frmLoadFromServer() {
     //   her cevap benim gelen kutuma mesaj düşürüyordu (bitmeyen bildirim yağmuru).
     const _uid = (window.authUser && window.authUser.id)
               || (window._userTeam && window._userTeam.userId) || null;
+    const _myTeam = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName) ? _userTeam.teamName : null;
+    // ⛔ Kimlik yoksa (auth henüz hazır değil) HİÇBİR KAYIT YÜKLEME.
+    //   Aksi halde tüm dünyanın hazırlık maçları cache'e giriyor, _frmResolveStuck
+    //   hepsine bot cevabı üretip gelen kutusunu bildirimle dolduruyor ve açılışı kilitliyordu.
+    if (!_uid && !_myTeam) { _frmMatchesCache = []; return; }
     let _q = window.sb.from('friendly_matches').select('id, user_id, match_data, created_at');
     // user_id'si boş ESKİ kayıtlar da gelsin (takım adıyla eleyeceğiz)
     if (_uid) _q = _q.or('user_id.eq.' + _uid + ',user_id.is.null');
     const { data, error } = await _q;
     if (error) { console.warn('[frm] load hata:', error); _frmMatchesCache = []; return; }
-    const _myTeam = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName) ? _userTeam.teamName : null;
     _frmMatchesCache = (data || [])
       .filter(r => {
         if (!r) return false;
-        if (!_uid) return true;
-        if (r.user_id === _uid) return true;
-        // eski (user_id boş) kayıt: yalnızca benim takımımın daveti ise al
         const md = r.match_data || {};
-        return !r.user_id && _myTeam && md.fromTeam === _myTeam;
+        // Benim kaydım mı? (user_id eşleşmesi VEYA maçın taraflarından biri benim takımım)
+        if (_uid && r.user_id === _uid) return true;
+        if (_myTeam && (md.fromTeam === _myTeam || md.toTeam === _myTeam)) return true;
+        return false;
       })
       .map(r => r.match_data || {});
     console.info('[frm] yüklendi:', _frmMatchesCache.length, 'hazırlık maçı');
@@ -56404,6 +56408,13 @@ function frmBotRespond(matchId) {
   if (idx === -1) return;
   const match = all[idx];
   if (match.status !== 'pending') return;
+  // 🆕 GÜVENLİK: yalnızca BENİM takımımın gönderdiği davete bot cevabı üretilir.
+  //   (Aksi halde başka oyuncuların davetleri de bu istemcide cevaplanıp
+  //    gelen kutuma bildirim olarak düşüyordu.)
+  try {
+    const _ben = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName) || null;
+    if (!_ben || match.fromTeam !== _ben) return;
+  } catch(e) { return; }
   // 🆕 AYNI DAVETE İKİNCİ KEZ CEVAP YOK — sunucuya yazma başarısız olsa bile
   //   bu oturumda bir daha cevap üretilmez (bildirim tekrarının kök nedeni).
   if (!window._frmResponded) window._frmResponded = {};
@@ -57802,8 +57813,6 @@ function _hmAttachCrestClick(elId, teamObj, matchObj) {
 // 🆕 ═══ SIRADAKİ 5 MAÇ ŞERİDİ (A1 · dikey kart) ═══
 //   Kaynak: renderHomeNextMatch()'in ürettiği candidates[] — lig / turnuva /
 //   milli / hazırlık hepsi kickoff'a göre sıralı. Sadece RAKİP gösterilir.
-const _HM_NX_RENK = { league:'#00b0ff', tournament:'#ffd54f', national:'#7CFFB2', friendly:'#9aa3b2' };
-const _HM_NX_AY   = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
 
 // Lig/turnuva adını kart genişliğine sığacak kadar kısalt
 function _hmNxComp(ad) {
@@ -57872,6 +57881,8 @@ function hmGoFixture() {
 window.hmGoFixture = hmGoFixture;
 
 function _hmRenderNextStrip(list) {
+  const _HM_NX_RENK = { league:'#00b0ff', tournament:'#ffd54f', national:'#7CFFB2', friendly:'#9aa3b2' };
+  const _HM_NX_AY   = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
   const host = document.getElementById('hmNextStrip');
   if (!host) return;
   if (!Array.isArray(list) || list.length === 0) {
@@ -84757,13 +84768,17 @@ function _frmResolveStuck() {
     const all = (typeof frmGetMatches === 'function') ? frmGetMatches() : null;
     if (!Array.isArray(all) || !all.length) return;
     const now = Date.now();
+    const _benim = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName) || null;
+    if (!_benim) return;   // takım bilinmeden hiçbir davete cevap üretme
     let n = 0;
     for (const m of all) {
       if (!m || !m.id) continue;
-      // 1) Cevabı gecikmiş davet → botu şimdi cevaplat
+      // ⛔ SADECE BENİM GÖNDERDİĞİM DAVET — başkasının davetine bot cevabı üretme
+      if (m.fromTeam !== _benim) continue;
+      // 1) Cevabı gecikmiş davet → botu şimdi cevaplat (turda en fazla 1 tane)
       if (m.status === 'pending') {
         const bekleme = now - (Number(m.createdAt) || 0);
-        if (bekleme > 8000) { try { frmBotRespond(m.id); n++; } catch(e) {} }
+        if (bekleme > 8000 && n === 0) { try { frmBotRespond(m.id); n++; } catch(e) {} }
         continue;
       }
       // 2) Kabul edilmiş ama match_state satırı yok → yeniden yaz
@@ -84781,7 +84796,35 @@ function _frmResolveStuck() {
   } catch(e) {}
 }
 
+// 🆕 GELEN KUTUSU TEMİZLİĞİ — aynı hazırlık maçı için birikmiş tekrar mesajları sil.
+//   (Önceki sürümde tüm dünyanın davetlerine cevap üretildiği için bildirim yağmuru oldu.)
+function _frmPruneInbox() {
+  try {
+    if (typeof getInboxMsgs !== 'function') return;
+    const msgs = getInboxMsgs();
+    if (!Array.isArray(msgs) || msgs.length === 0) return;
+    const gorulen = new Set();
+    const temiz = [];
+    let silinen = 0;
+    for (const m of msgs) {
+      const mid = m && m.friendlyData && m.friendlyData.matchId;
+      if (m && m.type === 'friendly_response' && mid) {
+        if (gorulen.has(mid)) { silinen++; continue; }
+        gorulen.add(mid);
+      }
+      temiz.push(m);
+    }
+    if (silinen > 0) {
+      saveInboxMsgs(temiz);
+      if (typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
+      console.info('[hazırlık] tekrar eden bildirim silindi:', silinen);
+    }
+  } catch(e) {}
+}
+window._frmPruneInbox = _frmPruneInbox;
+
 function _frmTickSimulate() {
+  try { _frmPruneInbox(); } catch(e) {}            // 🆕 tekrar bildirimleri temizle
   try { _frmResolveStuck(); } catch(e) {}          // 🆕 önce takılanları çöz
   if (typeof frmEnsurePlayed === 'function') {
     try { frmEnsurePlayed(); } catch(e) {}
