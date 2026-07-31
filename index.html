@@ -27670,7 +27670,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-31-canlimac-242';
+const APP_BUILD = '2026-07-31-hazirlikiptal-243';
 
 (function _cacheBustCheck() {
   try {
@@ -55418,10 +55418,27 @@ async function frmCancel(matchId) {
     try { await _frmDeleteOne(m.id); } catch(e) {}
     const i = _frmMatchesCache.findIndex(x => x && x.id === m.id);
     if (i >= 0) _frmMatchesCache.splice(i, 1);
+    // 🆕 İSTEMCİ ÖNBELLEĞİNDEN DE SİL — ana sayfa maç önizlemesi match_state
+    //    cache'ini ikinci kaynak olarak kullanıyor; yalnızca sunucudan silmek
+    //    yetmiyordu, iptal edilen maç ekranda kalmaya devam ediyordu.
+    try {
+      const key = 'friendly_' + m.id;
+      if (_matchStateCache && _matchStateCache.byKey && _matchStateCache.byKey[key]) {
+        const gun = _matchStateCache.byKey[key].day;
+        delete _matchStateCache.byKey[key];
+        if (_matchStateCache.dayMap && Array.isArray(_matchStateCache.dayMap[gun])) {
+          _matchStateCache.dayMap[gun] = _matchStateCache.dayMap[gun].filter(x => x && x.matchKey !== key);
+        }
+      }
+      if (typeof _liveMatchCache === 'object' && _liveMatchCache) delete _liveMatchCache[key];
+    } catch(e) {}
     console.info('[hazırlık] iptal edildi:', m.id, '·', m.toTeam);
   }
   try { if (typeof frmRender === 'function') frmRender(); } catch(e) {}
+  // 🆕 Ana sayfa önizlemesini zorla tazele (10 sn'lik yükleme kilidini de sıfırla)
+  try { window._frmLastLoad = 0; } catch(e) {}
   try { if (typeof renderHomeNextMatch === 'function') renderHomeNextMatch(); } catch(e) {}
+  try { if (typeof updateHero === 'function') updateHero(); } catch(e) {}
   try { if (typeof showJoinToast === 'function') showJoinToast('🗑 Hazırlık maçı iptal edildi'); } catch(e) {}
   return hedef.length;
 }
