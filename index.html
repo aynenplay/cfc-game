@@ -27944,7 +27944,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-31-fotoayri-256';
+const APP_BUILD = '2026-07-31-hazirlikfix-257';
 
 (function _cacheBustCheck() {
   try {
@@ -56443,7 +56443,19 @@ function frmEnsurePlayed() {
     if (!ms && typeof _liveMatchCache === 'object' && _liveMatchCache) {
       ms = _liveMatchCache[expectedKey] || null;
     }
-    if (!ms) continue;
+    // 🆕 Sunucuda satırı yoksa ve saati 3 saatten fazla geçmişse: OYNANMIŞ say.
+    //   Aksi halde eski maç sonsuza dek "bekleyen maç" kalıp her turda yeniden
+    //   kurulmaya çalışıyor; ana sayfa da onu göstermeye çalışırken bozuluyordu.
+    if (!ms) {
+      const _ko = fm.dateTime ? new Date(fm.dateTime).getTime() : 0;
+      if (_ko && (Date.now() - _ko) > 3 * 3600 * 1000) {
+        fm.played = true;
+        fm.playedAt = _ko;
+        if (typeof fm.hs !== 'number') { fm.hs = 0; fm.as = 0; }
+        dirty = true;
+      }
+      continue;
+    }
     if (ms.status !== 'finished') continue;
     // Bitmiş — friendly_matches'a yansıt.
     //   Not: _matchStateCache.byKey içindeki obje home_score/away_score değil hs/as taşıyor
@@ -56475,6 +56487,18 @@ function frmBotRespond(matchId) {
     const _ben = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName) || null;
     if (!_ben || match.fromTeam !== _ben) return;
   } catch(e) { return; }
+  // 🆕 SAATİ GEÇMİŞ DAVET → bildirim üretmeden kapat
+  try {
+    const _ko2 = match.dateTime ? new Date(match.dateTime).getTime() : 0;
+    if (_ko2 && (Date.now() - _ko2) > 3 * 3600 * 1000) {
+      match.status = 'rejected';
+      match.played = true;
+      match.playedAt = _ko2;
+      all[idx] = match;
+      frmSaveMatches(all);
+      return;
+    }
+  } catch(e) {}
   // 🆕 AYNI DAVETE İKİNCİ KEZ CEVAP YOK — sunucuya yazma başarısız olsa bile
   //   bu oturumda bir daha cevap üretilmez (bildirim tekrarının kök nedeni).
   if (!window._frmResponded) window._frmResponded = {};
@@ -58002,7 +58026,15 @@ function _hmRenderNextStrip(list) {
   } catch(e) {}
 }
 
+// 🆕 GÜVENLİ SARMAL — bu fonksiyonun içindeki herhangi bir hata eskiden
+//   ana sayfanın tamamen boş açılmasına yol açıyordu. Artık hata yutulur,
+//   sayfa çalışmaya devam eder ve sebep konsola yazılır.
 function renderHomeNextMatch() {
+  try { return _renderHomeNextMatchCore(); }
+  catch(e) { console.warn('[hmNextMatch] render hatası:', e); }
+}
+
+function _renderHomeNextMatchCore() {
   const panel   = document.getElementById('hmNextMatch');
   const noMatch = document.getElementById('hmNoMatch');
   if (!panel || !noMatch) return;
@@ -58121,9 +58153,11 @@ function renderHomeNextMatch() {
     _allFm.forEach(fm => {
       if (fm.status !== 'accepted') { _frmDbg.notAccepted++; return; }
       if (fm.fromTeam !== _userTeam.teamName && fm.toTeam !== _userTeam.teamName) { _frmDbg.otherTeam++; return; }
-      if (fm.playedAt) { _frmDbg.played++; return; }
+      if (fm.playedAt || fm.played) { _frmDbg.played++; return; }
       const t = new Date(fm.dateTime).getTime();
       if (isNaN(t)) { _frmDbg.dateInvalid++; return; }
+      // 🆕 Saati 3 saatten fazla geçmiş maç "yaklaşan maç" olamaz
+      if (Date.now() - t > 3 * 3600 * 1000) { _frmDbg.played++; return; }
       candidates.push({ source: 'friendly', friendly: fm, time: t });
       _frmDbg.added++;
     });
@@ -58153,6 +58187,7 @@ function renderHomeNextMatch() {
         if (ms.status === 'finished') continue;
         const t = ms.matchDateTime ? new Date(ms.matchDateTime).getTime() : NaN;
         if (isNaN(t)) continue;
+        if (Date.now() - t > 3 * 3600 * 1000) continue;   // 🆕 saati geçmiş maç aday olamaz
         // Duplicate kontrolü
         const _dt = new Date(t);
         const _hm = String(_dt.getHours()).padStart(2,'0') + String(_dt.getMinutes()).padStart(2,'0');
@@ -58233,23 +58268,23 @@ function renderHomeNextMatch() {
   // 🆕 SIRADAKİ 5 MAÇ ŞERİDİ — ana maçtan sonraki adaylar (gerçek fikstür)
   try { _hmRenderNextStrip(candidates.slice(1, 6)); } catch(e) { console.warn('[hmNextStrip]', e); }
 
-  if (next.source === 'friendly') {
-    _renderHmFriendlyMatch(next.friendly);
-    return;
-  }
-
-  if (next.source === 'tournament') {
-    _renderHmTournamentMatch(next.tournament);
-    return;
-  }
-
-  if (next.source === 'national') {
-    _renderHmNationalMatch(next.national);
-    return;
+  // 🆕 HATAYA DAYANIKLI SEÇİM — bir aday render sırasında patlarsa ana sayfa
+  //   komple boş kalıyordu. Artık hata veren aday atlanıp sıradakine geçilir.
+  for (const _c of candidates) {
+    if (_c.source === 'league') break;               // lig akışı aşağıda
+    try {
+      if (_c.source === 'friendly')   { _renderHmFriendlyMatch(_c.friendly); return; }
+      if (_c.source === 'tournament') { _renderHmTournamentMatch(_c.tournament); return; }
+      if (_c.source === 'national')   { _renderHmNationalMatch(_c.national); return; }
+    } catch(e) {
+      console.warn('[hmNextMatch] aday render hatası, atlanıyor:', _c.source, e);
+      continue;
+    }
   }
 
   // Lig maçı — mevcut akış
-  const upcoming = next.league;
+  const upcoming = (next && next.league)
+                || ((candidates.find(c => c && c.source === 'league') || {}).league);
   if (!upcoming) {
     panel.style.display = 'none';
     noMatch.style.display = 'block';
@@ -84885,10 +84920,17 @@ function _frmResolveStuck() {
     const _benim = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName) || null;
     if (!_benim) return;   // takım bilinmeden hiçbir davete cevap üretme
     let n = 0;
+    const kapatilan = [];
     for (const m of all) {
       if (!m || !m.id) continue;
       // ⛔ SADECE BENİM GÖNDERDİĞİM DAVET — başkasının davetine bot cevabı üretme
       if (m.fromTeam !== _benim) continue;
+      // ⛔ SAATİ GEÇMİŞ DAVET — ne cevaplanır ne yeniden kurulur, kapatılır.
+      const _ko = m.dateTime ? new Date(m.dateTime).getTime() : 0;
+      if (_ko && (now - _ko) > 3 * 3600 * 1000) {
+        if (!m.played) { m.played = true; m.playedAt = _ko; kapatilan.push(m); }
+        continue;
+      }
       // 1) Cevabı gecikmiş davet → botu şimdi cevaplat (turda en fazla 1 tane)
       if (m.status === 'pending') {
         const bekleme = now - (Number(m.createdAt) || 0);
@@ -84905,6 +84947,10 @@ function _frmResolveStuck() {
           try { _frmUpsertMatchState(m); n++; } catch(e) {}
         }
       }
+    }
+    if (kapatilan.length) {
+      try { frmSaveMatches(_frmMatchesCache.slice()); } catch(e) {}
+      console.info('[hazırlık] süresi geçmiş maç kapatıldı:', kapatilan.length);
     }
     if (n) console.info('[hazırlık] onarılan kayıt:', n);
   } catch(e) {}
