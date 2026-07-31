@@ -2931,6 +2931,12 @@ select.form-input option{background:var(--bg)}
   background:repeating-linear-gradient(135deg,rgba(255,255,255,.05) 0 4px,transparent 4px 9px)}
 #msubBenchList .bench-card.bench-disabled .bench-card-name{color:#9aa3b2}
 
+
+/* 🆕 Maç ekranında kartlar sayfayı kaydırmayı ENGELLEMESİN.
+   Sürükleme 200 ms basılı tutunca başlar; normal kaydırma serbest. */
+#msubPitchPlayers .fpn{touch-action:pan-y}
+#msubBenchList .bench-card{touch-action:pan-y}
+#eng-tactic{touch-action:pan-y}
 /* ── Formasyon sekmesi ── */
 #tacSub-formation .fmap-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
 #tacSub-formation .fmap-card{border-radius:11px;border:1px solid var(--border,#20242c);padding:7px 6px 6px;
@@ -23251,7 +23257,7 @@ body.drawer-open{overflow:hidden}
       <div id="tacSub-lineup">
         <div class="tac-section">
           <div class="tac-hdr">🔄 Oyuncu Değişikliği <span class="tac-subs-info">Hak: <span id="tacSubsLeft">5</span>/5</span></div><div id="tacSubsAutoInfo"></div>
-          <div class="tac-subs-help" id="tacSubsHelp">Sahadaki bir oyuncuya tıkla → yedeklerden birini seç. Veya yedeği sahaya sürükle.</div>
+          <div class="tac-subs-help" id="tacSubsHelp">Sahadaki oyuncuya dokun → yedeklerden birini seç. Sürüklemek için karta <b>basılı tut</b>. Sayfayı normal kaydırabilirsin.</div>
           <div class="form-main-area">
             <div class="form-pitch-wrap">
               <div class="fpitch" id="msubPitch">
@@ -27496,7 +27502,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-31-hazirlikiptal-240';
+const APP_BUILD = '2026-07-31-kaydirma-241';
 
 (function _cacheBustCheck() {
   try {
@@ -35855,7 +35861,11 @@ function msubMakeDraggable(node, idx) {
   function onStart(e) {
     // 🆕 Yetki kontrolü: yalnızca kendi takımının kaptan/yardımcısı sürükleyebilir
     if (!_msCanControlTactics()) { _msDenyTactic(); return; }
-    e.preventDefault();
+    // 🆕 DOKUNMATİK: hemen preventDefault ETME — yoksa sayfa hiç kaydırılamıyor.
+    //    Parmak 200 ms sabit kalırsa sürükleme başlar; erken hareket ederse
+    //    tarayıcı normal kaydırmayı yapar.
+    const _isTouch = !!e.touches;
+    if (!_isTouch) e.preventDefault();
     const touch = e.touches ? e.touches[0] : e;
     startX = touch.clientX;
     startY = touch.clientY;
@@ -35863,12 +35873,34 @@ function msubMakeDraggable(node, idx) {
     startTop  = parseFloat(node.style.top);
     originalLeft = startLeft;
     originalTop  = startTop;
-    dragging = true;
     totalMove = 0;
     node._wasDragging = false;
-    node.style.transition = 'none';
-    node.style.zIndex = '20';
-    node.classList.add('is-dragging');
+
+    const _basla = () => {
+      dragging = true;
+      node.style.transition = 'none';
+      node.style.zIndex = '20';
+      node.classList.add('is-dragging');
+      try { if (navigator.vibrate) navigator.vibrate(12); } catch(_) {}
+    };
+
+    if (_isTouch) {
+      // Basılı tutma bekçisi
+      node._holdT = setTimeout(() => { node._holdT = null; _basla(); }, 200);
+      const _iptal = (ev) => {
+        const t = ev.touches ? ev.touches[0] : ev;
+        if (!t) return;
+        if (Math.abs(t.clientX - startX) + Math.abs(t.clientY - startY) > 10) {
+          if (node._holdT) { clearTimeout(node._holdT); node._holdT = null; }
+          document.removeEventListener('touchmove', _iptal);
+        }
+      };
+      document.addEventListener('touchmove', _iptal, { passive: true });
+      node._holdCancel = _iptal;
+    } else {
+      _basla();
+    }
+
     // 🆕 Scoped listener — sadece drag boyunca doc'a takılır, sonunda silinir
     document.addEventListener('mousemove',  onMove);
     document.addEventListener('touchmove',  onMove, { passive: false });
@@ -35900,6 +35932,12 @@ function msubMakeDraggable(node, idx) {
     }
   }
   function onEnd(e) {
+    // 🆕 Basılı-tut bekçisini temizle
+    if (node._holdT) { clearTimeout(node._holdT); node._holdT = null; }
+    if (node._holdCancel) { document.removeEventListener('touchmove', node._holdCancel); node._holdCancel = null; }
+    if (!dragging) { document.removeEventListener('mousemove', onMove); document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('mouseup', onEnd); document.removeEventListener('touchend', onEnd);
+      document.removeEventListener('touchcancel', onEnd); return; }
     if (!dragging) return;
     dragging = false;
     // 🆕 Scoped listener cleanup
@@ -35989,9 +36027,24 @@ function msubMakeBenchTouchDraggable(node, idx) {
     startX = t.clientX;
     startY = t.clientY;
     totalMove = 0;
+    node._wasDragging = false;
+    // 🆕 200 ms basılı tut → sürükleme; erken hareket → sayfa normal kayar
+    node._holdT = setTimeout(() => { node._holdT = null; _benchBasla(); }, 200);
+    const _iptal = (ev) => {
+      const tt = ev.touches ? ev.touches[0] : ev;
+      if (!tt) return;
+      if (Math.abs(tt.clientX - startX) + Math.abs(tt.clientY - startY) > 10) {
+        if (node._holdT) { clearTimeout(node._holdT); node._holdT = null; }
+        document.removeEventListener('touchmove', _iptal);
+      }
+    };
+    document.addEventListener('touchmove', _iptal, { passive: true });
+    node._holdCancel = _iptal;
+
+    function _benchBasla() {
     dragging = true;
     _msubDragBenchIdx = idx;
-    node._wasDragging = false;
+    try { if (navigator.vibrate) navigator.vibrate(12); } catch(_) {}
     // Ghost element (sürüklenen kopyası)
     ghost = node.cloneNode(true);
     ghost.classList.add('msub-drag-ghost');   // 🆕 #msubBenchList kapsamı dışında da aynı görünsün
@@ -36010,10 +36063,10 @@ function msubMakeBenchTouchDraggable(node, idx) {
     document.querySelectorAll('#msubPitchPlayers .fpn').forEach(el => {
       el.classList.add('swap-target');
     });
+    }
     document.addEventListener('touchmove',   onMove, { passive: false });
     document.addEventListener('touchend',    onEnd);
     document.addEventListener('touchcancel', onEnd);
-    e.preventDefault();
   }
 
   function onMove(e) {
@@ -36035,6 +36088,11 @@ function msubMakeBenchTouchDraggable(node, idx) {
   }
 
   function onEnd(e) {
+    // 🆕 Basılı-tut bekçisini temizle
+    if (node._holdT) { clearTimeout(node._holdT); node._holdT = null; }
+    if (node._holdCancel) { document.removeEventListener('touchmove', node._holdCancel); node._holdCancel = null; }
+    if (!dragging) { document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd); document.removeEventListener('touchcancel', onEnd); return; }
     if (!dragging) return;
     dragging = false;
     document.removeEventListener('touchmove',   onMove);
