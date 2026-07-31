@@ -2843,6 +2843,58 @@ select.form-input option{background:var(--bg)}
 #msubBenchList .bench-card.bench-selected{border-color:var(--gold,#ffd600);box-shadow:0 0 0 2px rgba(255,214,0,.3)}
 #msubBenchList .bench-card.bench-disabled{opacity:.42;filter:grayscale(.7)}
 
+
+/* ── 🆕 SAHA: onaylanan tasarım (çizgiler, oran, boy) ── */
+#eng-tactic .form-main-area{min-height:0;align-items:stretch}
+#eng-tactic .form-pitch-wrap{flex:1;min-width:0}
+#eng-tactic #msubPitch{position:relative;width:100%;height:auto;aspect-ratio:.70;min-height:0;
+  border-radius:14px;overflow:hidden;border:1px solid #232830;
+  background:linear-gradient(0deg,color-mix(in srgb,var(--kit) 14%,transparent),transparent 55%),
+             repeating-linear-gradient(180deg,#0c1611 0 26px,#0a130f 26px 52px)}
+/* eski çizgi katmanları kapatıldı */
+#eng-tactic #msubPitch .pitch-lines-svg,
+#eng-tactic #msubPitch .fpitch-center-circle,
+#eng-tactic #msubPitch .fpitch-center-dot{display:none !important}
+/* yeni saha çizgileri */
+#eng-tactic #msubPitch:before{content:'';position:absolute;inset:7px;border:1px solid rgba(255,255,255,.13);
+  border-radius:6px;pointer-events:none;z-index:1;
+  background:
+    linear-gradient(90deg,transparent calc(50% - .5px),rgba(255,255,255,.14) calc(50% - .5px),
+      rgba(255,255,255,.14) calc(50% + .5px),transparent calc(50% + .5px)) center/1px 0 no-repeat,
+    linear-gradient(0deg,transparent calc(50% - .5px),rgba(255,255,255,.14) calc(50% - .5px),
+      rgba(255,255,255,.14) calc(50% + .5px),transparent calc(50% + .5px))}
+#eng-tactic #msubPitch:after{content:'';position:absolute;left:50%;top:50%;width:54px;height:54px;
+  margin:-27px 0 0 -27px;border:1px solid rgba(255,255,255,.13);border-radius:50%;pointer-events:none;z-index:1}
+/* ceza + kale sahaları */
+#msubPitchPlayers:before,#msubPitchPlayers:after{content:'';position:absolute;left:50%;
+  transform:translateX(-50%);width:44%;height:11%;border:1px solid rgba(255,255,255,.10);
+  pointer-events:none;z-index:0}
+#msubPitchPlayers:before{top:7px;border-top:none;border-radius:0 0 4px 4px}
+#msubPitchPlayers:after{bottom:7px;border-bottom:none;border-radius:4px 4px 0 0}
+#msubPitchPlayers{position:absolute;inset:0}
+
+/* ── 🆕 YEDEK KARTI: kompakt onaylanan biçim ── */
+#msubBenchList{max-height:none}
+#msubBenchList .bench-card{width:100%;min-height:0;padding:0;flex-shrink:0;
+  box-shadow:0 2px 7px rgba(0,0,0,.45);transition:transform .12s,border-color .12s}
+#msubBenchList .bench-card:hover{transform:none;filter:none}
+#msubBenchList .bench-card-avatar{display:none !important}
+#msubBenchList .bench-card-top{padding:4px 5px 0;line-height:1;gap:4px;justify-content:flex-start}
+#msubBenchList .bench-card-ovr{order:2;margin-left:auto;font-family:'Barlow Condensed',sans-serif;
+  font-weight:900;font-size:11px;color:var(--accent2,#00b0ff)}
+#msubBenchList .bench-card-flag{order:1;font-size:10px}
+#msubBenchList .bench-card-name{font-size:9px;font-weight:700;color:#dde2ea;text-align:left;
+  padding:1px 5px 2px;line-height:1.15}
+#msubBenchList .bench-card-bottom{border-top:none;padding:0 5px 4px;gap:4px;align-items:center}
+#msubBenchList .bench-card-pos{flex:0 0 auto;font-family:'Barlow Condensed',sans-serif;font-weight:900;
+  font-size:8px;padding:1px 4px;border-radius:4px;letter-spacing:.4px}
+#msubBenchList .bench-card-num{flex:0 0 auto;margin-left:auto;border-left:none;padding:0;
+  font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:10px;color:var(--text3)}
+#msubBenchList .bench-card-status{top:-8px;left:-6px;font-size:13px;
+  filter:drop-shadow(0 0 1.5px #000) drop-shadow(0 0 3px rgba(0,0,0,.95))}
+#msubBenchList .bench-card.bench-selected{border-color:var(--gold,#ffd600);
+  box-shadow:0 0 0 2px rgba(255,214,0,.3),0 2px 7px rgba(0,0,0,.45)}
+
 /* ── Formasyon sekmesi ── */
 #tacSub-formation .fmap-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
 #tacSub-formation .fmap-card{border-radius:11px;border:1px solid var(--border,#20242c);padding:7px 6px 6px;
@@ -27355,7 +27407,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-31-kaptantaktik-233';
+const APP_BUILD = '2026-07-31-taktikgorunum-235';
 
 (function _cacheBustCheck() {
   try {
@@ -35452,44 +35504,79 @@ function renderMatchSubPitch() {
 
   // 3. Hedefi temizle, kaynaktaki .fpn'leri DEEP CLONE ile kopyala
   dst.innerHTML = '';
-  const sourceNodes = src.querySelectorAll('.fpn');
+  // 🆕 Boş slot kartlarını (.fpn-empty) dışarıda bırak — indeks kaydırıyorlardı
+  const sourceNodes = Array.from(src.querySelectorAll('.fpn')).filter(n => !n.classList.contains('fpn-empty'));
   if (!sourceNodes.length) {
     dst.innerHTML = '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.4);font-size:11px;text-align:center;padding:20px">11 oyuncu yok. Önce takım sayfasında diziliş yap.</div>';
     return;
   }
 
+  // 🆕 KART → MAÇ KADROSU EŞLEŞTİRMESİ
+  //    Takım sayfası kartları FORMASYON SLOT sırasında, maç kadrosu ise sunucu
+  //    sırasında geliyor. Eskiden döngü sayacı (i) doğrudan myTeam.players[i]
+  //    kabul ediliyordu → sürüklenen oyuncu BAŞKA bir slota işleniyordu.
+  //    Artık forma numarası (yoksa isim) ile gerçek indeks bulunuyor.
+  const _sideNow = (typeof _whichSideIsUser === 'function') ? _whichSideIsUser() : null;
+  const _msPlayers = (_sideNow && _sideNow.myTeam && Array.isArray(_sideNow.myTeam.players))
+    ? _sideNow.myTeam.players : [];
+  const _usedIdx = new Set();
+  const _resolveIdx = (srcNode, fallback) => {
+    try {
+      const numTxt = (srcNode.querySelector('.fpn-num2') || {}).textContent || '';
+      const num = parseInt(String(numTxt).replace(/[^\d]/g, ''), 10);
+      const nmTxt = ((srcNode.querySelector('.fpn-name') || {}).textContent || '').trim().toLowerCase();
+      if (isFinite(num)) {
+        for (let k = 0; k < _msPlayers.length; k++) {
+          if (_usedIdx.has(k)) continue;
+          const p = _msPlayers[k];
+          if (p && Number(p.num) === num) { _usedIdx.add(k); return k; }
+        }
+      }
+      if (nmTxt) {
+        const ilk = nmTxt.split(/\s+/)[0];
+        for (let k = 0; k < _msPlayers.length; k++) {
+          if (_usedIdx.has(k)) continue;
+          const p = _msPlayers[k];
+          const pn = String((p && p.name) || '').trim().toLowerCase();
+          if (pn && (pn === nmTxt || pn.split(/\s+/)[0] === ilk)) { _usedIdx.add(k); return k; }
+        }
+      }
+    } catch(e) {}
+    _usedIdx.add(fallback);
+    return fallback;
+  };
+
   sourceNodes.forEach((srcNode, i) => {
     const node = srcNode.cloneNode(true); // deep clone — innerHTML + attributes
-    node.id = 'msubFpn_' + i;
+    const mi = _resolveIdx(srcNode, i);            // 🆕 maç kadrosundaki gerçek indeks
+    node.id = 'msubFpn_' + mi;
+    node.dataset.msIdx = mi;
     node.removeAttribute('data-idx');
 
     // Selected highlight (yeniden uygula — clone selected class'ı taşır ama kontrol)
     node.classList.remove('swap-source', 'swap-target', 'drop-hover', 'is-dragging');
-    if (MS._tacSelectedPitchIdx === i) node.classList.add('swap-source');
+    if (MS._tacSelectedPitchIdx === mi) node.classList.add('swap-source');
 
     // 🆕 Maç ekranı handler'ları: takım sayfası listener'ları clone'a aktarılmaz,
     // bizim bağladıklarımız aktif olur
     node.addEventListener('click', () => {
       if (node._wasDragging) { node._wasDragging = false; return; }
-      msubPitchClick(i);
+      msubPitchClick(mi);
     });
     node.addEventListener('dragover',  e => { e.preventDefault(); node.classList.add('drop-hover'); });
     node.addEventListener('dragleave', e => node.classList.remove('drop-hover'));
-    node.addEventListener('drop',      e => { e.preventDefault(); node.classList.remove('drop-hover'); doMsubBenchToPitchSwap(i); });
+    node.addEventListener('drop',      e => { e.preventDefault(); node.classList.remove('drop-hover'); doMsubBenchToPitchSwap(mi); });
 
     // 🆕 CANLI DURUM: kırmızı kart / sakatlık / değişim işaretleri
     try {
-      const _team = (typeof _whichSideIsUser === 'function') ? _whichSideIsUser() : null;
-      const _arr = (_team && Array.isArray(_team.players)) ? _team.players
-                 : ((typeof curHome !== 'undefined' && curHome && Array.isArray(curHome.players)) ? curHome.players : []);
-      const _p = _arr[i];
+      const _p = _msPlayers[mi];
       const _out = _msLiveOut(_p);
       if (_out === 'red') { node.classList.add('is-red');  node.insertAdjacentHTML('beforeend', '<span class="mlp-mark red">🟥</span>'); }
       if (_out === 'inj') { node.classList.add('is-inj');  node.insertAdjacentHTML('beforeend', '<span class="mlp-mark">🚑</span>'); }
     } catch(e) {}
 
     // Pitch-to-pitch sürükle-bırak
-    msubMakeDraggable(node, i);
+    msubMakeDraggable(node, mi);
 
     dst.appendChild(node);
   });
@@ -35644,18 +35731,24 @@ function _msubSyncStateAfterSwap(pitchIdx, benchPlayer, playerOut) {
 
 
 // 🆕 Yakındaki swap hedefini bul (saha içi mesafe, % cinsinden)
+// 🆕 Hedef kartı EKRANDAKİ gerçek konumlardan bul.
+//    Eski sürüm sunucudaki myTeam.players[i].x/y değerlerine bakıyordu; bunlar
+//    sahadaki kartların gerçek yerleriyle örtüşmediği için yanlış slota bırakıyor
+//    ya da hiç hedef bulamıyordu. Ayrıca ilk eşleşeni değil, EN YAKIN olanı seçer.
 function _msubFindSwapTarget(srcIdx, x, y, threshold) {
-  const myTeam = _whichSideIsUser().myTeam;
-  if (!myTeam || !myTeam.players) return -1;
-  for (let i = 0; i < myTeam.players.length; i++) {
-    if (i === srcIdx) continue;
-    const p = myTeam.players[i];
-    if (!p) continue;
-    const px = p.x || 50, py = p.y || 50;
-    const dx = px - x, dy = py - y;
-    if (Math.sqrt(dx*dx + dy*dy) <= threshold) return i;
-  }
-  return -1;
+  let best = -1, bestD = (typeof threshold === 'number' ? threshold : 12);
+  try {
+    const nodes = document.querySelectorAll('#msubPitchPlayers .fpn');
+    nodes.forEach(n => {
+      const i = parseInt(String(n.id).replace('msubFpn_', ''), 10);
+      if (!isFinite(i) || i === srcIdx) return;
+      const nx = parseFloat(n.style.left), ny = parseFloat(n.style.top);
+      if (!isFinite(nx) || !isFinite(ny)) return;
+      const d = Math.sqrt((nx - x) * (nx - x) + (ny - y) * (ny - y));
+      if (d <= bestD) { bestD = d; best = i; }
+    });
+  } catch(e) {}
+  return best;
 }
 
 // 🆕 Pitch-to-pitch sürükle-bırak — takım dizilişindeki makeDraggable mantığı
@@ -35871,7 +35964,7 @@ function msubMakeBenchTouchDraggable(node, idx) {
     }
     const target = _findPitchTargetAt(lastTouch.clientX, lastTouch.clientY);
     if (target && target.id && target.id.startsWith('msubFpn_')) {
-      const pitchIdx = parseInt(target.id.slice(9), 10);
+      const pitchIdx = parseInt(String(target.id).replace('msubFpn_', ''), 10);   // 🆕 slice(9) → ilk rakamı yiyordu
       if (!isNaN(pitchIdx)) {
         // Sub uygula!
         if (typeof _doMsubSwap === 'function') {
