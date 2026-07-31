@@ -3089,6 +3089,17 @@ select.form-input option{background:var(--bg)}
 .viewer-eye{font-size:13px;background:none !important;filter:drop-shadow(0 1px 2px rgba(0,0,0,.9))}
 .viewer-count{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:13px;color:#fff}
 
+
+/* 🆕 LIVE teşhis kutusu (olay yokken) */
+.ms-diag{grid-column:1/-1;margin:6px 0;padding:14px;border-radius:12px;text-align:center;
+  border:1px dashed rgba(255,255,255,.14);background:rgba(255,255,255,.03);
+  display:flex;flex-direction:column;gap:5px}
+.ms-diag > b{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:13.5px;letter-spacing:.5px;
+  color:var(--text2)}
+.ms-diag span{font-size:10.5px;color:var(--text3)}
+.ms-diag span b{color:#dfe6f2;font-weight:800}
+.ms-diag .tip{margin-top:3px;font-size:10px;color:#ffb74d}
+
 /* ── OLAY BANDI: emojiler tamamen şeffaf, kutu yok ── */
 .ms-event-strip{background:none !important;border:none !important;box-shadow:none !important;
   padding:6px 10px !important;gap:10px !important}
@@ -27714,7 +27725,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-31-skorbord-244';
+const APP_BUILD = '2026-07-31-matchkeyfix-246';
 
 (function _cacheBustCheck() {
   try {
@@ -38117,6 +38128,31 @@ async function startMatch(){
         window._matchScreenLiveTimer = null;
         return;
       }
+      // 🆕 MATCH_KEY ÇÖZÜMLEME — ekran match_key'siz açıldıysa (ana sayfa önizleme,
+      //   hazırlık maçı, fikstür tıklaması) sunucu satırı hiç bulunamıyordu:
+      //   tick tetiklenmiyor + tam satır (events/stats/lineup) çekilmiyordu.
+      //   Takım isimlerinden match_state satırını bul ve MS.match_key'e yaz.
+      if (!MS.match_key && !MS._mkResolving && window.sb && homeName && awayName) {
+        MS._mkResolving = true;
+        try {
+          const { data: _mkRows } = await window.sb.from('match_state')
+            .select('match_key,status,kickoff_at')
+            .eq('home_team', homeName)
+            .eq('away_team', awayName)
+            .order('kickoff_at', { ascending: false })
+            .limit(6);
+          if (_mkRows && _mkRows.length) {
+            const _pick = _mkRows.find(r => r.status === 'running')
+                       || _mkRows.find(r => r.status === 'scheduled')
+                       || _mkRows[0];
+            if (_pick && _pick.match_key) {
+              MS.match_key = _pick.match_key;
+              console.log('[match-screen] match_key çözüldü:', _pick.match_key, _pick.status);
+            }
+          }
+        } catch(e) { console.warn('[match-screen match_key çözümleme] hata:', e && e.message); }
+        MS._mkResolving = false;
+      }
       // 🆕 Edge Function'ı kendi tetikle — cron beklemeden anında tick
       // (Maç bitince Edge Function action=tick_match çağrılırsa "skipped" döner, zararsız)
       if (MS.match_key && !MS.finished && typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_KEY !== 'undefined') {
@@ -38246,6 +38282,15 @@ async function startMatch(){
         try {
           const evList = document.getElementById('evList');
           const allEvents = Array.isArray(liveRow.events) ? liveRow.events : [];
+          // 🆕 EKRANDA TEŞHİS — liste boşsa sebebini göster (telefonda konsol yok)
+          try {
+            window._msDiag = {
+              key: liveRow.match_key, durum: liveRow.status, sunucuDk: liveRow.sim_minute || 0,
+        tamSatir: (liveRow.events !== undefined) ? 'evet' : 'HAYIR (özet satır)',
+              olay: allEvents.length, skor: (liveRow.home_score ?? 0) + '-' + (liveRow.away_score ?? 0),
+              son: new Date().toLocaleTimeString('tr')
+            };
+          } catch(e) {}
           // 🆕 Frontend'in görmesine izin verilen dakika — smoothing ve server'ın
           //   büyüğü. Smoothing henüz başlamamışsa (MS._displayMin undefined) server
           //   kazansın. Server geride kalmışsa (poll gecikmesi) smoothing kazansın.
@@ -38408,6 +38453,28 @@ async function startMatch(){
               }
             }
           }
+          // 🆕 Hiç olay basılmadıysa nedenini EKRANDA göster
+          try {
+            if (evList && !evList.querySelector('.ev-item')) {
+              const d = window._msDiag || {};
+              const ipucu = (!MS.match_key)
+                ? 'Sunucu maç kaydı bulunamadı (match_key yok) — takım isimleriyle aranıyor.'
+                : (d.tamSatir === 'HAYIR (özet satır)')
+                ? 'Özet satır okunuyor, olay verisi gelmiyor — match_key çözülünce düzelir.'
+                : (d.durum !== 'running' && d.durum !== 'finished')
+                ? 'Maç sunucuda henüz başlamamış görünüyor.'
+                : (((d.olay || 0) === 0)
+                    ? 'Sunucu maçı oynatıyor ama henüz olay üretmemiş.'
+                    : 'Olaylar sunucuda var ama ekrandaki dakika geride — birazdan akmaya başlar.');
+              evList.innerHTML =
+                '<div class="ms-diag"><b>⏳ OLAY AKIŞI BEKLENİYOR</b>' +
+                '<span>Durum: <b>' + (d.durum || '—') + '</b> · Sunucu dakikası: <b>' + (d.sunucuDk || 0) + "'</b></span>" +
+                '<span>Sunucudaki olay: <b>' + (d.olay || 0) + '</b> · Skor: <b>' + (d.skor || '0-0') + '</b></span>' +
+                '<span>Ekranda görünen dakika: <b>' + visibleMin + "'</b> · Son güncelleme: " + (d.son || '—') + '</span>' +
+                '<span>Maç anahtarı: <b>' + (MS.match_key || 'YOK') + '</b> · Tam satır: <b>' + (d.tamSatir || '—') + '</b></span>' +
+                '<span class="tip">' + ipucu + '</span></div>';
+            }
+          } catch(e) {}
           // 🆕 Gol Timeline render - 0-90 dakika çubuğunda gol işaretleri
           try {
             const gtlGoals = document.getElementById('goalTimelineGoals');
