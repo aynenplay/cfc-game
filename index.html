@@ -3050,6 +3050,45 @@ select.form-input option{background:var(--bg)}
 .poss-track{background:rgba(0,0,0,.5) !important;height:4px !important;border-radius:2px}
 .poss-h{background:var(--kitH) !important} .poss-a{background:var(--kitA) !important}
 
+
+/* ── 🆕 Skorbord: stadyum arka planı EKRANIN EN ÜSTÜNDEN başlasın ── */
+#match-screen{position:fixed}
+#match-screen:before{content:'';position:absolute;left:0;right:0;top:0;height:340px;z-index:0;pointer-events:none;
+  background-image:var(--stadImg);background-size:cover;background-position:center 62%}
+#match-screen:after{content:'';position:absolute;left:0;right:0;top:0;height:340px;z-index:1;pointer-events:none;
+  background:
+    linear-gradient(100deg,rgba(198,40,40,.34),transparent 52%),
+    linear-gradient(260deg,rgba(21,101,192,.34),transparent 52%),
+    linear-gradient(180deg,rgba(4,6,10,.58) 0%,rgba(4,6,10,.46) 34%,rgba(6,7,10,.88) 82%,#06070a 100%)}
+#match-screen > *{position:relative;z-index:2}
+/* üst bar artık fotoğrafın üstünde */
+.ms-topbar{background:none !important;border-bottom:none !important}
+.ms-title{text-shadow:0 2px 8px rgba(0,0,0,.9)}
+.ms-back,.ms-close-x{background:rgba(0,0,0,.35) !important;border:1px solid rgba(255,255,255,.14) !important;
+  color:#dfe4ec !important;backdrop-filter:blur(6px)}
+/* mh-inner kendi arka planını bıraksın (artık ekranın kendisinde) */
+.mh-inner:before,.mh-inner:after{display:none !important}
+.mh-inner{background:none !important;border-bottom:none !important}
+
+/* üst bilgi şeridi: hava (sol) · stadyum + seyirci (sağ) */
+.mh-info{display:flex;align-items:center;gap:8px;padding:2px 12px 4px;font-size:10px;color:#b9c3d4}
+.mh-info .mh-i-l{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  text-shadow:0 1px 4px rgba(0,0,0,.95);filter:drop-shadow(0 1px 2px rgba(0,0,0,.9))}
+.mh-info .mh-i-r{display:flex;align-items:center;gap:8px;flex-shrink:0;
+  text-shadow:0 1px 4px rgba(0,0,0,.95)}
+.mh-info .mh-i-r b{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:11px;color:#dfe6f2}
+#msVenueTxt{font-size:10px !important;color:#b9c3d4 !important;text-align:right !important}
+
+/* izleyici sayacı: görünür ama emoji arka plansız */
+.mh-top{align-items:center}
+.mh-vw{min-width:64px;display:flex;justify-content:flex-end}
+.viewer-badge{display:none;align-items:center;gap:4px;background:none !important;border:none !important;
+  box-shadow:none !important;padding:0 !important;color:#dfe6f2 !important;
+  text-shadow:0 1px 4px rgba(0,0,0,.95)}
+.viewer-badge.is-visible{display:inline-flex !important}
+.viewer-eye{font-size:13px;background:none !important;filter:drop-shadow(0 1px 2px rgba(0,0,0,.9))}
+.viewer-count{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:13px;color:#fff}
+
 /* ── OLAY BANDI: emojiler tamamen şeffaf, kutu yok ── */
 .ms-event-strip{background:none !important;border:none !important;box-shadow:none !important;
   padding:6px 10px !important;gap:10px !important}
@@ -23362,10 +23401,15 @@ body.drawer-open{overflow:hidden}
       </div>
     </div>
 
+    <!-- 🆕 Üst bilgi şeridi: solda hava durumu, sağda stadyum + seyirci -->
+    <div class="mh-info">
+      <span class="mh-i-l" id="msWeatherTxt">—</span>
+      <span class="mh-i-r"><span id="msVenueTxt">📍 Stadyum</span><b id="msAttendTxt"></b></span>
+    </div>
     <div class="mh-top">
       <div class="mh-league" id="msLeagueRow">Türkiye Süper Ligi · Hafta 34</div>
       <div><div class="match-clock" id="matchClock">PRE</div></div>
-      <div style="font-size:11px;color:var(--text2);text-align:right" id="msVenueTxt">📍 Ankara Stad</div>
+      <div class="mh-vw"></div>
     </div>
     <div class="scoreboard">
       <div class="team-block">
@@ -27670,7 +27714,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-31-hazirlikiptal-243';
+const APP_BUILD = '2026-07-31-skorbord-244';
 
 (function _cacheBustCheck() {
   try {
@@ -34983,6 +35027,8 @@ function openMatchScreenV2(opts) {
   const _lgBadge = document.getElementById('msLeagueBadge');
   if (_lgBadge) _lgBadge.textContent = league.split('·')[0].trim();
   document.getElementById('msVenueTxt').textContent = `📍 ${venue}`;
+  // 🆕 Üst şerit: hava durumu + seyirci sayısı
+  try { _msFillTopInfo(curHome, curAway, league); } catch(e) {}
 
   // Reset clock & status
   document.getElementById('matchClock').textContent = 'PRE';
@@ -35727,6 +35773,39 @@ function _msRenderSpectatorLineups() {
 // 🆕 Kaptanın takımının forma rengini taktik ekranına CSS değişkeni olarak taşı
 //    (yalnızca görünüm — hiçbir veri veya sürükle-bırak mantığı etkilenmez)
 // 🆕 Skorbord/olay akışı için iki takımın forma renkleri
+// 🆕 Skorbord üst şeridi: solda hava durumu, sağda seyirci sayısı
+function _msFillTopInfo(home, away, league) {
+  try {
+    const wEl = document.getElementById('msWeatherTxt');
+    const aEl = document.getElementById('msAttendTxt');
+    // Hava
+    if (wEl) {
+      let txt = '';
+      try {
+        if (typeof pickWeatherForDate === 'function') {
+          const cc = (home && (home.countryCode || home.cc)) || 'TR';
+          const seed = ((home && home.name) || '') + ((away && away.name) || '')
+                     + ((typeof getSeasonInfo === 'function') ? getSeasonInfo().dayInSeason : '');
+          const w = pickWeatherForDate(seed, new Date(), cc);
+          if (w && w.label) txt = w.label;      // örn. "🌧️ Yağmurlu"
+        }
+      } catch(e) {}
+      wEl.textContent = txt || '🌤️ Açık';
+    }
+    // Seyirci
+    if (aEl) {
+      let n = 0;
+      try {
+        if (typeof calcStadiumAtmosphere === 'function' && home) {
+          const at = calcStadiumAtmosphere(home, league || '', false);
+          n = Math.round((at && at.attendance) || 0);
+        }
+      } catch(e) {}
+      aEl.textContent = n > 0 ? ('👥 ' + n.toLocaleString('tr')) : '';
+    }
+  } catch(e) {}
+}
+
 function _msApplyKitColors() {
   try {
     const host = document.getElementById('match-screen');
