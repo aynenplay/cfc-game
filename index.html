@@ -27952,7 +27952,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-01-hafiflet-259';
+const APP_BUILD = '2026-08-01-suruklebirak-260';
 
 (function _cacheBustCheck() {
   try {
@@ -49830,32 +49830,56 @@ function makeDraggable(node, idx) {
 }
 
 // 🆕 Yakındaki BOŞ formasyon slotunu bul (sahadaki oyuncuyu boş slota taşımak için)
+
+// 🆕 SÜRÜKLE-BIRAK HEDEF BULMA — ORTAK YARDIMCI
+//   Sorun: hedefler yüzde uzayında (x/y 0-100) karşılaştırılıyordu. Saha kare
+//   olmadığı için 1% yatayda ~3 px, dikeyde ~4.3 px ediyor; aynı sayısal mesafe
+//   farklı piksel mesafesine denk geliyordu. Üstelik ilk eşleşen hedef seçiliyordu.
+//   Çözüm: gerçek saha ölçüsüyle PİKSEL mesafesi hesapla ve EN YAKIN hedefi seç.
+function _dndPitchOlcu(el) {
+  try {
+    const r = el && el.getBoundingClientRect ? el.getBoundingClientRect() : null;
+    if (r && r.width > 20 && r.height > 20) return { W: r.width, H: r.height };
+  } catch(e) {}
+  return { W: 300, H: 430 };
+}
+// Kart yarıçapı kadar yapışma alanı (kart ~66x44 px)
+function _dndYaricap(W) { return Math.max(40, Math.min(64, W * 0.17)); }
+
+// Adaylar: [{i, x, y}] · x,y yüzde · dönen: en yakın i veya -1
+function _dndEnYakin(adaylar, x, y, pitchEl, ekPx) {
+  const { W, H } = _dndPitchOlcu(pitchEl);
+  const th = _dndYaricap(W) + (ekPx || 0);
+  let best = -1, bestD = Infinity;
+  for (const a of adaylar) {
+    const dxPx = ((a.x - x) / 100) * W;
+    const dyPx = ((a.y - y) / 100) * H;
+    const d = Math.sqrt(dxPx * dxPx + dyPx * dyPx);
+    if (d <= th && d < bestD) { bestD = d; best = a.i; }
+  }
+  return best;
+}
+
 function _findEmptySlotTarget(x, y, threshold) {
   const slots = (typeof FORMATIONS !== 'undefined' && FORMATIONS[currentFormation]) ? FORMATIONS[currentFormation] : [];
   const used = new Set((activePitchPlayers||[]).map(e => (e && e.player) ? e.slotIdx : null));
-  let best = -1, bestDist = Infinity;
-  slots.forEach((sl, i) => {
-    if (used.has(i)) return;            // dolu slot
-    const dx = sl.x - x, dy = sl.y - y;
-    const dist = Math.sqrt(dx*dx + dy*dy);
-    if (dist <= threshold && dist < bestDist) { bestDist = dist; best = i; }
-  });
-  return best;
+  const adaylar = [];
+  slots.forEach((sl, i) => { if (!used.has(i)) adaylar.push({ i, x: sl.x, y: sl.y }); });
+  return _dndEnYakin(adaylar, x, y, document.getElementById('formPitch'), 8);
 }
 
 // 🆕 Yakındaki swap hedefini bul (x,y % cinsinden, threshold % cinsinden)
 function _findSwapTarget(srcIdx, x, y, threshold) {
   if (typeof activePitchPlayers === 'undefined') return -1;
+  const adaylar = [];
   for (let i = 0; i < activePitchPlayers.length; i++) {
     if (i === srcIdx) continue;
     const e = activePitchPlayers[i];
-    if (!e || typeof e.x !== 'number' || typeof e.y !== 'number') continue;
-    const dx = e.x - x;
-    const dy = e.y - y;
-    const dist = Math.sqrt(dx*dx + dy*dy);
-    if (dist <= threshold) return i;
+    if (!e || !e.player) continue;                       // boş slot swap hedefi değil
+    if (typeof e.x !== 'number' || typeof e.y !== 'number') continue;
+    adaylar.push({ i, x: e.x, y: e.y });
   }
-  return -1;
+  return _dndEnYakin(adaylar, x, y, document.getElementById('formPitch'), 0);
 }
 
 // 🆕 Sahadaki oyuncuyu YEDEĞE taşı — sürükleme bench alanında bittiyse
@@ -53218,29 +53242,26 @@ function ntMakeDraggable(node, idx) {
 
 function _ntFindSwapTarget(srcIdx, x, y, threshold) {
   if (!Array.isArray(_ntActivePitchPlayers)) return -1;
+  const adaylar = [];
   for (let i = 0; i < _ntActivePitchPlayers.length; i++) {
     if (i === srcIdx) continue;
     const e = _ntActivePitchPlayers[i];
-    if (!e || typeof e.x !== 'number' || typeof e.y !== 'number') continue;
-    const dx = e.x - x;
-    const dy = e.y - y;
-    const dist = Math.sqrt(dx*dx + dy*dy);
-    if (dist <= threshold) return i;
+    if (!e || !e.player) continue;
+    if (typeof e.x !== 'number' || typeof e.y !== 'number') continue;
+    adaylar.push({ i, x: e.x, y: e.y });
   }
-  return -1;
+  const _p = document.getElementById('nt-formPitch') || document.getElementById('formPitch');
+  return _dndEnYakin(adaylar, x, y, _p, 0);
 }
 
 // 🆕 NT: yakındaki BOŞ formasyon slotunu bul
 function _ntFindEmptySlotTarget(x, y, threshold) {
   const slots = (typeof NT_FORMATIONS !== 'undefined' && NT_FORMATIONS[_ntCurrentFormation]) ? NT_FORMATIONS[_ntCurrentFormation] : [];
   const used = new Set((_ntActivePitchPlayers||[]).map(e => (e && e.player) ? e.slotIdx : null));
-  let best = -1, bestDist = Infinity;
-  slots.forEach((sl, i) => {
-    if (used.has(i)) return;
-    const dx = sl.x - x, dy = sl.y - y, dist = Math.sqrt(dx*dx + dy*dy);
-    if (dist <= threshold && dist < bestDist) { bestDist = dist; best = i; }
-  });
-  return best;
+  const adaylar = [];
+  slots.forEach((sl, i) => { if (!used.has(i)) adaylar.push({ i, x: sl.x, y: sl.y }); });
+  const _p = document.getElementById('nt-formPitch') || document.getElementById('formPitch');
+  return _dndEnYakin(adaylar, x, y, _p, 8);
 }
 
 // 🆕 NT: bench oyuncusunu boş slota ekle (sürükle-bırak)
