@@ -27952,7 +27952,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-01-skorbord-258';
+const APP_BUILD = '2026-08-01-hafiflet-259';
 
 (function _cacheBustCheck() {
   try {
@@ -57466,8 +57466,10 @@ setInterval(() => {
   const ov = document.getElementById('inboxOverlay');
   const isOpen = ov && ov.classList.contains('open');
   _inboxPollCnt++;
-  // Açıkken her tur (2sn), kapalıyken her 4. tur (8sn)
-  if (!isOpen && (_inboxPollCnt % 4 !== 0)) return;
+  // 🆕 Açıkken her tur (2sn), KAPALIYKEN her 15. tur (30sn).
+  //   Eskiden kapalıyken 8sn'de bir sorgu atıyordu — boşta dururken bile
+  //   dakikada ~8 istek demekti (pil + ısınma).
+  if (!isOpen && (_inboxPollCnt % 15 !== 0)) return;
   _inboxLoadFromServer().then(() => {
     if (typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
     // 🆕 Veri değişmediyse hiçbir şey yapma — liste/sohbet olduğu gibi kalır
@@ -58000,11 +58002,17 @@ function _hmRenderNextStrip(list) {
   const host = document.getElementById('hmNextStrip');
   if (!host) return;
   if (!Array.isArray(list) || list.length === 0) {
-    host.style.display = 'none';
-    host.innerHTML = '';
+    if (host.style.display !== 'none') { host.style.display = 'none'; host.innerHTML = ''; }
+    host.dataset.sig = '';
     return;
   }
   const items = list.map(_hmNxItem);
+  // 🆕 İMZA KONTROLÜ — aynı veriyle yeniden çizme. Eskiden her render'da
+  //   innerHTML sıfırlanıp 5 arma yeniden yükleniyordu → görünür titreme + boşuna CPU.
+  const _sig = items.map(it =>
+    [it.ad, it.comp, it.tur, it.ev ? 1 : 0, it.d && it.d.getTime()].join('~')).join('|');
+  if (host.dataset.sig === _sig && host.style.display !== 'none') return;
+  host.dataset.sig = _sig;
   host.style.display = 'block';
   host.innerHTML =
     '<div class="hm-nx-hd"><b>Sıradaki ' + items.length + ' Maç</b><i></i>' +
@@ -58039,7 +58047,23 @@ function _hmRenderNextStrip(list) {
 // 🆕 GÜVENLİ SARMAL — bu fonksiyonun içindeki herhangi bir hata eskiden
 //   ana sayfanın tamamen boş açılmasına yol açıyordu. Artık hata yutulur,
 //   sayfa çalışmaya devam eder ve sebep konsola yazılır.
-function renderHomeNextMatch() {
+function renderHomeNextMatch(force) {
+  // 🆕 ÇAĞRI KISMA — bu fonksiyon 25 ayrı yerden tetikleniyor; art arda gelen
+  //   çağrılar paneli defalarca yeniden çiziyor (titreme + ısınma).
+  //   1.2 sn içindeki tekrarları tek bir gecikmeli çağrıda birleştir.
+  try {
+    const _now = Date.now();
+    if (!force && window._hmNmLastRun && (_now - window._hmNmLastRun) < 1200) {
+      if (!window._hmNmPending) {
+        window._hmNmPending = setTimeout(function() {
+          window._hmNmPending = null;
+          renderHomeNextMatch(true);
+        }, 1200);
+      }
+      return;
+    }
+    window._hmNmLastRun = _now;
+  } catch(e) {}
   try { return _renderHomeNextMatchCore(); }
   catch(e) { console.warn('[hmNextMatch] render hatası:', e); }
 }
@@ -58054,7 +58078,9 @@ function _renderHomeNextMatchCore() {
   //   Yenileme async; eski cache ile render eder, gelen veri sonrası tekrar render.
   if (typeof _frmLoadFromServer === 'function') {
     const _now = Date.now();
-    if (!window._frmLastLoad || (_now - window._frmLastLoad) > 10000) {
+    // 🆕 10 sn → 45 sn. Hazırlık maçı listesi bu kadar sık değişmiyor;
+    //   her render'da sunucuya gitmek boşuna trafik ve ısınma demekti.
+    if (!window._frmLastLoad || (_now - window._frmLastLoad) > 45000) {
       window._frmLastLoad = _now;
       _frmLoadFromServer().then(() => {
         // Yeni veri geldiyse tekrar render — sadece ana sayfa açıksa
@@ -85036,7 +85062,9 @@ function _inboxPollTick() {
     }).catch(()=>{});
   }
 }
-setInterval(_inboxPollTick, 30 * 1000);
+// 🆕 KALDIRILDI: yukarıdaki akıllı inbox poll (değişiklik tespitli) zaten aynı işi
+//   yapıyor. İki ayrı zamanlayıcı aynı tabloyu sorguluyordu.
+// setInterval(_inboxPollTick, 30 * 1000);
 // Sayfa görünür olduğunda da çağır
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) _inboxPollTick();
@@ -85069,7 +85097,7 @@ async function _rosterLiveSyncTick(){
     }
   }catch(e){}
 }
-setInterval(_rosterLiveSyncTick, 18 * 1000);
+setInterval(_rosterLiveSyncTick, 45 * 1000);   // 🆕 18 → 45 sn (pil)
 document.addEventListener('visibilitychange', () => { if (!document.hidden) _rosterLiveSyncTick(); });
 
 // Enerji günlük reset kontrolü — her dakika kontrol et (gece yarısı geçişini yakalamak için)
