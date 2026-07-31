@@ -27885,7 +27885,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-31-frmfix-252';
+const APP_BUILD = '2026-07-31-inboxtemiz-253';
 
 (function _cacheBustCheck() {
   try {
@@ -55802,6 +55802,7 @@ async function _frmLoadFromServer() {
         return false;
       })
       .map(r => r.match_data || {});
+    window._frmLoaded = true;   // 🆕 temizlik yalnızca gerçek liste geldikten sonra
     console.info('[frm] yüklendi:', _frmMatchesCache.length, 'hazırlık maçı');
   } catch(e) { console.warn('[frm] load hata:', e); _frmMatchesCache = []; }
 }
@@ -84803,17 +84804,30 @@ function _frmPruneInbox() {
     if (typeof getInboxMsgs !== 'function') return;
     const msgs = getInboxMsgs();
     if (!Array.isArray(msgs) || msgs.length === 0) return;
+    // Bana ait hazırlık maçlarının kimlikleri (liste sunucudan geldiyse)
+    const benimIdler = new Set();
+    const listeHazir = !!window._frmLoaded &&
+      !!(typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName);
+    if (listeHazir) {
+      for (const fm of _frmMatchesCache) { if (fm && fm.id) benimIdler.add(fm.id); }
+    }
     const gorulen = new Set();
     const temiz = [];
-    let silinen = 0;
+    let silinen = 0, yabanci = 0;
     for (const m of msgs) {
       const mid = m && m.friendlyData && m.friendlyData.matchId;
       if (m && m.type === 'friendly_response' && mid) {
+        // 1) aynı maç için ikinci mesaj → sil
         if (gorulen.has(mid)) { silinen++; continue; }
         gorulen.add(mid);
+        // 2) benim hazırlık maçlarımdan biri değilse → sil
+        //    (önceki sürümde bu istemci başka oyuncuların davetlerine de
+        //     cevap üretip kendi gelen kutuma bildirim yazıyordu)
+        if (listeHazir && !benimIdler.has(mid)) { yabanci++; continue; }
       }
       temiz.push(m);
     }
+    silinen += yabanci;
     if (silinen > 0) {
       saveInboxMsgs(temiz);
       if (typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
