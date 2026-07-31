@@ -3136,6 +3136,19 @@ select.form-input option{background:var(--bg)}
 #tacCaptainPanel.tac-readonly #tacSub-strategy{display:none !important}
 #tacCaptainPanel.tac-readonly .form-main-area{display:block !important}
 #tacCaptainPanel.tac-readonly .form-pitch-wrap{width:100% !important}
+/* İzleyici sahası kendi kabını (.msp-pitch) yönetir — kaptan sahasının kutusu,
+   oranı ve çizgileri kapatılır. Aksi halde iki saha iç içe geçip oyuncular
+   yanlış yerlere yayılıyor ve çizgiler ikişer kez çiziliyordu. */
+#tacCaptainPanel.tac-readonly #msubPitch{position:static !important;aspect-ratio:auto !important;
+  height:auto !important;min-height:0 !important;background:none !important;border:none !important;
+  border-radius:0 !important;overflow:visible !important;box-shadow:none !important}
+#tacCaptainPanel.tac-readonly #msubPitch:before,
+#tacCaptainPanel.tac-readonly #msubPitch:after{display:none !important}
+#tacCaptainPanel.tac-readonly #msubPitch .pitch-lines-svg,
+#tacCaptainPanel.tac-readonly #msubPitch .fpitch-center-circle,
+#tacCaptainPanel.tac-readonly #msubPitch .fpitch-center-dot{display:none !important}
+#tacCaptainPanel.tac-readonly #msubPitchPlayers{position:static !important;inset:auto !important;
+  width:100% !important;height:auto !important}
 
 /* ══════════════════════════════════════════════════════════════
    🆕 MAÇ EKRANI — TÜM SEKMELER KARBON PALET
@@ -3349,7 +3362,7 @@ select.form-input option{background:var(--bg)}
   border:1px solid rgba(0,176,255,.3);background:rgba(0,176,255,.08);font-size:10.5px;color:var(--accent2,#00b0ff)}
 .msp-spec b{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:11px;letter-spacing:.4px}
 .msp-wrap{padding:0 8px 10px}
-.msp-pitch{position:relative;width:100%;aspect-ratio:.70;border-radius:14px;overflow:hidden;border:1px solid #232830;
+.msp-pitch{position:relative;width:100%;aspect-ratio:.78;border-radius:14px;overflow:hidden;border:1px solid #232830;
   background:repeating-linear-gradient(180deg,#0c1611 0 26px,#0a130f 26px 52px)}
 .msp-half{position:absolute;left:0;right:0;height:50%;pointer-events:none;z-index:0}
 .msp-half.t{top:0} .msp-half.b{bottom:0}
@@ -27872,7 +27885,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-07-31-siradaki5-250';
+const APP_BUILD = '2026-07-31-izleyicisaha-251';
 
 (function _cacheBustCheck() {
   try {
@@ -35860,6 +35873,24 @@ function _mspTeamMeta(team, fallbackName) {
 
 // Oyuncuları mevki grubuna göre kendi yarı sahasına yerleştir
 function _mspPlace(players, isHome) {
+  const all = (players || []).filter(Boolean);
+
+  // ═══ 1) GERÇEK DİZİLİŞ KOORDİNATLARI (sunucu lineup / FORMATIONS) ═══
+  //   Oyuncular x:0-100 (sol→sağ) ve y:0-100 (kendi kalesi 88 → rakip kalesi ~17)
+  //   taşır. Bunları tek sahaya haritalarız: ev sahibi alt yarı, deplasman üst yarı
+  //   (deplasman ayrıca x ekseninde aynalanır — kendi kalesine doğru bakar).
+  const xy = all.filter(p => typeof p.x === 'number' && typeof p.y === 'number' &&
+                             p.x >= 0 && p.x <= 100 && p.y >= 0 && p.y <= 100);
+  if (xy.length >= 7) {
+    return xy.slice(0, 11).map(p => ({
+      p,
+      x: Math.round(isHome ? p.x : (100 - p.x)),
+      y: Math.round(isHome ? (50 + p.y * 0.47) : (50 - p.y * 0.47)),
+      posLbl: p.pos || ''
+    }));
+  }
+
+  // ═══ 2) YEDEK: koordinat yoksa mevkiye göre satır ═══
   const POSGRP = (typeof POS_GROUP !== 'undefined') ? POS_GROUP : null;
   const grp = p => {
     const g = (p && (p.posGroup || (POSGRP && POSGRP[p.pos]))) || null;
@@ -35870,8 +35901,7 @@ function _mspPlace(players, isHome) {
     return 'MID';
   };
   const rows = { GK: [], DEF: [], MID: [], FWD: [] };
-  (players || []).forEach(p => { if (p) rows[grp(p)].push(p); });
-  // Ev sahibi alt yarı (54-95), deplasman üst yarı (5-46)
+  all.slice(0, 11).forEach(p => { rows[grp(p)].push(p); });
   const Y = isHome ? { GK: 93, DEF: 82, MID: 70, FWD: 58 }
                    : { GK: 7,  DEF: 18, MID: 30, FWD: 42 };
   const out = [];
@@ -35879,7 +35909,10 @@ function _mspPlace(players, isHome) {
     const list = rows[k];
     const n = list.length;
     list.forEach((p, i) => {
-      const x = (n <= 1) ? 50 : Math.round(12 + (76 * i / (n - 1)));
+      // kaleciler ortada toplanır (köşedeki takım etiketiyle çakışmasın)
+      const x = (n <= 1) ? 50
+              : (k === 'GK' ? Math.round(50 + (i - (n - 1) / 2) * 26)
+                            : Math.round(12 + (76 * i / (n - 1))));
       out.push({ p, x, y: Y[k], posLbl: (p.pos || k) });
     });
   });
@@ -35973,8 +36006,8 @@ function _msRenderSpectatorLineups() {
     const hMeta = _mspTeamMeta(H, 'Ev Sahibi');
     const aMeta = _mspTeamMeta(A, 'Deplasman');
     const evs = _mspEvents();
-    const hPl = _mspPlace((H && H.players) ? H.players.slice(0, 11) : [], true);
-    const aPl = _mspPlace((A && A.players) ? A.players.slice(0, 11) : [], false);
+    const hPl = _mspPlace((H && H.players) ? H.players : [], true);
+    const aPl = _mspPlace((A && A.players) ? A.players : [], false);
     html = `<div class="msp-spec">👁 <b>İZLEYİCİ MODU</b> · Bu maçta yetkin yok, yalnızca izliyorsun</div>
       <div class="msp-wrap">
         <div class="msp-pitch">
