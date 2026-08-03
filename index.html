@@ -28009,7 +28009,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-01-inbox-maas-275';
+const APP_BUILD = '2026-08-01-sistemmesaj-278';
 
 (function _cacheBustCheck() {
   try {
@@ -44703,8 +44703,56 @@ function rosterMakeCaptain(playerNum){
   if(!_userTeam || _userTeam.role !== 'captain'){ rosterToast('🔒 Sadece kaptan yetki devredebilir.', 'err'); return; }
   const p = ROSTER_DATA.find(p => p.num === playerNum);
   if(!p){ rosterToast('Oyuncu bulunamadı.', 'err'); return; }
-  if(!p.userId || p.isBot){ rosterToast('Sadece gerçek bir oyuncu kaptan yapılabilir.', 'err'); return; }
   if(p.role === 'captain'){ rosterToast('Bu oyuncu zaten kaptan.', 'err'); return; }
+
+  // 🆕 BOT'A DEVİR — yalnızca takımda BAŞKA gerçek kullanıcı yoksa.
+  if (p.isBot || !p.userId) {
+    const digerGercek = (Array.isArray(ROSTER_DATA) ? ROSTER_DATA : []).filter(x =>
+      x && !x.isBot && (x.userId || x.role === 'user') && x.num !== playerNum &&
+      !(typeof authUser !== 'undefined' && authUser && x.userId === authUser.id)).length;
+    if (digerGercek > 0) {
+      rosterToast('Takımda gerçek oyuncu varken bot kaptan yapılamaz.', 'err');
+      return;
+    }
+    const _doBot = async () => {
+      if (!(window.sb && authUser && authUser.id)) { rosterToast('⚠️ Bağlantı yok.', 'err'); return; }
+      const _pid = p.dbId || p.id || p.playerId || '';
+      try {
+        const r = await fetch(`${SUPABASE_URL}/functions/v1/tick-matches?action=make_bot_captain`
+          + `&user=${encodeURIComponent(authUser.id)}`
+          + `&player=${encodeURIComponent(_pid)}&num=${encodeURIComponent(playerNum)}`,
+          { headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY } });
+        const d = await r.json().catch(() => null);
+        if (!r.ok || !d || d.error) {
+          const msg = {
+            gercek_kullanici_var: 'Takımda gerçek oyuncu varken bot kaptan yapılamaz.',
+            yetki_yok: 'Sadece kaptan yetki devredebilir.',
+            bot_degil: 'Bu oyuncu bot değil.',
+            takim_yok: 'Takım bulunamadı.',
+            oyuncu_bulunamadi: 'Oyuncu bulunamadı.'
+          }[d && d.error] || 'Devir başarısız.';
+          rosterToast('❌ ' + msg, 'err');
+          return;
+        }
+        p.role = 'captain';
+        const meRow = ROSTER_DATA.find(x => x.role === 'user'); if (meRow) meRow.role = 'member';
+        _userTeam.role = 'member';
+        if (typeof userTeamSave === 'function') userTeamSave();
+        if (typeof renderRoster === 'function') renderRoster(rosterCurrentFilter || 'all');
+        if (typeof applyUserTeamUI === 'function') applyUserTeamUI();
+        if (typeof closePlayerModal === 'function') closePlayerModal();
+        rosterToast(`👑 ${p.name} artık kaptan. Sen üye oldun.`, 'ok');
+      } catch(e) { rosterToast('Hata: ' + e, 'err'); }
+    };
+    if (typeof cftConfirm === 'function') {
+      cftConfirm({
+        title: 'Kaptanlığı Bota Devret',
+        message: `Takımda başka gerçek oyuncu yok. ${p.name} (bot) kaptan olacak ve sen normal üye olacaksın. Bu sayede takımdan ayrılabilirsin. Onaylıyor musun?`,
+        confirmText: 'Evet, Devret', cancelText: 'İptal', danger: true, onConfirm: _doBot
+      });
+    } else { _doBot(); }
+    return;
+  }
   const _do = async () => {
     if(!(window.sb && authUser && authUser.id)){ rosterToast('⚠️ Bağlantı yok.', 'err'); return; }
     try{
@@ -48088,9 +48136,18 @@ async function openPlayerModal(player, ctx) {
       }
       const sellBtn = `<button class="pm-btn pm-btn-sell" onclick="tfListPlayerDirect(${playerNum})">Satışa Çıkar</button>`;
       const kickBtn = `<button class="pm-btn pm-btn-kick" onclick="rosterKickPlayer(${playerNum})">Takımdan Kov</button>`;
-      // 🆕 Kaptan Yap — yalnızca GERÇEK bir oyuncuya (bot değil) devredilir
+      // 🆕 Kaptan Yap — gerçek oyuncuya her zaman devredilebilir.
+      //   Bota ise SADECE takımda başka gerçek kullanıcı yoksa devredilebilir
+      //   (kaptan takımdan çıkabilsin diye).
       const _targetReal = !!(player && player.userId && !player.isBot);
-      const makeCapBtn = _targetReal ? `<button class="pm-btn pm-btn-promote" onclick="rosterMakeCaptain(${playerNum})">👑 Kaptan Yap</button>` : '';
+      const _digerGercek = (typeof ROSTER_DATA !== 'undefined' && Array.isArray(ROSTER_DATA))
+        ? ROSTER_DATA.filter(x => x && !x.isBot && (x.userId || x.role === 'user') && x.num !== playerNum
+            && !(typeof authUser !== 'undefined' && authUser && x.userId === authUser.id)).length
+        : 0;
+      const _botDevirOk = !!(player && player.isBot && _digerGercek === 0);
+      const makeCapBtn = (_targetReal || _botDevirOk)
+        ? `<button class="pm-btn pm-btn-promote" onclick="rosterMakeCaptain(${playerNum})">👑 Kaptan Yap</button>`
+        : '';
       const captainBtns = `<div class="pm-captain-actions">
         <div class="pm-cap-title">Kaptan Yetkileri <span class="pm-cap-vice-count">(${viceCount}/3 yardımcı)</span></div>
         <div class="pm-cap-grid">${makeCapBtn}${primaryBtn}${sellBtn}${kickBtn}</div>
@@ -55506,6 +55563,8 @@ function teamTab(name, el) {
   if(name === 'fixture') {
     if(_viewingTeam) return;
     renderFixture();
+    // 🆕 Sekme görünür olduktan sonra güncel haftaya ortala
+    try { if (typeof _fixScrollToCurrent === 'function') _fixScrollToCurrent(); } catch(e) {}
   }
   if(name === 'table') {
     if(_viewingTeam) return;
@@ -63825,33 +63884,39 @@ function renderFixture() {
   }
   list.innerHTML = '<div class="lg2-fix-container">' + html + '</div>';
 
-  // 🆕 GÜNCEL HAFTAYA ORTALA — sekme açıldığında listenin başında değil,
-  //   bugünün/yaklaşan maçın olduğu yerde başlasın.
-  try {
-    setTimeout(() => {
-      const el = document.getElementById('fixtureList');
-      if (!el) return;
-      // Öncelik: canlı/bugünkü maç → yoksa ilk oynanmamış maç → yoksa son maç
-      let hedef = el.querySelector('.lg2-fix-card.today-card');
-      if (!hedef) {
-        const hepsi = Array.from(el.querySelectorAll('.lg2-fix-card'));
-        hedef = hepsi.find(c => !c.classList.contains('is-past-card')) || hepsi[hepsi.length - 1];
-      }
-      if (!hedef) return;
-      // Sayfa içindeki kaydırma kabını bul (page-team veya window)
-      const kap = el.closest('.page') || document.scrollingElement || document.documentElement;
-      const kr = kap.getBoundingClientRect ? kap.getBoundingClientRect() : { top: 0, height: window.innerHeight };
-      const hr = hedef.getBoundingClientRect();
-      const merkez = hr.top - kr.top - (kr.height / 2) + (hr.height / 2);
-      if (kap === document.scrollingElement || kap === document.documentElement) {
-        window.scrollBy({ top: merkez, behavior: 'smooth' });
-      } else {
-        kap.scrollBy({ top: merkez, behavior: 'smooth' });
-      }
-    }, 120);
-  } catch(e) {}
+  // 🆕 GÜNCEL HAFTAYA ORTALA — sekme açıldığında liste başında değil,
+  //   bugünkü/yaklaşan maçta başlasın. Kullanıcı yukarı-aşağı kaydırarak
+  //   önceki ve sonraki haftalara ulaşır.
+  try { _fixScrollToCurrent(); } catch(e) {}
 }
 
+// 🆕 Fikstürde güncel haftayı ekranın ortasına getir.
+//   Not: sekme henüz görünür değilken ölçüm 0 döner; bu yüzden birkaç kez denenir.
+function _fixScrollToCurrent(deneme) {
+  const n = deneme || 0;
+  if (n > 6) return;
+  setTimeout(() => {
+    try {
+      const el = document.getElementById('fixtureList');
+      const pane = document.getElementById('team-fixture');
+      // Sekme görünür değilse ölçüm yapma, tekrar dene
+      if (!el || !el.offsetParent || (pane && pane.style.display === 'none')) {
+        return _fixScrollToCurrent(n + 1);
+      }
+      const kartlar = Array.from(el.querySelectorAll('.lg2-fix-card'));
+      if (!kartlar.length) return _fixScrollToCurrent(n + 1);
+      // Öncelik: canlı/bugünkü maç → yoksa ilk oynanmamış maç → yoksa son maç
+      let hedef = el.querySelector('.lg2-fix-card.today-card')
+              || kartlar.find(c => !c.classList.contains('is-past-card'))
+              || kartlar[kartlar.length - 1];
+      if (!hedef) return;
+      // scrollIntoView iç içe kaydırma kaplarını da doğru çözer
+      hedef.scrollIntoView({ block: 'center', inline: 'nearest', behavior: (n === 0 ? 'auto' : 'smooth') });
+      // Layout oturduktan sonra bir kez daha (görsel/font yüklemesi kaydırabiliyor)
+      if (n === 0) _fixScrollToCurrent(1);
+    } catch(e) {}
+  }, n === 0 ? 60 : 260);
+}
 function fixLoadMore(dir) {
   if(window._fixLoadMore) window._fixLoadMore(dir);
 }
@@ -72705,7 +72770,39 @@ async function betLoadMySlips(force) {
   try { betRenderWallet(); } catch(e) {}
 }
 
+// 🆕 Sonuçlanmış ama bildirimi verilmemiş kuponlar için sistem mesajı
+function _betKuponMesajlari() {
+  try {
+    const list = Array.isArray(_betMySlips) ? _betMySlips : [];
+    for (const sl of list) {
+      if (!sl || !sl.id) continue;
+      if (sl.status !== 'won' && sl.status !== 'lost') continue;
+      const n = Array.isArray(sl.legs) ? sl.legs.length : 0;
+      if (sl.status === 'won') {
+        const odul = (Number(sl.payout) || 0).toLocaleString('tr') + ' €';
+        sysMsg({
+          id: 'toto_' + sl.id,
+          from: '🎟️ Toto', avatar: '🏆', kind: 'toto',
+          subject: `Kuponun Tuttu! — ${odul}`,
+          body: `${n} maçlık kuponun kazandı.\n\n• Toplam oran: ${Number(sl.total_odds || 0).toFixed(2)}\n`
+              + `• Kazanç: ${odul}\n\n`
+              + (sl.claimed_at ? 'Ödül cüzdanına aktarıldı.' : '⚠️ Ödülünü almayı unutma — Eğlence > Toto > Kuponlarım.')
+        });
+      } else {
+        sysMsg({
+          id: 'toto_' + sl.id,
+          from: '🎟️ Toto', avatar: '❌', kind: 'toto',
+          subject: `Kuponun Yattı — ${n} Maç`,
+          body: `${n} maçlık kuponun tutmadı.\n\n• Toplam oran: ${Number(sl.total_odds || 0).toFixed(2)}\n\n`
+              + `Bir dahaki bültende bol şans!`
+        });
+      }
+    }
+  } catch(e) {}
+}
+
 function betRenderMySlips() {
+  try { _betKuponMesajlari(); } catch(e) {}
   const el = document.getElementById('betSlipList');
   if (!el) return;
   const arr = Array.isArray(_betMySlips) ? _betMySlips : [];
@@ -75018,6 +75115,35 @@ async function _inboxProcessApprovedJoinRequests() {
 }
 
 // Sync getter — mevcut kod imzasını koru
+// 🆕 SİSTEM MESAJI (istemci) — aynı id ile ikinci kez düşmez.
+//   Sunucudaki sysInbox ile aynı mesaj yapısını kullanır.
+function sysMsg(o) {
+  try {
+    if (!o || !o.subject) return false;
+    const msgs = getInboxMsgs();
+    if (!Array.isArray(msgs)) return false;
+    const id = o.id || ('sys_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7));
+    if (msgs.some(m => m && m.id === id)) return false;
+    msgs.unshift({
+      id,
+      from: o.from || '⚙️ Sistem',
+      fromAvatar: o.avatar || '📢',
+      type: 'system',
+      sysKind: o.kind || 'genel',
+      subject: o.subject,
+      body: o.body || '',
+      time: new Date().toLocaleDateString('tr-TR'),
+      ts: Date.now(),
+      read: false,
+      thread: []
+    });
+    saveInboxMsgs(msgs);
+    if (typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
+    return true;
+  } catch(e) { console.warn('[sysMsg] hata:', e); return false; }
+}
+window.sysMsg = sysMsg;
+
 function getInboxMsgs() {
   if (Array.isArray(_inboxCache)) return _inboxCache;
   // Cache henüz dolmadıysa boş dön — _inboxLoadFromServer doldurur (demo mesaj YOK)
@@ -80752,6 +80878,20 @@ window.evEnsureStreakToday = evEnsureStreakToday;
 
 function evRender() {
   try { evEnsureStreakToday(); } catch(e) {}
+  // 🆕 Toplanmamış günlük giriş ödülü varsa hatırlat (gün başına 1 mesaj)
+  try {
+    const _s = evGetStreak();
+    const _gun = _s.login_streak || 0;
+    if (_gun >= 1 && !(_s.streak_claimed || []).includes(_gun)) {
+      sysMsg({
+        id: 'gunluk_' + (_s.login_day || '') + '_' + _gun,
+        from: '🎁 Günlük Giriş', avatar: '🎁', kind: 'gunluk',
+        subject: `Gün ${_gun} Hediyen Hazır`,
+        body: `Giriş serin ${_gun}. günde.\n\n• Hediyeni Etkinlik > Görevler ekranından al.\n`
+            + `• Bir gün girmezsen seri sıfırlanır.`
+      });
+    }
+  } catch(e) {}
   evRenderStreak();
   evRenderAchievements();
 }
@@ -82871,7 +83011,32 @@ function achCanClaimAny() {
   }
   return false;
 }
+// 🆕 Toplanabilir başarım için tek seferlik bilgilendirme
+function _achMesajKontrol() {
+  try {
+    if (typeof ACH_SERIES === 'undefined' || typeof _achIsClaimed !== 'function') return;
+    const ids = [];
+    for (const a of ACH_SERIES) {
+      if (!_achIsClaimed(a[0]) && _achProgress(a[2]) >= a[5]) ids.push(a[0]);
+    }
+    if (typeof ACH_PRO !== 'undefined') {
+      for (const a of ACH_PRO) {
+        if (!_achIsClaimed(a[0]) && _achProgress(a[1]) >= 1) ids.push(a[0]);
+      }
+    }
+    for (const id of ids) {
+      sysMsg({
+        id: 'ach_' + id,
+        from: '🏅 Başarımlar', avatar: '🏅', kind: 'basarim',
+        subject: 'Başarım Açıldı — Ödülünü Al',
+        body: `Bir başarımı tamamladın.\n\n• Ödülünü Etkinlik > Başarımlar ekranından "Topla" butonuyla alabilirsin.`
+      });
+    }
+  } catch(e) {}
+}
+
 function achRefreshBadge() {
+  try { _achMesajKontrol(); } catch(e) {}
   try {
     const badge = document.getElementById('evAchBadge');
     if (!badge) return;
