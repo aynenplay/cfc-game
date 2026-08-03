@@ -16062,6 +16062,13 @@ body.inbox-open #main{visibility:hidden!important;pointer-events:none!important}
 #page-home .hm-nxc .nxp{font-size:6px;line-height:1.1;color:var(--cmp,#00b0ff);font-weight:800;
   margin-top:0;letter-spacing:.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   padding:0 2px;width:100%}
+/* 🆕 Takvim slotu — maç yok, sezon takvimi bilgisi */
+#page-home .hm-nxc.is-takvim{cursor:default;opacity:.92;
+  background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.008))}
+#page-home .hm-nxc.is-takvim:active{transform:none}
+#page-home .hm-nxc.is-takvim .nxc-crest{background:none !important;box-shadow:none !important;
+  font-size:22px !important;border-radius:0 !important}
+#page-home .hm-nxc.is-takvim .nxn{color:#c6ccd8}
 #page-home .hm-nxc .nxh{position:absolute;top:4px;right:4px;font-size:6px;
   font-family:'Barlow Condensed',sans-serif;font-weight:900;color:var(--text3);letter-spacing:.3px}
 
@@ -28083,7 +28090,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-01-itembonus-284';
+const APP_BUILD = '2026-08-01-serit5slot-285';
 
 (function _cacheBustCheck() {
   try {
@@ -58387,6 +58394,16 @@ function _hmNxItem(c) {
   const benim = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName) || '';
   const d = new Date(c.time);
   const o = { d, tur: c.source, ev: true, ad: '?', kisa: '?', cc: null, comp: '', bayrak: '' };
+  // 🆕 Takvim slotu (maç yok) — bilgi kartı
+  if (c._takvim) {
+    o.ad = c._takvim.baslik || '—';
+    o.kisa = c._takvim.ikon || '📅';
+    o.comp = c._takvim.alt || '';
+    o.ev = null;                // EV/DEP rozeti gösterme
+    o.takvim = true;
+    o.bayrak = c._takvim.ikon || '📅';
+    return o;
+  }
   // 🆕 Sunucudan gelen sade satır — doğrudan kullan
   if (c._sunucu) {
     o.ad = c._sunucu.ad || '?';
@@ -58512,6 +58529,7 @@ async function _hmStripYukle(anaMac) {
     window._hmStripLoading = true;
 
     const nowIso = new Date(simdi - 30 * 60 * 1000).toISOString();
+    // 1) Kendi kulüp maçların
     const { data, error } = await window.sb.from('match_state')
       .select('match_key,home_team,away_team,country_code,league_name,tournament_key,kickoff_at,status')
       .or('home_team.eq.' + takim + ',away_team.eq.' + takim)
@@ -58521,7 +58539,28 @@ async function _hmStripYukle(anaMac) {
       .limit(10);
     window._hmStripLoading = false;
     if (error) { console.warn('[hmStrip] sorgu hata:', error.message); return; }
-    const rows = data || [];
+    let rows = data || [];
+
+    // 2) 🆕 KENDİ UYRUĞUNUN MİLLİ MAÇLARI (EURO Nations Cup) — kadroda olmasan da
+    try {
+      const uyruk = (window.authUser && window.authUser.nationality)
+                 || (_userTeam && _userTeam.countryCode) || null;
+      if (uyruk) {
+        const { data: nt } = await window.sb.from('match_state')
+          .select('match_key,home_team,away_team,country_code,league_name,tournament_key,kickoff_at,status')
+          .eq('tournament_key', 'enc')
+          .or('home_team.eq.' + uyruk + ',away_team.eq.' + uyruk)
+          .gte('kickoff_at', nowIso)
+          .neq('status', 'finished')
+          .order('kickoff_at', { ascending: true })
+          .limit(5);
+        if (Array.isArray(nt) && nt.length) {
+          const varKey = new Set(rows.map(r => r.match_key));
+          for (const r of nt) if (!varKey.has(r.match_key)) rows.push(r);
+          rows.sort((a, b) => new Date(a.kickoff_at) - new Date(b.kickoff_at));
+        }
+      }
+    } catch(e) {}
     window._hmStripCache = { takim, t: simdi, rows };
     _hmStripCiz(rows, anaMac);
   } catch(e) { window._hmStripLoading = false; console.warn('[hmStrip] hata:', e); }
@@ -58554,8 +58593,54 @@ function _hmStripCiz(rows, anaMac) {
       });
       if (liste.length >= 5) break;
     }
-    _hmRenderNextStrip(liste);
+    // 🆕 5 SLOT GARANTİSİ — maç yoksa sezon takvimindeki durumu göster
+    if (liste.length < 5) {
+      try { _hmStripTakvimDoldur(liste); } catch(e) {}
+    }
+    _hmRenderNextStrip(liste.slice(0, 5));
   } catch(e) { console.warn('[hmStripCiz] hata:', e); }
+}
+
+// 🆕 Boş slotları sezon takviminden doldur (transfer dönemi, kura, turnuva günü…)
+function _hmStripTakvimDoldur(liste) {
+  if (typeof SEASON_TEMPLATE === 'undefined' || typeof getSeasonInfo !== 'function') return;
+  const info = getSeasonInfo();
+  if (!info || info.preSeason) return;
+  const bugun = info.dayInSeason || 1;
+  const SEZON_UZ = (typeof SEASON_LEN !== 'undefined') ? SEASON_LEN : 40;
+  // Sezon başlangıcı → tarih hesabı için
+  const sezonBas = (info && info.seasonStart) ? new Date(info.seasonStart) : null;
+
+  const doluGun = new Set(liste.map(x => {
+    try { return new Date(x.time).toDateString(); } catch(e) { return ''; }
+  }));
+
+  const TRN_AD = { chm: 'Championship', eli: 'Elite', con: 'Convergence', enc: 'EURO Cup', fed: 'Federasyon' };
+  for (let g = bugun + 1; g <= SEZON_UZ && liste.length < 5; g++) {
+    const evs = SEASON_TEMPLATE[g] || [];
+    if (!evs.length) continue;
+    // Tarih: sezon başlangıcı biliniyorsa gerçek tarih, değilse bugünden gün farkı
+    let t;
+    if (sezonBas) { const d = new Date(sezonBas); d.setDate(d.getDate() + (g - 1)); d.setHours(20, 0, 0, 0); t = d.getTime(); }
+    else { const d = new Date(); d.setDate(d.getDate() + (g - bugun)); d.setHours(20, 0, 0, 0); t = d.getTime(); }
+    if (doluGun.has(new Date(t).toDateString())) continue;
+
+    // O günün en anlamlı olayı: break > enc > turnuva > lig
+    const br = evs.find(e => e && e.type === 'break');
+    const enc = evs.find(e => e && e.type === 'enc');
+    const trn = evs.find(e => e && (e.type === 'chm' || e.type === 'eli' || e.type === 'con'));
+    const fed = evs.find(e => e && e.type === 'fed');
+    let baslik = null, alt = null, ikon = '📅', tur = 'takvim';
+    if (br)       { baslik = 'Transfer';  alt = String(br.label || 'Transfer Dönemi').replace(/^[^\wğüşıöçĞÜŞİÖÇ]+/, ''); ikon = '🔄'; }
+    else if (enc) { baslik = 'EURO Cup';  alt = enc.round || 'Milli Maç'; ikon = '🏴'; tur = 'national'; }
+    else if (trn) { baslik = TRN_AD[trn.type] || 'Turnuva'; alt = trn.round || ''; ikon = '🏆'; tur = 'tournament'; }
+    else if (fed) { baslik = 'Federasyon'; alt = fed.round || 'Seçim'; ikon = '🏛️'; }
+    else continue;
+
+    liste.push({ source: tur, time: t, _takvim: { baslik, alt, ikon } });
+    doluGun.add(new Date(t).toDateString());
+  }
+  liste.sort((a, b) => a.time - b.time);
 }
 
 function _hmRenderNextStrip(list) {
@@ -58580,15 +58665,16 @@ function _hmRenderNextStrip(list) {
   host.style.display = 'block';
   host.innerHTML =
     '<div class="hm-nx-row">' + items.map((it, i) => {
-      const renk = _HM_NX_RENK[it.tur] || '#00b0ff';
+      const renk = it.takvim ? '#9aa3b2' : (_HM_NX_RENK[it.tur] || '#00b0ff');
       const gun = isNaN(it.d.getTime()) ? '—' : (it.d.getDate() + ' ' + _HM_NX_AY[it.d.getMonth()]);
       const ic = it.bayrak ? it.bayrak : _escapeHtml(it.kisa);
-      return '<div class="hm-nxc" style="--cmp:' + renk + '" data-i="' + i + '"' +
-        ' role="button" tabindex="0" onclick="hmNxOpenTeam(' + i + ')">' +
-        '<div class="nxh">' + (it.ev ? 'EV' : 'DEP') + '</div>' +
+      const _tk = !!it.takvim;
+      return '<div class="hm-nxc' + (_tk ? ' is-takvim' : '') + '" style="--cmp:' + renk + '" data-i="' + i + '"' +
+        (_tk ? '' : ' role="button" tabindex="0" onclick="hmNxOpenTeam(' + i + ')"') + '>' +
+        (_tk ? '' : '<div class="nxh">' + (it.ev ? 'EV' : 'DEP') + '</div>') +
         '<div class="nxd">' + gun + '</div>' +
-        '<div class="nxc-crest"' + (it.bayrak ? ' data-flag="1"' : '') +
-          ' data-team="' + _escapeHtml(it.ad) + '" data-short="' + _escapeHtml(it.kisa) + '">' + ic + '</div>' +
+        '<div class="nxc-crest"' + ((it.bayrak || _tk) ? ' data-flag="1"' : '') +
+          ' data-team="' + _escapeHtml(_tk ? '' : it.ad) + '" data-short="' + _escapeHtml(it.kisa) + '">' + ic + '</div>' +
         '<div class="nxn">' + _escapeHtml(it.ad) + '</div>' +
         '<div class="nxp">' + _escapeHtml(it.comp) + '</div>' +
       '</div>';
