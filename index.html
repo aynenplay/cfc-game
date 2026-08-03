@@ -28009,7 +28009,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-01-serit-274';
+const APP_BUILD = '2026-08-01-inbox-maas-275';
 
 (function _cacheBustCheck() {
   try {
@@ -74837,6 +74837,9 @@ async function _inboxLoadFromServer() {
     }).join('|');
     window._inboxChanged = (_sig !== window._inboxSig);
     window._inboxSig = _sig;
+    // 🆕 Yerel yazma beklemedeyse sunucu kopyasını uygulama — okundu bilgisi
+    //   geri alınıyordu. Bir sonraki poll'de zaten güncel veri gelecek.
+    if (window._inboxSavePending) { window._inboxChanged = false; return; }
     _inboxCache = _newArr;
 
     // 🆕 ACİL KORUMA — hatalı sürümde gelen kutusu binlerce sahte
@@ -75027,6 +75030,9 @@ function saveInboxMsgs(msgs) {
   // 🆕 Her mesajda ts garanti et (sıralama + tarih/saat için)
   _inboxCache.forEach(m => { if (m && typeof m.ts !== 'number') m.ts = _inboxParseTs(m.time); });
   if (!window.sb || !authUser || !authUser.id) return;
+  // 🆕 Yazma beklemede — poll bu sırada sunucudan gelen ESKİ veriyle cache'i
+  //   ezmesin. (Mesajı açıp geri dönünce "okundu" geri alınıyordu.)
+  window._inboxSavePending = true;
   clearTimeout(_inboxSaveTimer);
   _inboxSaveTimer = setTimeout(async () => {
     try {
@@ -75036,6 +75042,7 @@ function saveInboxMsgs(msgs) {
         updated_at: new Date().toISOString()
       }, { onConflict: 'user_id' });
     } catch(e) { console.warn('[inbox] save hata:', e); }
+    finally { window._inboxSavePending = false; }
   }, 400);
 }
 
@@ -75220,6 +75227,8 @@ function inboxBackToList() {
   inboxShowList();
   inboxRenderList();
   inboxUpdateBadge();
+  // 🆕 İmzayı sıfırla — bir sonraki poll değişikliği fark edip listeyi tazelesin
+  try { window._inboxSig = null; } catch(e) {}
 }
 
 // ── Mesaj listesi ──
@@ -75456,9 +75465,26 @@ function inboxOpenMsg(id) {
   const msg  = msgs.find(m=>m.id===id);
   if(!msg) return;
 
-  // Okundu işaretle
-  msg.read = true;
-  saveInboxMsgs(msgs);
+  // 🆕 MESAJ AÇILDIĞI AN OKUNDU — geri butonu / X fark etmez.
+  //   Rozet de anında düşer, sunucuya hemen yazılır (debounce beklenmez).
+  if (!msg.read) {
+    msg.read = true;
+    saveInboxMsgs(msgs);
+    try { if (typeof inboxUpdateBadge === 'function') inboxUpdateBadge(); } catch(e) {}
+    try {
+      if (window.sb && authUser && authUser.id) {
+        clearTimeout(_inboxSaveTimer);
+        window._inboxSavePending = true;
+        window.sb.from('user_inbox').upsert({
+          user_id: authUser.id,
+          messages: _inboxCache,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id' })
+          .then(() => { window._inboxSavePending = false; })
+          .catch(() => { window._inboxSavePending = false; });
+      }
+    } catch(e) { window._inboxSavePending = false; }
+  }
 
   _inboxCurrentMsg = msg;
   inboxShowDetail();
