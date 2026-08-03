@@ -27974,7 +27974,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-01-asama-265';
+const APP_BUILD = '2026-08-01-duzeltmeler-266';
 
 (function _cacheBustCheck() {
   try {
@@ -38436,7 +38436,17 @@ async function startMatch(){
     //   (max +1 dk farkına izin ver — server poll gecikmesi için tolerans).
     //   serverSim'i MS.script.serverSim'den oku (poll'da güncellenir).
     const serverSim = MS._serverSimMin || 0;
-    if (serverSim > 0) {
+    // 🆕 Tam süre dolduysa sunucuyu bekleme — 90 göster ve son tick'i zorla
+    const _tamSureDoldu = (elapsed >= FULL_MATCH_END_MS - 500);
+    if (_tamSureDoldu && !MS._sonTickIstendi && MS.match_key &&
+        typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_KEY !== 'undefined') {
+      MS._sonTickIstendi = true;
+      try {
+        fetch(`${SUPABASE_URL}/functions/v1/tick-matches?action=tick_match&match_key=${encodeURIComponent(MS.match_key)}`,
+          { headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY } }).catch(()=>{});
+      } catch(e) {}
+    }
+    if (serverSim > 0 && !_tamSureDoldu) {
       // Devre arası dışında: server'ı geçemez
       if (!isHalftime && displayMin > serverSim) {
         displayMin = serverSim;
@@ -38574,6 +38584,19 @@ async function startMatch(){
         MS.match_key = liveRow.match_key;
       }
       // Live geçişi: scheduled iken running olunca badge'i CANLI yap
+      // 🆕 SUNUCU BİTİRDİ → ekranı hemen maç sonuna al
+      if (liveRow && liveRow.status === 'finished' && !MS.finished) {
+        try {
+          MS.scoreH = liveRow.home_score ?? MS.scoreH ?? 0;
+          MS.scoreA = liveRow.away_score ?? MS.scoreA ?? 0;
+          MS.script = MS.script || {};
+          if (Array.isArray(liveRow.events)) MS.script.evs = liveRow.events;
+          if (liveRow.stats) MS.script.stats = liveRow.stats;
+          MS.finished = true; MS.running = false;
+          if (typeof _finalizeMatch === 'function') _finalizeMatch(MS.script);
+        } catch(e) { console.warn('[poll] finalize hata:', e); }
+        return;
+      }
       if (liveRow && liveRow.status === 'running' && !MS.running) {
         MS.running = true;
         const sbL = document.getElementById('statusBadge');
@@ -38596,7 +38619,10 @@ async function startMatch(){
         //   Artık hangi kapıdan girilirse girilsin dakika aynı: sunucununki.
         try {
           const _sm = liveRow.sim_minute || 0;
-          if (_sm > 0) {
+          // ⛔ Son dakikalarda ÇAPALAMA YOK. Sunucunun son tick'i gecikirse
+          //    (örn. 89'da kalırsa) yerel saat de 89'da kilitleniyordu; maç
+          //    hiç 90'a ulaşmıyor ve maç sonu ekranı hiç açılmıyordu.
+          if (_sm > 0 && _sm < 88) {
             const _MSPM = 7000, _HTMS = 100000;
             const _elapsedForMin = (_sm <= 45)
               ? (_sm - 1) * _MSPM
@@ -41667,6 +41693,38 @@ function _finalizeMatch(script) {
   try {
     if (typeof renderFixture === 'function') renderFixture();
     if (typeof renderHomeNextMatch === 'function') renderHomeNextMatch();
+  } catch(e) {}
+
+  // 🆕 SONUCU ÖNBELLEĞE YAZ — lig puan durumu ve sonuçlar sayfası maç biter
+  //   bitmez güncellensin (eskiden bir sonraki sunucu yüklemesini bekliyordu).
+  try {
+    const _mk = MS.match_key;
+    if (_mk) {
+      const _hs = MS.scoreH || 0, _as = MS.scoreA || 0;
+      if (typeof _matchStateCache === 'object' && _matchStateCache && _matchStateCache.byKey) {
+        const _c = _matchStateCache.byKey[_mk];
+        if (_c) {
+          _c.status = 'finished';
+          _c.home_score = _hs; _c.hs = _hs;
+          _c.away_score = _as; _c.as = _as;
+          _c.sim_minute = 90;
+        }
+      }
+      if (typeof _liveMatchCache === 'object' && _liveMatchCache && _liveMatchCache[_mk]) {
+        _liveMatchCache[_mk].status = 'finished';
+        _liveMatchCache[_mk].home_score = _hs;
+        _liveMatchCache[_mk].away_score = _as;
+        _liveMatchCache[_mk].sim_minute = 90;
+      }
+      // wrapper cache'i geçersiz kıl (puan durumu yeniden hesaplansın)
+      try { _mrWrapperCache = null; } catch(e) {}
+    }
+  } catch(e) {}
+  // Puan durumu / sonuçlar / fikstür tazele
+  try {
+    if (typeof lgRender === 'function') lgRender();
+    if (typeof renderResultsPage === 'function') renderResultsPage();
+    if (typeof renderHomeLeagueScene === 'function') renderHomeLeagueScene();
   } catch(e) {}
 
   // 🆕 MAÇ SONU EKRANINI GÖSTER (1 saniye sonra)
@@ -56209,28 +56267,38 @@ function frmCheckConflict(dateTimeStr, opponent /* { team, cc, lg } */) {
   if (isNaN(t)) return { ok: false, reason: 'Geçersiz tarih' };
   if (t < Date.now()) return { ok: false, reason: 'Geçmiş bir tarih seçemezsin' };
 
-  // 🆕 GEÇİCİ TEST: Günde 1 hazırlık limiti kaldırıldı — test bittikten sonra geri aç!
-  // if (typeof _userTeam !== 'undefined' && _userTeam) {
-  //   const targetDate = new Date(t);
-  //   const sameDay = (a, b) => a.getFullYear() === b.getFullYear()
-  //                          && a.getMonth() === b.getMonth()
-  //                          && a.getDate() === b.getDate();
-  //   const all = (typeof frmGetMatches === 'function') ? frmGetMatches() : [];
-  //   const dayConflict = all.find(fm => {
-  //     if (fm.status === 'rejected' || fm.status === 'cancelled') return false;
-  //     if (fm.fromTeam !== _userTeam.teamName && fm.toTeam !== _userTeam.teamName) return false;
-  //     const fmDate = new Date(fm.dateTime);
-  //     if (isNaN(fmDate.getTime())) return false;
-  //     return sameDay(fmDate, targetDate);
-  //   });
-  //   if (dayConflict) {
-  //     const fmDate = new Date(dayConflict.dateTime);
-  //     const hh = String(fmDate.getHours()).padStart(2,'0');
-  //     const mm = String(fmDate.getMinutes()).padStart(2,'0');
-  //     const otherTeam = (dayConflict.fromTeam === _userTeam.teamName) ? dayConflict.toTeam : dayConflict.fromTeam;
-  //     return { ok: false, reason: `Bu gün için zaten bir hazırlık maçın var (${hh}:${mm} → ${otherTeam}). Günde en fazla 1 hazırlık maçı düzenleyebilirsin.` };
-  //   }
-  // }
+  // 🆕 EN FAZLA 5 GÜN İLERİ TARİH
+  const _MAX_ILERI_GUN = 5;
+  const _bugun = new Date(); _bugun.setHours(0,0,0,0);
+  const _hedef = new Date(t); _hedef.setHours(0,0,0,0);
+  const _farkGun = Math.round((_hedef - _bugun) / 86400000);
+  if (_farkGun > _MAX_ILERI_GUN) {
+    return { ok: false, reason: `En fazla ${_MAX_ILERI_GUN} gün ileri tarihe hazırlık maçı ayarlayabilirsin.` };
+  }
+
+  // 🆕 AYNI GÜNDE EN FAZLA 1 HAZIRLIK MAÇI
+  if (typeof _userTeam !== 'undefined' && _userTeam) {
+    const sameDay = (a, b) => a.getFullYear() === b.getFullYear()
+                           && a.getMonth() === b.getMonth()
+                           && a.getDate() === b.getDate();
+    const all = (typeof frmGetMatches === 'function') ? frmGetMatches() : [];
+    const dayConflict = all.find(fm => {
+      if (!fm) return false;
+      if (fm.status === 'rejected' || fm.status === 'cancelled') return false;
+      if (fm.played || fm.playedAt) return false;
+      if (fm.fromTeam !== _userTeam.teamName && fm.toTeam !== _userTeam.teamName) return false;
+      const fmDate = new Date(fm.dateTime);
+      if (isNaN(fmDate.getTime())) return false;
+      return sameDay(fmDate, new Date(t));
+    });
+    if (dayConflict) {
+      const fmDate = new Date(dayConflict.dateTime);
+      const hh = String(fmDate.getHours()).padStart(2,'0');
+      const mm = String(fmDate.getMinutes()).padStart(2,'0');
+      const otherTeam = (dayConflict.fromTeam === _userTeam.teamName) ? dayConflict.toTeam : dayConflict.fromTeam;
+      return { ok: false, reason: `Bu gün için zaten bir hazırlık maçın var (${hh}:${mm} → ${otherTeam}). Günde en fazla 1 hazırlık maçı yapılabilir.` };
+    }
+  }
 
   const userBusy = frmGetUserBusyTimes();
   const oppBusy  = opponent ? frmGetTeamBusyTimes(opponent.team.name, opponent.cc, opponent.lg) : [];
@@ -56310,7 +56378,7 @@ function frmOpenModal() {
         <div class="frm2-datetime">
           <div class="frm2-field large">
             <div class="frm2-section-label">Tarih</div>
-            <input id="frmDate" class="frm2-input" type="date" value="${dateStr}" min="${new Date().toISOString().slice(0,10)}">
+            <input id="frmDate" class="frm2-input" type="date" value="${dateStr}" min="${new Date().toISOString().slice(0,10)}" max="${new Date(Date.now() + 5*86400000).toISOString().slice(0,10)}">
           </div>
           <div class="frm2-field">
             <div class="frm2-section-label">Saat</div>
@@ -56319,7 +56387,9 @@ function frmOpenModal() {
         </div>
 
         <div class="frm2-info">
-          💡 Senin ve rakip takımın gerçek lig maçlarına en az <b>1 saat</b> boşluk olmalı. Karşı takım kaptanı kabul ederse maç planlanır.
+          💡 Senin ve rakip takımın gerçek lig maçlarına en az <b>1 saat</b> boşluk olmalı.
+          Günde <b>1</b> hazırlık maçı, en fazla <b>5 gün</b> ileri tarih. Hazırlık maçından <b>bilet geliri olmaz</b>.
+          Karşı takım kaptanı kabul ederse maç planlanır.
         </div>
       </div>
 
@@ -71713,7 +71783,14 @@ function _trn2ScrollActiveStab(el) {
 const BET_MIN_LEGS = 5, BET_MAX_LEGS = 15;
 const BET_MIN_STAKE = 5, BET_MAX_STAKE = 5000;      // 🆕 kupon tavanı 5.000 €
 const BET_STAKE_DEFAULT = 10;                        // 🆕 açılış mislisi
-const BET_MAX_PAYOUT_C = 2500000, BET_MAX_ODDS_C = 500;
+const BET_MAX_PAYOUT_C = 250000, BET_MAX_ODDS_C = 60, BET_COMBO_TAX_C = 0.045;
+// 🆕 Kombine vergisi — sunucudaki _betComboOdds ile birebir aynı
+function _betComboOddsC(rawTotal, legCount) {
+  if (!isFinite(rawTotal) || rawTotal <= 1) return 1;
+  const extra = Math.max(0, (legCount || 0) - 3);
+  const exp = Math.max(0.40, 1 - BET_COMBO_TAX_C * extra);
+  return Math.min(BET_MAX_ODDS_C, Math.round(Math.pow(rawTotal, exp) * 100) / 100);
+}
 const BET_DAILY_CAP = 100000;              // günlük KAZANÇ tavanı
 // 🆕 Günlük sınırlar
 const BET_MAX_SLIPS_DAY = 10;              // günde en fazla 10 kupon
@@ -72239,7 +72316,8 @@ function betMaxStake() {
 }
 
 function _betTotalOdds() {
-  return _betSlip.reduce((a, l) => a * (Number(l.odds) || 1), 1);
+  const ham = _betSlip.reduce((a, l) => a * (Number(l.odds) || 1), 1);
+  return _betComboOddsC(ham, _betSlip.length);   // 🆕 kombine vergisi dahil
 }
 
 function betRenderSlip() {
@@ -72612,6 +72690,7 @@ async function betShareSlip(ev, slipId, btn) {
       : legs.slice(0, 3).map(l => `<b>${l.p}</b> ${l.h}–${l.a}`).join(' · ');
 
     const card = {
+      slipId: slip.id,
       status: slip.status || 'pending',
       odds: Number(slip.total_odds || 0).toFixed(2),
       stake: (Number(slip.stake) || 0).toLocaleString('tr') + ' €',
@@ -84048,7 +84127,7 @@ async function cfcMdShareTemplate(kind, btn) {
 }
 // Şablon kartı HTML'i (feed'de gösterilir) — Varyant B (kompakt karbon)
 function _cfcMdTemplateCardHtml(p) {
-  const c = p.card || {};
+  let c = p.card || {};
   if (p.kind === 'tpl-player') {
     const cats = (c.cats || []).map(a =>
       `<div class="tplc-ab ${a.cls}"><div class="tplc-ab-v">${a.v}</div><div class="tplc-ab-l">${a.k}</div></div>`).join('');
@@ -84079,6 +84158,7 @@ function _cfcMdTemplateCardHtml(p) {
   }
   // 🆕 TOTO KUPONU
   if (p.kind === 'tpl-toto') {
+    try { c = _cfcMdTotoTazele(c); } catch(e) {}
     const dur = c.status || 'pending';
     const pillCls = dur === 'won' ? '' : (dur === 'lost' ? ' kayip' : ' devam');
     const pillTxt = dur === 'won' ? '🏆 KAZANDI' : (dur === 'lost' ? '❌ KAYBETTİ' : '⏳ DEVAM EDİYOR');
@@ -84174,6 +84254,49 @@ function _cfcMdFindPost(id) {
 }
 
 // 🆕 Kupon oynanabilir mi? (hiçbir maçı başlamamış olmalı)
+// 🆕 PAYLAŞILAN KUPON KARTINI TAZELE
+//   Kart paylaşıldığı andaki anlık görüntüydü; maçlar bitince "DEVAM EDİYOR"
+//   yazmaya devam ediyordu. Ayak match_key'lerinden match_state'e bakıp
+//   durumu (kazandı / kaybetti / devam) ve skorları yeniden hesaplarız.
+function _cfcMdTotoTazele(c) {
+  if (!c || !Array.isArray(c.legs) || c.legs.length === 0) return c;
+  const cache = (typeof _matchStateCache === 'object' && _matchStateCache && _matchStateCache.byKey)
+    ? _matchStateCache.byKey : null;
+  if (!cache) return c;
+  const legs = c.legs.map(l => ({ ...l }));
+  let biten = 0, isabet = 0, yanan = null, kayip = false;
+  for (const l of legs) {
+    const ms = l.k ? cache[l.k] : null;
+    if (!ms) continue;
+    const hs = Number(ms.home_score ?? ms.hs), as = Number(ms.away_score ?? ms.as);
+    if (ms.status === 'finished' && isFinite(hs) && isFinite(as)) {
+      biten++;
+      l.s = hs + '-' + as;
+      const res = hs > as ? '1' : (hs === as ? 'X' : '2');
+      if (String(l.pk || l.p) === res || (l.p === '0' && res === 'X')) { l.r = 1; isabet++; }
+      else {
+        l.r = 0; kayip = true;
+        if (!yanan) yanan = `${l.p} ${l.h}–${l.a} ${l.s}`;
+      }
+    } else if (ms.status === 'running' && isFinite(hs) && isFinite(as)) {
+      l.s = (hs || 0) + '-' + (as || 0);
+    }
+  }
+  const yeni = { ...c, legs };
+  if (kayip) yeni.status = 'lost';
+  else if (biten === legs.length && legs.length > 0) yeni.status = 'won';
+  else yeni.status = 'pending';
+  const bekle = legs.length - biten;
+  yeni.hit = (yeni.status === 'pending') ? `${isabet}/${biten || 0}` : `${isabet}/${legs.length}`;
+  yeni.metaSag = (yeni.status === 'pending')
+    ? `<b>${isabet}/${biten || 0}</b> tuttu · ${bekle} maç bekliyor`
+    : `İsabet <b>${isabet}/${legs.length}</b>`;
+  yeni.ozet = (yeni.status === 'lost' && yanan)
+    ? `Yanan: <b style="color:#ff8a9b">${yanan}</b>`
+    : legs.slice(0, 3).map(l => `<b>${l.p}</b> ${l.h}–${l.a}`).join(' · ');
+  return yeni;
+}
+
 function _cfcMdCouponPlayable(c) {
   try {
     const legs = (c && Array.isArray(c.legs)) ? c.legs : [];
