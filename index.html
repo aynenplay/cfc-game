@@ -16028,9 +16028,10 @@ body.inbox-open #main{visibility:hidden!important;pointer-events:none!important}
   font-family:'Barlow Condensed',sans-serif;font-weight:700;cursor:pointer}
 #page-home .hm-nx-row{display:flex;gap:4px;padding:8px 10px 12px;position:relative;z-index:2}
 #page-home .hm-nx-row > .hm-nxc{flex:1 1 0;min-width:0}
-#page-home .hm-nxc{border-radius:10px;border:1px solid var(--border,#20242c);padding:5px 2px 4px;
+#page-home .hm-nxc{border-radius:9px;border:1px solid var(--border,#20242c);padding:4px 2px 4px;
   text-align:center;position:relative;overflow:hidden;cursor:pointer;
-  aspect-ratio:1/1.06;                    /* 🆕 kareye yakın; 5 kart dar ekranda da sığar */
+  aspect-ratio:auto;                      /* 🆕 sabit oran yok — yükseklik içeriğe göre */
+  min-height:82px;                        /* 5 kart dar ekranda da rahat sığar */
   min-width:0;
   display:flex;flex-direction:column;align-items:center;justify-content:space-between;
   background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.015));
@@ -16043,7 +16044,7 @@ body.inbox-open #main{visibility:hidden!important;pointer-events:none!important}
 #page-home .hm-nxc .nxd{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:9px;
   line-height:1.05;color:var(--g3,#ffd54f);letter-spacing:.2px;white-space:nowrap;overflow:hidden;
   width:100%}
-#page-home .hm-nxc .nxc-crest{width:34px;height:34px;border-radius:50%;margin:1px auto;display:flex;flex-shrink:0;
+#page-home .hm-nxc .nxc-crest{width:34px;height:34px;border-radius:50%;margin:2px auto 1px;display:flex;flex-shrink:0;
   align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-weight:900;
   font-size:8.5px;color:#fff;background:#2a2f3a;background-size:cover;background-position:center;
   box-shadow:0 3px 10px rgba(0,0,0,.6),0 0 0 1.5px rgba(255,255,255,.16);overflow:hidden}
@@ -28075,7 +28076,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-01-kaptanmodal-281';
+const APP_BUILD = '2026-08-01-serit5-282';
 
 (function _cacheBustCheck() {
   try {
@@ -58353,6 +58354,15 @@ function _hmNxItem(c) {
   const benim = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName) || '';
   const d = new Date(c.time);
   const o = { d, tur: c.source, ev: true, ad: '?', kisa: '?', cc: null, comp: '', bayrak: '' };
+  // 🆕 Sunucudan gelen sade satır — doğrudan kullan
+  if (c._sunucu) {
+    o.ad = c._sunucu.ad || '?';
+    o.kisa = (o.ad || '?').slice(0, 3).toUpperCase();
+    o.cc = c._sunucu.cc || null;
+    o.ev = !!c._sunucu.ev;
+    o.comp = _hmNxComp(c._sunucu.comp || '');
+    return o;
+  }
   try {
     if (c.source === 'league') {
       const L = c.league || {}, h = L.home || {}, a = L.away || {};
@@ -58454,6 +58464,66 @@ function hmNxOpenTeam(i) {
   } catch(e) { console.warn('[hmNx] takım açma hatası:', e); }
 }
 window.hmNxOpenTeam = hmNxOpenTeam;
+
+// 🆕 Şerit verisi — kullanıcının yaklaşan maçları (sunucudan, 5 dk önbellek)
+async function _hmStripYukle(anaMac) {
+  try {
+    if (!window.sb || typeof _userTeam === 'undefined' || !_userTeam || !_userTeam.teamName) return;
+    const takim = _userTeam.teamName;
+    const simdi = Date.now();
+    const taze = window._hmStripCache &&
+                 window._hmStripCache.takim === takim &&
+                 (simdi - window._hmStripCache.t) < 5 * 60 * 1000;
+    if (taze) { _hmStripCiz(window._hmStripCache.rows, anaMac); return; }
+    if (window._hmStripLoading) return;
+    window._hmStripLoading = true;
+
+    const nowIso = new Date(simdi - 30 * 60 * 1000).toISOString();
+    const { data, error } = await window.sb.from('match_state')
+      .select('match_key,home_team,away_team,country_code,league_name,tournament_key,kickoff_at,status')
+      .or('home_team.eq.' + takim + ',away_team.eq.' + takim)
+      .gte('kickoff_at', nowIso)
+      .neq('status', 'finished')
+      .order('kickoff_at', { ascending: true })
+      .limit(10);
+    window._hmStripLoading = false;
+    if (error) { console.warn('[hmStrip] sorgu hata:', error.message); return; }
+    const rows = data || [];
+    window._hmStripCache = { takim, t: simdi, rows };
+    _hmStripCiz(rows, anaMac);
+  } catch(e) { window._hmStripLoading = false; console.warn('[hmStrip] hata:', e); }
+}
+
+// Sunucu satırlarını şerit öğesine çevirip çiz (ana paneldeki maç hariç, en fazla 5)
+function _hmStripCiz(rows, anaMac) {
+  try {
+    const takim = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : '';
+    const anaT = anaMac ? anaMac.time : 0;
+    const TRN = { champ: 'Championship', elite: 'Elite', conv: 'Convergence',
+                  enc: 'EURO Cup', friendly: 'Hazırlık' };
+    const liste = [];
+    for (const r of (rows || [])) {
+      const t = r.kickoff_at ? new Date(r.kickoff_at).getTime() : 0;
+      if (!t) continue;
+      if (anaT && Math.abs(t - anaT) < 90000) continue;         // ana paneldeki maç
+      const ev = (r.home_team === takim);
+      const rakip = ev ? r.away_team : r.home_team;
+      if (!rakip) continue;
+      liste.push({
+        source: r.tournament_key ? (r.tournament_key === 'friendly' ? 'friendly'
+                : (r.tournament_key === 'enc' ? 'national' : 'tournament')) : 'league',
+        time: t,
+        _sunucu: {
+          ad: rakip, ev, cc: r.countryCode || r.country_code || null,
+          comp: r.tournament_key ? (TRN[r.tournament_key] || 'Turnuva')
+                                 : (r.league_name || 'Lig')
+        }
+      });
+      if (liste.length >= 5) break;
+    }
+    _hmRenderNextStrip(liste);
+  } catch(e) { console.warn('[hmStripCiz] hata:', e); }
+}
 
 function _hmRenderNextStrip(list) {
   try { _hmApplyStadBg(); } catch(e) {}
@@ -58762,50 +58832,10 @@ function _renderHomeNextMatchCore() {
   const next = candidates[0];
 
   // 🆕 SIRADAKİ 5 MAÇ ŞERİDİ — ana maçtan sonraki adaylar (gerçek fikstür)
-  // 🆕 ŞERİT — hedef 5 maç. candidates kısa kalırsa (turnuva/milli için yalnızca
-  //   "sıradaki 1 maç" üretiliyor) match_state'ten kullanıcının gelecek lig
-  //   maçlarıyla tamamlanır.
-  try {
-    const _serit = candidates.slice(1, 6);
-    if (_serit.length < 5 && _matchStateCache && _matchStateCache.byKey && _userTeam) {
-      const _var = new Set(candidates.map(c => {
-        if (c.source === 'league' && c.league) return c.league.matchKey || (c.league.home && c.league.home.name) + '|' + c.time;
-        return c.source + '|' + c.time;
-      }));
-      const _ek = [];
-      const _simdi = Date.now();
-      for (const ms of Object.values(_matchStateCache.byKey)) {
-        if (!ms || !ms.matchDateTime) continue;
-        if (ms.home !== _userTeam.teamName && ms.away !== _userTeam.teamName) continue;
-        if (ms.tournament_key === 'friendly') continue;
-        if (ms.status === 'finished') continue;
-        const t = new Date(ms.matchDateTime).getTime();
-        if (isNaN(t) || t <= _simdi) continue;
-        const anahtar = ms.matchKey || ((ms.home || '') + '|' + t);
-        if (_var.has(anahtar) || _var.has('league|' + t)) continue;
-        const _rakip = (ms.home === _userTeam.teamName) ? ms.away : ms.home;
-        _ek.push({
-          source: 'league', time: t,
-          league: {
-            home: { name: ms.home, countryCode: ms.countryCode },
-            away: { name: ms.away, countryCode: ms.countryCode },
-            leagueName: ms.leagueName || '', countryCode: ms.countryCode,
-            matchKey: ms.matchKey
-          }
-        });
-      }
-      _ek.sort((a, b) => a.time - b.time);
-      const _mevcutZaman = new Set(_serit.map(c => c.time));
-      for (const e of _ek) {
-        if (_serit.length >= 5) break;
-        if (_mevcutZaman.has(e.time)) continue;
-        if (candidates[0] && Math.abs(candidates[0].time - e.time) < 60000) continue;
-        _serit.push(e); _mevcutZaman.add(e.time);
-      }
-      _serit.sort((a, b) => a.time - b.time);
-    }
-    _hmRenderNextStrip(_serit.slice(0, 5));
-  } catch(e) { console.warn('[hmNextStrip]', e); }
+  // 🆕 ŞERİT — kaynak: SUNUCU. _matchStateCache yalnızca dar bir gün penceresini
+  //   tuttuğu için aday listesi 3-4 maçta kalıyordu. Şerit artık kullanıcının
+  //   yaklaşan maçlarını doğrudan match_state'ten çekiyor (5 dk önbellekli).
+  try { _hmStripYukle(candidates[0] || null); } catch(e) { console.warn('[hmNextStrip]', e); }
 
   // 🆕 HATAYA DAYANIKLI SEÇİM — bir aday render sırasında patlarsa ana sayfa
   //   komple boş kalıyordu. Artık hata veren aday atlanıp sıradakine geçilir.
