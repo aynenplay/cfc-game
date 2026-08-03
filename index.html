@@ -27974,7 +27974,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-01-karttiklama-264';
+const APP_BUILD = '2026-08-01-asama-265';
 
 (function _cacheBustCheck() {
   try {
@@ -62796,15 +62796,56 @@ function renderHomeEuro() {
 // Bugünün turnuva aşamasını belirle.
 // 🆕 ÖNCE tournament_state.phase (gerçek aşama — server tek kaynak), SONRA takvim fallback.
 //   phase: playoff(PO1) | po2 | group | r32/r16/qf/sf | final
+// 🆕 AŞAMA SIRASI — hem phase alanı hem fikstür için ortak ölçek
+const _TRN_PHASE_ORDER = ['playoff','po2','group','r32','r16','qf','sf','final'];
+
+// 🆕 Fikstürden gerçek aşama: kurulmuş EN İLERİ tur.
+//   tournament_state.phase bazı turnuvalarda geride kalabiliyor (sunucu yalnızca
+//   bazılarını ilerletiyor); fikstür ise turlar kurulunca doluyor. İkisinin
+//   ilerisini alıyoruz — böylece Elite/Convergence de doğru aşamayı gösteriyor.
+function _trnPhaseFromFixture(tkey, season) {
+  try {
+    if (typeof _tournamentStateGet !== 'function') return null;
+    const st = _tournamentStateGet(tkey, season);
+    const fx = (st && st.fixture) ? st.fixture : null;
+    if (!fx) return null;
+    const ko = (tkey === 'champ') ? ['r16','qf','sf','final'] : ['r32','r16','qf','sf','final'];
+    let last = null;
+    for (const ph of ko) {
+      const pairs = fx[ph];
+      if (Array.isArray(pairs) && pairs.length > 0) last = ph;
+    }
+    if (last) return last;
+    if (fx.groups || fx.groupMatches) return 'group';
+    if (fx.playoff2) return 'po2';
+    if (fx.playoff) return 'playoff';
+  } catch(e) {}
+  return null;
+}
+
+// 🆕 Turnuvanın güncel aşaması — phase ile fikstürün İLERİ olanı
+function _trnGuncelFaz(tkey, season) {
+  let ph = null;
+  try {
+    const st = (typeof _tournamentStateGet === 'function') ? _tournamentStateGet(tkey, season) : null;
+    if (st && st.phase) ph = st.phase;
+  } catch(e) {}
+  const fx = _trnPhaseFromFixture(tkey, season);
+  const i1 = _TRN_PHASE_ORDER.indexOf(ph);
+  const i2 = _TRN_PHASE_ORDER.indexOf(fx);
+  if (i1 < 0 && i2 < 0) return null;
+  return _TRN_PHASE_ORDER[Math.max(i1, i2)];
+}
+window._trnGuncelFaz = _trnGuncelFaz;
+
 function _euGetCurrentStage(type, dayInSeason) {
-  // 1) tournament_state.phase — gerçek aşama (takvim değil)
+  // 1) Gerçek aşama — tournament_state.phase VE fikstürün ilerisi (takvim değil)
   const _tkeyMap = { chm: 'champ', eli: 'elite', con: 'conv' };
   const _tkey = _tkeyMap[type];
-  if (_tkey && typeof _tournamentStateGet === 'function' && typeof getSeasonInfo === 'function') {
+  if (_tkey && typeof getSeasonInfo === 'function') {
     const _season = getSeasonInfo().season;
-    const _ts = _tournamentStateGet(_tkey, _season);
-    if (_ts && _ts.phase) {
-      const ph = _ts.phase;
+    const ph = _trnGuncelFaz(_tkey, _season);
+    if (ph) {
       if (ph === 'playoff') return { type: 'playoff',  round: 'Play-off',   day: 0 };
       if (ph === 'po2')     return { type: 'po2',      round: 'Play-off 2', day: 0 };
       if (ph === 'group')   return { type: 'group',    round: 'Grup Aşaması', day: 0 };
@@ -70431,6 +70472,35 @@ function encGroupToggle(id) {
 }
 
 // ── Eleme braketi HTML ──
+// 🆕 Eleme sekmesinde açılışta gösterilecek tur.
+//   Öncelik: turnuvanın güncel aşaması (phase + fikstür). O tur listede yoksa
+//   oynanmış maçı olan EN İLERİ tur. Hiçbiri yoksa ilk tur.
+function _bkbGuncelTurIdx(bracket, trnKey) {
+  try {
+    if (!Array.isArray(bracket) || bracket.length === 0) return 0;
+    const AD = { r32:'Son 32', r16:'Son 16', qf:'Çeyrek Final', sf:'Yarı Final', final:'Final' };
+    const season = (typeof getSeasonInfo === 'function') ? getSeasonInfo().season : null;
+    const ph = (typeof _trnGuncelFaz === 'function' && season && trnKey && trnKey !== 'enc')
+      ? _trnGuncelFaz(trnKey, season) : null;
+    if (ph && AD[ph]) {
+      const i = bracket.findIndex(r => r && typeof r.name === 'string' && r.name.indexOf(AD[ph]) === 0);
+      if (i >= 0) return i;
+    }
+    // Yedek: oynanmış/skoru olan en ileri tur
+    let son = -1;
+    bracket.forEach((r, i) => {
+      const oynanmis = (r && Array.isArray(r.matches))
+        ? r.matches.some(m => m && (m.winner
+            || (m.leg1 && m.leg1.played)
+            || (m.hg != null && m.ag != null)))
+        : false;
+      if (oynanmis) son = i;
+    });
+    if (son >= 0) return son;
+  } catch(e) {}
+  return 0;
+}
+
 function trn2BkSelRound(btn){
   try{
     const wrap = btn.closest('.trn2-bk-wrap2'); if(!wrap) return;
@@ -70619,15 +70689,17 @@ function trn2BuildBracketHtml(bracket, trnKey, season, groups) {
     : (trnKey === 'elite')
     ? 'ELI grupların 1-2\'leri (16) + CHM gruplarının 3-4\'leri (16) = 32 takım Son 32\'de buluşur. Final hariç tüm turlar çift maçlıdır.'
     : 'CON grupların 1-2\'leri (16) + ELI gruplarının 3-4\'leri (16) = 32 takım Son 32\'de buluşur. Final hariç tüm turlar çift maçlıdır.';
+  // 🆕 AÇILIŞTA GÜNCEL TUR — eskiden her zaman ilk tur (Son 32) açılıyordu.
+  const _aktifTur = _bkbGuncelTurIdx(bracket, trnKey);
   let html = `<div class="trn2-bk-wrap2" style="--bk-acc:${trnColor}"><div style="padding:0 12px 4px;font-size:10px;color:var(--text3)">${_bracketInfo}</div>`
-    + `<div class="trn2-bk-sel">${bracket.map((r,i)=>`<button class="trn2-bk-pill ${i===0?'active':''}" data-r="${i}" onclick="trn2BkSelRound(this)">${r.name}</button>`).join('')}</div>`
+    + `<div class="trn2-bk-sel">${bracket.map((r,i)=>`<button class="trn2-bk-pill ${i===_aktifTur?'active':''}" data-r="${i}" onclick="trn2BkSelRound(this)">${r.name}</button>`).join('')}</div>`
     + `<div class="trn2-bk-single">`;
 
   bracket.forEach((round, ri) => {
     // 🆕 Tur başlığı: eşleşme sayısı + tamamlanan
     const _tam = (round.matches || []).filter(x => x && x.winner).length;
     const _cift = (round.matches && round.matches[0]) ? round.matches[0].twoLeg : true;
-    html += `<div class="trn2-br-round ${ri===0?'active':''}" data-r="${ri}">`;
+    html += `<div class="trn2-br-round ${ri===_aktifTur?'active':''}" data-r="${ri}">`;
     html += `<div class="bkb-hd"><b>${round.name}</b>
       <span>${(round.matches||[]).length} eşleşme · ${_cift ? 'çift maçlı' : 'tek maç'}${_tam ? ' · ' + _tam + ' tamamlandı' : ''}</span></div>`;
     (round.matches || []).forEach((m, mi) => {
@@ -71445,13 +71517,14 @@ function encRenderKnockout(state) {
 
   // 4) Bracket HTML (Championship ile aynı yapı)
   const trnColor = '#ffd54f'; // EURO Cup sarısı
+  const _encAktifTur = _bkbGuncelTurIdx(rounds, 'enc');   // 🆕 güncel tur açık gelsin
   let html = `<div class="trn2-bk-wrap2" style="--bk-acc:${trnColor}"><div style="padding:0 12px 4px;font-size:10px;color:var(--text3)">8 grubun ilk 2'si Son 16'ya yükselir. Her tur tek maç eleme (berabere durumunda penaltı).</div>`
-    + `<div class="trn2-bk-sel">${rounds.map((r,i)=>`<button class="trn2-bk-pill ${i===0?'active':''}" data-r="${i}" onclick="trn2BkSelRound(this)">${r.name}</button>`).join('')}</div>`
+    + `<div class="trn2-bk-sel">${rounds.map((r,i)=>`<button class="trn2-bk-pill ${i===_encAktifTur?'active':''}" data-r="${i}" onclick="trn2BkSelRound(this)">${r.name}</button>`).join('')}</div>`
     + `<div class="trn2-bk-single">`;
 
   rounds.forEach((round, ri) => {
     const _oyn = (round.matches || []).filter(x => x && x.hg != null && x.ag != null).length;
-    html += `<div class="trn2-br-round ${ri===0?'active':''}" data-r="${ri}">`;
+    html += `<div class="trn2-br-round ${ri===_encAktifTur?'active':''}" data-r="${ri}">`;
     html += `<div class="bkb-hd"><b>${round.name}</b>
       <span>${(round.matches||[]).length} eşleşme · tek maç${_oyn ? ' · ' + _oyn + ' oynandı' : ''}</span></div>`;
     (round.matches || []).forEach((m, mi) => {
