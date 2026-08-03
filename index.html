@@ -10272,6 +10272,9 @@ body.team-captain .pr-mv.is-custom:hover{color:#ffe082}
 /* ── Takım Pazarı (Team Marketplace) ── */
 /* Sadece kaptan görsün */
 /* Oyuncu durum rozetleri (kart cezası + sakatlık) */
+.pr-status-tf{display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:800;
+  padding:2px 6px;border-radius:5px;background:rgba(255,214,0,.14);color:#ffd54f;
+  border:1px solid rgba(255,214,0,.35);white-space:nowrap;margin-left:4px}
 .pr-status-yc,.pr-status-susp,.pr-status-morale-low{
   display:inline-block;font-size:9px;font-weight:700;
   padding:2px 6px;border-radius:6px;
@@ -27974,7 +27977,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-01-duzeltmeler-266';
+const APP_BUILD = '2026-08-01-duzeltmeler3-268';
 
 (function _cacheBustCheck() {
   try {
@@ -36422,10 +36425,28 @@ function renderMatchSubBench() {
 
 // 🆕 Yardımcı: takım state'inden maç state'ine sub yansıtması
 // (activePitchPlayers ve MS.simState.home.players'ı senkron tut)
+// 🆕 Maç kadrosundaki index ile takım sayfasındaki activePitchPlayers indexi
+//   aynı olmak zorunda değil. Çıkan oyuncuyu FORMA NUMARASI/ADI ile bul —
+//   aksi halde yanlış slot değişiyor ve çıkan oyuncu sahada kalmaya devam ediyordu.
+function _msubApIdx(playerOut, fallbackIdx) {
+  try {
+    if (typeof activePitchPlayers === 'undefined' || !Array.isArray(activePitchPlayers)) return fallbackIdx;
+    if (playerOut) {
+      let i = activePitchPlayers.findIndex(e => e && e.player &&
+        playerOut.num != null && e.player.num === playerOut.num);
+      if (i < 0) i = activePitchPlayers.findIndex(e => e && e.player &&
+        playerOut.name && e.player.name === playerOut.name);
+      if (i >= 0) return i;
+    }
+  } catch(e) {}
+  return fallbackIdx;
+}
+
 function _msubSyncStateAfterSwap(pitchIdx, benchPlayer, playerOut) {
   // 1. activePitchPlayers'da slot'u güncelle (kullanıcı takım dizilişine yansır)
-  if (typeof activePitchPlayers !== 'undefined' && activePitchPlayers[pitchIdx]) {
-    activePitchPlayers[pitchIdx].player = benchPlayer;
+  const _apIdx = _msubApIdx(playerOut, pitchIdx);
+  if (typeof activePitchPlayers !== 'undefined' && activePitchPlayers[_apIdx]) {
+    activePitchPlayers[_apIdx].player = benchPlayer;
   }
   // 2. benchPlayers'da çıkanı yedeğe al, gireni kaldır
   if (typeof benchPlayers !== 'undefined' && Array.isArray(benchPlayers)) {
@@ -36440,6 +36461,16 @@ function _msubSyncStateAfterSwap(pitchIdx, benchPlayer, playerOut) {
 
   // 4. MS.simState.home/away.players'ı güncelle (motor state)
   const { myTeam } = _whichSideIsUser();
+  // 4b. Ekranı tazele — maç sahası takım sayfasının klonu olduğu için önce o,
+  //     sonra maç sahası yeniden çizilmeli (çıkan oyuncu sahada kalmasın).
+  try {
+    setTimeout(() => {
+      try { if (typeof renderPitch === 'function') renderPitch(); } catch(e) {}
+      try { if (typeof renderBench === 'function') renderBench(); } catch(e) {}
+      try { if (typeof renderMatchSubPitch === 'function') renderMatchSubPitch(); } catch(e) {}
+      try { if (typeof renderMatchSubBench === 'function') renderMatchSubBench(); } catch(e) {}
+    }, 0);
+  } catch(e) {}
   if (myTeam && myTeam.players && myTeam.players[pitchIdx]) {
     const oldPlayer = myTeam.players[pitchIdx];
     const POS_GRP = (typeof POS_GROUP !== 'undefined') ? POS_GROUP : {};
@@ -47392,6 +47423,21 @@ function renderRoster(filter) {
       const hr = getInjuryRemainingHours(p);
       statusBadges += `<span class="pr-status-inj" title="Sakatlık iyileşme süresi">🚑 ${hr}s</span>`;
     }
+    // 🆕 TRANSFER LİSTESİNDE Mİ? — kadroda görünür rozet
+    try {
+      const _tfl = (typeof getTfList === 'function') ? (getTfList() || []) : [];
+      const _myTeamNm = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : null;
+      const _ilan = _tfl.find(it => it && !it.sold && it.sellerTeam === _myTeamNm && (
+        (it.playerNum != null && p.num != null && it.playerNum === p.num) || it.playerId === p.name
+      ));
+      if (_ilan) {
+        const _bed = (Number(_ilan.feeEur) || 0);
+        const _bedStr = _bed >= 1000000 ? (_bed / 1000000).toFixed(1) + 'M €'
+                      : _bed > 0 ? Math.round(_bed / 1000) + 'K €' : '';
+        statusBadges += `<span class="pr-status-tf" title="Transfer listesinde">🏷️ Transferde${_bedStr ? ' · ' + _bedStr : ''}</span>`;
+      }
+    } catch(e) {}
+
     // 🆕 Düşük moral badge
     const morale = (typeof p.morale === 'number') ? p.morale : 70;
     if (morale < 40) {
@@ -67332,7 +67378,7 @@ function openShopBuyModal(itemId) {
   overlayEl.classList.add('open');
 }
 
-function confirmBuy() {
+async function confirmBuy() {
   try {
     if(!_buyTarget) {
       console.warn('confirmBuy: _buyTarget null');
@@ -67392,18 +67438,62 @@ function confirmBuy() {
       return;
     }
 
-    // Para düş — CÜZDAN (user_wallet) — header diamond gösterimi otomatik güncellenir
-    const deducted = (typeof wlDeduct === 'function')
-      ? wlDeduct('dia', _buyTarget.price, 'Mağaza: ' + (_buyTarget.itemName || item.name))
-      : false;
-    if (!deducted) {
+    // 🆕 PAZAR YERİ ALIMI SUNUCUDA — ilan atomik olarak kapanır, satıcıya ödeme
+    //   yapılır, aynı item ikinci kez satılamaz. (Eskiden ilana hiç dokunulmuyordu.)
+    if (!_buyTarget.fromShop && _buyTarget.listingId) {
+      const _lid = _buyTarget.listingId;
+      const _price = _buyTarget.price;
       closeBuyModal();
-      showShopToast('❌ Bakiye düşülemedi (cüzdan hatası).', '#ef5350');
-      return;
+      showShopToast('⏳ Satın alınıyor…', 'var(--text2)');
+      try {
+        const r = await fetch(`${SUPABASE_URL}/functions/v1/tick-matches?action=market_buy`
+          + `&user=${encodeURIComponent(authUser.id)}&listing=${encodeURIComponent(_lid)}`,
+          { headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY } });
+        const d = await r.json().catch(() => null);
+        if (!r.ok || !d || d.error) {
+          const msg = {
+            ilan_satildi: 'Bu item az önce başkası tarafından alındı.',
+            yetersiz_elmas: 'Yetersiz elmas.',
+            kendi_ilanin: 'Kendi ilanını satın alamazsın.',
+            ilan_bulunamadi: 'İlan bulunamadı.'
+          }[d && d.error] || 'Satın alınamadı.';
+          showShopToast('❌ ' + msg, '#ef5350');
+          // listeyi tazele — satılmış ilan ekrandan kalksın
+          try {
+            _marketListings = await _marketListingsLoadFromServer();
+            if (typeof renderMarket === 'function') renderMarket(_marketSearchQ || '');
+          } catch(e) {}
+          _buyTarget = null;
+          return;
+        }
+        // Cüzdanı sunucudan tazele
+        try { if (typeof wlLoadFromServer === 'function') await wlLoadFromServer(); } catch(e) {}
+      } catch(e) {
+        showShopToast('❌ Sunucuya ulaşılamadı.', '#ef5350');
+        _buyTarget = null;
+        return;
+      }
+    } else {
+      // Mağazadan alım — cüzdandan düş
+      const deducted = (typeof wlDeduct === 'function')
+        ? wlDeduct('dia', _buyTarget.price, 'Mağaza: ' + (_buyTarget.itemName || item.name))
+        : false;
+      if (!deducted) {
+        closeBuyModal();
+        showShopToast('❌ Bakiye düşülemedi (cüzdan hatası).', '#ef5350');
+        return;
+      }
     }
 
     // Stok artır (mağaza item'i)
     if(_buyTarget.fromShop && typeof incrShopStock === 'function') incrShopStock(_buyTarget.itemId);
+    // 🆕 Pazar yerinden alındıysa ilanı listeden düşür
+    if (!_buyTarget.fromShop && _buyTarget.listingId) {
+      try {
+        const _i = _marketListings.findIndex(x => x && x.id === _buyTarget.listingId);
+        if (_i >= 0) _marketListings.splice(_i, 1);
+      } catch(e) {}
+    }
 
     // Dolaba ekle
     eq.wardrobe.push({
@@ -73609,14 +73699,29 @@ async function tfHireFreeAgent(agentId){
     if(typeof renderFreeAgentList === 'function') renderFreeAgentList();
     return;
   }
-  const { error: e2 } = await window.sb.from('players').update({
-    team_name: _userTeam.teamName,
-    country_code: _userTeam.countryCode,
-    num: newNum,
-    role: 'member'
-  }).eq('id', sbId).is('team_name', null);
-  if(e2){
-    if(typeof rosterToast === 'function') rosterToast('Transfer hatası.', 'err'); return;
+  // 🆕 SUNUCU ÜZERİNDEN TRANSFER — istemciden players tablosuna yazmak RLS'e
+  //   takılıyordu; oyuncu ne kadroya giriyor ne de serbest listeden düşüyordu.
+  try {
+    const _r = await fetch(`${SUPABASE_URL}/functions/v1/tick-matches?action=hire_free_agent`
+      + `&user=${encodeURIComponent(authUser.id)}&player=${encodeURIComponent(sbId)}&max=${maxRoster}`,
+      { headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY } });
+    const _d = await _r.json().catch(() => null);
+    if (!_r.ok || !_d || _d.error) {
+      const _msg = {
+        takim_yok: 'Önce bir takıma katılmalısın.',
+        yetki_yok: 'Sadece kaptan transfer yapabilir.',
+        kadro_dolu: 'Kadro dolu.',
+        serbest_degil: 'Oyuncu artık serbest değil.',
+        oyuncu_bulunamadi: 'Oyuncu bulunamadı.'
+      }[_d && _d.error] || 'Transfer hatası.';
+      if (typeof rosterToast === 'function') rosterToast('❌ ' + _msg, 'err');
+      if (typeof renderFreeAgentList === 'function') renderFreeAgentList();
+      return;
+    }
+    if (_d.num) newNum = _d.num;
+  } catch(e) {
+    if (typeof rosterToast === 'function') rosterToast('❌ Sunucuya ulaşılamadı.', 'err');
+    return;
   }
 
   // Lokal ROSTER_DATA'ya ekle (UI hemen güncellensin)
@@ -74263,8 +74368,25 @@ function executeSell(){
     return;
   }
 
+  // 🆕 ÇİFT İLAN ENGELİ — aynı oyuncu için zaten ilan varsa yenisini açma.
+  //   (İsim eşleşmesi tek başına yetmiyordu; takım + numara ile de kontrol.)
+  try {
+    const _mevcut = (typeof getTfList === 'function') ? (getTfList() || []) : [];
+    const _myTeamNm = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : null;
+    const _var = _mevcut.find(it => it && !it.sold && (
+         (it.playerNum != null && player.num != null && it.playerNum === player.num && it.sellerTeam === _myTeamNm)
+      || (it.playerId === player.name && it.sellerTeam === _myTeamNm)
+    ));
+    if (_var) {
+      if (typeof rosterToast === 'function') rosterToast(`${player.name} zaten satışta.`, 'err');
+      closeSellConfirm();
+      return;
+    }
+  } catch(e) {}
+
   const newEntry = {
     id: 'tf_' + Date.now(),
+    playerNum: (player && player.num != null) ? player.num : null,
     playerId: player.name || '—',
     pos: player.pos || 'MID',
     subPos: player.subPos || player.sub_pos || null,
@@ -74354,6 +74476,15 @@ function _tfDoRemoveListing(id) {
   const removed = list.find(l => l && l.id === id);
   const filtered = list.filter(l => l && l.id !== id);
   if(typeof saveTfList === 'function') saveTfList(filtered);
+  // 🆕 SUNUCUDAN DA SİL — saveTfList yalnızca upsert yapıyordu, satır tabloda
+  //   kalıyor ve oyuna tekrar girince ilan geri geliyordu.
+  try {
+    if (window.sb && id) {
+      window.sb.from('player_transfer_listings').delete().eq('id', id)
+        .then(({ error }) => { if (error) console.warn('[tf_list] silme hata:', error.message); })
+        .catch(() => {});
+    }
+  } catch(e) {}
   if(typeof rosterToast === 'function' && removed){
     rosterToast(`✅ ${removed.playerId} satıştan geri alındı.`, 'ok');
   }
