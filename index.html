@@ -2777,7 +2777,35 @@ select.form-input option{background:var(--bg)}
 
 .pm-a-acts{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px 11px 12px}
 .pm-a-acts .pm-btn{width:100%;padding:9px;border-radius:9px;font-size:11.5px;font-weight:700}
-.pm-a-acts .pm-captain-actions{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:6px}
+/* 🆕 KAPTAN YETKİLERİ BLOĞU — başlık üstte, butonlar eşit kutularda.
+   ESKİ HATA: blok 2 sütunlu grid'di; "Kaptan Yetkileri" başlığı sol hücreyi
+   kaplıyor, 3 sütunluk buton ızgarası sağ hücreye sıkışıyordu → butonlar
+   okunamayacak kadar küçülüyordu. */
+.pm-a-acts .pm-captain-actions{
+  grid-column:1/-1;display:block !important;
+  margin-top:10px;padding-top:10px;
+  border-top:1px dashed var(--border,#20242c);
+}
+.pm-a-acts .pm-cap-title{
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  width:100%;margin:0 0 9px;padding:0;
+  font-family:'Barlow Condensed',sans-serif;font-weight:900;
+  font-size:10.5px;letter-spacing:1.8px;text-transform:uppercase;color:#fbbf24;
+}
+.pm-a-acts .pm-cap-vice-count{font-size:9.5px;letter-spacing:.4px}
+.pm-a-acts .pm-cap-grid{
+  display:grid !important;grid-template-columns:1fr 1fr;gap:7px;
+}
+.pm-a-acts .pm-cap-grid .pm-btn{
+  width:100%;min-height:44px;margin:0;
+  padding:11px 8px;border-radius:10px;
+  display:flex;flex-direction:row;align-items:center;justify-content:center;gap:5px;
+  font-family:'Barlow',system-ui,sans-serif;
+  font-size:11.5px;font-weight:800;letter-spacing:.2px;line-height:1.2;
+  white-space:normal;text-align:center;
+}
+/* Tek/tek sayıda buton kaldıysa son buton tam genişlik */
+.pm-a-acts .pm-cap-grid .pm-btn:nth-child(odd):last-child{grid-column:1/-1}
 .pm-a-acts .pm-btn-locked{grid-column:1/-1}
 
 /* 🆕 Uzatma rozeti + sakatlık değişikliği bilgisi */
@@ -27977,7 +28005,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-01-duzeltmeler3-268';
+const APP_BUILD = '2026-08-01-gunlukodul-272';
 
 (function _cacheBustCheck() {
   try {
@@ -43546,6 +43574,13 @@ function authInit(){
               streak_claimed: Array.isArray(uplayer.streak_claimed) ? uplayer.streak_claimed : []
             };
           }
+          // 🆕 SERİYİ İLERLET — ESKİ HATA: touch_login_streak yalnızca kullanıcı
+          //   adı/şifreyle taze giriş yapıldığında çağrılıyordu. Oturum kayıtlıysa
+          //   (mobilde normal durum) hiç çağrılmıyor, yeni gün açılmıyor ve
+          //   günlük ödül verilmiyordu. Artık oturum geri yüklemede de çalışır.
+          try {
+            if (typeof evTouchLoginStreak === 'function') evTouchLoginStreak().catch(()=>{});
+          } catch(e) {}
 
           // 🆕 Skills + Active Trainings — SERVER TEK DOĞRU KAYNAK
           // Login'de daima lokal cft_tr_* anahtarları silinir (eski/kirli veri kalıntısını önler).
@@ -46686,14 +46721,13 @@ let _pendingMVEdit = null;
 
 function editPlayerMV(num, ev) {
   if (ev) { try { ev.stopPropagation(); } catch(e) {} }
-
-  // Yetki kontrolü: sadece kaptan
-  if (typeof _userTeam === 'undefined' || !_userTeam || _userTeam.role !== 'captain') {
-    if (typeof rosterToast === 'function') {
-      rosterToast('🔒 Sadece kaptan piyasa değerini değiştirebilir.', 'err');
-    }
-    return;
+  // 🆕 PİYASA DEĞERİ ARTIK DEĞİŞTİRİLEMEZ — oyun tarafından belirlenir.
+  //   (Kaptan override'ı kaldırıldı; hiçbir rol müdahale edemez.)
+  if (typeof rosterToast === 'function') {
+    rosterToast('💶 Piyasa değeri oyun tarafından belirlenir, değiştirilemez.', 'err');
   }
+  return;
+  /* eslint-disable no-unreachable */
   if (typeof ROSTER_DATA === 'undefined' || !Array.isArray(ROSTER_DATA)) return;
   const player = ROSTER_DATA.find(p => p && p.num === num);
   if (!player) {
@@ -46722,6 +46756,7 @@ function editPlayerMV(num, ev) {
   onMVInputChange();
   const ov = document.getElementById('mvEditOverlay');
   if (ov) ov.classList.add('open');
+  /* eslint-enable no-unreachable */
 }
 
 function onMVInputChange(){
@@ -47489,7 +47524,7 @@ function renderRoster(filter) {
           <div class="futc-meta">
             <span>${p.nation}</span>
             <span>Sv.${p.level}</span>
-            <span class="futc-mv${(typeof p.captainMV === 'number' && p.captainMV > 0)?' is-custom':''}" onclick="editPlayerMV(${p.num}, event)" title="Piyasa değeri${(_userTeam && _userTeam.role === 'captain')?' (kaptan değiştirebilir)':''}">${formatMV(getPlayerMarketValue(p))}</span>
+            <span class="futc-mv" title="Piyasa değeri — oyun tarafından belirlenir">${formatMV(getPlayerMarketValue(p))}</span>
           </div>
         </div>
         <div class="futc-right">
@@ -61621,9 +61656,7 @@ function _carEstimateMarketValue(player, ctx) {
 // - Aksi halde otomatik tahmin
 function getPlayerMarketValue(player) {
   if (!player) return 0;
-  if (typeof player.captainMV === 'number' && player.captainMV > 0) {
-    return player.captainMV;
-  }
+  // 🆕 captainMV override KALDIRILDI — piyasa değeri tek kaynak: oyun modeli.
   return _carEstimateMarketValue(player);
 }
 
@@ -61838,23 +61871,9 @@ function renderCareerPage() {
       const level = userPlayer?.level || 0;
       const overall = userPlayer?.overall || 10;
 
-      // 🆕 Piyasa değeri — kaptan override (önce ROSTER_DATA, sonra authUser fallback), yoksa otomatik tahmin
-      let mv = 0;
+      // 🆕 Piyasa değeri TEK KAYNAK: oyun modeli. Kaptan override'ı kaldırıldı.
+      let mv = _carEstimateMarketValue(userPlayer || { overall: overall, level: level });
       let isCaptainSet = false;
-      // 1) ROSTER_DATA içinde kullanıcı bulundu — captainMV varsa onu kullan
-      if (userPlayer && typeof userPlayer.captainMV === 'number' && userPlayer.captainMV > 0) {
-        mv = userPlayer.captainMV;
-        isCaptainSet = true;
-      }
-      // 2) authUser.captainMV (yedek — takım dışından geçişlerde de korunur)
-      else if (authUser && typeof authUser.captainMV === 'number' && authUser.captainMV > 0) {
-        mv = authUser.captainMV;
-        isCaptainSet = true;
-      }
-      // 3) Otomatik tahmin
-      else {
-        mv = _carEstimateMarketValue(userPlayer || { overall: overall, level: level });
-      }
       _carRecordMarketValue(mv); // her render'da snapshot
 
       // Trend hesapla (son ile öncesi)
@@ -63141,11 +63160,28 @@ function _euRenderKnockoutMini(trnKey, season, userTeamName, roundLabel) {
     const bracket = trn2BuildBracket(groups, season, trnKey);
     if (!bracket || !bracket.length) return { html: '<div class="lg-scene-empty">Bracket hazırlanıyor</div>', userIn: false };
 
-    // Round label → bracket index
-    let roundIdx = 0;
-    if (/Çeyrek/i.test(roundLabel)) roundIdx = 1;
-    else if (/Yarı/i.test(roundLabel)) roundIdx = 2;
-    else if (/Final/i.test(roundLabel)) roundIdx = 3;
+    // 🆕 Round label → bracket index — İSİM EŞLEŞMESİYLE.
+    //   ESKİ HATA: indeks sabitti (Çeyrek=1, Yarı=2, Final=3). Bu yalnızca
+    //   Championship için doğru; Elite/Convergence bracket'i "Son 32" ile
+    //   başladığı için tüm turlar bir kayıyordu → başlık "Yarı Final" derken
+    //   ekranda Çeyrek Final maçları listeleniyordu.
+    const _sad = t => String(t || '').toLocaleLowerCase('tr')
+      .replace(/[^a-zçğıöşü0-9]/g, '');
+    const _hedef = _sad(roundLabel);
+    let roundIdx = bracket.findIndex(r => {
+      const n = _sad(r && r.name);
+      return n && _hedef && (n.indexOf(_hedef) === 0 || _hedef.indexOf(n) === 0);
+    });
+    if (roundIdx < 0) {
+      // Yedek: eski sıra mantığı, ama bracket uzunluğuna göre kaydırmalı
+      const _ofs = (bracket.length >= 5) ? 1 : 0;   // Elite/Conv'de Son 32 var
+      if (/Çeyrek/i.test(roundLabel))      roundIdx = 1 + _ofs;
+      else if (/Yarı/i.test(roundLabel))   roundIdx = 2 + _ofs;
+      else if (/Final/i.test(roundLabel))  roundIdx = 3 + _ofs;
+      else if (/Son\s*16/i.test(roundLabel)) roundIdx = 0 + _ofs;
+      else roundIdx = 0;
+      if (roundIdx >= bracket.length) roundIdx = bracket.length - 1;
+    }
 
     const round = bracket[roundIdx];
     if (!round || !round.matches || !round.matches.length) return { html: '<div class="lg-scene-empty">Tur bilgisi yok</div>', userIn: false };
@@ -63617,6 +63653,28 @@ function renderFixture() {
   }
 
   const userTeamName = _userTeam.teamName;
+  // 🆕 GERÇEK LİG ADI — match_state.leagueName terfi/düşme sonrası eskimiş
+  //   olabiliyor (4. Lig takımına "5. Lig" yazıyordu). Takımın bulunduğu ligi
+  //   teams DB'den oku; bulunamazsa satırdaki ada düş.
+  let _myLeagueName = null;
+  try {
+    const _c = (typeof _cftGetCountry === 'function' && _userTeam.countryCode)
+      ? _cftGetCountry(_userTeam.countryCode) : null;
+    if (_c && Array.isArray(_c.leagues)) {
+      for (const lg of _c.leagues) {
+        if ((lg.teams || []).some(t => t && t.name === userTeamName)) { _myLeagueName = lg.name || null; break; }
+      }
+    }
+  } catch(e) {}
+  // 🆕 Gün → hafta çevirimi (SEASON_TEMPLATE tek kaynak)
+  const _haftaOf = (gun) => {
+    try {
+      const evs = (typeof SEASON_TEMPLATE !== 'undefined') ? (SEASON_TEMPLATE[gun] || []) : [];
+      const ev = evs.find(e => e && e.type === 'lig' && e.week);
+      if (ev) return ev.week;
+    } catch(e) {}
+    return gun;
+  };
   const DAYS_TR = ['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
   const MONTHS_TR = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
 
@@ -63661,7 +63719,7 @@ function renderFixture() {
     };
     const compLabel = ms.tournament_key
       ? ('🏆 ' + (TRN_LBL[ms.tournament_key] || ms.tournament_key))
-      : ('⚽ ' + (ms.leagueName || 'Lig'));
+      : ('⚽ ' + (_myLeagueName || ms.leagueName || 'Lig'));
 
     // Card class
     const cardCls = isLive ? 'lg2-fix-card today-card'
@@ -63725,7 +63783,8 @@ function renderFixture() {
           +   '<div class="lg2-fix-w" style="font-size:9px;color:var(--text3);margin-top:-1px">' + wday + '</div>'
           + '</div>'
           + '<div class="lg2-fix-mid">'
-          +   '<div class="lg2-fix-week">' + compLabel + ' · Hafta ' + ms.day + '</div>'
+          +   '<div class="lg2-fix-week">' + compLabel
+          +     (ms.tournament_key ? '' : (' · Hafta ' + _haftaOf(ms.day))) + '</div>'
           +   '<div class="lg2-fix-teams">'
           +     '<div class="lg2-fix-tm">'
           +       inlineBadge({tag:'div', cls:'lg2-fix-ball', name:ms.home})
@@ -63741,6 +63800,32 @@ function renderFixture() {
           + '</div>';
   }
   list.innerHTML = '<div class="lg2-fix-container">' + html + '</div>';
+
+  // 🆕 GÜNCEL HAFTAYA ORTALA — sekme açıldığında listenin başında değil,
+  //   bugünün/yaklaşan maçın olduğu yerde başlasın.
+  try {
+    setTimeout(() => {
+      const el = document.getElementById('fixtureList');
+      if (!el) return;
+      // Öncelik: canlı/bugünkü maç → yoksa ilk oynanmamış maç → yoksa son maç
+      let hedef = el.querySelector('.lg2-fix-card.today-card');
+      if (!hedef) {
+        const hepsi = Array.from(el.querySelectorAll('.lg2-fix-card'));
+        hedef = hepsi.find(c => !c.classList.contains('is-past-card')) || hepsi[hepsi.length - 1];
+      }
+      if (!hedef) return;
+      // Sayfa içindeki kaydırma kabını bul (page-team veya window)
+      const kap = el.closest('.page') || document.scrollingElement || document.documentElement;
+      const kr = kap.getBoundingClientRect ? kap.getBoundingClientRect() : { top: 0, height: window.innerHeight };
+      const hr = hedef.getBoundingClientRect();
+      const merkez = hr.top - kr.top - (kr.height / 2) + (hr.height / 2);
+      if (kap === document.scrollingElement || kap === document.documentElement) {
+        window.scrollBy({ top: merkez, behavior: 'smooth' });
+      } else {
+        kap.scrollBy({ top: merkez, behavior: 'smooth' });
+      }
+    }, 120);
+  } catch(e) {}
 }
 
 function fixLoadMore(dir) {
@@ -80573,7 +80658,25 @@ function evRaceCloseInfo() {
   if (modalEl) modalEl.style.display = 'none';
 }
 
+// 🆕 Sunucu günü ile RAM cache aynı mı? Değilse seriyi tazele.
+//   (Uygulama açıkken gece yarısı geçilirse veya oturum geri yüklendiyse.)
+function evEnsureStreakToday() {
+  try {
+    if (!window.sb || !authUser || !authUser.id) return;
+    const bugun = new Date().toISOString().slice(0, 10);   // UTC gün — server ile aynı ölçek
+    const cache = (_userStreakCache && _userStreakCache.login_day) || null;
+    if (cache === bugun) return;
+    if (window._evStreakTouching) return;
+    window._evStreakTouching = true;
+    Promise.resolve(evTouchLoginStreak())
+      .catch(() => {})
+      .then(() => { window._evStreakTouching = false; });
+  } catch(e) { window._evStreakTouching = false; }
+}
+window.evEnsureStreakToday = evEnsureStreakToday;
+
 function evRender() {
+  try { evEnsureStreakToday(); } catch(e) {}
   evRenderStreak();
   evRenderAchievements();
 }
@@ -85447,6 +85550,11 @@ function _frmTickSimulate() {
 setTimeout(_frmTickSimulate, 5000);
 // Her 60 saniyede bir
 setInterval(_frmTickSimulate, 60 * 1000);
+// 🆕 Gün dönümü kontrolü — uygulama açıkken gece yarısı geçilirse günlük ödül açılsın
+setInterval(() => { try { if (typeof evEnsureStreakToday === 'function') evEnsureStreakToday(); } catch(e) {} }, 5 * 60 * 1000);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) { try { if (typeof evEnsureStreakToday === 'function') evEnsureStreakToday(); } catch(e) {} }
+});
 // Sayfa görünür hale geldiğinde (kullanıcı sekmeye geri döndüğünde)
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) _frmTickSimulate();
