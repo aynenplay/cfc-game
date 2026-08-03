@@ -15961,11 +15961,12 @@ body.inbox-open #main{visibility:hidden!important;pointer-events:none!important}
 #page-home .hm-nx-hd i{flex:1;height:1px;background:linear-gradient(90deg,var(--hl),transparent)}
 #page-home .hm-nx-hd s{text-decoration:none;font-size:8.5px;color:var(--text3);
   font-family:'Barlow Condensed',sans-serif;font-weight:700;cursor:pointer}
-#page-home .hm-nx-row{display:flex;gap:5px;padding:8px 12px 12px;position:relative;z-index:2}
+#page-home .hm-nx-row{display:flex;gap:4px;padding:8px 10px 12px;position:relative;z-index:2}
 #page-home .hm-nx-row > .hm-nxc{flex:1 1 0;min-width:0}
-#page-home .hm-nxc{border-radius:11px;border:1px solid var(--border,#20242c);padding:5px 3px 4px;
+#page-home .hm-nxc{border-radius:10px;border:1px solid var(--border,#20242c);padding:5px 2px 4px;
   text-align:center;position:relative;overflow:hidden;cursor:pointer;
-  aspect-ratio:1/1;                       /* 🆕 kare kutucuk */
+  aspect-ratio:1/1.06;                    /* 🆕 kareye yakın; 5 kart dar ekranda da sığar */
+  min-width:0;
   display:flex;flex-direction:column;align-items:center;justify-content:space-between;
   background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.015));
   backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
@@ -28009,7 +28010,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-01-sistemmesaj2-279';
+const APP_BUILD = '2026-08-01-rozet-serit-280';
 
 (function _cacheBustCheck() {
   try {
@@ -58589,7 +58590,50 @@ function _renderHomeNextMatchCore() {
   const next = candidates[0];
 
   // 🆕 SIRADAKİ 5 MAÇ ŞERİDİ — ana maçtan sonraki adaylar (gerçek fikstür)
-  try { _hmRenderNextStrip(candidates.slice(1, 6)); } catch(e) { console.warn('[hmNextStrip]', e); }
+  // 🆕 ŞERİT — hedef 5 maç. candidates kısa kalırsa (turnuva/milli için yalnızca
+  //   "sıradaki 1 maç" üretiliyor) match_state'ten kullanıcının gelecek lig
+  //   maçlarıyla tamamlanır.
+  try {
+    const _serit = candidates.slice(1, 6);
+    if (_serit.length < 5 && _matchStateCache && _matchStateCache.byKey && _userTeam) {
+      const _var = new Set(candidates.map(c => {
+        if (c.source === 'league' && c.league) return c.league.matchKey || (c.league.home && c.league.home.name) + '|' + c.time;
+        return c.source + '|' + c.time;
+      }));
+      const _ek = [];
+      const _simdi = Date.now();
+      for (const ms of Object.values(_matchStateCache.byKey)) {
+        if (!ms || !ms.matchDateTime) continue;
+        if (ms.home !== _userTeam.teamName && ms.away !== _userTeam.teamName) continue;
+        if (ms.tournament_key === 'friendly') continue;
+        if (ms.status === 'finished') continue;
+        const t = new Date(ms.matchDateTime).getTime();
+        if (isNaN(t) || t <= _simdi) continue;
+        const anahtar = ms.matchKey || ((ms.home || '') + '|' + t);
+        if (_var.has(anahtar) || _var.has('league|' + t)) continue;
+        const _rakip = (ms.home === _userTeam.teamName) ? ms.away : ms.home;
+        _ek.push({
+          source: 'league', time: t,
+          league: {
+            home: { name: ms.home, countryCode: ms.countryCode },
+            away: { name: ms.away, countryCode: ms.countryCode },
+            leagueName: ms.leagueName || '', countryCode: ms.countryCode,
+            matchKey: ms.matchKey
+          }
+        });
+      }
+      _ek.sort((a, b) => a.time - b.time);
+      const _mevcutZaman = new Set(_serit.map(c => c.time));
+      for (const e of _ek) {
+        if (_serit.length >= 5) break;
+        if (_mevcutZaman.has(e.time)) continue;
+        if (candidates[0] && Math.abs(candidates[0].time - e.time) < 60000) continue;
+        _serit.push(e); _mevcutZaman.add(e.time);
+      }
+      _serit.sort((a, b) => a.time - b.time);
+    }
+    _hmRenderNextStrip(_serit.slice(0, 5));
+  } catch(e) { console.warn('[hmNextStrip]', e); }
 
   // 🆕 HATAYA DAYANIKLI SEÇİM — bir aday render sırasında patlarsa ana sayfa
   //   komple boş kalıyordu. Artık hata veren aday atlanıp sıradakine geçilir.
@@ -80115,8 +80159,10 @@ async function evClaimStreakDay(day) {
     if (_rect) { wlHoldHeader('eur', _rEur > 0); wlHoldHeader('dia', _rDia > 0); }
 
     // 🆕 Önce UI'ı anında güncelle — ödülü aldığı an rozet düşsün
+    if (typeof evQuestBadgeSync === 'function') evQuestBadgeSync();
     if (typeof evRender === 'function') evRender();
     if (typeof evRefreshBadge === 'function') evRefreshBadge();
+    if (typeof evQuestBadgeSync === 'function') setTimeout(evQuestBadgeSync, 0);
     if (typeof rosterToast === 'function') {
       const parts = [];
       if (data.dia) parts.push(`+${data.dia} 💎`);
@@ -81141,7 +81187,35 @@ function evRefreshBadge() {
 }
 
 let _evBadgeLastLoad = 0;
+// 🆕 Toplanabilir günlük ödül sayısı — tek kaynak (rozet ve mesajlar bunu kullanır)
+function evClaimableCount() {
+  try {
+    const s = (typeof evGetStreak === 'function') ? evGetStreak() : null;
+    if (!s) return 0;
+    const claimed = Array.isArray(s.streak_claimed) ? s.streak_claimed : [];
+    let n = 0;
+    for (let d = 1; d <= (s.login_streak || 0); d++) if (!claimed.includes(d)) n++;
+    return n;
+  } catch(e) { return 0; }
+}
+window.evClaimableCount = evClaimableCount;
+
+// 🆕 GÖREVLER rozetini ANINDA güncelle (await beklemeden).
+//   Ödülü alınca rozet hemen düşsün; 0 ise rozet gizlenir.
+function evQuestBadgeSync() {
+  try {
+    const qBadge = document.getElementById('evQuestsBadge');
+    if (!qBadge) return;
+    const n = evClaimableCount();
+    if (n > 0) { qBadge.textContent = String(n); qBadge.style.display = 'inline-flex'; }
+    else { qBadge.textContent = '0'; qBadge.style.display = 'none'; }
+  } catch(e) {}
+}
+window.evQuestBadgeSync = evQuestBadgeSync;
+
 async function evRefreshTabBadges() {
+  // 🆕 Görevler rozeti önce senkron güncellenir — achLoadState beklenmez.
+  try { evQuestBadgeSync(); } catch(e) {}
   // 🆕 BAYAT STATE FİX: badge'i GÜNCEL server claimed/stat'ından hesapla.
   //   (claimed liste yüklenmeden hesaplanınca TOPLANMIŞ ödül "toplanabilir" sayılıp
   //    bildirim fazla görünüyordu → render ile tutarsızlık.) Throttle: en çok 3sn'de bir.
@@ -81157,12 +81231,8 @@ async function evRefreshTabBadges() {
   const aBadge = document.getElementById('evAchBadge');
   if(!qBadge || !aBadge) return;
 
-  // GÖREVLER = toplanabilir giriş ödülü GÜN SAYISI (render ile AYNI: hak edilen ama toplanmamış günler)
-  let qn = 0;
-  try {
-    const s = (typeof evGetStreak === 'function') ? evGetStreak() : null;
-    if (s) { for (let d = 1; d <= (s.login_streak || 0); d++) { if (!((s.streak_claimed)||[]).includes(d)) qn++; } }
-  } catch(e){}
+  // GÖREVLER = toplanabilir giriş ödülü GÜN SAYISI (tek kaynak: evClaimableCount)
+  const qn = evClaimableCount();
 
   // BAŞARILAR = seri + pro toplanabilir (render ile BİREBİR aynı koşul)
   let an = 0;
