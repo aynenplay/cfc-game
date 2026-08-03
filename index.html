@@ -28009,7 +28009,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-01-sistemmesaj-278';
+const APP_BUILD = '2026-08-01-sistemmesaj2-279';
 
 (function _cacheBustCheck() {
   try {
@@ -80876,8 +80876,152 @@ function evEnsureStreakToday() {
 }
 window.evEnsureStreakToday = evEnsureStreakToday;
 
+// 🆕 PERİYODİK SİSTEM MESAJI TARAYICISI
+//   Oyun içinde oluşan ama sunucunun bilmediği durumlar için tek yerden kontrol.
+//   Hepsi sysMsg() üzerinden gider → aynı mesaj ikinci kez düşmez.
+function sysMsgTara() {
+  try {
+    if (!window.authUser || !window.authUser.id) return;
+
+    // ── D21 · Seviye atladın ──
+    try {
+      const lv = (window._userProgressCache && window._userProgressCache.level) || 0;
+      if (lv > 0) {
+        const son = Number(window._sysSonSeviye || localStorage.getItem('cft_sys_lv') || 0);
+        if (lv > son) {
+          if (son > 0) {
+            sysMsg({
+              id: 'seviye_' + lv, from: '📈 Gelişim', avatar: '📈', kind: 'seviye',
+              subject: `Seviye ${lv} Oldun!`,
+              body: `Tebrikler, ${lv}. seviyeye ulaştın.\n\n`
+                  + `• Yeteneklerin gelişti, piyasa değerin arttı.\n`
+                  + `• Antrenmana devam ederek daha da yükselebilirsin.`
+            });
+          }
+          window._sysSonSeviye = lv;
+          try { localStorage.setItem('cft_sys_lv', String(lv)); } catch(e) {}
+        }
+      }
+    } catch(e) {}
+
+    // ── D22 · Piyasa değeri eşiği ──
+    try {
+      if (typeof getPlayerMarketValue === 'function' && typeof ROSTER_DATA !== 'undefined') {
+        const me = (ROSTER_DATA || []).find(p => p && p.role === 'user');
+        const mv = me ? getPlayerMarketValue(me) : 0;
+        const esikler = [100000, 500000, 1000000, 5000000, 10000000];
+        const gecilen = esikler.filter(e => mv >= e).pop();
+        if (gecilen) {
+          const f = (typeof formatMV === 'function') ? formatMV(gecilen) : (gecilen + ' €');
+          sysMsg({
+            id: 'mv_' + gecilen, from: '💶 Piyasa', avatar: '💶', kind: 'piyasa_degeri',
+            subject: `Piyasa Değerin ${f} Sınırını Geçti`,
+            body: `Performansın karşılığını buluyor.\n\n• Güncel piyasa değerin: ${f} üzeri\n\n`
+                + `Piyasa değeri oyun tarafından yeteneklerine göre hesaplanır.`
+          });
+        }
+      }
+    } catch(e) {}
+
+    // ── D19/D20 · Haftalık yarış derecesi (önceki tur kapandığında) ──
+    try {
+      if (typeof _evRaceCycleInfo === 'function' && typeof _evRaceBuildLeaderboard === 'function') {
+        const c = _evRaceCycleInfo();
+        const anahtar = 'cft_sys_race_' + (c && c.start ? c.start.getTime() : 0);
+        if (!localStorage.getItem(anahtar)) {
+          const bak = (tur, ad, ikon) => {
+            const lb = _evRaceBuildLeaderboard(tur) || [];
+            const idx = lb.findIndex(e => e && (e.isUser || e.isMe));
+            if (idx >= 0 && idx < 3) {
+              sysMsg({
+                id: 'yaris_' + tur + '_' + anahtar,
+                from: ikon + ' ' + ad, avatar: ikon, kind: 'yaris',
+                subject: `${ad} — ${idx + 1}. Oldun!`,
+                body: `Haftalık ${ad} yarışını ${idx + 1}. sırada tamamladın. ${ikon}\n\n`
+                    + `• Ödülünü Etkinlik > Yarış ekranından almayı unutma.`
+              });
+            }
+          };
+          bak('rating', 'Haftanın Yıldızı', '⭐');
+          bak('train', 'Antrenman Yıldızı', '🏋️');
+          try { localStorage.setItem(anahtar, '1'); } catch(e) {}
+        }
+      }
+    } catch(e) {}
+
+    // ── E26 · Tahsil edilmemiş kazı kazan ödülü ──
+    try {
+      const kartlar = (typeof _scHist !== 'undefined' && Array.isArray(_scHist)) ? _scHist : [];
+      for (const k of kartlar) {
+        if (!k || k.claimed_at) continue;
+        const eur = Number(k.prize_eur) || 0, dia = Number(k.prize_dia) || 0;
+        if (eur < 1000 && dia < 5) continue;      // küçük ödüller için mesaj yok
+        sysMsg({
+          id: 'scratch_' + k.id, from: '🎫 Kazı Kazan', avatar: '🎉', kind: 'kazikazan',
+          subject: 'Kazı Kazan Ödülün Bekliyor',
+          body: `Kazandığın ödülü henüz almadın.\n\n`
+              + (eur ? `• ${eur.toLocaleString('tr')} €\n` : '')
+              + (dia ? `• ${dia} 💎\n` : '')
+              + `\nEğlence > Kazı Kazan ekranından "Ödülü Al" ile tahsil edebilirsin.`
+        });
+      }
+    } catch(e) {}
+
+    // ── C16 · Sözleşmen bitiyor ──
+    try {
+      if (typeof _getContractRenewalState === 'function') {
+        const st = _getContractRenewalState();
+        if (st && st.daysLeft != null && st.daysLeft <= 5 && st.daysLeft >= 0) {
+          sysMsg({
+            id: 'sozlesme_' + (st.season || 0) + '_' + st.daysLeft,
+            from: '📄 Sözleşme', avatar: '📄', kind: 'sozlesme',
+            subject: `Sözleşmen ${st.daysLeft} Gün Sonra Bitiyor`,
+            body: `Kulübünle sözleşmen sezon sonunda sona eriyor.\n\n`
+                + `• Yenileme talebini Takımım > Sözleşme ekranından gönderebilirsin.\n`
+                + `• Yenilemezsen serbest oyuncu olursun.`
+          });
+        }
+      }
+    } catch(e) {}
+
+    // ── F36 · Kadro uyarısı (bitkin oyuncu / eksik 11) ──
+    try {
+      if (_userTeam && _userTeam.role === 'captain' && typeof ROSTER_DATA !== 'undefined') {
+        const bitkin = (ROSTER_DATA || []).filter(p => p && (p.stamina != null) && p.stamina < 30).length;
+        if (bitkin >= 3) {
+          const gun = new Date().toISOString().slice(0, 10);
+          sysMsg({
+            id: 'kadro_uyari_' + gun, from: '⚠️ Teknik Ekip', avatar: '⚠️', kind: 'kadro_uyari',
+            subject: `${bitkin} Oyuncu Bitkin — Rotasyon Öner`,
+            body: `Kadroda ${bitkin} oyuncunun kondisyonu kritik seviyede (%30 altı).\n\n`
+                + `• Diziliş ekranından yedeklerle rotasyon yap.\n`
+                + `• Bitkin oyuncular maçta düşük performans gösterir ve sakatlanma riski artar.`
+          });
+        }
+      }
+    } catch(e) {}
+
+    // ── G38 · Enerjin doldu ──
+    try {
+      if (_energyCache && _energyCache.max && _energyCache.current >= _energyCache.max) {
+        const gun = new Date().toISOString().slice(0, 10);
+        sysMsg({
+          id: 'enerji_' + gun, from: '⚡ Performans', avatar: '⚡', kind: 'enerji',
+          subject: 'Enerjin Doldu — Antrenman Zamanı',
+          body: `Enerjin tamamen doldu (${_energyCache.current}/${_energyCache.max}).\n\n`
+              + `• Antrenman sayfasından yeteneklerini geliştirebilirsin.\n`
+              + `• Kullanılmayan enerji birikmez, gün sonunda sıfırlanır.`
+        });
+      }
+    } catch(e) {}
+
+  } catch(e) { console.warn('[sysMsgTara] hata:', e); }
+}
+window.sysMsgTara = sysMsgTara;
+
 function evRender() {
   try { evEnsureStreakToday(); } catch(e) {}
+  try { sysMsgTara(); } catch(e) {}
   // 🆕 Toplanmamış günlük giriş ödülü varsa hatırlat (gün başına 1 mesaj)
   try {
     const _s = evGetStreak();
@@ -85790,6 +85934,9 @@ function _frmTickSimulate() {
 setTimeout(_frmTickSimulate, 5000);
 // Her 60 saniyede bir
 setInterval(_frmTickSimulate, 60 * 1000);
+// 🆕 Sistem mesajı taraması — 3 dakikada bir (hepsi tekrar korumalı)
+setInterval(() => { try { if (typeof sysMsgTara === 'function') sysMsgTara(); } catch(e) {} }, 3 * 60 * 1000);
+setTimeout(() => { try { if (typeof sysMsgTara === 'function') sysMsgTara(); } catch(e) {} }, 12000);
 // 🆕 Gün dönümü kontrolü — uygulama açıkken gece yarısı geçilirse günlük ödül açılsın
 setInterval(() => { try { if (typeof evEnsureStreakToday === 'function') evEnsureStreakToday(); } catch(e) {} }, 5 * 60 * 1000);
 document.addEventListener('visibilitychange', () => {
