@@ -5495,7 +5495,7 @@ select.auth-input option{background:var(--bg3)}
 .team-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
 
 /* 🆕 Tabs içinde sağa yapışık ziyaretçi geri butonu (guest mode) */
-.team-tab-back{
+.team-tab-back{display:none !important;
   margin-left:auto;
   flex-shrink:0;
   font-size:11px;color:#fff;
@@ -5514,7 +5514,8 @@ select.auth-input option{background:var(--bg3)}
 }
 .team-tab-back:hover{box-shadow:0 4px 10px rgba(0,176,255,.50),inset 0 1px 0 rgba(255,255,255,.26);filter:brightness(1.06);transform:translateY(-1px)}
 .team-tab-back:active{transform:translateY(0);box-shadow:0 1px 3px rgba(0,176,255,.40)}
-#page-team.guest-mode .team-tab-back{display:inline-flex}
+/* 🆕 Sekmelerin yanındaki mavi geri butonu kaldırıldı — sol üstteki geri yeterli */
+#page-team.guest-mode .team-tab-back{display:none !important}
 
 /* 🆕 Takımım sekme barı — karbon dikey ikon (C varyantı). Sadece #page-team; milli takım etkilenmez. */
 #page-team .team-tabs{gap:5px;padding:9px 9px}
@@ -14810,6 +14811,12 @@ body.inbox-open #main{visibility:hidden!important;pointer-events:none!important}
   font-size:12.5px;font-weight:900;
   flex-shrink:0;min-width:18px;text-align:right;
   letter-spacing:.2px;
+}
+/* 🆕 Itemden gelen artı — toplam değerin SOLUNDA, yeşil */
+.pl-grid-bonus{
+  font-family:'Barlow',sans-serif;
+  font-size:9.5px;font-weight:900;
+  color:#00e676;margin-right:3px;letter-spacing:.2px;
 }
 /* 🆕 90-99 premium koyu mor — özel glow */
 .pl-grid-val.tier-premium{
@@ -28076,7 +28083,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-01-serit5-282';
+const APP_BUILD = '2026-08-01-itembonus-284';
 
 (function _cacheBustCheck() {
   try {
@@ -29730,8 +29737,30 @@ function getOrCreateTeamRoster(teamData) {
   const cc = (teamData.countryCode || teamData.cc || 'TR').toUpperCase().slice(0, 2);
   const key = cc + ':' + teamName;
   if (_teamRosterCache[key]) return _teamRosterCache[key];
+  // 🆕 ÖNBELLEK BOŞSA: yükle VE bitince ilgili ekranı yeniden çiz.
+  //   Eskiden boş dizi dönülüyor, yükleme bitince kimse haber almıyordu →
+  //   ziyaret edilen takım ilk açılışta boş görünüyor, ancak ikinci girişte doluyordu.
   if (typeof _loadTeamRosterFromServer === 'function') {
-    _loadTeamRosterFromServer(cc, teamName).catch(()=>{});
+    if (!window._grLoading) window._grLoading = {};
+    if (!window._grLoading[key]) {
+      window._grLoading[key] = true;
+      _loadTeamRosterFromServer(cc, teamName)
+        .catch(()=>{})
+        .then(() => {
+          window._grLoading[key] = false;
+          try {
+            const v = (typeof _viewingTeam !== 'undefined') ? _viewingTeam : null;
+            if (v && v.countryCode === cc && v.teamRef && v.teamRef.name === teamName) {
+              if (typeof guestRenderHeader === 'function') guestRenderHeader();
+              if (typeof guestRenderRoster === 'function') guestRenderRoster();
+              if (typeof guestRenderFacilities === 'function') {
+                const fp = document.getElementById('team-facility');
+                if (fp && fp.style.display !== 'none') guestRenderFacilities();
+              }
+            }
+          } catch(e) {}
+        });
+    }
   }
   return [];
 }
@@ -57171,7 +57200,11 @@ function guestRenderRoster() {
   const filtered = filter === 'all' ? players : players.filter(p => p.pos === filter);
 
   if(!filtered.length) {
-    list.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text3);font-size:12px">Bu mevkide oyuncu yok.</div>';
+    // 🆕 Kadro henüz sunucudan gelmediyse "yok" değil "yükleniyor" göster
+    const _yukleniyor = (players.length === 0);
+    list.innerHTML = _yukleniyor
+      ? '<div style="padding:32px;text-align:center;color:var(--text3);font-size:12px">⏳ Kadro yükleniyor…</div>'
+      : '<div style="padding:32px;text-align:center;color:var(--text3);font-size:12px">Bu mevkide oyuncu yok.</div>';
     return;
   }
 
@@ -65304,6 +65337,10 @@ function renderPlayerPage() {
   const pos  = isVisitor ? (vp.pos || 'MID') : ((meRoster && meRoster.pos) || user.position || 'MID');
   const cfg  = POS_CONFIG[pos] || POS_CONFIG.MID;
   const lvls = isVisitor ? _carBuildSkillsForVisitor(vp) : getSkillLevels(pos);
+  // 🆕 ITEM BONUSU GÖSTERİMİ — taban (itemsiz) değerler. Hesap DEĞİŞMEZ;
+  //   yalnızca "efektif − taban" farkı ekranda ayrıca gösterilir.
+  const _lvlsRaw = isVisitor ? lvls : (typeof getSkillLevels === 'function'
+    ? getSkillLevels(pos, { raw: true }) : lvls);
   // 🆕 Overall: ziyaretçide HER ZAMAN 45 skill ortalaması kullan (vp.overall'a güvenme)
   // Eskiden vp.overall'a fallback varsa eski/yüksek değer geliyordu.
   // Botlar artık SABİT 10 yetenekli → calcOverall(pos, lvls) → 10
@@ -65537,6 +65574,9 @@ function renderPlayerPage() {
   // Not: rozet/highlight gizli, sadece sayı artmış olarak görünür
   function skillRow(s) {
     const val = lvls[s.id] || 10;
+    // 🆕 Itemden gelen puan farkı (yoksa 0)
+    const _taban = (_lvlsRaw && _lvlsRaw[s.id] != null) ? _lvlsRaw[s.id] : val;
+    const _bonus = Math.max(0, val - _taban);
     // 🆕 9 tier renk paleti
     // 0-19 başlangıç gri, 20-29 açık sarı, 30-39 koyu sarı, 40-49 turuncu,
     // 50-59 kırmızı, 60-69 yeşil, 70-79 mavi, 80-89 açık mor, 90-99 premium koyu mor
@@ -65553,7 +65593,9 @@ function renderPlayerPage() {
     const premCls = isPremium ? ' tier-premium' : '';
     return `<div class="pl-grid-row">
       <span class="pl-grid-name">${s.name}</span>
-      <span class="pl-grid-val${premCls}" style="color:${col}">${val}</span>
+      <span class="pl-grid-val${premCls}" style="color:${col}"
+        ${_bonus > 0 ? `title="Taban ${_taban} · Itemden +${_bonus}"` : ''}
+        >${_bonus > 0 ? `<span class="pl-grid-bonus">+${_bonus}</span>` : ''}${val}</span>
     </div>`;
   }
   catsEl.innerHTML = `<div class="pl-skill-grid">
