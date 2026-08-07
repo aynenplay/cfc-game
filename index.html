@@ -16132,6 +16132,10 @@ body.inbox-open #main{visibility:hidden!important;pointer-events:none!important}
 #page-home .hm-nxc.is-takvim:active{transform:none}
 #page-home .hm-nxc.is-takvim .nxc-crest{background:none !important;box-shadow:none !important;
   font-size:22px !important;border-radius:0 !important}
+/* 🆕 Bayrak emojisi → çerçevesiz, arka planı olmayan transparan görünüm */
+#page-home .hm-nxc .nxc-crest[data-flag="1"]{background:none !important;background-color:transparent !important;
+  box-shadow:none !important;border-radius:0 !important;overflow:visible;
+  font-size:26px !important;line-height:1;text-shadow:0 2px 6px rgba(0,0,0,.55)}
 #page-home .hm-nxc.is-takvim .nxn{color:#c6ccd8}
 #page-home .hm-nxc .nxh{position:absolute;top:4px;right:4px;font-size:6px;
   font-family:'Barlow Condensed',sans-serif;font-weight:900;color:var(--text3);letter-spacing:.3px}
@@ -28223,7 +28227,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-02-guvenlik-294';
+const APP_BUILD = '2026-08-02-guvenlik-295';
 
 (function _cacheBustCheck() {
   try {
@@ -58803,6 +58807,50 @@ function _hmNxComp(ad) {
 }
 
 // Bir adaydan kart verisi çıkar — kullanıcının takımı hangi tarafsa RAKİBİ al
+// 🆕 Ülke adından (veya kodundan) bayrak emojisi üretir.
+//    Milli maç slotlarında "TÜR" gibi kısaltma yerine 🇹🇷 gösterilsin diye.
+function _hmUlkeBayrak(ad) {
+  if (!ad) return '';
+  const s = String(ad).trim();
+  const norm = x => String(x || '').toLocaleLowerCase('tr').replace(/[\s.'-]/g, '');
+  try {
+    // Zaten 2 harfli ülke kodu geldiyse
+    if (/^[A-Za-z]{2}$/.test(s)) {
+      const kod = s.toUpperCase();
+      const c = (typeof _cftGetCountry === 'function') ? _cftGetCountry(kod) : null;
+      if (c && c.flag) return c.flag;
+      if (typeof ccToFlag === 'function') return ccToFlag(kod);
+      return '';
+    }
+    const hedef = norm(s);
+    // 1) Oyun veritabanındaki ülkeler (bayrak alanı hazır)
+    if (typeof _cftAllEntries === 'function') {
+      for (const [kod, c] of _cftAllEntries()) {
+        if (!c) continue;
+        if (norm(c.name) === hedef || norm(c.countryName) === hedef || norm(kod) === hedef) {
+          if (c.flag) return c.flag;
+          if (typeof ccToFlag === 'function') return ccToFlag(kod);
+        }
+      }
+    }
+    // 2) Genel ülke listesi (kayıt formunun da kullandığı tam liste)
+    if (typeof CFT_ALL_COUNTRIES !== 'undefined' && Array.isArray(CFT_ALL_COUNTRIES) && typeof ccToFlag === 'function') {
+      const t = CFT_ALL_COUNTRIES.find(x => x && norm(x.name) === hedef);
+      if (t && t.code) return ccToFlag(t.code);
+    }
+    // 3) Milli takım etiketleri ("🇩🇪 Almanya") üzerinden ters arama
+    if (typeof CFT_NAT_LABELS !== 'undefined' && CFT_NAT_LABELS && typeof ccToFlag === 'function') {
+      for (const kod in CFT_NAT_LABELS) {
+        const et = String(CFT_NAT_LABELS[kod] || '');
+        const ad = et.replace(/^[^A-Za-zÇĞİÖŞÜçğıöşü]+/, '');
+        if (norm(ad) === hedef) return ccToFlag(kod);
+      }
+    }
+  } catch(e) {}
+  return '';
+}
+window._hmUlkeBayrak = _hmUlkeBayrak;
+
 function _hmNxItem(c) {
   const benim = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName) || '';
   const d = new Date(c.time);
@@ -58824,6 +58872,8 @@ function _hmNxItem(c) {
     o.cc = c._sunucu.cc || null;
     o.ev = !!c._sunucu.ev;
     o.comp = _hmNxComp(c._sunucu.comp || '');
+    // 🆕 Milli maç → kulüp arması yok; ülke bayrağı göster
+    if (c.source === 'national') o.bayrak = _hmUlkeBayrak(o.ad) || o.bayrak;
     return o;
   }
   try {
@@ -58856,7 +58906,7 @@ function _hmNxItem(c) {
       o.ev = (m.home === n.cc);
       o.ad = (o.ev ? (m.awayName || m.away) : (m.homeName || m.home)) || '?';
       o.kisa = String((o.ev ? m.away : m.home) || '?').slice(0, 3).toUpperCase();
-      o.bayrak = (o.ev ? m.awayFlag : m.homeFlag) || '';
+      o.bayrak = (o.ev ? m.awayFlag : m.homeFlag) || _hmUlkeBayrak(o.ad) || '';
       o.comp = 'EURO Cup';
     }
   } catch(e) {}
@@ -59088,7 +59138,7 @@ function _hmRenderNextStrip(list) {
   // 🆕 İMZA KONTROLÜ — aynı veriyle yeniden çizme. Eskiden her render'da
   //   innerHTML sıfırlanıp 5 arma yeniden yükleniyordu → görünür titreme + boşuna CPU.
   const _sig = items.map(it =>
-    [it.ad, it.comp, it.tur, it.ev ? 1 : 0, it.d && it.d.getTime()].join('~')).join('|');
+    [it.ad, it.comp, it.tur, it.ev ? 1 : 0, it.bayrak || '', it.d && it.d.getTime()].join('~')).join('|');
   if (host.dataset.sig === _sig && host.style.display !== 'none') return;
   host.dataset.sig = _sig;
   window._hmNxItems = items;      // 🆕 kart tıklaması bu listeden okur
@@ -59115,7 +59165,7 @@ function _hmRenderNextStrip(list) {
     if (typeof applyCrestToEl === 'function') {
       host.querySelectorAll('.nxc-crest').forEach(el => {
         // milli takım rakibi = ülke bayrağı; kulüp arması aranmaz
-        if (el.getAttribute('data-flag') === '1') { el.style.fontSize = '15px'; return; }
+        if (el.getAttribute('data-flag') === '1') { el.style.fontSize = ''; return; }
         const nm = el.getAttribute('data-team');
         if (nm && nm !== '?') applyCrestToEl(el, nm, el.getAttribute('data-short') || '');
       });
@@ -77870,8 +77920,9 @@ function trCheckEnergyReset() {
   const e = trGetEnergy();
   // max'ı dinamik göster (takım/tesis durumuna göre) — current'a DOKUNMA, server yönetir.
   e.max = getUserEffectiveMaxEnergy();
-  // current asla max'ı aşmamalı (tesis düşmesi vb. durumlarda görsel clamp)
-  if (typeof e.current === 'number' && e.current > e.max) e.current = e.max;
+  // 🆕 ESKİ HATA: current > max ise max'a çekiliyordu. Günlük giriş hediyesi
+  //    tavanın üstüne eklendiğinde (500 → 510) fazlası ekranda anında yok
+  //    oluyordu. Artık kırpma yok — sunucudaki gerçek değer gösterilir.
   return e;
 }
 
