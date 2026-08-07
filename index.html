@@ -28244,7 +28244,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-03-lig-297';
+const APP_BUILD = '2026-08-04-english-298';
 
 (function _cacheBustCheck() {
   try {
@@ -28731,9 +28731,109 @@ document.addEventListener('DOMContentLoaded', function(){
 // localStorage: cft_language (default 'tr')
 // Şu an sadece Türkçe destekli — altyapı hazır
 // ═══════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════
+// 🌍 ÇEVİRİ MOTORU (i18n)
+//
+//  Tasarım: kodun 3.000+ yerine dokunmak yerine, ekrana YAZILAN metni
+//  çalışma anında sözlükten çeviririz. Sözlük anahtarı Türkçe metnin
+//  KENDİSİDİR; yalnızca BİREBİR eşleşen dizeler değiştirilir.
+//
+//  Bu yüzden özel isimler otomatik korunur:
+//    "Ahmet Yılmaz", "Beşiktaş", kullanıcı adları, sohbet mesajları
+//    sözlükte olmadığı için hiç dokunulmaz.
+//
+//  Dil 'tr' iken motor tamamen kapalıdır — sıfır maliyet.
+// ═══════════════════════════════════════════════════════════════════
+
+// Sözlük: Türkçe metin → çeviri. Diller ayrı nesnelerde.
+window.I18N = window.I18N || { en: {} };
+
+// Desen kuralları: içinde sayı/ad geçen dinamik metinler için.
+// [regex, şablon]  — $1, $2 yakalanan grupları taşır.
+window.I18N_PATTERNS = window.I18N_PATTERNS || { en: [] };
+
+const I18N_LANG_KEY = 'cft_language';
+let _i18nLang = 'tr';
+try { _i18nLang = localStorage.getItem(I18N_LANG_KEY) || 'tr'; } catch(e) {}
+
+function i18nLang() { return _i18nLang; }
+function i18nAktif() { return _i18nLang !== 'tr' && !!window.I18N[_i18nLang]; }
+window.i18nLang = i18nLang;
+window.i18nAktif = i18nAktif;
+
+// Çeviri önbelleği — aynı metin defalarca aranmasın
+const _i18nCache = new Map();
+
+// Tek bir metni çevir. Eşleşme yoksa AYNEN geri döner.
+function T(metin) {
+  if (!i18nAktif() || metin == null) return metin;
+  const ham = String(metin);
+  if (ham.length > 400) return ham;
+  const onb = _i18nCache.get(ham);
+  if (onb !== undefined) return onb;
+
+  const sozluk = window.I18N[_i18nLang] || {};
+  let sonuc = null;
+
+  // 1) Birebir
+  if (Object.prototype.hasOwnProperty.call(sozluk, ham)) sonuc = sozluk[ham];
+
+  // 2) Baştaki/sondaki boşluk ve emoji/simge dışarıda bırakılarak
+  if (sonuc === null) {
+    const m = ham.match(/^([\s ]*(?:[^\p{L}\p{N}]*[\s ]*)?)(.*?)([\s ]*)$/u);
+    if (m && m[2] && m[2] !== ham) {
+      const ic = m[2];
+      if (Object.prototype.hasOwnProperty.call(sozluk, ic)) sonuc = m[1] + sozluk[ic] + m[3];
+    }
+  }
+
+  // 3) Desen kuralları (sayı içeren dinamik metinler)
+  if (sonuc === null) {
+    const desenler = window.I18N_PATTERNS[_i18nLang] || [];
+    for (let i = 0; i < desenler.length; i++) {
+      const d = desenler[i];
+      const mm = ham.match(d[0]);
+      if (mm) {
+        sonuc = (typeof d[1] === 'function')
+          ? d[1](mm)
+          : d[1].replace(/\$(\d)/g, (_, n) => mm[Number(n)] != null ? mm[Number(n)] : '');
+        break;
+      }
+    }
+  }
+
+  if (sonuc === null) sonuc = ham;
+  if (_i18nCache.size < 8000) _i18nCache.set(ham, sonuc);
+  return sonuc;
+}
+window.T = T;
+
+// Çevrilmemiş metinleri topla (geliştirme aracı — konsoldan i18nEksik() ile bak)
+window._i18nEksik = new Set();
+function _i18nKaydet(t) {
+  try {
+    if (!i18nAktif()) return;
+    if (window._i18nEksik.size > 3000) return;
+    const k = String(t).trim();
+    if (k.length < 2 || k.length > 200) return;
+    if (!/[A-Za-zçğıöşüÇĞİÖŞÜ]{2}/.test(k)) return;
+    if (T(k) !== k) return;                       // zaten çevrildi
+    if (!/[çğıöşüÇĞİÖŞÜ]/.test(k) &&
+        !/\b(Lig|Maç|Takım|Oyuncu|Gol|Sezon|Hafta|Kadro|Puan|Gün|Ödül|Görev)\b/.test(k)) return;
+    window._i18nEksik.add(k);
+  } catch(e) {}
+}
+window.i18nEksik = function() {
+  const a = Array.from(window._i18nEksik).sort();
+  console.log('Çevrilmemiş metin sayısı:', a.length);
+  console.log(JSON.stringify(a, null, 1));
+  return a;
+};
+
 const CFT_LANGUAGES = [
   {code:'tr', flag:'🇹🇷', name:'Türkçe',    native:'Türkçe',     supported:true },
-  {code:'en', flag:'🇬🇧', name:'English',   native:'English',    supported:false},
+  {code:'en', flag:'🇬🇧', name:'English',   native:'English',    supported:true },
   {code:'de', flag:'🇩🇪', name:'Deutsch',   native:'Deutsch',    supported:false},
   {code:'es', flag:'🇪🇸', name:'Spanish',   native:'Español',    supported:false},
   {code:'fr', flag:'🇫🇷', name:'French',    native:'Français',   supported:false},
@@ -28745,6 +28845,355 @@ const CFT_LANGUAGES = [
 function cftGetLang(){
   return localStorage.getItem('cft_language') || 'tr';
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// 🌍 İNGİLİZCE SÖZLÜK — 1. DALGA
+//   Anahtar = ekranda geçen Türkçe metnin BİREBİR kendisi.
+//   Burada olmayan her şey (oyuncu adı, takım adı, kullanıcı yazısı)
+//   olduğu gibi kalır.
+// ═══════════════════════════════════════════════════════════════════
+Object.assign(window.I18N.en, {
+// ── Gezinme / genel eylemler ──
+'Kapat':'Close','Geri':'Back','Geri dön':'Go back','Ana sayfaya dön':'Back to home',
+'Ana menü':'Main menu','Ana Menü':'Main Menu','🏠 Ana Menüye Dön':'🏠 Back to Main Menu',
+'İptal':'Cancel','Vazgeç':'Cancel','Tamam':'OK','Evet':'Yes','Hayır':'No','Sil':'Delete','SİL':'DELETE',
+'Kaydet':'Save','Kaydet ✓':'Save ✓','Gönder':'Send','Seç':'Select','Seçin...':'Select...','Seçim':'Selection',
+'Kaldır':'Remove','Devam Et →':'Continue →','Başlat':'Start','Çıkış':'Log out','Çıkış Yap':'Log out',
+'Giriş Yap':'Log in','Kayıt Ol':'Sign up','Menü':'Menu','Ayarlar':'Settings','Paylaş':'Share',
+'Beğen':'Like','Beğenme':'Unlike','Yanıtla...':'Reply...','Tümü':'All','Tümü ›':'All ›',
+'Listeye Geri Dön':'Back to list','Evet, Geri Al':'Yes, undo','Değiştir ✓':'Change ✓',
+'Geliştir ✓':'Upgrade ✓','Satın Al':'Buy','Satın Al ✓':'Buy ✓','💎 Satın Al':'💎 Buy',
+'Yükleniyor…':'Loading…','Yükleniyor...':'Loading...','⏳ Yükleniyor…':'⏳ Loading…','⏳ Yükleniyor...':'⏳ Loading...',
+'Aranıyor…':'Searching…','Bağlantı yok':'No connection','Sunucu hatası:':'Server error:',
+'Veri okunamadı':'Could not read data','Veri yüklenemedi.':'Could not load data.',
+'Boş':'Empty','Yeni':'New','Detay':'Details','Toplam':'Total','Süre':'Duration','Saat':'Time',
+'Sıra':'Rank','Sıralama':'Standings','Sıralama modları':'Ranking modes','Sıralama yükleniyor…':'Loading rankings…',
+
+// ── Ana menü sekmeleri ──
+'ETKİNLİK':'EVENTS','SONUÇLAR':'RESULTS','LİGLER':'LEAGUES','ARŞİV':'ARCHIVE','SAHNESİ':'STAGE',
+'HIZLI ERİŞİM':'QUICK ACCESS','Eğlence':'Entertainment','Mağaza':'Shop','Cüzdan':'Wallet',
+'Etkinlik Akışı':'Activity Feed','Avrupa Sahnesi':'European Stage','AVRUPA SAHNESİ':'EUROPEAN STAGE',
+'Takımım':'My Team','Oyuncum':'My Player','Kariyer':'Career','Gelen Kutusu':'Inbox','Bildirim':'Notification',
+
+// ── Maç ──
+'Maç':'Match','MAÇ':'MATCH','Maçlar':'Matches','Maç Bitti':'Match Over','MAÇ BİTTİ':'MATCH OVER',
+'BİTTİ':'ENDED','Maçı İzle':'Watch Match','Maça Git':'Go to Match','▶️ Maça Git':'▶️ Go to Match',
+'Maçı tam ekranda izle':'Watch match fullscreen','Maç henüz başlamadı…':'Match has not started yet…',
+'Maçta gol atılmadı':'No goals scored','Maç eşitlikle bitti':'Match ended in a draw',
+'Henüz maç oynanmadı':'No matches played yet','Bekleyen maç yok':'No pending matches',
+'Maçın Adamı':'Man of the Match','Sahanın Adamı':'Man of the Match',
+'MAÇ İÇİ DEĞİŞİKLİKLER':'IN-MATCH SUBSTITUTIONS','Maç Kadrosundan Çıkar':'Remove from matchday squad',
+'Maç kadrosundan çıkar':'Remove from matchday squad','Canlı izleyici sayısı':'Live viewers',
+'⏳ DEVAM EDİYOR':'⏳ IN PROGRESS','Henüz önemli olay yok...':'No key events yet...',
+'PENALTI KAÇTI!':'PENALTY MISSED!','Penaltı Kurtarma':'Penalty Save','Penaltılar':'Penalties',
+'UZATMA':'EXTRA TIME','PENALTILAR':'PENALTIES','turu geçti':'advanced',
+'Maç tamamlandı':'Match completed','Devam ediyor':'In progress','Goller':'Goals',
+
+// ── Lig / turnuva ──
+'Lig':'League','Ligi':'League','Lig Maçı':'League Match','⚽ Lig':'⚽ League',
+'Süper Lig':'Premier League','Türkiye Süper Ligi':'Turkish Premier League',
+'1. Lig':'2nd Division','2. Lig':'3rd Division','3. Lig':'4th Division',
+'4. Lig':'5th Division','5. Lig':'6th Division','6. Lig':'7th Division',
+'Turnuva':'Tournament','🏆 Turnuva':'🏆 Tournament','Kupa':'Cup','Tüm kupalar':'All trophies',
+'Henüz kupa kazanılmadı':'No trophies won yet','ŞAMPİYON':'CHAMPION','Şampiyon':'Champion',
+'Grup Aşaması':'Group Stage','Gruplar hazırlanıyor':'Preparing groups',
+'Eşleşmeler hazırlanıyor':'Preparing fixtures','Bracket hazırlanıyor':'Preparing bracket',
+'Çeyrek Final':'Quarter-Final','Yarı Final':'Semi-Final','Final':'Final',
+'Çeyrek Final - 1':'Quarter-Final - 1','Çeyrek Final - 2':'Quarter-Final - 2',
+'Yarı Final - 1':'Semi-Final - 1','Yarı Final - 2':'Semi-Final - 2',
+'Son 16':'Round of 16','Son 32':'Round of 32',
+'Son 16 - 1. Maç':'Round of 16 - Leg 1','Son 16 - 2. Maç':'Round of 16 - Leg 2',
+'Son 32 - 1. Maç':'Round of 32 - Leg 1','Son 32 - 2. Maç':'Round of 32 - Leg 2',
+'Grup 1. Maç':'Group Matchday 1','Grup 2. Maç':'Group Matchday 2','Grup 3. Maç':'Group Matchday 3',
+'Grup 4. Maç':'Group Matchday 4','Grup 5. Maç':'Group Matchday 5',
+'Hazırlık':'Friendly','Hazırlık Maçı':'Friendly Match','⚽ Hazırlık Maçı':'⚽ Friendly Match',
+'Hazırlık Maçları':'Friendly Matches','Fikstür':'Fixtures','Fikstür ›':'Fixtures ›',
+'Puan':'Points','Takım Puanı':'Team Points','Klasman':'Standings',
+'1-4 ⬆️ Üst Lige Yükselme':'1-4 ⬆️ Promotion','13-16 ⬇️ Alt Lige Düşme':'13-16 ⬇️ Relegation',
+'13-16 ⬇️ Küme Düşme':'13-16 ⬇️ Relegation','5-6. Sıra: Elenir':'5th-6th: Eliminated',
+'Lig geçmişi':'League history','Avrupa geçmişi':'European history','Avrupa kupası':'European cup',
+'Sezon Liderleri':'Season Leaders','Haftanın Yıldızı':'Player of the Week',
+'HAFTALIK YARIŞ':'WEEKLY RACE','Antrenman Yıldızı':'Training Star',
+
+// ── Takım ──
+'Takım':'Team','Takımlar':'Teams','takım':'team','Takıma Katıl':'Join Team','Takım Bul ›':'Find Team ›',
+'Takımdan Ayrıl':'Leave Team','Takımı Sat':'Sell Team','Takımı Satışa Çıkar':'List Team for Sale',
+'Takım Satın Al?':'Buy Team?','Takım bulunamadı.':'Team not found.','Takımsız':'No team',
+'Takım menüsü':'Team menu','Takım Gücü':'Team Strength','Ort. Güç':'Avg. Rating',
+'Takım Kasası':'Team Treasury','Takım Kasası\'nı aç':'Open Team Treasury','Kasa':'Treasury',
+'Kasa Yetersiz':'Insufficient funds','Bütçe':'Budget','Bağış':'Donation','Kazanç':'Earnings',
+'Takım Devralma Sermayesi':'Team Takeover Capital','Senin takımın':'Your team',
+'⚠️ Bu başkasının takımı.':'⚠️ This is someone else\'s team.','Takıma mesaj yaz...':'Message the team...',
+'Tesis':'Facilities','Tesis Gelişimi':'Facility Development','Tesis gelişim bilgisi':'Facility development info',
+
+// ── Kadro / mevkiler ──
+'Kadro':'Squad','Kadro Dolu':'Squad Full','Kadro Dışı':'Not in squad','Kadrodan Çıkar':'Remove from squad',
+'Kadrodan çıkar':'Remove from squad','Kadro yükleniyor…':'Loading squad…','İlk 11':'Starting XI',
+'Yedek':'Substitute','Yedekler':'Substitutes','Diziliş':'Formation','Dizilişi kaydet':'Save formation',
+'📋 Formasyon Seç':'📋 Choose Formation','Oyuncu':'Player','Oyuncular':'Players',
+'Oyuncu bulunamadı.':'No players found.','Oyuncu işlemleri':'Player actions',
+'Oyuncu veya mevki ara...':'Search player or position...','Kullanıcı ara':'Search user',
+'Kaleci':'Goalkeeper','Defans':'Defence','Orta Saha':'Midfield','Forvet':'Forward',
+'Sağ Bek':'Right Back','Sol Bek':'Left Back','Stoper':'Centre Back',
+'Sağ Kanat':'Right Wing','Sol Kanat':'Left Wing','Sağ Forvet':'Right Forward','Sol Forvet':'Left Forward',
+'Forvet Arkası':'Attacking Midfielder','Ön Libero':'Defensive Midfielder',
+'Kaptan':'Captain','👑 Kaptan':'👑 Captain','⭐ Yrd. Kaptan':'⭐ Vice-Captain','Kaptanı':'Captain of',
+'Kaptan Yap':'Make Captain','Kaptan Yetkileri':'Captain Powers','Kaptan kovulamaz.':'The captain cannot be removed.',
+'Kendini kovamazsın.':'You cannot remove yourself.','Senin Rolün':'Your Role','Üye':'Member',
+'Başkan':'President','Koç':'Coach','Kullanıcı':'User','Kullanıcı Adı':'Username',
+
+// ── Oyuncu durumu ──
+'Sakat':'Injured','Sakatlık iyileşme süresi':'Injury recovery time','Cezalı':'Suspended',
+'Sarı Kart':'Yellow Card','Sarı kart':'Yellow card','Sarı':'Yellow',
+'Kırmızı Kart':'Red Card','Kırmızı kart':'Red card','Kırmızı':'Red',
+'Kırmızı kart — atıldı':'Red card — sent off','4 sarı':'4 yellows',
+'Sezon sarı kart sayacı':'Season yellow card count','Piyasa Değeri':'Market Value',
+'Sözleşmeli':'Under contract','Sözleşmesiz':'No contract','Sözleşme Süresi':'Contract Length',
+'📋 Sözleşme Yönetimi':'📋 Contract Management','Sezon Maaşı':'Season Salary','Mevcut Maaş':'Current Salary',
+'Milli Takım':'National Team','A Milli Takım':'Senior National Team','Milli takım menüsü':'National team menu',
+'Milli Takımdan Çıkart':'Remove from National Team','✕ Milli Takımdan Çıkart':'✕ Remove from National Team',
+'Milli takımdan çıkar':'Remove from national team','Milli Takım Oyuncusu':'International',
+'Çevrimiçi':'Online','Doğrulanmış':'Verified','Satışta':'For sale','Ücretsiz':'Free',
+
+// ── Yetenekler ──
+'Kaleci Gücü':'Goalkeeping','Bire Bir Kurtarış':'One-on-One Save','Müdahale':'Tackling',
+'Top Çalma':'Interception','Kısa Pas':'Short Passing','Oyun Görüşü':'Vision',
+'Tempo Yönetimi':'Tempo Control','Soğukkanlılık':'Composure','Dayanıklılık':'Stamina',
+'Patlayıcı Hız':'Acceleration','Geri Koşu Hızı':'Recovery Speed','Topsuz Koşu':'Off-the-ball Running',
+'Fiziksel Mücadele':'Physical Duels','Denge Kontrolü':'Balance','İlk Dokunuş':'First Touch',
+'Hücum Kafa Vuruşu':'Attacking Header','Savunma Kafa Vuruşu':'Defensive Header',
+'Gol Pozisyonu Alma':'Positioning','Baskı Altında Bitirme':'Finishing Under Pressure',
+'Şut':'Shooting','İsabetli Şut':'Shots on Target','İsabet':'Accuracy','Pas İsabeti':'Pass Accuracy',
+'Gol':'Goal','Goller':'Goals','Asist':'Assist','Reyting':'Rating',
+
+// ── Taktik ──
+'Hücum':'Attack','🏃 Hücum Yönü':'🏃 Attacking Side','🛡️ Defans Hattı':'🛡️ Defensive Line',
+'🎯 Şut Tercihi':'🎯 Shooting Preference','Agresif Baskı':'Aggressive Press',
+'Geç Kalan Baskı':'Delayed Press','Yüksek Hat':'High Line','Çok Derin':'Very Deep',
+'Hızlı & Direk':'Fast & Direct','Yavaş Yapılandırma':'Slow Build-up','Yavaş':'Slow',
+'Çok Hızlı':'Very Fast','Çok Sık':'Very Often','Sık':'Often','Çok Az':'Very Rarely',
+'Çok Yüksek':'Very High','Yüksek':'High',
+
+// ── Ekonomi / transfer ──
+'Transfer':'Transfer','Transfer Dönemi':'Transfer Window','⛔ Transfer dönemi kapalı':'⛔ Transfer window closed',
+'🔄 Ara Transfer Dönemi':'🔄 Mid-Season Transfer Window','Satışa Çıkar':'List for Sale',
+'Toplam Maliyet':'Total Cost','Alıcı':'Buyer','Satıcı':'Seller','SENİN İLANIN':'YOUR LISTING',
+'Geçerli bir fiyat gir!':'Enter a valid price!','Hesap hareketlerini gör':'View transactions',
+'Henüz işlem yok.':'No transactions yet.','Kişisel Cüzdanım — Euro':'My Wallet — Euro',
+'Kişisel Cüzdanım — Elmas':'My Wallet — Diamonds','Altın':'Gold','Ödül Sistemi':'Reward System',
+'Bu ödül zaten alınmış':'This reward has already been claimed','✓ Alındı':'✓ Claimed',
+'Dolabın Boş':'Your locker is empty','Tişört':'Shirt',
+
+// ── Antrenman / enerji ──
+'Antrenman':'Training','Enerji':'Energy','Günlük Enerji':'Daily Energy','Harcanan Enerji':'Energy Spent',
+'Gelişim':'Progress','Seviye':'Level','Yıldız':'Star',
+
+// ── Zaman ──
+'Bugün':'Today','BUGÜN':'TODAY','Bugün ·':'Today ·','Dün':'Yesterday','Dün ·':'Yesterday ·','Yarın':'Tomorrow',
+'Gün':'Day','Hafta':'Week','Sezon':'Season','Sezon 1':'Season 1',
+'Pazartesi':'Monday','Salı':'Tuesday','Çarşamba':'Wednesday','Perşembe':'Thursday',
+'Cuma':'Friday','Cumartesi':'Saturday','Pazar':'Sunday',
+'Pzt':'Mon','Sal':'Tue','Çar':'Wed','Per':'Thu','Cum':'Fri','Cmt':'Sat','Paz':'Sun',
+'Ocak':'January','Şubat':'February','Mart':'March','Nisan':'April','Mayıs':'May','Haziran':'June',
+'Temmuz':'July','Ağustos':'August','Eylül':'September','Ekim':'October','Kasım':'November','Aralık':'December',
+'Oca':'Jan','Şub':'Feb','Mar':'Mar','Nis':'Apr','May':'May','Haz':'Jun',
+'Tem':'Jul','Ağu':'Aug','Eyl':'Sep','Eki':'Oct','Kas':'Nov','Ara':'Dec',
+'OCA':'JAN','ŞUB':'FEB','MAR':'MAR','NİS':'APR','MAY':'MAY','HAZ':'JUN',
+'TEM':'JUL','AĞU':'AUG','EYL':'SEP','EKİ':'OCT','KAS':'NOV','ARA':'DEC',
+'Bitişe kalan:':'Time remaining:','Senin sıran':'Your turn',
+
+// ── Durum metinleri ──
+'Henüz belirlenmedi':'Not decided yet','Henüz belli değil':'Not determined yet',
+'Henüz gönderi yok.':'No posts yet.','Eşleşen sonuç yok':'No matching results',
+'Sezon Henüz Başlamadı':'Season Has Not Started','Sezon henüz başlamadı':'Season has not started',
+'Sezon verisi bulunamadı.':'No season data found.','Sezon 1 başlangıcına':'Until Season 1 starts',
+'Henüz Aktif Havuz Yok':'No Active Pool Yet','Seri başlamadı':'Streak not started',
+'İstek Gönderildi':'Request Sent','Katılım Şartları':'Entry Requirements',
+'0 = şart yok · max 99':'0 = no requirement · max 99','1 💎 (katılım)':'1 💎 (entry)',
+'Sadece Başkan:':'President only:','Seçim Günü 🗳️':'Election Day 🗳️',
+'Mağlubiyet':'Defeat','Galibiyet':'Win','Beraberlik':'Draw',
+'Gönderiyi sil':'Delete post','Konuşmayı Sil':'Delete conversation','Anketi kaldır':'Remove poll',
+'Yeni Mesaj':'New Message','Mesajını yaz...':'Write your message...',
+'@kullanıcı adı veya isim':'@username or name','Şehir veya takım ara...':'Search city or team...',
+'Futbolcu Arıyorum':'Looking for a Club','Avatar seçin.':'Choose an avatar.',
+'Hoşgeldin':'Welcome','Ayrıl':'Leave','Ülke':'Country','Şehir':'City',
+'Hesabımı Sil':'Delete My Account','Gizlilik Politikası':'Privacy Policy',
+'⚽ Önce klasman seç':'⚽ Select a division first','6 takım · 15 maç':'6 teams · 15 matches',
+'Bu yarışmada her hafta':'Every week in this competition',
+'Gün 10 (1/4)':'Day 10 (1/4)','Gün 20 (2/4)':'Day 20 (2/4)','Gün 30 (3/4)':'Day 30 (3/4)','Gün 40 (4/4)':'Day 40 (4/4)',
+
+// ── Başarım adları ──
+'Çalışkan':'Hard Worker','Sadık Oyuncu':'Loyal Player','Takım Oyuncusu':'Team Player',
+'Seviye Avcısı':'Level Hunter','Sohbetçi':'Chatterbox',
+
+// ── Ülkeler (sık görünenler) ──
+'Türkiye':'Turkey','Almanya':'Germany','İngiltere':'England','Fransa':'France','İspanya':'Spain',
+'İtalya':'Italy','Portekiz':'Portugal','Hollanda':'Netherlands','Belçika':'Belgium',
+'Norveç':'Norway','İsveç':'Sweden','Danimarka':'Denmark','Hırvatistan':'Croatia',
+'Sırbistan':'Serbia','Yunanistan':'Greece','Avusturya':'Austria','İsviçre':'Switzerland',
+'Polonya':'Poland','Ukrayna':'Ukraine','Rusya':'Russia','İskoçya':'Scotland','İrlanda':'Ireland',
+'Çekya':'Czechia','Macaristan':'Hungary','Romanya':'Romania','Bulgaristan':'Bulgaria',
+'Türkçe':'Turkish','İngilizce':'English'
+});
+
+// ── Desen kuralları: içinde sayı geçen dinamik metinler ──
+window.I18N_PATTERNS.en.push(
+  [/^Gün (\d+)$/,                         'Day $1'],
+  [/^Gün (\d+) \/ (\d+)$/,                'Day $1 / $2'],
+  [/^Sezon (\d+)$/,                       'Season $1'],
+  [/^Sezon (\d+)'de başlar$/,             'Starts in Season $1'],
+  [/^Hafta (\d+)$/,                       'Week $1'],
+  [/^(\d+)\. Hafta$/,                     'Week $1'],
+  [/^(\d+)\. Lig$/,                       m => ['','2nd','3rd','4th','5th','6th','7th','8th'][Number(m[1])] + ' Division'],
+  [/^(\d+)\. Lig (\d+)\. Hafta$/,         m => ['','2nd','3rd','4th','5th','6th','7th','8th'][Number(m[1])] + ' Division · Week ' + m[2]],
+  [/^Seri: (\d+)\/7 gün$/,                'Streak: $1/7 days'],
+  [/^Gün (\d+) Hediyen Hazır$/,           'Day $1 Gift Ready'],
+  [/^(\d+) gün$/,                         '$1 days'],
+  [/^(\d+) maç$/,                         '$1 matches'],
+  [/^(\d+) gol$/,                         '$1 goals'],
+  [/^(\d+) asist$/,                       '$1 assists'],
+  [/^Cezalı \((\d+) maç\)$/,              'Suspended ($1 matches)'],
+  [/^Sakat — (\d+)s iyileşme$/,           'Injured — $1h recovery'],
+  [/^Kademe (\d+)$/,                      'Tier $1'],
+  [/^Grup (\d+)\. Maç$/,                  'Group Matchday $1'],
+  [/^Son (\d+) - (\d+)\. Maç$/,           'Round of $1 - Leg $2'],
+  [/^(\d+)\. maç$/,                       'Leg $1'],
+  [/^(\d+) takım · (\d+) maç$/,           '$1 teams · $2 matches'],
+  // Yetenek bonusları:  "Oyun Görüşü +3%"  →  "Vision +3%"
+  [/^(.+?) \+(\d+)%$/,                    m => (window.I18N.en[m[1]] || m[1]) + ' +' + m[2] + '%'],
+  // "... cezası" → "... suspension"
+  [/^(.+?) cezası$/,                      m => (window.I18N.en[m[1]] || m[1]) + ' suspension']
+);
+
+
+// ═══════════════════════════════════════════════════════════════════
+// 🌍 DOM ÇEVİRİCİ
+//  Ekrandaki metin düğümlerini ve placeholder/title/aria-label
+//  özniteliklerini tarar. Sözlükte birebir karşılığı olanları değiştirir.
+//  data-noi18n taşıyan alt ağaçlara hiç girmez.
+// ═══════════════════════════════════════════════════════════════════
+const _i18nAtla = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'CANVAS', 'TEXTAREA', 'CODE', 'PRE']);
+const _i18nOznitelik = ['placeholder', 'title', 'aria-label', 'alt'];
+let _i18nGozlemci = null;
+let _i18nKuyruk = [];
+let _i18nZamanlayici = null;
+
+function _i18nMetinDugumu(node) {
+  const ham = node.nodeValue;
+  if (!ham) return;
+  const kirp = ham.trim();
+  if (kirp.length < 2) return;
+  if (!/[A-Za-zçğıöşüÇĞİÖŞÜ]/.test(kirp)) return;
+  const yeni = T(ham);
+  if (yeni !== ham) node.nodeValue = yeni;
+  else _i18nKaydet(kirp);
+}
+
+function _i18nElemanOznitelikleri(el) {
+  if (!el || !el.hasAttribute) return;
+  for (let i = 0; i < _i18nOznitelik.length; i++) {
+    const ad = _i18nOznitelik[i];
+    if (!el.hasAttribute(ad)) continue;
+    const v = el.getAttribute(ad);
+    if (!v || v.length < 2) continue;
+    const y = T(v);
+    if (y !== v) el.setAttribute(ad, y);
+  }
+  if (el.tagName === 'INPUT' && el.value && (el.type === 'button' || el.type === 'submit')) {
+    const y = T(el.value);
+    if (y !== el.value) el.value = y;
+  }
+}
+
+function i18nCevirAgac(kok) {
+  if (!i18nAktif() || !kok) return;
+  try {
+    if (kok.nodeType === 3) { _i18nMetinDugumu(kok); return; }
+    if (kok.nodeType !== 1) return;
+    if (_i18nAtla.has(kok.tagName)) return;
+    if (kok.closest && kok.closest('[data-noi18n]')) return;
+    _i18nElemanOznitelikleri(kok);
+    const yur = document.createTreeWalker(kok, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
+      acceptNode(n) {
+        if (n.nodeType === 1) {
+          if (_i18nAtla.has(n.tagName)) return NodeFilter.FILTER_REJECT;
+          if (n.hasAttribute && n.hasAttribute('data-noi18n')) return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    let n;
+    while ((n = yur.nextNode())) {
+      if (n.nodeType === 3) _i18nMetinDugumu(n);
+      else _i18nElemanOznitelikleri(n);
+    }
+  } catch(e) {}
+}
+window.i18nCevirAgac = i18nCevirAgac;
+
+function _i18nKuyrugaAl(n) {
+  _i18nKuyruk.push(n);
+  if (_i18nZamanlayici) return;
+  const zamanla = window.requestAnimationFrame || function(f) { return setTimeout(f, 16); };
+  _i18nZamanlayici = zamanla(function() {
+    _i18nZamanlayici = null;
+    const liste = _i18nKuyruk;
+    _i18nKuyruk = [];
+    const g = _i18nGozlemci;
+    if (g) g.disconnect();
+    for (let i = 0; i < liste.length; i++) i18nCevirAgac(liste[i]);
+    if (g) _i18nGozlemciBasla();
+  });
+}
+
+function _i18nGozlemciBasla() {
+  if (!_i18nGozlemci || !document.body) return;
+  try {
+    _i18nGozlemci.observe(document.body, {
+      childList: true, subtree: true, characterData: true,
+      attributeFilter: _i18nOznitelik
+    });
+  } catch(e) {}
+}
+
+function i18nBaslat() {
+  if (!i18nAktif()) return;
+  if (!document.body) { document.addEventListener('DOMContentLoaded', i18nBaslat); return; }
+  i18nCevirAgac(document.body);
+  try { document.documentElement.setAttribute('lang', i18nLang()); } catch(e) {}
+  if (_i18nGozlemci || typeof MutationObserver === 'undefined') return;
+  _i18nGozlemci = new MutationObserver(function(kayitlar) {
+    for (let i = 0; i < kayitlar.length; i++) {
+      const k = kayitlar[i];
+      if (k.type === 'characterData' || k.type === 'attributes') { _i18nKuyrugaAl(k.target); continue; }
+      for (let j = 0; j < k.addedNodes.length; j++) {
+        const n = k.addedNodes[j];
+        if (n.nodeType === 1 || n.nodeType === 3) _i18nKuyrugaAl(n);
+      }
+    }
+  });
+  _i18nGozlemciBasla();
+  console.info('[i18n] çeviri motoru aktif:', i18nLang());
+}
+window.i18nBaslat = i18nBaslat;
+
+// Uyarı kutuları da çevrilsin (DOM'a girmeyen metinler)
+try {
+  const _alertAsil = window.alert, _confirmAsil = window.confirm;
+  window.alert   = function(m) { return _alertAsil.call(window, T(m)); };
+  window.confirm = function(m) { return _confirmAsil.call(window, T(m)); };
+} catch(e) {}
+
+// Dil değiştir — çevrilen metin geri alınamayacağı için sayfa yenilenir
+function i18nDilAyarla(kod) {
+  try { localStorage.setItem(I18N_LANG_KEY, kod || 'tr'); } catch(e) {}
+  location.reload();
+}
+window.i18nDilAyarla = i18nDilAyarla;
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', i18nBaslat);
+else i18nBaslat();
+
 
 function cftUpdateLangDisplay(){
   const el = document.getElementById('set-lang-value');
@@ -28760,7 +29209,7 @@ function langOpenModal(){
   list.innerHTML = CFT_LANGUAGES.map(l => `
     <div class="lang-item ${l.code===cur?'active':''}" onclick="langSelect('${l.code}')">
       <div class="lang-flag">${l.flag}</div>
-      <div class="lang-info">
+      <div class="lang-info" data-noi18n>
         <div class="lang-name">${l.name}${!l.supported?' <span style="color:var(--text3);font-size:9px;font-weight:600">• yakında</span>':''}</div>
         <div class="lang-native">${l.native}</div>
       </div>
@@ -28777,16 +29226,27 @@ function langCloseModal(){
 function langSelect(code){
   const lang = CFT_LANGUAGES.find(l => l.code === code);
   if(!lang) return;
-  localStorage.setItem('cft_language', code);
+  const eski = (typeof cftGetLang === 'function') ? cftGetLang() : 'tr';
   cftUpdateLangDisplay();
-  // Modal'ı kısa gecikmeyle kapat (kullanıcı seçimi görsün)
   setTimeout(langCloseModal, 200);
-  // Türkçe değilse uyarı
+
+  // 🆕 Desteklenmeyen dil → seçimi UYGULAMA, dokunma
   if(!lang.supported && code !== 'tr'){
     setTimeout(()=>{
       try { rosterToast(`🌍 ${lang.native}: Çeviri yakında! Şimdilik Türkçe kullanılıyor.`, 'warn'); } catch(e){}
     }, 250);
+    return;
   }
+  if (code === eski) return;
+  // 🆕 Desteklenen dil → çeviri motoruna bildir (sayfa yenilenir)
+  setTimeout(()=>{
+    try {
+      if (typeof i18nDilAyarla === 'function') i18nDilAyarla(code);
+      else { localStorage.setItem('cft_language', code); location.reload(); }
+    } catch(e) {
+      try { localStorage.setItem('cft_language', code); location.reload(); } catch(e2) {}
+    }
+  }, 260);
 }
 
 document.addEventListener('DOMContentLoaded', cftUpdateLangDisplay);
