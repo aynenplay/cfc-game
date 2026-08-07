@@ -28223,7 +28223,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-02-yasal-292';
+const APP_BUILD = '2026-08-02-guvenlik-293';
 
 (function _cacheBustCheck() {
   try {
@@ -37282,10 +37282,19 @@ async function _msPushSubToServer(outNum, inNum) {
     list.push({ outNum: outNum, inNum: inNum, minute: minute, side: mySide });
     lineup.pendingSubs = list.slice(-6);
 
-    const upd = {}; upd[col] = lineup;
-    const { error: e2 } = await window.sb.from('match_state').update(upd).eq('match_key', MS.match_key);
-    if (e2) { console.warn('[sub] sunucuya yazılamadı:', e2.message); return false; }
-    return true;
+    // 🔒 SUNUCU ÜZERİNDEN — istemcinin match_state'e yazma yetkisi yok.
+    //   Sunucu, çağıranın o takımın kaptanı/yardımcısı olduğunu doğrular.
+    try {
+      const _res = await edgeCall('match_sub', {
+        match_key: MS.match_key, out: outNum, in: inNum
+      });
+      const _d = _res.data;
+      if (!_res.ok || !_d || _d.error) {
+        console.warn('[sub] sunucu reddetti:', _d && _d.error);
+        return false;
+      }
+      return true;
+    } catch(e) { console.warn('[sub] hata:', e); return false; }
   } catch(e) { console.warn('[sub] hata:', e); return false; }
 }
 
@@ -40459,7 +40468,9 @@ async function _worldStateLoadFromServer() {
 async function _worldStateSaveImpl() {
   try {
     if (!window.sb || !_worldStateCache) return;
-    await window.sb.from('world_state').update({ data: _worldStateCache, updated_at: new Date().toISOString() }).eq('id', 1);
+    // 🔒 world_state İSTEMCİDEN YAZILMAZ — tüm dünyanın sezon/faz bilgisi.
+    //   Yalnızca sunucu (tick-matches) günceller. Burada yazım devre dışı.
+    if (false) await window.sb.from('world_state').update({ data: _worldStateCache, updated_at: new Date().toISOString() }).eq('id', 1);
   } catch(e) { console.warn('[WorldState] save hata:', e); }
 }
 
@@ -44950,6 +44961,12 @@ function rosterSavePersist(){
     if (!window.sb || !_userTeam.countryCode || !_userTeam.teamName) return;
     if (!Array.isArray(ROSTER_DATA) || ROSTER_DATA.length === 0) return;
 
+    // 🔒 DİSİPLİN VERİSİ İSTEMCİDEN YAZILMAZ.
+    //   Kart/ceza/sakatlık maç motorunda (tick-matches) üretilir ve orada yazılır.
+    //   Eskiden buradan takım arkadaşlarının cezası da yazılabiliyordu →
+    //   konsoldan kendi veya başkasının cezasını sıfırlamak mümkündü.
+    if (true) return;
+
     // Debounced (500 ms): hızla peş peşe çağrılırsa tek istek
     clearTimeout(_rosterPersistSaveTimer);
     _rosterPersistSaveTimer = setTimeout(async () => {
@@ -45035,11 +45052,8 @@ function rosterMakeCaptain(playerNum){
       if (!(window.sb && authUser && authUser.id)) { rosterToast('⚠️ Bağlantı yok.', 'err'); return; }
       const _pid = p.dbId || p.id || p.playerId || '';
       try {
-        const r = await fetch(`${SUPABASE_URL}/functions/v1/tick-matches?action=make_bot_captain`
-          + `&user=${encodeURIComponent(authUser.id)}`
-          + `&player=${encodeURIComponent(_pid)}&num=${encodeURIComponent(playerNum)}`,
-          { headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY } });
-        const d = await r.json().catch(() => null);
+        const _res = await edgeCall('make_bot_captain', { player: _pid, num: playerNum });
+        const r = { ok: _res.ok }; const d = _res.data;
         if (!r.ok || !d || d.error) {
           const msg = {
             gercek_kullanici_var: 'Takımda gerçek oyuncu varken bot kaptan yapılamaz.',
@@ -46737,10 +46751,8 @@ async function accDeleteConfirm() {
   if (btn) { btn.disabled = true; btn.textContent = 'Siliniyor…'; }
   if (err) err.textContent = '';
   try {
-    const r = await fetch(`${SUPABASE_URL}/functions/v1/tick-matches?action=delete_account`
-      + `&user=${encodeURIComponent(authUser.id)}&confirm=SIL`,
-      { headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY } });
-    const d = await r.json().catch(() => null);
+    const _res = await edgeCall('delete_account', { confirm: 'SIL' });
+    const r = { ok: _res.ok }; const d = _res.data;
     if (!r.ok || !d || d.error) {
       if (err) err.textContent = 'Silinemedi: ' + ((d && d.error) || 'sunucu hatası');
       if (btn) { btn.disabled = false; btn.textContent = 'Hesabımı Sil'; }
@@ -68537,10 +68549,8 @@ async function confirmBuy() {
       closeBuyModal();
       showShopToast('⏳ Satın alınıyor…', 'var(--text2)');
       try {
-        const r = await fetch(`${SUPABASE_URL}/functions/v1/tick-matches?action=market_buy`
-          + `&user=${encodeURIComponent(authUser.id)}&listing=${encodeURIComponent(_lid)}`,
-          { headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY } });
-        const d = await r.json().catch(() => null);
+        const _res = await edgeCall('market_buy', { listing: _lid });
+        const r = { ok: _res.ok }; const d = _res.data;
         if (!r.ok || !d || d.error) {
           const msg = {
             ilan_satildi: 'Bu item az önce başkası tarafından alındı.',
@@ -73641,23 +73651,34 @@ async function betPlay() {
   }
   _betPlaying = true;
   try {
-    const total = Math.min(BET_MAX_ODDS_C, _betTotalOdds());
-    const pot = Math.min(BET_MAX_PAYOUT_C, Math.round(stake * total));
-    // 1) Parayı düş (cüzdan)
-    const okPay = (typeof wlDeduct === 'function') ? wlDeduct('eur', stake, 'Toto kuponu') : false;
-    if (!okPay) { _betToast('Bakiye yetersiz'); _betPlaying = false; return; }
-    // 2) Kuponu kaydet
-    const { error } = await window.sb.from('bet_slips').insert({
-      user_id: authUser.id, stake, total_odds: Number(total.toFixed(2)), potential_win: pot,
-      status: 'pending', legs: _betSlip.map(l => ({ match_key:l.match_key, pick:l.pick, odds:Number(l.odds),
-        home:l.home, away:l.away, kickoff:l.kickoff }))
+    // 🔒 KUPON SUNUCUDA OLUŞTURULUR — oran, kazanç ve bedel düşümü orada hesaplanır.
+    //   İstemci yalnızca hangi maça hangi tahmin + bedel bilgisini gönderir.
+    const _res = await edgeCall('bet_place', {}, {
+      body: { stake, legs: _betSlip.map(l => ({ match_key: l.match_key, pick: l.pick })) }
     });
-    if (error) {
-      // Kayıt başarısızsa parayı geri ver
-      if (typeof wlAddIncome === 'function') wlAddIncome('eur', stake, 'Toto iptal (kayıt hatası)');
-      _betToast('Kupon kaydedilemedi: ' + (error.message || 'hata'));
+    const _d = _res.data;
+    if (!_res.ok || !_d || _d.error) {
+      const MSG = {
+        gecersiz_bedel: 'Geçersiz kupon bedeli',
+        gecersiz_ayak_sayisi: `Kuponda ${BET_MIN_LEGS}-${BET_MAX_LEGS} maç olmalı`,
+        gecersiz_maclar: 'Aynı maç birden fazla kez seçilemez',
+        gunluk_tavan: 'Günlük yatırım tavanı doldu',
+        mac_basladi: 'Kuponda başlamış maç var',
+        mac_bulunamadi: 'Maç bulunamadı',
+        kendi_macin: 'Kendi takımının maçına tahmin yapılamaz',
+        oran_yok: 'Bu maç için oran yok',
+        bakiye_yetersiz: 'Bakiye yetersiz',
+        bakiye_degisti_tekrar_dene: 'Bakiye değişti, tekrar dene',
+        oturum_yok: 'Oturum yok'
+      };
+      _betToast(MSG[_d && _d.error] || ('Kupon kaydedilemedi: ' + ((_d && _d.error) || 'hata')));
+      betRenderBulletin();
       _betPlaying = false; return;
     }
+    const total = Number(_d.total_odds) || 0;
+    const pot = Number(_d.potential_win) || 0;
+    // Cüzdanı sunucudan tazele (bedel orada düşüldü)
+    try { if (typeof wlLoadFromServer === 'function') await wlLoadFromServer(); } catch(e) {}
     _betSlip = [];
     _betMySlips = null;
     _betOpenSlip = null;                            // 🆕 yeni kupon açık gelsin
@@ -73984,10 +74005,8 @@ async function betClaimPrize(slipId, btn) {
   const eskiHtml = btn.innerHTML;
   btn.innerHTML = '⏳ ALINIYOR…';
   try {
-    const u = `${SUPABASE_URL}/functions/v1/tick-matches?action=bet_claim`
-            + `&user=${encodeURIComponent(authUser.id)}&slip=${encodeURIComponent(slipId)}&apikey=${SUPABASE_KEY}`;
-    const r = await fetch(u, { headers: { Authorization: 'Bearer ' + SUPABASE_KEY } });
-    const j = await r.json();
+    const _res = await edgeCall('bet_claim', { slip: slipId });
+    const j = _res.data;
     if (!j || !j.ok) {
       const MSG = { zaten_alindi:'Bu ödül zaten alınmış', kazanan_kupon_degil:'Kupon kazanmamış',
                     yetki_yok:'Yetki yok', kupon_bulunamadi:'Kupon bulunamadı', odul_yok:'Ödül yok' };
@@ -74106,9 +74125,8 @@ function scDrawLocked() {
 async function scLoadStatus() {
   try {
     if (!window.authUser || !window.authUser.id) return;
-    const u = `${SUPABASE_URL}/functions/v1/tick-matches?action=scratch_status&user=${encodeURIComponent(authUser.id)}&apikey=${SUPABASE_KEY}`;
-    const r = await fetch(u, { headers: { Authorization: 'Bearer ' + SUPABASE_KEY } });
-    const j = await r.json();
+    const _res = await edgeCall('scratch_status', {});
+    const j = _res.data;
     if (j && j.ok && j.used) { _scUsed = j.used; scRenderLim(); scRenderFree(); }
   } catch(e) {}
 }
@@ -74131,10 +74149,8 @@ async function scBuy(free) {
   _scBusy = true;
   const bb = document.getElementById('scBuyBtn'); if (bb) { bb.disabled = true; bb.innerHTML = '⏳ HAZIRLANIYOR…'; }
   try {
-    const u = `${SUPABASE_URL}/functions/v1/tick-matches?action=scratch_buy&user=${encodeURIComponent(authUser.id)}`
-            + `&tier=${tier}${free ? '&free=1' : ''}&apikey=${SUPABASE_KEY}`;
-    const r = await fetch(u, { headers: { Authorization: 'Bearer ' + SUPABASE_KEY } });
-    const j = await r.json();
+    const _res = await edgeCall('scratch_buy', free ? { tier, free: '1' } : { tier });
+    const j = _res.data;
     if (!j || !j.ok) {
       const MSG = {
         gunluk_bilet_siniri: 'Günlük 25 bilet sınırına ulaştın',
@@ -74367,10 +74383,8 @@ async function scClaimPrize(cardId, btn) {
   const eski = btn.innerHTML;
   btn.innerHTML = '⏳ ALINIYOR…';
   try {
-    const u = `${SUPABASE_URL}/functions/v1/tick-matches?action=scratch_claim`
-            + `&user=${encodeURIComponent(authUser.id)}&card=${encodeURIComponent(cardId)}&apikey=${SUPABASE_KEY}`;
-    const r = await fetch(u, { headers: { Authorization: 'Bearer ' + SUPABASE_KEY } });
-    const j = await r.json();
+    const _res = await edgeCall('scratch_claim', { card: cardId });
+    const j = _res.data;
     if (!j || !j.ok) {
       const MSG = { zaten_alindi:'Bu ödül zaten alınmış', odul_yok:'Ödül yok',
                     yetki_yok:'Yetki yok', bilet_bulunamadi:'Bilet bulunamadı' };
@@ -74857,10 +74871,8 @@ async function tfHireFreeAgent(agentId){
   // 🆕 SUNUCU ÜZERİNDEN TRANSFER — istemciden players tablosuna yazmak RLS'e
   //   takılıyordu; oyuncu ne kadroya giriyor ne de serbest listeden düşüyordu.
   try {
-    const _r = await fetch(`${SUPABASE_URL}/functions/v1/tick-matches?action=hire_free_agent`
-      + `&user=${encodeURIComponent(authUser.id)}&player=${encodeURIComponent(sbId)}&max=${maxRoster}`,
-      { headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY } });
-    const _d = await _r.json().catch(() => null);
+    const _res = await edgeCall('hire_free_agent', { player: sbId, max: maxRoster });
+    const _r = { ok: _res.ok }; const _d = _res.data;
     if (!_r.ok || !_d || _d.error) {
       const _msg = {
         takim_yok: 'Önce bir takıma katılmalısın.',
@@ -76063,6 +76075,41 @@ function _sysSentAdd(id) {
     localStorage.setItem(SYS_SENT_KEY, JSON.stringify(arr));
   } catch(e) {}
 }
+
+// ══════════════════════════════════════════════════════════════
+// 🔒 EDGE ÇAĞRISI — kullanıcının OTURUM TOKEN'ı ile.
+//   Eskiden anon key gönderiliyor ve kullanıcı kimliği URL'de taşınıyordu;
+//   bu, herkesin herkes adına işlem yapabilmesi demekti.
+//   Artık sunucu kimliği JWT'den çözüyor, ?user parametresi kullanılmıyor.
+// ══════════════════════════════════════════════════════════════
+async function edgeCall(action, params, opts) {
+  const o = opts || {};
+  let jwt = null;
+  try {
+    if (window.sb && window.sb.auth) {
+      const { data } = await window.sb.auth.getSession();
+      jwt = data && data.session && data.session.access_token;
+    }
+  } catch(e) {}
+  if (!jwt) throw new Error('oturum_yok');
+  const qs = new URLSearchParams(params || {}).toString();
+  const url = `${SUPABASE_URL}/functions/v1/tick-matches?action=${encodeURIComponent(action)}`
+            + (qs ? '&' + qs : '');
+  const init = {
+    method: o.body ? 'POST' : 'GET',
+    headers: {
+      'Authorization': 'Bearer ' + jwt,
+      'apikey': SUPABASE_KEY,
+      ...(o.body ? { 'Content-Type': 'application/json' } : {})
+    }
+  };
+  if (o.body) init.body = JSON.stringify(o.body);
+  const r = await fetch(url, init);
+  let d = null;
+  try { d = await r.json(); } catch(e) {}
+  return { ok: r.ok, status: r.status, data: d };
+}
+window.edgeCall = edgeCall;
 
 function sysMsg(o) {
   try {
@@ -81086,10 +81133,7 @@ async function evClaimStreakDay(day) {
           const _max = (typeof getUserEffectiveMaxEnergy === 'function')
             ? getUserEffectiveMaxEnergy()
             : ((typeof ENERGY_MAX !== 'undefined') ? ENERGY_MAX : 500);
-          await fetch(`${SUPABASE_URL}/functions/v1/tick-matches?action=energy_add`
-            + `&user=${encodeURIComponent(authUser.id)}&amount=${_en}`
-            + `&source=streak_s${day}&max=${_max}`,
-            { headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY } }).catch(()=>{});
+          await edgeCall('energy_add', { source: 'streak_s' + day }).catch(()=>{});
         }
       } catch(e4) {}
       if (typeof wlLoadFromServer === 'function') await wlLoadFromServer();
@@ -82245,8 +82289,11 @@ function wlSaveData(d){
 
   wlSyncHeader();
 
-  // Debounced Supabase write (500ms)
-  if (window.sb && authUser && authUser.id) {
+  // 🔒 CÜZDAN İSTEMCİDEN YAZILMAZ.
+  //   Eskiden bakiye burada doğrudan güncelleniyordu → konsoldan sınırsız para.
+  //   Artık tüm para hareketleri sunucuda (Edge aksiyonları / RPC) yapılır;
+  //   burada yalnızca EKRAN önbelleği güncellenir, DB'ye yazılmaz.
+  if (false && window.sb && authUser && authUser.id) {
     clearTimeout(_wlSaveTimer);
     _wlSaveTimer = setTimeout(async () => {
       try {
@@ -82690,8 +82737,10 @@ function trsGetData(){
 function trsSaveData(d){
   // RAM cache anında güncelle
   _trsCache = Object.assign({}, _trsCache || {}, d);
-  // Debounced Supabase write (500ms)
-  if (window.sb && _userTeam && _userTeam.countryCode && _userTeam.teamName) {
+  // 🔒 TAKIM KASASI İSTEMCİDEN YAZILMAZ.
+  //   Kasa hareketleri sunucudaki team_treasury_apply RPC'si ile yapılır.
+  //   Burada yalnızca ekran önbelleği tutulur.
+  if (false && window.sb && _userTeam && _userTeam.countryCode && _userTeam.teamName) {
     clearTimeout(_trsSaveTimer);
     _trsSaveTimer = setTimeout(async () => {
       try {
