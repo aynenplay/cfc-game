@@ -28288,7 +28288,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-06-enerji-304';
+const APP_BUILD = '2026-08-06-enerji-305';
 
 (function _cacheBustCheck() {
   try {
@@ -82446,11 +82446,6 @@ async function evClaimStreakDay(day) {
   if (day < 1 || day > 7) return;
   if (day > s.login_streak) return;                    // henüz hak edilmedi
   if (s.streak_claimed.includes(day)) return;          // zaten toplandı
-  // 🆕 ENERJİ KORUMASI — claim_streak_reward çalışırken enerji ezilebiliyor.
-  //    Sunucudan RPC'den ÖNCE anlık görüntü aldır; hediye enerji sonradan
-  //    bu tabanın ÜZERİNE eklenecek. Değeri sunucu kendi okur, istemci göndermez.
-  try { await edgeCall('energy_snapshot', {}); } catch(eSnap) {}
-
   try {
     const { data, error } = await window.sb.rpc('claim_streak_reward', { p_day: day });
     if (error) { console.warn('[streak] claim hata:', error.message || error); return; }
@@ -82483,22 +82478,11 @@ async function evClaimStreakDay(day) {
     }
     // Ödül server'da (claim_streak_reward RPC) cüzdana + enerjiye yazıldı — otoriter değerleri çekip tazele
     try {
-      // 🆕 ENERJİ ÖDÜLÜ — miktarı SUNUCU belirler, mevcut enerjinin ÜZERİNE ekler.
-      try {
-        const _en = Number(data.energy) || 0;
-        if (_en > 0 && window.authUser && window.authUser.id) {
-          const _r = await edgeCall('energy_add', { source: 'streak_s' + day }).catch(()=>null);
-          const _d = _r && _r.data;
-          if (_d && _d.ok) {
-            console.info('[enerji] ödül eklendi:', _d.taban, '→', _d.energy, '(+' + _d.eklenen + ')');
-          } else {
-            console.warn('[enerji] ödül eklenemedi:', _r && (_r.status + ' ' + JSON.stringify(_r.data)));
-            if (typeof rosterToast === 'function') {
-              rosterToast('⚠️ Enerji ödülü eklenemedi — sunucu güncel mi?', 'warn');
-            }
-          }
-        }
-      } catch(e4) { console.warn('[enerji] istisna:', e4); }
+      // 🆕 ENERJİ ÖDÜLÜ — AYRI ÇAĞRI YOK.
+      //    claim_streak_reward fonksiyonu enerjiyi ZATEN mevcut değerin
+      //    üzerine ekliyor:  energy = coalesce(energy,0) + v_energy
+      //    Buradan ikinci kez energy_add çağırmak ÇİFT EKLEME yapıyordu.
+      //    Sadece sunucudaki güncel değeri tazele.
       if (typeof wlLoadFromServer === 'function') await wlLoadFromServer();
       if (typeof _energyLoadFromServer === 'function') await _energyLoadFromServer();
     } catch(e2) {}
