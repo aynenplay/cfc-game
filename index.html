@@ -8317,6 +8317,29 @@ body.team-captain .pr-mv.is-custom:hover{color:#ffe082}
   font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:13px;letter-spacing:.8px}
 .clm-btn:active{transform:scale(.98)}
 
+/* 🆕 Maç sonu modalı — istatistik + reyting blokları */
+.rfm-stat{display:grid;grid-template-columns:34px 1fr 90px 1fr 34px;align-items:center;gap:6px;
+  padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.rfm-stat:last-child{border-bottom:none}
+.rfm-stat .v{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:13px;color:#fff}
+.rfm-stat .v.l{text-align:right} .rfm-stat .v.r{text-align:left}
+.rfm-stat .k{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;text-align:center}
+.rfm-stat .b{height:4px;border-radius:2px;background:rgba(0,0,0,.45);overflow:hidden;display:flex}
+.rfm-stat .b i{display:block;height:100%}
+.rfm-stat .b.l{justify-content:flex-end}
+.rfm-rt-team{margin-top:8px}
+.rfm-rt-hd{display:flex;align-items:center;gap:6px;font-family:'Barlow Condensed',sans-serif;font-weight:900;
+  font-size:11.5px;letter-spacing:.5px;color:var(--text2);padding:6px 0 4px;
+  border-bottom:1px solid rgba(255,255,255,.07)}
+.rfm-rt{display:grid;grid-template-columns:22px 1fr auto auto;align-items:center;gap:7px;
+  padding:5px 2px;border-bottom:1px solid rgba(255,255,255,.04);font-size:11px}
+.rfm-rt:last-child{border-bottom:none}
+.rfm-rt .no{font-family:'Barlow Condensed',sans-serif;font-weight:900;color:var(--text3);text-align:center;font-size:10.5px}
+.rfm-rt .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e7eaf0;font-weight:600}
+.rfm-rt .ic{font-size:10px;letter-spacing:1px}
+.rfm-rt .rt{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:13px;min-width:30px;text-align:right}
+.rfm-rt .rt.hi{color:#7CFFB2} .rfm-rt .rt.mid{color:#dfe6f2} .rfm-rt .rt.lo{color:#ff9e9e}
+
 /* 🆕 Generic Custom Confirm Modal — Lacivert tema */
 .cft-confirm-overlay{
   position:fixed;
@@ -27493,6 +27516,16 @@ body.drawer-open{overflow:hidden}
             <div class="res-fm-no-motm">Veri yok</div>
           </div>
         </div>
+        <!-- 🆕 Maç istatistikleri (sunucudaki gerçek stats) -->
+        <div class="res-fm-section" id="resFmStatsSec" style="display:none">
+          <div class="res-fm-section-title">📊 Maç İstatistikleri</div>
+          <div id="resFmStats"></div>
+        </div>
+        <!-- 🆕 Oyuncu reytingleri (lineup.matchRating) -->
+        <div class="res-fm-section" id="resFmRatingsSec" style="display:none">
+          <div class="res-fm-section-title">⭐ Oyuncu Reytingleri</div>
+          <div id="resFmRatings"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -28090,7 +28123,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-02-milli-288';
+const APP_BUILD = '2026-08-02-penalti-291';
 
 (function _cacheBustCheck() {
   try {
@@ -34047,6 +34080,87 @@ async function resOpenFinishedMatch(matchKey) {
       motmWrap.innerHTML = '<div class="res-fm-no-motm">Maçın adamı verisi yok</div>';
     }
   }
+
+  // ═══ 🆕 MAÇ İSTATİSTİKLERİ — sunucudaki gerçek stats ═══
+  try {
+    const st = (entry && (entry.stats || entry._stats)) ? (entry.stats || entry._stats) : null;
+    const secS = document.getElementById('resFmStatsSec');
+    const boxS = document.getElementById('resFmStats');
+    const _ikili = (v) => Array.isArray(v) ? v : [0, 0];
+    if (st && boxS) {
+      const SATIR = [
+        ['possession', 'Topla Oynama', '%'],
+        ['shots', 'Şut', ''],
+        ['shotsOnTarget', 'İsabetli Şut', ''],
+        ['corners', 'Korner', ''],
+        ['fouls', 'Faul', ''],
+        ['yellowCards', 'Sarı Kart', ''],
+        ['redCards', 'Kırmızı Kart', ''],
+        ['passAcc', 'Pas İsabeti', '%'],
+      ];
+      const html = SATIR.map(([k, ad, ek]) => {
+        const v = _ikili(st[k]);
+        const h = Number(v[0]) || 0, a = Number(v[1]) || 0;
+        const top = h + a;
+        const hp = top > 0 ? Math.round(h / top * 100) : 50;
+        if (top === 0 && k !== 'possession') return '';
+        return `<div class="rfm-stat">
+          <span class="v l">${h}${ek}</span>
+          <span class="b l"><i style="width:${hp}%;background:var(--accent2,#00b0ff)"></i></span>
+          <span class="k">${ad}</span>
+          <span class="b"><i style="width:${100 - hp}%;background:#ef5350"></i></span>
+          <span class="v r">${a}${ek}</span>
+        </div>`;
+      }).filter(Boolean).join('');
+      if (html) { boxS.innerHTML = html; if (secS) secS.style.display = 'block'; }
+      else if (secS) secS.style.display = 'none';
+    } else if (secS) { secS.style.display = 'none'; }
+  } catch(e) {}
+
+  // ═══ 🆕 OYUNCU REYTİNGLERİ — lineup.matchRating (sunucu otoritesi) ═══
+  try {
+    const secR = document.getElementById('resFmRatingsSec');
+    const boxR = document.getElementById('resFmRatings');
+    const golAt = {}, asistAt = {}, sari = {}, kirmizi = {}, cikan = {}, giren = {};
+    (events || []).forEach(e => {
+      if (!e) return;
+      if (e.type === 'goal' && !e.cancelled) {
+        golAt[e.player] = (golAt[e.player] || 0) + 1;
+        if (e.assist) asistAt[e.assist] = (asistAt[e.assist] || 0) + 1;
+      } else if (e.type === 'yellow') sari[e.player] = true;
+      else if (e.type === 'red') kirmizi[e.player] = true;
+      else if (e.type === 'sub') { if (e.playerOut) cikan[e.playerOut] = e.min; if (e.player) giren[e.player] = e.min; }
+    });
+    const takimHtml = (ad, lineup, kisa) => {
+      const pl = (Array.isArray(lineup) ? lineup : [])
+        .filter(p => p && p.name && typeof p.matchRating === 'number')
+        .sort((a, b) => (b.matchRating || 0) - (a.matchRating || 0));
+      if (!pl.length) return '';
+      const satirlar = pl.map(p => {
+        const r = Number(p.matchRating) || 0;
+        const cls = r >= 7.5 ? 'hi' : (r < 6.5 ? 'lo' : 'mid');
+        const ikon = [
+          golAt[p.name] ? '⚽'.repeat(Math.min(3, golAt[p.name])) : '',
+          asistAt[p.name] ? '🅰️' : '',
+          sari[p.name] ? '🟨' : '',
+          kirmizi[p.name] ? '🟥' : '',
+          cikan[p.name] ? '🔻' : '',
+          giren[p.name] ? '🔺' : ''
+        ].filter(Boolean).join(' ');
+        return `<div class="rfm-rt">
+          <span class="no">${p.num != null ? p.num : ''}</span>
+          <span class="nm">${_escapeHtml(p.name)}</span>
+          <span class="ic">${ikon}</span>
+          <span class="rt ${cls}">${r.toFixed(1)}</span>
+        </div>`;
+      }).join('');
+      return `<div class="rfm-rt-team"><div class="rfm-rt-hd">${_escapeHtml(kisa)} · ${_escapeHtml(ad)}</div>${satirlar}</div>`;
+    };
+    const h1 = takimHtml(m.home, homeLineup, m.homeShort || (m.home || '').slice(0, 3).toUpperCase());
+    const h2 = takimHtml(m.away, awayLineup, m.awayShort || (m.away || '').slice(0, 3).toUpperCase());
+    if (boxR && (h1 || h2)) { boxR.innerHTML = h1 + h2; if (secR) secR.style.display = 'block'; }
+    else if (secR) secR.style.display = 'none';
+  } catch(e) {}
 
   // Status
   const statusEl = document.getElementById('resFmStatus');
@@ -51215,7 +51329,12 @@ function fedVote(candidateId) {
   if(!state || state.electionPhase !== 'open') return false;
   const me = fedGetUserMember(cc);
   if(!me) return false;
-  if(!(state.candidates || []).includes(candidateId)) return false;
+  // 🆕 Sunucudaki aday listesi boş olabilir (kimse resmi başvurmadı) —
+  //   bu durumda canlı hesaplanan aday listesi geçerli sayılır.
+  const _resmi = Array.isArray(state.candidates) ? state.candidates : [];
+  const _gecerli = _resmi.length ? _resmi
+    : ((typeof fedComputeCandidates === 'function') ? fedComputeCandidates(cc) : []);
+  if(!_gecerli.includes(candidateId)) return false;
   if(state.votes && state.votes[me.id]) return false;
   const cand = computeFederationMembers(cc).find(m => m.id === candidateId);
   if(!cand || !window.sb) return false;
@@ -51779,7 +51898,11 @@ function fedRenderElection() {
   // Hangi adayları gösterelim?
   let candIds = [];
   if(phase === 'open') {
-    candIds = state.candidates || [];
+    // 🆕 Sunucudaki aday listesi boşsa (kimse başvurmadıysa) canlı hesapla —
+    //   eskiden seçim gününde "Henüz aday yok" yazıyordu.
+    candIds = (Array.isArray(state.candidates) && state.candidates.length)
+      ? state.candidates
+      : ((typeof fedComputeCandidates === 'function') ? fedComputeCandidates(cc) : []);
   } else if(phase === 'completed' && state.history && state.history.length) {
     const last = state.history[state.history.length - 1];
     candIds = last.candidates || [];
@@ -51818,10 +51941,17 @@ function fedRenderElection() {
 
     let rightHtml = '';
     if(isMember && phase !== 'completed') {
-      // 🆕 Oy ver butonu HER ZAMAN görünür; sadece SEÇİM GÜNÜ (phase==='open') aktif
+      // 🆕 Oy ver butonu HER ZAMAN görünür; sadece SEÇİM GÜNÜ (phase==='open') aktif.
+      //   Aday olmak oy hakkını engellemez — herkesin 1 oyu var.
       const _votingOpen = (phase === 'open');
       const _lbl = votedByMe ? '✓ OYUM' : (_votingOpen ? 'OY VER' : '🔒 Seçim Günü Değil');
-      rightHtml = `<button class="fede-cand-vote-btn" onclick="fedCastVoteClick('${id}')" ${(!_votingOpen || votedByMe) ? 'disabled' : ''}>${_lbl}</button>`;
+      rightHtml =
+        (_votingOpen
+          ? `<div style="text-align:right;margin-right:6px">
+               <div class="fede-cand-tally">${myTally}</div>
+               <div class="fede-cand-pct">%${pct}</div>
+             </div>` : '')
+        + `<button class="fede-cand-vote-btn" onclick="fedCastVoteClick('${id}')" ${(!_votingOpen || votedByMe) ? 'disabled' : ''}>${_lbl}</button>`;
     } else if(phase === 'completed') {
       rightHtml = `
         <div style="text-align:right">
@@ -51837,7 +51967,7 @@ function fedRenderElection() {
         <div class="fede-cand-info">
           <div class="fede-cand-name">${cand.captainName}${isInc?' <span style="font-size:10px;color:#ffd54f">👑</span>':''}${isWinner?' <span style="font-size:10px;color:#ffd54f">🏛️</span>':''}</div>
           <div class="fede-cand-team">${cand.teamName} · ${cand.leagueName}</div>
-          ${phase === 'completed' ? `<div class="fede-bar"><div class="fede-bar-fill" style="width:${pct}%"></div></div>` : ''}
+          ${(phase === 'completed' || phase === 'open') ? `<div class="fede-bar"><div class="fede-bar-fill" style="width:${pct}%"></div></div>` : ''}
         </div>
         ${rightHtml}
       </div>
@@ -51846,7 +51976,11 @@ function fedRenderElection() {
 
   const _candTitle = phase === 'open' ? '🗳️ Adaylar — Oyunu Ver'
     : (phase === 'completed' ? '🗳️ Seçim Adayları' : '🗳️ Sonraki Sezon Adayları');
-  const _candSub = phase === 'closed' ? '<div class="fede-cand-sub">Başkanlığa aday olanlar · oylama sezon başında açılır</div>' : '';
+  const _candSub = phase === 'closed'
+    ? '<div class="fede-cand-sub">Başkanlığa aday olanlar · oylama sezon başında açılır · oy verme <b>seçim gününde</b> açılır</div>'
+    : (phase === 'open'
+        ? `<div class="fede-cand-sub">Toplam <b>${totalVotes}</b> oy kullanıldı · oylar gizlidir, yalnızca toplamlar görünür</div>`
+        : '');
   candHtml = `<div class="fede-cand-title">${_candTitle}</div>${_candSub}` + (candIds.length > 0
     ? `<div class="fede-cand-list">${candCards}</div>`
     : `<div style="padding:18px;text-align:center;color:var(--text3);font-size:11px">Henüz aday yok — ilk aday sen ol!</div>`);
@@ -51858,7 +51992,8 @@ function fedRenderElection() {
       <ul class="fede-rules-list">
         <li>• <b>Adaylık:</b> Tüm üyeler istediği zaman aday olabilir; en yüksek 5 etki kullanıcıya bonus aday olur</li>
         <li>• <b>Oylama:</b> Sezonun <b>1. günü 00:00</b>'da başlar, <b>3. günü 19:00</b>'da biter</li>
-        <li>• <b>Oylar:</b> Her üyenin 1 oyu vardır; bot oyları etki gücüne göre ağırlıklı dağıtılır</li>
+        <li>• <b>Oylar:</b> Her üyenin <b>1 oyu</b> vardır — adaylar da oy kullanabilir</li>
+        <li>• <b>Gizlilik:</b> Kimin kime oy verdiği görünmez; yalnızca <b>toplam oy ve yüzde</b> gösterilir</li>
         <li>• <b>Sonuç:</b> En çok oyu alan başkan, 2-3-4. sıra yardımcı olur</li>
         <li>• <b>Eşitlik:</b> Eşitlikte daha yüksek etki sahibi kazanır</li>
       </ul>
@@ -70392,6 +70527,12 @@ function trn2BuildBracket(groups, season, trnKey) {
     const phase = m.tournament_phase;
     if (!_knockoutFromServer[phase]) _knockoutFromServer[phase] = {};
     _knockoutFromServer[phase][`${m.home}|${m.away}`] = m;
+    // 🆕 stats (penaltı/uzatma) doğrudan match_state cache'inden de bakılır
+    try {
+      const _msRow = (_matchStateCache && _matchStateCache.byKey && m.matchKey)
+        ? _matchStateCache.byKey[m.matchKey] : null;
+      if (_msRow && _msRow.stats && !m.stats) m.stats = _msRow.stats;
+    } catch(e) {}
   }
 
   // teams DB'den tam takım nesnesi (rating + players) — hem server hem lokal mantık için lazım
@@ -70505,12 +70646,38 @@ function trn2BuildBracket(groups, season, trnKey) {
           if (leg1 && leg2) { _aggH = leg1.hs + leg2.as; _aggA = leg1.as + leg2.hs; }
           else if (leg1) { _aggH = leg1.hs; _aggA = leg1.as; }
         } else if (leg1) { _aggH = leg1.hs; _aggA = leg1.as; }
+
+        // 🆕 PENALTI / UZATMA — sunucu belirleyici maçın stats'ına yazıyor.
+        //   Beraberlikte kazanan penaltı sonucuna göre düzeltilir.
+        let _pens = null, _et = null;
+        try {
+          const _bel = info.twoLeg ? srvL2 : srvL1;   // belirleyici ayak
+          const _stt = _bel && (_bel.stats || (_bel.data && _bel.data.stats));
+          if (_stt && Array.isArray(_stt.pens) && _stt.pens.length === 2) {
+            // İki ayaklıda belirleyici maçta ev sahibi t2'dir
+            const evT = info.twoLeg ? t2 : t1;
+            const depT = info.twoLeg ? t1 : t2;
+            const pEv = Number(_stt.pens[0]) || 0, pDep = Number(_stt.pens[1]) || 0;
+            _pens = { homePens: (evT === t1 ? pEv : pDep), awayPens: (evT === t1 ? pDep : pEv) };
+            if (_stt.pensWinner) {
+              winner = (_stt.pensWinner === t1.name) ? t1 : (_stt.pensWinner === t2.name ? t2 : winner);
+            } else {
+              winner = (pEv > pDep) ? evT : depT;
+            }
+          }
+          if (_stt && Array.isArray(_stt.extraTime) && _stt.extraTime.length === 2) {
+            _et = { hs: Number(_stt.extraTime[0]) || 0, as: Number(_stt.extraTime[1]) || 0 };
+          }
+        } catch(e) {}
+
         return {
           home: t1, away: t2,
           leg1, leg2,
           hs: _aggH, as: _aggA,
           leg1Date: _l1iso, leg2Date: _l2iso,
           winner,
+          pens: _pens,
+          et: _et,
           twoLeg: info.twoLeg,
           fromServer: true
         };
