@@ -1,6 +1,50 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
+<!-- ═══ 🌍 AÇILIŞ PERDESİ (i18n) ═══
+     Dil Türkçe değilse, ilk çeviri turu bitene kadar oyun ekranı gösterilmez;
+     yerine oyunun kendi karbon renginde bir yükleme ekranı durur.
+     Amaç: oyuncu bir an bile Türkçe metin görmesin.
+
+     ÖNEMLİ: Çeviri tamamen YERELDİR — sözlük bu dosyanın içinde. İnternet
+     bağlantısıyla ilgisi yok. Dosya yüklendiyse sözlük de yüklenmiştir.
+     Bu yüzden "önce Türkçe, sonra İngilizce" durumu oluşamaz.
+
+     Güvenlik ağı devreye girerse bile ÖNCE çeviriyi çalıştırır, SONRA perdeyi
+     kaldırır — yani hiçbir koşulda çevrilmemiş ekran gösterilmez. -->
+<script>
+(function(){
+  var dil = 'tr';
+  try { dil = localStorage.getItem('cft_language') || 'tr'; } catch(e) {}
+  if (dil === 'tr') return;
+  try {
+    document.documentElement.setAttribute('data-i18n-bekliyor', '1');
+    var st = document.createElement('style');
+    st.id = 'i18n-perde';
+    st.textContent =
+      'html[data-i18n-bekliyor]{background:#06070a !important}' +
+      'html[data-i18n-bekliyor] body{visibility:hidden !important}' +
+      'html[data-i18n-bekliyor]::after{content:"";position:fixed;inset:0;z-index:2147483000;' +
+        'background:#06070a}' +
+      'html[data-i18n-bekliyor]::before{content:"";position:fixed;z-index:2147483001;' +
+        'left:50%;top:50%;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;' +
+        'border:3px solid rgba(255,255,255,.12);border-top-color:#00e676;' +
+        'animation:i18nDon .8s linear infinite}' +
+      '@keyframes i18nDon{to{transform:rotate(360deg)}}';
+    (document.head || document.documentElement).appendChild(st);
+
+    // Güvenlik ağı: motor bir sebeple geç kalırsa ÖNCE çevir, SONRA göster.
+    setTimeout(function(){
+      try { if (typeof window.i18nBaslat === 'function') window.i18nBaslat(); } catch(e2) {}
+      try {
+        var e = document.getElementById('i18n-perde');
+        if (e && e.parentNode) e.parentNode.removeChild(e);
+        document.documentElement.removeAttribute('data-i18n-bekliyor');
+      } catch(e3) {}
+    }, 6000);
+  } catch(e) {}
+})();
+</script>
 <!-- ═══ GEÇİCİ HATA YAKALAYICI — sorun bulununca silinecek ═══
      Telefonda konsol açılamadığı için: yalnızca GERÇEK bir hata olursa
      ekranın en üstüne kırmızı bir şerit çıkar. Hata yoksa hiçbir şey görünmez. -->
@@ -28244,7 +28288,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-04-english-298';
+const APP_BUILD = '2026-08-04-english-300';
 
 (function _cacheBustCheck() {
   try {
@@ -29133,17 +29177,19 @@ window.i18nCevirAgac = i18nCevirAgac;
 
 function _i18nKuyrugaAl(n) {
   _i18nKuyruk.push(n);
-  if (_i18nZamanlayici) return;
-  const zamanla = window.requestAnimationFrame || function(f) { return setTimeout(f, 16); };
-  _i18nZamanlayici = zamanla(function() {
-    _i18nZamanlayici = null;
-    const liste = _i18nKuyruk;
-    _i18nKuyruk = [];
-    const g = _i18nGozlemci;
-    if (g) g.disconnect();
-    for (let i = 0; i < liste.length; i++) i18nCevirAgac(liste[i]);
-    if (g) _i18nGozlemciBasla();
-  });
+}
+
+// 🆕 Kuyruğu HEMEN boşalt. MutationObserver geri çağrısı mikrogörev
+//    aşamasında, tarayıcı ekranı boyamadan önce çalışır; burada senkron
+//    çevirirsek kullanıcı bir an bile Türkçe metin görmez.
+function _i18nKuyrugaBosalt() {
+  if (!_i18nKuyruk.length) return;
+  const liste = _i18nKuyruk;
+  _i18nKuyruk = [];
+  const g = _i18nGozlemci;
+  if (g) g.disconnect();                    // kendi yazdığımızı tekrar yakalamayalım
+  try { for (let i = 0; i < liste.length; i++) i18nCevirAgac(liste[i]); } catch(e) {}
+  if (g) _i18nGozlemciBasla();
 }
 
 function _i18nGozlemciBasla() {
@@ -29156,10 +29202,24 @@ function _i18nGozlemciBasla() {
   } catch(e) {}
 }
 
+// 🆕 Açılış perdesini kaldır (ilk çeviri turu bitince)
+function _i18nPerdeKaldir() {
+  try {
+    const st = document.getElementById('i18n-perde');
+    if (st && st.parentNode) st.parentNode.removeChild(st);
+    document.documentElement.removeAttribute('data-i18n-bekliyor');
+  } catch(e) {}
+}
+window._i18nPerdeKaldir = _i18nPerdeKaldir;
+
+let _i18nIlkTurBitti = false;
 function i18nBaslat() {
-  if (!i18nAktif()) return;
-  if (!document.body) { document.addEventListener('DOMContentLoaded', i18nBaslat); return; }
+  if (!i18nAktif()) { _i18nPerdeKaldir(); return; }
+  if (!document.body) return;               // bir sonraki tetikleyici halleder
+  if (_i18nIlkTurBitti && _i18nGozlemci) return;
+  _i18nIlkTurBitti = true;
   i18nCevirAgac(document.body);
+  _i18nPerdeKaldir();                       // 🆕 çeviri bitti → sayfayı göster
   try { document.documentElement.setAttribute('lang', i18nLang()); } catch(e) {}
   if (_i18nGozlemci || typeof MutationObserver === 'undefined') return;
   _i18nGozlemci = new MutationObserver(function(kayitlar) {
@@ -29171,6 +29231,7 @@ function i18nBaslat() {
         if (n.nodeType === 1 || n.nodeType === 3) _i18nKuyrugaAl(n);
       }
     }
+    _i18nKuyrugaBosalt();                   // 🆕 boyamadan önce, senkron
   });
   _i18nGozlemciBasla();
   console.info('[i18n] çeviri motoru aktif:', i18nLang());
@@ -29191,8 +29252,11 @@ function i18nDilAyarla(kod) {
 }
 window.i18nDilAyarla = i18nDilAyarla;
 
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', i18nBaslat);
-else i18nBaslat();
+// Birden çok tetikleyici — hangisi önce gelirse. i18nBaslat tekrar çağrıya dayanıklı.
+if (document.body) i18nBaslat();
+document.addEventListener('DOMContentLoaded', i18nBaslat);
+document.addEventListener('readystatechange', function(){ if (document.body) i18nBaslat(); });
+window.addEventListener('load', i18nBaslat);
 
 
 function cftUpdateLangDisplay(){
