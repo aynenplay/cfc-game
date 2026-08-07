@@ -16132,6 +16132,22 @@ body.inbox-open #main{visibility:hidden!important;pointer-events:none!important}
 #page-home .hm-nxc.is-takvim:active{transform:none}
 #page-home .hm-nxc.is-takvim .nxc-crest{background:none !important;box-shadow:none !important;
   font-size:22px !important;border-radius:0 !important}
+/* 🆕 PENALTI GÖSTERİMİ — berabere biten eleme maçlarında */
+.pen-rozet{font-size:9px;font-weight:900;letter-spacing:.4px;color:var(--gold,#ffd600);
+  font-family:'Barlow Condensed',sans-serif;line-height:1;margin-top:2px}
+.lg2-fix-pen{font-size:9px;font-weight:900;letter-spacing:.4px;color:var(--gold,#ffd600);
+  font-family:'Barlow Condensed',sans-serif;line-height:1;margin-top:2px}
+.res-fm-pen{margin:-2px 0 10px;text-align:center}
+.res-fm-pen-row{display:flex;align-items:center;justify-content:center;gap:8px;
+  font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--text2,#c6ccd8);
+  letter-spacing:.5px;margin:2px 0}
+.res-fm-pen-row b{font-size:16px;font-weight:900;color:#fff}
+.res-fm-pen-row .rfp-et,.res-fm-pen-row .rfp-p{font-size:9px;font-weight:900;letter-spacing:1px;
+  padding:2px 7px;border-radius:4px;background:rgba(255,255,255,.07);color:var(--text3,#9aa3b2)}
+.res-fm-pen-row .rfp-p{background:rgba(255,214,0,.14);color:var(--gold,#ffd600)}
+.res-fm-pen-win{margin-top:6px;font-size:12px;font-weight:800;color:var(--gold,#ffd600);
+  font-family:'Barlow Condensed',sans-serif;letter-spacing:.4px}
+
 /* 🆕 Bayrak emojisi → çerçevesiz, arka planı olmayan transparan görünüm */
 #page-home .hm-nxc .nxc-crest[data-flag="1"]{background:none !important;background-color:transparent !important;
   box-shadow:none !important;border-radius:0 !important;overflow:visible;
@@ -27546,6 +27562,7 @@ body.drawer-open{overflow:hidden}
             <div class="res-fm-team-short" id="resFmAwayShort">—</div>
           </div>
         </div>
+        <div class="res-fm-pen" id="resFmPen" style="display:none"></div>
         <div class="res-fm-status" id="resFmStatus">
           ⚽ Maç tamamlandı · 90'
         </div>
@@ -28227,7 +28244,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-02-guvenlik-295';
+const APP_BUILD = '2026-08-03-lig-297';
 
 (function _cacheBustCheck() {
   try {
@@ -34266,6 +34283,46 @@ async function resOpenFinishedMatch(matchKey) {
     else if (secR) secR.style.display = 'none';
   } catch(e) {}
 
+  // 🆕 UZATMA / PENALTI — eleme maçı berabere bittiyse kimin turu geçtiği
+  //    skorun hemen altında açıkça yazılır ve kazanan takım işaretlenir.
+  let _penInfo = null;
+  try {
+    _penInfo = _penNormalize(entry && entry.stats);
+    if (m && m.matchKey) window._penCache.byKey[m.matchKey] = _penInfo;
+    const penEl = document.getElementById('resFmPen');
+    if (penEl) {
+      if (_penInfo && (_penInfo.pens || _penInfo.et)) {
+        const taraf = _penKazananTaraf(_penInfo, m.home, m.away);
+        let ic = '';
+        if (_penInfo.et) {
+          ic += '<div class="res-fm-pen-row"><span class="rfp-et">UZATMA</span>'
+              + '<b>' + _penInfo.et[0] + ' - ' + _penInfo.et[1] + '</b></div>';
+        }
+        if (_penInfo.pens) {
+          ic += '<div class="res-fm-pen-row"><span class="rfp-p">PENALTILAR</span>'
+              + '<b>' + _penInfo.pens[0] + ' - ' + _penInfo.pens[1] + '</b></div>';
+        }
+        const kzAd = _penInfo.kazanan || (taraf === 'ev' ? m.home : (taraf === 'dep' ? m.away : ''));
+        if (kzAd) ic += '<div class="res-fm-pen-win">🏆 ' + _escapeHtml(kzAd) + ' turu geçti</div>';
+        penEl.innerHTML = ic;
+        penEl.style.display = ic ? 'block' : 'none';
+        // Skor tablosunda kazananı işaretle (90 dk berabere olduğu için
+        // normal "winner" sınıfı kimseye verilmiyordu)
+        try {
+          const hN = document.getElementById('resFmHomeName');
+          const aN = document.getElementById('resFmAwayName');
+          if (taraf && hN && aN) {
+            hN.className = 'res-fm-team-name' + (taraf === 'ev' ? ' winner' : '');
+            aN.className = 'res-fm-team-name' + (taraf === 'dep' ? ' winner' : '');
+          }
+        } catch(e) {}
+      } else {
+        penEl.style.display = 'none';
+        penEl.innerHTML = '';
+      }
+    }
+  } catch(e) {}
+
   // Status
   const statusEl = document.getElementById('resFmStatus');
   if (statusEl) {
@@ -34277,7 +34334,9 @@ async function resOpenFinishedMatch(matchKey) {
       const _sh = (entry && typeof entry._hs === 'number') ? entry._hs : m.hs;
       const _sa = (entry && typeof entry._as === 'number') ? entry._as : m.as;
       const _mismatch = (Number(_sh) + Number(_sa)) !== _gc;
-      statusEl.innerHTML = `⚽ Maç tamamlandı · <b>90'</b>` +
+      const _sure = (_penInfo && _penInfo.pens) ? 'penaltılar'
+                  : ((_penInfo && _penInfo.et) ? "120'" : "90'");
+      statusEl.innerHTML = `⚽ Maç tamamlandı · <b>${_sure}</b>` +
         (_mismatch ? ` <span style="color:var(--text3);font-size:10px">· ${_gc} gol kaydı</span>` : '');
     }
   }
@@ -58799,6 +58858,24 @@ function _hmAttachCrestClick(elId, teamObj, matchObj) {
 //   milli / hazırlık hepsi kickoff'a göre sıralı. Sadece RAKİP gösterilir.
 
 // Lig/turnuva adını kart genişliğine sığacak kadar kısalt
+// 🆕 Takımın GÜNCEL lig adı — teams veritabanından okunur.
+//    match_state.league_name maç oluşturulduğu andaki addır; terfi/düşme
+//    sonrası eskir (4. Lig takımına "5. Lig" yazıyordu).
+function _gercekLigAdi(takimAdi, ulkeKodu) {
+  try {
+    if (!takimAdi || typeof _cftGetCountry !== 'function') return null;
+    const cc = ulkeKodu || (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.countryCode) || null;
+    if (!cc) return null;
+    const c = _cftGetCountry(cc);
+    if (!c || !Array.isArray(c.leagues)) return null;
+    for (const lg of c.leagues) {
+      if ((lg.teams || []).some(t => t && t.name === takimAdi)) return lg.name || null;
+    }
+  } catch(e) {}
+  return null;
+}
+window._gercekLigAdi = _gercekLigAdi;
+
 function _hmNxComp(ad) {
   if (!ad) return '';
   let t = String(ad).replace(/\s*·.*$/, '').trim();
@@ -58872,6 +58949,11 @@ function _hmNxItem(c) {
     o.cc = c._sunucu.cc || null;
     o.ev = !!c._sunucu.ev;
     o.comp = _hmNxComp(c._sunucu.comp || '');
+    // 🆕 Lig maçlarında güncel lig adı (donmuş league_name yerine)
+    if (c.source === 'league') {
+      const _g = _gercekLigAdi(benim, o.cc);
+      if (_g) o.comp = _hmNxComp(_g);
+    }
     // 🆕 Milli maç → kulüp arması yok; ülke bayrağı göster
     if (c.source === 'national') o.bayrak = _hmUlkeBayrak(o.ad) || o.bayrak;
     return o;
@@ -58884,7 +58966,8 @@ function _hmNxItem(c) {
       o.ad = r.name || '?';
       o.kisa = (r.short || o.ad.slice(0, 3)).toUpperCase();
       o.cc = r.countryCode || r.cc || L.countryCode || null;
-      o.comp = _hmNxComp(L.leagueName || 'Lig');
+      // 🆕 Güncel lig adı (donmuş league_name yerine)
+      o.comp = _hmNxComp(_gercekLigAdi(benim, o.cc) || L.leagueName || 'Lig');
     } else if (c.source === 'friendly') {
       const fm = c.friendly || {};
       o.ev = (fm.fromTeam === benim);
@@ -59063,14 +59146,23 @@ function _hmStripCiz(rows, anaMac) {
       const ev = (r.home_team === benimAd);
       const rakip = ev ? r.away_team : r.home_team;
       if (!rakip) continue;
+      // 🆕 LİG ADI DÜZELTMESİ — match_state.league_name terfi/düşme sonrası
+      //    eskiyor. Lig maçlarında güncel lig adını teams DB'den oku.
+      let _comp;
+      if (r.tournament_key) {
+        _comp = TRN[r.tournament_key] || 'Turnuva';
+      } else {
+        _comp = _gercekLigAdi(takim, r.country_code || r.countryCode)
+             || _gercekLigAdi(rakip, r.country_code || r.countryCode)
+             || r.league_name || 'Lig';
+      }
       liste.push({
         source: r.tournament_key ? (r.tournament_key === 'friendly' ? 'friendly'
                 : (r.tournament_key === 'enc' ? 'national' : 'tournament')) : 'league',
         time: t,
         _sunucu: {
           ad: rakip, ev, cc: r.countryCode || r.country_code || null,
-          comp: r.tournament_key ? (TRN[r.tournament_key] || 'Turnuva')
-                                 : (r.league_name || 'Lig')
+          comp: _comp
         }
       });
       if (liste.length >= 5) break;
@@ -61354,6 +61446,78 @@ function _msDayKey(d) {
 }
 
 // DB satırı → frontend formatı
+// ═══════════════════════════════════════════════════════════════
+// 🆕 PENALTI / UZATMA BİLGİSİ — eleme maçları berabere bittiğinde
+//    "1-1" tek başına kimin turu geçtiğini göstermiyordu.
+//    stats sütunu ana sorguya eklenmiyor (ağır); bu yüzden yalnızca
+//    ihtiyaç duyulan maçlar için ayrı, önbellekli bir sorgu yapılır.
+// ═══════════════════════════════════════════════════════════════
+window._penCache = window._penCache || { byKey: {} };
+
+function _penNormalize(stats) {
+  if (!stats || typeof stats !== 'object') return null;
+  const out = {};
+  const p = stats.pens, e = stats.extraTime;
+  if (Array.isArray(p) && p.length === 2) out.pens = [Number(p[0]) || 0, Number(p[1]) || 0];
+  else if (p && typeof p === 'object' && p.homePens != null)
+    out.pens = [Number(p.homePens) || 0, Number(p.awayPens) || 0];
+  if (Array.isArray(e) && e.length === 2) out.et = [Number(e[0]) || 0, Number(e[1]) || 0];
+  if (stats.pensWinner) out.kazanan = String(stats.pensWinner);
+  return (out.pens || out.et) ? out : null;
+}
+window._penNormalize = _penNormalize;
+
+// Senkron okuma: null = penaltı yok, undefined = henüz bilinmiyor
+function _penBilgi(matchKey) {
+  if (!matchKey) return null;
+  return window._penCache.byKey[matchKey];
+}
+window._penBilgi = _penBilgi;
+
+// Eksik anahtarları tek sorguda çeker. Yeni bilgi bulduysa true döner.
+async function _penYukle(keys) {
+  if (!window.sb) return false;
+  const eksik = [];
+  (keys || []).forEach(k => {
+    if (k && window._penCache.byKey[k] === undefined && eksik.indexOf(k) < 0) eksik.push(k);
+  });
+  if (!eksik.length) return false;
+  const dilim = eksik.slice(0, 100);
+  dilim.forEach(k => { window._penCache.byKey[k] = null; });   // tekrar sorguyu engelle
+  try {
+    const { data } = await window.sb.from('match_state')
+      .select('match_key,stats').in('match_key', dilim);
+    let bulundu = false;
+    (data || []).forEach(r => {
+      const n = _penNormalize(r.stats);
+      window._penCache.byKey[r.match_key] = n;
+      if (n && n.pens) bulundu = true;
+    });
+    return bulundu;
+  } catch(e) { return false; }
+}
+window._penYukle = _penYukle;
+
+// Kazananı belirle: 'ev' | 'dep' | null
+function _penKazananTaraf(info, evAd, depAd) {
+  if (!info || !info.pens) return null;
+  if (info.kazanan) {
+    if (evAd && info.kazanan === evAd) return 'ev';
+    if (depAd && info.kazanan === depAd) return 'dep';
+  }
+  const [h, a] = info.pens;
+  if (h === a) return null;
+  return (h > a) ? 'ev' : 'dep';
+}
+window._penKazananTaraf = _penKazananTaraf;
+
+// Kısa rozet: "P 4-3"
+function _penRozet(info) {
+  if (!info || !info.pens) return '';
+  return '<div class="pen-rozet">P ' + info.pens[0] + '-' + info.pens[1] + '</div>';
+}
+window._penRozet = _penRozet;
+
 function _msFmtRow(m) {
   const fmt = {
     season: m.season,
@@ -62167,6 +62331,7 @@ function _resRenderMatches(matches) {
   }
 
   let html = '';
+  window._resPenBekleyen = [];        // 🆕 penaltı bilgisi eksik eleme maçları
   // 🆕 Sıralı: turnuvalar (CHM→ELI→CON→EURO) → kendi ülken (Süper Lig→alt ligler) → diğer ülkeler
   const _sortedGroups = Object.values(groups).sort((x, y) => {
     if (x._a !== y._a) return x._a - y._a;
@@ -62198,7 +62363,20 @@ function _resRenderMatches(matches) {
         const aWin = m.as > m.hs;
         if (hWin) hClass = ' winner';
         if (aWin) aClass = ' winner';
-        scoreCell = `<div class="res-match-score">${m.hs} - ${m.as}</div>`;
+        // 🆕 Eleme maçı berabere bittiyse penaltı rozeti + kazanan işareti
+        let _penEk = '';
+        if (m.tournament_key && m.hs === m.as && m.matchKey) {
+          const _pi = _penBilgi(m.matchKey);
+          if (_pi && _pi.pens) {
+            const _tf = _penKazananTaraf(_pi, m.home, m.away);
+            if (_tf === 'ev') hClass = ' winner';
+            if (_tf === 'dep') aClass = ' winner';
+            _penEk = _penRozet(_pi);
+          } else if (_pi === undefined) {
+            (window._resPenBekleyen = window._resPenBekleyen || []).push(m.matchKey);
+          }
+        }
+        scoreCell = `<div class="res-match-score">${m.hs} - ${m.as}${_penEk}</div>`;
         timeStr = _getMatchHM(m);
       } else if (live) {
         // 🆕 CANLI: pulse animasyonlu skor + dakika. Hücrelere index'li id verilir ki
@@ -62259,6 +62437,21 @@ function _resRenderMatches(matches) {
   });
 
   listEl.innerHTML = html;
+
+  // 🆕 Penaltıya kalan eleme maçlarının bilgisi henüz yoksa tek sorguda çek
+  //    ve YALNIZCA bilgi bulunduysa listeyi bir kez yeniden çiz.
+  try {
+    const _bek = window._resPenBekleyen || [];
+    if (_bek.length && typeof _penYukle === 'function' && !window._resPenYenileme) {
+      window._resPenYenileme = true;
+      _penYukle(_bek).then(bulundu => {
+        window._resPenYenileme = false;
+        if (bulundu && typeof _resRenderMatches === 'function') {
+          try { _resRenderMatches(); } catch(e) {}
+        }
+      }).catch(() => { window._resPenYenileme = false; });
+    }
+  } catch(e) {}
 
   // 🆕 Canlı maç varsa: 7 sn'de bir SADECE skor+dakika hücrelerini güncelle (tam render YOK, CPU dostu).
   if (window._resAllKeys && window._resAllKeys.length) {
@@ -64755,8 +64948,22 @@ function renderFixture() {
       const as_ = ms.away_score ?? 0;
       const userScore = isUserHome ? hs : as_;
       const oppScore = isUserHome ? as_ : hs;
-      const resultCls = (userScore > oppScore) ? 'w' : (userScore < oppScore ? 'l' : 'd');
+      let resultCls = (userScore > oppScore) ? 'w' : (userScore < oppScore ? 'l' : 'd');
+      // 🆕 Eleme maçı berabere bittiyse penaltı sonucunu ve turu geçeni göster
+      let _penAlt = '';
+      if (ms.tournament_key && hs === as_ && ms.match_key) {
+        const _pi = (typeof _penBilgi === 'function') ? _penBilgi(ms.match_key) : null;
+        if (_pi && _pi.pens) {
+          const _tf = _penKazananTaraf(_pi, ms.home_team, ms.away_team);
+          const _benKazandi = (_tf === 'ev') === !!isUserHome;
+          if (_tf) resultCls = _benKazandi ? 'w' : 'l';
+          _penAlt = '<div class="lg2-fix-pen">P ' + _pi.pens[0] + '-' + _pi.pens[1] + '</div>';
+        } else if (_pi === undefined) {
+          (window._fxPenBekleyen = window._fxPenBekleyen || []).push(ms.match_key);
+        }
+      }
       scorePart = '<div class="lg2-fix-sc"><div class="lg2-fix-scv ' + resultCls + '">' + hs + '–' + as_ + '</div>'
+                + _penAlt
                 + '<div class="lg2-fix-time" style="font-size:9px;color:var(--text3);margin-top:1px">' + timeStr + '</div></div>';
     } else if (isLive) {
       const hs = ms.home_score ?? 0;
@@ -64821,6 +65028,22 @@ function renderFixture() {
           + '</div>';
   }
   list.innerHTML = '<div class="lg2-fix-container">' + html + '</div>';
+
+  // 🆕 Penaltıya kalan eleme maçlarının bilgisi eksikse tek sorguda çek,
+  //    yalnızca yeni bilgi bulunduysa fikstürü bir kez yeniden çiz.
+  try {
+    const _bek = window._fxPenBekleyen || [];
+    window._fxPenBekleyen = [];
+    if (_bek.length && typeof _penYukle === 'function' && !window._fxPenYenileme) {
+      window._fxPenYenileme = true;
+      _penYukle(_bek).then(bulundu => {
+        window._fxPenYenileme = false;
+        if (bulundu && typeof renderFixture === 'function') {
+          try { renderFixture(); } catch(e) {}
+        }
+      }).catch(() => { window._fxPenYenileme = false; });
+    }
+  } catch(e) {}
 
   // 🆕 GÜNCEL HAFTAYA ORTALA — sekme açıldığında liste başında değil,
   //   bugünkü/yaklaşan maçta başlasın. Kullanıcı yukarı-aşağı kaydırarak
@@ -75927,6 +76150,15 @@ async function _inboxLoadFromServer() {
     if (window._inboxSavePending) { window._inboxChanged = false; return; }
     _inboxCache = _newArr;
 
+    // 🆕 TEKRAR EDEN SİSTEM MESAJI TEMİZLİĞİ — oturum başına bir kez.
+    //    Eski sürümler aynı hatırlatmayı her gün yeniden ekliyordu.
+    try {
+      if (!window._sysTemizlendi) {
+        window._sysTemizlendi = true;
+        if (typeof _sysInboxTekrarTemizle === 'function') _sysInboxTekrarTemizle();
+      }
+    } catch(e) {}
+
     // 🆕 ACİL KORUMA — hatalı sürümde gelen kutusu binlerce sahte
     //   "hazırlık maçı cevabı" mesajıyla şişebiliyor. Bu blob her açılışta
     //   indiriliyor/parse ediliyor ve uygulamayı boğuyor. Yükler yüklenmez buda.
@@ -76117,6 +76349,45 @@ function _sysSentSet() {
   window._sysSentCache = new Set(Array.isArray(arr) ? arr : []);
   return window._sysSentCache;
 }
+// 🆕 Bir kimlik listesinden kısa, kararlı bir anahtar üretir (mesaj id'si için)
+function _sysKisaAnahtar(liste) {
+  try {
+    const d = (liste || []).slice().sort().join('|');
+    let h = 5381;
+    for (let i = 0; i < d.length; i++) h = ((h * 33) ^ d.charCodeAt(i)) >>> 0;
+    return h.toString(36);
+  } catch(e) { return 'x'; }
+}
+
+// 🆕 GELEN KUTUSU TEKRAR TEMİZLİĞİ — eski sürümler aynı hatırlatmayı her gün
+//   yeniden ekliyordu. Girişte bir kez çalışır: aynı türden (sysKind) sistem
+//   mesajlarının yalnızca EN YENİSİ kalır, eskileri silinir.
+function _sysInboxTekrarTemizle() {
+  try {
+    if (!Array.isArray(_inboxCache) || !_inboxCache.length) return 0;
+    const gorulen = new Set();
+    const kalan = [];
+    let silinen = 0;
+    for (const m of _inboxCache) {                 // dizi en yeniden eskiye sıralı
+      if (!m) continue;
+      if (m.type === 'system' && m.sysKind) {
+        const anahtar = m.sysKind + '|' + (m.subject || '');
+        if (gorulen.has(anahtar)) { silinen++; if (m.id) _sysSentAdd(m.id); continue; }
+        gorulen.add(anahtar);
+      }
+      kalan.push(m);
+    }
+    if (silinen > 0) {
+      // Kalanları "gönderilmiş" işaretle ki bir daha üretilmesinler
+      kalan.forEach(m => { if (m && m.type === 'system' && m.id) _sysSentAdd(m.id); });
+      saveInboxMsgs(kalan);
+      console.info('[inbox] tekrar eden sistem mesajı silindi:', silinen);
+    }
+    return silinen;
+  } catch(e) { console.warn('[inbox temizlik] hata:', e); return 0; }
+}
+window._sysInboxTekrarTemizle = _sysInboxTekrarTemizle;
+
 function _sysSentAdd(id) {
   try {
     const st = _sysSentSet();
@@ -82025,7 +82296,7 @@ function sysMsgTara() {
         const st = _getContractRenewalState();
         if (st && st.daysLeft != null && st.daysLeft <= 5 && st.daysLeft >= 0) {
           sysMsg({
-            id: 'sozlesme_' + (st.season || 0) + '_' + st.daysLeft,
+            id: 'sozlesme_' + (st.season || 0),          // 🆕 sezonda bir kez (eskiden her gün)
             from: '📄 Sözleşme', avatar: '📄', kind: 'sozlesme',
             subject: `Sözleşmen ${st.daysLeft} Gün Sonra Bitiyor`,
             body: `Kulübünle sözleşmen sezon sonunda sona eriyor.\n\n`
@@ -82041,9 +82312,9 @@ function sysMsgTara() {
       if (_userTeam && _userTeam.role === 'captain' && typeof ROSTER_DATA !== 'undefined') {
         const bitkin = (ROSTER_DATA || []).filter(p => p && (p.stamina != null) && p.stamina < 30).length;
         if (bitkin >= 3) {
-          const gun = new Date().toISOString().slice(0, 10);
           sysMsg({
-            id: 'kadro_uyari_' + gun, from: '⚠️ Teknik Ekip', avatar: '⚠️', kind: 'kadro_uyari',
+            id: 'kadro_uyari',                          // 🆕 bir kez (eskiden her gün tekrar)
+            from: '⚠️ Teknik Ekip', avatar: '⚠️', kind: 'kadro_uyari',
             subject: `${bitkin} Oyuncu Bitkin — Rotasyon Öner`,
             body: `Kadroda ${bitkin} oyuncunun kondisyonu kritik seviyede (%30 altı).\n\n`
                 + `• Diziliş ekranından yedeklerle rotasyon yap.\n`
@@ -82053,12 +82324,32 @@ function sysMsgTara() {
       }
     } catch(e) {}
 
+    // ── D18 · Toplanmamış günlük giriş hediyesi (gün başına ÖMÜR BOYU 1 kez) ──
+    try {
+      if (typeof evGetStreak === 'function') {
+        const _s = evGetStreak();
+        const _gun = _s.login_streak || 0;
+        if (_gun >= 1 && !(_s.streak_claimed || []).includes(_gun)) {
+          sysMsg({
+            id: 'gunluk_seri_' + _gun,               // 🆕 tarih YOK → tekrar YOK
+            from: '🎁 Günlük Giriş', avatar: '🎁', kind: 'gunluk',
+            subject: `Gün ${_gun} Hediyen Hazır`,
+            body: `Giriş serin ${_gun}. günde.\n\n• Hediyeni Etkinlik > Görevler ekranından al.\n`
+                + `• Bu hatırlatma tekrar gönderilmez.`
+          });
+        }
+      }
+    } catch(e) {}
+
+    // ── Başarım bildirimi (tek mesaj, yalnızca yeni açılanlar) ──
+    try { if (typeof _achMesajKontrol === 'function') _achMesajKontrol(); } catch(e) {}
+
     // ── G38 · Enerjin doldu ──
     try {
       if (_energyCache && _energyCache.max && _energyCache.current >= _energyCache.max) {
-        const gun = new Date().toISOString().slice(0, 10);
         sysMsg({
-          id: 'enerji_' + gun, from: '⚡ Performans', avatar: '⚡', kind: 'enerji',
+          id: 'enerji_dolu',                            // 🆕 bir kez (eskiden her gün tekrar)
+          from: '⚡ Performans', avatar: '⚡', kind: 'enerji',
           subject: 'Enerjin Doldu — Antrenman Zamanı',
           body: `Enerjin tamamen doldu (${_energyCache.current}/${_energyCache.max}).\n\n`
               + `• Antrenman sayfasından yeteneklerini geliştirebilirsin.\n`
@@ -82071,23 +82362,11 @@ function sysMsgTara() {
 }
 window.sysMsgTara = sysMsgTara;
 
+// 🆕 ESKİ HATA: Etkinlik sekmesine her basıldığında sysMsgTara() çalışıyor ve
+//    toplanmamış tüm ödüller için yeniden bildirim üretiliyordu. Tarama artık
+//    yalnızca açılışta (12 sn) ve 3 dakikalık zamanlayıcıda çalışır.
 function evRender() {
   try { evEnsureStreakToday(); } catch(e) {}
-  try { sysMsgTara(); } catch(e) {}
-  // 🆕 Toplanmamış günlük giriş ödülü varsa hatırlat (gün başına 1 mesaj)
-  try {
-    const _s = evGetStreak();
-    const _gun = _s.login_streak || 0;
-    if (_gun >= 1 && !(_s.streak_claimed || []).includes(_gun)) {
-      sysMsg({
-        id: 'gunluk_' + (_s.login_day || '') + '_' + _gun,
-        from: '🎁 Günlük Giriş', avatar: '🎁', kind: 'gunluk',
-        subject: `Gün ${_gun} Hediyen Hazır`,
-        body: `Giriş serin ${_gun}. günde.\n\n• Hediyeni Etkinlik > Görevler ekranından al.\n`
-            + `• Bir gün girmezsen seri sıfırlanır.`
-      });
-    }
-  } catch(e) {}
   evRenderStreak();
   evRenderAchievements();
 }
@@ -84249,19 +84528,29 @@ function _achMesajKontrol() {
         if (!_achIsClaimed(a[0]) && _achProgress(a[1]) >= 1) ids.push(a[0]);
       }
     }
-    for (const id of ids) {
-      sysMsg({
-        id: 'ach_' + id,
-        from: '🏅 Başarımlar', avatar: '🏅', kind: 'basarim',
-        subject: 'Başarım Açıldı — Ödülünü Al',
-        body: `Bir başarımı tamamladın.\n\n• Ödülünü Etkinlik > Başarımlar ekranından "Topla" butonuyla alabilirsin.`
-      });
-    }
+    // 🆕 ESKİ HATA: her toplanmamış başarım için AYRI mesaj atılıyor ve bu
+    //    kontrol her render'da çalıştığı için gelen kutusu doluyordu.
+    //    Artık yalnızca DAHA ÖNCE HİÇ bildirilmemiş başarımlar için,
+    //    hepsi TEK mesajda, bir kez gönderilir.
+    const yeni = ids.filter(id => !_sysSentSet().has('ach_' + id));
+    if (!yeni.length) return;
+    const n = yeni.length;
+    sysMsg({
+      id: 'ach_grup_' + _sysKisaAnahtar(yeni),
+      from: '🏅 Başarımlar', avatar: '🏅', kind: 'basarim',
+      subject: n > 1 ? `${n} Başarım Açıldı — Ödüllerini Al` : 'Başarım Açıldı — Ödülünü Al',
+      body: (n > 1 ? `${n} başarımı tamamladın.` : 'Bir başarımı tamamladın.')
+          + `\n\n• Ödüllerini Etkinlik > Başarımlar ekranından "Topla" butonuyla alabilirsin.`
+          + `\n• Bu hatırlatma tekrar gönderilmez.`
+    });
+    // Bildirilmiş say — bir daha mesaj üretilmesin
+    yeni.forEach(id => _sysSentAdd('ach_' + id));
   } catch(e) {}
 }
 
 function achRefreshBadge() {
-  try { _achMesajKontrol(); } catch(e) {}
+  // 🆕 Mesaj üretimi buradan KALDIRILDI — bu fonksiyon her render'da çağrılıyor
+  //    ve gelen kutusunu dolduruyordu. Bildirim artık yalnızca sysMsgTara'da.
   try {
     const badge = document.getElementById('evAchBadge');
     if (!badge) return;
