@@ -28090,7 +28090,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-01-serittransfer-286';
+const APP_BUILD = '2026-08-02-milli-288';
 
 (function _cacheBustCheck() {
   try {
@@ -58543,13 +58543,23 @@ async function _hmStripYukle(anaMac) {
 
     // 2) 🆕 KENDİ UYRUĞUNUN MİLLİ MAÇLARI (EURO Nations Cup) — kadroda olmasan da
     try {
-      const uyruk = (window.authUser && window.authUser.nationality)
+      const uyruk = (typeof getUserNationalityCC === 'function' ? getUserNationalityCC() : null)
+                 || (window.authUser && window.authUser.nationality)
                  || (_userTeam && _userTeam.countryCode) || null;
+      // ⚠️ enc satırlarında home_team/away_team ÜLKE ADI tutuluyor (kod değil).
+      //   Bu yüzden ülke kodu ile arama sonuç vermiyordu.
+      let ulkeAd = null;
+      try {
+        const _c = (typeof _cftGetCountry === 'function' && uyruk) ? _cftGetCountry(uyruk) : null;
+        ulkeAd = (_c && (_c.name || _c.countryName)) || null;
+      } catch(e) {}
       if (uyruk) {
+        const _adlar = [ulkeAd, uyruk].filter(Boolean);
+        const _or = _adlar.map(a => 'home_team.eq.' + a + ',away_team.eq.' + a).join(',');
         const { data: nt } = await window.sb.from('match_state')
           .select('match_key,home_team,away_team,country_code,league_name,tournament_key,kickoff_at,status')
           .eq('tournament_key', 'enc')
-          .or('home_team.eq.' + uyruk + ',away_team.eq.' + uyruk)
+          .or(_or)
           .gte('kickoff_at', nowIso)
           .neq('status', 'finished')
           .order('kickoff_at', { ascending: true })
@@ -58578,7 +58588,16 @@ function _hmStripCiz(rows, anaMac) {
       const t = r.kickoff_at ? new Date(r.kickoff_at).getTime() : 0;
       if (!t) continue;
       if (anaT && Math.abs(t - anaT) < 90000) continue;         // ana paneldeki maç
-      const ev = (r.home_team === takim);
+      // 🆕 Milli maçta "benim takımım" ülke adıdır
+      let benimAd = takim;
+      if (r.tournament_key === 'enc') {
+        try {
+          const _cc = (typeof getUserNationalityCC === 'function') ? getUserNationalityCC() : null;
+          const _c = (_cc && typeof _cftGetCountry === 'function') ? _cftGetCountry(_cc) : null;
+          benimAd = (_c && (_c.name || _c.countryName)) || _cc || takim;
+        } catch(e) {}
+      }
+      const ev = (r.home_team === benimAd);
       const rakip = ev ? r.away_team : r.home_team;
       if (!rakip) continue;
       liste.push({
@@ -60233,6 +60252,68 @@ async function renderTrophyShelf() {
   }).join('');
 }
 
+// 🆕 Milli maçı canlı maç ekranında aç (yetkiye göre kaptan/izleyici modu)
+async function hmOpenNationalMatch(n) {
+  try {
+    if (!n || !n.match) return;
+    const cc = n.cc;
+    const _c = (typeof _cftGetCountry === 'function' && cc) ? _cftGetCountry(cc) : null;
+    const ulkeAd = (_c && (_c.name || _c.countryName)) || cc;
+    const m = n.match;
+    const rakipKod = (m.home === cc) ? m.away : m.home;
+    const _rc = (typeof _cftGetCountry === 'function' && rakipKod) ? _cftGetCountry(rakipKod) : null;
+    const rakipAd = (m.home === cc ? (m.awayName || m.away) : (m.homeName || m.home)) || rakipKod;
+    const evSahibi = (m.home === cc);
+
+    // Yetki: federasyon başkanı / yardımcısı → taktik yapabilir
+    let yetkili = false;
+    try {
+      if (typeof fedUserRole === 'function' && cc) {
+        const rol = fedUserRole(cc);
+        yetkili = (rol === 'president' || rol === 'vice');
+        if (!yetkili && typeof _ntIsViceUser === 'function') yetkili = !!_ntIsViceUser(cc);
+      }
+    } catch(e) {}
+
+    // match_state satırını bul (enc satırlarında takım adı ÜLKE ADI)
+    let row = null;
+    try {
+      if (window.sb) {
+        const ev = evSahibi ? ulkeAd : ((_rc && (_rc.name || _rc.countryName)) || rakipAd);
+        const dep = evSahibi ? ((_rc && (_rc.name || _rc.countryName)) || rakipAd) : ulkeAd;
+        const { data } = await window.sb.from('match_state')
+          .select('match_key,home_team,away_team,kickoff_at,status,league_name')
+          .eq('tournament_key', 'enc')
+          .eq('home_team', ev).eq('away_team', dep)
+          .order('kickoff_at', { ascending: false }).limit(1);
+        row = (data && data[0]) || null;
+      }
+    } catch(e) {}
+
+    if (typeof openMatchScreenV2 !== 'function') {
+      if (typeof showToast === 'function') showToast('Maç ekranı açılamadı');
+      return;
+    }
+    const evAd = evSahibi ? ulkeAd : rakipAd;
+    const depAd = evSahibi ? rakipAd : ulkeAd;
+    openMatchScreenV2({
+      home:  { name: evAd,  short: String(evAd).slice(0, 3).toUpperCase(),  countryCode: evSahibi ? cc : rakipKod },
+      away:  { name: depAd, short: String(depAd).slice(0, 3).toUpperCase(), countryCode: evSahibi ? rakipKod : cc },
+      league: '🏴 EURO Nations Cup · ' + (n.round || ''),
+      venue: evAd + ' Milli Stadı',
+      hClass: 'c1', aClass: 'c2',
+      kickoff: n.date ? n.date.getTime() : Date.now(),
+      matchKey: row ? row.match_key : null,
+      skipPreview: !!(n.date && Date.now() >= n.date.getTime()),
+      spectator: !yetkili
+    });
+    if (!yetkili && typeof showToast === 'function') {
+      showToast('👁️ İzleyici modu — taktik yalnızca federasyon başkanı ve yardımcılarında');
+    }
+  } catch(e) { console.warn('[hmOpenNationalMatch] hata:', e); }
+}
+window.hmOpenNationalMatch = hmOpenNationalMatch;
+
 function hmOpenNextMatch() {
   const panel = document.getElementById('hmNextMatch');
   const m = panel && panel._nextMatchRef;
@@ -60254,29 +60335,10 @@ function hmOpenNextMatch() {
 
   // 🆕 Milli takım maçı — kadroda ise oynat (canlı), değilse milli takım sayfasına yönlendir (izleyici)
   if (m && m.isNational && m.nationalData) {
-    if (m.inSquad) {
-      // Kullanıcı NT kadrosunda → milli takım dizilişi sayfası açılır,
-      // oradan maça gidilir (gelecekte canlı NT motoru için entry point)
-      if (typeof showToast === 'function') {
-        showToast('Milli takım dizilişine yönlendiriliyorsun...');
-      }
-      if (typeof gotoPage === 'function') gotoPage('national');
-      // EURO Cup tab'a geç
-      setTimeout(() => {
-        const btn = document.querySelector('[onclick*="trn2Tab"][onclick*="euroNation"]');
-        if (btn) btn.click();
-      }, 100);
-    } else {
-      // İzleyici modu → milli takım sayfasının EURO Cup sekmesinde maç detayı
-      if (typeof showToast === 'function') {
-        showToast('👁️ İzleyici modu — Milli Takım sayfasına yönlendiriliyorsun');
-      }
-      if (typeof gotoPage === 'function') gotoPage('national');
-      setTimeout(() => {
-        const btn = document.querySelector('[onclick*="trn2Tab"][onclick*="euroNation"]');
-        if (btn) btn.click();
-      }, 100);
-    }
+    // 🆕 Milli maç artık CANLI MAÇ EKRANINDA açılır.
+    //   Yetki: federasyon başkanı ve yardımcıları taktik yapabilir,
+    //   diğer herkes izleyici modunda izler (tek saha, yedek yok).
+    hmOpenNationalMatch(m.nationalData);
     return;
   }
 
@@ -63797,9 +63859,59 @@ function _euSceneOpen(trnKey) {
         return oc.indexOf("'" + actualTab + "'") >= 0;
       });
       trn2Tab(actualTab, tabBtn || null);
+      // 🆕 EURO Cup: kendi uyruğunun GÜNCEL AŞAMASINI aç (grup / eleme turu)
+      //   ve kullanıcının ülkesine kaydır.
+      if (actualTab === 'euroNation') {
+        setTimeout(() => { try { _encAcGuncelAsama(); } catch(e) {} }, 120);
+      }
     } catch(e) {}
   }, 50);
 }
+
+// 🆕 EURO Nations Cup — kullanıcının uyruğuna göre doğru alt sekmeyi seç
+function _encAcGuncelAsama() {
+  try {
+    const cc = (typeof getUserNationalityCC === 'function') ? getUserNationalityCC() : null;
+    const info = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : null;
+    if (!info || info.preSeason) return;
+    const gun = info.dayInSeason || 1;
+
+    // Gün 34-36 grup, 37+ eleme (SEASON_TEMPLATE ile aynı)
+    let hedef = (gun >= 37) ? 'knockout' : 'groups';
+    // Fikstürden doğrula: eleme turu kurulduysa eleme
+    try {
+      const st = (typeof encLoad === 'function') ? encLoad(info.season) : null;
+      if (st) {
+        const varMi = ['final','sf','qf','r16'].find(ph => Array.isArray(st[ph]) && st[ph].length > 0);
+        if (varMi) hedef = 'knockout';
+        else if (st.groups) hedef = 'groups';
+      }
+    } catch(e) {}
+
+    if (typeof encSetSubTab === 'function') encSetSubTab(hedef);
+    else if (typeof _encSubTab !== 'undefined') {
+      _encSubTab = hedef;
+      if (typeof trn2Render === 'function') trn2Render();
+    }
+
+    // Kullanıcının ülkesini içeren kartı bul → aç + kaydır
+    setTimeout(() => {
+      try {
+        if (!cc) return;
+        const c = (typeof _cftGetCountry === 'function') ? _cftGetCountry(cc) : null;
+        const ad = (c && (c.name || c.countryName)) || cc;
+        const kap = document.getElementById('trn2Content');
+        if (!kap) return;
+        const hepsi = Array.from(kap.querySelectorAll('*'));
+        const hedefEl = hepsi.find(el => el.children.length === 0 &&
+          (el.textContent || '').trim() === ad);
+        const kart = hedefEl ? (hedefEl.closest('.enc-group-card') || hedefEl.closest('.bkb-tie') || hedefEl) : null;
+        if (kart && kart.scrollIntoView) kart.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      } catch(e) {}
+    }, 220);
+  } catch(e) { console.warn('[encAsama] hata:', e); }
+}
+window._encAcGuncelAsama = _encAcGuncelAsama;
 
 // Ülke kodlarına göre UTC offset (yaklaşık, oyun-içi sabit; DST yok)
 const TZ_OFFSETS = {
@@ -65658,9 +65770,10 @@ function renderPlayerPage() {
   // Not: rozet/highlight gizli, sadece sayı artmış olarak görünür
   function skillRow(s) {
     const val = lvls[s.id] || 10;
-    // 🆕 Itemden gelen puan farkı (yoksa 0)
+    // 🆕 Itemden gelen puan farkı — SADECE KENDİ SAYFANDA görünür.
+    //   Başkasının sayfasında yalnızca toplam değer gösterilir.
     const _taban = (_lvlsRaw && _lvlsRaw[s.id] != null) ? _lvlsRaw[s.id] : val;
-    const _bonus = Math.max(0, val - _taban);
+    const _bonus = isVisitor ? 0 : Math.max(0, val - _taban);
     // 🆕 9 tier renk paleti
     // 0-19 başlangıç gri, 20-29 açık sarı, 30-39 koyu sarı, 40-49 turuncu,
     // 50-59 kırmızı, 60-69 yeşil, 70-79 mavi, 80-89 açık mor, 90-99 premium koyu mor
@@ -75489,13 +75602,39 @@ async function _inboxProcessApprovedJoinRequests() {
 // Sync getter — mevcut kod imzasını koru
 // 🆕 SİSTEM MESAJI (istemci) — aynı id ile ikinci kez düşmez.
 //   Sunucudaki sysInbox ile aynı mesaj yapısını kullanır.
+// 🆕 Gönderilmiş sistem mesajı kimlikleri — kalıcı kayıt.
+//   Gelen kutusu sunucudan yüklenmeden önce çalışan tarama, boş listede
+//   "bu mesaj yok" sanıp aynı mesajı her açılışta yeniden ekliyordu.
+//   Ayrıca kullanıcı mesajı silse/okusa bile aynısı tekrar üretilmesin.
+const SYS_SENT_KEY = 'cft_sys_sent';
+function _sysSentSet() {
+  if (window._sysSentCache) return window._sysSentCache;
+  let arr = [];
+  try { arr = JSON.parse(localStorage.getItem(SYS_SENT_KEY) || '[]'); } catch(e) { arr = []; }
+  window._sysSentCache = new Set(Array.isArray(arr) ? arr : []);
+  return window._sysSentCache;
+}
+function _sysSentAdd(id) {
+  try {
+    const st = _sysSentSet();
+    st.add(id);
+    // en fazla 400 kimlik tut
+    const arr = Array.from(st).slice(-400);
+    window._sysSentCache = new Set(arr);
+    localStorage.setItem(SYS_SENT_KEY, JSON.stringify(arr));
+  } catch(e) {}
+}
+
 function sysMsg(o) {
   try {
     if (!o || !o.subject) return false;
+    // ⛔ Gelen kutusu HENÜZ YÜKLENMEDİYSE mesaj üretme (tekrar koruması çalışmaz)
+    if (!Array.isArray(_inboxCache)) return false;
     const msgs = getInboxMsgs();
     if (!Array.isArray(msgs)) return false;
     const id = o.id || ('sys_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7));
-    if (msgs.some(m => m && m.id === id)) return false;
+    if (_sysSentSet().has(id)) return false;              // daha önce gönderildi
+    if (msgs.some(m => m && m.id === id)) { _sysSentAdd(id); return false; }
     msgs.unshift({
       id,
       from: o.from || '⚙️ Sistem',
@@ -75510,6 +75649,7 @@ function sysMsg(o) {
       thread: []
     });
     saveInboxMsgs(msgs);
+    _sysSentAdd(id);
     if (typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
     return true;
   } catch(e) { console.warn('[sysMsg] hata:', e); return false; }
@@ -80500,6 +80640,19 @@ async function evClaimStreakDay(day) {
     }
     // Ödül server'da (claim_streak_reward RPC) cüzdana + enerjiye yazıldı — otoriter değerleri çekip tazele
     try {
+      // 🆕 ENERJİ ÖDÜLÜ — RPC enerjiyi yazmıyor; Edge aksiyonuyla ekle (tavan korunur)
+      try {
+        const _en = Number(data.energy) || 0;
+        if (_en > 0 && window.authUser && window.authUser.id) {
+          const _max = (typeof getUserEffectiveMaxEnergy === 'function')
+            ? getUserEffectiveMaxEnergy()
+            : ((typeof ENERGY_MAX !== 'undefined') ? ENERGY_MAX : 500);
+          await fetch(`${SUPABASE_URL}/functions/v1/tick-matches?action=energy_add`
+            + `&user=${encodeURIComponent(authUser.id)}&amount=${_en}`
+            + `&source=streak_s${day}&max=${_max}`,
+            { headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY } }).catch(()=>{});
+        }
+      } catch(e4) {}
       if (typeof wlLoadFromServer === 'function') await wlLoadFromServer();
       if (typeof _energyLoadFromServer === 'function') await _energyLoadFromServer();
     } catch(e2) {}
@@ -81256,6 +81409,7 @@ window.evEnsureStreakToday = evEnsureStreakToday;
 function sysMsgTara() {
   try {
     if (!window.authUser || !window.authUser.id) return;
+    if (!Array.isArray(_inboxCache)) return;   // 🆕 gelen kutusu yüklenmeden tarama yok
 
     // ── D21 · Seviye atladın ──
     try {
