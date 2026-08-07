@@ -28223,7 +28223,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-02-guvenlik-293';
+const APP_BUILD = '2026-08-02-guvenlik-294';
 
 (function _cacheBustCheck() {
   try {
@@ -54982,16 +54982,10 @@ function fedCallupPlayer(payloadStr) {
     //    Artık mesaj DAVET EDİLEN oyuncunun user_id'sine yazılıyor.
     const _hedefUid = (poolPlayer && poolPlayer.userId) || (player && (player.userId || player.user_id)) || null;
     if (_hedefUid && window.sb) {
+      // 🔒 GÜVENLİK: alıcının kutusuna doğrudan yazmak yerine sunucudan gönder
       (async () => {
-        try {
-          const { data: row } = await window.sb.from('user_inbox')
-            .select('messages').eq('user_id', _hedefUid).maybeSingle();
-          const list = (row && Array.isArray(row.messages)) ? row.messages : [];
-          list.unshift(newMsg);
-          await window.sb.from('user_inbox').upsert(
-            { user_id: _hedefUid, messages: list.slice(0, 100), updated_at: new Date().toISOString() },
-            { onConflict: 'user_id' });
-        } catch(e) { console.warn('[nt] davet mesajı gönderilemedi:', e); }
+        try { await inboxSendToUser(_hedefUid, newMsg); }
+        catch(e) { console.warn('[nt] davet mesajı gönderilemedi:', e); }
       })();
     } else if (!_hedefUid) {
       // Bot oyuncu → mesaj gerekmez
@@ -75825,17 +75819,25 @@ function _inboxUpsertChat(arr, convId, peer, item, opts) {
 }
 
 // Alıcının sunucudaki inbox'una sohbet mesajı ekle (gerçek teslim)
+// 🔒 GÜVENLİK: sohbet teslimi de sunucudan. Sunucu convId'nin gerçekten
+//    iki tarafa ait olduğunu ve gönderenin o kişi olduğunu doğruluyor.
 async function _inboxDeliverChat(toUserId, convId, fromPeer, item) {
-  if (!window.sb || !toUserId) return false;
-  const { data, error } = await window.sb.from('user_inbox').select('messages').eq('user_id', toUserId).maybeSingle();
-  if (error) { console.error('[inbox chat] read hata:', error); return false; }
-  const arr = (data && Array.isArray(data.messages)) ? data.messages : [];
-  _inboxUpsertChat(arr, convId, fromPeer, item, { read: false });
-  const { error: upErr } = await window.sb.from('user_inbox').upsert({
-    user_id: toUserId, messages: arr.slice(0, 200), updated_at: new Date().toISOString()
-  }, { onConflict: 'user_id' });
-  if (upErr) { console.error('[inbox chat] write hata:', upErr); return false; }
-  return true;
+  if (!toUserId || !convId) return false;
+  try {
+    const r = await edgeCall('inbox_send', {}, { body: { to: toUserId, msg: {
+      type: 'chat',
+      convId: convId,
+      avatarId: (fromPeer && fromPeer.avatarId) || null,
+      item: { id: (item && item.id) || null, body: (item && item.body) || '' }
+    } } });
+    if (!r.ok || !r.data || r.data.error) {
+      const kod = (r.data && r.data.error) || ('http_' + r.status);
+      console.error('[inbox chat] hata:', kod, r.data);
+      if (typeof showToast === 'function' && _INBOX_HATA_TR[kod]) showToast('⚠️ ' + _INBOX_HATA_TR[kod]);
+      return false;
+    }
+    return true;
+  } catch(e) { console.error('[inbox chat] exception:', e); return false; }
 }
 
 // Server'dan kendi inbox'unu yükle (bootstrap + login sonrası)
@@ -76172,44 +76174,32 @@ function saveInboxMsgs(msgs) {
 
 // 🆕 Başka kullanıcıya mesaj gönder (katılma isteği, takım daveti vs.)
 // Alıcının inbox'una mesaj insert eder.
+// 🔒 GÜVENLİK: Artık alıcının kutusuna doğrudan yazmıyoruz.
+//    RLS user_inbox'ta yalnızca kendi satırına izin veriyor; başkasına
+//    mesaj Edge Function üzerinden gidiyor. Gönderen kimliğini sunucu
+//    JWT'den doğruluyor, sahte gönderen üretilemiyor.
+const _INBOX_HATA_TR = {
+  yetkisiz_oturum:      'Oturumun doğrulanamadı, tekrar giriş yap.',
+  mesaj_cok_buyuk:      'Mesaj çok uzun.',
+  cok_hizli:            'Çok hızlı mesaj gönderiyorsun, biraz bekle.',
+  alici_yok:            'Alıcı bulunamadı.',
+  kendine_gonderemezsin:'Kendine mesaj gönderemezsin.',
+  gecersiz_conv:        'Sohbet doğrulanamadı.',
+  yazilamadi:           'Mesaj kaydedilemedi.'
+};
 async function inboxSendToUser(toUserId, msg) {
-  if (!window.sb || !toUserId || !msg) {
-    console.warn('[inboxSendToUser] eksik parametre:', { hasSB: !!window.sb, toUserId, hasMsg: !!msg });
+  if (!toUserId || !msg) {
+    console.warn('[inboxSendToUser] eksik parametre:', { toUserId, hasMsg: !!msg });
     return false;
   }
   try {
-    // Önce alıcının mevcut mesajlarını çek
-    console.info('[inboxSendToUser] çekiliyor:', toUserId);
-    const { data, error } = await window.sb.from('user_inbox')
-      .select('messages')
-      .eq('user_id', toUserId)
-      .maybeSingle();
-    if (error) {
-      console.error('[inboxSendToUser] READ hata:', error.message, error.code, error);
+    const r = await edgeCall('inbox_send', {}, { body: { to: toUserId, msg: msg } });
+    if (!r.ok || !r.data || r.data.error) {
+      const kod = (r.data && r.data.error) || ('http_' + r.status);
+      console.error('[inboxSendToUser] hata:', kod, r.data);
+      if (typeof showToast === 'function' && _INBOX_HATA_TR[kod]) showToast('⚠️ ' + _INBOX_HATA_TR[kod]);
       return false;
     }
-    const current = (data && Array.isArray(data.messages)) ? data.messages : [];
-    console.info('[inboxSendToUser] mevcut mesaj sayısı:', current.length);
-    // Yeni mesaj objesini başa ekle (en yeni üstte)
-    const newMsg = Object.assign({
-      id: 'msg_' + Date.now() + '_' + Math.floor(Math.random() * 100000),
-      time: new Date().toLocaleDateString('tr', {day:'numeric', month:'short'}),
-      read: false,
-      thread: []
-    }, msg);
-    const updated = [newMsg, ...current].slice(0, 200);
-    // Upsert
-    console.info('[inboxSendToUser] yazılıyor...');
-    const { error: upErr } = await window.sb.from('user_inbox').upsert({
-      user_id: toUserId,
-      messages: updated,
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'user_id' });
-    if (upErr) {
-      console.error('[inboxSendToUser] WRITE hata:', upErr.message, upErr.code, upErr);
-      return false;
-    }
-    console.info('[inboxSendToUser] BAŞARILI');
     return true;
   } catch(e) {
     console.error('[inboxSendToUser] exception:', e);
