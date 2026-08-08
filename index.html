@@ -16176,6 +16176,15 @@ body.inbox-open #main{visibility:hidden!important;pointer-events:none!important}
 #page-home .hm-nxc.is-takvim:active{transform:none}
 #page-home .hm-nxc.is-takvim .nxc-crest{background:none !important;box-shadow:none !important;
   font-size:22px !important;border-radius:0 !important}
+/* 🆕 ÖNİZLEME PANELİ — BOŞ DURUM: panel yerinde kalır, içerik soluklaşır */
+#page-home .hm-next-match.hm-nm-bos .hm-nm-vs,
+#page-home .hm-next-match.hm-nm-bos .hm-nm-stats,
+#page-home .hm-next-match.hm-nm-bos .hm-nm-foot{opacity:.34;filter:saturate(.2)}
+#page-home .hm-next-match.hm-nm-bos .hm-nm-comp{color:var(--text3);letter-spacing:.6px}
+#page-home .hm-next-match.hm-nm-bos .hm-nm-crest{background:rgba(255,255,255,.05);box-shadow:none}
+#page-home .hm-next-match.hm-nm-bos .hm-nm-btn{background:rgba(255,255,255,.07);color:var(--text2);
+  border:1px solid rgba(255,255,255,.10);box-shadow:none}
+
 /* 🆕 PENALTI GÖSTERİMİ — berabere biten eleme maçlarında */
 .pen-rozet{font-size:9px;font-weight:900;letter-spacing:.4px;color:var(--gold,#ffd600);
   font-family:'Barlow Condensed',sans-serif;line-height:1;margin-top:2px}
@@ -28288,7 +28297,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-06-enerji-305';
+const APP_BUILD = '2026-08-07-onizleme-306';
 
 (function _cacheBustCheck() {
   try {
@@ -29263,7 +29272,9 @@ Object.assign(window.I18N.en, {
 'güvenli':'safe','süper':'super','baş':'head','sırt':'back','aşil':'achilles',
 'Çorap':'Socks','Şort':'Shorts','Şu an':'Currently','🏆 Önce ülke seç':'🏆 Select a country first',
 '🏳️ — Sıra':'🏳️ — Rank','İsrail':'Israel',
-'Bu kuponu oyna':'Place this slip','Maçlar başladı':'Matches have started'
+'Bu kuponu oyna':'Place this slip','Maçlar başladı':'Matches have started',
+'Yaklaşan maç yok':'No upcoming match','Fikstürü Aç':'Open Fixtures','Bir takıma katıl':'Join a team',
+'Yaklaşan maç bulunmuyor.':'No upcoming matches.'
 });
 
 window.I18N_PATTERNS.en.push(
@@ -60329,6 +60340,93 @@ function renderHomeNextMatch(force) {
   catch(e) { console.warn('[hmNextMatch] render hatası:', e); }
 }
 
+// 🆕 ÖNİZLEME PANELİ — BOŞ DURUM
+//   Maç yokken paneli gizlemek yerine yerinde bırakır, detayları boşaltır.
+//   Arka plan görseli, "sıradaki 5 maç" şeridi ve düzen korunur.
+function _hmPanelBosGoster(mesaj) {
+  const panel   = document.getElementById('hmNextMatch');
+  const noMatch = document.getElementById('hmNoMatch');
+  if (!panel) return;
+  if (noMatch) noMatch.style.display = 'none';
+  panel.style.display = '';
+  panel.classList.add('hm-nm-bos');
+
+  const yaz = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+  const bar = (id, w)  => { const e = document.getElementById(id); if (e) e.style.width = w; };
+
+  yaz('hmNmComp', mesaj || 'Yaklaşan maç yok');
+  yaz('hmNmDate', '—'); yaz('hmNmHour', '—'); yaz('hmNmVenue', '—');
+  const hava = document.getElementById('hmNmWeather'); if (hava) hava.textContent = '';
+
+  ['Home','Away'].forEach(t => {
+    yaz('hmNm' + t + 'Name', '—');
+    yaz('hmNm' + t + 'Strength', '—');
+    yaz('hmNm' + t + 'Dev', '—');
+    yaz('hmNm' + t + 'Val', '—');
+    ['GK','DF','MD','FW'].forEach(l => { yaz('hmNm' + t + l, '—'); bar('hmNm' + t + l + 'Bar', '0%'); });
+    const crest = document.getElementById('hmNm' + t + 'Crest');
+    if (crest) { crest.textContent = '—'; crest.style.backgroundImage = ''; crest.className = 'hm-nm-crest'; }
+    const form = document.getElementById('hmNm' + t + 'Form');
+    if (form) form.innerHTML = '';
+  });
+  bar('hmNmBarH', '50%'); bar('hmNmBarA', '50%');
+
+  const btn = document.getElementById('hmNmBtn');
+  if (btn) {
+    btn.textContent = 'Fikstürü Aç';
+    btn.disabled = false;
+    btn.onclick = function() { try { hmGoFixture(); } catch(e) {} };
+  }
+  try { _hmApplyStadBg(); } catch(e) {}
+  // Şerit yine dolsun — transfer dönemi / milli maç bilgisi orada görünür
+  try { _hmStripYukle(null); } catch(e) {}
+}
+window._hmPanelBosGoster = _hmPanelBosGoster;
+
+// 🆕 Milli maçı doğrudan match_state'ten bul (yerel enc hesabı boş dönebiliyor)
+function _hmMilliMacSunucudan() {
+  try {
+    if (!_matchStateCache || !_matchStateCache.byKey) return null;
+    const cc = (typeof getUserNationalityCC === 'function') ? getUserNationalityCC() : null;
+    if (!cc) return null;
+    let ulkeAd = cc;
+    try {
+      const c = (typeof _cftGetCountry === 'function') ? _cftGetCountry(cc) : null;
+      if (c && (c.name || c.countryName)) ulkeAd = c.name || c.countryName;
+    } catch(e) {}
+    const simdi = Date.now();
+    let enIyi = null;
+    for (const ms of Object.values(_matchStateCache.byKey)) {
+      if (!ms || ms.tournament_key !== 'enc') continue;
+      if (ms.status === 'finished') continue;
+      const benim = (ms.home === ulkeAd || ms.away === ulkeAd || ms.home === cc || ms.away === cc);
+      if (!benim) continue;
+      const t = ms.matchDateTime ? new Date(ms.matchDateTime).getTime() : NaN;
+      if (isNaN(t)) continue;
+      if (simdi > t + 120 * 60 * 1000) continue;
+      if (!enIyi || t < enIyi.time) {
+        const evSahibi = (ms.home === ulkeAd || ms.home === cc);
+        enIyi = {
+          time: t,
+          national: {
+            cc,
+            match: { home: ms.home, away: ms.away, homeName: ms.home, awayName: ms.away },
+            round: ms.tournament_phase || 'EURO Cup',
+            date: new Date(t),
+            day: ms.day,
+            phase: ms.tournament_phase || 'group',
+            _sunucu: true,
+            _evSahibi: evSahibi,
+            matchKey: ms.matchKey
+          }
+        };
+      }
+    }
+    return enIyi;
+  } catch(e) { console.warn('[hmMilliMac]', e); return null; }
+}
+window._hmMilliMacSunucudan = _hmMilliMacSunucudan;
+
 function _renderHomeNextMatchCore() {
   const panel   = document.getElementById('hmNextMatch');
   const noMatch = document.getElementById('hmNoMatch');
@@ -60368,12 +60466,14 @@ function _renderHomeNextMatchCore() {
 
   // 🆕 Takımsız kullanıcı için yaklaşan maç olmaz — sahte takım göstermek yerine boş durum
   if (typeof userHasTeam === 'function' && !userHasTeam()) {
-    panel.style.display = 'none';
-    noMatch.style.display = 'block';
-    noMatch.innerHTML = `<div style="padding:6px 12px;color:var(--text3);font-size:12px;line-height:1.6">
-      <div style="margin-bottom:2px">Bekleyen maç yok</div>
-      <div style="font-size:10px;opacity:.7">Bir takıma katıl ya da takım kur — maçların burada görünür</div>
-    </div>`;
+    // 🆕 Panel kaldırılmıyor — detaylar boş, düzen yerinde kalıyor.
+    //    Milli maçı varsa yine de gösterilir (aşağıda ele alınır).
+    const _milli = _hmMilliMacSunucudan();
+    if (_milli) {
+      try { _hmStripYukle(_milli); } catch(e) {}
+      try { _renderHmNationalMatch(_milli.national); return; } catch(e) {}
+    }
+    _hmPanelBosGoster('Bir takıma katıl');
     return;
   }
 
@@ -60539,6 +60639,7 @@ function _renderHomeNextMatchCore() {
   }
 
   // 🆕 Milli takım maçları — kullanıcının uyruğuna ait olanlar (NT kadrosunda olsun olmasın)
+  let _milliEklendi = false;
   if (typeof getNextNationalTeamMatch === 'function') {
     try {
       const nnext = getNextNationalTeamMatch();
@@ -60546,21 +60647,37 @@ function _renderHomeNextMatchCore() {
         const nt = nnext.date.getTime();
         if (!isNaN(nt) && Date.now() < nt + 120 * 60 * 1000) {
           candidates.push({ source: 'national', national: nnext, time: nt });
+          _milliEklendi = true;
         }
       }
     } catch(e) { console.warn('national candidate:', e); }
   }
+  // 🆕 YEDEK KAYNAK — yerel EURO Cup hesabı boş dönerse (state yüklenmemiş,
+  //    sezon verisi eksik vb.) milli maçı doğrudan match_state'ten al.
+  if (!_milliEklendi) {
+    try {
+      const _ms = _hmMilliMacSunucudan();
+      if (_ms) candidates.push({ source: 'national', national: _ms.national, time: _ms.time });
+    } catch(e) {}
+  }
 
   if (candidates.length === 0) {
-    console.info('[hmNextMatch] aday yok — _fixtureData uzunluğu:', _fixtureData?.length || 0);
-    panel.style.display = 'none';
-    noMatch.style.display = 'block';
-    noMatch.innerHTML = `<div style="padding:6px 12px;color:var(--text3);font-size:12px">Bekleyen maç yok</div>`;
+    // 🆕 ESKİ DAVRANIŞ: panel tamamen gizleniyordu ve ana sayfada boşluk kalıyordu.
+    //    Artık panel yerinde duruyor, yalnızca detaylar boşaltılıyor.
+    _hmPanelBosGoster('Yaklaşan maç yok');
     return;
   }
 
   candidates.sort((a, b) => a.time - b.time);
   const next = candidates[0];
+  // 🆕 Boş durumdan çıkış — panel normal görünüme döner
+  try {
+    panel.classList.remove('hm-nm-bos');
+    panel.style.display = '';
+    if (noMatch) noMatch.style.display = 'none';
+    const _b = document.getElementById('hmNmBtn');
+    if (_b) { _b.disabled = false; _b.onclick = function(){ hmOpenNextMatch(); }; }
+  } catch(e) {}
 
   // 🆕 SIRADAKİ 5 MAÇ ŞERİDİ — ana maçtan sonraki adaylar (gerçek fikstür)
   // 🆕 ŞERİT — kaynak: SUNUCU. _matchStateCache yalnızca dar bir gün penceresini
@@ -60586,9 +60703,8 @@ function _renderHomeNextMatchCore() {
   const upcoming = (next && next.league)
                 || ((candidates.find(c => c && c.source === 'league') || {}).league);
   if (!upcoming) {
-    panel.style.display = 'none';
-    noMatch.style.display = 'block';
-    noMatch.innerHTML = `<div style="padding:6px 12px;color:var(--text3);font-size:12px">Bekleyen maç yok</div>`;
+    // 🆕 Panel gizlenmiyor — detaylar boş, düzen yerinde
+    _hmPanelBosGoster('Yaklaşan maç yok');
     return;
   }
 
