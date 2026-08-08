@@ -28366,7 +28366,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-08-milliveri-313';
+const APP_BUILD = '2026-08-08-perf-314';
 
 (function _cacheBustCheck() {
   try {
@@ -28853,6 +28853,67 @@ document.addEventListener('DOMContentLoaded', function(){
 // localStorage: cft_language (default 'tr')
 // Şu an sadece Türkçe destekli — altyapı hazır
 // ═══════════════════════════════════════════
+
+
+// ═══════════════════════════════════════════════════════════════════
+// 🔬 PERFORMANS ÖLÇER — telefonda konsol açılamadığı için ekranda gösterir
+//   Açmak için adresin sonuna ?perf=1 ekle:  citysoccer.club/?perf=1
+//   Kapatmak için parametreyi kaldır. Normalde HİÇBİR maliyeti yoktur.
+// ═══════════════════════════════════════════════════════════════════
+window._perfSayac = window._perfSayac || {};
+function perfSay(ad) {
+  if (!window._perfAcik) return;
+  window._perfSayac[ad] = (window._perfSayac[ad] || 0) + 1;
+}
+window.perfSay = perfSay;
+
+(function(){
+  try {
+    if (location.search.indexOf('perf=1') < 0) return;
+    window._perfAcik = true;
+
+    const kutu = document.createElement('div');
+    kutu.id = 'perfKutu';
+    kutu.style.cssText = 'position:fixed;left:6px;bottom:6px;z-index:2147483600;'
+      + 'background:rgba(0,0,0,.86);color:#00e676;border:1px solid #00e676;border-radius:8px;'
+      + 'padding:7px 9px;font:11px/1.45 monospace;max-width:70vw;white-space:pre;'
+      + 'pointer-events:auto;box-shadow:0 4px 18px rgba(0,0,0,.6)';
+    kutu.onclick = function(){ window._perfSayac = {}; _perfKare.n = 0; };
+    const bas = () => { if (document.body) document.body.appendChild(kutu); else setTimeout(bas, 300); };
+    bas();
+
+    // Kare hızı (FPS) — düşükse ana iş parçacığı doludur
+    const _perfKare = { n: 0, fps: 0, son: performance.now() };
+    (function sayKare(){
+      _perfKare.n++;
+      const t = performance.now();
+      if (t - _perfKare.son >= 1000) {
+        _perfKare.fps = _perfKare.n;
+        _perfKare.n = 0;
+        _perfKare.son = t;
+      }
+      requestAnimationFrame(sayKare);
+    })();
+
+    // Ağ isteği sayacı
+    window._perfFetch = 0;
+    const _fetchAsil = window.fetch;
+    window.fetch = function() { window._perfFetch++; return _fetchAsil.apply(this, arguments); };
+
+    let gecen = 0;
+    setInterval(() => {
+      gecen += 3;
+      const c = window._perfSayac;
+      const sirali = Object.keys(c).sort((a,b) => c[b] - c[a]).slice(0, 7);
+      let m = 'FPS ' + _perfKare.fps + '  ·  ' + gecen + 'sn  ·  ağ ' + window._perfFetch + '\n';
+      m += 'dil: ' + (typeof i18nLang === 'function' ? i18nLang() : '?')
+         + (typeof i18nAktif === 'function' && i18nAktif() ? ' (çeviri AÇIK)' : ' (çeviri kapalı)') + '\n';
+      m += sirali.length ? sirali.map(k => '  ' + k + ': ' + c[k]).join('\n') : '  (henüz sayaç yok)';
+      m += '\n[dokun = sıfırla]';
+      kutu.textContent = m;
+    }, 3000);
+  } catch(e) {}
+})();
 
 // ═══════════════════════════════════════════════════════════════════
 // 🌍 ÇEVİRİ MOTORU (i18n)
@@ -29701,6 +29762,7 @@ function _i18nElemanOznitelikleri(el) {
 
 function i18nCevirAgac(kok) {
   if (!i18nAktif() || !kok) return;
+  perfSay('i18n.cevir');
   try {
     if (kok.nodeType === 3) { _i18nMetinDugumu(kok); return; }
     if (kok.nodeType !== 1) return;
@@ -60089,9 +60151,19 @@ function _hmNxComp(ad) {
 // Bir adaydan kart verisi çıkar — kullanıcının takımı hangi tarafsa RAKİBİ al
 // 🆕 Ülke adından (veya kodundan) bayrak emojisi üretir.
 //    Milli maç slotlarında "TÜR" gibi kısaltma yerine 🇹🇷 gösterilsin diye.
+window._bayrakCache = window._bayrakCache || {};
 function _hmUlkeBayrak(ad) {
   if (!ad) return '';
   const s = String(ad).trim();
+  // 🆕 ÖNBELLEK — bu fonksiyon sonuç listesinde her satır için çağrılıyor
+  //    ve her çağrıda TÜM ülkeler taranıyordu (telefon ısınma kaynağı).
+  if (Object.prototype.hasOwnProperty.call(window._bayrakCache, s)) return window._bayrakCache[s];
+  const _sonuc = _hmUlkeBayrakHesapla(s);
+  window._bayrakCache[s] = _sonuc;
+  return _sonuc;
+}
+function _hmUlkeBayrakHesapla(s) {
+  perfSay('bayrak.hesap');
   const norm = x => String(x || '').toLocaleLowerCase('tr').replace(/[\s.'-]/g, '');
   try {
     // Zaten 2 harfli ülke kodu geldiyse
@@ -60599,6 +60671,7 @@ function _hmMilliMacSunucudan() {
 window._hmMilliMacSunucudan = _hmMilliMacSunucudan;
 
 function _renderHomeNextMatchCore() {
+  perfSay('anaSayfa.onizleme');
   const panel   = document.getElementById('hmNextMatch');
   const noMatch = document.getElementById('hmNoMatch');
   if (!panel || !noMatch) return;
@@ -63018,6 +63091,7 @@ window._msScope = window._msScope || { season: null, countries: {}, days: {}, co
 window._ligBilgiCache = window._ligBilgiCache || { at: 0, map: {} };
 
 function _gercekLigBilgi(takimAdi, ulkeKodu) {
+  perfSay('ligBilgi.cagri');
   if (!takimAdi) return null;
   const cc = ulkeKodu || null;
   const k = (cc || '?') + '|' + takimAdi;
@@ -63973,6 +64047,7 @@ function _resRenderMatches(matches) {
   }
 
   let html = '';
+  perfSay('sonuclar.render');
   window._resPenBekleyen = [];        // 🆕 penaltı bilgisi eksik eleme maçları
   // 🆕 Sıralı: turnuvalar (CHM→ELI→CON→EURO) → kendi ülken (Süper Lig→alt ligler) → diğer ülkeler
   const _sortedGroups = Object.values(groups).sort((x, y) => {
