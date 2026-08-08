@@ -16185,6 +16185,16 @@ body.inbox-open #main{visibility:hidden!important;pointer-events:none!important}
 #page-home .hm-next-match.hm-nm-bos .hm-nm-btn{background:rgba(255,255,255,.07);color:var(--text2);
   border:1px solid rgba(255,255,255,.10);box-shadow:none}
 
+/* 🆕 ÖNİZLEME PANELİ — bayrak: yuvarlak çerçeve yok, büyük emoji */
+#page-home .hm-nm-crest.crest-flag{
+  background:none !important;background-color:transparent !important;
+  background-image:none !important;box-shadow:none !important;border:0 !important;
+  border-radius:0 !important;overflow:visible;
+  width:auto !important;height:auto !important;min-width:44px;
+  font-size:40px !important;line-height:1;
+  display:flex;align-items:center;justify-content:center;
+  text-shadow:0 3px 9px rgba(0,0,0,.55)}
+
 /* 🆕 CANLI MAÇ SKORBORDU — milli maçta ülke bayrağı (çerçevesiz) */
 .team-crest.crest-flag{background:none !important;background-color:transparent !important;
   background-image:none !important;box-shadow:none !important;border:0 !important;
@@ -28356,7 +28366,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-08-ligadi-312';
+const APP_BUILD = '2026-08-08-milliveri-313';
 
 (function _cacheBustCheck() {
   try {
@@ -60320,13 +60330,22 @@ function _hmStripCiz(rows, anaMac) {
   try {
     const takim = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : '';
     const anaT = anaMac ? anaMac.time : 0;
+    // 🆕 Şerit, önizlemedeki maçın GÜNÜNDEN SONRA başlar.
+    //    (9 Ağustos önizlemedeyse şerit 10 Ağustos'tan itibaren listelenir.)
+    let anaGunSonu = 0;
+    if (anaT) {
+      const _g = new Date(anaT);
+      _g.setHours(23, 59, 59, 999);
+      anaGunSonu = _g.getTime();
+    }
     const TRN = { champ: 'Championship', elite: 'Elite', conv: 'Convergence',
                   enc: 'EURO Cup', friendly: 'Hazırlık' };
     const liste = [];
     for (const r of (rows || [])) {
       const t = r.kickoff_at ? new Date(r.kickoff_at).getTime() : 0;
       if (!t) continue;
-      if (anaT && Math.abs(t - anaT) < 90000) continue;         // ana paneldeki maç
+      if (anaGunSonu && t <= anaGunSonu) continue;              // ana maç ve aynı gündekiler
+      if (!anaGunSonu && anaT && Math.abs(t - anaT) < 90000) continue;
       // 🆕 Milli maçta "benim takımım" ülke adıdır
       let benimAd = takim;
       if (r.tournament_key === 'enc') {
@@ -60373,7 +60392,17 @@ function _hmStripTakvimDoldur(liste) {
   if (typeof SEASON_TEMPLATE === 'undefined' || typeof getSeasonInfo !== 'function') return;
   const info = getSeasonInfo();
   if (!info || info.preSeason) return;
-  const bugun = info.dayInSeason || 1;
+  // 🆕 Şeritteki ilk maçın gününden sonra başla (ana maçla aynı güne dokunma)
+  let bugun = info.dayInSeason || 1;
+  try {
+    if (Array.isArray(liste) && liste.length) {
+      const enSon = Math.max.apply(null, liste.map(x => x.time || 0));
+      if (enSon) {
+        const fark = Math.floor((enSon - Date.now()) / 86400000);
+        if (fark > 0) bugun = Math.max(bugun, (info.dayInSeason || 1) + fark);
+      }
+    }
+  } catch(e) {}
   const SEZON_UZ = (typeof SEASON_LEN !== 'undefined') ? SEASON_LEN : 40;
   // Sezon başlangıcı → tarih hesabı için
   const sezonBas = (info && info.seasonStart) ? new Date(info.seasonStart) : null;
@@ -61239,44 +61268,89 @@ async function _hmMilliDetay(cc, ulkeAd) {
   try {
     if (!window.sb) return v;
 
-    // 1) Bu uyruğun en güçlü oyuncuları (milli takım havuzu)
+    // 1) MİLLİ KADRO — kulüp kadrosuyla AYNI mantık:
+    //    önce federasyonun seçtiği 18 kişilik kadro, yoksa uyruğun en iyileri.
+    //    'abilities' MUTLAKA çekilir; piyasa değeri hesabı ona dayanıyor
+    //    (eksikse getPlayerMarketValue çöp değer üretir).
+    const KOL = 'id,name,overall,level,pos,pos_group,sub_pos,abilities,role,user_id,team_name,country_code';
     let satirlar = [];
+
+    // 1a) Federasyon kadrosu (team_data → nt_squad, uuid listesi)
+    let kadroIds = null;
     try {
-      const { data } = await window.sb.from('players')
-        .select('id,name,overall,level,pos,pos_group')
-        .or(`nationality.eq.${cc},nation.eq.${cc}`)
-        .order('overall', { ascending: false })
-        .limit(40);
-      satirlar = data || [];
+      const ntAd = (typeof _ntCountryName === 'function') ? _ntCountryName(cc) : ulkeAd;
+      const { data: td } = await window.sb.from('team_data')
+        .select('data').eq('country_code', cc).eq('data_key', 'nt_squad')
+        .limit(1).maybeSingle();
+      if (td && Array.isArray(td.data)) kadroIds = td.data.filter(Boolean);
     } catch(e) {}
 
-    if (satirlar.length) {
-      const ilk11 = satirlar.slice(0, 11);
-      v.ovr = Math.round(ilk11.reduce((t, p) => t + (Number(p.overall) || 0), 0) / ilk11.length);
+    if (kadroIds && kadroIds.length) {
+      try {
+        const { data } = await window.sb.from('players').select(KOL).in('id', kadroIds.slice(0, 25));
+        satirlar = data || [];
+      } catch(e) {}
+    }
 
+    // 1b) Kadro yoksa/eksikse: uyruğun en güçlü oyuncuları
+    if (satirlar.length < 11) {
+      try {
+        const { data } = await window.sb.from('players')
+          .select(KOL)
+          .or(`nationality.eq.${cc},nation.eq.${cc}`)
+          .order('overall', { ascending: false })
+          .limit(30);
+        const varOlan = new Set(satirlar.map(p => p.id));
+        (data || []).forEach(p => { if (!varOlan.has(p.id)) satirlar.push(p); });
+      } catch(e) {}
+    }
+
+    if (satirlar.length) {
+      // Güce göre sırala (kulüp kadrosunda olduğu gibi)
+      satirlar.sort((a, b) => (Number(b.overall) || 0) - (Number(a.overall) || 0));
+      const kadro = satirlar.slice(0, 18);
+
+      // TAKIM OVR — kulüpteki gibi ilk 11 ortalaması
+      const ilk11 = kadro.slice(0, 11);
+      v.ovr = ilk11.length
+        ? Math.round(ilk11.reduce((t, p) => t + (Number(p.overall) || 0), 0) / ilk11.length)
+        : 0;
+
+      // HAT GÜÇLERİ — kulüpteki calcLineStrengths ile aynı temel:
+      //   varsa abilities üzerinden mevki ortalaması, yoksa overall
+      const _hatDeger = (p, hat) => {
+        try {
+          if (typeof getPlayerPositionAvg === 'function' && p && p.abilities) {
+            const x = getPlayerPositionAvg(p, hat);
+            if (x > 0) return x;
+          }
+        } catch(e) {}
+        return Number(p && p.overall) || 0;
+      };
       const grup = { GK: [], DEF: [], MID: [], FWD: [] };
       const KAC  = { GK: 1, DEF: 4, MID: 4, FWD: 2 };
-      satirlar.forEach(p => {
+      kadro.forEach(p => {
         let g = (p.pos_group || p.pos || '').toUpperCase();
         if (g.indexOf('GK') === 0) g = 'GK';
         else if (g.indexOf('DEF') === 0 || g === 'DF') g = 'DEF';
         else if (g.indexOf('MID') === 0 || g === 'MD') g = 'MID';
         else if (g.indexOf('FWD') === 0 || g === 'FW' || g.indexOf('ST') === 0) g = 'FWD';
         else return;
-        grup[g].push(Number(p.overall) || 0);
+        grup[g].push(_hatDeger(p, g));
       });
       Object.keys(grup).forEach(g => {
         const en = grup[g].sort((a, b) => b - a).slice(0, KAC[g]);
         v.lines[g] = en.length ? Math.round(en.reduce((t, x) => t + x, 0) / en.length) : 0;
       });
 
-      // Kadro değeri — ilk 18
+      // PİYASA DEĞERİ — kadrodaki oyuncuların GERÇEK değerleri toplanır
+      //   (kulüplerdeki calculateTeamValue ile birebir aynı fonksiyon)
       try {
         if (typeof getPlayerMarketValue === 'function') {
-          v.val = satirlar.slice(0, 18)
-            .reduce((t, p) => t + (Number(getPlayerMarketValue(p)) || 0), 0);
+          v.val = kadro.reduce((t, p) => t + (Number(getPlayerMarketValue(p)) || 0), 0);
         }
       } catch(e) {}
+      v.kadroSayisi = kadro.length;
     }
 
     // 2) Son 5 EURO Cup sonucu
@@ -61372,13 +61446,14 @@ function _renderHmNationalMatch(n) {
     const el = document.getElementById(id);
     if (!el) return;
     el.classList.remove('crest-has-logo');
+    el.classList.toggle('crest-flag', !!flag);      // 🆕 çerçevesiz görünüm CSS'ten
     el.innerHTML = '';
     el.textContent = flag || short;
     el.style.backgroundImage = '';
     el.style.background = flag ? 'transparent' : '#1a2230';
     el.style.boxShadow = flag ? 'none' : '';
     el.style.color = '#fff';
-    el.style.fontSize = flag ? '30px' : '12px';
+    el.style.fontSize = flag ? '' : '12px';         // boyut CSS'te
     el.style.lineHeight = '1';
   };
   setCrest('hmNmHomeCrest', hFlag, homeShort);
