@@ -16202,11 +16202,16 @@ body.inbox-open #main{visibility:hidden!important;pointer-events:none!important}
   font-size:34px !important;line-height:1;display:flex;align-items:center;justify-content:center;
   text-shadow:0 3px 8px rgba(0,0,0,.55)}
 
-/* 🆕 SONUÇLAR — EURO Cup bayrak rozeti: çerçevesiz, arka plansız */
+/* 🆕 SONUÇLAR — EURO Cup bayrak rozeti: çerçevesiz, arka plansız.
+   Emoji kutunun İÇİNE sığdığı için küçük görünüyordu; kutu 20px ama
+   emojinin kendi iç boşluğu var. Kutuyu serbest bırakıp punto büyütüldü —
+   böylece kulüp logolarıyla aynı görsel boyda duruyor. */
 .res-match-logo.res-flag{background:none !important;background-color:transparent !important;
   box-shadow:none !important;border:0 !important;border-radius:0 !important;
-  font-size:17px;line-height:1;display:inline-flex;align-items:center;justify-content:center;
-  text-shadow:0 1px 3px rgba(0,0,0,.5);overflow:visible}
+  width:auto !important;height:auto !important;min-width:24px;overflow:visible !important;
+  font-size:23px !important;line-height:1;display:inline-flex;
+  align-items:center;justify-content:center;
+  text-shadow:0 1px 4px rgba(0,0,0,.55)}
 
 /* 🆕 PENALTI GÖSTERİMİ — berabere biten eleme maçlarında */
 .pen-rozet{font-size:9px;font-weight:900;letter-spacing:.4px;color:var(--gold,#ffd600);
@@ -17104,6 +17109,12 @@ body.inbox-open #main{visibility:hidden!important;pointer-events:none!important}
   font-size:10px;
   font-style:italic;
 }
+/* 🆕 MAÇ YOK ŞERİDİ — dolu şeritle aynı akış, sadece daha sakin renk */
+.lg-ticker-item.bos{ border-right-color:rgba(255,255,255,.08); }
+.lg-ticker-item.bos .lg-ti-bos{
+  color:var(--text3); font-weight:700; font-style:italic; letter-spacing:.4px; opacity:.75;
+}
+.lg-ticker-track.lg-ticker-track-bos{ animation-duration:90s; }
 @keyframes lg-ticker-blink{
   0%, 100% { opacity:1; box-shadow:0 0 8px rgba(244,67,54,.55); }
   50%      { opacity:.55; box-shadow:0 0 4px rgba(244,67,54,.25); }
@@ -28366,7 +28377,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-09-milli-319';
+const APP_BUILD = '2026-08-09-antrenman-324';
 
 (function _cacheBustCheck() {
   try {
@@ -29428,6 +29439,7 @@ Object.assign(window.I18N.en, {
 '🏳️ — Sıra':'🏳️ — Rank','İsrail':'Israel',
 'Bu kuponu oyna':'Place this slip','Maçlar başladı':'Matches have started',
 'Yaklaşan maç yok':'No upcoming match','Fikstürü Aç':'Open Fixtures','Bir takıma katıl':'Join a team',
+'Bugün lig maçı yok':'No league matches today',
 'Özet':'Summary','İstatistik':'Stats','Reyting':'Ratings','⭐ Oyuncu Reytingleri':'⭐ Player Ratings',
 '⚽ Goller':'⚽ Goals','🏆 Maçın Adamı':'🏆 Man of the Match','Maçın adamı verisi yok':'No man of the match data',
 'Topla Oynama':'Possession','Korner':'Corners','Faul':'Fouls','Grup Aşaması':'Group Stage',
@@ -48681,11 +48693,20 @@ function saveUserTrainLog(list, immediate) {
   clearTimeout(_userTrainLogSaveTimer);
   const doSave = async () => {
     try {
-      const { error } = await window.sb.from('user_player').upsert({
-        user_id: authUser.id,
-        train_log: _userTrainLogCache
-      }, { onConflict: 'user_id' });
-      if (error) console.warn('[train_log] save error:', error.message || error);
+      // 🔑 ESKİ HATA: burada UPSERT kullanılıyordu. Upsert veritabanı için
+      //    INSERT işlemidir; user_player'da INSERT politikası olmadığı için
+      //    istek tamamen reddediliyor ve antrenman kaydı sessizce kayboluyordu.
+      //    Satır zaten var (kullanıcı kaydında oluşuyor) → UPDATE yeterli.
+      const { error, status } = await window.sb.from('user_player')
+        .update({ train_log: _userTrainLogCache })
+        .eq('user_id', authUser.id);
+      if (error) {
+        console.warn('[train_log] save error:', status, error.message || error);
+        // Görünür uyarı — bir daha sessizce kaybolmasın
+        if (typeof rosterToast === 'function') {
+          rosterToast('⚠️ Antrenman kaydı sunucuya yazılamadı', 'warn');
+        }
+      }
     } catch(e) { console.warn('[train_log] save exception:', e); }
   };
   if (immediate) doSave();
@@ -61897,13 +61918,29 @@ function _renderHmNationalMatch(n) {
       }
 
       if (diffMs <= TWO_MIN) {
-        // Maç vakti → kadroda mı?
-        btn.innerHTML = inSquad ? '▶️ Maça Git' : '👁️ Maçı İzle';
-        btn.style.background = inSquad
+        // 🆕 Maç vakti → yetkiye göre etiket.
+        //   Federasyon başkanı/yardımcısı taktik yapabilir → "Maça Git"
+        //   Diğer herkes izleyici → "Maçı İzle". İkisinde de buton AKTİF.
+        let _yetkili = false;
+        try {
+          const _cc2 = (typeof getUserNationalityCC === 'function') ? getUserNationalityCC() : null;
+          if (_cc2 && typeof fedUserRole === 'function') {
+            const _rol = fedUserRole(_cc2);
+            _yetkili = (_rol === 'president' || _rol === 'vice');
+          }
+          if (!_yetkili && typeof _ntIsViceUser === 'function' && _cc2) _yetkili = !!_ntIsViceUser(_cc2);
+        } catch(e) {}
+        const _oynar = _yetkili || inSquad;
+        btn.innerHTML = _oynar ? '▶️ Maça Git' : '👁️ Maçı İzle';
+        btn.style.background = _oynar
           ? 'linear-gradient(90deg,#ef5350,#e53935)'
           : 'linear-gradient(90deg,#5fb8ff,#2196f3)';
         btn.style.color = '#fff';
         btn.disabled = false;
+        btn.style.pointerEvents = 'auto';
+        btn.style.opacity = '1';
+        // 🆕 Her turda tıklama işlevini garanti et (boş durum ezmiş olabilir)
+        btn.onclick = function() { try { hmOpenNextMatch(); } catch(e) { console.warn('[natBtn]', e); } };
       } else {
         const totalSec = Math.floor(diffMs / 1000);
         const h = Math.floor(totalSec / 3600);
@@ -61917,6 +61954,9 @@ function _renderHmNationalMatch(n) {
           : 'linear-gradient(135deg,#37474f 0%, #546e7a 50%, #78909c 100%)';
         btn.style.color = '#fff';
         btn.disabled = false;
+        btn.style.pointerEvents = 'auto';
+        btn.style.opacity = '1';
+        btn.onclick = function() { try { hmOpenNextMatch(); } catch(e) {} };
       }
     }
 
@@ -62727,14 +62767,21 @@ window._msSkorbordBayrak = _msSkorbordBayrak;
 async function hmOpenNationalMatch(n) {
   try {
     if (!n || !n.match) return;
-    const cc = n.cc;
-    const _c = (typeof _cftGetCountry === 'function' && cc) ? _cftGetCountry(cc) : null;
-    const ulkeAd = (_c && (_c.name || _c.countryName)) || cc;
+    // 🔑 ESKİ HATA: takım alanının KOD ("TR") olduğu varsayılıyordu. Sunucudan
+    //    gelen milli maçlarda ise AD ("Türkiye") geliyor → karşılaştırma tutmuyor,
+    //    ev/deplasman ters çözülüyor ve maç ekranı yanlış/boş açılıyordu.
+    const cc = (typeof _ulkeKodu === 'function' ? _ulkeKodu(n.cc) : null) || n.cc;
+    const ulkeAd = (typeof _ulkeAdi === 'function' ? _ulkeAdi(cc) : null) || cc;
     const m = n.match;
-    const rakipKod = (m.home === cc) ? m.away : m.home;
+    const _kod = (x) => (typeof _ulkeKodu === 'function' ? (_ulkeKodu(x) || x) : x);
+    const evKod  = _kod(m.home);
+    const depKod = _kod(m.away);
+    const evSahibi = (typeof n._evSahibi === 'boolean') ? n._evSahibi : (evKod === cc);
+    const rakipKod = evSahibi ? depKod : evKod;
     const _rc = (typeof _cftGetCountry === 'function' && rakipKod) ? _cftGetCountry(rakipKod) : null;
-    const rakipAd = (m.home === cc ? (m.awayName || m.away) : (m.homeName || m.home)) || rakipKod;
-    const evSahibi = (m.home === cc);
+    const rakipAd = (_rc && (_rc.name || _rc.countryName))
+                 || (evSahibi ? (m.awayName || m.away) : (m.homeName || m.home))
+                 || rakipKod;
 
     // Yetki: federasyon başkanı / yardımcısı → taktik yapabilir
     let yetkili = false;
@@ -65466,8 +65513,15 @@ function renderHomeLeagueTicker() {
   }
 
   if (!matches.length) {
-    wrap.style.display = 'flex';
-    wrap.innerHTML = '<div class="lg-ticker-empty">Bugün lig maçı yok</div>';
+    // 🆕 Boş kutu "bozuk" duruyordu. Aynı kayar şerit mantığıyla,
+    //    tekrarlanan bir bilgi yazısı döndürülüyor. Akış mantığı aynı.
+    wrap.style.display = 'block';
+    const bosItem = `
+      <div class="lg-ticker-item bos">
+        <span class="lg-ti-bos">Bugün lig maçı yok</span>
+      </div>`;
+    const tekrar = bosItem.repeat(6);
+    wrap.innerHTML = `<div class="lg-ticker-track lg-ticker-track-bos">${tekrar}${tekrar}</div>`;
     _lgTickerScheduleNext();
     return;
   }
@@ -66016,7 +66070,13 @@ function renderHomeEuro() {
   }
 
   const userTeamName = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : null;
-  const userCountry  = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.countryCode : null;
+  // 🔑 ESKİ HATA: EURO Cup için KULÜBÜN ülkesi kullanılıyordu. Türk liginde
+  //    oynayan bir Alman'a Türkiye'nin grubu gösteriliyordu. Milli takım
+  //    turnuvasında ölçüt KULÜP değil UYRUKTUR.
+  const userCountry  = (typeof getUserNationalityCC === 'function' && getUserNationalityCC())
+                     || ((typeof authUser !== 'undefined' && authUser)
+                          ? (authUser.nationality || authUser.countryCode) : null)
+                     || ((typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.countryCode : null);
 
   const cards = TRN_DEFS.map(def => {
     const stage = _euGetCurrentStage(def.type, info.dayInSeason);
@@ -66434,19 +66494,29 @@ function _euRenderEuroGroupMini(season, userCountry) {
     const header = `<div class="eu-stage-label">${userInGroup ? '⭐ ' : ''}Grup ${letter} · 4 Ülke</div>`;
 
     // 4 ülke puanlarıyla
+    // 🔑 ESKİ HATA: encCalcStandings 'Pts' (büyük harf) döndürüyor, burada
+    //    't.pts' okunuyordu → puan hep 0 görünüyordu.
     const rows = standings.map((t, ti) => {
       const isUser = t.code === userCountry;
-      const bg = '#37474f', tc = '#fff';
-      const short = (t.code || '??').toUpperCase();
+      const _pts = (typeof t.Pts === 'number') ? t.Pts
+                 : ((typeof t.pts === 'number') ? t.pts
+                 : ((typeof t.points === 'number') ? t.points : 0));
+      const _oyn = (typeof t.P === 'number') ? t.P : ((typeof t.played === 'number') ? t.played : 0);
+      const _av  = (typeof t.GD === 'number') ? t.GD : 0;
+      const _avS = (_av > 0 ? '+' : '') + _av;
       return `
         <div class="lg-scene-row${isUser ? ' is-user' : ''}">
           <div class="lg-scene-rank">${ti+1}</div>
           <div class="lg-scene-crest" style="background:transparent!important;border:none!important;box-shadow:none!important;display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1">${t.flag||'🏳️'}</div>
           <div class="lg-scene-tname" title="${t.name||''}">${t.name||'—'}</div>
-          <div class="lg-scene-pts">${t.pts||0}</div>
+          <div class="lg-scene-sub" style="font-size:9px;color:var(--text3);margin-right:4px">${_oyn}M ${_avS}</div>
+          <div class="lg-scene-pts">${_pts}</div>
         </div>
       `;
     }).join('');
+
+    // 🆕 Yeşil buton bu grubu açsın (A grubunu değil)
+    try { window._euUserGroupLetter = letter; } catch(e) {}
 
     return { html: header + rows, userIn: userInGroup };
   } catch(e) { return { html: '<div class="lg-scene-empty">Veri okunamadı</div>', userIn: false }; }
@@ -66544,19 +66614,54 @@ function _encAcGuncelAsama() {
       if (typeof trn2Render === 'function') trn2Render();
     }
 
-    // Kullanıcının ülkesini içeren kartı bul → aç + kaydır
+    // Kullanıcının ülkesini içeren GRUBU AÇ (varsayılan A grubu değil) + kaydır
     setTimeout(() => {
       try {
         if (!cc) return;
         const c = (typeof _cftGetCountry === 'function') ? _cftGetCountry(cc) : null;
         const ad = (c && (c.name || c.countryName)) || cc;
-        const kap = document.getElementById('trn2Content');
-        if (!kap) return;
-        const hepsi = Array.from(kap.querySelectorAll('*'));
-        const hedefEl = hepsi.find(el => el.children.length === 0 &&
-          (el.textContent || '').trim() === ad);
-        const kart = hedefEl ? (hedefEl.closest('.enc-group-card') || hedefEl.closest('.bkb-tie') || hedefEl) : null;
-        if (kart && kart.scrollIntoView) kart.scrollIntoView({ block: 'center', behavior: 'smooth' });
+
+        // 1) Önce state'ten grup sırasını bul — en güvenilir yol
+        let hedefIdx = -1;
+        try {
+          const st = (typeof encEnsureState === 'function') ? encEnsureState(info.season) : null;
+          if (st && Array.isArray(st.groups)) {
+            hedefIdx = st.groups.findIndex(g =>
+              (g.teams || []).some(t => t && (t.code === cc || t.name === ad)));
+          }
+        } catch(e) {}
+
+        // 2) Grubu aç (sekme varsa sekmeyi de değiştir)
+        if (hedefIdx >= 0 && typeof trn2GroupTab === 'function') {
+          trn2GroupTab(hedefIdx);
+        } else if (hedefIdx >= 0) {
+          ['trn2Content','ntStandingsContent'].forEach(id => {
+            const root = document.getElementById(id);
+            if (!root) return;
+            const cards = root.querySelectorAll('.grp-theme .enc-group-card');
+            cards.forEach((c2, i2) => c2.classList.toggle('open', i2 === hedefIdx));
+          });
+        }
+
+        // 3) Kaydır — açılan kart, yoksa ülke adını içeren satır
+        setTimeout(() => {
+          try {
+            const kap = document.getElementById('trn2Content') || document.getElementById('ntStandingsContent');
+            if (!kap) return;
+            let kart = null;
+            if (hedefIdx >= 0) {
+              const cards = kap.querySelectorAll('.grp-theme .enc-group-card');
+              kart = cards[hedefIdx] || null;
+            }
+            if (!kart) {
+              const hepsi = Array.from(kap.querySelectorAll('*'));
+              const hedefEl = hepsi.find(el => el.children.length === 0 &&
+                (el.textContent || '').trim() === ad);
+              kart = hedefEl ? (hedefEl.closest('.enc-group-card') || hedefEl.closest('.bkb-tie') || hedefEl) : null;
+            }
+            if (kart && kart.scrollIntoView) kart.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          } catch(e) {}
+        }, 140);
       } catch(e) {}
     }, 220);
   } catch(e) { console.warn('[encAsama] hata:', e); }
