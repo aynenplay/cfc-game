@@ -16190,10 +16190,12 @@ body.inbox-open #main{visibility:hidden!important;pointer-events:none!important}
   background:none !important;background-color:transparent !important;
   background-image:none !important;box-shadow:none !important;border:0 !important;
   border-radius:0 !important;overflow:visible;
-  width:auto !important;height:auto !important;min-width:44px;
-  font-size:40px !important;line-height:1;
+  width:auto !important;height:auto !important;min-width:48px;
+  font-size:50px !important;line-height:1;
   display:flex;align-items:center;justify-content:center;
-  text-shadow:0 3px 9px rgba(0,0,0,.55)}
+  text-shadow:0 3px 10px rgba(0,0,0,.6);
+  cursor:pointer;transition:transform .12s}
+#page-home .hm-nm-crest.crest-flag:active{transform:scale(.93)}
 
 /* 🆕 CANLI MAÇ SKORBORDU — milli maçta ülke bayrağı (çerçevesiz) */
 .team-crest.crest-flag{background:none !important;background-color:transparent !important;
@@ -16260,10 +16262,14 @@ body.inbox-open #main{visibility:hidden!important;pointer-events:none!important}
 .res-fm-pen-win{margin-top:6px;font-size:12px;font-weight:800;color:var(--gold,#ffd600);
   font-family:'Barlow Condensed',sans-serif;letter-spacing:.4px}
 
-/* 🆕 Bayrak emojisi → çerçevesiz, arka planı olmayan transparan görünüm */
+/* 🆕 Bayrak emojisi → çerçevesiz, arka planı olmayan transparan görünüm.
+   ÖNEMLİ: kutu ölçüsü (34px) DEĞİŞMİYOR — yalnızca emoji büyüyor ve
+   taşmasına izin veriliyor, böylece slot yüksekliği aynı kalıyor. */
 #page-home .hm-nxc .nxc-crest[data-flag="1"]{background:none !important;background-color:transparent !important;
-  box-shadow:none !important;border-radius:0 !important;overflow:visible;
-  font-size:26px !important;line-height:1;text-shadow:0 2px 6px rgba(0,0,0,.55)}
+  box-shadow:none !important;border-radius:0 !important;overflow:visible !important;
+  font-size:34px !important;line-height:1;text-shadow:0 2px 7px rgba(0,0,0,.6);
+  cursor:pointer}
+#page-home .hm-nxc .nxc-crest[data-flag="1"]:active{transform:scale(.92)}
 #page-home .hm-nxc.is-takvim .nxn{color:#c6ccd8}
 #page-home .hm-nxc .nxh{position:absolute;top:4px;right:4px;font-size:6px;
   font-family:'Barlow Condensed',sans-serif;font-weight:900;color:var(--text3);letter-spacing:.3px}
@@ -28377,7 +28383,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-09-antrenman-324';
+const APP_BUILD = '2026-08-09-bayraktik-325';
 
 (function _cacheBustCheck() {
   try {
@@ -60276,7 +60282,10 @@ function _hmNxItem(c) {
       if (_g) o.comp = _hmNxComp(_g);
     }
     // 🆕 Milli maç → kulüp arması yok; ülke bayrağı göster
-    if (c.source === 'national') o.bayrak = _hmUlkeBayrak(o.ad) || o.bayrak;
+    if (c.source === 'national') {
+      o.bayrak = _hmUlkeBayrak(o.ad) || o.bayrak;
+      if (typeof _ulkeKodu === 'function') o.cc = _ulkeKodu(o.ad) || o.cc;
+    }
     return o;
   }
   try {
@@ -60354,11 +60363,34 @@ function _hmApplyStadBg() {
 
 // 🆕 Şerit kartına dokununca RAKİP TAKIM SAYFASI açılır (ziyaretçi modu).
 //   Milli takım maçında rakip bir ülke olduğu için sayfa açılmaz.
+// 🆕 Bayrağa tıklayınca o ülkenin MİLLİ TAKIM sayfasını aç.
+//    Kendi uyruğunsa normal görünüm, başkasıysa izleyici modu.
+function hmAcMilliTakim(x) {
+  try {
+    const cc = (typeof _ulkeKodu === 'function' ? _ulkeKodu(x) : null) || x;
+    if (!cc) return;
+    const benimCC = (typeof getUserNationalityCC === 'function') ? getUserNationalityCC() : null;
+    if (benimCC && cc === benimCC) {
+      try { window._ntViewingCC = null; } catch(e) {}
+      const pageEl = document.getElementById('page-national');
+      if (pageEl) pageEl.classList.remove('nt-guest-mode');
+      if (typeof NT_ROSTER_DATA !== 'undefined') NT_ROSTER_DATA = [];
+      if (typeof _ntCachedCC !== 'undefined') _ntCachedCC = null;
+      if (typeof showPage === 'function') showPage('national');
+      return;
+    }
+    if (typeof ntViewAsGuest === 'function') ntViewAsGuest(cc);
+    else if (typeof showPage === 'function') showPage('national');
+  } catch(e) { console.warn('[hmAcMilliTakim]', e); }
+}
+window.hmAcMilliTakim = hmAcMilliTakim;
+
 function hmNxOpenTeam(i) {
   try {
     const it = (window._hmNxItems || [])[i];
     if (!it || !it.ad || it.ad === '?') return;
-    if (it.tur === 'national') return;               // ülke — kulüp sayfası yok
+    // 🆕 Milli maç slotu → o ülkenin milli takım sayfası
+    if (it.tur === 'national') { hmAcMilliTakim(it.cc || it.ad); return; }
     const benim = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName) || null;
     if (benim && it.ad === benim) {
       if (typeof exitGuestMode === 'function' && typeof _viewingTeam !== 'undefined' && _viewingTeam) {
@@ -61798,6 +61830,23 @@ function _renderHmNationalMatch(n) {
   };
   setCrest('hmNmHomeCrest', hFlag, homeShort);
   setCrest('hmNmAwayCrest', aFlag, awayShort);
+
+  // 🆕 Bayrağa tıklayınca o ülkenin milli takım sayfası açılsın
+  try {
+    const _bagla = (id, ulke) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.style.cursor = 'pointer';
+      el.setAttribute('role', 'button');
+      el.setAttribute('title', (ulke || '') + ' milli takımı');
+      el.onclick = function(ev) {
+        try { ev.stopPropagation(); } catch(e) {}
+        hmAcMilliTakim(ulke);
+      };
+    };
+    _bagla('hmNmHomeCrest', m.home || homeName);
+    _bagla('hmNmAwayCrest', m.away || awayName);
+  } catch(e) {}
 
   // Yükleniyor durumu — sunucu verisi gelene kadar
   setHtml('hmNmHomeForm', '');
