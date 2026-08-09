@@ -28366,7 +28366,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-09-milli-316';
+const APP_BUILD = '2026-08-09-milli-319';
 
 (function _cacheBustCheck() {
   try {
@@ -61452,6 +61452,29 @@ function _ulkeAdi(kod) {
 }
 window._ulkeAdi = _ulkeAdi;
 
+// Son 5 EURO Cup sonucunu v.form'a doldurur
+async function _hmMilliForm(cc, ulkeAd, v) {
+  try {
+    if (!window.sb) return;
+    const adlar = [ulkeAd, cc, _ulkeAdi(cc)].filter(Boolean)
+      .filter((x, i, a) => a.indexOf(x) === i);
+    if (!adlar.length) return;
+    const { data: mac } = await window.sb.from('match_state')
+      .select('home_team,away_team,home_score,away_score,kickoff_at,status')
+      .eq('tournament_key', 'enc')
+      .eq('status', 'finished')
+      .or(adlar.map(a => `home_team.eq.${a}`).concat(adlar.map(a => `away_team.eq.${a}`)).join(','))
+      .order('kickoff_at', { ascending: false })
+      .limit(5);
+    (mac || []).forEach(r => {
+      const ev = adlar.indexOf(r.home_team) >= 0;
+      const b = Number(ev ? r.home_score : r.away_score) || 0;
+      const k = Number(ev ? r.away_score : r.home_score) || 0;
+      v.form.push(b > k ? 'w' : (b === k ? 'd' : 'l'));
+    });
+  } catch(e) {}
+}
+
 async function _hmMilliDetay(ccGirdi, ulkeAdGirdi) {
   // 🔑 Kod/ad normalizasyonu — ESKİ HATA: sunucudan gelen milli maçta
   //    "Türkiye" gibi bir AD geliyor, sorgu ise KOD bekliyordu → boş sonuç.
@@ -61466,6 +61489,31 @@ async function _hmMilliDetay(ccGirdi, ulkeAdGirdi) {
               _teshis: { cc, ulkeAd, kadroKaynak: null, oyuncu: 0, hata: null } };
   try {
     if (!window.sb) { v._teshis.hata = 'sunucu_yok'; return v; }
+
+    // 🆕 ÖNCE SUNUCUNUN HAZIR KAYDI — kulüplerde takım gücü nasıl
+    //    teams.team_ovr / team_lines'tan okunuyorsa, milli takımlar da
+    //    aynı formülle sunucuda hesaplanıp team_data'ya yazılıyor.
+    //    İstemcide yetenek matematiği YOK → players.overall (herkes 10)
+    //    sorunundan tamamen kurtuluyoruz.
+    try {
+      const { data: np } = await window.sb.from('team_data')
+        .select('data').eq('country_code', cc).eq('data_key', 'nt_power')
+        .limit(1).maybeSingle();
+      const d = np && np.data;
+      if (d && d.lines && typeof d.ovr === 'number' && d.ovr > 0) {
+        v.ovr = d.ovr;
+        v.lines = { GK: Number(d.lines.GK) || 0, DEF: Number(d.lines.DEF) || 0,
+                    MID: Number(d.lines.MID) || 0, FWD: Number(d.lines.FWD) || 0 };
+        v.val = Number(d.mv) || 0;
+        v._teshis.kadroKaynak = 'sunucu(' + (d.kaynak || '?') + ')';
+        v._teshis.oyuncu = Number(d.kadro) || 0;
+        // Form'u yine de çek, sonra çık
+        await _hmMilliForm(cc, ulkeAd, v);
+        window._hmMilliCache[anahtar] = { at: Date.now(), v };
+        return v;
+      }
+      v._teshis.hata = 'sunucu_kaydi_yok';
+    } catch(e) { v._teshis.hata = 'sunucu_kaydi: ' + e; }
 
     // 1) MİLLİ KADRO — kulüp kadrosuyla AYNI mantık:
     //    önce federasyonun seçtiği 18 kişilik kadro, yoksa uyruğun en iyileri.
@@ -61494,44 +61542,115 @@ async function _hmMilliDetay(ccGirdi, ulkeAdGirdi) {
     }
 
     // 1b) Kadro yoksa/eksikse: uyruğa göre ara.
-    //     Uyruk hangi kolonda tutuluyor kesin değil → sırayla dene.
-    if (satirlar.length < 11) {
-      const denemeler = [
-        ['nationality', cc],
-        ['nation',      cc],
-        ['country_code', cc],
-        ['nationality', ulkeAd],
-        ['nation',      ulkeAd],
-      ];
+    //     🔑 ESKİ HATA: tek sorguyla 30 oyuncu çekiliyor ve 'overall'a göre
+    //     sıralanıyordu. O sütun herkeste 10 olduğu için sıralama rastgele
+    //     oluyor ve gelen 30 kişinin arasında HİÇ KALECİ olmayabiliyordu
+    //     (Almanya'nın kaleci gücünün boş çıkmasının sebebi buydu).
+    //     Artık her mevki grubu AYRI çekiliyor → her hatta oyuncu garanti.
+    const _uyrukKolonu = async () => {
+      const denemeler = [['nationality', cc], ['nation', cc], ['country_code', cc],
+                         ['nationality', ulkeAd], ['nation', ulkeAd]];
       for (const [kolon, deger] of denemeler) {
         if (!deger) continue;
         try {
           const { data, error } = await window.sb.from('players')
-            .select(KOL).eq(kolon, deger)
-            .order('overall', { ascending: false }).limit(30);
-          if (error) continue;
-          if (data && data.length) {
-            const varOlan = new Set(satirlar.map(p => p.id));
-            data.forEach(p => { if (!varOlan.has(p.id)) satirlar.push(p); });
-            if (!v._teshis.kadroKaynak) v._teshis.kadroKaynak = 'uyruk:' + kolon + '=' + deger;
-            if (satirlar.length >= 11) break;
-          }
+            .select('id').eq(kolon, deger).limit(1);
+          if (!error && data && data.length) return [kolon, deger];
         } catch(e) {}
+      }
+      return null;
+    };
+
+    if (satirlar.length < 11) {
+      const bul = await _uyrukKolonu();
+      if (!bul) {
+        if (!v._teshis.hata) v._teshis.hata = 'uyruk_kolonu_bulunamadi';
+      } else {
+        const [kolon, deger] = bul;
+        v._teshis.kadroKaynak = v._teshis.kadroKaynak || ('uyruk:' + kolon + '=' + deger);
+        const varOlan = new Set(satirlar.map(p => p.id));
+        // Her hattan yeterli aday çek — kaleci dahil
+        const gruplar = [['GK', 8], ['DEF', 16], ['MID', 16], ['FWD', 12]];
+        for (const [g, adet] of gruplar) {
+          try {
+            const { data } = await window.sb.from('players')
+              .select(KOL).eq(kolon, deger).eq('pos_group', g).limit(adet);
+            (data || []).forEach(p => { if (!varOlan.has(p.id)) { varOlan.add(p.id); satirlar.push(p); } });
+          } catch(e) {}
+        }
+        // pos_group boş olan kayıtlar için yedek: pos ile dene
+        if (satirlar.length < 11) {
+          try {
+            const { data } = await window.sb.from('players')
+              .select(KOL).eq(kolon, deger).limit(60);
+            (data || []).forEach(p => { if (!varOlan.has(p.id)) { varOlan.add(p.id); satirlar.push(p); } });
+          } catch(e) {}
+        }
       }
       if (!satirlar.length && !v._teshis.hata) v._teshis.hata = 'oyuncu_bulunamadi';
     }
     v._teshis.oyuncu = satirlar.length;
 
     if (satirlar.length) {
-      // Güce göre sırala (kulüp kadrosunda olduğu gibi)
-      satirlar.sort((a, b) => (Number(b.overall) || 0) - (Number(a.overall) || 0));
-      const kadro = satirlar.slice(0, 18);
+      // 🔑 ESKİ HATA: players.overall kolonuna güveniliyordu — ama o kolon
+      //    veritabanında herkes için 10 (kullanılmıyor). Kulüplerde takım gücü
+      //    teams.team_ovr'dan geliyor, oyuncu gücü ise ABILITIES'ten hesaplanıyor.
+      //    Milli takımın böyle bir hazır kaydı yok → aynı hesabı burada yapıyoruz:
+      //    OVR = (KL_ort + DF_ort + OS_ort + FW_ort) / 4
+      const _guc = (p) => {
+        try {
+          if (typeof getPlayerMainOverall === 'function') {
+            const x = getPlayerMainOverall(p);
+            if (x > 0) return x;
+          }
+          if (typeof getPlayerPositionAvg === 'function' && p && p.abilities) {
+            const y = (getPlayerPositionAvg(p, 'GK') + getPlayerPositionAvg(p, 'DEF')
+                     + getPlayerPositionAvg(p, 'MID') + getPlayerPositionAvg(p, 'FWD')) / 4;
+            if (y > 0) return y;
+          }
+        } catch(e) {}
+        return Number(p && p.overall) || 0;
+      };
+      satirlar.forEach(p => { p._guc = _guc(p); });
 
-      // TAKIM OVR — kulüpteki gibi ilk 11 ortalaması
-      const ilk11 = kadro.slice(0, 11);
+      // 🆕 MEVKİ GRUBU çöz (pos_group boşsa pos'tan türet)
+      const _grup = (p) => {
+        let g = String((p && (p.pos_group || p.pos)) || '').toUpperCase();
+        if (g.indexOf('GK') === 0 || g === 'KL') return 'GK';
+        if (g.indexOf('DEF') === 0 || g === 'DF' || g === 'CB' || g === 'LB' || g === 'RB') return 'DEF';
+        if (g.indexOf('MID') === 0 || g === 'MD' || g === 'CM' || g === 'DM' || g === 'AM') return 'MID';
+        if (g.indexOf('FWD') === 0 || g === 'FW' || g === 'ST' || g === 'LW' || g === 'RW') return 'FWD';
+        return 'MID';
+      };
+      const havuz = { GK: [], DEF: [], MID: [], FWD: [] };
+      satirlar.forEach(p => { havuz[_grup(p)].push(p); });
+      Object.keys(havuz).forEach(g => havuz[g].sort((a, b) => (b._guc || 0) - (a._guc || 0)));
+
+      // 🆕 OTOMATİK İLK 11 — 1 kaleci, 4 defans, 4 orta saha, 2 forvet
+      //    (Federasyon kadro seçmemiş olsa bile her hat dolar.)
+      const ILK11 = { GK: 1, DEF: 4, MID: 4, FWD: 2 };
+      const KADRO = { GK: 2, DEF: 6, MID: 6, FWD: 4 };     // 18 kişilik kadro
+      const ilk11 = [];
+      const kadro  = [];
+      Object.keys(ILK11).forEach(g => {
+        ilk11.push(...havuz[g].slice(0, ILK11[g]));
+        kadro.push(...havuz[g].slice(0, KADRO[g]));
+      });
+      // Bir hat eksikse kalan en güçlülerle tamamla
+      const kalanlar = satirlar.filter(p => ilk11.indexOf(p) < 0)
+                               .sort((a, b) => (b._guc || 0) - (a._guc || 0));
+      while (ilk11.length < 11 && kalanlar.length) ilk11.push(kalanlar.shift());
+      const kadroDisi = satirlar.filter(p => kadro.indexOf(p) < 0)
+                                .sort((a, b) => (b._guc || 0) - (a._guc || 0));
+      while (kadro.length < 18 && kadroDisi.length) kadro.push(kadroDisi.shift());
+
+      // TAKIM OVR — ilk 11'in gerçek güç ortalaması
       v.ovr = ilk11.length
-        ? Math.round(ilk11.reduce((t, p) => t + (Number(p.overall) || 0), 0) / ilk11.length)
+        ? Math.round(ilk11.reduce((t, p) => t + (p._guc || 0), 0) / ilk11.length)
         : 0;
+      v._teshis.ortGuc = v.ovr;
+      v._teshis.hatSayisi = 'GK ' + havuz.GK.length + ' / DEF ' + havuz.DEF.length
+                          + ' / MID ' + havuz.MID.length + ' / FWD ' + havuz.FWD.length;
 
       // HAT GÜÇLERİ — kulüpteki calcLineStrengths ile aynı temel:
       //   varsa abilities üzerinden mevki ortalaması, yoksa overall
@@ -61542,22 +61661,18 @@ async function _hmMilliDetay(ccGirdi, ulkeAdGirdi) {
             if (x > 0) return x;
           }
         } catch(e) {}
-        return Number(p && p.overall) || 0;
+        return p._guc || Number(p && p.overall) || 0;
       };
-      const grup = { GK: [], DEF: [], MID: [], FWD: [] };
-      const KAC  = { GK: 1, DEF: 4, MID: 4, FWD: 2 };
-      kadro.forEach(p => {
-        let g = (p.pos_group || p.pos || '').toUpperCase();
-        if (g.indexOf('GK') === 0) g = 'GK';
-        else if (g.indexOf('DEF') === 0 || g === 'DF') g = 'DEF';
-        else if (g.indexOf('MID') === 0 || g === 'MD') g = 'MID';
-        else if (g.indexOf('FWD') === 0 || g === 'FW' || g.indexOf('ST') === 0) g = 'FWD';
-        else return;
-        grup[g].push(_hatDeger(p, g));
-      });
-      Object.keys(grup).forEach(g => {
-        const en = grup[g].sort((a, b) => b - a).slice(0, KAC[g]);
-        v.lines[g] = en.length ? Math.round(en.reduce((t, x) => t + x, 0) / en.length) : 0;
+      // 🆕 HAT GÜÇLERİ — ilk 11'deki oyuncu sayısı kadar, o hattaki en iyiler.
+      //    Hiç oyuncu yoksa (olmamalı) tüm kadronun o hattaki ortalamasına düşer.
+      Object.keys(ILK11).forEach(g => {
+        let liste = havuz[g].slice(0, ILK11[g]).map(p => _hatDeger(p, g));
+        if (!liste.length) {
+          liste = kadro.slice(0, 5).map(p => _hatDeger(p, g));   // yedek: kadro ortalaması
+        }
+        v.lines[g] = liste.length
+          ? Math.round(liste.reduce((t, x) => t + x, 0) / liste.length)
+          : 0;
       });
 
       // PİYASA DEĞERİ — kadrodaki oyuncuların GERÇEK değerleri toplanır
@@ -61568,26 +61683,12 @@ async function _hmMilliDetay(ccGirdi, ulkeAdGirdi) {
         }
       } catch(e) {}
       v.kadroSayisi = kadro.length;
+      v._teshis.abilitiesDolu = kadro.filter(p => p && p.abilities).length;
+      v._teshis.degerToplam = Math.round(v.val || 0);
     }
 
     // 2) Son 5 EURO Cup sonucu
-    try {
-      const adlar = [ulkeAd, cc, _ulkeAdi(cc)].filter(Boolean)
-        .filter((x, i, a) => a.indexOf(x) === i);
-      const { data: mac } = await window.sb.from('match_state')
-        .select('home_team,away_team,home_score,away_score,kickoff_at,status')
-        .eq('tournament_key', 'enc')
-        .eq('status', 'finished')
-        .or(adlar.map(a => `home_team.eq.${a}`).concat(adlar.map(a => `away_team.eq.${a}`)).join(','))
-        .order('kickoff_at', { ascending: false })
-        .limit(5);
-      (mac || []).forEach(r => {
-        const ev = adlar.indexOf(r.home_team) >= 0;
-        const b = Number(ev ? r.home_score : r.away_score) || 0;
-        const k = Number(ev ? r.away_score : r.home_score) || 0;
-        v.form.push(b > k ? 'w' : (b === k ? 'd' : 'l'));
-      });
-    } catch(e) {}
+    await _hmMilliForm(cc, ulkeAd, v);
   } catch(e) { console.warn('[hmMilliDetay]', e); }
 
   window._hmMilliCache[anahtar] = { at: Date.now(), v };
