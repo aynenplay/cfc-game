@@ -28366,7 +28366,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-08-perf-315';
+const APP_BUILD = '2026-08-09-milli-316';
 
 (function _cacheBustCheck() {
   try {
@@ -61358,15 +61358,114 @@ function _renderHmFriendlyMatch(fm) {
 // ═══════════════════════════════════════════════════════════════
 window._hmMilliCache = window._hmMilliCache || {};
 
-async function _hmMilliDetay(cc, ulkeAd) {
+// ═══════════════════════════════════════════════════════════════
+// 🔬 MİLLİ TAKIM VERİ TEŞHİSİ — telefonda ekranda gösterir.
+//   Kullanım: ana sayfada milli maç önizlemesi açıkken adresin sonuna
+//   ?milli=1 ekle. Panelin altında ne bulunduğunu yazan bir kutu çıkar.
+//   Konsoldan: milliTeshis('TR') veya milliTeshis('Türkiye')
+// ═══════════════════════════════════════════════════════════════
+async function milliTeshis(x) {
+  const kod = _ulkeKodu(x);
+  window._hmMilliCache = {};                 // önbelleği temizle, taze ölç
+  const v = await _hmMilliDetay(x, x);
+  const t = (v && v._teshis) || {};
+  const sat = [
+    'girdi          : ' + x,
+    'çözülen kod    : ' + (kod || '— ÇÖZÜLEMEDİ'),
+    'ülke adı       : ' + (t.ulkeAd || '—'),
+    'kadro kaynağı  : ' + (t.kadroKaynak || '— YOK'),
+    'bulunan oyuncu : ' + (t.oyuncu || 0),
+    'takım OVR      : ' + (v ? v.ovr : '—'),
+    'hatlar         : GK ' + v.lines.GK + ' · DEF ' + v.lines.DEF
+                    + ' · MID ' + v.lines.MID + ' · FWD ' + v.lines.FWD,
+    'kadro değeri   : ' + (v && v.val ? Math.round(v.val).toLocaleString('tr') + ' €' : '0'),
+    'son 5 form     : ' + ((v && v.form && v.form.length) ? v.form.join(' ') : '— YOK'),
+    'hata           : ' + (t.hata || 'yok'),
+  ].join('\n');
+  console.log('%c[MİLLİ TEŞHİS]\n' + sat, 'color:#00e676');
+  try {
+    let k = document.getElementById('milliTeshisKutu');
+    if (!k) {
+      k = document.createElement('div');
+      k.id = 'milliTeshisKutu';
+      k.style.cssText = 'position:fixed;left:6px;right:6px;bottom:6px;z-index:2147483600;'
+        + 'background:rgba(0,0,0,.9);color:#00e676;border:1px solid #00e676;border-radius:8px;'
+        + 'padding:8px 10px;font:11px/1.5 monospace;white-space:pre;overflow:auto;max-height:52vh';
+      k.onclick = function(){ k.remove(); };
+      document.body.appendChild(k);
+    }
+    k.textContent = '🔬 MİLLİ TAKIM VERİ TEŞHİSİ\n\n' + sat + '\n\n[dokun = kapat]';
+  } catch(e) {}
+  return v;
+}
+window.milliTeshis = milliTeshis;
+
+// ?milli=1 → milli maç render edilince otomatik teşhis
+try {
+  if (location.search.indexOf('milli=1') >= 0) window._milliTeshisOtomatik = true;
+} catch(e) {}
+
+// 🆕 Ülke KODU çöz — girdi kod ("TR") da olabilir ad ("Türkiye") da.
+//    match_state'ten gelen milli maçlarda takım alanı ÜLKE ADI tutuyor;
+//    oyuncular tablosunda ise uyruk KOD ile saklanıyor. Bu uyumsuzluk
+//    yüzünden sorgular boş dönüyordu.
+window._ulkeKoduCache = window._ulkeKoduCache || {};
+function _ulkeKodu(x) {
+  if (!x) return null;
+  const g = String(x).trim();
+  if (Object.prototype.hasOwnProperty.call(window._ulkeKoduCache, g)) return window._ulkeKoduCache[g];
+  let kod = null;
+  try {
+    if (/^[A-Za-z]{2}$/.test(g)) {
+      kod = g.toUpperCase();
+    } else {
+      const norm = y => String(y || '').toLocaleLowerCase('tr').replace(/[\s.'-]/g, '');
+      const hedef = norm(g);
+      if (typeof _cftAllEntries === 'function') {
+        for (const [k, c] of _cftAllEntries()) {
+          if (!c) continue;
+          if (norm(c.name) === hedef || norm(c.countryName) === hedef) { kod = k; break; }
+        }
+      }
+      if (!kod && typeof CFT_ALL_COUNTRIES !== 'undefined' && Array.isArray(CFT_ALL_COUNTRIES)) {
+        const t = CFT_ALL_COUNTRIES.find(c => c && norm(c.name) === hedef);
+        if (t) kod = t.code;
+      }
+    }
+  } catch(e) {}
+  window._ulkeKoduCache[g] = kod;
+  return kod;
+}
+window._ulkeKodu = _ulkeKodu;
+
+// 🆕 Ülke ADI çöz (kodtan)
+function _ulkeAdi(kod) {
+  try {
+    const c = (typeof _cftGetCountry === 'function' && kod) ? _cftGetCountry(kod) : null;
+    if (c && (c.name || c.countryName)) return c.name || c.countryName;
+    if (typeof CFT_ALL_COUNTRIES !== 'undefined' && Array.isArray(CFT_ALL_COUNTRIES)) {
+      const t = CFT_ALL_COUNTRIES.find(x => x && x.code === kod);
+      if (t) return t.name;
+    }
+  } catch(e) {}
+  return kod || '';
+}
+window._ulkeAdi = _ulkeAdi;
+
+async function _hmMilliDetay(ccGirdi, ulkeAdGirdi) {
+  // 🔑 Kod/ad normalizasyonu — ESKİ HATA: sunucudan gelen milli maçta
+  //    "Türkiye" gibi bir AD geliyor, sorgu ise KOD bekliyordu → boş sonuç.
+  const cc = _ulkeKodu(ccGirdi) || _ulkeKodu(ulkeAdGirdi);
+  const ulkeAd = _ulkeAdi(cc) || ulkeAdGirdi || ccGirdi;
   const anahtar = String(cc || ulkeAd || '');
   if (!anahtar) return null;
   const onb = window._hmMilliCache[anahtar];
   if (onb && (Date.now() - onb.at) < 300000) return onb.v;
 
-  const v = { ovr: 0, lines: { GK: 0, DEF: 0, MID: 0, FWD: 0 }, val: 0, form: [] };
+  const v = { ovr: 0, lines: { GK: 0, DEF: 0, MID: 0, FWD: 0 }, val: 0, form: [],
+              _teshis: { cc, ulkeAd, kadroKaynak: null, oyuncu: 0, hata: null } };
   try {
-    if (!window.sb) return v;
+    if (!window.sb) { v._teshis.hata = 'sunucu_yok'; return v; }
 
     // 1) MİLLİ KADRO — kulüp kadrosuyla AYNI mantık:
     //    önce federasyonun seçtiği 18 kişilik kadro, yoksa uyruğun en iyileri.
@@ -61378,32 +61477,50 @@ async function _hmMilliDetay(cc, ulkeAd) {
     // 1a) Federasyon kadrosu (team_data → nt_squad, uuid listesi)
     let kadroIds = null;
     try {
-      const ntAd = (typeof _ntCountryName === 'function') ? _ntCountryName(cc) : ulkeAd;
-      const { data: td } = await window.sb.from('team_data')
+      const { data: td, error: tdErr } = await window.sb.from('team_data')
         .select('data').eq('country_code', cc).eq('data_key', 'nt_squad')
         .limit(1).maybeSingle();
+      if (tdErr) v._teshis.hata = 'kadro_sorgu: ' + (tdErr.message || tdErr);
       if (td && Array.isArray(td.data)) kadroIds = td.data.filter(Boolean);
-    } catch(e) {}
+    } catch(e) { v._teshis.hata = 'kadro_istisna: ' + e; }
 
     if (kadroIds && kadroIds.length) {
       try {
-        const { data } = await window.sb.from('players').select(KOL).in('id', kadroIds.slice(0, 25));
+        const { data, error } = await window.sb.from('players').select(KOL).in('id', kadroIds.slice(0, 25));
+        if (error) v._teshis.hata = 'kadro_oyuncu: ' + (error.message || error);
         satirlar = data || [];
-      } catch(e) {}
+        if (satirlar.length) v._teshis.kadroKaynak = 'federasyon_kadrosu';
+      } catch(e) { v._teshis.hata = 'kadro_oyuncu_istisna: ' + e; }
     }
 
-    // 1b) Kadro yoksa/eksikse: uyruğun en güçlü oyuncuları
+    // 1b) Kadro yoksa/eksikse: uyruğa göre ara.
+    //     Uyruk hangi kolonda tutuluyor kesin değil → sırayla dene.
     if (satirlar.length < 11) {
-      try {
-        const { data } = await window.sb.from('players')
-          .select(KOL)
-          .or(`nationality.eq.${cc},nation.eq.${cc}`)
-          .order('overall', { ascending: false })
-          .limit(30);
-        const varOlan = new Set(satirlar.map(p => p.id));
-        (data || []).forEach(p => { if (!varOlan.has(p.id)) satirlar.push(p); });
-      } catch(e) {}
+      const denemeler = [
+        ['nationality', cc],
+        ['nation',      cc],
+        ['country_code', cc],
+        ['nationality', ulkeAd],
+        ['nation',      ulkeAd],
+      ];
+      for (const [kolon, deger] of denemeler) {
+        if (!deger) continue;
+        try {
+          const { data, error } = await window.sb.from('players')
+            .select(KOL).eq(kolon, deger)
+            .order('overall', { ascending: false }).limit(30);
+          if (error) continue;
+          if (data && data.length) {
+            const varOlan = new Set(satirlar.map(p => p.id));
+            data.forEach(p => { if (!varOlan.has(p.id)) satirlar.push(p); });
+            if (!v._teshis.kadroKaynak) v._teshis.kadroKaynak = 'uyruk:' + kolon + '=' + deger;
+            if (satirlar.length >= 11) break;
+          }
+        } catch(e) {}
+      }
+      if (!satirlar.length && !v._teshis.hata) v._teshis.hata = 'oyuncu_bulunamadi';
     }
+    v._teshis.oyuncu = satirlar.length;
 
     if (satirlar.length) {
       // Güce göre sırala (kulüp kadrosunda olduğu gibi)
@@ -61455,7 +61572,8 @@ async function _hmMilliDetay(cc, ulkeAd) {
 
     // 2) Son 5 EURO Cup sonucu
     try {
-      const adlar = [ulkeAd, cc].filter(Boolean);
+      const adlar = [ulkeAd, cc, _ulkeAdi(cc)].filter(Boolean)
+        .filter((x, i, a) => a.indexOf(x) === i);
       const { data: mac } = await window.sb.from('match_state')
         .select('home_team,away_team,home_score,away_score,kickoff_at,status')
         .eq('tournament_key', 'enc')
@@ -61627,6 +61745,28 @@ function _renderHmNationalMatch(n) {
       };
       setHtml('hmNmHomeForm', _formHtml(hv.form, false));
       setHtml('hmNmAwayForm', _formHtml(av.form, true));
+
+      // 🔬 ?milli=1 ile açıldıysa ne bulunduğunu ekrana yaz
+      if (window._milliTeshisOtomatik) {
+        try {
+          const _y = (ad, o) => ad + ': kaynak=' + ((o._teshis && o._teshis.kadroKaynak) || 'YOK')
+            + ' · oyuncu=' + ((o._teshis && o._teshis.oyuncu) || 0)
+            + ' · ovr=' + o.ovr + ' · değer=' + Math.round(o.val || 0).toLocaleString('tr')
+            + ' · form=' + ((o.form && o.form.length) ? o.form.join('') : '-')
+            + ' · hata=' + ((o._teshis && o._teshis.hata) || 'yok');
+          let k = document.getElementById('milliTeshisKutu');
+          if (!k) {
+            k = document.createElement('div');
+            k.id = 'milliTeshisKutu';
+            k.style.cssText = 'position:fixed;left:6px;right:6px;bottom:6px;z-index:2147483600;'
+              + 'background:rgba(0,0,0,.9);color:#00e676;border:1px solid #00e676;border-radius:8px;'
+              + 'padding:8px 10px;font:10.5px/1.5 monospace;white-space:pre-wrap;max-height:45vh;overflow:auto';
+            k.onclick = function(){ k.remove(); };
+            document.body.appendChild(k);
+          }
+          k.textContent = '🔬 MİLLİ TAKIM VERİSİ\n\n' + _y('EV ', hv) + '\n\n' + _y('DEP', av) + '\n\n[dokun = kapat]';
+        } catch(e) {}
+      }
     } catch(e) { console.warn('[hmNational veri]', e); }
   })();
 
