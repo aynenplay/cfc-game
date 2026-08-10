@@ -122,6 +122,17 @@
   .opgun.bugun{ outline:2px solid var(--accent); outline-offset:1px; }
   .oplej{ display:flex; gap:14px; flex-wrap:wrap; margin-top:12px; font-size:11px; color:var(--dim); }
   .oplej i{ display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; vertical-align:-1px; }
+  .bcbox{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px; }
+  .bcsat{ display:flex; gap:10px; align-items:center; margin-bottom:11px; flex-wrap:wrap; }
+  .bclbl{ font-size:12px; color:var(--dim); min-width:88px; }
+  .bcinp{ background:var(--bg); border:1px solid var(--line); border-radius:9px; color:var(--txt);
+    padding:9px 11px; font-family:var(--body); font-size:13px; flex:1; min-width:170px; }
+  .bctext{ min-height:110px; resize:vertical; width:100%; }
+  .bcalt{ display:flex; align-items:center; gap:12px; margin-top:6px; }
+  .bcsay{ font-size:12.5px; color:var(--accent); font-weight:700; margin-right:auto; }
+  .fbreply{ margin-top:8px; padding:9px 11px; border-radius:10px; font-size:12.5px; line-height:1.6;
+    background:rgba(46,195,107,.07); border:1px solid rgba(46,195,107,.25); color:var(--txt); }
+  .fbreply b{ color:var(--accent); }
 
   #logoutBtn{ display:block; width:100%; text-align:left; background:transparent; color:var(--red);
     font-weight:700; padding:9px 11px; margin-top:14px; border:1px solid transparent; border-radius:9px; }
@@ -718,9 +729,11 @@ function fbItemHtml(f){
       <span class="when">${_fbTime(f.created_at)}</span>
     </div>
     <div class="msg">${_fbEsc(f.message)}</div>
+    ${f.reply ? `<div class="fbreply"><b>Cevabın:</b> ${_fbEsc(f.reply)}</div>` : ''}
     <div class="foot">
       <span class="who">Gönderen: ${_fbEsc(who)}</span>
       <span class="acts">
+        <button class="btn green" data-fbr="${f.id}">${f.reply ? 'Cevabı Düzenle' : 'Cevapla'}</button>
         ${st!=='okundu'?`<button class="btn" data-fbs="okundu" data-id="${f.id}">Okundu</button>`:''}
         ${st!=='cozuldu'?`<button class="btn gold" data-fbs="cozuldu" data-id="${f.id}">Çözüldü</button>`:''}
         <button class="btn red" data-fbd="${f.id}">Sil</button>
@@ -744,6 +757,22 @@ function renderFeedback(){
   area.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{ FB_FILTER=c.dataset.f; renderFeedback(); });
   area.querySelectorAll('[data-fbs]').forEach(b=>b.onclick=()=>fbStatus(b.dataset.id, b.dataset.fbs));
   area.querySelectorAll('[data-fbd]').forEach(b=>b.onclick=()=>fbDelete(b.dataset.fbd));
+  area.querySelectorAll('[data-fbr]').forEach(b=>b.onclick=()=>fbReply(b.dataset.fbr));
+}
+
+// 🆕 Geri bildirime cevap yaz — oyuncunun gelen kutusuna sistem mesajı olarak düşer
+async function fbReply(id){
+  const f = FB_DATA.find(x => String(x.id) === String(id));
+  const mevcut = (f && f.reply) || '';
+  const cevap = prompt('Oyuncuya cevabın:\n\n"' + String((f&&f.message)||'').slice(0,200) + '"', mevcut);
+  if (cevap === null) return;
+  const metin = String(cevap).trim();
+  if (!metin) { alert('Cevap boş olamaz.'); return; }
+  try {
+    await api('update', { table:'feedback', pk:{ id },
+      values:{ reply: metin, replied_at: new Date().toISOString(), status:'cozuldu' } });
+    loadFeedback();
+  } catch(e){ alert('Cevap kaydedilemedi: '+e.message); }
 }
 
 async function fbStatus(id, status){
@@ -771,12 +800,13 @@ const NAV = [
   { cat:'ETKİNLİK',       tables:['achievement_defs','toto_pools'] },
   { cat:'ANTRENMAN',      tables:[] },
   { cat:'CSC MEDIA',      tables:['social_posts','social_likes','social_follows'] },
-  { cat:'İNBOX',          tables:['user_inbox'] },
+  { cat:'İNBOX',          tables:['__duyuru__','user_inbox','broadcasts'] },
   { cat:'EKONOMİ',        tables:['__economy__','bet_slips','scratch_cards'] },
   { cat:'AYARLAR',        tables:['__ops__','match_writes'] }
 ];
 const VIRT = { '__users__':'Kullanıcılar', '__players__':'Oyuncular', '__clubs__':'Takımlar', '__nts__':'Milli Takımlar', '__feds__':'Federasyonlar',
-  '__ops__':'Operasyon', '__season__':'Sezon & Takvim', '__economy__':'Ekonomi Özeti' };
+  '__ops__':'Operasyon', '__season__':'Sezon & Takvim', '__economy__':'Ekonomi Özeti',
+  '__duyuru__':'Toplu Duyuru' };
 const CHEV = '<svg class="chev" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg>';
 
 function buildNav() {
@@ -805,6 +835,7 @@ function buildNav() {
     else if(t==='__ops__') openOps();
     else if(t==='__season__') openSeason();
     else if(t==='__economy__') openEconomy();
+    else if(t==='__duyuru__') openBroadcast();
     else openTable(t); });
 }
 
@@ -2185,6 +2216,110 @@ async function openEconomy() {
         <tbody>${satir || '<tr><td colspan="3">Kayıt yok</td></tr>'}</tbody></table></div></div>`
     + `<div class="opnot">Kupon dengesi negatifse oyuncular kazandığından fazlasını almış demektir —
        oran ayarlarını gözden geçir. Tablo "okunamadı" diyorsa o tablo henüz gateway'e tanıtılmamıştır.</div>`;
+}
+
+
+/* ─────────────── TOPLU DUYURU ─────────────── */
+let BC_ULKELER = [];
+
+async function openBroadcast() {
+  _opTemizle();
+  $('nav').querySelectorAll('.sub').forEach(b => b.classList.toggle('active', b.dataset.t === '__duyuru__'));
+  const act = $('nav').querySelector('.sub.active'); if (act) act.closest('.cat').classList.add('open');
+  $('main').innerHTML = _opBaslik('Toplu Duyuru','yükleniyor…') + '<div class="msg">Yükleniyor…</div>';
+
+  // Ülke ve takım listesi + oyuncu sayıları
+  let oyuncular = [];
+  try { const r = await api('list',{ table:'players', limit:2000 }); oyuncular = r.rows || []; } catch(e) {}
+  const gercek = oyuncular.filter(p => p && p.user_id && !p.is_bot);
+  const ulkeSay = {}, takimSay = {};
+  gercek.forEach(p => {
+    const cc = p.nationality || p.country_code;
+    if (cc) ulkeSay[cc] = (ulkeSay[cc]||0)+1;
+    if (p.team_name) takimSay[p.team_name] = (takimSay[p.team_name]||0)+1;
+  });
+  BC_ULKELER = Object.keys(ulkeSay).sort((a,b)=>ulkeSay[b]-ulkeSay[a]);
+  const takimlar = Object.keys(takimSay).sort();
+
+  $('main').innerHTML = _opBaslik('Toplu Duyuru', gercek.length + ' gerçek oyuncu')
+    + `<div class="bcbox fadein">
+        <div class="bcsat"><span class="bclbl">Kime</span>
+          <select id="bcHedef" class="bcinp">
+            <option value="all">Tüm oyuncular (${gercek.length})</option>
+            <option value="country">Bir ülke</option>
+            <option value="team">Bir takım</option>
+          </select></div>
+
+        <div class="bcsat" id="bcUlkeSat" style="display:none"><span class="bclbl">Ülke</span>
+          <select id="bcUlke" class="bcinp">
+            ${BC_ULKELER.map(cc=>`<option value="${cc}">${cc} — ${ulkeSay[cc]} oyuncu</option>`).join('')}
+          </select></div>
+
+        <div class="bcsat" id="bcTakimSat" style="display:none"><span class="bclbl">Takım</span>
+          <select id="bcTakim" class="bcinp">
+            ${takimlar.map(t=>`<option value="${t}">${t} — ${takimSay[t]} oyuncu</option>`).join('')}
+          </select></div>
+
+        <div class="bcsat"><span class="bclbl">Gönderen</span>
+          <input id="bcFrom" class="bcinp" value="📢 Yönetim"></div>
+
+        <div class="bcsat"><span class="bclbl">Başlık</span>
+          <input id="bcBaslik" class="bcinp" placeholder="Örn: Sezon 4 Başlıyor"></div>
+
+        <div class="bcsat" style="align-items:flex-start">
+          <span class="bclbl" style="padding-top:9px">Mesaj</span>
+          <textarea id="bcGovde" class="bcinp bctext" placeholder="Duyuru metni…"></textarea></div>
+
+        <div id="bcHata" class="opnot" style="display:none;border-color:rgba(226,59,90,.35);color:#ff8ea3"></div>
+
+        <div class="bcalt">
+          <span class="bcsay" id="bcSay">${gercek.length} kişiye gidecek</span>
+          <button class="btn green" id="bcGonder">Duyuruyu Gönder</button>
+        </div>
+      </div>
+      <div class="opnot">Duyuru tek kayıt olarak saklanır; oyun açıldığında hedefindeki oyuncuların
+      gelen kutusuna otomatik düşer. Aynı duyuru bir oyuncuya ikinci kez gösterilmez.
+      Gönderdikten sonra <b>broadcasts</b> tablosundan pasife alabilirsin.</div>`;
+
+  const hedef = $('bcHedef'), uSat = $('bcUlkeSat'), tSat = $('bcTakimSat'), say = $('bcSay');
+  const guncelle = () => {
+    const h = hedef.value;
+    uSat.style.display = (h === 'country') ? '' : 'none';
+    tSat.style.display = (h === 'team')    ? '' : 'none';
+    let n = gercek.length;
+    if (h === 'country') n = ulkeSay[$('bcUlke').value] || 0;
+    if (h === 'team')    n = takimSay[$('bcTakim').value] || 0;
+    say.textContent = n + ' kişiye gidecek';
+  };
+  hedef.onchange = guncelle;
+  if ($('bcUlke'))  $('bcUlke').onchange  = guncelle;
+  if ($('bcTakim')) $('bcTakim').onchange = guncelle;
+  guncelle();
+
+  $('bcGonder').onclick = async () => {
+    const hata = $('bcHata');
+    const gost = (m) => { hata.textContent = m; hata.style.display = 'block'; };
+    const baslik = String($('bcBaslik').value||'').trim();
+    const govde  = String($('bcGovde').value||'').trim();
+    if (baslik.length < 3) return gost('Başlık en az 3 karakter olmalı.');
+    if (govde.length < 10) return gost('Mesaj en az 10 karakter olmalı.');
+    const h = hedef.value;
+    const deger = (h === 'country') ? $('bcUlke').value : (h === 'team') ? $('bcTakim').value : null;
+    if (!confirm(say.textContent + '. Onaylıyor musun?')) return;
+
+    const btn = $('bcGonder'); btn.disabled = true; btn.textContent = 'Gönderiliyor…';
+    try {
+      await api('insert', { table:'broadcasts', values:{
+        hedef: h, hedef_deger: deger, baslik, govde,
+        gonderen: String($('bcFrom').value||'📢 Yönetim').trim() || '📢 Yönetim', aktif: true } });
+      btn.textContent = '✓ Gönderildi';
+      $('bcBaslik').value = ''; $('bcGovde').value = '';
+      setTimeout(()=>{ btn.disabled=false; btn.textContent='Duyuruyu Gönder'; hata.style.display='none'; }, 1800);
+    } catch(e) {
+      btn.disabled = false; btn.textContent = 'Duyuruyu Gönder';
+      gost('Gönderilemedi: ' + e.message);
+    }
+  };
 }
 
 function showLogin(){ var b=$('boot'); if(b) b.style.display='none'; $('app').classList.remove('show'); $('login').style.display='block'; }

@@ -16176,6 +16176,33 @@ body.inbox-open #main{visibility:hidden!important;pointer-events:none!important}
 #page-home .hm-nxc.is-takvim:active{transform:none}
 #page-home .hm-nxc.is-takvim .nxc-crest{background:none !important;box-shadow:none !important;
   font-size:22px !important;border-radius:0 !important}
+/* ═══ 🆕 DESTEK MODALI (şikayet / istek / talep) ═══ */
+.sup-ov{position:fixed;inset:0;z-index:9998;display:flex;align-items:center;justify-content:center;
+  padding:18px;background:rgba(0,0,0,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  opacity:0;transition:opacity .18s}
+.sup-ov.acik{opacity:1}
+.sup-modal{width:100%;max-width:380px;background:linear-gradient(180deg,#15191e,#0a0d11);
+  border:1px solid var(--border);border-radius:16px;padding:16px;
+  box-shadow:0 20px 60px rgba(0,0,0,.65)}
+.sup-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.sup-ikon{font-size:24px;line-height:1}
+.sup-baslik{flex:1;font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:#fff}
+.sup-kapat{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.16);color:#ddd;font-size:14px;font-weight:700;cursor:pointer}
+.sup-ipucu{font-size:11.5px;color:var(--text3);line-height:1.6;margin-bottom:10px}
+.sup-text{width:100%;min-height:120px;resize:vertical;background:var(--bg3,#12161d);
+  border:1px solid var(--border);border-radius:11px;color:var(--text);padding:11px 12px;
+  font-family:'Barlow',sans-serif;font-size:13px;line-height:1.55}
+.sup-text:focus{outline:none;border-color:rgba(255,255,255,.28)}
+.sup-sayac{text-align:right;font-size:10.5px;color:var(--text3);margin-top:4px}
+.sup-hata{margin-top:8px;font-size:11.5px;color:#ff8ea3;background:rgba(239,83,80,.10);
+  border:1px solid rgba(239,83,80,.28);border-radius:9px;padding:8px 10px}
+.sup-btn{width:100%;margin-top:11px;padding:12px;border:none;border-radius:11px;color:#08121a;
+  font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:900;letter-spacing:.5px;
+  text-transform:uppercase;cursor:pointer}
+.sup-btn:disabled{opacity:.6;cursor:default}
+.sup-not{margin-top:9px;text-align:center;font-size:10.5px;color:var(--text3)}
+
 /* ═══ 🆕 TURNUVA BİLDİRİM KARTI (gelen kutusu) ═══ */
 .trn-card{background:rgba(255,214,0,.045);border:1px solid rgba(255,214,0,.22);
   border-radius:14px;padding:12px;margin:10px 0}
@@ -28458,7 +28485,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-09-trnmesaj-329';
+const APP_BUILD = '2026-08-10-destek-330';
 
 (function _cacheBustCheck() {
   try {
@@ -29521,6 +29548,10 @@ Object.assign(window.I18N.en, {
 'Bu kuponu oyna':'Place this slip','Maçlar başladı':'Matches have started',
 'Yaklaşan maç yok':'No upcoming match','Fikstürü Aç':'Open Fixtures','Bir takıma katıl':'Join a team',
 'Bugün lig maçı yok':'No league matches today',
+'Şikayet Gönder':'Send Complaint','İstek Gönder':'Send Request','Talep Gönder':'Send Enquiry',
+'Gönder':'Send','Gönderiliyor…':'Sending…','Buraya yaz…':'Write here…',
+'Cevap geldiğinde gelen kutuna bildirim düşer.':'You will get an inbox notification when we reply.',
+'En az 10 karakter yaz.':'Write at least 10 characters.','Oturum bulunamadı.':'Session not found.',
 'Özet':'Summary','İstatistik':'Stats','Reyting':'Ratings','⭐ Oyuncu Reytingleri':'⭐ Player Ratings',
 '⚽ Goller':'⚽ Goals','🏆 Maçın Adamı':'🏆 Man of the Match','Maçın adamı verisi yok':'No man of the match data',
 'Topla Oynama':'Possession','Korner':'Corners','Faul':'Fouls','Grup Aşaması':'Group Stage',
@@ -48249,25 +48280,141 @@ function renderSettings() {
 // ── Destek: Şikayet / İstek / Talep (placeholder) ──
 // Admin paneli henüz yapılmadı — şimdilik kullanıcıya bilgi toast'ı gösterir.
 // İleride: form modal'ı + admin paneline kaydet
-function supportOpen(type) {
-  const labels = {
-    complaint: { icon:'🚨', label:'Şikayet', color:'#ef5350' },
-    request:   { icon:'💡', label:'İstek',   color:'#ffd54f' },
-    inquiry:   { icon:'📋', label:'Talep',   color:'#00b0ff' },
-  };
-  const cfg = labels[type] || labels.inquiry;
+// ═══════════════════════════════════════════════════════════════
+// 🆕 DESTEK — şikayet / istek / talep
+//   Oyuncu yazar → feedback tablosuna kaydedilir → yönetici panelden
+//   okur ve cevaplar → cevap gelen kutusuna sistem mesajı olarak düşer.
+// ═══════════════════════════════════════════════════════════════
+const SUPPORT_TIPLER = {
+  complaint: { ikon:'🚨', ad:'Şikayet', renk:'#ef5350', db:'sikayet',
+               ipucu:'Yaşadığın sorunu, hatayı veya kural ihlalini yaz. Mümkünse takım/oyuncu adı ekle.' },
+  request:   { ikon:'💡', ad:'İstek',   renk:'#ffd54f', db:'istek',
+               ipucu:'Oyunda görmek istediğin özelliği veya iyileştirmeyi anlat.' },
+  inquiry:   { ikon:'📋', ad:'Talep',   renk:'#00b0ff', db:'talep',
+               ipucu:'Hesabın, takımın veya bir işlemle ilgili talebini yaz.' },
+};
 
-  // Geçici toast: admin paneli yapılana kadar
-  const t = document.createElement('div');
-  t.style.cssText = `position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--card);border:1px solid var(--border);border-radius:14px;padding:24px 22px;max-width:300px;z-index:9999;box-shadow:0 12px 40px rgba(0,0,0,.6);text-align:center;font-family:'Barlow',sans-serif`;
-  t.innerHTML = `
-    <div style="font-size:42px;margin-bottom:10px">${cfg.icon}</div>
-    <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:${cfg.color};letter-spacing:.4px;margin-bottom:8px">${cfg.label} Sistemi</div>
-    <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:16px">Destek paneli yapım aşamasında. Çok yakında ${cfg.label.toLowerCase()}lerini buradan admine iletebileceksin.</div>
-    <button onclick="this.parentElement.remove()" style="width:100%;padding:10px;background:${cfg.color};color:#000;border:none;border-radius:8px;font-weight:800;font-size:12px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;letter-spacing:.4px;text-transform:uppercase">Tamam</button>
-  `;
-  document.body.appendChild(t);
+function supportOpen(type) {
+  const cfg = SUPPORT_TIPLER[type] || SUPPORT_TIPLER.inquiry;
+  supportClose();
+
+  const ov = document.createElement('div');
+  ov.id = 'supportOverlay';
+  ov.className = 'sup-ov';
+  ov.onclick = (e) => { if (e.target === ov) supportClose(); };
+  ov.innerHTML = `
+    <div class="sup-modal">
+      <div class="sup-head">
+        <div class="sup-ikon" style="color:${cfg.renk}">${cfg.ikon}</div>
+        <div class="sup-baslik">${cfg.ad} Gönder</div>
+        <button class="sup-kapat" onclick="supportClose()" aria-label="Kapat">✕</button>
+      </div>
+      <div class="sup-ipucu">${cfg.ipucu}</div>
+      <textarea id="supText" class="sup-text" maxlength="1000"
+        placeholder="Buraya yaz…"></textarea>
+      <div class="sup-sayac"><span id="supSay">0</span> / 1000</div>
+      <div id="supHata" class="sup-hata" style="display:none"></div>
+      <button id="supGonder" class="sup-btn" style="background:${cfg.renk}">Gönder</button>
+      <div class="sup-not">Cevap geldiğinde gelen kutuna bildirim düşer.</div>
+    </div>`;
+  document.body.appendChild(ov);
+  requestAnimationFrame(() => ov.classList.add('acik'));
+
+  const ta = document.getElementById('supText');
+  const sy = document.getElementById('supSay');
+  if (ta) { ta.focus(); ta.oninput = () => { if (sy) sy.textContent = ta.value.length; }; }
+  const btn = document.getElementById('supGonder');
+  if (btn) btn.onclick = () => supportGonder(cfg.db, cfg.ad);
 }
+
+function supportClose() {
+  const ov = document.getElementById('supportOverlay');
+  if (ov) ov.remove();
+}
+window.supportClose = supportClose;
+
+async function supportGonder(tip, ad) {
+  const ta = document.getElementById('supText');
+  const btn = document.getElementById('supGonder');
+  const hata = document.getElementById('supHata');
+  const gost = (m) => { if (hata) { hata.textContent = m; hata.style.display = 'block'; } };
+  if (!ta) return;
+  const metin = String(ta.value || '').trim();
+  if (metin.length < 10) { gost('En az 10 karakter yaz.'); return; }
+  if (!window.sb || !window.authUser || !window.authUser.id) { gost('Oturum bulunamadı.'); return; }
+
+  btn.disabled = true; btn.textContent = 'Gönderiliyor…';
+  try {
+    const { error } = await window.sb.from('feedback').insert({
+      user_id: window.authUser.id,
+      username: (window.authUser.name || window.authUser.username || null),
+      type: tip,
+      message: metin.slice(0, 1000),
+    });
+    if (error) throw error;
+    supportClose();
+    if (typeof rosterToast === 'function') rosterToast('✅ ' + ad + ' gönderildi', 'ok');
+    else if (typeof showToast === 'function') showToast('✅ ' + ad + ' gönderildi');
+  } catch(e) {
+    console.warn('[destek] gönderilemedi:', e);
+    btn.disabled = false; btn.textContent = 'Gönder';
+    gost('Gönderilemedi: ' + (e.message || e));
+  }
+}
+
+// ── Yönetici cevabı geldi mi? (gelen kutusuna işle) ──
+async function supportCevapTara() {
+  try {
+    if (!window.sb || !window.authUser || !window.authUser.id) return;
+    if (typeof sysMsg !== 'function') return;
+    const { data } = await window.sb.from('feedback')
+      .select('id,type,message,reply,replied_at')
+      .eq('user_id', window.authUser.id)
+      .not('reply', 'is', null)
+      .order('replied_at', { ascending: false }).limit(20);
+    (data || []).forEach(f => {
+      const ad = { sikayet:'Şikayet', istek:'İstek', talep:'Talep' }[f.type] || 'Bildirim';
+      sysMsg({
+        id: 'destek_' + f.id,
+        from: '🛟 Destek', avatar: '🛟', kind: 'destek',
+        subject: ad + 'ine Cevap Geldi',
+        body: 'Gönderdiğin mesaj:\n"' + String(f.message || '').slice(0, 300) + '"\n\n'
+            + '— Yönetim cevabı —\n' + String(f.reply || ''),
+      });
+    });
+  } catch(e) {}
+}
+window.supportCevapTara = supportCevapTara;
+
+// ── Toplu duyurular (broadcasts) → gelen kutusu ──
+async function duyuruTara() {
+  try {
+    if (!window.sb || typeof sysMsg !== 'function') return;
+    const { data } = await window.sb.from('broadcasts')
+      .select('id,hedef,hedef_deger,baslik,govde,gonderen,created_at')
+      .eq('aktif', true).order('created_at', { ascending: false }).limit(30);
+    if (!data || !data.length) return;
+
+    const uyruk = (typeof getUserNationalityCC === 'function') ? getUserNationalityCC() : null;
+    const takim = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : null;
+    const ulke  = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.countryCode : null;
+
+    data.forEach(b => {
+      let bana = false;
+      if (b.hedef === 'all') bana = true;
+      else if (b.hedef === 'country') bana = !!b.hedef_deger && (b.hedef_deger === uyruk || b.hedef_deger === ulke);
+      else if (b.hedef === 'team')    bana = !!b.hedef_deger && (b.hedef_deger === takim);
+      if (!bana) return;
+      sysMsg({
+        id: 'yayin_' + b.id,
+        from: b.gonderen || '📢 Yönetim', avatar: '📢', kind: 'duyuru',
+        subject: b.baslik || 'Duyuru',
+        body: b.govde || '',
+      });
+    });
+  } catch(e) {}
+}
+window.duyuruTara = duyuruTara;
 
 // ── Takımdan ayrıl onayı ──
 // ══════════════════════════════════════════════════════════════
@@ -84768,6 +84915,10 @@ function sysMsgTara() {
 
     // ── Başarım bildirimi (tek mesaj, yalnızca yeni açılanlar) ──
     try { if (typeof _achMesajKontrol === 'function') _achMesajKontrol(); } catch(e) {}
+
+    // ── 🆕 Yönetim duyuruları + destek cevapları ──
+    try { if (typeof duyuruTara === 'function') duyuruTara(); } catch(e) {}
+    try { if (typeof supportCevapTara === 'function') supportCevapTara(); } catch(e) {}
 
     // ── G38 · Enerjin doldu ──
     try {
