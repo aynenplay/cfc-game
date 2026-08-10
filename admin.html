@@ -130,6 +130,12 @@
   .bctext{ min-height:110px; resize:vertical; width:100%; }
   .bcalt{ display:flex; align-items:center; gap:12px; margin-top:6px; }
   .bcsay{ font-size:12.5px; color:var(--accent); font-weight:700; margin-right:auto; }
+  .opdet{ border:1px solid var(--line); border-radius:12px; background:var(--panel2);
+    padding:10px 13px; margin-bottom:9px; }
+  .opdet>summary{ cursor:pointer; font-weight:700; font-size:13.5px; list-style:none; }
+  .opdet>summary::-webkit-details-marker{ display:none; }
+  .opdet>summary::before{ content:'▸ '; color:var(--dim); }
+  .opdet[open]>summary::before{ content:'▾ '; }
   .fbreply{ margin-top:8px; padding:9px 11px; border-radius:10px; font-size:12.5px; line-height:1.6;
     background:rgba(46,195,107,.07); border:1px solid rgba(46,195,107,.25); color:var(--txt); }
   .fbreply b{ color:var(--accent); }
@@ -789,24 +795,25 @@ async function fbDelete(id){
 const NAV = [
   { cat:'KULLANICILAR',   tables:['__users__','__players__','feedback'] },
   { cat:'TAKIMLAR',       tables:['__clubs__','__nts__','__feds__'] },
-  { cat:'LİGLER',         tables:[] },
-  { cat:'TURNUVALAR',     tables:['tournament_state'] },
+  { cat:'LİGLER',         tables:['__ligler__'] },
+  { cat:'TURNUVALAR',     tables:['__turnuva__','tournament_state'] },
   { cat:'SONUÇLAR',       tables:['match_results','match_state','match_viewers'] },
-  { cat:'FİKSTÜR',        tables:[] },
+  { cat:'FİKSTÜR',        tables:['__fikstur__'] },
   { cat:'TAKVİM',         tables:['__season__'] },
   { cat:'SEZONLAR',       tables:['world_state'] },
   { cat:'TRANSFERLER',    tables:['transfer_listings','player_transfer_listings','item_listings'] },
   { cat:'MAĞAZA',         tables:['shop_stocks'] },
   { cat:'ETKİNLİK',       tables:['achievement_defs','toto_pools'] },
-  { cat:'ANTRENMAN',      tables:[] },
-  { cat:'CSC MEDIA',      tables:['social_posts','social_likes','social_follows'] },
+  { cat:'ANTRENMAN',      tables:['__antrenman__'] },
+  { cat:'CSC MEDIA',      tables:['__medya__','social_posts','social_likes','social_follows'] },
   { cat:'İNBOX',          tables:['__duyuru__','user_inbox','broadcasts'] },
   { cat:'EKONOMİ',        tables:['__economy__','bet_slips','scratch_cards'] },
   { cat:'AYARLAR',        tables:['__ops__','match_writes'] }
 ];
 const VIRT = { '__users__':'Kullanıcılar', '__players__':'Oyuncular', '__clubs__':'Takımlar', '__nts__':'Milli Takımlar', '__feds__':'Federasyonlar',
   '__ops__':'Operasyon', '__season__':'Sezon & Takvim', '__economy__':'Ekonomi Özeti',
-  '__duyuru__':'Toplu Duyuru' };
+  '__duyuru__':'Toplu Duyuru', '__ligler__':'Lig Tabloları', '__turnuva__':'Turnuva Durumu',
+  '__fikstur__':'Günlük Fikstür', '__antrenman__':'Antrenman Yarışı', '__medya__':'Gönderi Denetimi' };
 const CHEV = '<svg class="chev" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg>';
 
 function buildNav() {
@@ -836,6 +843,11 @@ function buildNav() {
     else if(t==='__season__') openSeason();
     else if(t==='__economy__') openEconomy();
     else if(t==='__duyuru__') openBroadcast();
+    else if(t==='__ligler__') openLeagues();
+    else if(t==='__turnuva__') openTournaments();
+    else if(t==='__fikstur__') openFixture();
+    else if(t==='__antrenman__') openTraining();
+    else if(t==='__medya__') openMedia();
     else openTable(t); });
 }
 
@@ -2320,6 +2332,259 @@ async function openBroadcast() {
       gost('Gönderilemedi: ' + e.message);
     }
   };
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   🆕 LİGLER · TURNUVALAR · FİKSTÜR · ANTRENMAN · MEDYA DENETİMİ
+   Hepsi api('list') ile okur. Yalnızca medya denetimi siler.
+   ═══════════════════════════════════════════════════════════════ */
+function _opAktif(key) {
+  _opTemizle();
+  $('nav').querySelectorAll('.sub').forEach(b => b.classList.toggle('active', b.dataset.t === key));
+  const a = $('nav').querySelector('.sub.active'); if (a) a.closest('.cat').classList.add('open');
+}
+function _opYukleniyor(ad) {
+  $('main').innerHTML = _opBaslik(ad, 'yükleniyor…') + '<div class="msg">Yükleniyor…</div>';
+}
+
+/* ─────────────── LİG TABLOLARI ─────────────── */
+async function openLeagues() {
+  _opAktif('__ligler__'); _opYukleniyor('Lig Tabloları');
+  let takimlar = [], sonuclar = [];
+  try { takimlar = (await api('list',{ table:'teams', limit:2000 })).rows || []; } catch(e) {}
+  try { sonuclar = (await api('list',{ table:'match_results', limit:2000,
+        orderBy:'created_at', orderDir:'desc' })).rows || []; } catch(e) {}
+
+  // ülke → tier → takım
+  const ulke = {};
+  takimlar.forEach(t => {
+    const cc = t.country_code || '??';
+    const tier = Number(t.tier) || 99;
+    (ulke[cc] = ulke[cc] || {})[tier] = (ulke[cc][tier] || []);
+    ulke[cc][tier].push(t);
+  });
+
+  // puan hesabı (lig maçları)
+  const puan = {};
+  sonuclar.forEach(m => {
+    if (m.tournament_key) return;
+    const h = m.home_team, a = m.away_team;
+    if (!h || !a) return;
+    const hs = Number(m.home_score)||0, as = Number(m.away_score)||0;
+    const ek = (ad, p, af, ak) => {
+      const o = puan[ad] = puan[ad] || { o:0, p:0, af:0, ak:0 };
+      o.o++; o.p += p; o.af += af; o.ak += ak;
+    };
+    ek(h, hs>as?3:(hs===as?1:0), hs, as);
+    ek(a, as>hs?3:(hs===as?1:0), as, hs);
+  });
+
+  const kodlar = Object.keys(ulke).sort();
+  const blok = kodlar.map(cc => {
+    const tierler = Object.keys(ulke[cc]).map(Number).sort((a,b)=>a-b);
+    const ic = tierler.map(tr => {
+      const liste = ulke[cc][tr].slice().sort((a,b) => {
+        const pa = puan[a.name] || {p:0,af:0,ak:0}, pb = puan[b.name] || {p:0,af:0,ak:0};
+        return (pb.p-pa.p) || ((pb.af-pb.ak)-(pa.af-pa.ak)) || (pb.af-pa.af);
+      });
+      const sat = liste.map((t,i) => {
+        const p = puan[t.name] || { o:0,p:0,af:0,ak:0 };
+        return `<tr><td class="opsag" style="width:32px;color:var(--dim)">${i+1}</td>
+          <td>${_fbEsc(t.name)}</td>
+          <td class="opsag">${p.o}</td>
+          <td class="opsag">${p.af}-${p.ak}</td>
+          <td class="opsag" style="color:var(--gold);font-weight:800">${p.p}</td>
+          <td class="opsag opmono">${t.team_ovr ?? '—'}</td></tr>`;
+      }).join('');
+      return `<div class="opbas" style="margin:14px 0 6px">${cc} · Kademe ${tr} <span style="color:var(--dim);font-weight:600">(${liste.length} takım)</span></div>
+        <div class="tablewrap"><div class="scroll"><table>
+          <thead><tr><th></th><th>Takım</th><th class="opsag">O</th><th class="opsag">A-Y</th>
+            <th class="opsag">P</th><th class="opsag">OVR</th></tr></thead>
+          <tbody>${sat}</tbody></table></div></div>`;
+    }).join('');
+    return `<details class="opdet"><summary>${cc} — ${tierler.length} lig, ${
+      tierler.reduce((t,x)=>t+ulke[cc][x].length,0)} takım</summary>${ic}</details>`;
+  }).join('');
+
+  $('main').innerHTML = _opBaslik('Lig Tabloları', kodlar.length + ' ülke · ' + takimlar.length + ' takım')
+    + `<div class="fadein">${blok || '<div class="msg">Takım bulunamadı.</div>'}</div>`
+    + `<div class="opnot">Puanlar <b>match_results</b> tablosundaki lig maçlarından hesaplanır.
+       Turnuva maçları dahil değildir. Bu ekran salt okumadır.</div>`;
+}
+
+/* ─────────────── TURNUVA DURUMU ─────────────── */
+const _TRN_ETIKET = { champ:'Championship', elite:'Elite', conv:'Convergence', enc:'EURO Nations Cup' };
+const _FAZ_ETIKET = { playoff:'Play-off', po2:'Play-off 2', group:'Grup Aşaması',
+  r32:'Son 32', r16:'Son 16', qf:'Çeyrek Final', sf:'Yarı Final', final:'Final' };
+
+async function openTournaments() {
+  _opAktif('__turnuva__'); _opYukleniyor('Turnuva Durumu');
+  let durum = [], maclar = [];
+  try { durum = (await api('list',{ table:'tournament_state', limit:200 })).rows || []; } catch(e) {}
+  try { maclar = (await api('list',{ table:'match_state', limit:2000 })).rows || []; } catch(e) {}
+
+  const say = {};
+  maclar.forEach(m => {
+    if (!m.tournament_key) return;
+    const k = m.tournament_key + '|' + m.season;
+    const o = say[k] = say[k] || { top:0, bitti:0, canli:0, faz:{} };
+    o.top++;
+    if (m.status === 'finished') o.bitti++;
+    if (m.status === 'running')  o.canli++;
+    if (m.tournament_phase) o.faz[m.tournament_phase] = (o.faz[m.tournament_phase]||0)+1;
+  });
+
+  const kart = durum.sort((a,b)=>(b.season||0)-(a.season||0)).map(t => {
+    const k = t.tournament_key + '|' + t.season;
+    const o = say[k] || { top:0, bitti:0, canli:0, faz:{} };
+    const fx = t.fixture || {};
+    const gruplar = Array.isArray(fx.groups) ? fx.groups.length : 0;
+    const fazlar = Object.keys(o.faz).map(f => (_FAZ_ETIKET[f]||f) + ' (' + o.faz[f] + ')').join(' · ');
+    return `<div class="opsat" style="align-items:flex-start">
+      <div class="opsat-i">${t.tournament_key==='enc'?'🌍':'🏆'}</div>
+      <div class="opsat-o">
+        <div class="opsat-ad">${_TRN_ETIKET[t.tournament_key]||t.tournament_key} · Sezon ${t.season}</div>
+        <div class="opsat-alt">Aşama: <b style="color:var(--txt)">${_FAZ_ETIKET[t.phase]||t.phase||'—'}</b>
+          ${gruplar?' · '+gruplar+' grup':''} · ${o.top} maç (${o.bitti} bitti, ${o.canli} canlı)</div>
+        ${fazlar?`<div class="opsat-alt" style="margin-top:3px">${fazlar}</div>`:''}
+      </div>
+      <div class="opsat-s"><span class="oproz ${o.canli?'ok':'oto'}">${o.canli?o.canli+' canlı':'Otomatik'}</span></div>
+    </div>`;
+  }).join('');
+
+  $('main').innerHTML = _opBaslik('Turnuva Durumu', durum.length + ' kayıt')
+    + `<div class="fadein">${kart || '<div class="msg">Turnuva kaydı yok.</div>'}</div>`
+    + `<div class="opnot">Turnuva kurulumu ve kura çekimi sezon takvimine göre <b>otomatik</b> çalışır.
+       Bu ekran yalnızca durumu gösterir.</div>`;
+}
+
+/* ─────────────── GÜNLÜK FİKSTÜR ─────────────── */
+let FX_GUN = null;
+async function openFixture() {
+  _opAktif('__fikstur__'); _opYukleniyor('Günlük Fikstür');
+  let maclar = [];
+  try { maclar = (await api('list',{ table:'match_state', limit:2000,
+        orderBy:'kickoff_at', orderDir:'asc' })).rows || []; } catch(e) {}
+
+  const gunler = {};
+  maclar.forEach(m => {
+    const g = m.kickoff_at ? String(m.kickoff_at).slice(0,10) : '—';
+    (gunler[g] = gunler[g] || []).push(m);
+  });
+  const sirali = Object.keys(gunler).sort();
+  const bugun = new Date().toISOString().slice(0,10);
+  if (!FX_GUN || !gunler[FX_GUN]) FX_GUN = gunler[bugun] ? bugun : (sirali[sirali.length-1] || null);
+
+  const secenek = sirali.map(g => `<option value="${g}" ${g===FX_GUN?'selected':''}>${g} (${gunler[g].length})</option>`).join('');
+  const liste = (gunler[FX_GUN] || []).map(m => {
+    const rz = m.status==='finished' ? '<span class="oproz ok">Bitti</span>'
+             : m.status==='running'  ? '<span class="oproz" style="background:rgba(226,59,90,.13);color:#ff8ea3;border:1px solid rgba(226,59,90,.3)">Canlı '+(m.sim_minute||0)+"'</span>"
+             : '<span class="oproz oto">Planlı</span>';
+    const saat = m.kickoff_at ? String(m.kickoff_at).slice(11,16) : '—';
+    const tur  = m.tournament_key ? (_TRN_ETIKET[m.tournament_key]||m.tournament_key) : (m.league_name||'Lig');
+    return `<tr><td class="opmono">${saat}</td>
+      <td>${_fbEsc(m.home_team||'')}</td>
+      <td class="opsag" style="width:54px">${m.status==='scheduled'?'—':(m.home_score??0)+'-'+(m.away_score??0)}</td>
+      <td>${_fbEsc(m.away_team||'')}</td>
+      <td style="color:var(--dim);font-size:11.5px">${_fbEsc(tur)}</td>
+      <td class="opsag">${rz}</td></tr>`;
+  }).join('');
+
+  $('main').innerHTML = `<div class="titlebox fadein"><h2>Günlük Fikstür</h2>
+      <span class="cnt">${(gunler[FX_GUN]||[]).length} maç</span><div class="sp"></div>
+      <select id="fxGun">${secenek}</select></div>
+    <div class="tablewrap fadein"><div class="scroll"><table>
+      <thead><tr><th>Saat</th><th>Ev</th><th class="opsag">Skor</th><th>Deplasman</th>
+        <th>Lig / Turnuva</th><th class="opsag">Durum</th></tr></thead>
+      <tbody>${liste || '<tr><td colspan="6">Bu günde maç yok.</td></tr>'}</tbody></table></div></div>
+    <div class="opnot">Maç saatleri sunucu tarafından belirlenir. Bu ekran salt okumadır.</div>`;
+  const sel = $('fxGun'); if (sel) sel.onchange = () => { FX_GUN = sel.value; openFixture(); };
+}
+
+/* ─────────────── ANTRENMAN YARIŞI ─────────────── */
+async function openTraining() {
+  _opAktif('__antrenman__'); _opYukleniyor('Antrenman Yarışı');
+  let up = [], pl = [];
+  try { up = (await api('list',{ table:'user_player', limit:2000 })).rows || []; } catch(e) {}
+  try { pl = (await api('list',{ table:'players', limit:2000 })).rows || []; } catch(e) {}
+  const adByUid = {}; pl.forEach(p => { if (p.user_id) adByUid[p.user_id] = p; });
+
+  // Döngü: son Cuma 17:00 UTC
+  const now = new Date();
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 17, 0, 0));
+  const fark = (d.getUTCDay() - 5 + 7) % 7;
+  d.setUTCDate(d.getUTCDate() - fark);
+  if (d.getTime() > Date.now()) d.setUTCDate(d.getUTCDate() - 7);
+  const dongu = d.getTime();
+
+  const sira = [];
+  up.forEach(u => {
+    const log = Array.isArray(u.train_log) ? u.train_log : [];
+    const bu = log.filter(e => e && Number(e.ts) >= dongu);
+    const en = bu.reduce((t,e)=>t+(Number(e.energy)||0),0);
+    const p = adByUid[u.user_id];
+    sira.push({ ad: (p && p.name) || String(u.user_id||'').slice(0,8),
+                takim: (p && p.team_name) || '—', enerji: en, kayit: bu.length, toplam: log.length });
+  });
+  sira.sort((a,b)=>b.enerji-a.enerji);
+  const aktif = sira.filter(x=>x.enerji>0);
+
+  const sat = sira.slice(0,40).map((x,i) => `<tr>
+      <td class="opsag" style="width:32px;color:var(--dim)">${i+1}</td>
+      <td>${_fbEsc(x.ad)}</td><td style="color:var(--dim)">${_fbEsc(x.takim)}</td>
+      <td class="opsag" style="color:${x.enerji?'var(--accent)':'var(--dim)'};font-weight:800">${x.enerji}</td>
+      <td class="opsag opmono">${x.kayit}</td>
+      <td class="opsag opmono">${x.toplam}</td></tr>`).join('');
+
+  $('main').innerHTML = _opBaslik('Antrenman Yarışı', 'döngü başlangıcı ' + d.toISOString().slice(0,16).replace('T',' ') + ' UTC')
+    + `<div class="opgrid fadein">
+        ${_opKart('Bu Döngüde', String(aktif.length), 'oyuncu antrenman yaptı', aktif.length?'y':'s')}
+        ${_opKart('Toplam Enerji', _fmtSayi(aktif.reduce((t,x)=>t+x.enerji,0)), 'harcanan', 'y')}
+        ${_opKart('Kayıtlı Oyuncu', String(up.length), 'user_player satırı', 'y')}
+      </div>`
+    + `<div class="tablewrap fadein" style="margin-top:12px"><div class="scroll"><table>
+        <thead><tr><th></th><th>Oyuncu</th><th>Takım</th><th class="opsag">Enerji</th>
+          <th class="opsag">Kayıt</th><th class="opsag">Toplam</th></tr></thead>
+        <tbody>${sat || '<tr><td colspan="6">Kayıt yok.</td></tr>'}</tbody></table></div></div>`
+    + `<div class="opnot">Yarış her Cuma 17:00 UTC'de sıfırlanır. "Enerji" bu döngüde harcanan,
+       "Kayıt" bu döngüdeki antrenman sayısı, "Toplam" tüm zamanların kayıt sayısıdır.
+       Bir oyuncunun enerjisi diğerlerinden aşırı yüksekse kayıtları incele.</div>`;
+}
+
+/* ─────────────── GÖNDERİ DENETİMİ ─────────────── */
+async function openMedia() {
+  _opAktif('__medya__'); _opYukleniyor('Gönderi Denetimi');
+  let gonderi = [], pl = [];
+  try { gonderi = (await api('list',{ table:'social_posts', limit:200,
+        orderBy:'created_at', orderDir:'desc' })).rows || []; } catch(e) {}
+  try { pl = (await api('list',{ table:'players', limit:2000 })).rows || []; } catch(e) {}
+  const adByUid = {}; pl.forEach(p => { if (p.user_id) adByUid[p.user_id] = p.name; });
+
+  const sat = gonderi.map(g => {
+    const yazar = adByUid[g.author_id || g.user_id] || String(g.author_id||g.user_id||'').slice(0,8);
+    const zaman = g.created_at ? new Date(g.created_at).toLocaleString('tr') : '—';
+    const metin = String(g.body || g.text || g.content || '').slice(0, 220);
+    return `<tr>
+      <td style="white-space:nowrap">${_fbEsc(yazar)}</td>
+      <td style="color:var(--dim);font-size:12px">${_fbEsc(metin)}</td>
+      <td class="opmono" style="white-space:nowrap">${zaman}</td>
+      <td class="opsag"><button class="btn red" data-gsil="${g.id}">Sil</button></td></tr>`;
+  }).join('');
+
+  $('main').innerHTML = _opBaslik('Gönderi Denetimi', gonderi.length + ' gönderi · en yeniler')
+    + `<div class="tablewrap fadein"><div class="scroll"><table>
+        <thead><tr><th>Yazar</th><th>İçerik</th><th>Zaman</th><th class="opsag">İşlem</th></tr></thead>
+        <tbody>${sat || '<tr><td colspan="4">Gönderi yok.</td></tr>'}</tbody></table></div></div>`
+    + `<div class="opnot">Silme geri alınamaz. Gönderiye ait beğeni ve yorumlar da erişilemez hale gelir.</div>`;
+
+  $('main').querySelectorAll('button[data-gsil]').forEach(b => b.onclick = async () => {
+    if (!confirm('Bu gönderi kalıcı olarak silinecek. Onaylıyor musun?')) return;
+    b.disabled = true; b.textContent = '…';
+    try { await api('delete', { table:'social_posts', pk:{ id: b.dataset.gsil } });
+          b.closest('tr').style.opacity = '.35'; b.textContent = '✓ Silindi'; }
+    catch(e) { b.disabled = false; b.textContent = 'Hata'; alert(e.message); }
+  });
 }
 
 function showLogin(){ var b=$('boot'); if(b) b.style.display='none'; $('app').classList.remove('show'); $('login').style.display='block'; }
