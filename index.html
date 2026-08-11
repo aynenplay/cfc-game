@@ -2341,6 +2341,9 @@ select.form-input option{background:var(--bg)}
 .bet-crest{width:16px;height:16px;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;
   font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:6px;color:#fff;flex-shrink:0;overflow:hidden}
 .bet-crest img{width:100%;height:100%;object-fit:contain}
+/* 🆕 Milli takım maçlarında arma yerine şeffaf bayrak emojisi */
+.bet-crest.bayrak{width:auto;height:auto;min-width:18px;border-radius:0;background:none !important;
+  box-shadow:none;font-size:16px;line-height:1;overflow:visible}
 .bet-odds{display:flex;gap:3px;flex-shrink:0}
 .bet-odd{width:44px;height:30px;border:1px solid var(--border,#20242c);background:rgba(0,0,0,.3);border-radius:7px;
   display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer}
@@ -28630,7 +28633,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-11-trnagac-334';
+const APP_BUILD = '2026-08-11-encdal-336';
 
 (function _cacheBustCheck() {
   try {
@@ -75946,9 +75949,14 @@ function encRenderKnockout(state) {
     return [(h ?? null), (a ?? null)];
   }
 
+  // 🆕 Turdaki eşleşme sayısı sunucudan henüz gelmediyse (qf/sf boş dizi) o dalı
+  //    boş kartlarla doldur — aksi halde sütun bomboş görünüyordu.
+  const _BEK_ADET = [8, 4, 2, 1];
   const _turlar = rounds.map((round, ri) => {
     const faz = _FAZ_KEY[ri] || 'r16';
-    const ms = round.matches || [];
+    const ms = (round.matches || []).slice();
+    const _bek = _BEK_ADET[ri] || 0;
+    while (ms.length < _bek) ms.push(null);
     const kartlar = ms.map((m, mi) => {
       if (!(m && m.home && m.away)) {
         return _agcKart({
@@ -76532,13 +76540,20 @@ function betRenderBulletin() {
   const TRNNM = { champ:'🏆 Championship League', elite:'🥈 Elite League', conv:'🥉 Convergence League', enc:'⭐ EURO Nations Cup' };
   // 🆕 Arma HTML'i önbellekten: inlineBadge isim aramasi tum ulke/lig/takimi tariyor,
   //    satir basina 2 kez cagrilinca sekme kilitleniyordu.
-  const crest = (cc, nm) => {
-    const ck = (cc || '') + '|' + (nm || '');
+  const crest = (cc, nm, milli) => {
+    // 🆕 Milli takım maçları (EURO Nations Cup): home/away ülke ADIdır, arma yok →
+    //    arka plansız transparan bayrak emojisi göster.
+    const ck = (milli ? 'F|' : '') + (cc || '') + '|' + (nm || '');
     let v = _betCrestCache[ck];
     if (v === undefined) {
-      v = (typeof inlineBadge === 'function')
-        ? inlineBadge({ tag:'span', cls:'bet-crest', name:nm, cc:cc || '' })
-        : `<span class="bet-crest" style="background:#37474f">${String(nm||'?').slice(0,3).toUpperCase()}</span>`;
+      if (milli) {
+        const bay = (typeof _hmUlkeBayrak === 'function') ? (_hmUlkeBayrak(nm) || '🏳️') : '🏳️';
+        v = `<span class="bet-crest bayrak">${bay}</span>`;
+      } else {
+        v = (typeof inlineBadge === 'function')
+          ? inlineBadge({ tag:'span', cls:'bet-crest', name:nm, cc:cc || '' })
+          : `<span class="bet-crest" style="background:#37474f">${String(nm||'?').slice(0,3).toUpperCase()}</span>`;
+      }
       _betCrestCache[ck] = v;
     }
     return v;
@@ -76567,6 +76582,7 @@ function betRenderBulletin() {
     const d = new Date(x.t);
     const hh = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
     const sel = _betSlip.find(l => l.match_key === ms.matchKey);
+    const _milli = (ms.tournament_key === 'enc');
     // 🆕 Oran kutuları: 1 · 0 · 2 (0 = beraberlik, seçim değeri X)
     const oddBtn = (k, lbl) => {
       if (!x.hasOdds) return '';
@@ -76580,9 +76596,9 @@ function betRenderBulletin() {
         : `<div class="bet-odds">${oddBtn('1','1')}${oddBtn('X','0')}${oddBtn('2','2')}</div>`);
     h += `<div class="bet-row${sel ? ' picked' : ''}">
         <div class="tm">${hh}</div>
-        <div class="bet-side">${crest(ms.countryCode, ms.home)}<span class="nm">${short(ms.home)}</span></div>
+        <div class="bet-side">${crest(ms.countryCode, ms.home, _milli)}<span class="nm">${short(ms.home)}</span></div>
         ${mid}
-        <div class="bet-side r"><span class="nm">${short(ms.away)}</span>${crest(ms.countryCode, ms.away)}</div>
+        <div class="bet-side r"><span class="nm">${short(ms.away)}</span>${crest(ms.countryCode, ms.away, _milli)}</div>
       </div>`;
   });
   if (totalN > view.length) {
