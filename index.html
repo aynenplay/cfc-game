@@ -13682,7 +13682,7 @@ body.lg-myleague-mode .lg2-tier-pills{display:none !important}
 /* 🔑 SİMETRİ: eşit gövde yüksekliği + space-around ⇒ üst turdaki kart,
    kendisini besleyen iki kartın tam ortasına denk gelir */
 .trnag-gov{flex:0 0 auto;min-height:0;display:flex;flex-direction:column;justify-content:space-around;
-  height:var(--ag-h,756px);overflow:hidden;transition:height .22s ease-out}
+  height:var(--ag-h,756px);overflow:hidden}   /* animasyon yok — anlık, ara kare görünmesin */
 /* ekranın solunda kalan (geçilmiş) tur — sıkışır, taşan kısmı kırpılır */
 .trnag-gov.gecmis{justify-content:flex-start;gap:9px}
 @media (prefers-reduced-motion:reduce){.trnag-gov{transition:none}}
@@ -28638,7 +28638,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-11-agacakis3-341';
+const APP_BUILD = '2026-08-11-agacakis4-342';
 
 (function _cacheBustCheck() {
   try {
@@ -73869,7 +73869,10 @@ function _agcSolTur(ag) {
   if (!suts.length) return null;
   const gen = _agcGen(ag, true);
   if (!gen) return null;
-  let i = Math.round(ag.scrollLeft / gen);
+  // 🔑 FLOOR: sola dönerken hedef sütun ekrana girmeye BAŞLADIĞI anda ölçek
+  //    ona göre ayarlanır. round() kullanılsaydı sütun yarıya gelene kadar
+  //    sıkışık (iç içe) haliyle görünürdü.
+  let i = Math.floor(ag.scrollLeft / gen + 0.02);
   i = Math.max(0, Math.min(suts.length - 1, i));
   return { suts, i };
 }
@@ -73900,11 +73903,10 @@ function trnAgcOlcek(ag, zorla) {
     requestAnimationFrame(() => { ag.style.scrollSnapType = ''; });
   } catch(e) {}
 }
-// 🆕 Ölçek SADECE kaydırma durduğunda uygulanır — parmak ekrandayken layout
-//    değiştirmek takılmaya ve titremeye yol açıyordu.
+// Kaydırma bittikten sonra son bir doğrulama (yön değişimi / momentum sonu)
 function trnAgcOlcekGec(ag) {
   if (ag._olcT) clearTimeout(ag._olcT);
-  ag._olcT = setTimeout(() => { ag._olcT = null; trnAgcOlcek(ag); }, 170);
+  ag._olcT = setTimeout(() => { ag._olcT = null; trnAgcOlcek(ag); }, 180);
 }
 // Tur sekmesine tıklayınca o tura kaydır
 function trnAgcTur(btn, ri) {
@@ -73916,7 +73918,7 @@ function trnAgcTur(btn, ri) {
     const s = ag && ag.children[ri];
     if (ag && s) {
       ag.scrollTo({ left: s.offsetLeft - ag.offsetLeft, behavior: 'smooth' });
-      trnAgcOlcekGec(ag);                   // ölçek, kaydırma durunca uygulanır
+      trnAgcOlcek(ag);                      // ölçek anında; kaydırma sırasında da takip eder
     }
   } catch(e) {}
 }
@@ -73924,13 +73926,16 @@ function trnAgcTur(btn, ri) {
 function trnAgcKaydi(ag) {
   try {
     const gen = _agcGen(ag); if (!gen) return;
-    const i = Math.round(ag.scrollLeft / gen);
+    const i = Math.max(0, Math.floor(ag.scrollLeft / gen + 0.02));
     const wrap = ag.closest('.trnag-wrap'); if (!wrap) return;
     if (ag.dataset.sekI !== String(i)) {
       ag.dataset.sekI = String(i);
       wrap.querySelectorAll('.trnag-tab').forEach((b, bi) => b.classList.toggle('active', bi === i));
     }
-    trnAgcOlcekGec(ag);                     // ölçek: kaydırma durunca
+    // 🆕 Ölçek ANINDA uygulanır. Gecikmeli yapıldığında sola dönüşte sütun önce
+    //    sıkışık görünüp sonra açılıyordu. i sadece tur sınırı geçilince değişir,
+    //    yani bir kaydırmada en fazla bir kez layout değişir.
+    trnAgcOlcek(ag);
   } catch(e) {}
 }
 // Çift maçlı eşleşmenin üst satırı: "1.M 1-2 · 2.M 3-1" / tarihler
