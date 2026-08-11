@@ -13680,7 +13680,11 @@ body.lg-myleague-mode .lg2-tier-pills{display:none !important}
   text-transform:uppercase;color:var(--ag-acc,#ffd54f);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* 🔑 SİMETRİ: eşit gövde yüksekliği + space-around ⇒ üst turdaki kart,
    kendisini besleyen iki kartın tam ortasına denk gelir */
-.trnag-gov{flex:1;display:flex;flex-direction:column;justify-content:space-around;height:var(--ag-h,756px)}
+.trnag-gov{flex:0 0 auto;min-height:0;display:flex;flex-direction:column;justify-content:space-around;
+  height:var(--ag-h,756px);overflow:hidden;transition:height .3s cubic-bezier(.4,0,.2,1)}
+/* ekranın solunda kalan (geçilmiş) tur — sıkışır, taşan kısmı kırpılır */
+.trnag-gov.gecmis{justify-content:flex-start;gap:9px}
+@media (prefers-reduced-motion:reduce){.trnag-gov{transition:none}}
 /* sabit kart yüksekliği — penaltı/uzatma/çift maç kutuyu büyütmez */
 .trnag-mk{height:84px;border-radius:11px;overflow:hidden;display:flex;flex-direction:column;
   border:1px solid rgba(255,255,255,.085);background:rgba(20,24,31,.55);
@@ -28633,7 +28637,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-11-encdal-336';
+const APP_BUILD = '2026-08-11-agacolcek2-338';
 
 (function _cacheBustCheck() {
   try {
@@ -73819,8 +73823,8 @@ function _agcKart(o) {
 function _agcAgac(o) {
   const turlar = o.turlar || [];
   const ak = Math.max(0, Math.min(turlar.length - 1, o.aktif || 0));
-  const enCok = turlar.reduce((a, t) => Math.max(a, (t.kartlar || []).length), 1);
-  const govH = Math.max(4, enCok) * 94;
+  // 🆕 Dikey ölçek, EKRANDA EN SOLDAKİ tura göre — kaydırdıkça yakınlaşır (trnAgcOlcek)
+  const govH = _agcYukseklik((turlar[ak] && (turlar[ak].kartlar || []).length) || 1);
   const gid = 'agc' + (++_agcSayac);
   let h = `<div class="trnag-wrap" id="${gid}" style="--ag-acc:${o.acc || '#ffd54f'};`
         + `--ag-g1:${o.g1 || 'rgba(0,176,255,.17)'};--ag-g2:${o.g2 || 'rgba(21,101,192,.15)'};--ag-h:${govH}px">`;
@@ -73831,7 +73835,7 @@ function _agcAgac(o) {
       ).join('') + `</div>`;
   h += `<div class="trnag-agac" onscroll="trnAgcKaydi(this)">`;
   turlar.forEach(t => {
-    h += `<div class="trnag-sut"><div class="trnag-bas">${t.ad}</div>`
+    h += `<div class="trnag-sut" data-n="${(t.kartlar || []).length}"><div class="trnag-bas">${t.ad}</div>`
        + `<div class="trnag-gov">${(t.kartlar || []).join('')}</div></div>`;
   });
   h += `</div></div>`;
@@ -73842,8 +73846,33 @@ function _agcAgac(o) {
     ag.dataset.ilk = '1';
     const s = ag.children[ak];
     if (s) ag.scrollLeft = s.offsetLeft - ag.offsetLeft;
+    ag.dataset.sonI = String(ak);
+    trnAgcOlcek(ag, true);
   } catch(e) {} }, 60);
   return h;
+}
+// 🆕 Dikey ölçeği en soldaki tura göre ayarla ("kaydırdıkça yakınlaş")
+//    n maç → gövde yüksekliği n*94px. Aynı yükseklikte space-around kullanan
+//    sağdaki tur, kendisini besleyen iki kartın tam ortasına oturur.
+function _agcYukseklik(n) { return Math.max(2, Math.min(64, n || 1)) * 94; }
+function trnAgcOlcek(ag, zorla) {
+  try {
+    const suts = ag.querySelectorAll('.trnag-sut');
+    if (!suts.length) return;
+    const gen = suts[0].getBoundingClientRect().width + 8;
+    if (!gen) return;
+    let i = Math.round(ag.scrollLeft / gen);
+    i = Math.max(0, Math.min(suts.length - 1, i));
+    if (!zorla && ag.dataset.sonI === String(i)) return;
+    ag.dataset.sonI = String(i);
+    const n = parseInt(suts[i].getAttribute('data-n') || '1', 10) || 1;
+    const wrap = ag.closest('.trnag-wrap');
+    if (wrap) wrap.style.setProperty('--ag-h', _agcYukseklik(n) + 'px');
+    suts.forEach((s, k) => {
+      const g = s.querySelector('.trnag-gov');
+      if (g) g.classList.toggle('gecmis', k < i);
+    });
+  } catch(e) {}
 }
 // Tur sekmesine tıklayınca o tura kaydır
 function trnAgcTur(btn, ri) {
@@ -73853,7 +73882,11 @@ function trnAgcTur(btn, ri) {
     btn.classList.add('active');
     const ag = wrap.querySelector('.trnag-agac');
     const s = ag && ag.children[ri];
-    if (ag && s) ag.scrollTo({ left: s.offsetLeft - ag.offsetLeft, behavior: 'smooth' });
+    if (ag && s) {
+      ag.scrollTo({ left: s.offsetLeft - ag.offsetLeft, behavior: 'smooth' });
+      trnAgcOlcek(ag);                      // ölçek hemen yakınlaşsın
+      setTimeout(() => trnAgcOlcek(ag), 420); // kaydırma bitince doğrula
+    }
   } catch(e) {}
 }
 // Elle kaydırınca üstteki tur sekmesi de takip etsin
@@ -73864,6 +73897,7 @@ function trnAgcKaydi(ag) {
     const i = Math.round(ag.scrollLeft / gen);
     const wrap = ag.closest('.trnag-wrap'); if (!wrap) return;
     wrap.querySelectorAll('.trnag-tab').forEach((b, bi) => b.classList.toggle('active', bi === i));
+    trnAgcOlcek(ag);                        // 🆕 dikey ölçeği de takip et
   } catch(e) {}
 }
 // Çift maçlı eşleşmenin üst satırı: "1.M 1-2 · 2.M 3-1" / tarihler
