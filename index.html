@@ -13682,7 +13682,7 @@ body.lg-myleague-mode .lg2-tier-pills{display:none !important}
 /* 🔑 SİMETRİ: eşit gövde yüksekliği + space-around ⇒ üst turdaki kart,
    kendisini besleyen iki kartın tam ortasına denk gelir */
 .trnag-gov{flex:0 0 auto;min-height:0;display:flex;flex-direction:column;justify-content:space-around;
-  height:var(--ag-h,756px);overflow:hidden}   /* animasyon yok — anlık, ara kare görünmesin */
+  height:var(--ag-h,756px);overflow:hidden;transition:height .28s cubic-bezier(.4,0,.2,1)}
 /* ekranın solunda kalan (geçilmiş) tur — sıkışır, taşan kısmı kırpılır */
 .trnag-gov.gecmis{justify-content:flex-start;gap:9px}
 @media (prefers-reduced-motion:reduce){.trnag-gov{transition:none}}
@@ -28638,7 +28638,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-11-agacakis4-342';
+const APP_BUILD = '2026-08-11-agacyon-343';
 
 (function _cacheBustCheck() {
   try {
@@ -73855,6 +73855,12 @@ function _agcAgac(o) {
 // 🆕 Dikey ölçeği en soldaki tura göre ayarla ("kaydırdıkça yakınlaş")
 //    n maç → gövde yüksekliği n*94px. Aynı yükseklikte space-around kullanan
 //    sağdaki tur, kendisini besleyen iki kartın tam ortasına oturur.
+//
+//    YÖNE GÖRE DAVRANIŞ (ikisi de kasten farklı):
+//    → İLERİ (sağa): sola geçen tur zaten ekrandan çıkıyor. Ölçek, kaydırma
+//      durduktan sonra YUMUŞAK ANİMASYONLA küçülür — hoş duran hareket bu.
+//    ← GERİ (sola): açılacak tur soldan ekrana giriyor. Ölçek ANINDA ve
+//      ANİMASYONSUZ uygulanır ki sıkışık/iç içe ara kare hiç görünmesin.
 function _agcYukseklik(n) { return Math.max(2, Math.min(64, n || 1)) * 94; }
 function _agcGen(ag, tazele) {
   // sütun genişliği + boşluk — her kaydırma olayında layout okumamak için önbellekli
@@ -73864,21 +73870,21 @@ function _agcGen(ag, tazele) {
   if (w) ag._gen = w + 8;
   return ag._gen || 0;
 }
-function _agcSolTur(ag) {
+function _agcSolTur(ag, tazele) {
   const suts = ag.querySelectorAll('.trnag-sut');
   if (!suts.length) return null;
-  const gen = _agcGen(ag, true);
+  const gen = _agcGen(ag, tazele);
   if (!gen) return null;
-  // 🔑 FLOOR: sola dönerken hedef sütun ekrana girmeye BAŞLADIĞI anda ölçek
-  //    ona göre ayarlanır. round() kullanılsaydı sütun yarıya gelene kadar
-  //    sıkışık (iç içe) haliyle görünürdü.
+  // FLOOR: kısmen bile görünen EN SOLDAKİ sütun. Geri dönerken hedef sütun
+  // ekrana girmeye başladığı ilk anda yakalanır.
   let i = Math.floor(ag.scrollLeft / gen + 0.02);
   i = Math.max(0, Math.min(suts.length - 1, i));
   return { suts, i };
 }
-function trnAgcOlcek(ag, zorla) {
+// ani = true → animasyonsuz uygula (geri dönüş)
+function trnAgcOlcek(ag, zorla, ani) {
   try {
-    const r = _agcSolTur(ag); if (!r) return;
+    const r = _agcSolTur(ag, true); if (!r) return;
     const { suts, i } = r;
     if (!zorla && ag.dataset.olcI === String(i)) return;
     ag.dataset.olcI = String(i);
@@ -73886,27 +73892,41 @@ function trnAgcOlcek(ag, zorla) {
     const n = parseInt(suts[i].getAttribute('data-n') || '1', 10) || 1;
     const yeni = _agcYukseklik(n) + 'px';
     if (!zorla && wrap.style.getPropertyValue('--ag-h') === yeni) return;
-    // 🔑 TİTREME/ZIPLAMA DÜZELTMESİ
-    //    Yükseklik değişince tarayıcı scroll-snap'i yeniden hesaplıyor ve konumu
-    //    en başa atıyordu. Snap'i geçici kapat → yüksekliği uygula → konumu geri koy.
+    const govs = [];
+    suts.forEach(s => { const g = s.querySelector('.trnag-gov'); if (g) govs.push(g); });
+    // geri dönüşte animasyonu kapat (ara kare görünmesin)
+    if (ani) { govs.forEach(g => { g.style.transition = 'none'; }); void ag.offsetHeight; }
+    // 🔑 Yükseklik değişince tarayıcı scroll-snap'i yeniden hesaplayıp konumu
+    //    başa atıyordu → snap'i bir kare kapat, konumu koru, sonra geri aç.
     const sl = ag.scrollLeft;
     ag.style.scrollSnapType = 'none';
     wrap.style.setProperty('--ag-h', yeni);
-    suts.forEach((s, k) => {
-      const g = s.querySelector('.trnag-gov');
-      if (g) g.classList.toggle('gecmis', k < i);
-    });
-    // ⚠️ Konumu SADECE tarayıcı kendiliğinden oynattıysa geri koy. Gecikmeli
-    //    (rAF / setTimeout) geri yükleme, kullanıcının yeni kaydırmasını geri
-    //    çekip "en başa zıplama" hissi veriyordu — o yüzden yok.
+    govs.forEach((g, k) => g.classList.toggle('gecmis', k < i));
+    // Konumu SADECE tarayıcı kendiliğinden oynattıysa ve HEMEN geri koy;
+    // gecikmeli geri yükleme kullanıcının yeni kaydırmasını geri çekiyordu.
     if (ag.scrollLeft !== sl) ag.scrollLeft = sl;
-    requestAnimationFrame(() => { ag.style.scrollSnapType = ''; });
+    requestAnimationFrame(() => {
+      ag.style.scrollSnapType = '';
+      if (ani) govs.forEach(g => { g.style.transition = ''; });
+    });
   } catch(e) {}
 }
-// Kaydırma bittikten sonra son bir doğrulama (yön değişimi / momentum sonu)
-function trnAgcOlcekGec(ag) {
-  if (ag._olcT) clearTimeout(ag._olcT);
-  ag._olcT = setTimeout(() => { ag._olcT = null; trnAgcOlcek(ag); }, 180);
+// Kaydırma olayında çağrılır — yönü belirleyip uygun zamanlamayı seçer
+function trnAgcOlcekIste(ag) {
+  try {
+    const r = _agcSolTur(ag, false); if (!r) return;
+    const onceki = (ag.dataset.olcI === undefined) ? -1 : (parseInt(ag.dataset.olcI, 10) || 0);
+    if (r.i === onceki) return;
+    if (r.i < onceki) {
+      // ← geri: anında + animasyonsuz
+      if (ag._olcT) { clearTimeout(ag._olcT); ag._olcT = null; }
+      trnAgcOlcek(ag, false, true);
+    } else {
+      // → ileri: kaydırma durunca + animasyonlu
+      if (ag._olcT) clearTimeout(ag._olcT);
+      ag._olcT = setTimeout(() => { ag._olcT = null; trnAgcOlcek(ag, false, false); }, 150);
+    }
+  } catch(e) {}
 }
 // Tur sekmesine tıklayınca o tura kaydır
 function trnAgcTur(btn, ri) {
@@ -73918,7 +73938,7 @@ function trnAgcTur(btn, ri) {
     const s = ag && ag.children[ri];
     if (ag && s) {
       ag.scrollTo({ left: s.offsetLeft - ag.offsetLeft, behavior: 'smooth' });
-      trnAgcOlcek(ag);                      // ölçek anında; kaydırma sırasında da takip eder
+      trnAgcOlcekIste(ag);                  // yön farkındalıklı ölçek
     }
   } catch(e) {}
 }
@@ -73932,10 +73952,7 @@ function trnAgcKaydi(ag) {
       ag.dataset.sekI = String(i);
       wrap.querySelectorAll('.trnag-tab').forEach((b, bi) => b.classList.toggle('active', bi === i));
     }
-    // 🆕 Ölçek ANINDA uygulanır. Gecikmeli yapıldığında sola dönüşte sütun önce
-    //    sıkışık görünüp sonra açılıyordu. i sadece tur sınırı geçilince değişir,
-    //    yani bir kaydırmada en fazla bir kez layout değişir.
-    trnAgcOlcek(ag);
+    trnAgcOlcekIste(ag);   // sağa → animasyonlu (durunca) · sola → anında (animasyonsuz)
   } catch(e) {}
 }
 // Çift maçlı eşleşmenin üst satırı: "1.M 1-2 · 2.M 3-1" / tarihler
