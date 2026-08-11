@@ -13202,7 +13202,20 @@ body.lg-myleague-mode .lg2-tier-pills{display:none !important}
   align-items:center;gap:8px;
   padding:4px 0;font-size:11.5px;color:var(--text2);
 }
-.enc-ko-flag{font-size:16px}
+.enc-ko-flag{
+  font-size:26px !important;line-height:1;
+  background:none !important;background-color:transparent !important;background-image:none !important;
+  box-shadow:none !important;border:0 !important;border-radius:0 !important;
+  width:auto !important;height:auto !important;min-width:30px;overflow:visible !important;
+  display:inline-flex;align-items:center;justify-content:center;
+  text-shadow:0 2px 6px rgba(0,0,0,.55)}
+.enc-stat-flag{
+  font-size:24px !important;line-height:1;
+  background:none !important;background-color:transparent !important;
+  box-shadow:none !important;border:0 !important;border-radius:0 !important;
+  width:auto !important;height:auto !important;min-width:28px;overflow:visible !important;
+  display:inline-flex;align-items:center;justify-content:center;
+  text-shadow:0 2px 6px rgba(0,0,0,.5)}
 .enc-ko-name{font-weight:700;color:var(--text2)}
 .enc-ko-score{
   font-family:'Barlow Condensed',sans-serif;
@@ -28550,7 +28563,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-10-sezonsonu-331';
+const APP_BUILD = '2026-08-10-encstat-332';
 
 (function _cacheBustCheck() {
   try {
@@ -75852,7 +75865,118 @@ function encRenderStats(state) {
 }
 
 // 🆕 Tek istatistik sekmesi için (sekme bazlı render)
+// ═══════════════════════════════════════════════════════════════
+// 🆕 EURO CUP İSTATİSTİKLERİ — gol / asist / reyting
+//   match_state'teki bitmiş 'enc' maçlarının olay ve kadro kayıtlarından
+//   hesaplanır. SEZONA GÖRE anahtarlanır → yeni turnuvada kendiliğinden
+//   sıfırlanır, eski sezonun verisi taşınmaz.
+// ═══════════════════════════════════════════════════════════════
+window._encStatCache = window._encStatCache || {};
+
+async function _encStatHesapla(sezon) {
+  const anahtar = 'enc_' + sezon;
+  const onb = window._encStatCache[anahtar];
+  if (onb && (Date.now() - onb.at) < 300000) return onb.v;
+
+  const v = { scorers: [], assisters: [], ratings: [], mac: 0 };
+  try {
+    if (!window.sb) return v;
+    const { data } = await window.sb.from('match_state')
+      .select('home_team,away_team,events,home_lineup,away_lineup')
+      .eq('tournament_key', 'enc').eq('season', sezon).eq('status', 'finished');
+    const maclar = data || [];
+    v.mac = maclar.length;
+
+    const gol = {}, asist = {}, reyt = {};
+    const bayrak = (ulke) => {
+      try { return (typeof _hmUlkeBayrak === 'function') ? (_hmUlkeBayrak(ulke) || '🏳️') : '🏳️'; }
+      catch(e) { return '🏳️'; }
+    };
+    const ekle = (kap, ad, ulke, n) => {
+      if (!ad) return;
+      const k = ad + '|' + (ulke || '');
+      const o = kap[k] = kap[k] || { name: ad, country: ulke || '', value: 0, n: 0 };
+      o.value += n; o.n++;
+    };
+
+    maclar.forEach(m => {
+      const evT = m.home_team, depT = m.away_team;
+      // Olaylar → gol ve asist
+      const evs = Array.isArray(m.events) ? m.events : [];
+      evs.forEach(e => {
+        if (!e) return;
+        const tip = String(e.type || e.t || '').toLowerCase();
+        if (tip !== 'goal' && tip !== 'gol') return;
+        const evMi = (e.side === 'home' || e.team === 'home' || e.takim === 'ev');
+        const ulke = evMi ? evT : depT;
+        const skor = e.player || e.scorer || e.oyuncu;
+        const pas  = e.assist || e.asist;
+        if (skor) ekle(gol, skor, ulke, 1);
+        if (pas)  ekle(asist, pas, ulke, 1);
+      });
+      // Kadrolar → reyting
+      [[m.home_lineup, evT], [m.away_lineup, depT]].forEach(([lu, ulke]) => {
+        const arr = Array.isArray(lu) ? lu : (lu && Array.isArray(lu.players) ? lu.players : []);
+        arr.forEach(p => {
+          if (!p) return;
+          const r = Number(p.matchRating ?? p.rating ?? p.reyting);
+          if (!isFinite(r) || r <= 0) return;
+          ekle(reyt, p.name || p.ad, ulke, r);
+        });
+      });
+    });
+
+    const diz = (kap, ort) => Object.values(kap)
+      .map(o => ({ name: o.name, country: o.country, flag: bayrak(o.country),
+                   value: ort ? Math.round((o.value / Math.max(1,o.n)) * 10) / 10 : o.value,
+                   mac: o.n }))
+      .filter(o => o.value > 0)
+      .sort((a,b) => b.value - a.value)
+      .slice(0, 20);
+
+    v.scorers   = diz(gol, false);
+    v.assisters = diz(asist, false);
+    // Reyting: en az 2 maç oynamış olsun (tek maçlık uçuk değer sıralamayı bozmasın)
+    v.ratings   = Object.values(reyt)
+      .filter(o => o.n >= 2)
+      .map(o => ({ name:o.name, country:o.country, flag:bayrak(o.country),
+                   value: Math.round((o.value / o.n) * 10) / 10, mac:o.n }))
+      .sort((a,b) => b.value - a.value).slice(0, 20);
+  } catch(e) { console.warn('[encStat]', e); }
+
+  window._encStatCache[anahtar] = { at: Date.now(), v };
+  return v;
+}
+window._encStatHesapla = _encStatHesapla;
+
+// İstatistik sekmesi açıldığında hesapla ve yeniden çiz
+function _encStatYukle(sezon) {
+  if (window._encStatYukleniyor) return;
+  window._encStatYukleniyor = true;
+  _encStatHesapla(sezon).then(() => {
+    window._encStatYukleniyor = false;
+    try { if (typeof trn2Render === 'function') trn2Render(); } catch(e) {}
+  }).catch(() => { window._encStatYukleniyor = false; });
+}
+
 function encBuildStatHtml(state, statType) {
+  // 🆕 Sunucudan hesaplanan istatistikleri kullan (state.stats boş geliyordu)
+  try {
+    const _sz = (state && state.season) ||
+      ((typeof getSeasonInfo === 'function') ? getSeasonInfo().season : null);
+    if (_sz) {
+      const onb = window._encStatCache['enc_' + _sz];
+      if (onb && onb.v) {
+        state = Object.assign({}, state || {}, { stats: onb.v });
+      } else {
+        _encStatYukle(_sz);
+        return `<div style="text-align:center;padding:36px 20px;color:var(--text3)">
+          <div style="font-size:42px;margin-bottom:10px">⏳</div>
+          <div style="font-size:13px">İstatistikler hesaplanıyor…</div></div>`;
+      }
+    }
+  } catch(e) {}
+
   if (!state || !state.stats) {
     return `<div style="text-align:center;padding:36px 20px;color:var(--text3)">
       <div style="font-size:42px;margin-bottom:10px">📊</div>
@@ -75883,13 +76007,14 @@ function encBuildStatHtml(state, statType) {
   }
 
   function _row(item, i) {
+    const _mac = item.mac ? ` · ${item.mac} maç` : '';
     return `
       <div class="enc-stat-row">
         <div class="enc-stat-rank">${i+1}</div>
         <div class="enc-stat-flag">${item.flag||'🏳️'}</div>
         <div class="enc-stat-info">
           <div class="enc-stat-name">${item.name}</div>
-          <div class="enc-stat-country">${item.country||''}</div>
+          <div class="enc-stat-country">${(item.country||'') + _mac}</div>
         </div>
         <div class="enc-stat-val">${item.value}<span>${suffix}</span></div>
       </div>
