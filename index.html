@@ -5110,14 +5110,6 @@ select.form-input option{background:var(--bg)}
   background:var(--bg);
   display:flex;flex-direction:column;
   overflow-y:auto;
-  /* 🆕 Android WebView düzeltmesi: position:fixed + overflow-y:auto birleşimi
-     WebView'de kendi çizim katmanını almıyor; içerik display:none→block
-     olduğunda alan yeniden BOYANMIYOR (ekran siyah kalıyor, ancak dokununca
-     çiziliyor). translateZ(0) elemanı kendi katmanına alıp bunu çözer.
-     Masaüstü tarayıcıda görsel etkisi yok. */
-  transform:translateZ(0);
-  -webkit-backface-visibility:hidden;
-  backface-visibility:hidden;
 }
 #auth-screen.hidden{display:none}
 /* Klavye açıkken: ekran tam kaplamaya devam eder (arka plan görünmez), alt boşluk = klavye yüksekliği → odaklanan alan klavyenin üstüne kadar kaydırılabilir */
@@ -28708,7 +28700,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-12-webviewciz-355';
+const APP_BUILD = '2026-08-12-acilissira-356';
 
 (function _cacheBustCheck() {
   try {
@@ -45689,6 +45681,18 @@ function authInit(){
       supaSessionPromise = window.sb.auth.getSession();
     }
 
+    // 🆕 AÇILIŞ SIRASI DÜZELTMESİ
+    //    Eskiden splash (açılış animasyonu) oturum kontrolü BİTMEDEN kapanıyordu.
+    //    Oturum kontrolü retry'lı olduğu için 3-6 sn sürebiliyor; bu sürede
+    //    kullanıcı hiç giriş yapmamış olsa bile ANA SAYFA görünüyor, sonra
+    //    titreyerek giriş ekranına atlıyordu. Artık splash bu sözü bekliyor.
+    if (!window._authKarar) {
+      window._authKarar = new Promise(function(res){ window._authKararTamam = res; });
+    }
+    const _kararVer = function(){
+      try { if (window._authKararTamam) { window._authKararTamam(); window._authKararTamam = null; } } catch(e) {}
+    };
+
     // Supabase session kontrolü — RETRY ile race-safe
     if (supaSessionPromise) {
       (async () => {
@@ -45717,6 +45721,8 @@ function authInit(){
               console.warn('[Supabase] getSession deneme ' + (i+1) + ' hata:', e);
             }
           }
+          // güvenlik: hangi dal olursa olsun splash sonsuza kadar beklemesin
+          setTimeout(_kararVer, 100);
 
           if (!sess?.session?.user) {
             // Session yok → auth ekranı göster
@@ -45730,10 +45736,12 @@ function authInit(){
             }
             // 🆕 WebView: gizliden görünüre geçen alanı boyamayı garantiye al
             try { if (typeof _authYenidenCiz === 'function') setTimeout(_authYenidenCiz, 0); } catch(e) {}
+            _kararVer();                       // 🆕 giriş ekranı hazır → splash kapanabilir
             return;
           }
 
           // 🆕 SUPABASE'TE AKTİF OTURUM VAR — profil + user_player çek
+          _kararVer();                         // 🆕 oturum bulundu → splash kapanabilir
           const userId = sess.session.user.id;
           const userEmail = sess.session.user.email;
 
@@ -90739,6 +90747,18 @@ setTimeout(async ()=>{
   try { if (typeof renderFixture === 'function') renderFixture(); } catch(e) {}
   try { if (typeof renderResultsPage === 'function') renderResultsPage(); } catch(e) {}
 
+  // 🆕 Splash, OTURUM KARARI verilene kadar kapanmaz.
+  //    Böylece hiç giriş yapmamış oyuncu ana sayfayı hiç görmez; açılış
+  //    animasyonundan doğrudan giriş/kayıt ekranına geçer.
+  //    En fazla 7 sn bekler, sonra yine de açar (takılı kalmasın).
+  try {
+    if (window._authKarar) {
+      await Promise.race([
+        window._authKarar,
+        new Promise(function(r){ setTimeout(r, 7000); })
+      ]);
+    }
+  } catch(e) {}
   document.getElementById('splash').classList.add('hide');
 
   // 🆕 AÇILIŞ EMNİYETİ — hangi veri en son gelirse gelsin ana sayfa dolsun.
