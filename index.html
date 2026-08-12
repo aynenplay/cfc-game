@@ -1114,6 +1114,54 @@ body.kbd-open.team-chat-active #team-chat .vt-section .vt-title{padding:0 12px 6
 body.kbd-open.team-chat-active #team-chat .chat-area{flex:1;min-height:0;height:auto !important;border-radius:0;margin:0}
 body.kbd-open.team-chat-active #team-chat .chat-input-row{position:relative !important;flex-shrink:0;bottom:auto}
 
+/* 🆕 MİLLİ TAKIM SOHBETİ — klavye davranışı kulüp sohbetiyle birebir aynı.
+   ⚠️ Yukarıdaki #team-chat kuralları HİÇ değiştirilmedi; bunlar ayrı seçiciler.
+   Üst boşluk sabit değil: --nt-chat-top JS ile sekme şeridinin alt kenarından
+   ölçülür (milli takım sayfasının başlık yüksekliği kulüpten farklı). */
+body.nt-chat-active #page-national #nt-chat{
+  position:fixed !important;
+  top:var(--nt-chat-top, 193px);
+  left:0; right:0;
+  bottom:env(safe-area-inset-bottom, 0px);
+  display:flex !important;
+  flex-direction:column;
+  padding:0; margin:0;
+  background:var(--bg);
+  z-index:5;
+}
+#page-national #nt-chat .vt-section{
+  flex:1;display:flex;flex-direction:column;min-height:0;
+  margin:0;padding:8px 0 0;border:none;background:transparent;
+}
+#page-national #nt-chat .vt-section .vt-title{padding:0 12px 6px;flex-shrink:0;font-size:13px}
+#page-national #nt-chat .chat-area{flex:1;min-height:0;height:auto !important;border-radius:0;margin:0;background:var(--bg2)}
+#page-national #nt-chat .chat-input-row{flex-shrink:0;background:var(--bg2);border-top:1px solid var(--border);padding:8px 10px;margin:0;border-radius:0}
+
+/* Klavye AÇIKKEN — kutu klavyenin üst kenarına yapışır */
+body.kbd-open.nt-chat-active #page-national #nt-chat,
+body.kbd-open.nt-chat-active #nt-chat{
+  position:fixed !important;
+  top:var(--nt-chat-top, 193px) !important;
+  left:0 !important;
+  right:0 !important;
+  bottom:var(--kbd-h, 0px) !important;
+  height:auto !important;
+  z-index:5 !important;
+  background:var(--bg) !important;
+  display:flex !important;
+  flex-direction:column;
+  padding:0 !important;
+  margin:0 !important;
+  overflow:hidden;
+}
+body.kbd-open.nt-chat-active #nt-chat .vt-section{
+  flex:1;display:flex;flex-direction:column;min-height:0;
+  margin:0;padding:8px 0 0;border:none;background:transparent;
+}
+body.kbd-open.nt-chat-active #nt-chat .vt-section .vt-title{padding:0 12px 6px;flex-shrink:0;font-size:13px}
+body.kbd-open.nt-chat-active #nt-chat .chat-area{flex:1;min-height:0;height:auto !important;border-radius:0;margin:0}
+body.kbd-open.nt-chat-active #nt-chat .chat-input-row{position:relative !important;flex-shrink:0;bottom:auto}
+
 /* FORMS */
 .form-group{margin-bottom:14px}
 .form-label{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:block}
@@ -28646,7 +28694,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-12-ntmotor-349';
+const APP_BUILD = '2026-08-12-ntklavye-350';
 
 (function _cacheBustCheck() {
   try {
@@ -30550,11 +30598,26 @@ window.addEventListener('load', function() {
   (function setupKeyboardDetection(){
     let kbdOpen = false;
 
+    // 🆕 Hangi sohbet açık? Milli takım sohbeti aktifse onun kutusu/alanı,
+    //    değilse (varsayılan) kulüp sohbeti — kulüp davranışı AYNEN korunur.
+    function _aktifSohbet(){
+      if(document.body.classList.contains('nt-chat-active')){
+        return { kutu: document.getElementById('nt-chat'),
+                 alan: document.getElementById('ntChatArea') };
+      }
+      return { kutu: document.getElementById('team-chat'),
+               alan: document.getElementById('teamChatArea') };
+    }
+    function _sohbetInputMu(el){
+      return !!(el && (el.id === 'teamChatInput' || el.id === 'ntChatInput'));
+    }
+
     // 🆕 Klavye yüksekliğini ölçüp CSS variable olarak yaz
-    // Böylece #team-chat bottom:var(--kbd-h) ile klavyenin üst kenarına yapışır
+    // Böylece #team-chat / #nt-chat bottom:var(--kbd-h) ile klavyenin üst kenarına yapışır
     function adjustChatArea(){
-      const chat = document.getElementById('team-chat');
-      const ca = document.getElementById('teamChatArea');
+      const _s = _aktifSohbet();
+      const chat = _s.kutu;
+      const ca = _s.alan;
       if(!chat || !ca) return;
 
       if(!document.body.classList.contains('kbd-open')){
@@ -30586,7 +30649,7 @@ window.addEventListener('load', function() {
         // Klavye açıldı → chat-area yüksekliğini ayarla + scroll
         setTimeout(() => {
           adjustChatArea();
-          const ca = document.getElementById('teamChatArea');
+          const ca = _aktifSohbet().alan;
           if(ca && ca.offsetParent !== null){
             ca.scrollTop = ca.scrollHeight;
           }
@@ -30603,6 +30666,15 @@ window.addEventListener('load', function() {
       chatInp.addEventListener('focus', () => setKbdOpen(true));
       chatInp.addEventListener('blur', () => setKbdOpen(false));
     }
+    // 🆕 Milli takım sohbeti girişi DOM'a sonradan ekleniyor (ntRenderChat) →
+    //    doğrudan dinleyici yerine delegasyon. Kulüp yolu değişmedi.
+    document.addEventListener('focusin', (e) => {
+      if(e.target && e.target.id === 'ntChatInput') setKbdOpen(true);
+    });
+    document.addEventListener('focusout', (e) => {
+      if(e.target && e.target.id === 'ntChatInput') setKbdOpen(false);
+    });
+
     // Sıralama arama alanı — aynı sistem: focus'ta anında kbd-open (nav gizle + arka plan dondur → titreme yok)
     const rkInp = document.getElementById('rkSearchInput');
     if(rkInp){
@@ -30618,7 +30690,7 @@ window.addEventListener('load', function() {
         if(!vv) return;
         const heightDiff = baseHeight - vv.height;
         // Sadece chat input focus yoksa setKbdOpen çağır (yöntem 1 öncelikli)
-        if(document.activeElement !== chatInp){
+        if(!_sohbetInputMu(document.activeElement)){
           setKbdOpen(heightDiff > 150);
         } else {
           // Klavye açıldıysa yüksekliği yenile (özellikle iOS'ta)
@@ -58255,9 +58327,28 @@ function ntTab(name, el) {
   else if(name === 'callup' && typeof ntRenderCallup === 'function') ntRenderCallup();
   else if(name === 'trophies' && typeof ntRenderTrophies === 'function') ntRenderTrophies();
 
-  if(name === 'chat') document.body.classList.add('nt-chat-active');
-  else document.body.classList.remove('nt-chat-active');
+  if(name === 'chat') {
+    _ntChatUstOlc();                       // 🆕 sekme şeridinin altını ölç
+    document.body.classList.add('nt-chat-active');
+    requestAnimationFrame(_ntChatUstOlc);  // render sonrası bir kez daha
+  } else {
+    document.body.classList.remove('nt-chat-active');
+  }
 }
+
+// 🆕 Milli sohbet kutusunun üst kenarı — sekme şeridinin hemen altı.
+//    Kulüp sohbetinde bu değer 193px sabit; milli takım sayfasının başlık
+//    yüksekliği farklı olduğu için ölçerek yazıyoruz.
+function _ntChatUstOlc(){
+  try{
+    if(document.body.classList.contains('kbd-open')) return;  // klavye açıkken ölçme
+    const tabs = document.querySelector('#page-national .nt-tabs');
+    if(!tabs) return;
+    const alt = Math.round(tabs.getBoundingClientRect().bottom);
+    if(alt > 0) document.documentElement.style.setProperty('--nt-chat-top', alt + 'px');
+  }catch(e){}
+}
+window._ntChatUstOlc = _ntChatUstOlc;
 
 function teamTab(name, el) {
   if (name === 'trophies' && typeof renderTrophyShelf === 'function') {
