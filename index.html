@@ -28646,7 +28646,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-12-ntovr-347';
+const APP_BUILD = '2026-08-12-ntmotor-349';
 
 (function _cacheBustCheck() {
   try {
@@ -55794,11 +55794,21 @@ function ntSaveStrategy(kullaniciEylemi) {
       .map(e => ({ num: e.player.num, slotIdx: e.slotIdx, id: e.player.id,
                    ntId: e.player.ntId || null, ad: e.player.name || null,
                    x: e.x, y: e.y, pos: e.pos }));
+    // 🆕 Yedekleri KALICI KİMLİKLE de yaz — maç motoru forma numarasıyla değil
+    //    uuid ile eşleştirsin (numaralar kadro değişince kayıyor).
+    let matchBenchIds = [];
+    try {
+      const _rost = (typeof ntEnsureRoster === 'function') ? ntEnsureRoster() : [];
+      matchBenchIds = (Array.isArray(_ntMatchSquadBench) ? _ntMatchSquadBench : [])
+        .map(n => { const q = _rost.find(x => x && x.num === n); return q ? q.id : null; })
+        .filter(Boolean);
+    } catch(e) {}
     const blob = {
       strategy: { ..._ntActiveStrategy },
       formation: _ntCurrentFormation,
       lineup: lineupSnapshot,
       matchBench: Array.isArray(_ntMatchSquadBench) ? _ntMatchSquadBench.slice() : [],
+      matchBenchIds,
       benchUserManaged: !!_ntBenchUserManaged
     };
     // Anında RAM cache'i güncelle (load'ta tutarlı)
@@ -56766,42 +56776,154 @@ function ntUpdateSliderLabel(sliderId, labelId) {
 }
 
 // ────────── SOHBET render ──────────
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 MİLLİ TAKIM SOHBETİ — GERÇEK MESAJLAŞMA
+//   Eskiden bu bölüm sabit-kodlu sahte mesajlar basıyordu; gönder butonunun
+//   çağırdığı ntSendChat fonksiyonu HİÇ TANIMLI DEĞİLDİ (ReferenceError).
+//   Artık kulüp sohbetiyle aynı `team_chat` tablosunu kullanır:
+//     country_code = ülke kodu · team_name = milli takım adı (ör. "Türkiye")
+//   Mesaj kartlarını kulüp sohbetinin _teamChatAppendMsg'i çizer (aynı görünüm).
+// ═══════════════════════════════════════════════════════════════════════
+function _ntChatTakimAdi() {
+  return (typeof _ntCountryName === 'function') ? _ntCountryName()
+       : ((typeof fedActiveCountry === 'function') ? fedActiveCountry() : 'TR');
+}
+function _ntChatUlke() {
+  return (typeof fedActiveCountry === 'function') ? fedActiveCountry() : 'TR';
+}
+
 function ntRenderChat() {
   const el = document.getElementById('nt-chat');
   if(!el) return;
-  const cc = (typeof fedActiveCountry === 'function') ? fedActiveCountry() : 'TR';
-  const pres = (typeof fedGetPresident === 'function') ? fedGetPresident(cc) : null;
-  const presName = pres ? pres.captainName : 'T.D.';
-  const squad = ntEnsureRoster();
-  const gk = squad.find(p => p.pos === 'GK' && p.role === 'starter');
-  const def = squad.find(p => p.pos === 'DEF' && p.role === 'starter');
-  const mid = squad.find(p => p.pos === 'MID' && p.role === 'starter');
-  const fwd = squad.find(p => p.pos === 'FWD' && p.role === 'starter');
-
   el.innerHTML = `
     <div class="vt-section nt-chat-section">
       <div class="chat-header-row">
         <div class="vt-title" style="margin:0">💬 Milli Takım Sohbeti</div>
       </div>
-      <div class="chat-area" id="ntChatArea">
-        <div class="chat-msg other"><div class="chat-sender">🎽 T.D. ${presName}</div>Antrenmana herkes 09:00'da, fitness testleri başlıyor.</div>
-        ${gk ? `<div class="chat-msg other"><div class="chat-sender">🧤 #${gk.num} ${gk.name}</div>Hazırım hocam, formdayım.</div>` : ''}
-        ${def ? `<div class="chat-msg other"><div class="chat-sender">🛡️ #${def.num} ${def.name}</div>Defansta uyumumuzu artırmamız lazım.</div>` : ''}
-        ${mid ? `<div class="chat-msg other"><div class="chat-sender">⚙️ #${mid.num} ${mid.name}</div>Topu çabuk sirküle edersek pozisyon buluruz.</div>` : ''}
-        ${fwd ? `<div class="chat-msg other"><div class="chat-sender">🎯 #${fwd.num} ${fwd.name}</div>Kalem hazır, bizimle topu buluştur yeter 😎</div>` : ''}
-      </div>
+      <div class="chat-area" id="ntChatArea"></div>
       <div class="chat-input-row">
-        <input class="chat-input" type="text" id="ntChatInput" placeholder="Milli takıma mesaj yaz..." onkeydown="if(event.key==='Enter')ntSendChat()"/>
+        <input class="chat-input" type="text" id="ntChatInput" maxlength="300"
+               placeholder="Milli takıma mesaj yaz..." onkeydown="if(event.key==='Enter')ntSendChat()"/>
         <button class="chat-send" onmousedown="event.preventDefault()" tabindex="-1" onclick="ntSendChat()">→</button>
       </div>
     </div>
   `;
-  // En alta kaydır
-  setTimeout(() => {
-    const area = document.getElementById('ntChatArea');
-    if(area) area.scrollTop = area.scrollHeight;
-  }, 50);
+  try { _ntChatYukleVeCiz(); } catch(e) { console.warn('[nt_chat] render hata:', e); }
 }
+
+async function _ntChatYukleVeCiz() {
+  const area = document.getElementById('ntChatArea');
+  if (!area || !window.sb) return;
+  const cc = _ntChatUlke();
+  const ntName = _ntChatTakimAdi();
+  try {
+    const { data, error } = await window.sb.from('team_chat')
+      .select('user_id, username, display_name, avatar_id, message, created_at')
+      .eq('country_code', cc)
+      .eq('team_name', ntName)
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (error) { console.warn('[nt_chat] okuma hata:', error.message || error); return; }
+    const myId = (typeof authUser !== 'undefined' && authUser) ? authUser.id : null;
+    area.innerHTML = '';
+    const msgs = (data || []).slice().reverse();
+    if (!msgs.length) {
+      area.innerHTML = '<div style="padding:18px 10px;text-align:center;color:var(--text3);font-size:11.5px">'
+        + 'Henüz mesaj yok — ilk yazan sen ol.</div>';
+    } else {
+      for (const m of msgs) {
+        if (typeof _teamChatAppendMsg === 'function') {
+          _teamChatAppendMsg(area, m, m.user_id && m.user_id === myId);
+        }
+      }
+    }
+    area.scrollTop = area.scrollHeight;
+    requestAnimationFrame(() => { area.scrollTop = area.scrollHeight; });
+    _ntChatAbone();
+  } catch(e) { console.warn('[nt_chat] okuma hata:', e); }
+}
+
+// Realtime — kulüp sohbetiyle aynı desen, ayrı kanal
+let _ntChatChannel = null;
+let _ntChatChannelKey = null;
+function _ntChatAbone() {
+  if (!window.sb) return;
+  const cc = _ntChatUlke();
+  const ntName = _ntChatTakimAdi();
+  const key = cc + ':' + ntName;
+  if (_ntChatChannelKey === key && _ntChatChannel) return;
+  if (_ntChatChannel) { try { window.sb.removeChannel(_ntChatChannel); } catch(e) {} _ntChatChannel = null; }
+  const myId = (typeof authUser !== 'undefined' && authUser) ? authUser.id : null;
+  _ntChatChannelKey = key;
+  _ntChatChannel = window.sb.channel('nt_chat:' + key)
+    .on('postgres_changes', {
+      event: 'INSERT', schema: 'public', table: 'team_chat',
+      filter: `team_name=eq.${ntName}`,
+    }, (payload) => {
+      const m = payload.new;
+      if (!m || m.country_code !== cc || m.team_name !== ntName) return;
+      if (m.user_id && m.user_id === myId) return;   // kendi mesajım zaten eklendi
+      const area = document.getElementById('ntChatArea');
+      if (!area) return;
+      const bos = area.querySelector('div[style*="Henüz mesaj yok"]');
+      if (bos) area.innerHTML = '';
+      if (typeof _teamChatAppendMsg === 'function') _teamChatAppendMsg(area, m, false);
+      area.scrollTop = area.scrollHeight;
+    })
+    .subscribe();
+}
+function _ntChatAboneKapat() {
+  if (_ntChatChannel) { try { window.sb.removeChannel(_ntChatChannel); } catch(e) {} }
+  _ntChatChannel = null; _ntChatChannelKey = null;
+}
+window._ntChatAboneKapat = _ntChatAboneKapat;
+
+async function ntSendChat() {
+  const inp = document.getElementById('ntChatInput');
+  if (!inp || !inp.value.trim()) return;
+  const area = document.getElementById('ntChatArea');
+  if (!area) return;
+  const text = inp.value.trim().slice(0, 300);
+  inp.value = '';
+
+  const me = (typeof authUser !== 'undefined' && authUser) ? authUser : {};
+  // Anında kendi mesajını göster
+  const bos = area.querySelector('div[style*="Henüz mesaj yok"]');
+  if (bos) area.innerHTML = '';
+  if (typeof _teamChatAppendMsg === 'function') {
+    _teamChatAppendMsg(area, {
+      user_id: me.id || null,
+      display_name: me.name || me.username || 'Sen',
+      avatar_id: me.avatarId || null,
+      message: text,
+      created_at: new Date().toISOString()
+    }, true);
+  }
+  area.scrollTop = area.scrollHeight;
+  requestAnimationFrame(() => { area.scrollTop = area.scrollHeight; });
+  inp.focus();
+
+  if (!window.sb) return;
+  try {
+    const { error } = await window.sb.from('team_chat').insert({
+      country_code: _ntChatUlke(),
+      team_name: _ntChatTakimAdi(),
+      user_id: me.id || null,
+      username: me.username || null,
+      display_name: me.name || me.username || null,
+      avatar_id: me.avatarId || null,
+      message: text
+    });
+    if (error) {
+      console.warn('[nt_chat] gönderilemedi:', error.message || error);
+      if (typeof showToast === 'function') showToast('Mesaj gönderilemedi: ' + (error.message || 'yetki hatası'));
+    } else if (typeof achBump === 'function') { achBump('chat'); }
+  } catch(e) {
+    console.warn('[nt_chat] gönderilemedi:', e);
+    if (typeof showToast === 'function') showToast('Mesaj gönderilemedi');
+  }
+}
+window.ntSendChat = ntSendChat;
 
 // ═══════════════════════════════════════════════════════════════════════
 // FEDERASYON YETKİLİSİ — Milli Takıma Davet
