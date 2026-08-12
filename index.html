@@ -13,38 +13,6 @@
      Güvenlik ağı devreye girerse bile ÖNCE çeviriyi çalıştırır, SONRA perdeyi
      kaldırır — yani hiçbir koşulda çevrilmemiş ekran gösterilmez. -->
 <script>
-/* ═══ 🆕 AÇILIŞ PERDESİ ═══════════════════════════════════════════════
-   Oturum kontrolü bitene kadar hiçbir şey görünmesin. Eskiden ana sayfa
-   bir an görünüp sonra giriş ekranına atlıyordu; tarayıcıda göz kırpma
-   kadar kısaydı ama mobil uygulamada (WebView oturum okuması yavaş)
-   "ana sayfa açıldı sonra titreyerek giriş ekranına geçti" oluyordu. */
-(function(){
-  try {
-    document.documentElement.setAttribute('data-acilis', '1');
-    var st = document.createElement('style');
-    st.id = 'acilis-perde';
-    st.textContent =
-      'html[data-acilis]{background:#06070a !important}' +
-      'html[data-acilis] body{visibility:hidden !important}' +
-      'html[data-acilis]::after{content:"";position:fixed;inset:0;z-index:2147482000;background:#06070a}' +
-      'html[data-acilis]::before{content:"";position:fixed;z-index:2147482001;' +
-        'left:50%;top:50%;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;' +
-        'border:3px solid rgba(255,255,255,.12);border-top-color:#00e676;' +
-        'animation:acilisDon .8s linear infinite}' +
-      '@keyframes acilisDon{to{transform:rotate(360deg)}}';
-    (document.head || document.documentElement).appendChild(st);
-    window._acilisPerdeKaldir = function(){
-      try {
-        var e = document.getElementById('acilis-perde');
-        if (e && e.parentNode) e.parentNode.removeChild(e);
-        document.documentElement.removeAttribute('data-acilis');
-      } catch(x) {}
-    };
-    // Güvenlik ağı: 8 sn içinde oturum kararı gelmezse yine de göster
-    setTimeout(function(){ try { window._acilisPerdeKaldir(); } catch(x) {} }, 8000);
-  } catch(e) {}
-})();
-
 (function(){
   var dil = 'tr';
   try { dil = localStorage.getItem('cft_language') || 'tr'; } catch(e) {}
@@ -115,9 +83,15 @@
     var r = ev && ev.reason;
     goster('SÖZ REDDİ', (r && (r.message || r.error_description || r.msg)) || String(r).slice(0,200));
   });
-  // Açılış bekçisi: 15 sn sonra hâlâ takım/veri yoksa hangi adımda kalındığını yaz
+  // Açılış bekçisi: 15 sn sonra hâlâ takım/veri yoksa hangi adımda kalındığını yaz.
+  // 🆕 SADECE HATA AYIKLAMA MODUNDA. Eskiden oturum açık olmayan HERKESE
+  //    (yani her giriş ekranında) kırmızı şerit basıyordu.
+  //    Açmak için tarayıcı konsolunda: localStorage.setItem('cft_debug','1')
   setTimeout(function(){
     try{
+      var _dbg = false;
+      try { _dbg = localStorage.getItem('cft_debug') === '1'; } catch(e0) {}
+      if (!_dbg) return;
       var d = [];
       d.push('oturum=' + (window.authUser && window.authUser.id ? 'var' : 'YOK'));
       d.push('supabase=' + (window.sb ? 'var' : 'YOK'));
@@ -28726,7 +28700,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-12-acilisperde-352';
+const APP_BUILD = '2026-08-12-perdegerial-354';
 
 (function _cacheBustCheck() {
   try {
@@ -28766,7 +28740,6 @@ try {
         try { _wlCache = null; _energyCache = null; } catch(e) {}
         if (typeof showAuthScreen === 'function') showAuthScreen();
         else { const a = document.getElementById('auth-screen'); if (a) a.classList.remove('hidden'); }
-        try { if (window._acilisPerdeKaldir) window._acilisPerdeKaldir(); } catch(e) {}
       }
       // TOKEN_REFRESHED otomatik handle ediliyor (autoRefreshToken: true)
     });
@@ -45747,8 +45720,6 @@ function authInit(){
               const a = document.getElementById('auth-screen');
               if (a) a.classList.remove('hidden');
             }
-            // 🆕 Giriş ekranı yerine oturdu → perdeyi kaldır
-            try { if (window._acilisPerdeKaldir) window._acilisPerdeKaldir(); } catch(e) {}
             return;
           }
 
@@ -45939,8 +45910,6 @@ function authInit(){
 }
 
 function hideAuthScreen(){
-  // 🆕 Uygulama görünür oluyor → açılış perdesini kaldır
-  try { if (window._acilisPerdeKaldir) window._acilisPerdeKaldir(); } catch(e) {}
   document.getElementById('auth-screen').classList.add('hidden');
   const m=document.getElementById('main');if(m)m.style.visibility='visible';
   const t=document.getElementById('topbar');if(t)t.style.visibility='visible';
