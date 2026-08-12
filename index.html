@@ -28646,7 +28646,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-11-sampisik-344';
+const APP_BUILD = '2026-08-12-encpen-345';
 
 (function _cacheBustCheck() {
   try {
@@ -75477,14 +75477,19 @@ async function _encLoadFromServer(season) {
   if (!window.sb) return null;
   try {
     const { data } = await window.sb.from('tournament_state')
-      .select('fixture, results')
+      .select('fixture, results, phase')
       .eq('tournament_key', 'enc')
       .eq('season', season)
       .maybeSingle();
     if (data && data.fixture) {
       // fixture içine state'i koyduk
-      _encStateCache[season] = data.fixture;
-      return data.fixture;
+      // 🆕 phase de taşınır — eskiden sorgulanmadığı için istemci hep 'group'
+      //    görüyordu ve milli takım EURO sekmesi güncel aşamayı göstermiyordu.
+      const _st = (data.fixture && typeof data.fixture === 'object' && !Array.isArray(data.fixture))
+        ? { ...data.fixture } : data.fixture;
+      if (_st && typeof _st === 'object' && data.phase) _st.phase = data.phase;
+      _encStateCache[season] = _st;
+      return _st;
     }
   } catch(e) { console.warn('[enc] load hata:', e); }
   return null;
@@ -75592,30 +75597,47 @@ function encEnsureState(season) {
       const homeFlag = pair.home.flag || (homeCC && _cftGetCountry(homeCC) && _cftGetCountry(homeCC).flag) || '🏳️';
       const awayFlag = pair.away.flag || (awayCC && _cftGetCountry(awayCC) && _cftGetCountry(awayCC).flag) || '🏳️';
 
-      let srv = _encResultsByPhase[phase][`${homeName}|${awayName}`];
-      // 🆕 match_results'ta yoksa match_state finished'tan oku (otorite tablo)
-      if (!srv && _matchStateCache && _matchStateCache.byKey) {
-        const _f = Object.values(_matchStateCache.byKey).find(ms =>
+      // 🆕 match_state satırını her durumda bul — hem skor yedeği hem PENALTI için.
+      //    (match_results'ta pens kolonu YOK; penaltı match_state.stats'ta duruyor.)
+      let _msRow = null;
+      if (_matchStateCache && _matchStateCache.byKey) {
+        _msRow = Object.values(_matchStateCache.byKey).find(ms =>
           ms && ms.tournament_key === 'enc' && ms.tournament_phase === phase &&
-          ms.season === season && ms.status === 'finished' &&
-          ms.home === homeName && ms.away === awayName);
-        if (_f) srv = { hs: _f.home_score, as: _f.away_score };
+          ms.season === season &&
+          ms.home === homeName && ms.away === awayName) || null;
+      }
+      let srv = _encResultsByPhase[phase][`${homeName}|${awayName}`];
+      if (!srv && _msRow && _msRow.status === 'finished') {
+        srv = { hs: _msRow.home_score, as: _msRow.away_score };
       }
       const hg = srv ? srv.hs : null;
       const ag = srv ? srv.as : null;
       const played = typeof hg === 'number' && typeof ag === 'number';
+
+      // 🆕 Penaltı / uzatma — _penCache (match_state.stats) üzerinden
+      const _mk = _msRow ? _msRow.matchKey : null;
+      const _pi = (_mk && typeof _penBilgi === 'function') ? _penBilgi(_mk) : null;
+      const _pens = (_pi && _pi.pens) ? { homePens: _pi.pens[0], awayPens: _pi.pens[1] } : null;
+
       let result = null;
       if (played) {
         if (hg > ag) result = 'home';
         else if (ag > hg) result = 'away';
-        else result = null;  // beraber → uzatma/penaltı backend tarafında çözülmüş, kazanan match_results'ta yok
+        else if (_pens) {
+          // Berabere bitti → kazananı penaltıdan türet (kazanan adı varsa ondan)
+          if (_pi.kazanan === homeName) result = 'home';
+          else if (_pi.kazanan === awayName) result = 'away';
+          else if (_pens.homePens > _pens.awayPens) result = 'home';
+          else if (_pens.awayPens > _pens.homePens) result = 'away';
+        }
       }
       return {
         homeName, home: homeCC || homeName.slice(0,3).toUpperCase(), homeFlag,
         awayName, away: awayCC || awayName.slice(0,3).toUpperCase(), awayFlag,
         hg, ag, result,
-        pens: srv?.pens || null,
-        et: srv?.et || false
+        matchKey: _mk,
+        pens: _pens,
+        et: !!(_pi && _pi.et)
       };
     }
 
@@ -76092,6 +76114,22 @@ function encRenderKnockout(state) {
     const oy = ms.filter(x => x && x.hg != null && x.ag != null).length;
     return { ad: round.name, kartlar, bitti: ms.length > 0 && oy >= ms.length };
   });
+
+  // 🆕 PENALTI VERİSİ — match_state.stats'ta duruyor, tek sorguda çekilir.
+  //    Yeni bilgi gelirse aktif ekran yeniden çizilir (ağaçta (4)–(3) ve yeşil kazanan).
+  try {
+    const _mkList = [];
+    rounds.forEach(r => (r.matches || []).forEach(m => { if (m && m.matchKey) _mkList.push(m.matchKey); }));
+    if (_mkList.length && typeof _penYukle === 'function' && !window._encPenIstek) {
+      window._encPenIstek = true;
+      _penYukle(_mkList).then(yeni => {
+        window._encPenIstek = false;
+        if (!yeni) return;
+        try { if (document.getElementById('ntStandingsContent') && typeof ntRenderStandings === 'function') ntRenderStandings(); } catch(e) {}
+        try { if (document.getElementById('trn2Content') && typeof trn2Render === 'function') trn2Render(); } catch(e) {}
+      }).catch(() => { window._encPenIstek = false; });
+    }
+  } catch(e) {}
 
   return _agcAgac({
     acc: '#ffd54f',
