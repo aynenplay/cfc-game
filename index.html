@@ -28646,7 +28646,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-12-encpen-345';
+const APP_BUILD = '2026-08-12-ntovr-347';
 
 (function _cacheBustCheck() {
   try {
@@ -54492,7 +54492,11 @@ function ntRender() {
   const squad = (typeof ntEnsureRoster === 'function') ? ntEnsureRoster() : [];
   if(playersEl) playersEl.textContent = squad.length + '/18';
   if(powerEl && squad.length) {
-    const avg = Math.round(squad.reduce((s,p)=>s+(p.overall||0),0) / squad.length);
+    // 🆕 players.overall veritabanında HERKESTE 10 — gerçek güç abilities'ten
+    //    _ntPlayerSkill (getPlayerMainOverall) ile hesaplanır. Kadro sekmesi
+    //    zaten bunu kullanıyordu, hero ve diziliş ekranı kullanmıyordu.
+    const _g = (p) => (typeof _ntPlayerSkill === 'function') ? _ntPlayerSkill(p) : (p.overall || 0);
+    const avg = Math.round(squad.reduce((s,p)=>s+_g(p),0) / squad.length);
     powerEl.textContent = avg;
   }
   // 🆕 Piyasa Değeri — kadrodaki oyuncuların GÖSTERİLEN değerlerinin TOPLAMI (yeniden hesap YOK)
@@ -54518,9 +54522,10 @@ function ntRender() {
     const POSGRP = (typeof POS_GROUP !== 'undefined') ? POS_GROUP
       : { KL:'GK', GK:'GK', STB:'DEF', SB:'DEF', DEF:'DEF', DOS:'MID', OS:'MID', SAK:'MID', MID:'MID', FWD:'FWD' };
     const buckets = { GK:[], DEF:[], MID:[], FWD:[] };
+    const _g = (p) => (typeof _ntPlayerSkill === 'function') ? _ntPlayerSkill(p) : (p.overall || 0);
     (squad || []).forEach(p => {
       const grp = POSGRP[p.pos] || p.pos;
-      if (buckets[grp]) buckets[grp].push(p.overall || 0);
+      if (buckets[grp]) buckets[grp].push(_g(p));   // 🆕 gerçek yetenek
     });
     const avg = arr => arr.length ? Math.round(arr.reduce((s,v)=>s+v,0)/arr.length) : 0;
     const ls = { GK:avg(buckets.GK), DEF:avg(buckets.DEF), MID:avg(buckets.MID), FWD:avg(buckets.FWD) };
@@ -55004,7 +55009,7 @@ function ntInvitePlayer(ntId) {
   NT_ROSTER_DATA = [];
   _ntCachedCC = null;
   // 🆕 Diziliş güncellemesi — eksik slot varsa yeni oyuncuyla doldur
-  try { _ntPruneInvalidLineup(); _ntCompleteLineup(); ntSaveStrategy(); } catch(e){}
+  try { _ntPruneInvalidLineup(); _ntCompleteLineup(); ntSaveStrategy(true); } catch(e){}
   if (typeof ntRender === 'function') ntRender();
   if (typeof ntRenderRoster === 'function') ntRenderRoster();
 }
@@ -55025,7 +55030,7 @@ function ntRemovePlayer(ntId) {
   NT_ROSTER_DATA = [];
   _ntCachedCC = null;
   // 🆕 Diziliş güncellemesi — çıkarılan oyuncuyu lineup'tan kaldır, eksik slotu doldur
-  try { _ntPruneInvalidLineup(); _ntCompleteLineup(); ntSaveStrategy(); } catch(e){}
+  try { _ntPruneInvalidLineup(); _ntCompleteLineup(); ntSaveStrategy(true); } catch(e){}
   if (typeof ntRender === 'function') ntRender();
   if (typeof ntRenderRoster === 'function') ntRenderRoster();
 }
@@ -55050,6 +55055,10 @@ function ntEnsureRoster() {
 // Başkanın seçtiği oyuncuları korur, sadece BOŞ slot'ları doldurur
 // İdempotent: kadro doluysa hiçbir şey yapmaz
 // ═══════════════════════════════════════════════════════════════════
+// 🆕 Milli takım minimum kadro — 11 (maça çıkabilecek en az sayı).
+//    Kaptan 11 kişiye kadar oyuncu çıkarabilir, 11'de uyarı alır.
+const NT_MIN_KADRO = 11;
+
 function ntAutoFillSquadIfStale(cc) {
   if (false || !_cftGetCountry(cc)) return;
   if (typeof NT_SQUAD_SLOTS === 'undefined') return;
@@ -55072,6 +55081,15 @@ function ntAutoFillSquadIfStale(cc) {
   const emptySlots = [];
   ids.forEach((id, i) => { if (!id) emptySlots.push(i); });
   if (emptySlots.length === 0) return; // hiçbir şey yapma — başkan tamamlamış
+
+  // 🆕 KAPTANIN ÇIKARDIĞI OYUNCUNUN YERİNE BOT GELMESİN
+  //    Eskiden bu fonksiyon ntEnsureRoster()'ın HER çağrısında çalışıyordu:
+  //    kaptan bir oyuncuyu çıkarır çıkarmaz boş slot doldurulup sunucuya
+  //    yazılıyor, yani çıkarma işlemi kendini geri alıyordu.
+  //    Kural: kadroda maça çıkacak kadar (11) oyuncu varsa otomatik doldurma YOK.
+  //    Yalnızca 11'in altına düşmüş / hiç kurulmamış kadrolar tamamlanır.
+  const _mevcutSayi = ids.filter(Boolean).length;
+  if (_mevcutSayi >= NT_MIN_KADRO) return;
 
   // Top 50 yetenek bazlı (sadece overall sıralama)
   if (typeof _ntAllNationalPlayers !== 'function' || typeof _ntSortAnalysis !== 'function') return;
@@ -55249,7 +55267,7 @@ function ntMatchSquadAdd(num) {
   }
   _ntMatchSquadBench.push(num);
   _ntBenchUserManaged = true;
-  try { if (typeof ntSaveStrategy === 'function') ntSaveStrategy(); } catch(e){}
+  try { if (typeof ntSaveStrategy === 'function') ntSaveStrategy(true); } catch(e){}
   if (typeof ntRenderRoster === 'function') ntRenderRoster();
   if (typeof ntRenderPitch === 'function') ntRenderPitch();
   if (typeof showToast === 'function') showToast(`${player.name} maç kadrosuna alındı`);
@@ -55268,7 +55286,7 @@ function ntMatchSquadRemove(num) {
   const player = roster.find(p => p && p.num === num);
   _ntMatchSquadBench.splice(idx, 1);
   _ntBenchUserManaged = true;
-  try { if (typeof ntSaveStrategy === 'function') ntSaveStrategy(); } catch(e){}
+  try { if (typeof ntSaveStrategy === 'function') ntSaveStrategy(true); } catch(e){}
   if (typeof ntRenderRoster === 'function') ntRenderRoster();
   if (typeof ntRenderPitch === 'function') ntRenderPitch();
   if (typeof showToast === 'function') showToast(`${player ? player.name : 'Oyuncu'} maç kadrosundan çıkarıldı`);
@@ -55700,11 +55718,25 @@ function ntLoadStrategy() {
       const roster = ntEnsureRoster();
       const slots = NT_FORMATIONS[_ntCurrentFormation];
       if(slots && roster.length) {
+        // 🆕 EŞLEŞTİRME ÖNCELİĞİ: id (players.uuid, kalıcı) → ntId → num (SON ÇARE)
+        //    Eski kod `id || num` yazıyordu; `num` oyuncunun değil KADRO SLOTUNUN
+        //    numarası olduğu için kadro değişince yanlış oyuncuya ya da hiçbirine
+        //    eşleşiyor, diziliş boş kalıyordu.
         const restored = [];
+        const kullanilan = new Set();
+        const bul = (saved) => {
+          let p = null;
+          if (saved.id != null)  p = roster.find(x => x && x.id === saved.id && !kullanilan.has(x));
+          if (!p && saved.ntId)  p = roster.find(x => x && x.ntId === saved.ntId && !kullanilan.has(x));
+          if (!p && saved.ad)    p = roster.find(x => x && x.name === saved.ad && !kullanilan.has(x));
+          if (!p && saved.num != null) p = roster.find(x => x && x.num === saved.num && !kullanilan.has(x));
+          return p || null;
+        };
         data.lineup.forEach(saved => {
-          const player = roster.find(p => p && ((saved.id != null && p.id === saved.id) || p.num === saved.num));
+          const player = bul(saved);
           const slot = slots[saved.slotIdx];
           if(player && slot) {
+            kullanilan.add(player);
             restored.push({
               rosterIdx: roster.indexOf(player),
               slotIdx: saved.slotIdx,
@@ -55713,17 +55745,55 @@ function ntLoadStrategy() {
             });
           }
         });
-        if(restored.length > 0) _ntActivePitchPlayers = restored;
+        if(restored.length > 0) {
+          _ntActivePitchPlayers = restored;
+          _ntDizilisDurum = 'yuklendi';
+        } else {
+          // 🆕 Kayıt vardı ama tek oyuncu bile eşleşmedi → OTOMATİK DİZİLİŞİ
+          //    SUNUCUYA YAZMA. Eskiden auto-fill hemen kaydedilip kullanıcının
+          //    kaydını kalıcı olarak siliyordu.
+          _ntDizilisDurum = 'eslesmedi';
+          console.warn('[nt_strategy] kayıtlı diziliş eşleşmedi — otomatik diziliş kaydedilmeyecek');
+        }
       }
     }
   } catch(e){}
 }
 
-function ntSaveStrategy() {
+// 🆕 Kayıtlı dizilişin durumu:
+//    'yok'       → sunucuda kayıt yok, otomatik diziliş kaydedilebilir
+//    'yuklendi'  → kayıt bulundu ve eşleşti, serbestçe kaydedilir
+//    'eslesmedi' → kayıt VAR ama hiçbir oyuncu eşleşmedi → otomatik dizilişi
+//                  SUNUCUYA YAZMA, kullanıcının kaydını ezmesin
+let _ntDizilisDurum = 'yok';
+
+// kullaniciEylemi = true → kullanıcı bilerek değiştirdi, her durumda kaydet
+function ntSaveStrategy(kullaniciEylemi) {
   try {
+    // 🆕 Kayıtlı diziliş eşleşmediyse (kadro/roster bayat) otomatik üretilmiş
+    //    dizilişi sunucuya YAZMA — kullanıcının kaydını silmesin. RAM'de tutulur.
+    if (_ntDizilisDurum === 'eslesmedi' && !kullaniciEylemi) {
+      try {
+        _ntStrategyCache = {
+          strategy: { ..._ntActiveStrategy },
+          formation: _ntCurrentFormation,
+          lineup: (_ntActivePitchPlayers || []).map(e => ({
+            num: e.player && e.player.num, slotIdx: e.slotIdx,
+            id: e.player && e.player.id, ntId: (e.player && e.player.ntId) || null,
+            ad: (e.player && e.player.name) || null, x: e.x, y: e.y, pos: e.pos })),
+          matchBench: Array.isArray(_ntMatchSquadBench) ? _ntMatchSquadBench.slice() : [],
+          benchUserManaged: !!_ntBenchUserManaged
+        };
+      } catch(e) {}
+      return;
+    }
+    // 🆕 Kalıcı kimlikleri de yaz: id (uuid) + ntId + ad. Sadece num'a güvenmek
+    //    kadro değişince eşleşmeyi bozuyordu.
     const lineupSnapshot = (Array.isArray(_ntActivePitchPlayers) ? _ntActivePitchPlayers : [])
-      .filter(e => e && e.player && typeof e.player.num === 'number')
-      .map(e => ({ num: e.player.num, slotIdx: e.slotIdx, id: e.player.id, x: e.x, y: e.y, pos: e.pos }));
+      .filter(e => e && e.player)
+      .map(e => ({ num: e.player.num, slotIdx: e.slotIdx, id: e.player.id,
+                   ntId: e.player.ntId || null, ad: e.player.name || null,
+                   x: e.x, y: e.y, pos: e.pos }));
     const blob = {
       strategy: { ..._ntActiveStrategy },
       formation: _ntCurrentFormation,
@@ -55740,18 +55810,27 @@ function ntSaveStrategy() {
       const ntName = _ntCountryName();
       const cc = (typeof fedActiveCountry === 'function') ? fedActiveCountry() : 'TR';
       try {
-        await window.sb.from('team_data').upsert({
+        // 🆕 Hata dönüşü kontrol ediliyor — RLS reddi sessizce yutuluyordu.
+        const { error } = await window.sb.from('team_data').upsert({
           country_code: cc,
           team_name: ntName,
           data_key: 'strategy',
           data: blob
         }, { onConflict: 'country_code,team_name,data_key' });
+        if (error) console.warn('[nt_strategy] kayıt reddedildi:', error.message || error);
+        else _ntDizilisDurum = 'yuklendi';
       } catch(e) { console.warn('[nt_strategy] save hata:', e); }
     }, 500);
   } catch(e){}
 }
 
-// Otomatik ilk diziliş — overall'a göre en iyi 11
+// 🆕 Sıralama yardımcısı — players.overall herkeste 10 olduğu için otomatik
+//    ilk 11 seçimi fiilen rastgeleydi. Gerçek güç _ntPlayerSkill'den gelir.
+function _ntG2(p) {
+  return (typeof _ntPlayerSkill === 'function') ? _ntPlayerSkill(p) : ((p && p.overall) || 0);
+}
+
+// Otomatik ilk diziliş — gerçek yeteneğe göre en iyi 11
 function _ntAutoFillLineup() {
   const roster = ntEnsureRoster();
   const slots = NT_FORMATIONS[_ntCurrentFormation];
@@ -55787,7 +55866,7 @@ function _ntAutoFillLineup() {
     const candidates = roster
       .map((p, i) => ({ p, i }))
       .filter(({ p, i }) => !used.has(i) && _grp(p) === fam)
-      .sort((a, b) => (b.p.overall||0) - (a.p.overall||0));
+      .sort((a, b) => _ntG2(b.p) - _ntG2(a.p));   // 🆕 gerçek yetenek
     if(candidates.length > 0) {
       const pick = candidates[0];
       used.add(pick.i);
@@ -55835,13 +55914,13 @@ function _ntCompleteLineup() {
     let candidates = roster
       .map((p, i) => ({ p, i }))
       .filter(({ p, i }) => !usedRosterIdx.has(i) && _grp(p) === fam)
-      .sort((a, b) => (b.p.overall||0) - (a.p.overall||0));
+      .sort((a, b) => _ntG2(b.p) - _ntG2(a.p));   // 🆕 gerçek yetenek
     // 🆕 Uygun yoksa HERHANGİ boşta oyuncu (kaleci dahil — saha asla eksik kalmasın)
     if(candidates.length === 0) {
       candidates = roster
         .map((p, i) => ({ p, i }))
         .filter(({ p, i }) => !usedRosterIdx.has(i))
-        .sort((a, b) => (b.p.overall||0) - (a.p.overall||0));
+        .sort((a, b) => _ntG2(b.p) - _ntG2(a.p));   // 🆕 gerçek yetenek
     }
     if(candidates.length > 0) {
       const pick = candidates[0];
@@ -56010,7 +56089,7 @@ function ntMakeDraggable(node, idx) {
       _ntActivePitchPlayers[idx].player = _ntActivePitchPlayers[targetIdx].player;
       _ntActivePitchPlayers[targetIdx].player = tmp;
       // 🆕 Slot data'sına dokunma (x/y/pos sabit) — sadece görsel olarak orijinale dön
-      try { if (typeof ntSaveStrategy === 'function') ntSaveStrategy(); } catch(_) {}
+      try { if (typeof ntSaveStrategy === 'function') ntSaveStrategy(true); } catch(_) {}
       if (typeof ntRenderPitch === 'function') ntRenderPitch();
     } else {
       // 🆕 BOŞ SLOTA bırakıldı mı? → oyuncuyu o boş slota taşı (eski slot "+" olur)
@@ -56095,7 +56174,7 @@ function _ntMovePitchToBenchIfDropped(pitchIdx, cx, cy) {
     }
     _ntBenchUserManaged = true;
   } catch(_){}
-  try { if (typeof ntSaveStrategy === 'function') ntSaveStrategy(); } catch(_){}
+  try { if (typeof ntSaveStrategy === 'function') ntSaveStrategy(true); } catch(_){}
   if (typeof ntRenderPitch === 'function') ntRenderPitch();
   try { if (typeof showToast === 'function') showToast('Yedeğe alındı: ' + (pl.name.split('_')[1] || pl.name)); } catch(_){}
   return true;
@@ -56111,7 +56190,7 @@ function ntDoBenchToEmptySlot(slotIdx) {
   // maç kadrosu yedeğinden çıkar (artık ilk 11'de)
   try { if (typeof _ntEnsureBench === 'function') _ntEnsureBench(); const _bi = _ntMatchSquadBench.indexOf(bPlayer.num); if(_bi!==-1){ _ntMatchSquadBench.splice(_bi,1); _ntBenchUserManaged = true; } } catch(_){}
   _ntDragBenchIdx = null;
-  try { ntSaveStrategy(); } catch(_){}
+  try { ntSaveStrategy(true); } catch(_){}
   ntRenderPitch();
 }
 
@@ -56130,7 +56209,7 @@ function ntOpenSlotPicker(slotIdx) {
   if (!pool.length) pool = [...avail].sort((a,b)=>(b.overall||0)-(a.overall||0));
   const chosen = pool[0]; if (!chosen) return;
   _ntActivePitchPlayers.push({ rosterIdx: roster.indexOf(chosen), slotIdx, pos: _sl.pos, x: _sl.x, y: _sl.y, player: chosen });
-  try { ntSaveStrategy(); } catch(_){}
+  try { ntSaveStrategy(true); } catch(_){}
   ntRenderPitch();
 }
 
@@ -56302,7 +56381,9 @@ function ntRenderPitch() {
         ? _bn[0] + ' ' + _bn.slice(1).map(w => w.charAt(0).toUpperCase() + '.').join(' ')
         : (p.name.split('_')[1] || p.name);
       const pgrp = (typeof POS_GROUP !== 'undefined' && POS_GROUP[p.pos]) || _toPosGroup(p.pos);
-      const ovr = (p.overall != null ? p.overall : (p.rating || 10));
+      // 🆕 gerçek yetenek (overall herkeste 10)
+      const ovr = (typeof _ntPlayerSkill === 'function')
+        ? _ntPlayerSkill(p) : (p.overall != null ? p.overall : (p.rating || 10));
       const tier = (typeof getOvrTier === 'function') ? getOvrTier(ovr) : '';
 
       let avatarHTML = null;
@@ -56352,12 +56433,14 @@ function ntRenderPitch() {
 
   // Ortalamalar
   const ratings = { atk:[], mid:[], def:[], gk:[] };
+  const _ntG = (p) => (typeof _ntPlayerSkill === 'function') ? _ntPlayerSkill(p) : ((p && p.overall) || 0);
   _ntActivePitchPlayers.forEach(entry => {
     const fam = _ntPosFamily(entry.pos);
-    if(fam === 'GK') ratings.gk.push(entry.player.overall);
-    else if(fam === 'DEF') ratings.def.push(entry.player.overall);
-    else if(fam === 'MID') ratings.mid.push(entry.player.overall);
-    else if(fam === 'FWD') ratings.atk.push(entry.player.overall);
+    const v = _ntG(entry.player);   // 🆕 gerçek yetenek (overall herkeste 10)
+    if(fam === 'GK') ratings.gk.push(v);
+    else if(fam === 'DEF') ratings.def.push(v);
+    else if(fam === 'MID') ratings.mid.push(v);
+    else if(fam === 'FWD') ratings.atk.push(v);
   });
   const avg = arr => arr.length ? Math.round(arr.reduce((a,b)=>a+b,0)/arr.length) : 0;
   const setBar = (id, val) => {
@@ -56371,8 +56454,8 @@ function ntRenderPitch() {
   setBar('Def', avg(ratings.def));
   setBar('GK', avg(ratings.gk));
 
-  // İlk 11 ortalaması
-  const allOvr = _ntActivePitchPlayers.map(e => e.player.overall);
+  // İlk 11 ortalaması — 🆕 gerçek yetenekten
+  const allOvr = _ntActivePitchPlayers.map(e => _ntG(e.player));
   const lineupAvg = avg(allOvr);
   const elAvg = document.getElementById('nt-lineupAvg');
   if(elAvg) {
@@ -56439,7 +56522,7 @@ function ntDoBenchToPitchSwap(pitchIdx) {
   _ntDragBenchIdx = null;
   const shortB = bPlayer.name.split('_')[1] || bPlayer.name.split(' ').pop();
   ntShowSwapToast(shortB + ' sahaya alındı');
-  ntSaveStrategy();
+  ntSaveStrategy(true);
   ntRenderPitch();
 }
 
@@ -56517,7 +56600,7 @@ function ntSwapTooltipPlayer() {
     target.rosterIdx = roster.indexOf(replacement);
   }
   ntHideTooltip();
-  ntSaveStrategy();
+  ntSaveStrategy(true);
   ntRenderPitch();
 }
 
@@ -56551,7 +56634,7 @@ function ntApplyFormation(name) {
     entry.pos = slot.pos;
     entry.slotIdx = i;
   });
-  ntSaveStrategy();
+  ntSaveStrategy(true);
   ntRenderPitch();
 
   // 🆕 İZOLASYON KONTROLÜ — Kulüp state'i bozulduysa restore
@@ -56620,7 +56703,7 @@ function ntSelectFormation(fname) {
 function ntAutoSmartLineup() {
   if(!ntCanEditFormation()) { _ntNoPermToast(); return; }
   _ntAutoFillLineup();
-  ntSaveStrategy();
+  ntSaveStrategy(true);
   ntRenderPitch();
 }
 
@@ -56645,7 +56728,7 @@ function ntSaveFormation() {
   if(!ntCanEditFormation()) { _ntNoPermToast(); return; }
   const _cnt = Array.isArray(_ntActivePitchPlayers) ? _ntActivePitchPlayers.filter(e=>e&&e.player).length : 0;
   if (_cnt < 11) { if (typeof showToast === 'function') showToast('İlk 11 tamamlanmadan kaydedilemez (' + _cnt + '/11)'); return; }
-  ntSaveStrategy();
+  ntSaveStrategy(true);
   try { flushNtStrategySave(); } catch(_){}
   const toast = document.createElement('div');
   toast.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--accent);color:var(--bg);padding:8px 18px;border-radius:20px;font-size:12px;font-weight:700;z-index:9999;font-family:"Barlow Condensed",sans-serif;letter-spacing:.5px';
@@ -56674,7 +56757,7 @@ function ntSelectStrategy(group, value, el) {
   if(parent) parent.querySelectorAll('.sp').forEach(s => s.classList.remove('active'));
   el.classList.add('active');
   _ntActiveStrategy[group] = value;
-  ntSaveStrategy();
+  ntSaveStrategy(true);
 }
 function ntUpdateSliderLabel(sliderId, labelId) {
   const s = document.getElementById(sliderId);
@@ -57236,10 +57319,11 @@ function ntKadroConfirmRemove(ntId) {
   const p = pool.find(x => x && x.ntId === ntId);
   if (!p) return;
 
-  // 🆕 MIN 12 erken uyarı (modal açılmadan)
+  // 🆕 MIN 11 erken uyarı (modal açılmadan)
   const _idsRem = (typeof ntLoadSquadIds === 'function') ? (ntLoadSquadIds(cc) || []) : [];
-  if (_idsRem.filter(Boolean).length <= 12) {
-    if (typeof showToast === 'function') showToast('Minimum 12 oyuncu olmalı — daha fazla çıkaramazsın');
+  if (_idsRem.filter(Boolean).length <= NT_MIN_KADRO) {
+    if (typeof showToast === 'function')
+      showToast('Kadroda ' + NT_MIN_KADRO + ' oyuncu kaldı — maça çıkabilmek için daha fazla çıkaramazsın');
     return;
   }
 
@@ -57298,10 +57382,11 @@ function ntDoKadroRemove(ntId) {
   let ids = (typeof ntLoadSquadIds === 'function') ? (ntLoadSquadIds(cc) || []) : [];
   const idx = ids.indexOf(ntId);
   if (idx === -1) { ntCloseConfirm(); return; }
-  // 🆕 MIN 12: kadro 12'nin altına düşemez
-  if (ids.filter(Boolean).length <= 12) {
+  // 🆕 MIN 11: kadro 11'in altına düşemez
+  if (ids.filter(Boolean).length <= NT_MIN_KADRO) {
     ntCloseConfirm();
-    if (typeof showToast === 'function') showToast('Minimum 12 oyuncu olmalı — daha fazla çıkaramazsın');
+    if (typeof showToast === 'function')
+      showToast('Kadroda ' + NT_MIN_KADRO + ' oyuncu kaldı — maça çıkabilmek için daha fazla çıkaramazsın');
     return;
   }
   ids[idx] = null;
@@ -57309,9 +57394,10 @@ function ntDoKadroRemove(ntId) {
   if (typeof NT_ROSTER_DATA !== 'undefined') NT_ROSTER_DATA = [];
   if (typeof _ntCachedCC !== 'undefined') _ntCachedCC = null;
   try {
+    // 🆕 Çıkarılan oyuncu dizilişten temizlenir ama BOŞ SLOT OTOMATİK DOLDURULMAZ.
+    //    (_ntCompleteLineup burada çağrılınca yerine hemen başka oyuncu geçiyordu.)
     if (typeof _ntPruneInvalidLineup === 'function') _ntPruneInvalidLineup();
-    if (typeof _ntCompleteLineup === 'function') _ntCompleteLineup();
-    if (typeof ntSaveStrategy === 'function') ntSaveStrategy();
+    if (typeof ntSaveStrategy === 'function') ntSaveStrategy(true);
   } catch(e) {}
 
   // Pool'dan oyuncu adını alalım (toast için)
