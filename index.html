@@ -5110,6 +5110,14 @@ select.form-input option{background:var(--bg)}
   background:var(--bg);
   display:flex;flex-direction:column;
   overflow-y:auto;
+  /* 🆕 Android WebView düzeltmesi: position:fixed + overflow-y:auto birleşimi
+     WebView'de kendi çizim katmanını almıyor; içerik display:none→block
+     olduğunda alan yeniden BOYANMIYOR (ekran siyah kalıyor, ancak dokununca
+     çiziliyor). translateZ(0) elemanı kendi katmanına alıp bunu çözer.
+     Masaüstü tarayıcıda görsel etkisi yok. */
+  transform:translateZ(0);
+  -webkit-backface-visibility:hidden;
+  backface-visibility:hidden;
 }
 #auth-screen.hidden{display:none}
 /* Klavye açıkken: ekran tam kaplamaya devam eder (arka plan görünmez), alt boşluk = klavye yüksekliği → odaklanan alan klavyenin üstüne kadar kaydırılabilir */
@@ -28700,7 +28708,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-12-perdegerial-354';
+const APP_BUILD = '2026-08-12-webviewciz-355';
 
 (function _cacheBustCheck() {
   try {
@@ -45720,6 +45728,8 @@ function authInit(){
               const a = document.getElementById('auth-screen');
               if (a) a.classList.remove('hidden');
             }
+            // 🆕 WebView: gizliden görünüre geçen alanı boyamayı garantiye al
+            try { if (typeof _authYenidenCiz === 'function') setTimeout(_authYenidenCiz, 0); } catch(e) {}
             return;
           }
 
@@ -45969,6 +45979,28 @@ function updateTopbarFromUser(){
   }
 }
 
+// 🆕 Android WebView'i alanı yeniden boyamaya zorla.
+//    Belirti: display:none→block sonrası bölge siyah kalıyor, ekrana
+//    dokununca (etkileşim çizimi tetiklediği için) içerik beliriyor.
+//    Çözüm: zorunlu yeniden akış + 1px kaydırma dokunuşu + opaklık dürtmesi.
+function _authYenidenCiz(){
+  try{
+    const scr = document.getElementById('auth-screen');
+    const card = document.querySelector('.auth-card');
+    if(!scr) return;
+    void scr.offsetHeight;                       // zorunlu yeniden akış
+    const st = scr.scrollTop;
+    scr.scrollTop = st + 1;
+    requestAnimationFrame(function(){
+      scr.scrollTop = st;
+      if(card){
+        card.style.opacity = '0.999';
+        requestAnimationFrame(function(){ card.style.opacity = ''; });
+      }
+    });
+  }catch(e){}
+}
+
 function authSwitchTab(tab){
   authCurrentTab = tab;
   document.getElementById('tabLogin').classList.toggle('active', tab==='login');
@@ -45976,6 +46008,7 @@ function authSwitchTab(tab){
   document.getElementById('loginForm').style.display = tab==='login'?'block':'none';
   document.getElementById('registerForm').style.display = tab==='register'?'block':'none';
   authShowMsg('','');
+  _authYenidenCiz();                              // 🆕
 }
 
 function authShowMsg(type, text){
@@ -46224,6 +46257,7 @@ function regNextStep(step){
   if(step === 2) {
     renderRegAvatarGrid();
   }
+  if (typeof _authYenidenCiz === 'function') _authYenidenCiz();   // 🆕 WebView çizim düzeltmesi
 }
 
 function selectPos(el, pos){
