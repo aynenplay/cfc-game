@@ -28730,7 +28730,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-14-2dmotor-359';
+const APP_BUILD = '2026-08-14-2dsenk-360';
 
 (function _cacheBustCheck() {
   try {
@@ -96984,21 +96984,22 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
 </script>
 <script id="csc2d-baglanti">
 /* ══════════════════════════════════════════════════════════════════
-   CSC 2D CANLI SAHA — BAĞLANTI KATMANI
-   Mevcut skorbord, sekmeler ve olay listesi DEĞİŞMEDİ.
-   Saha yalnızca LIVE sekmesinin üstünde çizilir; maç kendi saatinde
-   sunucu tarafından başlar, oynat/duraklat yoktur.
+   CSC 2D CANLI SAHA — BAĞLANTI KATMANI  (v2)
+   • Olaylar match_state.events'ten ÖNDEN okunur, sahada canlandırılır.
+   • Devre arası / ikinci devre / bitiş sunucu dakikasından yönetilir.
+   • Mevcut skorbord, sekmeler ve olay listesi DEĞİŞMEDİ.
    ══════════════════════════════════════════════════════════════════ */
 (function(){
   if (!window.CSC2D) return;
-  // Acil kapatma: konsoldan  localStorage.csc2dKapali='1'  → saha çizilmez
   try { if (localStorage.getItem('csc2dKapali')==='1'){
     const p=document.getElementById('eng-pitch'); if(p) p.style.display='none'; return; } } catch(e){}
-  const C = window.CSC2D;
-  const S = { saha:null, sahne:null, rafId:0, sonKare:0, mk:null, aktif:false };
-  window.CSC2DLive = S;
 
+  const C = window.CSC2D;
+  const S = { saha:null, sahne:null, rafId:0, sonKare:0, mk:null, aktif:false,
+              islenen:null, faz:'ilk', htBas:0, sonDk:0 };
+  window.CSC2DLive = S;
   const $ = id => document.getElementById(id);
+
   const gorunur = () => {
     const ms = $('match-screen');
     if (!ms || !ms.classList.contains('open')) return false;
@@ -97009,111 +97010,197 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
     return !!(p && p.offsetParent !== null);
   };
 
-  // ── Takım kadrosunu gerçek veriden kur; yoksa güçten üret ──
+  // ── Sunucudaki maç satırı ──
+  function satir(){
+    try{
+      const mk = (typeof MS!=='undefined' && MS && MS.match_key) ? MS.match_key : null;
+      if(!mk) return null;
+      if (typeof _matchStateCache==='object' && _matchStateCache && _matchStateCache.byKey
+          && _matchStateCache.byKey[mk]) return _matchStateCache.byKey[mk];
+      if (typeof _liveMatchCache==='object' && _liveMatchCache && _liveMatchCache[mk])
+        return _liveMatchCache[mk];
+    }catch(e){}
+    return null;
+  }
+  // Ekranda gösterilen dakika (smoothing dahil)
+  function gosterilenDk(){
+    try{
+      if (typeof MS!=='undefined' && MS){
+        if (typeof MS._displayMin === 'number') return MS._displayMin;
+        if (typeof MS.minute === 'number') return MS.minute;
+      }
+    }catch(e){}
+    const r=satir(); return r ? (r.sim_minute||0) : 0;
+  }
+  const anahtar = ev => ((ev.min!==undefined?ev.min:(ev.minute||0))+'|'+(ev.type||'')+'|'+
+                         (ev.team||'')+'|'+(ev.player||''));
+
   function kadroCoz(takim, tohum, diz){
     const r = C.tohum(tohum);
     const varsayilan = C.kadroUret(r, diz || '4-4-2');
-    try {
-      const kaynak = (takim && Array.isArray(takim.players) && takim.players.length >= 11)
-        ? takim.players : null;
-      if (!kaynak) return varsayilan;
-      const KL = kaynak.filter(p => (p.pos||'').toUpperCase().indexOf('K') === 0);
-      const dis = kaynak.filter(p => KL.indexOf(p) < 0);
-      const sirali = (KL.slice(0,1)).concat(dis).slice(0,11);
-      if (sirali.length < 11) return varsayilan;
-      return varsayilan.map((slot, i) => {
-        const g = sirali[i]; if (!g) return slot;
-        return Object.assign({}, slot, {
-          no: g.number || g.no || slot.no,
-          ad: (g.name || g.ad || slot.ad),
-          ovr: g.overall || g.ovr || slot.ovr,
-        });
-      });
-    } catch(e) { return varsayilan; }
+    try{
+      const kaynak = (takim && Array.isArray(takim.players) && takim.players.length>=11) ? takim.players : null;
+      if(!kaynak) return varsayilan;
+      const KL = kaynak.filter(p=>(p.pos||'').toUpperCase().indexOf('K')===0);
+      const dis= kaynak.filter(p=>KL.indexOf(p)<0);
+      const sirali = KL.slice(0,1).concat(dis).slice(0,11);
+      if(sirali.length<11) return varsayilan;
+      return varsayilan.map((slot,i)=>{ const g=sirali[i]; if(!g) return slot;
+        return Object.assign({},slot,{ no:g.number||g.no||slot.no,
+          ad:(g.name||g.ad||slot.ad), ovr:g.overall||g.ovr||slot.ovr }); });
+    }catch(e){ return varsayilan; }
   }
-  function formaCoz(tarafKit, yedek){
-    const ms = $('match-screen');
-    let ic = yedek;
-    try { const v = ms && getComputedStyle(ms).getPropertyValue(tarafKit);
-      if (v && v.trim()) ic = v.trim(); } catch(e) {}
-    const koyu = (function(h){ try{ const n=parseInt(h.replace('#',''),16);
-      return (((n>>16&255)*299 + (n>>8&255)*587 + (n&255)*114)/1000) < 140; }catch(e){ return true; } })(ic);
-    const yz = koyu ? '#ffffff' : '#101418';
-    return { ic: ic, yazi: yz, cizgi: yz };
+  function formaCoz(anahtarAd, yedek){
+    const ms=$('match-screen'); let ic=yedek;
+    try{ const v=ms&&getComputedStyle(ms).getPropertyValue(anahtarAd);
+      if(v&&v.trim()) ic=v.trim(); }catch(e){}
+    const koyu=(function(h){ try{ const n=parseInt(h.replace('#',''),16);
+      return (((n>>16&255)*299+(n>>8&255)*587+(n&255)*114)/1000)<140; }catch(e){return true;} })(ic);
+    const yz = koyu?'#ffffff':'#101418';
+    return { ic:ic, yazi:yz, cizgi:yz };
   }
 
   function kur(){
     try{
-      const cv = $('csc2dCanvas'); if (!cv) return false;
-      const H = (typeof curHome !== 'undefined') ? curHome : null;
-      const A = (typeof curAway !== 'undefined') ? curAway : null;
-      const mk = (typeof MS !== 'undefined' && MS && MS.match_key) ? MS.match_key : 'yerel';
-      const seed = 'CSC2D|' + mk;
-      const mac = {
-        seed: seed,
-        ev : { ad:(H&&H.name)||'Ev',       forma:formaCoz('--kitH','#c62828'),
-               kadro:kadroCoz(H, seed+'|e', (MS&&MS.tactic&&MS.tactic.formation)||'4-4-2'),
-               yedek:C.yedekUret(C.tohum(seed+'|ey'), 7) },
-        dep: { ad:(A&&A.name)||'Deplasman', forma:formaCoz('--kitA','#1565c0'),
-               kadro:kadroCoz(A, seed+'|d', '4-4-2'),
-               yedek:C.yedekUret(C.tohum(seed+'|dy'), 7) },
-        olaylar: [], ist:null,
-      };
-      try { C.formaCakismaCoz(mac.ev, mac.dep); } catch(e) {}
-      try { C.kalecileriBoya(mac, C.tohum(seed+'|kl')); } catch(e) {}
-      S.saha  = new C.Saha(cv);
-      S.sahne = new C.Sahne(mac, C.tohum(seed+'|s'));
-      S.sahne.olayBasladi = null;
-      S.sahne.golAgda     = null;
-      S.sahne.ekYazi      = null;
-      S.mk = mk; S.mac = mac;
-      // ilk topa sahip: ev sahibi
+      const cv=$('csc2dCanvas'); if(!cv) return false;
+      const H=(typeof curHome!=='undefined')?curHome:null;
+      const A=(typeof curAway!=='undefined')?curAway:null;
+      const mk=(typeof MS!=='undefined'&&MS&&MS.match_key)?MS.match_key:'yerel';
+      const seed='CSC2D|'+mk;
+      const mac={ seed:seed,
+        ev :{ ad:(H&&H.name)||'Ev', forma:formaCoz('--kitH','#c62828'),
+              kadro:kadroCoz(H,seed+'|e',(typeof MS!=='undefined'&&MS&&MS.tactic&&MS.tactic.formation)||'4-4-2'),
+              yedek:C.yedekUret(C.tohum(seed+'|ey'),7) },
+        dep:{ ad:(A&&A.name)||'Deplasman', forma:formaCoz('--kitA','#1565c0'),
+              kadro:kadroCoz(A,seed+'|d','4-4-2'),
+              yedek:C.yedekUret(C.tohum(seed+'|dy'),7) },
+        olaylar:[], ist:null };
+      try{ C.formaCakismaCoz(mac.ev,mac.dep); }catch(e){}
+      try{ C.kalecileriBoya(mac,C.tohum(seed+'|kl')); }catch(e){}
+      S.saha=new C.Saha(cv);
+      S.sahne=new C.Sahne(mac,C.tohum(seed+'|s'));
+      S.sahne.olayBasladi=null; S.sahne.golAgda=null; S.sahne.ekYazi=null;
+      S.mk=mk; S.mac=mac; S.islenen=new Set(); S.faz='ilk'; S.sonDk=0; S.bitti=false;
+      // Maça ortasından girildiyse geçmiş olaylar tekrar oynanmasın:
+      // dakikası geçmiş olanları oynatmadan işlenmiş say.
+      try{
+        const r0=satir(), dk0=gosterilenDk();
+        if(r0 && Array.isArray(r0.events)){
+          for(const ev of r0.events){
+            const m=(ev.min!==undefined)?ev.min:(ev.minute||0);
+            if(m <= dk0) S.islenen.add(anahtar(ev));
+          }
+        }
+        if(dk0>=45) S.faz='ikinci';         // ikinci devrede açıldıysa
+      }catch(e){}
       S.sahne.sahip='ev';
       S.sahne.sekansBaslat(S.sahne.santraSekansi('ev'));
-      olcekle();
-      return true;
-    }catch(e){ console.warn('[csc2d] kurulum:', e); return false; }
+      olcekle(); return true;
+    }catch(e){ console.warn('[csc2d] kurulum:',e); return false; }
   }
-
   function olcekle(){
-    try{
-      const cv=$('csc2dCanvas'); if(!cv) return;
+    try{ const cv=$('csc2dCanvas'); if(!cv) return;
       const w=cv.parentElement.clientWidth||320;
-      cv.style.width='100%';
-      cv.style.height=Math.round(w*68/105)+'px';
+      cv.style.width='100%'; cv.style.height=Math.round(w*68/105)+'px';
       if(S.saha) S.saha.olcek();
     }catch(e){}
   }
   addEventListener('resize', olcekle);
 
-  function dongu(z){
-    S.rafId = 0;
-    if (!S.aktif) return;
+  /* ══ SUNUCU OLAYLARINI ÖNDEN OKU ══
+     Metin ekranda "45' korner" yazdığında sahada korner OYNANIYOR olmalı.
+     Motorun hazırlık süresi var (gol 15 sn, korner 6 sn…), bu yüzden olayı
+     dakikası gelmeden ~1 dakika önce kuyruğa atıyoruz: hazırlık akarken
+     yazı düşüyor, aksiyon tam o sırada yaşanıyor.                        */
+  function olaylariAkit(){
     try{
-      if (!gorunur()) { S.rafId = requestAnimationFrame(dongu); S.sonKare = z; return; }
-      if (!S.sahne && !kur()) {
-        S.hata = (S.hata||0) + 1;
-        if (S.hata >= 3) {                 // 3 denemede kurulamadıysa sahayı gizle,
-          const p=$('eng-pitch'); if(p) p.style.display='none';   // ekranın kalanı bozulmasın
-          S.aktif=false; console.warn('[csc2d] saha devre dışı bırakıldı');
-          return;
+      if(!S.sahne || !S.islenen) return;
+      const r=satir(); if(!r || !Array.isArray(r.events)) return;
+      const dk=gosterilenDk();
+      const ONDEN = 1;                       // 1 sim-dakika önden oku
+      const yeni=[];
+      for(const ev of r.events){
+        if(!ev || !ev.type) continue;
+        const m=(ev.min!==undefined)?ev.min:(ev.minute||0);
+        if(m > dk + ONDEN) continue;         // henüz sırası gelmedi
+        const k=anahtar(ev);
+        if(S.islenen.has(k)) continue;
+        S.islenen.add(k); yeni.push(ev);
+      }
+      if(!yeni.length) return;
+      yeni.sort((a,b)=>((a.min||0)-(b.min||0)));
+      for(const ev of yeni) sahayaVer(ev);
+    }catch(e){ console.warn('[csc2d] olay akışı:',e); }
+  }
+  function sahayaVer(ev){
+    try{
+      const o=C.olayCevir(ev);
+      if(!o.taraf) return;
+      if(o.tip==='halftime'||o.tip==='fulltime'||o.tip==='special') return;
+      const liste=S.sahne.liste(o.taraf)||[];
+      let p=liste.find(x=>x.ad===o.oyuncu);
+      if(!p){ const akt=S.sahne.aktif(o.taraf).filter(x=>x.pos!=='KL');
+              p=akt[Math.floor(S.sahne.r()*akt.length)]; }
+      if(p){ o.no=p.no; o.oyuncu=p.ad; }
+      S.sahne.kuyrukEkle(o);
+    }catch(e){}
+  }
+
+  /* ══ DEVRE YÖNETİMİ — sunucu dakikasına bağlı ══ */
+  function devreKontrol(){
+    try{
+      if(!S.sahne) return;
+      const dk=gosterilenDk();
+      if(dk<S.sonDk-5){ S.faz='ilk'; }        // maç sıfırlandı
+      S.sonDk=dk;
+      if(S.faz==='ilk' && dk>=45){
+        S.faz='devreArasi'; S.htBas=Date.now();
+        S.sahne.kuyruk.length=0; S.sahne.sekans=null; S.sahne.hedef=null;
+        S.sahne.kilitTemizle(); S.sahne.faz='durdu';
+        S.sahne.duduk=1.6; S.sahne.sahaDisi=true;   // oyuncular tünele
+        S.sahne.uyari={metin:'DEVRE ARASI', alt:'', t:2.6};
+      }
+      else if(S.faz==='devreArasi' && Date.now()-S.htBas>5000){
+        S.faz='ikinci';
+        S.sahne.sahaDisi=false;
+        S.sahne.yon=-S.sahne.yon;                   // saha değişimi
+        S.sahne.yerlestir(S.sahne.yon);
+        S.sahne.faz='oyun';
+        S.sahne.sekansBaslat(S.sahne.santraSekansi('dep'));  // ikinci devreyi deplasman başlatır
+      }
+      else if(S.faz==='ikinci' && dk>=90 && !S.bitti){
+        const r=satir();
+        if(r && r.status==='finished'){
+          S.bitti=true;
+          S.sahne.kuyruk.length=0; S.sahne.sekans=null;
+          S.sahne.faz='durdu'; S.sahne.duduk=1.8;
+          S.sahne.uyari={metin:'MAÇ SONU', alt:'', t:3.0};
         }
-        S.rafId = requestAnimationFrame(dongu); return;
       }
-      let dt = Math.min(100, z - (S.sonKare||z)); S.sonKare = z;
-      S.sahne.guncelle(dt/1000 * C.ANIM_KAT);
+    }catch(e){}
+  }
+
+  function dongu(z){
+    S.rafId=0; if(!S.aktif) return;
+    try{
+      if(!gorunur()){ S.sonKare=z; S.rafId=requestAnimationFrame(dongu); return; }
+      if(!S.sahne && !kur()){
+        S.hata=(S.hata||0)+1;
+        if(S.hata>=3){ const p=$('eng-pitch'); if(p) p.style.display='none';
+          S.aktif=false; console.warn('[csc2d] saha devre dışı'); return; }
+        S.rafId=requestAnimationFrame(dongu); return;
+      }
+      let dt=Math.min(100, z-(S.sonKare||z)); S.sonKare=z;
+      S.sahne.guncelle(dt/1000*C.ANIM_KAT);
       ciz();
-      S.hataCiz = 0;
+      S.hataCiz=0;
     }catch(e){
-      console.warn('[csc2d] döngü:', e);
-      S.hataCiz = (S.hataCiz||0) + 1;
-      if (S.hataCiz >= 20) {               // ısrarlı hata → sahayı kapat, oyun aksamasın
-        const p=$('eng-pitch'); if(p) p.style.display='none';
-        S.aktif=false; console.warn('[csc2d] saha devre dışı bırakıldı (çizim)');
-        return;
-      }
+      console.warn('[csc2d] döngü:',e);
+      S.hataCiz=(S.hataCiz||0)+1;
+      if(S.hataCiz>=20){ const p=$('eng-pitch'); if(p) p.style.display='none';
+        S.aktif=false; console.warn('[csc2d] saha devre dışı (çizim)'); return; }
     }
-    S.rafId = requestAnimationFrame(dongu);
+    S.rafId=requestAnimationFrame(dongu);
   }
 
   function ciz(){
@@ -97123,9 +97210,9 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
     const fE=S.mac.ev.forma, fD=S.mac.dep.forma;
     const kE=S.mac.ev.kaleciForma||fE, kD=S.mac.dep.kaleciForma||fD;
     for(const o of sh.dep) if(o.sahada!==false)
-      s.oyuncu(o,false,o===sh.top.tasiyan,false, o.pos==='KL'?kD:fD);
-    for(const o of sh.ev)  if(o.sahada!==false)
-      s.oyuncu(o,true, o===sh.top.tasiyan,false, o.pos==='KL'?kE:fE);
+      s.oyuncu(o,false,o===sh.top.tasiyan,false,o.pos==='KL'?kD:fD);
+    for(const o of sh.ev) if(o.sahada!==false)
+      s.oyuncu(o,true,o===sh.top.tasiyan,false,o.pos==='KL'?kE:fE);
     if(!sh.sahaDisi) s.topCiz(sh.top);
     if(sh.ofsaytCiz) s.ofsaytCizgi(sh.ofsaytCiz);
     if(sh.duduk>0.05) s.dudukIsareti(sh.duduk);
@@ -97140,72 +97227,42 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
       if(sh.uyari.alt) s.yazi(sh.uyari.alt,0.58,0.058,'rgba(255,255,255,'+(a*0.9)+')',700); }
   }
 
-  // ── Dışa açık kontrol ──
-  S.basla = function(){
-    const p=$('eng-pitch'); if(p) p.style.display='block';
-    if (S.aktif) return;
-    S.aktif=true; S.sonKare=0;
-    if(!S.rafId) S.rafId=requestAnimationFrame(dongu);
-  };
-  S.durdur = function(){
-    S.aktif=false;
-    if(S.rafId){ cancelAnimationFrame(S.rafId); S.rafId=0; }
-  };
-  S.sifirla = function(){
-    S.durdur(); S.saha=null; S.sahne=null; S.mk=null;
-  };
-  // Sunucu olayını sahaya ilet
-  S.olay = function(ev){
-    try{
-      if(!S.sahne || !ev) return;
-      const o = C.olayCevir(ev);
-      if(!o.taraf) return;
-      // oyuncuyu isimden bul → numara ver
-      const liste = S.sahne.liste(o.taraf) || [];
-      let p = liste.find(x => x.ad === o.oyuncu);
-      if(!p){ const aktif=S.sahne.aktif(o.taraf).filter(x=>x.pos!=='KL');
-              p = aktif[Math.floor(S.sahne.r()*aktif.length)]; }
-      if(p){ o.no=p.no; o.oyuncu=p.ad; }
-      S.sahne.kuyrukEkle(o);
-    }catch(e){ console.warn('[csc2d] olay:', e); }
-  };
+  S.basla=function(){ const p=$('eng-pitch'); if(p) p.style.display='block';
+    if(S.aktif) return; S.aktif=true; S.sonKare=0;
+    if(!S.rafId) S.rafId=requestAnimationFrame(dongu); };
+  S.durdur=function(){ S.aktif=false;
+    if(S.rafId){ cancelAnimationFrame(S.rafId); S.rafId=0; } };
+  S.sifirla=function(){ S.durdur(); S.saha=null; S.sahne=null; S.mk=null;
+    S.islenen=null; S.faz='ilk'; S.bitti=false; };
 
-  // ── Mevcut akışa bağlan: addEvent tek huni ──
   function baglan(){
-    if (typeof window.addEvent === 'function' && !window.addEvent.__csc2d){
-      const eski = window.addEvent;
-      const yeni = function(ev){ try{ S.olay(ev); }catch(e){} return eski.apply(this, arguments); };
-      yeni.__csc2d = true; window.addEvent = yeni;
+    if (typeof window.closeMatchScreen==='function' && !window.closeMatchScreen.__csc2d){
+      const e=window.closeMatchScreen;
+      const y=function(){ try{S.sifirla();}catch(x){} return e.apply(this,arguments); };
+      y.__csc2d=true; window.closeMatchScreen=y;
     }
-    // maç ekranı kapanınca durdur
-    if (typeof window.closeMatchScreen === 'function' && !window.closeMatchScreen.__csc2d){
-      const eskiK = window.closeMatchScreen;
-      const yeniK = function(){ try{ S.sifirla(); }catch(e){} return eskiK.apply(this, arguments); };
-      yeniK.__csc2d = true; window.closeMatchScreen = yeniK;
-    }
-    if (typeof window.closeMatchToHome === 'function' && !window.closeMatchToHome.__csc2d){
-      const eskiH = window.closeMatchToHome;
-      const yeniH = function(){ try{ S.sifirla(); }catch(e){} return eskiH.apply(this, arguments); };
-      yeniH.__csc2d = true; window.closeMatchToHome = yeniH;
+    if (typeof window.closeMatchToHome==='function' && !window.closeMatchToHome.__csc2d){
+      const e=window.closeMatchToHome;
+      const y=function(){ try{S.sifirla();}catch(x){} return e.apply(this,arguments); };
+      y.__csc2d=true; window.closeMatchToHome=y;
     }
   }
 
-  // ── Ekran açık ve maç canlıysa sahayı çalıştır (oynat düğmesi yok) ──
   setInterval(function(){
     try{
       baglan();
       const ms=$('match-screen');
       const acik = ms && ms.classList.contains('open') && !ms.classList.contains('preview-mode');
       if(!acik){ if(S.aktif) S.durdur(); return; }
-      const mk = (typeof MS!=='undefined' && MS && MS.match_key) ? MS.match_key : 'yerel';
-      if(S.mk && S.mk!==mk) S.sifirla();          // başka maça geçildi
+      const mk=(typeof MS!=='undefined'&&MS&&MS.match_key)?MS.match_key:'yerel';
+      if(S.mk && S.mk!==mk) S.sifirla();
       if(document.hidden){ if(S.aktif) S.durdur(); return; }
       S.basla();
+      devreKontrol();
+      olaylariAkit();
     }catch(e){}
-  }, 900);
-  document.addEventListener('visibilitychange', function(){
-    if(document.hidden) S.durdur();
-  });
+  }, 450);
+  document.addEventListener('visibilitychange', function(){ if(document.hidden) S.durdur(); });
 })();
 
 </script>
