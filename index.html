@@ -28730,7 +28730,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-15-olayalan-366';
+const APP_BUILD = '2026-08-17-ayni-mac-370';
 
 (function _cacheBustCheck() {
   try {
@@ -94057,8 +94057,7 @@ document.addEventListener('keydown', function(e){
 </div>
 
 <!-- ═══ 🆕 CSC 2D MAÇ MOTORU (canli-mac-prototip2 çekirdeği) ═══ -->
-<script id="csc2d-motor">
-(function(){
+<script id="csc2d-motor">(function(){
 
 // ══════════════════════════════════════════════════════════════════
 //  PROTOTİP 2 — Bölüm 1/4: Kurallar · Periyotlar · Maç üretici
@@ -94940,6 +94939,10 @@ const OYUNCU_ODAKLI = new Set(['goal','offsideGoal','save','shot_off','shot_post
 const SUTLE_BITEN   = new Set(['goal','offsideGoal','save','shot_off','shot_post','bigChance']);
 const mX=m=>m/SAHA_EN, mY=m=>m/SAHA_BOY;
 const uzaklikM=(ax,ay,bx,by)=>Math.hypot((ax-bx)*SAHA_EN,(ay-by)*SAHA_BOY);
+// 🆕 Olaya gömülecek oyuncu özeti — tam nesne DEĞİL. Aşağı akış yalnızca
+//    isim/numara/mevki okuyor; gerisi satırı boş yere şişirir.
+const kisaOyuncu = p => p ? { name:p.ad, ad:p.ad, num:p.no, no:p.no,
+                              pos:p.pos, altMevki:p.altMevki, ovr:p.ovr } : null;
 
 class Sahne {
   constructor(mac, r){
@@ -95313,7 +95316,9 @@ class Sahne {
         if(!this.sunucuModu &&
            this.r() > (0.880 + temiz*0.100)*(this.hakem?this.hakem.faulEsigi:1)){
           this.faulSayac=(this.faulSayac||0)+1;
-          this.olayUret('foul', rkT2, rak, {magdur:en.ad});
+          this.olayUret('foul', rkT2, rak, {magdur:en.ad,
+            weatherCause: (this.hava && this.hava.yagis>0.45 && this.r()<0.28) || undefined});
+          this.olayUret('foulDrawn', rkT2==='ev'?'dep':'ev', en, {faulYapan:rak.ad});
           const sert2 = kis(1 - YK(rak,'mudahale',2,'top_calma',1,'ayakta_kal',1), 0.05, 1);
           this.faulSonucu(rak, en, T.x, T.y, sert2);
           this.faulBaslat(this.ev.includes(en)?'ev':'dep', T.x, T.y, en);
@@ -95655,8 +95660,8 @@ class Sahne {
         const alt = this.golAltTip || (uzakM>20 ? 'longShot' : 'normal');
         const ETIKET = { headerGoal:['Kafa golü','👤'], freekickGoal:['Frikik golü','🎯'],
                          cornerGoal:['Kornerden gol','⚽'], longShot:['Uzaktan şut!','🚀'] };
-        const ek = { assist:asist, uzakM:Math.round(uzakM), scorer:vur,
-                     isPenalty:!!this.penaltidanGol, isOwnGoal:false };
+        const ek = { assist:asist, uzakM:Math.round(uzakM), scorer:kisaOyuncu(vur),
+                     isPenalty:!!this.penaltidanGol, isOwnGoal:false, cancelled:false };
         if(alt!=='normal'){ ek.subtype=alt;
           ek.subtypeLabel=(ETIKET[alt]||[])[0]||''; ek.subtypeIcon=(ETIKET[alt]||[])[1]||''; }
         this.olayUret('goal', bizT, vur, ek);
@@ -95664,6 +95669,8 @@ class Sahne {
       }
       else if(S.tip==='auta'){
         this.olayUret('shotOff', bizT, vur, {variant: uzakM>20?'over':'wide'});
+        // 🆕 S2 · net pozisyondan (11 m içi, önü açık) ıska → bigChanceMissed
+        if(uzakM<11 && engel<1) this.olayUret('bigChanceMissed', bizT, vur, {uzakM:Math.round(uzakM)});
         this.dokunusKaydet(vur);        // hücumdan çıktı → kale vuruşu
       }
       else if(S.tip==='blok')
@@ -96038,14 +96045,16 @@ class Sahne {
               if(this.sunucuModu){        // olay yok, sadece top değişir
                 this.tut(en); this.sahip=rkT; return rr(r,0.5,0.9); }
               this.faulSayac=(this.faulSayac||0)+1;
-              this.olayUret('foul', rkT, en, {magdur:tas.ad});
+              this.olayUret('foul', rkT, en, {magdur:tas.ad,
+                weatherCause: (this.hava && this.hava.yagis>0.45 && r()<0.28) || undefined});
+              this.olayUret('foulDrawn', bizT, tas, {faulYapan:en.ad});
               // sertlik: savunmacı ne kadar geç kaldıysa o kadar sert
               const sert = kis(1 - YK(en,'mudahale',2,'ayakta_kal',1,'denge',1), 0.05, 1);
               this.faulSonucu(en, tas, tas.x, tas.y, sert);
               // 🆕 Rakip yarısında ve kaleye yakınsa GERÇEK FRİKİK (barajlı)
               const ilerF = (tas.x-0.5)*(yon>0?1:-1)+0.5;
               if(ilerF > 0.62 && this.faz!=='durdu'){
-                this.olayUret('freekick', bizT, tas, {});
+                this.olayUret('freekick', bizT, tas, {foulBy:en.ad});
                 this.kuyrukEkle({ tip:'freekick', taraf:bizT, dk:this.simDakika(),
                   oyuncu:tas.ad, no:tas.no, frikik:true, metin:'Frikik' });
                 this.faz='oyun';
@@ -96055,6 +96064,7 @@ class Sahne {
               return 4.9;
             }
             this.calimBasarili=(this.calimBasarili||0)+1;
+            this.olayUret('dribble', bizT, tas, {gecilen:en.ad});
           }
         }
         const basrol = bizeAit && H.odak && H.oyuncu===tas;
@@ -96185,6 +96195,8 @@ class Sahne {
           this.ofsaytBekle=null;
           const rkO = OB.taraf==='ev'?'dep':'ev';
           this.ofsaytSayac=(this.ofsaytSayac||0)+1;
+          // 🆕 S2 · sunucudaki 'offside' olayı — istemci ve reyting bunu okuyor
+          this.olayUret('offside', OB.taraf, OB.alici, {});
           // 🆕 OFSAYT ÇİZGİSİ — VAR benzeri iki hat + arası taralı
           this.ofsaytCiz = { hat:OB.hatX, oyuncu:kis(OB.alici.x,0.02,0.98),
             oyY:OB.alici.y, savY:OB.sonSav?OB.sonSav.y:0.5,
@@ -96622,6 +96634,8 @@ class Sahne {
   //  dışarı bildirilir. Sahne zamanı ve top konumu da taşınır → istemci
   //  animasyonu tam o ana oturtur, "önce izle sonra oku" doğal olur.
   simDakika(){ return Math.min(120, Math.floor(this.t / (7*ANIM_KAT)) + 1); }
+  // 🆕 Olaya gömülen oyuncu nesnesi KÜÇÜK olmalı — tam nesne 45 yetenek +
+  //    hız vektörleri taşır, match_state.events satırını şişirir.
   olayUret(tip, taraf, oyuncu, ek){
     if(this.sunucuModu) return null;      // 🆕 canlı maçta olay sunucudan gelir
     try{
@@ -96703,7 +96717,7 @@ class Sahne {
           ...(iptal ? [
             // OFSAYT İPTALİ — bayrak, çizgi, gol iptal
             { sure:3.0, bas:()=>{ this.golFlash=0;
-                this.olayUret('offsideGoal', d, o, {cancelled:true, scorer:o});
+                this.olayUret('offsideGoal', d, o, {cancelled:true, scorer:kisaOyuncu(o)});
                 this.uyari={ metin:'OFSAYT · GOL İPTAL', alt:o.ad, t:2.8 };
                 this.ofsaytCiz={ hat:hatX, oyuncu:kis(o.x,0.02,0.98), oyY:o.y,
                   savY:0.5, ad:o.ad, t:0, sure:3.0, yonI:(yon>0?1:-1) };
@@ -97533,8 +97547,288 @@ class Sahne {
     }
   }
 }
+// ══════════════════════════════════════════════════════════════════
+//  Bölüm 4/4: OYNATICI — periyot zinciri, devre arası, penaltılar, arayüz
+// ══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+//  CSC 2D MOTOR — SUNUCU ADAPTÖRÜ  (S2 · hiçbir yere bağlı değil)
+// ═══════════════════════════════════════════════════════════════════
 
-window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakismaCoz,kalecileriBoya,uzaklikM,kis,rr,ri,sec,yetSetiCevir,ALT_GRUP,altMevkiCarpan,sutCoz,frikikCoz,kornerCoz,penaltiCoz};
+// Alt mevki kodunu normalize et: yeni kod varsa aynen, eski kod ise çevir
+function _2dAltKod(p){
+  const s = p && (p.subPos || p.sub_pos || p.pos);
+  if(!s) return null;
+  if(ALT_GRUP[s]) return s;
+  return ESKI_ALT[s] || null;
+}
+// Sunucu grup adı → motor mevkisi
+function _2dGrup(p){
+  const g = p && (p.playedGroup || p.posGroup || p.pos_group);
+  if(g && GRUP_MOTOR[g]) return g;
+  const a = _2dAltKod(p);
+  return (a && ALT_GRUP[a]) || 'MID';
+}
+
+// 11 oyuncudan diziliş kur — grup sayıları ne olursa olsun
+//   Bantlar oyundaki DIZ şablonlarıyla aynı genişlikte tutulur; iki forvet
+//   kanada savrulmaz, dört orta saha kanat verir. Yanlış bant → top sürekli
+//   taçtan çıkar, korner ve gol düşer (ölçtük: 1,71 gol · 58 taç).
+const _2D_BANT = {
+  DEF:{ 1:[0.50], 2:[0.36,0.64], 3:[0.26,0.50,0.74], 4:[0.16,0.38,0.62,0.84],
+        5:[0.11,0.29,0.50,0.71,0.89] },
+  MID:{ 1:[0.50], 2:[0.36,0.64], 3:[0.28,0.50,0.72], 4:[0.13,0.40,0.60,0.87],
+        5:[0.10,0.34,0.50,0.66,0.90] },
+  FWD:{ 1:[0.50], 2:[0.38,0.62], 3:[0.18,0.50,0.82], 4:[0.15,0.39,0.61,0.85] },
+};
+const _2D_HAT = { GK:{x:0.05,ke:0},  DEF:{x:0.17,ke:0.055},
+                  MID:{x:0.36,ke:0.10}, FWD:{x:0.67,ke:0.0} };
+const _2D_ALT = {
+  DEF:{ 1:['CB'], 2:['CB','CB'], 3:['CB','CB','CB'], 4:['RB','CB','CB','LB'],
+        5:['RB','CB','CB','CB','LB'] },
+  MID:{ 1:['DM'], 2:['CM','CM'], 3:['CM','DM','CM'], 4:['RM','CM','CM','LM'],
+        5:['RM','CM','DM','CM','LM'] },
+  FWD:{ 1:['ST'], 2:['ST','ST'], 3:['RF','ST','LF'], 4:['RF','ST','ST','LF'] },
+};
+function _2dDizilisKur(oyuncular){
+  const grup = { GK:[], DEF:[], MID:[], FWD:[] };
+  for(const p of oyuncular) grup[_2dGrup(p)].push(p);
+  if(!grup.GK.length){
+    const k = grup.DEF.shift() || grup.MID.shift() || grup.FWD.shift();
+    if(k) grup.GK.push(k);
+  }
+  while(grup.GK.length > 1) grup.DEF.unshift(grup.GK.pop());
+  // aşırı kalabalık hat → fazlasını komşu hatta kaydır (motor 11 slot bekler)
+  const tasi = (a,b)=>{ while(grup[a].length>5 && grup[b].length<5) grup[b].push(grup[a].pop()); };
+  tasi('DEF','MID'); tasi('FWD','MID'); tasi('MID','DEF');
+  const slot = [];
+  for(const g of ['GK','DEF','MID','FWD']){
+    const list = grup[g], n = list.length;
+    if(!n) continue;
+    const bant = (g==='GK') ? [0.5]
+      : (_2D_BANT[g][n] || list.map((_,i)=> n===1?0.5:0.16+(0.68*i)/(n-1)));
+    const altL = (g==='GK') ? ['GK']
+      : (_2D_ALT[g][n] || list.map(()=> ({DEF:'CB',MID:'CM',FWD:'ST'})[g]));
+    for(let i=0;i<n;i++){
+      const y = bant[i] !== undefined ? bant[i] : 0.5;
+      const x = _2D_HAT[g].x + Math.abs(y-0.5)*2*_2D_HAT[g].ke;
+      slot.push({ p:GRUP_MOTOR[g], a:(altL[i]||altL[0]), x, y, oyuncu:list[i] });
+    }
+  }
+  return slot;
+}
+
+// Sunucu takımı → motor kadrosu
+function _2dKadroCevir(team, r){
+  const ilk11 = (team && Array.isArray(team.players) ? team.players : []).slice(0,11);
+  const slots = _2dDizilisKur(ilk11);
+  return slots.map((s,i)=>{
+    const g = s.oyuncu || {};
+    const c = yetSetiCevir({ abilities:g.abilities, subPos:_2dAltKod(g),
+                             pos:g.pos, overall:g.overall, rating:g.rating }, s.a);
+    const p = {
+      no: g.num || (i+1), ad: g.name || ('Oyuncu '+(i+1)), pos: s.p,
+      altMevki: s.a, kendiAlt: c.kendiAlt,
+      hx: s.x, hy: s.y, ovr: Math.round(g.overall || g.rating || 45),
+      faz: r()*Math.PI*2, hiz: 1, yet: c.yet,
+      x:0,y:0,tx:0,ty:0,vx:0,vy:0, bekle:0, kacisT:0, kacisX:0, kacisY:0,
+      kart:0, sahada:true, yorgun:0,
+      sunucuAd: g.name, sunucuNum: g.num,
+    };
+    p.maxHiz = s.p==='KL'
+      ? 5.2 + Y(p,'denge')*1.4
+      : 5.5 + Y(p,'pat_hiz')*2.6 + Y(p,'topsuz_kosu')*1.1 + Y(p,'geri_kosu')*0.6;
+    return p;
+  });
+}
+
+function _2dYedekCevir(team, r){
+  const yl = (team && Array.isArray(team.bench) ? team.bench : []).slice(0,7);
+  return yl.map((g,i)=>{
+    const alt = _2dAltKod(g) || ({GK:'GK',DEF:'CB',MID:'CM',FWD:'ST'})[_2dGrup(g)];
+    const c = yetSetiCevir({ abilities:g.abilities, subPos:alt, pos:g.pos,
+                             overall:g.overall, rating:g.rating }, alt);
+    const p = {
+      no: g.num || (12+i), ad: g.name || ('Yedek '+(i+1)),
+      pos: GRUP_MOTOR[ALT_GRUP[alt]] || 'OS', altMevki:alt, kendiAlt:c.kendiAlt,
+      hx:0.4, hy:0.5, ovr: Math.round(g.overall || g.rating || 45),
+      faz: r()*Math.PI*2, hiz:1, yet:c.yet,
+      x:0,y:0,tx:0,ty:0,vx:0,vy:0, bekle:0, kacisT:0, kacisX:0, kacisY:0,
+      kart:0, sahada:false, yorgun:0,
+    };
+    p.maxHiz = 5.5 + Y(p,'pat_hiz')*2.6 + Y(p,'topsuz_kosu')*1.1 + Y(p,'geri_kosu')*0.6;
+    return p;
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  MAÇ KUR + ADIMLA — SUNUCU VE İSTEMCİ AYNI YOLU İZLER
+//  Sunucu maçı sonuna kadar koşturur, istemci aynı maçı sunucu saatine
+//  göre adım adım koşturur. Aynı tohum + aynı kadro + aynı adım sayısı
+//  → birebir aynı maç. Canlandırma yok; sahadaki gol, akıştaki golün
+//  kendisi olur.
+// ═══════════════════════════════════════════════════════════════════
+function _2dMacKur(homeTeam, awayTeam, seed, opt){
+  opt = opt || {};
+  const tohumStr = String(seed || 'csc2d');
+  const rk = tohum(tohumStr + '|kadro');
+  const mac = {
+    seed: tohumStr,
+    ev : { ad: (homeTeam && homeTeam.name) || 'Ev',
+           kadro: _2dKadroCevir(homeTeam, rk), yedek: _2dYedekCevir(homeTeam, rk) },
+    dep: { ad: (awayTeam && awayTeam.name) || 'Deplasman',
+           kadro: _2dKadroCevir(awayTeam, rk), yedek: _2dYedekCevir(awayTeam, rk) },
+  };
+  const sh = new Sahne(mac, tohum(tohumStr + '|sim'));
+  sh.golUretir = true;        // gol motordan doğar
+  sh.cizgiKontrol = true;     // top çizgiyi doğal geçer
+  sh.sunucuModu = false;      // olay üretimi AÇIK — iki tarafta da
+  sh.uretilen = [];
+  if(typeof opt.yagis === 'number') sh.hava = { yagis: opt.yagis };
+  if(typeof opt.onem  === 'number') sh.onem = opt.onem;
+  sh.sekansBaslat(sh.santraSekansi('ev'));
+
+  const fps  = opt.fps || 30;
+  const DT   = (1/fps) * ANIM_KAT;
+  const BIRIM= 7 * ANIM_KAT;                 // 1 sim-dakika = 18,2 sahne birimi
+  const YARI = Math.round(45 * BIRIM / DT);
+  const TAM  = YARI * 2;
+  return { sh, mac, DT, BIRIM, YARI, TAM, adim:0, tohum:tohumStr, bitti:false };
+}
+
+// M'yi hedefAdim'a kadar ilerlet. enFazla = bu çağrıda atılacak en çok adım
+// (istemcide kareyi kilitlememek için). Devre arası TAM olarak YARI adımında.
+function _2dAdimla(M, hedefAdim, enFazla){
+  if(!M || M.bitti) return 0;
+  const sinir = Math.min(hedefAdim, M.TAM);
+  let atilan = 0;
+  const kota = (enFazla === undefined) ? Infinity : enFazla;
+  while(M.adim < sinir && atilan < kota){
+    if(M.adim === M.YARI){                   // ── DEVRE ARASI ──
+      const sh = M.sh;
+      sh.kuyruk.length = 0; sh.sekans = null;
+      sh.yon = -sh.yon; sh.yerlestir(sh.yon);
+      sh.faz = 'oyun'; sh.top.tasiyan = null;
+      sh.olayUret('halftime', 'ev', null, {});
+      sh.sekansBaslat(sh.santraSekansi('dep'));
+    }
+    M.sh.guncelle(M.DT);
+    M.adim++; atilan++;
+  }
+  if(M.adim >= M.TAM && !M.bitti){
+    M.sh.olayUret('fulltime','ev',null,{});
+    M.bitti = true;
+  }
+  return atilan;
+}
+
+// Gerçek zamandan hedef adım — SUNUCUYLA AYNI FORMÜL
+//   7 sn gerçek = 1 sim dakika · 45 dk yarı · 100 sn devre arası
+function _2dHedefAdim(M, gecenMs){
+  const DK_MS = 7000, YARI_MS = 45*DK_MS, ARA_MS = 100*1000;
+  let simDk;
+  if(gecenMs < YARI_MS)            simDk = gecenMs / DK_MS;
+  else if(gecenMs < YARI_MS+ARA_MS) simDk = 45;
+  else                              simDk = 45 + (gecenMs - YARI_MS - ARA_MS) / DK_MS;
+  simDk = Math.max(0, Math.min(90, simDk));
+  return Math.round(simDk * M.BIRIM / M.DT);
+}
+
+// Tam maçı oynat → sunucu biçiminde olay listesi
+function _2dMacOynat(homeTeam, awayTeam, seed, opt){
+  const t0 = Date.now();
+  const M = _2dMacKur(homeTeam, awayTeam, seed, opt);
+  _2dAdimla(M, M.TAM);
+  const olaylar = M.sh.uretilen.slice().sort((a,b)=>(a.t||0)-(b.t||0));
+  return {
+    events: olaylar,
+    homeScore: M.sh.skorSay.ev, awayScore: M.sh.skorSay.dep,
+    adim: M.adim, toplamAdim: M.TAM, ms: Date.now()-t0,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SUNUCU SARMALAYICI — tickMatch'in "reveal" yolunun beklediği biçim
+//  { events, statsByMin } döner. tickMatch bunu görünce simülasyon
+//  yapmaz, sadece o dakikaya kadar olanı açığa çıkarır.
+// ═══════════════════════════════════════════════════════════════════
+function _2dSunucuMac(homeTeam, awayTeam, seed, opt){
+  const R = _2dMacOynat(homeTeam, awayTeam, seed, opt || {});
+  if(!R) return null;
+  const ev = R.events || [];
+
+  // ── Dakika başına birikimli istatistik (eski motorun stats şekli) ──
+  const bos = ()=>({ possession:[50,50], shots:[0,0], shotsOnTarget:[0,0],
+    passes:[0,0], passComplete:[0,0], passAcc:[0,0], corners:[0,0], fouls:[0,0],
+    yellowCards:[0,0], redCards:[0,0], offsides:[0,0], tackles:[0,0],
+    aerials:[0,0], injuries:[0,0] });
+  const statsByMin = [];
+  const c = bos();
+  const drb = [0,0], apas = [0,0], kes = [0,0];   // dripling · ara pas · kesilme
+  let dk = 1, i = 0;
+  const yaz = (alan, taraf)=>{ c[alan][taraf==='home'?0:1]++; };
+  const say = (dizi, taraf)=>{ dizi[taraf==='home'?0:1]++; };
+  while(dk <= 90){
+    while(i < ev.length){
+      const e = ev[i];
+      const m = (e.min !== undefined) ? e.min : (e.minute || 0);
+      if(m > dk) break;
+      const t = e.team;
+      switch(e.type){
+        case 'goal':           yaz('shots',t); yaz('shotsOnTarget',t); break;
+        case 'save':           // kurtarış rakibin isabetli şutu
+          yaz('shots', t==='home'?'away':'home');
+          yaz('shotsOnTarget', t==='home'?'away':'home'); break;
+        case 'shotOff':
+        case 'bigChanceMissed':yaz('shots',t); break;
+        case 'corner':         yaz('corners',t); break;
+        case 'foul':           yaz('fouls',t); break;
+        case 'yellow':         yaz('yellowCards',t); break;
+        case 'red':            yaz('redCards',t); break;
+        case 'offside':        yaz('offsides',t); break;
+        case 'interception':   yaz('tackles',t); say(kes,t); break;
+        case 'aerialDuel':     yaz('aerials',t); break;
+        case 'injury':         yaz('injuries',t); break;
+        case 'keyPass':        say(apas,t); break;
+        case 'dribble':        say(drb,t);  break;
+      }
+      i++;
+    }
+    // ── TOPLA OYNAMA — olaylardan türetilir, sabit değil ──
+    //   Hücum eylemleri (şut, korner, dripling, ara pas) o takımın topa
+    //   sahip olduğu süreyle doğru orantılı. Top kaybı (kesilme) ise
+    //   RAKİBİN topu aldığı an demek, o yüzden karşı tarafa yazılır.
+    const etki = (t)=> c.shots[t]*3 + c.corners[t]*2 + drb[t]*1.4 + apas[t]*1.6
+                       + kes[1-t]*0.9 + 6;   // 6 = taban (kimse sıfırlanmasın)
+    const e0 = etki(0), e1 = etki(1);
+    let p0 = Math.round(e0*100/((e0+e1)||1));
+    p0 = Math.max(28, Math.min(72, p0));      // gerçek futbolda uçlar bu bantta
+    c.possession = [p0, 100-p0];
+    // Pas hacmi topla oynama payına oranlı — dakika başına ~9 pas iki takım
+    c.passes[0] += Math.round(9 * p0/100 * 2);
+    c.passes[1] += Math.round(9 * (100-p0)/100 * 2);
+    // İsabet: pasörlerin yeteneği zaten şut/olay üretimine yansıdı; burada
+    // gerçek bandın içinde tutuyoruz (%74-86), etkiye göre hafif oynuyor.
+    const isb = t => 74 + Math.round(Math.min(12, (t===0?e0:e1)/(((e0+e1)||1))*24));
+    c.passAcc = [isb(0), isb(1)];
+    c.passComplete = [ Math.round(c.passes[0]*c.passAcc[0]/100),
+                       Math.round(c.passes[1]*c.passAcc[1]/100) ];
+    statsByMin.push(JSON.parse(JSON.stringify(c)));
+    dk++;
+  }
+  // ── DİSK KORUMASI — doku olayları akışa YAZILMAZ ──────────────────
+  //   aerialDuel · duelLost · interception · dribble: 350 olayın ~190'ı
+  //   bunlar. İstatistikleri yukarıda zaten sayıldı. match_state.events
+  //   her tikte yeniden yazıldığı için bunları saklamak maç başına
+  //   ~10 MB yazma demekti (eski motor 1,2 MB). Akışta ve sahada
+  //   görünmeleri de gerekmiyor.
+  const DOKU = new Set(['aerialDuel','duelLost','interception','dribble']);
+  const akis = ev.filter(e => !DOKU.has(e.type));
+  return { events: akis, statsByMin,
+           homeScore: R.homeScore, awayScore: R.awayScore,
+           tumOlaySayisi: ev.length, csc2d: true, uretimMs: R.ms || 0 };
+}
+
+window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakismaCoz,kalecileriBoya,uzaklikM,kis,rr,ri,sec,yetSetiCevir,ALT_GRUP,altMevkiCarpan,sutCoz,frikikCoz,kornerCoz,penaltiCoz,macKur:_2dMacKur,adimla:_2dAdimla,hedefAdim:_2dHedefAdim,macOynat:_2dMacOynat,kadroCevir:_2dKadroCevir,dizilisKur:_2dDizilisKur};
 })();
 </script>
 <script id="csc2d-baglanti">
@@ -97590,6 +97884,34 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
   const anahtar = ev => ((ev.min!==undefined?ev.min:(ev.minute||0))+'|'+(ev.type||'')+'|'+
                          (ev.team||'')+'|'+(ev.player||''));
 
+  // 🆕 S4 · Sunucunun maçta kullandığı kadro. loadTeamRoster'ın çıktısı
+  //    aynen home_lineup/away_lineup'a yazılıyor — yani sunucudaki kadronun
+  //    birebir kopyası. 2D motor bunu okuyunca aynı maçı üretebiliyor.
+  function takimlar(){
+    const r = satir();
+    const H = (r && r.home_lineup) || ((typeof curHome!=='undefined')?curHome:null);
+    const A = (r && r.away_lineup) || ((typeof curAway!=='undefined')?curAway:null);
+    return [H, A];
+  }
+  // 🆕 Maçı 2D motor mu üretti? Sunucu olaylarına sahne zamanı (t) yazıyor;
+  //    eski motorun olaylarında bu alan yok. Ayrım noktası bu.
+  function ikiDMi(){
+    try{
+      const r = satir();
+      if(!r || !Array.isArray(r.events)) return false;
+      for(const e of r.events) if(e && typeof e.t === 'number') return true;
+      return false;
+    }catch(e){ return false; }
+  }
+  // 🆕 Maç başlangıcından bu yana geçen gerçek süre (sunucu saatiyle aynı)
+  function gecenMs(){
+    try{
+      const r = satir();
+      const t0 = (r && r.started_at) ? new Date(r.started_at).getTime() : 0;
+      if(!t0) return 0;
+      return Math.max(0, Date.now() - t0);
+    }catch(e){ return 0; }
+  }
   function kadroCoz(takim, tohum, diz){
     const r = C.tohum(tohum);
     const varsayilan = C.kadroUret(r, diz || '4-4-2');
@@ -97618,9 +97940,41 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
   function kur(){
     try{
       const cv=$('csc2dCanvas'); if(!cv) return false;
+      const mk=(typeof MS!=='undefined'&&MS&&MS.match_key)?MS.match_key:'yerel';
+
+      // ══════════════════════════════════════════════════════════════
+      // 🆕 S4 · AYNI MAÇ MODU — maçı 2D motor ürettiyse istemci onu
+      //    CANLANDIRMAZ, aynı maçı baştan oynar. Tohum = match_key,
+      //    kadro = sunucunun kullandığı kadro, adım = sunucu saati.
+      //    Motor deterministik olduğu için sonuç birebir aynı çıkıyor:
+      //    sahadaki gol, akıştaki golün kendisi olur. Senkron diye bir
+      //    sorun kalmaz, çünkü senkronlanacak iki şey kalmaz.
+      // ══════════════════════════════════════════════════════════════
+      if (ikiDMi() && C.macKur) {
+        const t = takimlar(), H0 = t[0], A0 = t[1];
+        if (H0 && A0 && Array.isArray(H0.players) && H0.players.length >= 11
+                     && Array.isArray(A0.players) && A0.players.length >= 11) {
+          const M = C.macKur(H0, A0, mk, { fps: 30 });
+          M.mac.ev.forma  = formaCoz('--kitH','#c62828');
+          M.mac.dep.forma = formaCoz('--kitA','#1565c0');
+          try{ C.formaCakismaCoz(M.mac.ev, M.mac.dep); }catch(e){}
+          try{ C.kalecileriBoya(M.mac, C.tohum(mk+'|kl')); }catch(e){}
+          S.saha = new C.Saha(cv);
+          S.M = M; S.sahne = M.sh; S.mac = M.mac; S.mod = 'ayni';
+          S.sahne.ekYazi = null; S.sahne.olayBasladi = null; S.sahne.golAgda = null;
+          S.mk = mk; S.bitti = false; S.htUyari = false; S.sapmaUyari = false;
+          // maça ortasından girildiyse sunucu saatine kadar hızla yetiş
+          try{ C.adimla(M, C.hedefAdim(M, gecenMs()), 40000); }catch(e){}
+          console.info('[csc2d] aynı maç modu · tohum='+mk+' adım='+M.adim+'/'+M.TAM);
+          olcekle(); return true;
+        }
+        console.warn('[csc2d] 2D maç ama kadro yok → senaryo moduna düşülüyor');
+      }
+
+      // ── SENARYO MODU (eski motorun maçları) — davranış değişmedi ──
+      S.mod = 'senaryo'; S.M = null;
       const H=(typeof curHome!=='undefined')?curHome:null;
       const A=(typeof curAway!=='undefined')?curAway:null;
-      const mk=(typeof MS!=='undefined'&&MS&&MS.match_key)?MS.match_key:'yerel';
       const seed='CSC2D|'+mk;
       const mac={ seed:seed,
         ev :{ ad:(H&&H.name)||'Ev', forma:formaCoz('--kitH','#c62828'),
@@ -97670,6 +98024,7 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
      yazı düşüyor, aksiyon tam o sırada yaşanıyor.                        */
   function olaylariAkit(){
     try{
+      if(S.mod === 'ayni') return;          // 🆕 aynı maç modunda canlandırma yok
       if(!S.sahne || !S.islenen) return;
       const r=satir(); if(!r || !Array.isArray(r.events)) return;
       const dk=gosterilenDk();
@@ -97702,9 +98057,46 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
     }catch(e){}
   }
 
-  /* ══ DEVRE YÖNETİMİ — sunucu dakikasına bağlı ══ */
+  /* ══ AYNI MAÇ MODU · devre arası ve maç sonu göstergesi ══
+     Saha değişimi ve santra motorun kendi adım akışında (YARI adımında)
+     yapılıyor — burada sadece perde ve yazı var.                        */
+  function devreGosterge(){
+    try{
+      const sh=S.sahne; if(!sh) return;
+      const g=gecenMs(), YARI_MS=45*7000, ARA_MS=100*1000;
+      const arada = (g>=YARI_MS && g<YARI_MS+ARA_MS);
+      sh.sahaDisi = arada;                       // oyuncular tünele
+      if(arada && !S.htUyari){
+        S.htUyari=true; sh.duduk=1.6;
+        sh.uyari={metin:'DEVRE ARASI', alt:'', t:2.6};
+      }
+      if(!arada) S.htUyari=false;
+      if(S.M && S.M.bitti && !S.bitti){
+        S.bitti=true; sh.duduk=1.8;
+        sh.uyari={metin:'MAÇ SONU', alt:'', t:3.0};
+      }
+      // 🆕 SAPMA DENETİMİ — istemci ile sunucunun skoru ayrışırsa haber ver.
+      //    Ayrışma tek bir sebepten olur: kadro farkı (ör. sunucu maç içi
+      //    değişiklik yaptı). Sessizce yanlış maç göstermek en kötüsü.
+      if(!S.sapmaUyari){
+        const r=satir();
+        if(r && typeof r.home_score==='number' && (r.sim_minute||0)>10){
+          const f=Math.abs((sh.skorSay.ev||0)-r.home_score)
+                 +Math.abs((sh.skorSay.dep||0)-r.away_score);
+          if(f>=2){ S.sapmaUyari=true;
+            console.warn('[csc2d] SAPMA: istemci '+sh.skorSay.ev+'-'+sh.skorSay.dep+
+                         ' · sunucu '+r.home_score+'-'+r.away_score+' → senaryo moduna dön');
+            S.sifirla();
+          }
+        }
+      }
+    }catch(e){}
+  }
+
+  /* ══ DEVRE YÖNETİMİ — SENARYO MODU (eski motorun maçları) ══ */
   function devreKontrol(){
     try{
+      if(S.mod === 'ayni') return;          // 🆕 devreyi motor kendi yönetiyor
       if(!S.sahne) return;
       const dk=gosterilenDk();
       if(dk<S.sonDk-5){ S.faz='ilk'; }        // maç sıfırlandı
@@ -97746,8 +98138,18 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
           S.aktif=false; console.warn('[csc2d] saha devre dışı'); return; }
         S.rafId=requestAnimationFrame(dongu); return;
       }
-      let dt=Math.min(100, z-(S.sonKare||z)); S.sonKare=z;
-      S.sahne.guncelle(dt/1000*C.ANIM_KAT);
+      if (S.mod === 'ayni' && S.M) {
+        // 🆕 Sabit adım — sunucudaki koşuyla birebir aynı olmak için kare
+        //    süresine göre değil, sunucu saatine göre ilerliyoruz.
+        //    Kare başına en çok 600 adım: geriden geliyorsa yetişir,
+        //    normal akışta kare başına ~0,5 adım yeter.
+        S.sonKare = z;
+        C.adimla(S.M, C.hedefAdim(S.M, gecenMs()), 600);
+        devreGosterge();
+      } else {
+        let dt=Math.min(100, z-(S.sonKare||z)); S.sonKare=z;
+        S.sahne.guncelle(dt/1000*C.ANIM_KAT);
+      }
       ciz();
       S.hataCiz=0;
     }catch(e){
@@ -97789,7 +98191,8 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
   S.durdur=function(){ S.aktif=false;
     if(S.rafId){ cancelAnimationFrame(S.rafId); S.rafId=0; } };
   S.sifirla=function(){ S.durdur(); S.saha=null; S.sahne=null; S.mk=null;
-    S.islenen=null; S.faz='ilk'; S.bitti=false; };
+    S.islenen=null; S.faz='ilk'; S.bitti=false;
+    S.M=null; S.mod=null; S.htUyari=false; S.sapmaUyari=false; };
 
   function baglan(){
     if (typeof window.closeMatchScreen==='function' && !window.closeMatchScreen.__csc2d){
