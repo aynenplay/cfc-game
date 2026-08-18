@@ -28730,7 +28730,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-17-ayni-mac-370';
+const APP_BUILD = '2026-08-17-turnuva-onbellek-372';
 
 (function _cacheBustCheck() {
   try {
@@ -74028,7 +74028,31 @@ function trn2BuildGroups(teams48, season, trnKey) {
   const _curDay = _sInfo ? (_sInfo.dayInSeason || 1) : 1;
   const _curSeason = _sInfo ? (_sInfo.season || 1) : 1;
   const _dayPart = (season === _curSeason) ? ('_d' + _curDay) : '';
-  const _cacheKey = `${trnKey}_s${season}${_dayPart}_groups_v5_${_srvGroups.map(g => (g.teams||[]).map(t=>t.name).join('-')).join('|')}`;
+  // 🆕 ÖNBELLEK TAZELİĞİ — anahtarda yalnız sezon+gün+takımlar vardı. Maçlar
+  //   gün içinde oynanınca anahtar değişmediği için sayfa, maçlar başlamadan
+  //   önce kurulmuş SKORSUZ nesneyi döndürmeye devam ediyordu (17 Ağustos
+  //   Convergence maçları oynandı, tabloda görünmedi). Artık maç verisinin
+  //   yüklenme damgası ve biten maç sayısı anahtarın parçası: yeni sonuç
+  //   geldiği an önbellek kendiliğinden düşer.
+  const _msStamp = (typeof _matchStateCache === 'object' && _matchStateCache)
+    ? (_matchStateCache.loadedAt || 0) : 0;
+  let _finCount = 0;
+  try {
+    if (_matchStateCache && _matchStateCache.byKey) {
+      for (const _m of Object.values(_matchStateCache.byKey)) {
+        if (_m && _m.tournament_key === trnKey && _m.season === season
+            && _m.status === 'finished') _finCount++;
+      }
+    }
+  } catch(e) {}
+  const _cacheKey = `${trnKey}_s${season}${_dayPart}_ms${_msStamp}_f${_finCount}_groups_v6_${_srvGroups.map(g => (g.teams||[]).map(t=>t.name).join('-')).join('|')}`;
+  // Eski anahtarlar birikmesin — bu turnuva/sezon için başka anahtar varsa at
+  try {
+    const _pref = `${trnKey}_s${season}`;
+    for (const _k in window._trn2GroupsCache) {
+      if (_k !== _cacheKey && _k.indexOf(_pref) === 0) delete window._trn2GroupsCache[_k];
+    }
+  } catch(e) {}
   if (window._trn2GroupsCache[_cacheKey]) return window._trn2GroupsCache[_cacheKey];
 
   // Grup map (letter → { gi, teams })
@@ -96634,6 +96658,82 @@ class Sahne {
   //  dışarı bildirilir. Sahne zamanı ve top konumu da taşınır → istemci
   //  animasyonu tam o ana oturtur, "önce izle sonra oku" doğal olur.
   simDakika(){ return Math.min(120, Math.floor(this.t / (7*ANIM_KAT)) + 1); }
+  // ══════════════════════════════════════════════════════════════════
+  // 🆕 OLAY METNİ — motor olayı üretirken cümlesini de yazar.
+  //    Sebep: akış listesi "Faul · Ahmet" gibi kuru etiket basıyordu;
+  //    sahada olanı anlatmıyordu. Metni üreten yer olayı üreten yerdir —
+  //    mesafeyi, kafa mı ayak mı olduğunu, asisti sadece motor bilir.
+  //    Rastgelelik sim tohumundan geldiği için sunucu ve istemci aynı
+  //    cümleyi üretir.
+  // ══════════════════════════════════════════════════════════════════
+  olayMetin(o){
+    const r = this.r, ad = o.player || 'Oyuncu';
+    const sec2 = a => a[Math.floor(r()*a.length)];
+    const m = o.uzakM ? (o.uzakM + ' metreden') : '';
+    switch(o.type){
+      case 'goal': {
+        if(o.isPenalty) return sec2([ad+' penaltıyı gole çevirdi.',
+          ad+' noktadan fileleri buldu.']);
+        if(o.subtype==='headerGoal') return sec2([ad+' kafayı vurdu, top ağlarda!',
+          'Ortaya iyi yükselen '+ad+' kafayla gol attı!']);
+        if(o.subtype==='cornerGoal') return sec2(['Kornerden gelen topu '+ad+' ağlara gönderdi!',
+          'Köşe vuruşunda '+ad+' golü buldu!']);
+        if(o.subtype==='longShot') return sec2([ad+' '+m+' denedi ve tuttu — muhteşem gol!',
+          'Uzaktan çektiği şutla '+ad+' fileleri havalandırdı!']);
+        if(o.subtype==='freekickGoal') return ad+' serbest vuruşu direkt gole çevirdi!';
+        if(o.assist) return sec2([o.assist+'\u2019in pasında '+ad+' farkı buldu!',
+          o.assist+' gördü, '+ad+' bitirdi — gol!',
+          o.assist+'\u2019in asistiyle '+ad+' '+m+' skoru değiştirdi.']);
+        return sec2([ad+' '+m+' vurdu, top ağlarda!',
+          ad+' fırsatı gole çevirdi.', 'Gol! '+ad+' ceza sahasında bitirdi.']);
+      }
+      case 'offsideGoal':
+        return ad+' ağları buldu ama ofsayt bayrağı kalktı — gol iptal.';
+      case 'save':
+        return o.greatSave
+          ? sec2([(o.shooter||'Rakip')+'\u2019ın şutunu '+ad+' inanılmaz çıkardı!',
+                  ad+' uçtu ve topu çeldi — büyük kurtarış!'])
+          : sec2([(o.shooter||'Rakip')+'\u2019ın şutunu '+ad+' kurtardı.',
+                  ad+' topu kucakladı.']);
+      case 'shotOff':
+        if(o.variant==='woodwork') return ad+' direği vurdu! Şansına küstü.';
+        if(o.variant==='blocked')  return ad+'\u2019ın şutu savunmada blokelendi.';
+        if(o.variant==='over')     return ad+' '+m+' vurdu, top üstten auta gitti.';
+        return ad+' denedi, top yandan dışarı çıktı.';
+      case 'bigChanceMissed':
+        return sec2([ad+' kaçırdı — çok net pozisyondu!',
+          'Kaleyle karşı karşıya kalan '+ad+' değerlendiremedi.']);
+      case 'penalty':       return 'Penaltı! '+ad+' topun başına geçiyor.';
+      case 'penaltyMissed': return ad+' penaltıyı kaçırdı!';
+      case 'foul':          return o.magdur ? (ad+', '+o.magdur+'\u2019a faul yaptı.')
+                                            : (ad+' faul yaptı.');
+      case 'foulDrawn':     return ad+' faul kazandı.';
+      case 'yellow':        return o.ikinciSari
+        ? (ad+' ikinci sarıdan kırmızı gördü!')
+        : sec2([ad+' sarı kart gördü.', 'Hakem '+ad+'\u2019a kartı gösterdi.']);
+      case 'red':           return ad+' kırmızı kart gördü — takımı 10 kişi kaldı.';
+      case 'offside':       return ad+' ofsayta düştü.';
+      case 'corner':        return ad+' korner vuruşunu kullanacak.';
+      case 'freekick':      return o.foulBy ? (o.foulBy+'\u2019ın faulünde '+ad+' serbest vuruşu kullanacak.')
+                                            : (ad+' serbest vuruşu kullanacak.');
+      case 'throwin':       return ad+' taç atışını kullanıyor.';
+      case 'goalkick':      return ad+' kale vuruşunu kullanıyor.';
+      case 'injury':        return ad+' sakatlandı'
+        + (o.bodyPart ? (' ('+o.bodyPart+')') : '')
+        + (o.severityLabel ? (' — '+o.severityLabel) : '') + '.';
+      case 'keyPass':       return ad+'\u2019ın pası '+(o.shooter||'arkadaşını')+' buldu.';
+      case 'dribble':       return o.gecilen ? (ad+', '+o.gecilen+'\u2019i çalımladı.')
+                                             : (ad+' rakibini geçti.');
+      case 'duelLost':      return o.kazanan ? (ad+' topu '+o.kazanan+'\u2019a kaptırdı.')
+                                             : (ad+' topu kaptırdı.');
+      case 'interception':  return o.kaynak ? (ad+', '+o.kaynak+'\u2019ın pasını kesti.')
+                                            : (ad+' pası kesti.');
+      case 'aerialDuel':    return ad+' hava topunu kazandı.';
+      case 'halftime':      return 'İlk yarı tamamlandı.';
+      case 'fulltime':      return 'Maç sona erdi.';
+      default:              return null;
+    }
+  }
   // 🆕 Olaya gömülen oyuncu nesnesi KÜÇÜK olmalı — tam nesne 45 yetenek +
   //    hız vektörleri taşır, match_state.events satırını şişirir.
   olayUret(tip, taraf, oyuncu, ek){
@@ -96651,7 +96751,8 @@ class Sahne {
         bx     : Math.round(this.top.x*1000)/1000,
         by     : Math.round(this.top.y*1000)/1000,
       }, ek||{});
-      this.uretilen = this.uretilen || [];
+      try{ o.metin = this.olayMetin(o); }catch(e){}
+    this.uretilen = this.uretilen || [];
       this.uretilen.push(o);
       this.olaySayac = this.olaySayac || {};
       this.olaySayac[tip] = (this.olaySayac[tip]||0)+1;
@@ -97821,7 +97922,11 @@ function _2dSunucuMac(homeTeam, awayTeam, seed, opt){
   //   her tikte yeniden yazıldığı için bunları saklamak maç başına
   //   ~10 MB yazma demekti (eski motor 1,2 MB). Akışta ve sahada
   //   görünmeleri de gerekmiyor.
-  const DOKU = new Set(['aerialDuel','duelLost','interception','dribble']);
+  //   throwin (35/maç) ve goalkick (12/maç) da akışa girmiyor: istemci aynı
+  //   maçı kendisi oynadığı için sahada zaten yaşanıyorlar, listede yalnızca
+  //   gürültü yapıyorlardı.
+  const DOKU = new Set(['aerialDuel','duelLost','interception','dribble',
+                        'throwin','goalkick']);
   const akis = ev.filter(e => !DOKU.has(e.type));
   return { events: akis, statsByMin,
            homeScore: R.homeScore, awayScore: R.awayScore,
