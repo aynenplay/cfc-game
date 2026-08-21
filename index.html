@@ -28730,7 +28730,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-17-turnuva-onbellek-372';
+const APP_BUILD = '2026-08-18-yetenek-koruma-373';
 
 (function _cacheBustCheck() {
   try {
@@ -45877,8 +45877,15 @@ function authInit(){
                 loadedPos++;
               }
             });
+            // 🆕 Yalnızca 4 pozisyonun HEPSİ doluysa "yüklendi" say. Eksikse
+            //    kaydetme kilitli kalır, mevcut veri ezilmez.
+            window._skillsLoadedOk = (loadedPos === 4);
             if (loadedPos > 0) {
-              console.info('[Skills] Server\'dan yüklendi:', loadedPos, '/4 pozisyon');
+              console.info('[Skills] Server\'dan yüklendi:', loadedPos, '/4 pozisyon',
+                           window._skillsLoadedOk ? '· kaydetme AÇIK' : '· kaydetme KİLİTLİ');
+            } else {
+              console.warn('[Skills] Sunucudan yetenek gelmedi → kaydetme KİLİTLİ ' +
+                           '(mevcut veriyi ezmemek için)');
             }
 
             // 4) Server active_trainings'ten doldur
@@ -46405,11 +46412,15 @@ function doLogin(){
         _skillsCache = { GK: {}, DEF: {}, MID: {}, FWD: {} };
         _activeCache = [];
         const serverSkills = (uplayer && uplayer.skills && typeof uplayer.skills === 'object') ? uplayer.skills : {};
+        let _lp = 0;
         POS_LIST.forEach(pos => {
           if (serverSkills[pos] && typeof serverSkills[pos] === 'object' && Object.keys(serverSkills[pos]).length > 0) {
             _skillsCache[pos] = serverSkills[pos];
+            _lp++;
           }
         });
+        window._skillsLoadedOk = (_lp === 4);   // 🆕 eksik yüklemede kaydetme kilitli
+        if (_lp !== 4) console.warn('[Skills] ' + _lp + '/4 pozisyon yüklendi → kaydetme KİLİTLİ');
         const serverActive = (uplayer && Array.isArray(uplayer.active_trainings)) ? uplayer.active_trainings : [];
         if (serverActive.length > 0) {
           _activeCache = serverActive;
@@ -46602,7 +46613,7 @@ function doLogoutConfirmed(){
     try { _userMatchLogCache = null; _userXpLogCache = null; _eqDataCache = null; _eqDataLoaded = false; } catch(e){}
     try { _marketValCache = null; _marketValHistCache = null; _joinRequestsCache = null; } catch(e){}
     try { _careerHistoryCache = null; _achStateCache = { stats:{}, claimed:[], players:{} }; _coachProfileCache = null; } catch(e){}
-    try { _skillsCache = null; _activeCache = null; } catch(e){}
+    try { _skillsCache = null; _activeCache = null; window._skillsLoadedOk = false; } catch(e){}
     try { _totoCouponsCache = null; _ntJerseyOverridesCache = null; } catch(e){}
   }catch(e){}
 
@@ -81462,15 +81473,32 @@ function trGetData(pos) {
 }
 
 // 🆕 Skill payload üret (tüm 4 mevkiyi RAM cache'ten birleştir)
+//
+// ⚠️ VERİ KAYBI KORUMASI — 2026-08-18
+//   Eskiden bu fonksiyon cache boşsa `{}` döndürüyordu ve çağıranlar bunu
+//   user_player.skills'in ÜSTÜNE yazıyordu. Yükleme başarısız olduğunda
+//   (ağ hatası, veritabanı çökmesi) ilk kaydetme tetiklendiği anda
+//   kullanıcının bütün yetenekleri siliniyordu; trGetData da boş cache'i
+//   görüp her yeteneği 10 döndürüyordu. Artık:
+//     • Sunucudan BAŞARIYLA yüklenmediyse hiç yazılmaz (null döner)
+//     • Boş grup varsa yazılmaz — kısmi veriyle tam veri ezilmez
+function _trSkillsYuklendiMi() {
+  if (!window._skillsLoadedOk) return false;
+  if (!_skillsCache) return false;
+  for (const p of ['GK','DEF','MID','FWD']) {
+    const g = _skillsCache[p];
+    if (!g || typeof g !== 'object' || Object.keys(g).length === 0) return false;
+  }
+  return true;
+}
 function _trBuildSkillsPayload() {
+  if (!_trSkillsYuklendiMi()) {
+    console.warn('[Skills] KAYDETME İPTAL — yetenekler sunucudan yüklenmedi, ' +
+                 'boş veri yazılıp mevcut yetenekler silinmesin diye atlandı.');
+    return null;
+  }
   const full = {};
-  ['GK','DEF','MID','FWD'].forEach(p => {
-    if (_skillsCache && _skillsCache[p]) {
-      full[p] = _skillsCache[p];
-    } else {
-      full[p] = {};
-    }
-  });
+  ['GK','DEF','MID','FWD'].forEach(p => { full[p] = _skillsCache[p]; });
   return full;
 }
 
@@ -81482,6 +81510,7 @@ function trFlushPendingSaves() {
     clearTimeout(_skillsSaveTimer);
     _skillsSaveTimer = null;
     const full = _trBuildSkillsPayload();
+    if (!full) return;                       // 🆕 boş veri yazma
     try {
       window.sb.from('user_player').update({ skills: full }).eq('user_id', authUser.id)
         .then(() => console.info('[Skills] flush save tamamlandı'))
@@ -81515,6 +81544,7 @@ function trSaveData(pos, data) {
       _skillsSaveTimer = null;
       try {
         const full = _trBuildSkillsPayload();
+        if (!full) return;                   // 🆕 boş veri yazma
         await window.sb.from('user_player').update({
           skills: full
         }).eq('user_id', authUser.id);
