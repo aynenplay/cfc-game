@@ -24843,7 +24843,7 @@ body.drawer-open{overflow:hidden}
         <div class="auth-form">
           <div class="auth-field">
             <label class="auth-label">Ad Soyad</label>
-            <input class="auth-input" type="text" id="regName" placeholder="Ahmet Yılmaz"/>
+            <input class="auth-input" type="text" id="regName" placeholder="Ahmet Yılmaz" maxlength="32"/>
           </div>
           <div class="auth-field">
             <label class="auth-label">Kullanıcı Adı</label>
@@ -28730,7 +28730,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-18-yetenek-koruma-373';
+const APP_BUILD = '2026-08-18-denetim-duzeltmeleri-374';
 
 (function _cacheBustCheck() {
   try {
@@ -38933,7 +38933,7 @@ function msubPitchClick(idx) {
   const help = document.getElementById('tacSubsHelp');
   if (help) {
     if (MS._tacSelectedPitchIdx !== null) {
-      help.innerHTML = `<span style="color:#00e676">✓ ${p.name}</span> seçildi → yedeklerden seç veya sürükle.`;
+      help.innerHTML = `<span style="color:#00e676">✓ ${_escapeHtml(p.name)}</span> seçildi → yedeklerden seç veya sürükle.`;
     } else {
       help.innerHTML = 'Sahadaki bir oyuncuya tıkla → yedeklerden birini seç. Veya yedeği sahaya sürükle.';
     }
@@ -38967,7 +38967,7 @@ function msubBenchClick(benchIdx) {
   if (help) {
     if (MS._tacSelectedBenchIdx !== null) {
       const bp = (MS._currentBench || [])[benchIdx];
-      help.innerHTML = `<span style="color:#00e676">✓ ${bp ? bp.name : 'Yedek'}</span> seçildi → sahadan değişecek oyuncuyu seç.`;
+      help.innerHTML = `<span style="color:#00e676">${_escapeHtml('✓ ' + (bp ? bp.name : 'Yedek'))}</span> seçildi → sahadan değişecek oyuncuyu seç.`;
     } else {
       help.innerHTML = 'Sahadaki bir oyuncuya tıkla → yedeklerden birini seç. Veya yedeği sahaya sürükle.';
     }
@@ -41168,6 +41168,12 @@ async function _startMatchInternal(){
           } catch(e) {}
         }
         // b) İlk 11 hâlâ eksikse smart auto-fill
+        // ⚠️ 2026-08-18 — Eskiden burada üretilen otomatik diziliş HEMEN
+        //   kaydediliyordu. Üstteki _teamStrategyLoadFromServer() await
+        //   edilmediği için yavaş ağda kullanıcının GERÇEK kayıtlı ilk 11'i
+        //   otomatik dizilişle eziliyordu. Artık sahaya uygulanıyor ama
+        //   strateji sunucudan gelmeden KAYDEDİLMİYOR.
+        const _stratHazir = (typeof _teamStrategyCache !== 'undefined' && !!_teamStrategyCache);
         if (typeof activePitchPlayers !== 'undefined' && activePitchPlayers.length < 11
             && typeof _computeSmartLineup === 'function'
             && typeof ROSTER_DATA !== 'undefined' && ROSTER_DATA.length >= 11
@@ -41185,7 +41191,7 @@ async function _startMatchInternal(){
                 if (typeof benchPlayers !== 'undefined') {
                   benchPlayers = (bench || []).slice(0, 7);
                 }
-                if (typeof saveTeamStrategy === 'function') saveTeamStrategy();
+                if (_stratHazir && typeof saveTeamStrategy === 'function') saveTeamStrategy();
               } catch(e){}
             }
           }
@@ -41202,7 +41208,7 @@ async function _startMatchInternal(){
             .filter(p => !(typeof isPlayerInjured === 'function' && isPlayerInjured(p)))
             .sort((a, b) => (b.overall || b.rating || 0) - (a.overall || a.rating || 0))
             .slice(0, 7);
-          if (typeof saveTeamStrategy === 'function') {
+          if (_stratHazir && typeof saveTeamStrategy === 'function') {
             try { saveTeamStrategy(); } catch(e){}
           }
         }
@@ -46492,6 +46498,20 @@ function doRegister(){
   if(!email || !name || !username){ authShowMsg('error','E-posta, ad ve kullanıcı adı gerekli.'); return; }
   if(!pw || pw.length < 6){ authShowMsg('error','Şifre en az 6 karakter olmalı.'); return; }
 
+  // 🆕 2026-08-18 · İSİM DOĞRULAMA
+  //   Ad alanı serbest metindi ve oyuncu adı başka kullanıcıların ekranında
+  //   innerHTML ile basılıyordu → depolanmış XSS. Basma tarafı escape edildi,
+  //   burada da girdi sınırlandırılıyor: yalnız harf, boşluk, kesme, tire.
+  if (name.length < 2 || name.length > 32) {
+    authShowMsg('error','Ad 2-32 karakter olmalı.'); return;
+  }
+  if (!/^[\p{L} .'-]+$/u.test(name)) {
+    authShowMsg('error','Ad yalnızca harf, boşluk, tire ve kesme işareti içerebilir.'); return;
+  }
+  if (username.length < 3 || username.length > 20 || !/^[\p{L}\p{N}._-]+$/u.test(username)) {
+    authShowMsg('error','Kullanıcı adı 3-20 karakter olmalı; harf, rakam, nokta, alt çizgi ve tire içerebilir.'); return;
+  }
+
   authShowMsg('success','Hesabınız oluşturuluyor...');
 
   (async () => {
@@ -47163,7 +47183,7 @@ function rosterKickPlayer(playerNum){
   _pendingKickNum = playerNum;
   const msgEl = document.getElementById('kickConfirmMsg');
   if(msgEl){
-    msgEl.innerHTML = `<b>${p.name}</b> kişisini kovacaksınız.<br><span style="font-size:12px;color:var(--text2)">Emin misiniz?</span>`;
+    msgEl.innerHTML = `<b>${_escapeHtml(p.name)}</b> kişisini kovacaksınız.<br><span style="font-size:12px;color:var(--text2)">Emin misiniz?</span>`;
   }
   const ov = document.getElementById('kickConfirmOverlay');
   if(ov) ov.classList.add('open');
@@ -51835,7 +51855,7 @@ function loadTeamStrategy() {
 function saveTeamStrategy() {
   try {
     // 🆕 Lineup snapshot — her slot için oyuncu numarası + slot indexi
-    const lineupSnapshot = (Array.isArray(activePitchPlayers) ? activePitchPlayers : [])
+    let lineupSnapshot = (Array.isArray(activePitchPlayers) ? activePitchPlayers : [])
       .filter(e => e && e.player && typeof e.player.num === 'number')
       .map(e => {
         // 🆕 Oynanan slot mevkisi → grup (GK/DEF/MID/FWD). Forvet orta sahaya çekilince
@@ -51847,9 +51867,32 @@ function saveTeamStrategy() {
       });
 
     // 🆕 Bench (yedek listesi) snapshot — sadece kullanıcının seçtiği yedekler
-    const benchSnapshot = (Array.isArray(benchPlayers) ? benchPlayers : [])
+    let benchSnapshot = (Array.isArray(benchPlayers) ? benchPlayers : [])
       .filter(p => p && typeof p.num === 'number')
       .map(p => p.num);
+
+    // ⚠️ VERİ KAYBI KORUMASI — 2026-08-18
+    //   Yükleme tarafında `lineup.length >= 11` kontrolü vardı, kaydetme
+    //   tarafında YOKTU. Kadro henüz kurulmadan (sayfa geçişi, takım
+    //   değişimi, yavaş ağ) bir kayıt tetiklenirse TÜM takımın dizilişi
+    //   boş listeyle eziliyordu — diğer üyeler de bunu görüyor.
+    //   Kural: eksik kadroyu ASLA yazma. Strateji ayarı kadrodan bağımsız
+    //   değiştiyse mevcut kayıtlı kadro korunur.
+    if (lineupSnapshot.length < 11) {
+      const _oncekiKadro = (_teamStrategyCache && Array.isArray(_teamStrategyCache.lineup)
+                            && _teamStrategyCache.lineup.length >= 11)
+                           ? _teamStrategyCache.lineup : null;
+      if (!_oncekiKadro) {
+        console.warn('[team_strategy] KAYDETME İPTAL — kadro eksik (' +
+                     lineupSnapshot.length + '/11), mevcut diziliş korunuyor.');
+        return;
+      }
+      // Kadro eksik ama elde sağlam bir önceki kadro var → onu koru
+      console.warn('[team_strategy] kadro eksik, önceki kayıtlı kadro korundu.');
+      lineupSnapshot = _oncekiKadro;
+      if (benchSnapshot.length === 0 && Array.isArray(_teamStrategyCache.bench))
+        benchSnapshot = _teamStrategyCache.bench;
+    }
 
     const payload = {
       strategy: { ...activeStrategy },
@@ -52232,7 +52275,7 @@ function vtOpenStartModal() {
   const capSelect = document.getElementById('vtCaptainSelect');
   if (capSelect && typeof ROSTER_DATA !== 'undefined') {
     const candidates = ROSTER_DATA.filter(p => p.role !== 'captain');
-    capSelect.innerHTML = candidates.map(p => `<option value="${p.num}">${p.name} (${subPosOf(p)}, Reyting ${p.overall || 70})</option>`).join('');
+    capSelect.innerHTML = candidates.map(p => `<option value="${Number(p.num)||0}">${_escapeHtml(p.name)} (${_escapeHtml(subPosOf(p))}, Reyting ${Number(p.overall)||70})</option>`).join('');
   }
   m.classList.add('show');
 }
@@ -59245,8 +59288,17 @@ window.frmCancelFromModal = frmCancelFromModal;
 
 async function _frmDeleteOne(matchId) {
   if (!window.sb || !matchId) return;
+  // 🆕 2026-08-18 · SAHİPLİK FİLTRESİ
+  //   Silme yalnızca `id` ile filtreleniyordu; tabloda RLS olup olmadığı da
+  //   belirsiz. Konsoldan başkasının hazırlık maçı silinebiliyordu.
+  //   Artık kendi satırından başkasına dokunulamıyor. (Tablo tarafında da
+  //   RLS gerekiyor — guvenlik-eksik-tablolar.sql içinde.)
   try {
-    await window.sb.from('friendly_matches').delete().eq('id', matchId);
+    const uid = (window.authUser && window.authUser.id) || null;
+    if (!uid) { console.warn('[frm] delete iptal — oturum yok'); return; }
+    const { error } = await window.sb.from('friendly_matches')
+      .delete().eq('id', matchId).eq('user_id', uid);
+    if (error) console.warn('[frm] delete REDDEDİLDİ:', error.message, matchId);
   } catch(e) { console.warn('[frm] delete hata:', e); }
 }
 
@@ -65968,20 +66020,33 @@ let _careerHistoryCache = null;
 let _careerHistorySaveTimer = null;
 
 async function _careerHistoryLoadFromServer() {
+  // ⚠️ VERİ KAYBI KORUMASI — 2026-08-18
+  //   Eskiden catch bloğu da cache'i boş diziye düşürüyordu; alttaki backfill
+  //   bunu "hiç geçmiş yok" sanıp TEK uydurma kayıtla sunucudaki gerçek
+  //   (çok takımlı) geçmişin üzerine yazıyordu. Ağ hatası = kariyer silinmesi.
+  //   Artık "gerçekten boş" ile "yüklenemedi" ayrı: yüklenemezse backfill YOK.
+  window._careerHistoryLoadedOk = false;
   if (!window.sb || !authUser || !authUser.id) { _careerHistoryCache = []; return; }
   try {
-    const { data } = await window.sb.from('user_player')
+    const { data, error } = await window.sb.from('user_player')
       .select('career_history')
       .eq('user_id', authUser.id)
       .maybeSingle();
+    if (error) { console.warn('[career_history] yükleme hatası → backfill kilitli:', error);
+                 _careerHistoryCache = []; return; }
     _careerHistoryCache = Array.isArray(data?.career_history) ? data.career_history : [];
-  } catch(e) { _careerHistoryCache = []; }
+    window._careerHistoryLoadedOk = true;
+  } catch(e) {
+    console.warn('[career_history] yükleme istisnası → backfill kilitli:', e);
+    _careerHistoryCache = []; return;
+  }
 
   // BACKFILL: history boşsa ve kullanıcının aktif takımı varsa, mevcut takımı kaydet.
   // Bu, eski hesaplar (career_history feature'ından önce katılmış) için tek seferlik düzeltme.
   // Yeni katılımlar artık ilgili akışta (joinTeamDirect/buyTeam/TM/inbox) push'lanıyor.
   try {
-    if (_careerHistoryCache.length === 0 && typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName) {
+    if (window._careerHistoryLoadedOk &&
+        _careerHistoryCache.length === 0 && typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName) {
       const cc = _userTeam.countryCode;
       const country = (typeof _cftGetCountry === 'function') ? _cftGetCountry(cc) : null;
       const tierIdx = (typeof getUserRealTierIdx === 'function') ? getUserRealTierIdx() : 0;
@@ -66014,6 +66079,11 @@ function getCareerHistory() {
 
 function _saveCareerHistory(list) {
   _careerHistoryCache = Array.isArray(list) ? list : [];
+  // 🆕 Sunucudan yüklenmeden yazma — boş/eksik liste gerçek geçmişi ezmesin
+  if (!window._careerHistoryLoadedOk) {
+    console.warn('[career_history] KAYDETME İPTAL — geçmiş sunucudan yüklenmedi.');
+    return;
+  }
   if (window.sb && authUser && authUser.id) {
     clearTimeout(_careerHistorySaveTimer);
     _careerHistorySaveTimer = setTimeout(async () => {
@@ -68661,8 +68731,14 @@ let FAC_LEVELS = {};
 // 🆕 Tesis seviyeleri TAKIM bazlı veri (team_data tablosu, data_key='facilities')
 // Bootstrap'ta _userTeam yüklendikten sonra _facLevelsLoadFromServer çağrılır
 async function _facLevelsLoadFromServer() {
+  // ⚠️ VERİ KAYBI KORUMASI — 2026-08-18
+  //   Yükleme başarısız olduğunda FAC_LEVELS varsayılan seviye-1 değerlerinde
+  //   kalıyordu ve saveFacLevels() bunu kontrolsüz yazıyordu: bir tesis
+  //   yükseltilince elmasla alınmış DİĞER tüm tesisler 1'e düşüyordu.
+  //   Artık yükleme doğrulanmadan kaydetme yapılmıyor.
+  window._facLevelsLoadedOk = false;
   if (!window.sb || !_userTeam || !_userTeam.countryCode || !_userTeam.teamName) {
-    // Takım yoksa varsayılan: tüm tesisler seviye 1
+    // Takım yoksa varsayılan: tüm tesisler seviye 1 (yazma kilitli kalır)
     FAC_LEVELS = {};
     if (typeof FAC_DATA !== 'undefined') {
       FAC_DATA.forEach(f => { FAC_LEVELS[f.id] = 1; });
@@ -68676,13 +68752,14 @@ async function _facLevelsLoadFromServer() {
       .eq('team_name', _userTeam.teamName)
       .eq('data_key', 'facilities')
       .maybeSingle();
-    if (error) { console.warn('[fac_levels] load hata:', error); return; }
+    if (error) { console.warn('[fac_levels] load hata → kaydetme KİLİTLİ:', error); return; }
     FAC_LEVELS = (data && data.data) ? data.data : {};
     // Eksik tesisleri varsayılan 1'e doldur
     if (typeof FAC_DATA !== 'undefined') {
       FAC_DATA.forEach(f => { if(!FAC_LEVELS[f.id] || FAC_LEVELS[f.id] < 1) FAC_LEVELS[f.id] = 1; });
     }
-  } catch(e) { console.warn('[fac_levels] load hata:', e); }
+    window._facLevelsLoadedOk = true;   // 🆕 yalnız burada açılır
+  } catch(e) { console.warn('[fac_levels] load istisnası → kaydetme KİLİTLİ:', e); }
 }
 
 // Tüm tesisler için varsayılan seviye 1 (FAC_DATA tanımlandıktan sonra doldurulur)
@@ -68694,6 +68771,12 @@ if (typeof FAC_DATA !== 'undefined') {
 let _facLevelsSaveTimer = null;
 function saveFacLevels() {
   if (!window.sb || !_userTeam || !_userTeam.countryCode || !_userTeam.teamName) return;
+  // 🆕 Sunucudan yüklenmeden yazma — varsayılan seviye-1 değerleri gerçek
+  //    (elmasla alınmış) seviyelerin üstüne yazılmasın.
+  if (!window._facLevelsLoadedOk) {
+    console.warn('[fac_levels] KAYDETME İPTAL — tesisler sunucudan yüklenmedi.');
+    return;
+  }
   // Debounced 500ms
   clearTimeout(_facLevelsSaveTimer);
   _facLevelsSaveTimer = setTimeout(async () => {
