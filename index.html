@@ -28730,7 +28730,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-18-denetim-duzeltmeleri-374';
+const APP_BUILD = '2026-08-18-sunucu-aksiyonlari-375';
 
 (function _cacheBustCheck() {
   try {
@@ -40562,16 +40562,34 @@ async function startMatch(){
       const secondHalfElapsed = elapsed - HALFTIME_END_MS;
       displayMin = Math.min(90, 46 + Math.floor(secondHalfElapsed / MS_PER_SIM_MIN));
     } else {
-      // 90+ → maç bitti, frontend kendi başına finalize tetikler
+      // 90+ → süre doldu.
       displayMin = 90;
-      // 🆕 Frontend kendi başına maç sonu — Edge Function'ı bekleme
-      if (!MS.finished && typeof _finalizeMatch === 'function') {
-        MS.finished = true;
-        MS.running = false;
-        if (clkS) { clkS.textContent = 'FT'; clkS.className = 'match-clock ft'; }
-        if (badge) { badge.className = 'status-badge sb-ft'; badge.innerHTML = '⏱️ BİTTİ'; }
-        try { _finalizeMatch(MS.script); } catch(e) { console.warn('[smooth] _finalizeMatch hata:', e); }
-        return;
+      // ⚠️ 2026-08-18 · SUNUCUYU BEKLE
+      //   Eskiden burada MS.finished = true yapılıp hemen _finalizeMatch
+      //   çağrılıyordu. Sunucudan gelen OTORİTER bitiş dalı ise yalnızca
+      //   `!MS.finished` iken çalıştığı için bir daha hiç çalışmıyordu:
+      //   son dakika golü sunucuda henüz yayınlanmadıysa ekranda görünen
+      //   skor kalıcı olarak yanlış kalabiliyordu.
+      //   Artık: süre dolunca "uzatma" gösterilir, bitişi SUNUCU ilan eder.
+      //   Sunucu 45 saniye içinde bitirmezse (cron gecikmesi) yerel bitişe
+      //   düşülür — maç ekranda sonsuza kadar asılı kalmasın.
+      if (!MS.finished) {
+        if (!MS._ftBeklemeBas) MS._ftBeklemeBas = Date.now();
+        const _bekleme = Date.now() - MS._ftBeklemeBas;
+        if (clkS) { clkS.textContent = "90'"; clkS.className = 'match-clock'; }
+        if (badge) {
+          badge.className = 'status-badge sb-live';
+          badge.innerHTML = '<div class="live-dot"></div> UZATMA';
+        }
+        if (_bekleme > 45000 && typeof _finalizeMatch === 'function') {
+          console.warn('[smooth] sunucu 45 sn içinde bitirmedi → yerel bitiş');
+          MS.finished = true;
+          MS.running = false;
+          if (clkS) { clkS.textContent = 'FT'; clkS.className = 'match-clock ft'; }
+          if (badge) { badge.className = 'status-badge sb-ft'; badge.innerHTML = '⏱️ BİTTİ'; }
+          try { _finalizeMatch(MS.script); } catch(e) { console.warn('[smooth] _finalizeMatch hata:', e); }
+          return;
+        }
       }
     }
 
@@ -70390,18 +70408,48 @@ async function confirmPosChange() {
 
   const groupChanged = (newGroup !== oldGroup);
 
-  // Grup değişiyorsa: 500 elmas + yetenek sıfırlama. Sadece alt mevki değişiyorsa: ücretsiz, sıfırlama yok.
-  if (groupChanged) {
-    const _wlBal = (typeof wlGetData === 'function') ? (wlGetData().dia || 0) : 0;
-    if (_wlBal < 500) { closePosModal(); showPosToast(`❌ Yetersiz Diamond! Gerekli: 500 💎 · Mevcut: ${_wlBal.toLocaleString('tr')} 💎`, '#ef5350'); return; }
-    const _wlOk = (typeof wlDeduct === 'function') ? wlDeduct('dia', 500, `Mevki Değişimi: ${oldGroup}→${newGroup}`) : false;
-    if (!_wlOk) { closePosModal(); showPosToast('❌ Bakiye düşülemedi (cüzdan hatası).', '#ef5350'); return; }
+  // 🆕 2026-08-18 · MEVKİ DEĞİŞİMİ SUNUCUDA
+  //   Eskiden 500 elmas gerçekten düşüyordu ama `pos`/`pos_group` kolonları
+  //   players tetikleyicisinin beyaz listesinde olmadığı için yazılmıyordu:
+  //   para gidiyor, mevki eski kalıyor, üstelik yetenekler yeni mevkiye göre
+  //   kaydedildiği için mevki-yetenek uyumsuzluğu oluşuyordu.
+  //   Artık ödeme + yazma tek yerde; yazılamazsa para iade ediliyor.
+  try {
+    const _res = await edgeCall('change_position', { sub: newSub });
+    const d = _res && _res.data;
+    if (!_res.ok || !d || d.error) {
+      closePosModal();
+      const msg = {
+        yetersiz_bakiye: 'Yetersiz Diamond! Mevki değişimi 500 💎.',
+        gecersiz_mevki: 'Geçersiz mevki.',
+        oyuncu_bulunamadi: 'Oyuncu kaydı bulunamadı.',
+        yazilamadi_para_iade: 'Kaydedilemedi, elmasların iade edildi.'
+      }[d && d.error] || 'Mevki değiştirilemedi.';
+      showPosToast('❌ ' + msg, '#ef5350');
+      return;
+    }
+    // Cüzdanı sunucudan tazele (yerel tahmin yok)
+    try { if (typeof wlLoadFromServer === 'function') await wlLoadFromServer(); } catch(e) {}
+  } catch(e) {
+    closePosModal();
+    showPosToast('❌ Sunucuya ulaşılamadı.', '#ef5350');
+    return;
+  }
 
-    const oldLevels = getSkillLevels(oldGroup);
-    const newDefs   = SKILL_DEFS[newGroup] || [];
-    const newLevels = {};
-    newDefs.forEach(cat => cat.skills.forEach(s => { newLevels[s.id] = oldLevels[s.id] !== undefined ? oldLevels[s.id] : 10; }));
-    saveSkillLevels(newGroup, newLevels);
+  // 🆕 Yetenek seti taşımasını da SUNUCU yaptı (change_position içinde).
+  //   İstemcinin `saveSkillLevels` ile yazması tetikleyici tarafından geri
+  //   alınıyordu. Burada sadece sunucudaki güncel seti geri okuyoruz.
+  if (groupChanged) {
+    try {
+      const { data: _up } = await window.sb.from('user_player')
+        .select('skills').eq('user_id', authUser.id).maybeSingle();
+      if (_up && _up.skills && typeof _up.skills === 'object') {
+        let _dolu = 0;
+        for (const p of ['GK','DEF','MID','FWD'])
+          if (_up.skills[p] && Object.keys(_up.skills[p]).length > 0) _dolu++;
+        if (_dolu === 4) { _skillsCache = _up.skills; window._skillsLoadedOk = true; }
+      }
+    } catch(e) { console.warn('[posChange] yetenek tazeleme hatası:', e); }
   }
 
   user.position = newGroup;
@@ -70417,14 +70465,9 @@ async function confirmPosChange() {
     }
   } catch(e) {}
 
-  // Supabase'e yaz — pos/pos_group her zaman; sub_pos ayrı (kolon yoksa sessiz geçer)
-  (async () => {
-    try {
-      if (!window.sb || !authUser || !authUser.id) return;
-      await window.sb.from('players').update({ pos: newGroup, pos_group: newGroup }).eq('user_id', authUser.id);
-      await window.sb.from('players').update({ sub_pos: newSub }).eq('user_id', authUser.id);
-    } catch(e) { console.warn('[posChange] Supabase update hata:', e); }
-  })();
+  // 🆕 players yazımı KALDIRILDI — yukarıdaki change_position aksiyonu
+  //   pos, pos_group ve sub_pos'u service_role ile zaten yazdı. Buradaki
+  //   istemci yazımı tetikleyici tarafından sessizce geri alınıyordu.
 
   // 🆕 Mevki/yetenek değişti → takım gücünü ANINDA tazele (kullanıcı takımdaysa).
   try{
@@ -72146,13 +72189,44 @@ async function confirmBuy() {
         return;
       }
     } else {
-      // Mağazadan alım — cüzdandan düş
-      const deducted = (typeof wlDeduct === 'function')
-        ? wlDeduct('dia', _buyTarget.price, 'Mağaza: ' + (_buyTarget.itemName || item.name))
-        : false;
-      if (!deducted) {
-        closeBuyModal();
-        showShopToast('❌ Bakiye düşülemedi (cüzdan hatası).', '#ef5350');
+      // 🆕 2026-08-18 · MAĞAZADAN ALIM SUNUCUDA
+      //   Eskiden elmas gerçekten düşüyordu ama item `user_player.equipment`
+      //   tetikleyicisi tarafından sessizce geri alınıyordu: para gitti, mal
+      //   gelmedi. Artık fiyat sunucuda SHOP_ITEMS'ten doğrulanıyor, ödeme ve
+      //   teslimat aynı yerde yapılıyor, teslimat başarısızsa para iade ediliyor.
+      closeBuyModal();
+      showShopToast('⏳ Satın alınıyor…', 'var(--text2)');
+      try {
+        const _res = await edgeCall('shop_buy', { item: item.id });
+        const d = _res && _res.data;
+        if (!_res.ok || !d || d.error) {
+          const msg = {
+            yetersiz_bakiye: 'Yetersiz elmas.',
+            dolap_dolu: 'Dolabın dolu. Önce bir item çıkar.',
+            zaten_sende: 'Bu item zaten sende.',
+            item_bulunamadi: 'Item bulunamadı.',
+            teslimat_basarisiz_para_iade: 'Teslim edilemedi, elmasların iade edildi.'
+          }[d && d.error] || 'Satın alınamadı.';
+          showShopToast('❌ ' + msg, '#ef5350');
+          _buyTarget = null;
+          return;
+        }
+        // Cüzdanı ve dolabı sunucudan tazele — yerel tahmin yok
+        try { if (typeof wlLoadFromServer === 'function') await wlLoadFromServer(); } catch(e) {}
+        try { if (typeof _eqDataLoadFromServer === 'function') await _eqDataLoadFromServer(); } catch(e) {}
+        showShopToast('✅ ' + item.name + ' dolabına eklendi!', 'var(--accent)');
+        if (typeof renderShopItems === 'function') renderShopItems();
+        if (document.getElementById('eqWardrobe')) {
+          try { if (typeof renderSlots === 'function') renderSlots(); } catch(_) {}
+          try { if (typeof renderWardrobe === 'function') renderWardrobe(); } catch(_) {}
+          try { if (typeof _refreshSkillsAfterEquipChange === 'function') _refreshSkillsAfterEquipChange(); } catch(_) {}
+        }
+        if (typeof achBump === 'function') achBump('item');
+        _buyTarget = null;
+        return;                       // 🆕 aşağıdaki yerel yazma yolu ATLANIR
+      } catch(e) {
+        showShopToast('❌ Sunucuya ulaşılamadı.', '#ef5350');
+        _buyTarget = null;
         return;
       }
     }
