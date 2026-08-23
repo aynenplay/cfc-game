@@ -28730,7 +28730,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-18-sunucu-aksiyonlari-375';
+const APP_BUILD = '2026-08-18-transfer-pazar-376';
 
 (function _cacheBustCheck() {
   try {
@@ -71780,25 +71780,45 @@ function tmCloseBuyConfirm(){
 }
 
 // ── Satın al ──
-function tmConfirmBuy(){
+async function tmConfirmBuy(){
   if(!_tmBuyTargetId) return;
   const listing = tmGetListings().find(l => l.id === _tmBuyTargetId);
   if(!listing) return;
 
-  // Cüzdan kontrolü
-  if(typeof wlCanAfford !== 'function' || !wlCanAfford(listing.currency, listing.price)){
-    if(typeof showJoinToast === 'function') showJoinToast('Yeterli bakiyen yok.');
+  // 🆕 2026-08-18 · TAKIM ALIMI SUNUCUDA
+  //   Eskiden alıcının parası GERÇEKTEN düşüyordu ama ilan silme RLS'e
+  //   takılıyordu (DELETE politikası satıcıya kilitli) ve hata kontrol
+  //   edilmiyordu: aynı takım arka arkaya birden çok kişiye "satılıyor",
+  //   her biri ödüyor, satıcı hiç para almıyordu. Başlangıç kasası da
+  //   ölü kod yüzünden sunucuya hiç yazılmıyordu.
+  //   Artık: ilan önce atomik kapatılır, sonra para alınır; kaptanlık,
+  //   satıcı ödemesi ve başlangıç kasası aynı işlemde yapılır.
+  if(typeof showJoinToast === 'function') showJoinToast('⏳ Satın alınıyor…');
+  let _srv = null;
+  try {
+    const _res = await edgeCall('buy_team_listing', { listing: _tmBuyTargetId });
+    const d = _res && _res.data;
+    if (!_res.ok || !d || d.error) {
+      const msg = {
+        ilan_satildi: 'Bu takım az önce başkası tarafından alındı.',
+        takim_satildi: 'Bu takımın artık bir sahibi var.',
+        kendi_ilanin: 'Kendi ilanını satın alamazsın.',
+        yetersiz_bakiye: 'Yeterli bakiyen yok.',
+        ilan_bulunamadi: 'İlan bulunamadı.',
+        takim_devredilemedi_para_iade: 'Takım devredilemedi, ödemen iade edildi.'
+      }[d && d.error] || 'Satın alınamadı.';
+      if(typeof showJoinToast === 'function') showJoinToast('❌ ' + msg);
+      try { _tmCache = null; if (typeof tmRender === 'function') tmRender(); } catch(e) {}
+      tmCloseBuyConfirm();
+      return;
+    }
+    _srv = d;
+    try { if (typeof wlLoadFromServer === 'function') await wlLoadFromServer(); } catch(e) {}
+  } catch(e) {
+    if(typeof showJoinToast === 'function') showJoinToast('❌ Sunucuya ulaşılamadı.');
+    tmCloseBuyConfirm();
     return;
   }
-
-  // Cüzdandan düş
-  if(!wlDeduct(listing.currency, listing.price, `Takım Satın Alma: ${listing.teamName}`)){
-    if(typeof showJoinToast === 'function') showJoinToast('İşlem başarısız.');
-    return;
-  }
-
-  // (Eğer bot listing değilse) Satıcının cüzdanına ekle — simülasyon: sadece localStorage'da tutuluyor
-  // Kullanıcının kendi ilanı zaten ayrı handle ediliyor. Bot listing'lerinde para "yok olur" (sistemde kalır)
 
   // Kullanıcının mevcut takımından ayrıl (varsa)
   if(userHasTeam()){
@@ -71841,21 +71861,19 @@ function tmConfirmBuy(){
     rosterSavePersist();
   }catch(e){ console.warn('Roster build hatası:', e); }
 
-  // Takıma yeni kasa enjekte et (Takım Satın Al akışı ile aynı)
-  try{
-    const country = _cftGetCountry(listing.countryCode);
-    const startTreasury = Math.round( Math.max(20000, Math.min(200000, (listing.pop||100000)/100 * (listing.rating||60)/50 )) );
-    // 🆕 Supabase'e yaz (localStorage'a değil)
+  // 🆕 Başlangıç kasasını SUNUCU yazdı (team_treasury_apply). İstemcideki
+  //   `trsSaveData` çağrısı ölü koddu — ekranda para görünüyor ama sunucuda
+  //   hiç yoktu. Burada sadece önbelleği düşürüp sunucudan taze okuyoruz.
+  try {
     if (typeof _trsCache !== 'undefined') _trsCache = null;
     if (typeof _trsLogCache !== 'undefined') _trsLogCache = null;
-    if(typeof trsSaveData === 'function') {
-      trsSaveData({eur: startTreasury, dia: 0, totalIn: startTreasury, totalOut: 0, donCount: 0});
-    }
-    if(typeof trsAddLog === 'function') trsAddLog({type:'in', cur:'eur', amount: startTreasury, source: 'Takım Devralma Sermayesi'});
-  }catch(e){}
+    if (typeof _trsLoadFromServer === 'function') await _trsLoadFromServer();
+  } catch(e) {}
 
-  // Listing'i kaldır
-  tmRemoveListing(_tmBuyTargetId);
+  // İlan sunucuda zaten silindi — sadece yerel önbellekten düşür
+  try {
+    if (Array.isArray(_tmCache)) _tmCache = _tmCache.filter(l => l && l.id !== _tmBuyTargetId);
+  } catch(e) {}
 
   // UI güncelle
   if(typeof applyUserTeamUI === 'function') applyUserTeamUI();
@@ -80973,35 +80991,40 @@ async function inboxAcceptTransfer(msgId) {
   // Bu mesaj kime ait? Karşı taraf (alıcı kulüp) bonservis + imza parasını ödeyecek.
   // Single-player'da: kullanıcı hem alıcı hem oyuncu konumunda olabilir.
   // Sadeleştirme: kullanıcı (alıcı taraf) kasasından bonservis + imza parası kontrolü.
-  const totalUpfront = transferFee + signingBonus;
-  if(totalUpfront > 0){
-    const treasury = (typeof trsGetBalance==='function') ? trsGetBalance('eur') : 0;
-    if(treasury < totalUpfront){
-      const need = totalUpfront.toLocaleString('tr');
-      const have = treasury.toLocaleString('tr');
-      tfShowToast(`❌ Kasada yetersiz bakiye! Bonservis+İmza: ${need} € · Mevcut: ${have} €`, 'var(--red)');
+  // 🆕 2026-08-18 · TRANSFER TAMAMEN SUNUCUDA
+  //   Eskiden bonservis+imza kasadan GERÇEKTEN düşüyor, oyuncu taşıma ise
+  //   players tetikleyicisi tarafından sessizce geri alınıyordu: para gitti,
+  //   oyuncu gelmedi, hata da dönmedi. Ayrıca tutarlar istemcide üretildiği
+  //   için 1 € bonservisle yıldız transfer etmek mümkündü.
+  //   Artık tek çağrı: tutar doğrulanır, para alıcı kasasından çıkar,
+  //   satıcı kasasına girer, oyuncu taşınır. Taşınamazsa para iade edilir.
+  tfShowToast('⏳ Transfer işleniyor…', 'var(--text2)');
+  try {
+    const _res = await edgeCall('accept_transfer_offer', { msg: msgId });
+    const d = _res && _res.data;
+    if (!_res.ok || !d || d.error) {
+      const msg = {
+        kasa_yetersiz: 'Kasada yeterli bakiye yok.',
+        bonservis_tavani_asildi: 'Bonservis bedeli bu oyuncu için fazla yüksek.',
+        imza_tavani_asildi: 'İmza bedeli fazla yüksek.',
+        yetki_yok: 'Bu teklifi kabul etme yetkin yok.',
+        oyuncu_bulunamadi: 'Oyuncu bulunamadı.',
+        oyuncu_belirsiz: 'Aynı isimde birden çok oyuncu var, transfer yapılamadı.',
+        teklif_bulunamadi: 'Teklif bulunamadı.',
+        oyuncu_tasinamadi_para_iade: 'Oyuncu taşınamadı, ödeme iade edildi.'
+      }[d && d.error] || 'Transfer tamamlanamadı.';
+      tfShowToast('❌ ' + msg, 'var(--red)');
       return;
     }
-    // Tek seferde toplam tutar düşülüyor (bonservis + imza parası)
-    if(typeof trsDeduct === 'function'){
-      const ok = trsDeduct('eur', totalUpfront, `Transfer: ${td.playerName||'oyuncu'} (bonservis+imza)`);
-      if(!ok){
-        tfShowToast(`❌ Kasadan ödeme yapılamadı`, 'var(--red)');
-        return;
-      }
+    if (d.zaten_transfer_edildi) {
+      tfShowToast('Bu transfer zaten tamamlanmış.', 'var(--text2)');
     }
-    // İmza parası → oyuncu cüzdanı (single-player'da kullanıcı = oyuncu varsayılırsa)
-    if(signingBonus > 0 && typeof wlAddIncome === 'function'){
-      wlAddIncome('eur', signingBonus, `İmza Parası — ${td.playerName||''}`);
-    }
-    // Bonservis → satıcı kulüp kasası simülasyonu
-    // (Backend'siz: sadece log + bilgi mesajı; satıcı kulüp gerçek bir kasa değil)
-    if(transferFee > 0 && typeof trsAddLog === 'function'){
-      trsAddLog({
-        type: 'out', cur: 'eur', amount: transferFee,
-        source: `Bonservis → ${td.sellerTeam || 'satıcı kulüp'}`
-      });
-    }
+    // Kasa ve cüzdanı sunucudan tazele — yerel tahmin yok
+    try { if (typeof _trsLoadFromServer === 'function') await _trsLoadFromServer(); } catch(e) {}
+    try { if (typeof wlLoadFromServer === 'function') await wlLoadFromServer(); } catch(e) {}
+  } catch(e) {
+    tfShowToast('❌ Sunucuya ulaşılamadı.', 'var(--red)');
+    return;
   }
 
   // Sözleşme bilgisini kullanıcının _userTeam'ine yaz (kullanıcı transfer olduysa)
@@ -81023,81 +81046,29 @@ async function inboxAcceptTransfer(msgId) {
     }
   } catch(e){}
 
-  // 🆕 GERÇEK TRANSFER — oyuncuyu DB'de yeni (alıcı) takıma geçir
-  // Serbest oyuncuyu kabul eden = oyuncunun kendisi → kendi takımı buyer olur.
-  // Bonservisli oyuncuyu kabul eden = satıcı takımın kaptanı → oyuncu buyer takıma gider.
-  if (window.sb && td.buyerTeam && td.buyerCountryCode) {
-    // Alıcı takımda boş numara üret
-    let newNum = 30;
-    try {
-      const { data: buyerRoster } = await window.sb.from('players')
-        .select('num')
-        .eq('team_name', td.buyerTeam)
-        .eq('country_code', td.buyerCountryCode);
-      const used = new Set((buyerRoster||[]).map(r => r && r.num).filter(n => typeof n === 'number'));
-      while (used.has(newNum) && newNum < 100) newNum++;
-    } catch(e) { console.warn('[transfer] numara üretimi hata:', e); }
-
-    // Oyuncuyu bul: önce DB id, yoksa isim + satıcı takım/ülke
-    // 🆕 Serbest oyuncuda kabul eden = oyuncunun kendisi → user_team_data'yı da yaz
-    //    (userTeamLoadFromServer'ın birincil kaynağı; fallback'e düşmeden takım gelsin).
-    const _updatePayload = {
-      team_name: td.buyerTeam,
-      country_code: td.buyerCountryCode,
-      num: newNum,
-      role: 'member'
-    };
-    if (td.isFree) {
-      _updatePayload.user_team_data = {
-        teamName: td.buyerTeam,
-        countryCode: td.buyerCountryCode,
-        role: 'member',
-        num: newNum,
-        joinedAt: Date.now(),
-      };
-    }
-    let q = window.sb.from('players').update(_updatePayload);
-    if (td.playerDbId) {
-      q = q.eq('id', td.playerDbId);
-    } else {
-      q = q.eq('name', td.playerName);
-      if (td.sellerCountryCode) q = q.eq('country_code', td.sellerCountryCode);
-      if (td.sellerTeam) q = q.eq('team_name', td.sellerTeam);
-    }
-    const { error: trErr } = await q;
-    if (trErr) {
-      console.error('[transfer] oyuncu transfer hata:', trErr);
-      tfShowToast('❌ Transfer DB hatası — oyuncu taşınamadı', 'var(--red)');
-      return;
-    }
-
-    // 🆕 ANINDA GÖRÜNÜRLÜK — sayfayı yenilemeden DB'den taze veri çek.
-    //   Serbest oyuncu kabul etti = kabul eden OYUNCUNUN KENDİSİ buyer takıma katıldı.
-    //   → players satırı zaten güncellendi; şimdi _userTeam'i DB'den yeniden yükle,
-    //     kadroyu inşa et ve tüm takım UI'ını tazele (joinTeamDirect ile aynı sonuç).
-    try {
-      const _amIThePlayer = !!td.isFree; // serbest oyuncuda kabul eden = oyuncu
-      if (_amIThePlayer) {
-        if (typeof userTeamLoadFromServer === 'function') await userTeamLoadFromServer();
-        if (_userTeam && _userTeam.countryCode) {
-          if (typeof _rosterRefreshFromServer === 'function') {
-            try { await _rosterRefreshFromServer(_userTeam.countryCode); } catch(e){}
-          }
-          if (typeof syncUserToRoster === 'function') syncUserToRoster();
-          if (typeof rosterBuildTeam === 'function') rosterBuildTeam(_userTeam.countryCode);
-        }
-        if (typeof applyUserTeamUI === 'function') applyUserTeamUI();
-        if (typeof renderRoster === 'function') renderRoster('all');
-      } else if (typeof _userTeam !== 'undefined' && _userTeam &&
-                 _userTeam.teamName === td.buyerTeam && _userTeam.countryCode === td.buyerCountryCode) {
-        // Kaptan kendi takımına oyuncu kattı → sadece roster tazele
+  // 🆕 players yazımı KALDIRILDI — accept_transfer_offer aksiyonu oyuncuyu
+  //   service_role ile zaten taşıdı. Buradaki istemci yazımı tetikleyici
+  //   tarafından sessizce geri alınıyordu. Burada sadece ekranı tazeliyoruz.
+  try {
+    const _amIThePlayer = !!(td.playerUserId && authUser && td.playerUserId === authUser.id) || !!td.isFree;
+    if (_amIThePlayer) {
+      if (typeof userTeamLoadFromServer === 'function') await userTeamLoadFromServer();
+      if (_userTeam && _userTeam.countryCode) {
         if (typeof _rosterRefreshFromServer === 'function') {
-          try { await _rosterRefreshFromServer(td.buyerCountryCode); } catch(e){}
+          try { await _rosterRefreshFromServer(_userTeam.countryCode); } catch(e){}
         }
-        if (typeof renderRoster === 'function') renderRoster('all');
+        if (typeof syncUserToRoster === 'function') syncUserToRoster();
+        if (typeof rosterBuildTeam === 'function') rosterBuildTeam(_userTeam.countryCode);
       }
-    } catch(e) { console.warn('[transfer] UI tazeleme hata:', e); }
-  }
+      if (typeof applyUserTeamUI === 'function') applyUserTeamUI();
+      if (typeof renderRoster === 'function') renderRoster('all');
+    } else if (typeof _userTeam !== 'undefined' && _userTeam && td.buyerCountryCode) {
+      if (typeof _rosterRefreshFromServer === 'function') {
+        try { await _rosterRefreshFromServer(td.buyerCountryCode); } catch(e){}
+      }
+      if (typeof renderRoster === 'function') renderRoster('all');
+    }
+  } catch(e) { console.warn('[transfer] UI tazeleme hata:', e); }
 
   msgs[idx].offerStatus = 'accepted';
   saveInboxMsgs(msgs);
