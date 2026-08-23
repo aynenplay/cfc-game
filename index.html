@@ -28730,7 +28730,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-18-transfer-pazar-376';
+const APP_BUILD = '2026-08-23-sunucu-kilit-377';
 
 (function _cacheBustCheck() {
   try {
@@ -33332,81 +33332,44 @@ async function captainDecideRenewalRequest(msgId, decision) {
     return;
   }
 
-  // Oyuncunun mevcut user_team_data + contract'ını çek
-  let playerUT = null;
+  // 🔒 F3 · KARAR ARTIK SUNUCUDA.
+  //   Eskiden burada BAŞKA bir oyuncunun `players.user_team_data` satırı
+  //   doğrudan yazılıyordu: maaş/süre hiç doğrulanmıyordu ve RLS yüzünden
+  //   zaten 0 satır etkiliyordu (özellik sessizce çalışmıyordu).
+  //   Sunucu artık kaptanlığı doğruluyor, maaşı KENDİ hesaplıyor
+  //   (aşağıdaki `req.seasonSalary` yalnızca gösterim için kullanılır)
+  //   ve oyuncuya bildirimi de kendisi gönderiyor.
+  let _rn = null;
   try {
-    const { data: pRow } = await window.sb.from('players')
-      .select('user_team_data')
-      .eq('user_id', req.playerUserId)
-      .maybeSingle();
-    playerUT = pRow && pRow.user_team_data;
+    _rn = await edgeCall('decide_renewal', {
+      player: req.playerUserId,
+      karar: (decision === 'accept') ? 'accept' : 'reject'
+    });
   } catch(e) {
-    if (typeof tfShowToast === 'function') tfShowToast('❌ Oyuncu çekme hatası', 'var(--red)');
+    if (typeof tfShowToast === 'function') tfShowToast('❌ Bağlantı yok, tekrar dene', 'var(--red)');
     return;
   }
-  if (!playerUT || !playerUT.contract) {
-    if (typeof tfShowToast === 'function') tfShowToast('❌ Oyuncunun aktif sözleşmesi yok', 'var(--red)');
-    msg.renewalRequest.status = 'invalid';
-    saveInboxMsgs(msgs);
+  const _rd = (_rn && _rn.data) || {};
+  if (!_rn.ok || _rd.error) {
+    const _m = {
+      takim_yok: 'Bir takımda değilsin.',
+      yetki_yok: 'Sadece kaptan karar verebilir.',
+      oyuncu_bulunamadi: 'Oyuncu bulunamadı.',
+      ayni_takimda_degil: 'Bu oyuncu artık takımında değil.',
+      sozlesme_yok: 'Oyuncunun aktif sözleşmesi yok.',
+      zaten_karar_verildi: 'Bu talebe zaten karar verilmiş.'
+    }[_rd.error] || ('Karar kaydedilemedi: ' + (_rd.error || 'bilinmeyen'));
+    if (typeof tfShowToast === 'function') tfShowToast('❌ ' + _m, 'var(--red)');
+    if (_rd.error === 'sozlesme_yok' || _rd.error === 'ayni_takimda_degil') {
+      msg.renewalRequest.status = 'invalid';
+      saveInboxMsgs(msgs);
+    }
+    if (_rd.error === 'zaten_karar_verildi') {
+      msg.renewalRequest.status = _rd.durum || 'accepted';
+      saveInboxMsgs(msgs);
+    }
     return;
   }
-
-  const c = playerUT.contract;
-  const info = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : { season: 1 };
-
-  if (decision === 'accept') {
-    c.seasonSalary    = req.seasonSalary;
-    c.yearlySalary    = req.seasonSalary;
-    c.durationSeasons = (c.durationSeasons || 1) + 1;
-    c.endsSeason      = info.season + 1;
-    c.canLeaveFreely  = false;
-    c.unpaidInstallments = 0;
-    c.lastPayKey      = null;
-    c.renewalWarnedSeason = null;
-    c.renewedAt       = Date.now();
-    c.renewedSeason   = info.season;
-    c.renewalStatus   = 'accepted';
-  } else {
-    const firstSalary = Number(c.firstSalary || c.seasonSalary || c.yearlySalary || 0);
-    c.seasonSalary    = firstSalary;
-    c.yearlySalary    = firstSalary;
-    c.durationSeasons = (c.durationSeasons || 1) + 1;
-    c.endsSeason      = info.season + 1;
-    c.canLeaveFreely  = true;
-    c.unpaidInstallments = 0;
-    c.lastPayKey      = null;
-    c.renewalWarnedSeason = null;
-    c.renewalStatus   = 'rejected';
-    c.renewedAt       = Date.now();
-  }
-  playerUT.contract = c;
-
-  // Oyuncunun user_team_data'sını güncelle
-  try {
-    await window.sb.from('players')
-      .update({ user_team_data: playerUT })
-      .eq('user_id', req.playerUserId);
-  } catch(e) {
-    if (typeof tfShowToast === 'function') tfShowToast('❌ Güncelleme hatası', 'var(--red)');
-    return;
-  }
-
-  // Oyuncuya bildirim mesajı
-  const myName = (authUser||{}).name || 'Kaptan';
-  const _f = v => v >= 1000000 ? (v/1000000).toFixed(1)+'M €' : v > 0 ? Math.round(v/1000)+'K €' : '0 €';
-  const teamName = req.teamName || '';
-  const playerMsg = decision === 'accept'
-    ? {
-        from: '📋 ' + myName, fromAvatar: '✅', type: 'system',
-        subject: `Yenileme Onaylandı — ${teamName}`,
-        body: `Kaptan ${myName} sözleşme yenileme talebini ONAYLADI.\n\n• Yeni sezon maaşı: ${_f(req.seasonSalary)}\n• Taksit: ${_f(Math.round(req.seasonSalary/4))} × 4 (gün 10/20/30/40)\n• Yeni bitiş: ${c.endsSeason}. sezon sonu\n\nİyi maçlar!`,
-      }
-    : {
-        from: '📋 ' + myName, fromAvatar: '⚠️', type: 'system',
-        subject: `Yenileme Reddedildi — ${teamName}`,
-        body: `Kaptan ${myName} sözleşme yenileme talebini REDDETTİ.\n\n• Yeni sezon maaşın: ${_f(c.seasonSalary)} (ilk imza maaşı)\n• Sözleşme bir sezon daha uzadı: ${c.endsSeason}. sezon sonu\n• Artık takımdan istediğin an ayrılabilirsin\n\nDaha iyi bir teklif arıyorsan transfer yapabilirsin.`,
-      };
-  await inboxSendToUser(req.playerUserId, playerMsg);
 
   // Kaptanın inbox'unda mesajı "karar verildi" olarak işaretle
   msg.renewalRequest.status = decision === 'accept' ? 'accepted' : 'rejected';
@@ -45468,18 +45431,26 @@ async function _userTeamSaveImpl() {
       uid = user.id;
     }
 
-    // 🆕 num UNIQUE çakışmasında retry mantığı
+    // 🔒 D1 · KAPTANLIK/TAKIM ARTIK BURADAN YAZILMIYOR.
+    //   Eskiden bu yama `role`, `team_name`, `country_code` alanlarını da
+    //   içeriyordu. Konsoldan tek satır yeterliydi:
+    //       _userTeam.role='captain'; _userTeam.teamName='X'; _userTeamSaveImpl()
+    //   ve kullanıcı istediği takımın kaptanı oluyordu — `team_transfer_captaincy`
+    //   RPC'si tamamen baypas ediliyordu.
+    //
+    //   Bu alanların HEPSİ zaten sunucuda yazılıyor:
+    //     • takıma katılma      → join_team_take_slot (RPC)
+    //     • kaptanlık devri     → team_transfer_captaincy (RPC)
+    //     • takım satın alma    → buy_team_listing (Edge)
+    //     • transfer teklifi    → accept_transfer_offer (Edge)
+    //     • serbest oyuncu      → hire_free_agent (Edge)
+    //     • takımdan ayrılma    → leave_team (Edge)
+    //   Burada yalnızca kullanıcının KENDİ görünüm/sözleşme verisi
+    //   (`user_team_data`) ve forma numarası yazılır.
     const tryUpdate = async (numToTry) => {
-      const patch = _userTeam ? {
-        user_team_data: _userTeam,
-        team_name: _userTeam.teamName || null,
-        country_code: _userTeam.countryCode || null,
-        role: _userTeam.role || null,
-        num: numToTry,
-      } : {
-        user_team_data: null,
-        team_name: null, country_code: null, role: null, num: null,
-      };
+      const patch = _userTeam
+        ? { user_team_data: _userTeam, num: numToTry }
+        : { user_team_data: null };
       return window.sb.from('players').update(patch).eq('user_id', uid).select();
     };
 
@@ -46561,22 +46532,49 @@ function doRegister(){
         const _safePos = selectedPos || 'MID';
         const posGroup = POS_GRP[_safePos] || _safePos || 'MID';
         const flag = (typeof ccToFlag === 'function') ? ccToFlag(nationality) : '🏳️';
-        await window.sb.from('players').insert({
-          user_id: data.user.id,
-          name: name,
-          nationality: nationality,
-          nation: flag,
-          pos: _safePos,
-          pos_group: posGroup,
-          is_bot: false,
-          level: 0, xp: 0, overall: 10, rating: 10,
-          abilities: (typeof _buildAbilities === 'function') ? _buildAbilities() : { GK:{}, DEF:{}, MID:{}, FWD:{} },
-          role: null,  // 🆕 Takıma girince member/vice/captain olur
-          avatar: '👤',
-          avatar_id: _regSelectedAvatar,  // 🆕 başkaları da seçilen avatarı görsün
-          last_seen: new Date().toISOString()
-        });
-      } catch(e) { console.warn('[register] players insert hata:', e); }
+        // 🔒 F4 · HATA ARTIK YUTULMUYOR.
+        //   Eskiden bu insert sessizce başarısız olabiliyordu: auth hesabı
+        //   oluşuyor ama `players` satırı olmuyordu → "hayalet hesap".
+        //   Kullanıcı giriş yapabiliyor ama hiçbir yerde görünmüyor,
+        //   takıma katılamıyor, maça çıkamıyordu. Üstelik ikinci kez
+        //   kayıt da olamıyor (e-posta zaten alınmış).
+        //   Artık: 3 kez denenir, yine olmazsa kullanıcı uyarılır.
+        let _plrOk = false, _plrHata = null;
+        for (let _d = 0; _d < 3 && !_plrOk; _d++) {
+          const { error: _pe } = await window.sb.from('players').insert({
+            user_id: data.user.id,
+            name: name,
+            nationality: nationality,
+            nation: flag,
+            pos: _safePos,
+            pos_group: posGroup,
+            is_bot: false,
+            level: 0, xp: 0, overall: 10, rating: 10,
+            abilities: (typeof _buildAbilities === 'function') ? _buildAbilities() : { GK:{}, DEF:{}, MID:{}, FWD:{} },
+            role: null,  // 🆕 Takıma girince member/vice/captain olur
+            avatar: '👤',
+            avatar_id: _regSelectedAvatar,  // 🆕 başkaları da seçilen avatarı görsün
+            last_seen: new Date().toISOString()
+          });
+          if (!_pe) { _plrOk = true; break; }
+          // Satır zaten varsa (tekrar kayıt / trigger oluşturmuş) sorun yok
+          if (_pe.code === '23505') { _plrOk = true; break; }
+          _plrHata = _pe;
+          await new Promise(r => setTimeout(r, 400 * (_d + 1)));
+        }
+        if (!_plrOk) {
+          console.error('[register] players insert BAŞARISIZ:', _plrHata);
+          authShowMsg('error',
+            'Hesap oluşturuldu ama oyuncu kaydın yazılamadı. Lütfen aynı e-posta ile '
+            + 'GİRİŞ YAP; kayıt otomatik tamamlanacak. Sorun sürerse destekle iletişime geç.');
+          return;
+        }
+      } catch(e) {
+        console.error('[register] players insert istisna:', e);
+        authShowMsg('error','Oyuncu kaydı yazılamadı: ' + (e && e.message || e)
+          + ' — Aynı e-posta ile giriş yapmayı dene.');
+        return;
+      }
 
       _userTeam = null;
       if(typeof userTeamSave === 'function') userTeamSave();
@@ -46638,10 +46636,27 @@ function hideLogoutConfirm(){
 function doLogoutConfirmed(){
   hideLogoutConfirm();
 
-  // 🆕 SUPABASE — server-side oturum kapatma
+  // 🔒 F4 · ÇEVRİMİÇİ DAMGASINI TEMİZLE.
+  //   `last_seen` çıkışta hiç sıfırlanmıyordu; çevrimiçi sayacı son
+  //   damgadan 5 dakika sonrasına kadar kullanıcıyı "oyunda" gösteriyordu.
+  //   signOut'tan ÖNCE yazmak gerekiyor — sonrasında JWT geçersiz olur
+  //   ve RLS yazmayı reddeder.
   try {
-    if (window.sb) window.sb.auth.signOut().catch(()=>{});
-  } catch(e) {}
+    const _uid = (window.authUser && window.authUser.id) || null;
+    if (window.sb && _uid) {
+      // 1970 damgası = "çevrimiçi değil". Kolon NOT NULL olabileceği için
+      // null yerine çok eski bir tarih yazıyoruz.
+      window.sb.from('players')
+        .update({ last_seen: new Date(0).toISOString() })
+        .eq('user_id', _uid)
+        .then(() => { try { if (window.sb) window.sb.auth.signOut().catch(()=>{}); } catch(e) {} })
+        .catch(() => { try { if (window.sb) window.sb.auth.signOut().catch(()=>{}); } catch(e) {} });
+    } else if (window.sb) {
+      window.sb.auth.signOut().catch(()=>{});
+    }
+  } catch(e) {
+    try { if (window.sb) window.sb.auth.signOut().catch(()=>{}); } catch(e2) {}
+  }
 
   // Tüm kullanıcıya özel verileri temizle (sadece cft_auth — diğer her şey Supabase'te zaten)
   try{
@@ -49069,11 +49084,13 @@ window.capLeaveGoRoster = capLeaveGoRoster;
 function capLeaveSellTeam() {
   capLeaveClose();
   try {
+    // 🔒 D4 · `purchasePrice` şartı KALDIRILDI.
+    //   Kaptanlığı devir alarak kaptan olan biri bu ekranda kilitli
+    //   kalıyordu: ayrılamıyor, satamıyordu. Artık sunucu (leave_team)
+    //   hem kaptanlığı devrediyor hem iadeyi kendi kaydından hesaplıyor
+    //   (satın alınmamışsa iade 0). İstemcinin engellemesine gerek yok.
     const t = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam : null;
-    if (!t || !t.purchasePrice) {
-      if (typeof showJoinToast === 'function') showJoinToast('Bu takım satın alınmadı, satılamaz.');
-      return;
-    }
+    if (!t) return;
     if (typeof leaveTeamPrompt === 'function') leaveTeamPrompt(true);
   } catch(e) {}
 }
@@ -49119,36 +49136,64 @@ function leaveTeamPrompt(satisOnayli) {
     message: msg,
     confirmText: isCaptain ? 'Sat ve Ayrıl' : 'Ayrıl',
     danger: true,
-    onConfirm: () => {
-      // 🆕 Takım sohbetine ayrılma bildirimi (kırmızı; herkese realtime düşer) — _userTeam temizlenmeden ÖNCE
+    onConfirm: async () => {
+      // 🔒 D3+D4 · AYRILMA ARTIK SUNUCUDA.
+      //   Eskiden: iade tutarı istemcideki `purchasePrice`ten okunuyordu
+      //   (konsoldan şişirilebiliyordu) ve kaptan ayrılınca takım
+      //   KAPTANSIZ kalıyordu. Artık sunucu hem iadeyi kendi kaydından
+      //   hesaplıyor hem de kaptanlığı zorunlu olarak devrediyor.
+      const _lvCc = _userTeam && _userTeam.countryCode;
+      const _lvTn = _userTeam && _userTeam.teamName;
+      const _lvName = (typeof authUser!=='undefined' && authUser && (authUser.name||authUser.username))
+                      || ((typeof ROSTER_DATA!=='undefined' && Array.isArray(ROSTER_DATA)) ? (ROSTER_DATA.find(p=>p&&p.role==='user')||{}).name : null)
+                      || 'Bir oyuncu';
+
+      let _r = null;
+      try {
+        _r = await edgeCall('leave_team', {});
+      } catch(e) {
+        showJoinToast('⚠️ Bağlantı yok, tekrar dene.');
+        return;
+      }
+      const _d = (_r && _r.data) || {};
+      if (!_r.ok || _d.error) {
+        const _msg = {
+          takim_yok: 'Zaten bir takımda değilsin.',
+          devredilecek_kimse_yok: 'Takımda başka oyuncu yok, kaptanlığı devredemiyorsun.',
+          kaptanlik_devredilemedi: 'Kaptanlık devredilemedi, tekrar dene.',
+          ayrilma_yazilamadi: 'Ayrılma kaydedilemedi, tekrar dene.'
+        }[_d.error] || ('Ayrılma başarısız: ' + (_d.error || 'bilinmeyen'));
+        showJoinToast('❌ ' + _msg);
+        return;
+      }
+
+      // Takım sohbetine bildirim — sunucu onayladıktan sonra
       try{
-        const _lvCc = _userTeam && _userTeam.countryCode;
-        const _lvTn = _userTeam && _userTeam.teamName;
-        const _lvName = (typeof authUser!=='undefined' && authUser && (authUser.name||authUser.username))
-                        || ((typeof ROSTER_DATA!=='undefined' && Array.isArray(ROSTER_DATA)) ? (ROSTER_DATA.find(p=>p&&p.role==='user')||{}).name : null)
-                        || 'Bir oyuncu';
         if(_lvCc && _lvTn && typeof _teamChatPostSystem==='function')
           _teamChatPostSystem(_lvCc, _lvTn, '⛔ ' + _lvName + (isCaptain ? ' takımı sattı/ayrıldı' : ' takımdan ayrıldı'));
       }catch(e){}
-      // Kaptansa kısmi iade
-      if(isCaptain && _userTeam && _userTeam.purchasePrice) {
-        const refund = Math.round(_userTeam.purchasePrice * 0.4);
-        if(refund > 0 && typeof trsAddIncome === 'function') {
-          trsAddIncome('dia', refund, `Takım Satışı: ${_userTeam.teamName}`);
-        }
-      }
+
       // Career history'de mevcut takımı kapat
       if (typeof _carCloseCurrentHistory === 'function') {
         _carCloseCurrentHistory(isCaptain ? 'Takım satıldı' : 'Takımdan ayrıldı');
       }
       if (typeof invalidateFixtureCache === 'function') invalidateFixtureCache();
       _userTeam = null;
-      userTeamSave();
+      try { if (typeof _invalidateRealCaptainsCache === 'function') _invalidateRealCaptainsCache(); } catch(e){}
       rosterClearTeam();
       applyUserTeamUI();
       renderSettings();
+      try { if (typeof wlLoadFromServer === 'function') wlLoadFromServer().catch(()=>{}); } catch(e){}
       try { if(typeof recomputeUserEnergyBonus === 'function') recomputeUserEnergyBonus(); } catch(e){}
-      showJoinToast(isCaptain ? '🚪 Takım satıldı, elmaslar iade edildi.' : '🚪 Takımdan ayrıldın.');
+
+      const _iade = Number(_d.iade) || 0;
+      const _brm  = _d.iadeBirimi === 'eur' ? '€' : '💎';
+      const _yk   = _d.yeniKaptan && _d.yeniKaptan.name;
+      showJoinToast(
+        _iade > 0 ? `🚪 Takım satıldı, ${_iade.toLocaleString('tr')} ${_brm} iade edildi.`
+                  : (isCaptain ? '🚪 Takımdan ayrıldın.' : '🚪 Takımdan ayrıldın.')
+      );
+      if (_yk) setTimeout(()=>{ try{ showJoinToast('👑 Yeni kaptan: ' + _yk); }catch(e){} }, 2200);
     }
   });
 }
