@@ -28730,7 +28730,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-24-ovr-sunucu-379';
+const APP_BUILD = '2026-08-24-hazirlik-mac-380';
 
 (function _cacheBustCheck() {
   try {
@@ -59421,74 +59421,61 @@ function frmSaveMatches(arr) {
 // Edge Function (tick-matches) scheduled status'lü ve kickoff'u geçmiş satırları
 // otomatik başlatıp simüle eder — lig/turnuva maçlarıyla aynı akış.
 async function _frmUpsertMatchState(fm) {
-  if (!window.sb || !fm || !fm.id || !fm.dateTime) return;
+  if (!fm || !fm.id) return;
+  // 🔒 match_state İSTEMCİYE SALT-OKUNUR.
+  //   Bu fonksiyon eskiden doğrudan `match_state`e upsert yapıyordu.
+  //   Güvenlik turunda o tabloya yalnızca SELECT politikası kaldı
+  //   (INSERT/UPDATE/DELETE yok), dolayısıyla yazma SESSİZCE
+  //   reddediliyordu — dönen hata hiç kontrol edilmiyordu.
+  //   Sonuç: friendly_matches kaydı oluşuyor, kullanıcı maçı listede
+  //   görüyor, ama match_state satırı olmadığı için Edge Function
+  //   maçı hiç başlatmıyordu. "Düzenleniyor ama başlamıyor" buydu.
+  //   Artık satırı sunucu yazıyor (friendly_schedule).
+  if (typeof edgeCall !== 'function') return;
+  let r = null;
   try {
-    const kickoffMs = new Date(fm.dateTime).getTime();
-    // Hazırlık maçının kendi tarihinden season/day hesapla
-    let season = 1, day = 1;
-    try {
-      if (typeof SEASON_EPOCH !== 'undefined' && typeof SEASON_LEN !== 'undefined') {
-        const _k = new Date(kickoffMs);
-        const _kDayUtc = Date.UTC(_k.getUTCFullYear(), _k.getUTCMonth(), _k.getUTCDate());
-        const _epochUtc = Date.UTC(SEASON_EPOCH.getUTCFullYear(), SEASON_EPOCH.getUTCMonth(), SEASON_EPOCH.getUTCDate());
-        const diffMs = _kDayUtc - _epochUtc;
-        if (diffMs >= 0) {
-          const diffDays = Math.floor(diffMs / 86400000);
-          season = Math.floor(diffDays / SEASON_LEN) + 1;
-          day = (diffDays % SEASON_LEN) + 1;
-        }
-      }
-    } catch(e) {}
-    // seed: NOT NULL kısıtı için — match_key hash'inden deterministik integer
-    let seed = 0;
-    const _seedSrc = 'friendly_' + fm.id;
-    for (let i = 0; i < _seedSrc.length; i++) {
-      seed = ((seed << 5) - seed + _seedSrc.charCodeAt(i)) | 0;
-    }
-    seed = Math.abs(seed);
-    await window.sb.from('match_state').upsert({
-      match_key: 'friendly_' + fm.id,
-      season: season,
-      day_in_season: day,
-      seed: seed,
-      home_team: fm.fromTeam,
-      away_team: fm.toTeam,
-      country_code: null,
-      tier: null,
-      tournament_key: 'friendly',
-      tournament_phase: null,
-      league_name: 'Hazırlık Maçı',
-      status: 'scheduled',
-      sim_minute: 0,
-      home_score: 0,
-      away_score: 0,
-      kickoff_at: new Date(kickoffMs).toISOString(),
-      events: []
-    }, { onConflict: 'match_key' });
+    r = await edgeCall('friendly_schedule', { fm: fm.id });
+  } catch(e) {
+    console.warn('[frm] takvime yazma bağlantı hatası:', e);
+    return;
+  }
+  const d = (r && r.data) || {};
+  if (!r.ok || d.error) {
+    const MSG = {
+      kayit_bulunamadi: 'Hazırlık kaydı sunucuda yok',
+      kayit_bozuk: 'Hazırlık kaydı eksik',
+      kabul_edilmemis: 'Maç henüz kabul edilmedi',
+      yetki_yok: 'Bu maça yetkin yok',
+      gecersiz_tarih: 'Tarih geçersiz',
+      tarih_gecmis: 'Maç saati geçmiş',
+      tarih_cok_ileri: 'Tarih çok ileride'
+    }[d.error] || ('takvime yazılamadı: ' + (d.error || 'bilinmeyen'));
+    console.warn('[frm] ' + MSG, fm.id);
+    return;
+  }
+  if (d.olusturuldu) console.info('[frm] takvime yazıldı:', d.match_key, d.kickoff);
 
-    // 🆕 Yazma sonrası: match_state cache'i yenile + günlük cache'i temizle.
-    //   "Hazırlık maçı oluşturunca fikstür ve sonuçlar siliniyor" bug'ı bu adım eksikti.
-    //   Cache yenilenmeden render edilirse stale veri görünür ya da boş gözükür.
-    try {
-      if (typeof _resFixtureDayCache !== 'undefined' && _resFixtureDayCache) {
-        Object.keys(_resFixtureDayCache).forEach(k => delete _resFixtureDayCache[k]);
-      }
-      if (typeof _loadAllMatchStateFromServer === 'function') {
-        await _loadAllMatchStateFromServer();
-      }
-    } catch(e) { console.warn('[frm upsert cache refresh]', e); }
-  } catch(e) { console.warn('[frm match_state upsert]', e); }
+  // Yazma sonrası: match_state cache'i yenile + günlük cache'i temizle.
+  //   "Hazırlık maçı oluşturunca fikstür ve sonuçlar siliniyor" bug'ı bu adım eksikti.
+  try {
+    if (typeof _resFixtureDayCache !== 'undefined' && _resFixtureDayCache) {
+      Object.keys(_resFixtureDayCache).forEach(k => delete _resFixtureDayCache[k]);
+    }
+    if (typeof _loadAllMatchStateFromServer === 'function') {
+      await _loadAllMatchStateFromServer();
+    }
+  } catch(e) { console.warn('[frm upsert cache refresh]', e); }
 }
 
 // 🆕 Hazırlık reddedildi/iptal edildi → match_state'teki scheduled satır silinir.
 // Maç zaten başlamışsa (running/finished) silmeye çalışmayız; Edge Function bitirir.
 async function _frmDeleteMatchState(fmId) {
-  if (!window.sb || !fmId) return;
+  // 🔒 Silme de istemciden yapılamıyor (match_state salt-okunur) — sunucuya.
+  if (!fmId || typeof edgeCall !== 'function') return;
   try {
-    await window.sb.from('match_state')
-      .delete()
-      .eq('match_key', 'friendly_' + fmId)
-      .eq('status', 'scheduled');
+    const r = await edgeCall('friendly_cancel', { fm: fmId });
+    const d = (r && r.data) || {};
+    if (!r.ok || d.error) console.warn('[frm] iptal edilemedi:', d.error || r.status, fmId);
   } catch(e) { console.warn('[frm match_state delete]', e); }
 }
 
@@ -91207,7 +91194,9 @@ function _frmResolveStuck() {
         const varMi = !!(_matchStateCache && _matchStateCache.byKey && _matchStateCache.byKey[key]);
         const kickoff = m.dateTime ? new Date(m.dateTime).getTime() : 0;
         // Maç saati çok geçmişse (24 saat+) onarma
-        if (!varMi && kickoff && (now - kickoff) < 24 * 3600 * 1000) {
+        // 🆕 Turda EN FAZLA 1 onarım: bu artık bir sunucu çağrısı
+        //   (friendly_schedule), her turda hepsini denemek gereksiz yük.
+        if (!varMi && kickoff && (now - kickoff) < 24 * 3600 * 1000 && n === 0) {
           try { _frmUpsertMatchState(m); n++; } catch(e) {}
         }
       }
