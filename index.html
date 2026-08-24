@@ -28730,7 +28730,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-24-eski-motor-383';
+const APP_BUILD = '2026-08-24-kilit-fix-384';
 
 (function _cacheBustCheck() {
   try {
@@ -44215,6 +44215,9 @@ function goBackPage(){
   } catch(e){ try{ showPage('home'); }catch(_){} }
 }
 function showPage(name,btn){
+  // 🔧 Takılı kalmış sürükleme kilidini aç — sayfa değişiminde sürükleme
+  //    zaten bitmiş olmalı. Kilit kalırsa dokunma koordinatları kayıyor.
+  try { if (typeof window._eqUnlockBody === 'function') window._eqUnlockBody(true); } catch(e) {}
   // 🆕 Sayfa geçmişi (geri butonu için) — geri ile gelince ekleme
   try {
     if (!window._navBack) {
@@ -71246,6 +71249,60 @@ function itemSoldNotifClick() {
 
 // 🆕 Mobil scroll engelleme — touchmove'u kökten kilitle (sadece drag aktifken)
 var _eqDragInProgress = false;
+
+// ═══════════════════════════════════════════════════════════════════
+//  🔧 SÜRÜKLEME KİLİDİ GÜVENLİK AĞI
+//
+//  Ekipman/diziliş sürüklemesi mobilde sayfayı kilitlemek için
+//  `body { position:fixed; top:-<scroll>px }` yapıyor (iOS body-lock).
+//  Kilidi `onUp` geri alıyor — ama `pointerup`/`pointercancel` HİÇ
+//  gelmezse geri alınmıyor. Android'de bu oluyor: sürüklenen öğe
+//  DOM'dan kaldırılırsa (kadro yeniden render olursa) tarayıcı olayı
+//  düşürüyor.
+//
+//  Sonuç: sayfa görsel olarak normal görünüyor ama gerçekte kaydırılmış
+//  ve konumu sabitlenmiş durumda — DOKUNMA KOORDİNATLARI KAYIYOR.
+//  Alt menü viewport'a sabit olduğu için çalışmaya devam ediyor,
+//  sayfa içeriğindeki butonlar cevap vermiyor. "İlk denemede çalışıyor,
+//  sonra bozuluyor" tarifi tam olarak bu.
+//
+//  Bu yardımcı kilidi koşulsuz açar. Sayfa geçişlerinde, sekmeye
+//  dönüşte ve bir bekçi zamanlayıcısında çağrılıyor.
+// ═══════════════════════════════════════════════════════════════════
+window._eqUnlockBody = function(zorla){
+  try {
+    if (_eqDragInProgress && !zorla) return false;
+    const b = document.body, h = document.documentElement;
+    const kilitliydi = (b.style.position === 'fixed') || h.classList.contains('eq-drag-lock');
+    if (!kilitliydi) return false;
+    const y = Math.abs(parseInt(b.style.top || '0', 10)) || 0;
+    h.classList.remove('eq-drag-lock');
+    b.style.position = ''; b.style.top = ''; b.style.left = '';
+    b.style.right = ''; b.style.width = '';
+    _eqDragInProgress = false;
+    if (y) { try { window.scrollTo(0, y); } catch(e) {} }
+    console.warn('[eq] takılı sürükleme kilidi açıldı (scroll ' + y + ')');
+    return true;
+  } catch(e) { return false; }
+};
+
+// Bekçi: sürükleme başladı ama 6 saniyedir hiç hareket/bitiş yoksa aç.
+(function(){
+  var sonHareket = 0;
+  ['pointermove','pointerup','pointercancel','touchend','touchcancel'].forEach(function(t){
+    window.addEventListener(t, function(){ sonHareket = Date.now(); }, true);
+  });
+  setInterval(function(){
+    if (!_eqDragInProgress) return;
+    if (Date.now() - sonHareket > 6000) {
+      try { window._eqUnlockBody(true); } catch(e) {}
+    }
+  }, 3000);
+  // Sekmeye/uygulamaya dönüşte de kontrol et
+  document.addEventListener('visibilitychange', function(){
+    if (!document.hidden) { try { window._eqUnlockBody(true); } catch(e) {} }
+  });
+})();
 function _eqBlockTouchMove(e) {
   // Sadece drag başladıysa engelle (yoksa native click event chain'i bozulur)
   if (!_eqDragInProgress) return;
@@ -98747,6 +98804,12 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
     sr.push('TEŞHİS · fps:' + fps
       + ' · donma:' + uzunGorev.adet + ' (en uzun ' + Math.round(uzunGorev.enUzun) + 'ms)');
     sr.push('sayfa: ' + (sayfa ? sayfa.id : '?') + ' · body: ' + (document.body.className || '—').slice(0,60));
+    // 🔧 Sürükleme kilidi durumu — takılıysa dokunma koordinatları kayar
+    var bs = document.body.style;
+    var kilit = (bs.position === 'fixed') || document.documentElement.classList.contains('eq-drag-lock');
+    sr.push('KİLİT: ' + (kilit ? '⛔ TAKILI (body.position=' + bs.position + ' top=' + (bs.top||'-') + ')' : 'yok')
+      + ' · html: ' + (document.documentElement.className || '—').slice(0,40));
+    sr.push('scroll: ' + Math.round(window.scrollY) + ' · görünen: ' + window.innerWidth + 'x' + window.innerHeight);
     sr.push('— dokunmalar —');
     sr.push(dokunmalar.length ? dokunmalar.join('\n') : '  (henüz yok)');
     sr.push('— hatalar (' + hatalar.length + ') —');
