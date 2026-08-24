@@ -28730,7 +28730,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-24-hazirlik-mac-380';
+const APP_BUILD = '2026-08-24-teshis-381';
 
 (function _cacheBustCheck() {
   try {
@@ -98594,6 +98594,118 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
   document.addEventListener('visibilitychange', function(){ if(document.hidden) S.durdur(); });
 })();
 
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     TEŞHİS PANELİ — telefonda DevTools olmadan hata görmek için
+     Açmak için adresin sonuna  ?teshis=1  ekle:
+        https://citysoccer.club/?teshis=1
+     Kapatmak: panelin sağ üstündeki ✕  (ya da ?teshis=0)
+     Kapalıyken HİÇBİR ŞEY yapmaz, sıfır maliyet.
+     ═══════════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+  var AC = 'csc_teshis';
+  try {
+    var q = new URLSearchParams(location.search);
+    if (q.get('teshis') === '1') localStorage.setItem(AC, '1');
+    if (q.get('teshis') === '0') localStorage.removeItem(AC);
+  } catch(e) {}
+  var acik = false;
+  try { acik = localStorage.getItem(AC) === '1'; } catch(e) {}
+  if (!acik) return;
+
+  var hatalar = [], dokunmalar = [], uzunGorev = { adet: 0, toplam: 0, enUzun: 0 };
+
+  function kisaEl(el) {
+    if (!el || !el.tagName) return 'yok';
+    var c = (el.className && el.className.toString ? el.className.toString() : '').trim().split(/\s+/).slice(0,2).join('.');
+    return el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (c ? '.' + c : '');
+  }
+
+  // ── 1) JS hataları ──
+  window.addEventListener('error', function(e){
+    hatalar.push((e.message || 'hata') + ' @' + (e.filename||'').split('/').pop() + ':' + e.lineno);
+    if (hatalar.length > 6) hatalar.shift();
+    ciz();
+  }, true);
+  window.addEventListener('unhandledrejection', function(e){
+    var r = e.reason;
+    hatalar.push('PROMISE: ' + ((r && (r.message || r)) + '').slice(0,90));
+    if (hatalar.length > 6) hatalar.shift();
+    ciz();
+  });
+
+  // ── 2) Donma ölçümü (uzun görevler) ──
+  try {
+    if (window.PerformanceObserver && PerformanceObserver.supportedEntryTypes
+        && PerformanceObserver.supportedEntryTypes.indexOf('longtask') >= 0) {
+      new PerformanceObserver(function(list){
+        list.getEntries().forEach(function(en){
+          uzunGorev.adet++; uzunGorev.toplam += en.duration;
+          if (en.duration > uzunGorev.enUzun) uzunGorev.enUzun = en.duration;
+        });
+      }).observe({ entryTypes: ['longtask'] });
+    }
+  } catch(e) {}
+
+  // ── 3) Dokunma nereye ulaşıyor? (yakalama fazı — hiçbir şeyi engellemez) ──
+  ['pointerdown','touchstart','click'].forEach(function(tip){
+    document.addEventListener(tip, function(e){
+      var t = e.target;
+      var buton = t && t.closest ? t.closest('button,[onclick],a') : null;
+      dokunmalar.unshift(tip[0].toUpperCase() + ' → ' + kisaEl(t) + (buton && buton !== t ? '  (btn: ' + kisaEl(buton) + ')' : ''));
+      if (dokunmalar.length > 5) dokunmalar.pop();
+      ciz();
+    }, true);
+  });
+
+  // ── 4) Panel ──
+  var kutu = document.createElement('div');
+  kutu.id = 'cscTeshisPanel';
+  kutu.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:2147483647;'
+    + 'background:rgba(0,0,0,.88);color:#0f0;font:10px/1.35 monospace;'
+    + 'padding:6px 8px 8px;max-height:38vh;overflow:auto;pointer-events:auto;'
+    + 'border-top:2px solid #0f0;white-space:pre-wrap;word-break:break-all';
+  var kapat = document.createElement('button');
+  kapat.textContent = '✕';
+  kapat.style.cssText = 'position:absolute;top:4px;right:6px;background:#300;color:#f66;'
+    + 'border:1px solid #f66;border-radius:4px;font:12px monospace;padding:2px 7px;z-index:1';
+  kapat.onclick = function(){ try{ localStorage.removeItem(AC); }catch(e){} kutu.remove(); };
+  var govde = document.createElement('div');
+  kutu.appendChild(kapat); kutu.appendChild(govde);
+
+  function hazir(){ try { if (document.body && !kutu.parentNode) document.body.appendChild(kutu); } catch(e) {} }
+  // Betik </body> içinde çalıştığı için body zaten var — hemen ekle.
+  // DOMContentLoaded'ı yedek olarak bırakıyoruz (body henüz yoksa).
+  hazir();
+  if (!kutu.parentNode) document.addEventListener('DOMContentLoaded', hazir);
+
+  var sonKare = performance.now(), kare = 0, fps = 0;
+  (function say(){
+    kare++;
+    var s = performance.now();
+    if (s - sonKare >= 1000) { fps = kare; kare = 0; sonKare = s; ciz(); }
+    requestAnimationFrame(say);
+  })();
+
+  function ciz(){
+    if (!govde) return;
+    var sayfa = document.querySelector('.page.active');
+    var sr = [];
+    sr.push('TEŞHİS · fps:' + fps
+      + ' · donma:' + uzunGorev.adet + ' (en uzun ' + Math.round(uzunGorev.enUzun) + 'ms)');
+    sr.push('sayfa: ' + (sayfa ? sayfa.id : '?') + ' · body: ' + (document.body.className || '—').slice(0,60));
+    sr.push('— dokunmalar —');
+    sr.push(dokunmalar.length ? dokunmalar.join('\n') : '  (henüz yok)');
+    sr.push('— hatalar (' + hatalar.length + ') —');
+    sr.push(hatalar.length ? hatalar.join('\n') : '  yok');
+    govde.textContent = sr.join('\n');
+  }
+  ciz();                    // ilk çizim — beklemeden bilgi görünsün
+  setInterval(ciz, 1000);
+  console.info('[teşhis] panel açık. Kapatmak için ?teshis=0');
+})();
 </script>
 </body>
 </html>
