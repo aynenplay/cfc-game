@@ -28730,7 +28730,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-24-teshis-381';
+const APP_BUILD = '2026-08-24-eski-motor-383';
 
 (function _cacheBustCheck() {
   try {
@@ -59196,12 +59196,29 @@ function captainScheduleFriendly() {
     if(typeof showJoinToast === 'function') showJoinToast('⚠️ Bu başkasının takımı.');
     return;
   }
+  if (typeof FRM_AKTIF !== 'undefined' && !FRM_AKTIF) {
+    if(typeof showJoinToast === 'function')
+      showJoinToast('🔧 Hazırlık maçları geçici olarak kapalı — yakında geri geliyor.');
+    return;
+  }
   if(!_userTeam || (_userTeam.role !== 'captain' && _userTeam.role !== 'vice')) {
     if(typeof showJoinToast === 'function') showJoinToast('⚠️ Sadece kaptan veya yardımcı kaptan hazırlık maçı düzenleyebilir.');
     return;
   }
   frmOpenModal();
 }
+
+// ═══════════════════════════════════════════════════════════════════
+//  🔴 HAZIRLIK MAÇI — GEÇİCİ OLARAK KAPALI
+//
+//  Sebep: hazırlık maçı kurulduktan sonra Takımım sayfasında donma
+//  bildirildi ve kök neden telefonda ölçülemedi. Eski maç motoru
+//  sorunsuz çalıştığı için yayın öncesi bu özellik devre dışı.
+//
+//  AÇMAK İÇİN: aşağıdaki satırı  true  yap. Kodun tamamı duruyor,
+//  hiçbir şey silinmedi.
+// ═══════════════════════════════════════════════════════════════════
+const FRM_AKTIF = false;
 
 // ── Hazırlık Maçı (FRiendly Match) sistemi ─────────────────────────
 const FRM_BUFFER_MS = 60 * 60 * 1000; // ±1 saat
@@ -59421,6 +59438,7 @@ function frmSaveMatches(arr) {
 // Edge Function (tick-matches) scheduled status'lü ve kickoff'u geçmiş satırları
 // otomatik başlatıp simüle eder — lig/turnuva maçlarıyla aynı akış.
 async function _frmUpsertMatchState(fm) {
+  if (typeof FRM_AKTIF !== 'undefined' && !FRM_AKTIF) return;   // 🔴 kapalı
   if (!fm || !fm.id) return;
   // 🔒 match_state İSTEMCİYE SALT-OKUNUR.
   //   Bu fonksiyon eskiden doğrudan `match_state`e upsert yapıyordu.
@@ -59860,6 +59878,7 @@ function frmEnsurePlayed() {
 
 
 function frmBotRespond(matchId) {
+  if (typeof FRM_AKTIF !== 'undefined' && !FRM_AKTIF) return;   // 🔴 kapalı
   const all = frmGetMatches();
   const idx = all.findIndex(m => m.id === matchId);
   if (idx === -1) return;
@@ -91164,6 +91183,7 @@ setTimeout(async ()=>{
 //   hiç oluşmadığı için maç BAŞLAMIYORDU.
 //   Ayrıca kabul edilmiş ama satırı yazılamamış maçlar burada onarılır.
 function _frmResolveStuck() {
+  if (typeof FRM_AKTIF !== 'undefined' && !FRM_AKTIF) return;   // 🔴 kapalı
   try {
     const all = (typeof frmGetMatches === 'function') ? frmGetMatches() : null;
     if (!Array.isArray(all) || !all.length) return;
@@ -91250,10 +91270,15 @@ function _frmPruneInbox() {
 window._frmPruneInbox = _frmPruneInbox;
 
 function _frmTickSimulate() {
-  try { _frmPruneInbox(); } catch(e) {}            // 🆕 tekrar bildirimleri temizle
-  try { _frmResolveStuck(); } catch(e) {}          // 🆕 önce takılanları çöz
-  if (typeof frmEnsurePlayed === 'function') {
-    try { frmEnsurePlayed(); } catch(e) {}
+  // 🔴 Hazırlık maçı kapalıyken hiçbir hazırlık işi dönmesin — yalnızca
+  //    ana sayfa önizlemesi tazelensin.
+  const _frmKapali = (typeof FRM_AKTIF !== 'undefined' && !FRM_AKTIF);
+  if (!_frmKapali) {
+    try { _frmPruneInbox(); } catch(e) {}            // 🆕 tekrar bildirimleri temizle
+    try { _frmResolveStuck(); } catch(e) {}          // 🆕 önce takılanları çöz
+    if (typeof frmEnsurePlayed === 'function') {
+      try { frmEnsurePlayed(); } catch(e) {}
+    }
   }
   // 🆕 Önizleme paneli güncelle — bitmiş maç bir sonrakiyle değişsin
   if (typeof renderHomeNextMatch === 'function') {
@@ -98210,8 +98235,34 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
    ══════════════════════════════════════════════════════════════════ */
 (function(){
   if (!window.CSC2D) return;
-  try { if (localStorage.getItem('csc2dKapali')==='1'){
-    const p=document.getElementById('eng-pitch'); if(p) p.style.display='none'; return; } } catch(e){}
+  // 🆕 URL'den aç/kapa — telefonda konsol olmadan test edebilmek için.
+  //   ?2d=0  → 2D motoru kapat (kalıcı, localStorage'a yazılır)
+  //   ?2d=1  → geri aç
+  // ═════════════════════════════════════════════════════════════════
+  //  🔴 2D MOTOR — VARSAYILAN KAPALI
+  //  Eski maç motoru sorunsuz çalışıyor. 2D motorun son rötuşları
+  //  (oyuncu değişikliği olayları, skor kalibrasyonu, olay akışı)
+  //  bitene kadar üretimde devre dışı.
+  //
+  //  AÇMAK İÇİN: aşağıdaki CSC2D_VARSAYILAN_ACIK'ı true yap,
+  //  ya da tek cihazda denemek için adrese  ?2d=1  ekle.
+  //  Kodun tamamı duruyor, hiçbir şey silinmedi.
+  // ═════════════════════════════════════════════════════════════════
+  const CSC2D_VARSAYILAN_ACIK = false;
+  let _2dAcik = CSC2D_VARSAYILAN_ACIK;
+  try {
+    const _q = new URLSearchParams(location.search);
+    if (_q.get('2d') === '0') localStorage.setItem('csc2dKapali','1');
+    if (_q.get('2d') === '1') localStorage.setItem('csc2dKapali','0');
+    const _ls = localStorage.getItem('csc2dKapali');
+    if (_ls === '1') _2dAcik = false;
+    if (_ls === '0') _2dAcik = true;
+  } catch(e){}
+  if (!_2dAcik) {
+    const p=document.getElementById('eng-pitch'); if(p) p.style.display='none';
+    console.info('[csc2d] motor KAPALI — eski motor kullanılıyor (?2d=1 ile aç)');
+    return;
+  }
 
   const C = window.CSC2D;
   const S = { saha:null, sahne:null, rafId:0, sonKare:0, mk:null, aktif:false,
