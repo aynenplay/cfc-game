@@ -28730,7 +28730,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-24-cuzdan-kilit-378';
+const APP_BUILD = '2026-08-24-ovr-sunucu-379';
 
 (function _cacheBustCheck() {
   try {
@@ -31161,40 +31161,54 @@ function getPlayerMainOverall(player) {
     return (gk + df + md + fw) / 4;
   };
 
-  // 🟢 1) BOT veya yapılı abilities olan oyuncu — ama USER DEĞİL
+  // 🟢 1) BOT veya BAŞKA KULLANICI — kendisi DEĞİL
   if (player.role !== 'user') {
-    // 🆕 GERÇEK USER (başka kullanıcı): cache'ten 45 skill varsa 4 hat ortalaması
-    //   Bu, visitor profil sayfası ile aynı kaynaktan hesap → tutarlılık.
-    //   Cache yoksa async yüklensin; tekrar render edildiğinde doğru gözükür.
     const otherUid = player.userId || player.user_id;
     const isOtherUser = !player.isBot && !!otherUid;
-    if (isOtherUser && typeof SKILL_DEFS !== 'undefined' && SKILL_DEFS.ALL &&
-        typeof _visitorSkillsCache !== 'undefined' && _visitorSkillsCache[otherUid]) {
-      const skills = _visitorSkillsCache[otherUid];
-      const _catAvgO = (catSkills) => {
-        if (!catSkills || !catSkills.length) return null;
-        const sum = catSkills.reduce((a, s) => a + (skills[s.id] || 10), 0);
-        return sum / catSkills.length;
-      };
-      const gk = _catAvgO(SKILL_DEFS.ALL[0] && SKILL_DEFS.ALL[0].skills);
-      const df = _catAvgO(SKILL_DEFS.ALL[1] && SKILL_DEFS.ALL[1].skills);
-      const md = _catAvgO(SKILL_DEFS.ALL[2] && SKILL_DEFS.ALL[2].skills);
-      const fw = _catAvgO(SKILL_DEFS.ALL[3] && SKILL_DEFS.ALL[3].skills);
-      if (gk != null && df != null && md != null && fw != null) {
-        return Math.max(1, Math.min(99, Math.round((gk + df + md + fw) / 4)));
+
+    // ── BAŞKA GERÇEK KULLANICI ──────────────────────────────────────
+    //   ESKİDEN: `_visitorSkillsCache`ten 45 yeteneği okumaya çalışıyordu,
+    //   cache boşsa `_loadVisitorSkills(uid)` ile async çekiyordu.
+    //   AMA `user_player` üzerindeki RLS politikası (up_select_own)
+    //   SELECT'i kişinin KENDİ satırıyla sınırlıyor — yani o çağrı
+    //   BAŞKASI için hiçbir zaman veri döndürmüyordu. Sessizce boş
+    //   dönüyor, kod `abilities`e düşüyor (gerçek kullanıcılarda boş),
+    //   oradan da bayat `overall`a düşüyordu. Kadroda herkesin 10
+    //   görünmesinin sebebi buydu. Üstelik her render'da kadro
+    //   büyüklüğü kadar boşuna istek atıyordu.
+    //
+    //   ARTIK: `players.overall` sunucuda yazılıyor (recompute_team /
+    //   recompute_all_ovr / refresh_ovr). Doğru kaynak o.
+    if (isOtherUser) {
+      // Cache doluysa (kendi satırın ya da başka bir yoldan geldiyse) onu yeğle
+      if (typeof SKILL_DEFS !== 'undefined' && SKILL_DEFS.ALL &&
+          typeof _visitorSkillsCache !== 'undefined' && _visitorSkillsCache[otherUid]) {
+        const skills = _visitorSkillsCache[otherUid];
+        const _catAvgO = (catSkills) => {
+          if (!catSkills || !catSkills.length) return null;
+          const sum = catSkills.reduce((a, s) => a + (skills[s.id] || 10), 0);
+          return sum / catSkills.length;
+        };
+        const gk = _catAvgO(SKILL_DEFS.ALL[0] && SKILL_DEFS.ALL[0].skills);
+        const df = _catAvgO(SKILL_DEFS.ALL[1] && SKILL_DEFS.ALL[1].skills);
+        const md = _catAvgO(SKILL_DEFS.ALL[2] && SKILL_DEFS.ALL[2].skills);
+        const fw = _catAvgO(SKILL_DEFS.ALL[3] && SKILL_DEFS.ALL[3].skills);
+        if (gk != null && df != null && md != null && fw != null) {
+          return Math.max(1, Math.min(99, Math.round((gk + df + md + fw) / 4)));
+        }
       }
+      // Sunucunun yazdığı değer
+      const _ovU = Number(player.overall || player.rating || 0);
+      if (_ovU > 0) return Math.max(1, Math.min(99, Math.round(_ovU)));
+      return 10;
     }
-    // 🆕 Cache yoksa async yükle — sonraki render'da OVR doğru gelir
-    if (isOtherUser && typeof _loadVisitorSkills === 'function' &&
-        typeof _visitorSkillsCache !== 'undefined' && !_visitorSkillsCache[otherUid]) {
-      try { _loadVisitorSkills(otherUid); } catch(e) {}
-    }
+
+    // ── BOT ─────────────────────────────────────────────────────────
     const fromAb = _ovrFromBag(player.abilities);
     if (fromAb != null) {
       return Math.max(1, Math.min(99, Math.round(fromAb)));
     }
-    // Bot abilities elde değil (ROSTER_DATA'ya tam yüklenmemiş olabilir).
-    // Supabase'deki overall'ı kullan — onun cihazında abilities'ten hesaplanmıştı.
+    // abilities ROSTER_DATA'ya tam yüklenmemiş olabilir → sunucu değeri
     const ov = Number(player.overall || player.rating || 10);
     return Math.max(1, Math.min(99, Math.round(ov)));
   }
@@ -49351,11 +49365,17 @@ function rosterPersistUserProgress() {
     clearTimeout(window._upUserPlayerSaveTimer);
     window._upUserPlayerSaveTimer = setTimeout(async () => {
       try {
+        // 🔒 OVR ARTIK SUNUCUDAN.
+        //   Eskiden `overall` ve `rating` de buradan yazılıyordu. İki sorun:
+        //     1) Konsoldan şişirilebiliyordu; bu değer piyasa değerine ve
+        //        maç gücü hesabına giriyor.
+        //     2) Herkes kendi satırını yazdığı için BAŞKA kullanıcıların
+        //        OVR'si hiç güncellenmiyordu — kadroda 10 kalıyordu.
+        //   Artık sunucu yazıyor (recompute_team / recompute_all_ovr /
+        //   refresh_ovr) ve istemci sadece okuyor.
         const _stat = {
           level: me.level || 0,
-          xp: me.xp || 0,
-          overall: me.overall || 10,
-          rating: me.overall || me.rating || 10
+          xp: me.xp || 0
         };
         await window.sb.from('players').update(_stat).eq('user_id', authUser.id);
       } catch(e) { console.warn('[user_player] save hata:', e); }
@@ -82617,10 +82637,14 @@ async function trCollect(id) {
     }
   } catch(e) { console.warn('[trCollect] rpc hata:', e); }
 
-  // 🆕 Yetenek arttı → takım gücünü ANINDA tazele (kullanıcı takımdaysa). Bloke etmez.
+  // 🆕 Yetenek arttı → OVR'yi sunucuda tazele. Bloke etmez.
+  //   Takımı varsa: recompute_team tüm kadronun players.overall'ını da yazar.
+  //   Takımsızsa: recompute_team çağrılamıyor, kendi satırı için refresh_ovr.
   try{
     if(typeof _userTeam!=='undefined' && _userTeam && _userTeam.teamName){
       _recomputeTeamOvrServer(_userTeam.countryCode, _userTeam.teamName);
+    } else if (typeof edgeCall === 'function') {
+      edgeCall('refresh_ovr', {}).catch(()=>{});
     }
   }catch(e){}
 }
