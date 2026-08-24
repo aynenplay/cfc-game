@@ -28730,7 +28730,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-23-sunucu-kilit-377';
+const APP_BUILD = '2026-08-24-cuzdan-kilit-378';
 
 (function _cacheBustCheck() {
   try {
@@ -32843,9 +32843,13 @@ function signUserContract(cc, tn, terms, captainName) {
       const ok = trsDeduct('dia', signingDia, `İmza Elması: ${cc}/${tn}`);
       if(!ok) return { ok: false, reason: 'deduct-failed' };
     }
-    if(typeof wlAddIncome === 'function'){
-      wlAddIncome('dia', signingDia, `İmza Elması — ${tn}`);
-    }
+    // 🔒 A3 · Kasadan cüzdana elmas aktarımı istemciden YAPILMAZ.
+    //   Bu yol pratikte ölü: tek çağıran (index.html:48376) her zaman
+    //   signingDiamond:0 geçiyor, yani bu blok hiç çalışmıyor. Gerçek
+    //   imza elması `approve-join-request` Edge Function'ında
+    //   kasadan düşülüp cüzdana yatırılıyor (service_role).
+    //   Yine de konsoldan çağrılabilir durumdaydı; kapatıldı.
+    console.warn('[signUserContract] imza elması sunucudan verilir, istemciden yatırılmaz.');
   }
 
   const info = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : { season: 1, dayInSeason: 1 };
@@ -71096,6 +71100,12 @@ function itemSellQuickConfirm() {
 
 // 🆕 Bot alıcı simülasyonu: listingden 30sn-180sn sonra satıldı bildirimi
 function _scheduleAutoSell(listing) {
+  // 🔒 A3 · SAHTE BOT ALICI SİMÜLASYONU KAPATILDI.
+  //   Bu fonksiyon 30-180 sn sonra ilanı "satıldı" sayıp fiyatı doğrudan
+  //   cüzdana yatırıyordu. GERÇEK bir alıcı yoktu — yani ilan ver, bekle,
+  //   bedava elmas al. Pazar yeri artık tek dünya ve sunucuda:
+  //   `market_buy` aksiyonu gerçek alıcıdan parayı düşüp satıcıya yatırıyor.
+  if (true) return;
   const delayMs = 30000 + Math.floor(Math.random() * 150000); // 30sn-180sn
   setTimeout(() => {
     // Hâlâ listede mi? (kullanıcı geri çekmediyse)
@@ -71992,13 +72002,24 @@ function renderDiamondPacks() {
 }
 
 function buyDiamondPack(idx) {
-  const p   = DIAMOND_PACKS[idx];
-  const total = p.amount + (p.bonus || 0);
-  // CÜZDANA yatır (user_wallet) — header diamond display otomatik güncellenir
-  if (typeof wlAddIncome === 'function') {
-    wlAddIncome('dia', total, `Diamond Paketi: ${p.amount}`);
+  // 🔒 A2 · ELMAS PAKETİ ARTIK BEDAVA DEĞİL.
+  //   Bu fonksiyon hiçbir ödeme almadan cüzdana elmas yatırıyordu:
+  //   mağazadaki her "Satın Al" tıklaması bedava elmas demekti.
+  //   Elmas basma yetkisi yalnızca ödeme sağlayıcının webhook'una ait
+  //   olacak (sunucu tarafı, service_role). O bağlanana kadar bu yol kapalı.
+  const p = DIAMOND_PACKS[idx] || {};
+  const total = (p.amount || 0) + (p.bonus || 0);
+  if (typeof showInfoModal === 'function') {
+    showInfoModal({
+      icon: '🔜', iconColor: '#f59e0b',
+      title: 'Ödeme Sistemi Yakında',
+      subtitle: `${total.toLocaleString('tr')} 💎 · ${p.price || ''}`,
+      body: '<div class="info-modal-note">Elmas satın alma güvenli ödeme altyapısına bağlanıyor. '
+          + 'Çok yakında bu paketler aktif olacak.</div>'
+    });
+  } else {
+    showShopToast('🔜 Ödeme sistemi yakında aktif olacak.', '#f59e0b');
   }
-  showShopToast('💎 ' + total + ' Diamond hesabına eklendi!', 'var(--accent)');
 }
 
 // ── Item Grid ──
@@ -80087,10 +80108,12 @@ async function _inboxProcessApprovedJoinRequests() {
       if (typeof rosterBuildTeam === 'function') rosterBuildTeam(meta.countryCode);
       if (typeof rosterSavePersist === 'function') rosterSavePersist();
 
-      // İmza parasını cüzdana yatır
-      if (meta.contract && meta.contract.signingBonus > 0 && typeof wlAddIncome === 'function') {
-        wlAddIncome('eur', meta.contract.signingBonus, `İmza Parası — ${meta.teamName} (kontrat onaylandı)`);
-      }
+      // 🔒 A3 · İmza parası istemciden yatırılmaz.
+      //   Bu fonksiyon 'join_request_approved' tipi mesaj arıyor; oysa
+      //   `approve-join-request` Edge Function'ı 'join_request_approved_done'
+      //   gönderiyor (frontend tekrar işlemesin diye bilinçli). Yani bu
+      //   yol ölü kod. İmza parası zaten orada user_wallet_apply ile
+      //   yatırılıyor. Konsoldan tetiklenmesin diye kaldırıldı.
       msg.offerProcessed = true;
       changed = true;
       processed++;
@@ -84374,8 +84397,15 @@ function totoCollect(couponId) {
   const c = coupons[idx];
   if(c.collected || !c.prize) return;
 
-  // 🆕 Ödül oyuncu cüzdanına ekle (kasaya değil!)
-  wlAddIncome('eur', c.prize, `Toto Kazanç: ${c.leagueName||'Kupon'}`);
+  // 🔒 A3 · ESKİ TOTO ÖDÜL YOLU KAPATILDI.
+  //   Bu fonksiyon istemcideki kupon nesnesinden `c.prize` okuyup doğrudan
+  //   cüzdana yatırıyordu — tutar tamamen istemci kontrolündeydi.
+  //   Canlı akış artık `bet_claim` Edge aksiyonu (betClaimPrize).
+  //   Bu render yolu (_legacyTotoRenderMyCoupons) hiçbir yerden
+  //   çağrılmıyor; fonksiyon yalnızca konsoldan erişilebilir durumdaydı.
+  console.warn('[toto] Eski ödül yolu kapatıldı — bet_claim kullanılıyor.');
+  totoToast('Bu kupon eski sistemden. Kuponlarım sekmesinden ödülünü al.', '#f59e0b');
+  return;
 
   coupons[idx].collected = true;
   totoSaveCoupons(coupons);
@@ -85902,30 +85932,41 @@ function evRaceViewPlayer(metric, rank) {
 }
 
 // 🆕 Ödülü topla — kullanıcının elmas hesabına yansıt
-function evRaceClaimReward(metric, diamonds, rank) {
+async function evRaceClaimReward(metric, diamonds, rank) {
+  // 🔒 A3 · ÖDÜL ARTIK SUNUCUDA.
+  //   Eskiden elmas miktarı ve sıra bu fonksiyona PARAMETRE olarak
+  //   geliyordu; konsoldan `evRaceClaimReward('train', 999999, 1)`
+  //   yeterliydi. Artık sunucu sırayı leaderboard RPC'sinden okuyor,
+  //   elması kendi tablosundan hesaplıyor, "alındı" işaretini de
+  //   kendisi yazıyor. Buradaki `diamonds`/`rank` sadece gösterim.
   const cycle = _evRaceCycleInfo();
-  if (cycle.phase !== 'rewards') {
-    alert('Ödül toplama penceresi kapalı.');
-    return;
-  }
   const claimedKey = `${cycle.startKey}_${metric}`;
-  const claimed = getUserRaceClaimed();
-  if (claimed[claimedKey]) {
-    alert('Bu ödülü zaten topladın.');
+
+  let _r = null;
+  try {
+    _r = await edgeCall('race_claim', { metric });
+  } catch(e) {
+    alert('Bağlantı yok, tekrar dene.');
+    return;
+  }
+  const _d = (_r && _r.data) || {};
+  if (!_r.ok || _d.error) {
+    const _m = {
+      odul_penceresi_kapali: 'Ödül toplama penceresi kapalı.',
+      zaten_alindi: 'Bu ödülü zaten topladın.',
+      siralama_okunamadi: 'Sıralama okunamadı, birazdan tekrar dene.',
+      odeme_yapilamadi: 'Ödeme yapılamadı, tekrar dene.'
+    }[_d.error] || ('Ödül alınamadı: ' + (_d.error || 'bilinmeyen'));
+    alert(_m);
+    if (_d.error === 'zaten_alindi') setUserRaceClaimed(claimedKey, true);
     return;
   }
 
-  // Elmas ekle
-  try {
-    if (typeof trsAddIncome === 'function') {
-      const metricLabel = metric === 'rating' ? 'Haftanın Yıldızı' : 'Antrenman Yıldızı';
-      trsAddIncome('dia', diamonds, `${metricLabel} #${rank} ödülü`);
-    } else {
-      console.warn('[evRaceClaimReward] trsAddIncome bulunamadı, elmas ödülü işlenmedi:', diamonds);
-    }
-  } catch(e) { console.warn('Elmas ekleme hatası:', e); }
+  diamonds = Number(_d.elmas) || 0;
+  rank = Number(_d.sira) || rank;
+  try { if (typeof wlLoadFromServer === 'function') await wlLoadFromServer(); } catch(e) {}
 
-  // İşaretle: toplandı (Supabase race_claimed)
+  // İşaretle: toplandı (Supabase race_claimed — sunucu da yazdı, ekran senkronu)
   setUserRaceClaimed(claimedKey, true);
 
   // İnbox bildirimi
@@ -86734,9 +86775,17 @@ function wlAddIncome(currency, amount, source, opts){
   let src = null;
   if (!(opts && opts.noFly)) { try { src = _wlTakeSrc(); } catch(e) {} }
   if (src) { try { _WL_HOLD[currency] = true; } catch(e) {} }
+  // 🔒 A3 · İSTEMCİ CÜZDANA PARA YAZMAZ — SON KAPI.
+  //   Tüm gelir yolları sunucuya taşındı (bet_claim, scratch_claim,
+  //   race_claim, accept_transfer_offer, approve-join-request, market_buy).
+  //   Bu fonksiyon artık yalnızca EKRAN önbelleğini güncelliyor ki
+  //   ödül animasyonu akıcı kalsın; gerçek bakiye sunucudan gelir.
+  //   `_wlRpcApply(..., 'in')` çağrısı KALDIRILDI: açık kalsaydı
+  //   konsoldan `wlAddIncome('dia', 999999)` sınırsız elmas demekti.
   _wlApplyLocal(d_eur, d_dia, 'in');
-  _wlRpcApply(d_eur, d_dia, 'in');
   wlAddLog({type:'in', cur:currency, amount, source: source||'Gelir'});
+  // Ekran gerçeği sunucudan tazelensin (yanlış bir yerden çağrıldıysa geri döner)
+  try { if (typeof wlLoadFromServer === 'function') setTimeout(() => wlLoadFromServer().catch(()=>{}), 1200); } catch(e) {}
   if (src) { try { _WL_HOLD[currency] = false; wlFlyReward(src, currency, amount); } catch(e) { try { wlSyncHeader(); } catch(_) {} } }
 }
 
