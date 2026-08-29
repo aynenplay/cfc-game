@@ -28730,7 +28730,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-24-teshis3-386';
+const APP_BUILD = '2026-08-24-dokunma-387';
 
 (function _cacheBustCheck() {
   try {
@@ -98880,6 +98880,91 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
   ciz();                    // ilk çizim — beklemeden bilgi görünsün
   setInterval(ciz, 1000);
   console.info('[teşhis] panel açık. Kapatmak için ?teshis=0');
+})();
+</script>
+<!-- ═══════════════════════════════════════════════════════════════════
+     DOKUNMA KÖPRÜSÜ — iOS'ta kaybolan click olayı
+     ═══════════════════════════════════════════════════════════════════
+     SORUN (teşhis paneliyle ÖLÇÜLDÜ):
+       Takımım sayfasında geri / ✕ / ☰ butonlarına dokunulduğunda
+       touchstart ve pointerdown BUTONA ULAŞIYOR, ama tarayıcı ardından
+       click olayını HİÇ üretmiyor. Panel çıktısı:
+           T → svg (btn: button.cal-close-btn)
+           P → svg (btn: button.hm-back-btn)
+           C → (yok)
+       Sayfa donmuş değil (fps 60), üstte kaplayan öğe yok, JS hatası yok,
+       sürükleme kilidi yok. Yani tıklama yerine ulaşıyor, click doğmuyor.
+
+     Bu davranış bu uygulamada DAHA ÖNCE de yaşanmış: ekipman sürükleme
+     kodunda (_eqOnPointerDown → onUp) aynı sorun için
+     "Native click bazı browserlarda kayboluyor, garanti olarak onclick
+     handler'ı manuel tetikle" notuyla elle çözüm yazılmış.
+
+     ÇÖZÜM:
+       Kök nedeni kovalamak yerine click'e olan bağımlılığı kaldırıyoruz.
+       pointerup geldiğinde dokunuş gerçek bir tık ise (parmak kaymadı,
+       uzun basılmadı, iniş ve kalkış aynı buton) butonun kendi onclick'i
+       elle çalıştırılıyor. Tarayıcı click'i yine de üretirse ikinci kez
+       çalışmasın diye kısa bir pencerede yutuluyor.
+
+     KAPSAM: yalnızca aşağıdaki gezinme/başlık butonları. Masaüstünde
+     (pointerType === 'mouse') hiç devreye girmiyor.
+     ═══════════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+  var SEC = '.hm-back-btn, .cal-close-btn, .thb-menu-btn, .team-tab, .team-tab-back, .hb-item, .hb-drawer-close, .hb-btn, .hm-cal-btn, .topbar-msg-btn';
+  var BEKLE = 120;   // yerli click'e tanınan süre (ms)
+  var YUT   = 800;   // biz tetikledikten sonra gelen click bu süre içinde yutulur
+  var KAYMA = 12;    // px — fazlası sürüklemedir
+  var UZUN  = 700;   // ms — fazlası basılı tutmadır
+
+  var bas = null, basX = 0, basY = 0, basT = 0;
+  var sentetik = new WeakMap();
+
+  function yakala(t){ return (t && t.closest) ? t.closest(SEC) : null; }
+
+  function tetikle(b){
+    sentetik.set(b, Date.now());
+    var oh = b.getAttribute('onclick');
+    if (oh) {
+      try { (new Function('event', oh)).call(b, null); }
+      catch(e) { console.warn('[dokunma] onclick hata:', e); }
+      return;
+    }
+    if (typeof b.onclick === 'function') { try { b.onclick(null); } catch(e){} return; }
+    try { b.dispatchEvent(new MouseEvent('click', { bubbles:true, cancelable:true })); } catch(e){}
+  }
+
+  document.addEventListener('pointerdown', function(e){
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    bas = yakala(e.target); basX = e.clientX; basY = e.clientY; basT = Date.now();
+  }, true);
+
+  document.addEventListener('pointerup', function(e){
+    var b = yakala(e.target);
+    var basilan = bas; bas = null;
+    if (!b || b !== basilan) return;
+    if (e.pointerType === 'mouse') return;
+    if (Math.abs(e.clientX - basX) > KAYMA) return;
+    if (Math.abs(e.clientY - basY) > KAYMA) return;
+    if (Date.now() - basT > UZUN) return;
+    setTimeout(function(){
+      var son = sentetik.get(b) || 0;
+      if (Date.now() - son < YUT) return;   // yerli click geldi
+      tetikle(b);
+    }, BEKLE);
+  }, true);
+
+  document.addEventListener('click', function(e){
+    var b = yakala(e.target);
+    if (!b) return;
+    var son = sentetik.get(b) || 0;
+    if (Date.now() - son < YUT) { e.stopPropagation(); e.preventDefault(); return; }
+    sentetik.set(b, Date.now());
+  }, true);
+
+  document.addEventListener('pointercancel', function(){ bas = null; }, true);
+  console.info('[dokunma] köprü aktif');
 })();
 </script>
 </body>
