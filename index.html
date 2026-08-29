@@ -28776,7 +28776,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-29-sekme-397';
+const APP_BUILD = '2026-08-29-reklam-398';
 
 (function _cacheBustCheck() {
   try {
@@ -99344,6 +99344,133 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
      üzerine geldiğinde ana ekran kayıyordu. Köprü build 392'de
      tamamen KALDIRILDI. Mobil parmakla kaydırma zaten tarayıcının
      kendi davranışı, hiç dokunulmadı. -->
+
+<!-- ══ REKLAM YUVALARI ═══════════════════════════════════════════════
+     Yayındaki reklamları `ads` tablosundan okur, sol/sağ yuvaya basar.
+     Tablonun RLS politikası zaten yalnızca süresi geçerli ve yayında
+     olan kayıtları döndürüyor — istemcide tarih kontrolü yapmıyoruz.
+
+     • Sadece masaüstünde çalışır (min-width:1200px). Mobilde yuvalar
+       `display:none` olduğu için sorgu bile atılmaz.
+     • Aynı yuvada birden fazla reklam varsa `weight` ile orantılı
+       rastgele seçim yapılır.
+     • "Gören kişi" sayısı: aynı kişiye aynı reklam GÜNDE BİR kez
+       sayılır (tarayıcıda gün damgası tutulur).
+     • Tıklama her seferinde sayılır.
+     • Sayaçlar `ad_hit` RPC'siyle artar; RPC yalnızca +1 yapabilir. -->
+<script>
+(function(){
+  var YUVALAR = { sol:'reklamSol', sag:'reklamSag' };
+  var TAZELE  = 10 * 60 * 1000;      // 10 dakikada bir yeniden çek
+  var _son    = {};                  // yuva -> gösterilen reklam id
+
+  function masaustuMu(){
+    try { return window.matchMedia('(min-width:1200px)').matches; } catch(e){ return false; }
+  }
+  function bugun(){
+    var d = new Date();
+    return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
+  }
+  function bugunGorulduMu(id){
+    try { return localStorage.getItem('rk_g_' + id) === bugun(); } catch(e){ return true; }
+  }
+  function gorulduIsaretle(id){
+    try { localStorage.setItem('rk_g_' + id, bugun()); } catch(e){}
+  }
+  function say(id, tur){
+    try { if (window.sb) window.sb.rpc('ad_hit', { p_id:id, p_kind:tur }).then(function(){}, function(){}); }
+    catch(e){}
+  }
+  // Ağırlığa göre rastgele seçim
+  function agirlikliSec(liste){
+    if (!liste.length) return null;
+    var toplam = 0, i;
+    for (i=0;i<liste.length;i++) toplam += Math.max(1, Number(liste[i].weight) || 1);
+    var r = Math.random() * toplam;
+    for (i=0;i<liste.length;i++){
+      r -= Math.max(1, Number(liste[i].weight) || 1);
+      if (r <= 0) return liste[i];
+    }
+    return liste[liste.length-1];
+  }
+  function guvenliLink(u){
+    u = String(u || '');
+    return /^https?:\/\//i.test(u) ? u : '';
+  }
+
+  function bas(yuvaId, reklam){
+    var kap = document.getElementById(yuvaId);
+    if (!kap) return;
+    if (!reklam){ kap.innerHTML = ''; return; }          // boşsa ölçü yer tutucusu geri gelir
+    var link = guvenliLink(reklam.link_url);
+    if (!link) { kap.innerHTML = ''; return; }
+
+    var a = document.createElement('a');
+    a.href = link;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer nofollow sponsored';
+    a.style.cssText = 'display:block;width:100%;height:100%;border-radius:10px;overflow:hidden';
+    a.setAttribute('aria-label', (reklam.alt_text || 'Reklam'));
+
+    var im = document.createElement('img');
+    im.src = reklam.image_url;
+    im.alt = reklam.alt_text || 'Reklam';
+    im.loading = 'lazy';
+    im.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block';
+    im.onerror = function(){ kap.innerHTML = ''; };
+    a.appendChild(im);
+
+    a.addEventListener('click', function(){ say(reklam.id, 'click'); });
+
+    kap.innerHTML = '';
+    kap.appendChild(a);
+    _son[yuvaId] = reklam.id;
+
+    if (!bugunGorulduMu(reklam.id)){ gorulduIsaretle(reklam.id); say(reklam.id, 'view'); }
+  }
+
+  function yukle(){
+    if (!masaustuMu() || !window.sb) return;
+    try {
+      window.sb.from('ads')
+        .select('id,slot,image_url,link_url,alt_text,weight')
+        .limit(50)
+        .then(function(r){
+          var satirlar = (r && r.data) || [];
+          Object.keys(YUVALAR).forEach(function(yuva){
+            var uygun = satirlar.filter(function(x){ return x.slot === yuva; });
+            bas(YUVALAR[yuva], agirlikliSec(uygun));
+          });
+        }, function(){});
+    } catch(e){}
+  }
+
+  function basla(deneme){
+    var n = deneme || 0;
+    if (!masaustuMu()) return;                 // mobilde hiç çalışmaz
+    if (!window.sb){                           // supabase henüz hazır değilse bekle
+      if (n < 40) return setTimeout(function(){ basla(n+1); }, 500);
+      return;
+    }
+    yukle();
+    setInterval(yukle, TAZELE);
+  }
+
+  if (document.readyState === 'loading')
+    document.addEventListener('DOMContentLoaded', function(){ basla(0); });
+  else
+    basla(0);
+
+  // Pencere masaüstü genişliğine çıkarsa o an yükle
+  try {
+    window.matchMedia('(min-width:1200px)').addEventListener('change', function(e){
+      if (e.matches) yukle();
+    });
+  } catch(e){}
+
+  window._reklamYukle = yukle;   // konsoldan elle tazelemek için
+})();
+</script>
 
 </body>
 </html>

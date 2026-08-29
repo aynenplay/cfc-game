@@ -122,6 +122,39 @@
   .opgun.bugun{ outline:2px solid var(--accent); outline-offset:1px; }
   .oplej{ display:flex; gap:14px; flex-wrap:wrap; margin-top:12px; font-size:11px; color:var(--dim); }
   .oplej i{ display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; vertical-align:-1px; }
+  /* ── REKLAM YÖNETİMİ ── */
+  .rk-ozet{ display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-bottom:14px; }
+  .rk-firma{ display:flex; align-items:center; gap:14px; padding:13px 15px; border:1px solid var(--line);
+    border-radius:13px; background:var(--panel); cursor:pointer; margin-bottom:9px; transition:border-color .14s, transform .14s; }
+  .rk-firma:hover{ border-color:var(--accent); transform:translateX(2px); }
+  .rk-firma-o{ flex:1; min-width:0; }
+  .rk-firma-ad{ font-family:var(--disp); font-weight:800; font-size:18px; letter-spacing:.4px; }
+  .rk-firma-alt{ font-size:11px; color:var(--dim); margin-top:2px; }
+  .rk-mini{ display:flex; gap:18px; flex-shrink:0; text-align:right; }
+  .rk-mini .v{ font-family:var(--disp); font-weight:900; font-size:19px; line-height:1; }
+  .rk-mini .l{ font-size:9px; color:var(--dim); letter-spacing:.7px; text-transform:uppercase; margin-top:3px; }
+  .rk-kart{ display:flex; gap:14px; padding:13px; border:1px solid var(--line); border-radius:13px;
+    background:var(--panel); margin-bottom:11px; flex-wrap:wrap; }
+  .rk-gor{ width:96px; height:186px; flex-shrink:0; border:1px solid var(--line); border-radius:9px;
+    background:#0d1117; object-fit:contain; }
+  .rk-gov{ flex:1; min-width:220px; display:flex; flex-direction:column; gap:7px; }
+  .rk-rozet{ display:inline-block; font-size:9px; font-weight:800; padding:3px 8px; border-radius:6px; letter-spacing:.6px; }
+  .rk-y{ background:rgba(46,195,107,.16); color:var(--accent); }
+  .rk-b{ background:rgba(255,213,79,.16); color:var(--gold); }
+  .rk-x{ background:rgba(226,59,90,.16); color:var(--red); }
+  .rk-sayac{ font-family:var(--disp); font-size:16px; font-weight:800; }
+  .rk-btnsat{ display:flex; gap:8px; flex-wrap:wrap; margin-top:auto; padding-top:6px; }
+  .rk-btnsat .btn{ padding:6px 11px; font-size:13px; }
+  .rk-gunluk{ max-height:190px; overflow:auto; border:1px solid var(--line); border-radius:9px; margin-top:9px; }
+  .rk-gunluk table{ width:100%; border-collapse:collapse; font-size:12px; }
+  .rk-gunluk td, .rk-gunluk th{ padding:5px 10px; border-bottom:1px solid var(--line); text-align:left; }
+  .rk-gunluk th{ color:var(--dim); font-size:10px; text-transform:uppercase; letter-spacing:.5px; position:sticky; top:0; background:var(--panel2); }
+  .rk-onizle{ width:100%; max-width:150px; border:1px solid var(--line); border-radius:9px; background:#0d1117; margin-top:6px; }
+  .rk-sure-btns{ display:flex; gap:6px; flex-wrap:wrap; }
+  .rk-sure-btns button{ background:var(--panel2); color:var(--txt); border:1px solid var(--line);
+    padding:7px 12px; font-size:13px; font-weight:700; }
+  .rk-sure-btns button.on{ border-color:var(--accent); color:var(--accent); }
+
   .bcbox{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px; }
   .bcsat{ display:flex; gap:10px; align-items:center; margin-bottom:11px; flex-wrap:wrap; }
   .bclbl{ font-size:12px; color:var(--dim); min-width:88px; }
@@ -823,6 +856,361 @@ async function fbDelete(id){
   catch(e){ alert('Silinemedi: '+e.message); }
 }
 
+
+/* ═══════════════════════════════════════════════════════════════════
+   REKLAM YÖNETİMİ
+   Yuvalar: oyunun masaüstü görünümündeki sol ve sağ reklam alanları.
+   Önerilen görsel: 300 × 600 px (dikey). GIF de olur, hareketli çalışır.
+   ═══════════════════════════════════════════════════════════════════ */
+let RK_LISTE = [];      // tüm reklam kayıtları
+let RK_GUNLUK = {};     // ad_id -> [{gun, views, clicks}]
+let RK_FIRMA = null;    // açık olan reklamveren (null = firma listesi)
+let RK_DUZENLE = null;  // düzenlenen kayıt (null = yeni)
+
+const RK_GUN = 86400000;
+function _rkEsc(x){ return String(x==null?'':x).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function _rkTarih(t){ if(!t) return '—'; const d=new Date(t); return isNaN(d)?'—':d.toLocaleDateString('tr',{day:'2-digit',month:'short',year:'numeric'}); }
+
+// Durum + kalan süre sayacı
+function _rkDurum(a){
+  const now = Date.now();
+  const bas = new Date(a.starts_at).getTime();
+  const bit = new Date(a.ends_at).getTime();
+  if (a.active === false) return { sinif:'rk-x', kisa:'DURDURULDU', sayac:'—', gecerli:false };
+  if (now < bas){
+    const g = Math.ceil((bas-now)/RK_GUN);
+    return { sinif:'rk-b', kisa:'BEKLİYOR', sayac:g+' gün sonra başlıyor', gecerli:false };
+  }
+  if (now > bit) return { sinif:'rk-x', kisa:'SÜRESİ DOLDU', sayac:'bitti — '+_rkTarih(a.ends_at), gecerli:false };
+  const kalan = bit - now;
+  const gun = Math.floor(kalan/RK_GUN);
+  const saat = Math.floor((kalan%RK_GUN)/3600000);
+  return { sinif:'rk-y', kisa:'YAYINDA',
+           sayac: (gun>0 ? gun+' gün ' : '') + saat + ' saat kaldı', gecerli:true };
+}
+
+async function _rkVeriCek(){
+  const r = await api('list', { table:'ads', limit:1000 });
+  RK_LISTE = (r.rows || []).slice().sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0));
+  RK_GUNLUK = {};
+  try {
+    const g = await api('list', { table:'ad_stats_daily', limit:5000 });
+    (g.rows||[]).forEach(x => { (RK_GUNLUK[x.ad_id] = RK_GUNLUK[x.ad_id] || []).push(x); });
+    Object.keys(RK_GUNLUK).forEach(k => RK_GUNLUK[k].sort((a,b)=> String(b.gun).localeCompare(String(a.gun))));
+  } catch(e) { /* günlük kırılım yoksa sorun değil */ }
+}
+
+async function openAds(){
+  _opTemizle();
+  $('nav').querySelectorAll('.sub').forEach(b => b.classList.toggle('active', b.dataset.t === '__reklam__'));
+  const act = $('nav').querySelector('.sub.active'); if (act) act.closest('.cat').classList.add('open');
+  $('main').innerHTML = _opBaslik('Reklam Yönetimi','yükleniyor…') + '<div class="msg">Yükleniyor…</div>';
+  try { await _rkVeriCek(); }
+  catch(e){
+    $('main').innerHTML = _opBaslik('Reklam Yönetimi','hata')
+      + '<div class="opnot" style="border-color:rgba(226,59,90,.35);color:#ff8ea3">'
+      + _rkEsc(e.message) + '<br><br>Tablo yeni oluşturulduysa <b>çıkış yapıp tekrar giriş yap</b> — '
+      + 'panel tablo listesini girişte alıyor.</div>';
+    return;
+  }
+  RK_FIRMA = null; RK_DUZENLE = null;
+  rkCiz();
+}
+
+function rkCiz(){
+  if (RK_DUZENLE !== null) return rkFormCiz();
+  if (RK_FIRMA)            return rkFirmaCiz();
+
+  const yayinda = RK_LISTE.filter(a => _rkDurum(a).gecerli);
+  const toplamG = RK_LISTE.reduce((t,a)=>t+(Number(a.impressions)||0),0);
+  const toplamT = RK_LISTE.reduce((t,a)=>t+(Number(a.clicks)||0),0);
+
+  // Reklamverene göre grupla
+  const firmalar = {};
+  RK_LISTE.forEach(a => {
+    const ad = (a.advertiser || '(isimsiz)').trim() || '(isimsiz)';
+    const f = firmalar[ad] = firmalar[ad] || { ad, adet:0, yayinda:0, gorulme:0, tiklama:0 };
+    f.adet++;
+    if (_rkDurum(a).gecerli) f.yayinda++;
+    f.gorulme += Number(a.impressions)||0;
+    f.tiklama += Number(a.clicks)||0;
+  });
+  const liste = Object.values(firmalar).sort((a,b)=> b.gorulme - a.gorulme);
+
+  const ctr = (t,g)=> g>0 ? ('%'+((t/g)*100).toFixed(1).replace('.',',')) : '—';
+
+  $('main').innerHTML = _opBaslik('Reklam Yönetimi', RK_LISTE.length + ' reklam · ' + liste.length + ' reklamveren')
+    + '<div class="rk-ozet fadein">'
+      + _opKart('YAYINDA',        yayinda.length, RK_LISTE.length + ' kayıttan')
+      + _opKart('TOPLAM GÖRÜLME', _fmtSayi(toplamG), 'gün başına tekil kişi')
+      + _opKart('TOPLAM TIKLAMA', _fmtSayi(toplamT), ctr(toplamT,toplamG) + ' tıklama oranı', 's')
+    + '</div>'
+    + '<div style="display:flex;gap:8px;margin-bottom:14px">'
+      + '<button class="btn green" onclick="rkYeni()">+ Yeni Reklam</button>'
+      + '<button class="btn" onclick="openAds()">Yenile</button>'
+    + '</div>'
+    + (liste.length
+        ? liste.map(f => `<div class="rk-firma" onclick="rkFirmaAc(${JSON.stringify(f.ad).replace(/"/g,'&quot;')})">
+             <div class="rk-firma-o">
+               <div class="rk-firma-ad">${_rkEsc(f.ad)}</div>
+               <div class="rk-firma-alt">${f.adet} reklam · ${f.yayinda} yayında · tıklama oranı ${ctr(f.tiklama,f.gorulme)}</div>
+             </div>
+             <div class="rk-mini">
+               <div><div class="v">${_fmtSayi(f.gorulme)}</div><div class="l">Gören</div></div>
+               <div><div class="v" style="color:var(--gold)">${_fmtSayi(f.tiklama)}</div><div class="l">Tıklayan</div></div>
+             </div>
+           </div>`).join('')
+        : '<div class="opnot">Henüz reklam yok. <b>+ Yeni Reklam</b> ile ekle.</div>')
+    + '<div class="opnot">Reklamverenin adına dokun → o firmanın bütün reklamlarını, '
+      + 'kaç kişinin gördüğünü, kaç kişinin tıkladığını ve gün gün dökümü gör.</div>';
+}
+
+function rkFirmaAc(ad){ RK_FIRMA = ad; rkCiz(); }
+function rkGeri(){ RK_FIRMA = null; RK_DUZENLE = null; rkCiz(); }
+
+function rkFirmaCiz(){
+  const kayitlar = RK_LISTE.filter(a => ((a.advertiser||'(isimsiz)').trim()||'(isimsiz)') === RK_FIRMA);
+  const g = kayitlar.reduce((t,a)=>t+(Number(a.impressions)||0),0);
+  const t = kayitlar.reduce((x,a)=>x+(Number(a.clicks)||0),0);
+  const ctr = g>0 ? ('%'+((t/g)*100).toFixed(1).replace('.',',')) : '—';
+
+  $('main').innerHTML = _opBaslik(RK_FIRMA, kayitlar.length + ' reklam')
+    + '<div style="display:flex;gap:8px;margin-bottom:14px">'
+      + '<button class="btn" onclick="rkGeri()">‹ Reklamverenler</button>'
+      + '<button class="btn green" onclick="rkYeni(' + JSON.stringify(RK_FIRMA).replace(/"/g,'&quot;') + ')">+ Bu firmaya reklam ekle</button>'
+    + '</div>'
+    + '<div class="rk-ozet fadein">'
+      + _opKart('GÖREN KİŞİ',  _fmtSayi(g), 'gün başına tekil')
+      + _opKart('TIKLAYAN',    _fmtSayi(t), ctr + ' tıklama oranı', 's')
+      + _opKart('YAYINDA',     kayitlar.filter(a=>_rkDurum(a).gecerli).length, kayitlar.length + ' reklamdan')
+    + '</div>'
+    + kayitlar.map(a => rkKartHtml(a)).join('');
+}
+
+function rkKartHtml(a){
+  const d = _rkDurum(a);
+  const gor = Number(a.impressions)||0, tik = Number(a.clicks)||0;
+  const ctr = gor>0 ? ('%'+((tik/gor)*100).toFixed(1).replace('.',',')) : '—';
+  const gunler = RK_GUNLUK[a.id] || [];
+  const gunTablo = gunler.length
+    ? `<div class="rk-gunluk"><table>
+         <tr><th>Gün</th><th>Gören</th><th>Tıklayan</th></tr>
+         ${gunler.slice(0,60).map(x=>`<tr><td>${_rkEsc(x.gun)}</td><td>${_fmtSayi(x.views)}</td><td>${_fmtSayi(x.clicks)}</td></tr>`).join('')}
+       </table></div>`
+    : '';
+  return `<div class="rk-kart">
+    <img class="rk-gor" src="${_rkEsc(a.image_url)}" alt="" onerror="this.style.opacity='.25'">
+    <div class="rk-gov">
+      <div><span class="rk-rozet ${d.sinif}">${d.kisa}</span>
+        <span class="rk-rozet" style="background:rgba(66,165,245,.16);color:var(--blue)">${a.slot==='sol'?'SOL ALAN':'SAĞ ALAN'}</span></div>
+      <div class="rk-sayac">${_rkEsc(d.sayac)}</div>
+      <div style="font-size:12px;color:var(--dim)">
+        ${_rkTarih(a.starts_at)} → ${_rkTarih(a.ends_at)}<br>
+        <a href="${_rkEsc(a.link_url)}" target="_blank" rel="noopener" style="color:var(--blue)">${_rkEsc(a.link_url)}</a>
+        ${a.note ? '<br>' + _rkEsc(a.note) : ''}
+      </div>
+      <div class="rk-mini" style="justify-content:flex-start;text-align:left">
+        <div><div class="v">${_fmtSayi(gor)}</div><div class="l">Gören</div></div>
+        <div><div class="v" style="color:var(--gold)">${_fmtSayi(tik)}</div><div class="l">Tıklayan</div></div>
+        <div><div class="v" style="color:var(--accent)">${ctr}</div><div class="l">Oran</div></div>
+      </div>
+      ${gunTablo}
+      <div class="rk-btnsat">
+        <button class="btn" onclick="rkDuzenle('${a.id}')">Düzenle</button>
+        <button class="btn" onclick="rkDurdurBaslat('${a.id}', ${a.active ? 'false' : 'true'})">${a.active ? 'Durdur' : 'Yayına Al'}</button>
+        <button class="btn" onclick="rkUzat('${a.id}')">Süre Uzat</button>
+        <button class="btn red" onclick="rkSil('${a.id}')">Sil</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ── Form ───────────────────────────────────────────────────────── */
+function rkYeni(firma){ RK_DUZENLE = { yeni:true, advertiser: (typeof firma==='string'?firma:'') }; rkCiz(); }
+function rkDuzenle(id){ const a = RK_LISTE.find(x=>x.id===id); if(!a) return; RK_DUZENLE = Object.assign({},a); rkCiz(); }
+
+function _rkYmd(d){ const z=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate()); }
+
+function rkFormCiz(){
+  const a = RK_DUZENLE, yeni = !!a.yeni;
+  const bas = a.starts_at ? new Date(a.starts_at) : new Date();
+  const bit = a.ends_at   ? new Date(a.ends_at)   : new Date(Date.now()+30*RK_GUN);
+
+  $('main').innerHTML = _opBaslik(yeni ? 'Yeni Reklam' : 'Reklamı Düzenle', yeni ? '' : (a.advertiser||''))
+    + `<div class="bcbox fadein">
+        <div class="bcsat"><span class="bclbl">Reklamveren</span>
+          <input id="rkFirma" class="bcinp" placeholder="Örn: Coca Cola" value="${_rkEsc(a.advertiser||'')}"></div>
+
+        <div class="bcsat"><span class="bclbl">Yuva</span>
+          <select id="rkSlot" class="bcinp">
+            <option value="sol" ${a.slot==='sol'?'selected':''}>Sol alan</option>
+            <option value="sag" ${a.slot==='sag'?'selected':''}>Sağ alan</option>
+          </select></div>
+
+        <div class="bcsat" style="align-items:flex-start"><span class="bclbl" style="padding-top:9px">Görsel</span>
+          <div style="flex:1;min-width:240px">
+            <input id="rkDosya" type="file" accept="image/*" class="bcinp" style="width:100%">
+            <div style="font-size:11px;color:var(--dim);margin:6px 0 8px">
+              Dosya seç → panel yükler. GIF de olur, hareketli çalışır. Önerilen ölçü <b>300 × 600 px</b>.<br>
+              Ya da reklamveren hazır bir adres verdiyse aşağıya yapıştır.
+            </div>
+            <input id="rkGorselUrl" class="bcinp" style="width:100%" placeholder="https://… görsel adresi"
+                   value="${_rkEsc(a.image_url||'')}" oninput="rkOnizleGuncelle()">
+            <img id="rkOnizle" class="rk-onizle" src="${_rkEsc(a.image_url||'')}"
+                 style="${a.image_url?'':'display:none'}" onerror="this.style.display='none'">
+          </div></div>
+
+        <div class="bcsat"><span class="bclbl">Tıklama linki</span>
+          <input id="rkLink" class="bcinp" style="flex:1;min-width:240px" placeholder="https://www.coca-cola.com.tr"
+                 value="${_rkEsc(a.link_url||'')}"></div>
+
+        <div class="bcsat"><span class="bclbl">Başlangıç</span>
+          <input id="rkBas" type="date" class="bcinp" value="${_rkYmd(bas)}"></div>
+
+        <div class="bcsat" style="align-items:flex-start"><span class="bclbl" style="padding-top:8px">Süre</span>
+          <div style="flex:1;min-width:240px">
+            <div class="rk-sure-btns" id="rkSureBtns">
+              <button data-g="7">7 gün</button>
+              <button data-g="15">15 gün</button>
+              <button data-g="30">1 ay</button>
+              <button data-g="90">3 ay</button>
+              <button data-g="180">6 ay</button>
+              <button data-g="365">1 yıl</button>
+            </div>
+            <div style="font-size:11px;color:var(--dim);margin:8px 0 4px">…ya da doğrudan bitiş tarihi seç:</div>
+            <input id="rkBit" type="date" class="bcinp" value="${_rkYmd(bit)}">
+          </div></div>
+
+        <div class="bcsat"><span class="bclbl">Ağırlık</span>
+          <input id="rkAgirlik" type="number" min="1" max="100" class="bcinp" style="width:90px" value="${a.weight||1}">
+          <span style="font-size:11px;color:var(--dim)">Aynı yuvada birden fazla yayında reklam varsa, gösterilme şansı bu sayıyla orantılı.</span></div>
+
+        <div class="bcsat"><span class="bclbl">Not</span>
+          <input id="rkNot" class="bcinp" style="flex:1;min-width:240px" placeholder="İç not — oyunda görünmez"
+                 value="${_rkEsc(a.note||'')}"></div>
+
+        <div class="bcsat"><span class="bclbl">Durum</span>
+          <select id="rkAktif" class="bcinp">
+            <option value="1" ${a.active===false?'':'selected'}>Yayında</option>
+            <option value="0" ${a.active===false?'selected':''}>Durduruldu</option>
+          </select></div>
+
+        <div id="rkHata" class="opnot" style="display:none;border-color:rgba(226,59,90,.35);color:#ff8ea3"></div>
+
+        <div class="bcalt" style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+          <button class="btn" onclick="rkGeri()">Vazgeç</button>
+          <button class="btn green" id="rkKaydet">${yeni ? 'Reklamı Yayına Al' : 'Değişiklikleri Kaydet'}</button>
+        </div>
+      </div>`;
+
+  $('rkSureBtns').querySelectorAll('button').forEach(b => b.onclick = () => {
+    $('rkSureBtns').querySelectorAll('button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    const baslangic = new Date($('rkBas').value || _rkYmd(new Date()));
+    $('rkBit').value = _rkYmd(new Date(baslangic.getTime() + Number(b.dataset.g)*RK_GUN));
+  });
+  $('rkKaydet').onclick = rkKaydet;
+}
+
+function rkOnizleGuncelle(){
+  const u = $('rkGorselUrl').value.trim(), im = $('rkOnizle');
+  if(!im) return;
+  if(u){ im.src = u; im.style.display=''; } else { im.style.display='none'; }
+}
+
+// Görseli Supabase deposuna yükler, herkese açık adresini döndürür
+async function _rkGorselYukle(file){
+  const uz  = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g,'');
+  const yol = 'r' + Date.now() + '-' + Math.random().toString(36).slice(2,8) + '.' + (uz||'png');
+  const r = await fetch(CFG.url + '/storage/v1/object/reklam/' + yol, {
+    method:'POST',
+    headers:{ 'Authorization':'Bearer '+TOKEN, 'apikey':CFG.anon,
+              'Content-Type': file.type || 'application/octet-stream', 'x-upsert':'true' },
+    body: file
+  });
+  if(!r.ok){
+    const t = await r.text().catch(()=>'');
+    throw new Error('Görsel yüklenemedi (' + r.status + '). ' + t.slice(0,180)
+      + ' — reklam-kurulum.sql ADIM 2 ile kendini admin_users tablosuna eklediğinden emin ol.');
+  }
+  return CFG.url + '/storage/v1/object/public/reklam/' + yol;
+}
+
+async function rkKaydet(){
+  const h = $('rkHata'), btn = $('rkKaydet');
+  h.style.display = 'none';
+  const hata = m => { h.textContent = m; h.style.display = ''; btn.disabled = false; btn.textContent = 'Tekrar Dene'; };
+  btn.disabled = true; btn.textContent = 'Kaydediliyor…';
+
+  const firma = $('rkFirma').value.trim();
+  const link  = $('rkLink').value.trim();
+  const basD  = $('rkBas').value;
+  const bitD  = $('rkBit').value;
+  let   gorsel= $('rkGorselUrl').value.trim();
+  const dosya = $('rkDosya').files && $('rkDosya').files[0];
+
+  if(!firma) return hata('Reklamveren adı boş olamaz.');
+  if(!link)  return hata('Tıklama linki boş olamaz.');
+  if(!/^https?:\/\//i.test(link)) return hata('Link http:// veya https:// ile başlamalı.');
+  if(!basD || !bitD) return hata('Başlangıç ve bitiş tarihi gerekli.');
+  if(new Date(bitD) <= new Date(basD)) return hata('Bitiş tarihi başlangıçtan sonra olmalı.');
+
+  try {
+    if(dosya) gorsel = await _rkGorselYukle(dosya);
+    if(!gorsel) return hata('Görsel yükle ya da bir görsel adresi yapıştır.');
+
+    const values = {
+      slot:       $('rkSlot').value,
+      advertiser: firma,
+      image_url:  gorsel,
+      link_url:   link,
+      alt_text:   firma,
+      starts_at:  new Date(basD + 'T00:00:00').toISOString(),
+      ends_at:    new Date(bitD + 'T23:59:59').toISOString(),
+      active:     $('rkAktif').value === '1',
+      weight:     Math.max(1, Math.min(100, Number($('rkAgirlik').value) || 1)),
+      note:       $('rkNot').value.trim() || null
+    };
+
+    if(RK_DUZENLE.yeni) await api('insert', { table:'ads', values });
+    else                await api('update', { table:'ads', pk:{ id:RK_DUZENLE.id }, values });
+
+    RK_DUZENLE = null;
+    if(!RK_FIRMA) RK_FIRMA = firma;
+    await _rkVeriCek();
+    rkCiz();
+  } catch(e){ hata(e.message || 'Kaydedilemedi.'); }
+}
+
+async function rkDurdurBaslat(id, yeni){
+  try { await api('update', { table:'ads', pk:{ id }, values:{ active: yeni } });
+        await _rkVeriCek(); rkCiz(); }
+  catch(e){ alert('Olmadı: ' + e.message); }
+}
+
+async function rkUzat(id){
+  const a = RK_LISTE.find(x=>x.id===id); if(!a) return;
+  const g = prompt('Kaç gün uzatılsın?', '30');
+  if(g === null) return;
+  const gun = Number(g); if(!(gun > 0)) return alert('Geçerli bir gün sayısı gir.');
+  const eskiBit = new Date(a.ends_at).getTime();
+  const temel = Math.max(eskiBit, Date.now());
+  try { await api('update', { table:'ads', pk:{ id },
+          values:{ ends_at: new Date(temel + gun*RK_GUN).toISOString() } });
+        await _rkVeriCek(); rkCiz(); }
+  catch(e){ alert('Olmadı: ' + e.message); }
+}
+
+async function rkSil(id){
+  const a = RK_LISTE.find(x=>x.id===id);
+  if(!confirm('Bu reklam silinsin mi?\n\n' + ((a&&a.advertiser)||'') + '\nİstatistikleri de gider.')) return;
+  try { await api('delete', { table:'ads', pk:{ id } });
+        await _rkVeriCek();
+        if(RK_FIRMA && !RK_LISTE.some(x => ((x.advertiser||'(isimsiz)').trim()||'(isimsiz)') === RK_FIRMA)) RK_FIRMA = null;
+        rkCiz(); }
+  catch(e){ alert('Silinemedi: ' + e.message); }
+}
+
 // Sol menü — akordeon (ana başlık → tablolar)
 const NAV = [
   { cat:'KULLANICILAR',   tables:['__users__','__players__','feedback'] },
@@ -840,12 +1228,14 @@ const NAV = [
   { cat:'CSC MEDIA',      tables:['__medya__','social_posts','social_likes','social_follows'] },
   { cat:'İNBOX',          tables:['__duyuru__','user_inbox','broadcasts'] },
   { cat:'EKONOMİ',        tables:['__economy__','bet_slips','scratch_cards'] },
+  { cat:'REKLAM',         tables:['__reklam__'] },
   { cat:'AYARLAR',        tables:['__ops__','match_writes'] }
 ];
 const VIRT = { '__users__':'Kullanıcılar', '__players__':'Oyuncular', '__clubs__':'Takımlar', '__nts__':'Milli Takımlar', '__feds__':'Federasyonlar',
   '__ops__':'Operasyon', '__season__':'Sezon & Takvim', '__economy__':'Ekonomi Özeti',
   '__duyuru__':'Toplu Duyuru', '__ligler__':'Lig Tabloları', '__turnuva__':'Turnuva Durumu',
-  '__fikstur__':'Günlük Fikstür', '__antrenman__':'Antrenman Yarışı', '__medya__':'Gönderi Denetimi' };
+  '__fikstur__':'Günlük Fikstür', '__antrenman__':'Antrenman Yarışı', '__medya__':'Gönderi Denetimi',
+  '__reklam__':'Reklam Yönetimi' };
 const CHEV = '<svg class="chev" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg>';
 
 function buildNav() {
@@ -880,6 +1270,7 @@ function buildNav() {
     else if(t==='__fikstur__') openFixture();
     else if(t==='__antrenman__') openTraining();
     else if(t==='__medya__') openMedia();
+    else if(t==='__reklam__') openAds();
     else openTable(t); });
 }
 
