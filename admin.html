@@ -122,6 +122,23 @@
   .opgun.bugun{ outline:2px solid var(--accent); outline-offset:1px; }
   .oplej{ display:flex; gap:14px; flex-wrap:wrap; margin-top:12px; font-size:11px; color:var(--dim); }
   .oplej i{ display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; vertical-align:-1px; }
+  /* ── ZİYARET & AKTİFLİK ÖZETİ ── */
+  .cvbox{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:15px; margin-bottom:14px; }
+  .cvhead{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:13px; }
+  .cvhead h3{ font-family:var(--disp); font-size:20px; font-weight:900; letter-spacing:.5px; margin:0; }
+  .cvhead .cvsub{ font-size:11px; color:var(--dim); margin-top:2px; }
+  .cvcanli{ display:inline-flex; align-items:center; gap:6px; font-size:11px; color:var(--dim); }
+  .cvnokta{ width:8px; height:8px; border-radius:50%; background:var(--accent); box-shadow:0 0 8px var(--accent); animation:cvyanip 1.6s ease-in-out infinite; }
+  @keyframes cvyanip{ 0%,100%{ opacity:1 } 50%{ opacity:.25 } }
+  .cvliste{ margin-top:12px; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .cvliste-bas{ padding:8px 12px; font-size:10px; letter-spacing:.7px; text-transform:uppercase; color:var(--dim);
+    background:var(--panel2); border-bottom:1px solid var(--line); font-weight:800; }
+  .cvsat{ display:flex; align-items:center; gap:10px; padding:8px 12px; border-bottom:1px solid var(--line); font-size:13px; }
+  .cvsat:last-child{ border-bottom:none; }
+  .cvsat .cvad{ flex:1; min-width:0; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cvsat .cvsure{ font-size:11px; color:var(--dim); flex-shrink:0; }
+  .cvbos{ padding:14px 12px; color:var(--dim); font-size:13px; }
+
   /* ── REKLAM YÖNETİMİ ── */
   .rk-ozet{ display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-bottom:14px; }
   .rk-firma{ display:flex; align-items:center; gap:14px; padding:13px 15px; border:1px solid var(--line);
@@ -753,8 +770,10 @@ function openDash(){
   $('dashBtn').classList.add('active');
   document.body.classList.remove('navopen');
   $('main').innerHTML = `<div class="titlebox fadein"><h2>Özet</h2><span class="cnt">CSC Admin · genel bakış</span></div>
+    <div id="cvArea" class="fadein"></div>
     <div class="cardgrid fadein">${DASH.map(d=>`<div class="card" data-t="${d.t}"><div class="num" id="num-${d.t}">…</div><div class="lbl">${d.label}</div></div>`).join('')}</div>
     <div id="fbArea"></div>`;
+  cvBasla();
   $('main').querySelectorAll('.card').forEach(b=>b.onclick=()=>{ const t=b.dataset.t; if(t==='profiles') openUsers(); else if(t==='teams') openClubs(); else if(t==='players') openPlayers(); else if(t==='ads') openAds(); else openTable(t); });
   DASH.forEach(async d=>{
     // Reklam kartı toplam kayıt değil, O AN YAYINDA olan reklam sayısını gösterir
@@ -874,6 +893,147 @@ async function fbDelete(id){
   catch(e){ alert('Silinemedi: '+e.message); }
 }
 
+
+/* ═══════════════════════════════════════════════════════════════════
+   ZİYARET & AKTİFLİK ÖZETİ  (Özet sayfasının üstünde)
+
+   Veri kaynağı:
+     • players.last_seen  → oyuncunun oyuna en son girdiği an
+     • profiles.created_at → hesabın açıldığı an
+
+   ⚠️ ÖNEMLİ: `last_seen` yalnızca SON girişi tutar, gün gün geçmiş
+   tutmaz. Bu yüzden "7 gün" seçilince gösterilen sayı, "son 7 günde
+   en az bir kez giren farklı kişi" (yani WAU) demektir — sektörde
+   kullanılan ölçü budur. Gün gün grafik istersen ayrı bir kayıt
+   tablosu gerekir; şu an öyle bir tablo yok, uydurma veri de
+   göstermiyoruz.
+   ═══════════════════════════════════════════════════════════════════ */
+const CV_DONEM = [
+  { k:'bugun',  ad:'Bugün'   },
+  { k:'7',      ad:'7 Gün'   },
+  { k:'30',     ad:'30 Gün'  },
+  { k:'yil',    ad:'Bu Yıl'  },
+  { k:'tumu',   ad:'Tümü'    }
+];
+let CV_SECILI = '7';
+let CV_VERI   = null;   // { oyuncular:[], profiller:[] }
+let CV_ZAMAN  = null;
+
+function _cvBaslangic(k){
+  const d = new Date();
+  if (k === 'bugun'){ d.setHours(0,0,0,0); return d.getTime(); }
+  if (k === '7')    return Date.now() - 7*86400000;
+  if (k === '30')   return Date.now() - 30*86400000;
+  if (k === 'yil')  return new Date(d.getFullYear(),0,1).getTime();
+  return 0;                                   // tümü
+}
+function _cvMs(t){ if(!t) return 0; const x = new Date(t).getTime(); return isNaN(x) ? 0 : x; }
+function _cvGecen(ms){
+  const f = Date.now() - ms;
+  if (f < 60000)   return Math.max(1, Math.round(f/1000)) + ' sn önce';
+  if (f < 3600000) return Math.round(f/60000) + ' dk önce';
+  if (f < 86400000)return Math.round(f/3600000) + ' saat önce';
+  return Math.round(f/86400000) + ' gün önce';
+}
+
+async function cvVeriCek(){
+  // players: user_id'ye göre ARTAN sıralayınca gerçek kullanıcılar başa gelir
+  // (bot satırlarında user_id boş, Postgres onları sona atar).
+  const [pl, pf] = await Promise.all([
+    api('list', { table:'players',  limit:500,  orderBy:'user_id', orderDir:'asc' }).catch(()=>({rows:[]})),
+    api('list', { table:'profiles', limit:2000 }).catch(()=>({rows:[]}))
+  ]);
+  CV_VERI = {
+    oyuncular: (pl.rows||[]).filter(p => p && p.user_id && p.is_bot !== true),
+    profiller: pf.rows || []
+  };
+  CV_ZAMAN = Date.now();
+}
+
+function cvCiz(){
+  const alan = document.getElementById('cvArea');
+  if (!alan) return;
+  if (!CV_VERI){ alan.innerHTML = '<div class="cvbox"><div class="cvbos">Yükleniyor…</div></div>'; return; }
+
+  const now = Date.now();
+  const oyn = CV_VERI.oyuncular, prof = CV_VERI.profiller;
+
+  const suAn   = oyn.filter(p => now - _cvMs(p.last_seen) <= 5*60000);
+  const sonSaat= oyn.filter(p => now - _cvMs(p.last_seen) <= 60*60000).length;
+  const bas    = _cvBaslangic(CV_SECILI);
+  const aktif  = oyn.filter(p => _cvMs(p.last_seen) >= bas).length;
+  const yeni   = prof.filter(x => _cvMs(x.created_at) >= bas).length;
+  const hic    = oyn.filter(p => !p.last_seen).length;
+  const donemAd= (CV_DONEM.find(d=>d.k===CV_SECILI)||{}).ad || '';
+
+  const canliListe = suAn.slice().sort((a,b)=>_cvMs(b.last_seen)-_cvMs(a.last_seen)).slice(0,25);
+
+  alan.innerHTML = `<div class="cvbox">
+    <div class="cvhead">
+      <div>
+        <h3>Ziyaret &amp; Aktiflik</h3>
+        <div class="cvsub">Gerçek kullanıcılar — botlar sayılmaz</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span class="cvcanli"><span class="cvnokta"></span>60 sn'de bir tazelenir</span>
+        <div class="rk-sure-btns" id="cvBtns">
+          ${CV_DONEM.map(d=>`<button data-k="${d.k}" class="${d.k===CV_SECILI?'on':''}">${d.ad}</button>`).join('')}
+        </div>
+      </div>
+    </div>
+
+    <div class="rk-ozet">
+      ${_opKart('ŞU AN OYUNDA', suAn.length, 'son 5 dakika')}
+      ${_opKart('SON 1 SAAT',   sonSaat,     'giriş yapan kişi', 's')}
+      ${_opKart('AKTİF KULLANICI', aktif,    donemAd.toLowerCase() + ' içinde giren')}
+      ${_opKart('YENİ KAYIT',   yeni,        donemAd.toLowerCase() + ' açılan hesap', 's')}
+      ${_opKart('TOPLAM KAYITLI', prof.length, 'hesap')}
+      ${_opKart('HİÇ GİRMEMİŞ', hic,         'kayıt olup oynamamış', hic>0?'k':'')}
+    </div>
+
+    <div class="cvliste">
+      <div class="cvliste-bas">Şu an oyunda (${suAn.length})</div>
+      ${canliListe.length
+        ? canliListe.map(p=>`<div class="cvsat">
+             <span class="cvnokta"></span>
+             <span class="cvad">${uEsc(p.name||'(isimsiz)')}${p.team_name?' · '+uEsc(p.team_name):''}</span>
+             <span class="cvsure">${_cvGecen(_cvMs(p.last_seen))}</span>
+           </div>`).join('')
+        : '<div class="cvbos">Şu anda oyunda kimse yok.</div>'}
+    </div>
+
+    <div class="opnot" style="margin-top:12px">
+      <b>Nasıl okunur:</b> "Aktif kullanıcı", seçili dönemde <b>en az bir kez</b>
+      oyuna giren farklı kişi sayısıdır. Oyun her girişte oyuncunun
+      <code>last_seen</code> damgasını günceller.<br>
+      <b>Sınır:</b> <code>last_seen</code> yalnızca <b>son</b> girişi tutuyor,
+      gün gün geçmiş tutmuyor. Bu yüzden "12 Ağustos'ta kaç kişi girdi"
+      gibi geçmişe dönük gün grafiği çıkarılamıyor. İstersen günlük giriş
+      kaydı tutan küçük bir tablo ekleyebiliriz — kişi başına günde tek
+      satır, Supabase'i yormaz.
+    </div>
+  </div>`;
+
+  const btns = document.getElementById('cvBtns');
+  if (btns) btns.querySelectorAll('button').forEach(b => b.onclick = () => {
+    CV_SECILI = b.dataset.k; cvCiz();
+  });
+}
+
+let CV_TIK = null;
+function cvBasla(){
+  if (CV_TIK) { clearInterval(CV_TIK); CV_TIK = null; }
+  cvCiz();
+  cvVeriCek().then(cvCiz).catch(()=>{
+    const alan = document.getElementById('cvArea');
+    if (alan) alan.innerHTML = '<div class="cvbox"><div class="cvbos">Ziyaret özeti okunamadı.</div></div>';
+  });
+  CV_TIK = setInterval(() => {
+    // Özet sayfasından çıkıldıysa kendini durdur
+    if (!document.getElementById('cvArea')) { clearInterval(CV_TIK); CV_TIK = null; return; }
+    cvVeriCek().then(cvCiz).catch(()=>{});
+  }, 60000);
+}
 
 /* ═══════════════════════════════════════════════════════════════════
    REKLAM YÖNETİMİ
