@@ -28787,7 +28787,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-30-ntsekme-401';
+const APP_BUILD = '2026-08-30-kademe-euro-403';
 
 (function _cacheBustCheck() {
   try {
@@ -45042,19 +45042,57 @@ function getLeagueFlag(leagueName) {
   return '';
 }
 
-// 🆕 Lig isimlerini standartlaştır — telif riski olmadan: "Türkiye Süper Lig", "Türkiye 1. Lig" formatı
-(function migrateLeagueNames(){
-  if(false) return;
-  for (const code of _cftGetCountryCodes()){
-    const country = _cftGetCountry(code);
-    if(!country || !country.leagues) continue;
-    country.leagues.forEach((lg, idx) => {
-      if(!lg) return;
-      const tierLabel = (idx === 0) ? 'Süper Lig' : (idx + '. Lig');
-      lg.name = country.name + ' ' + tierLabel;
-    });
-  }
-})();
+// ═══════════════════════════════════════════════════════════════════
+//  LİG KADEME ADLARI — TEK KAYNAK
+//  Kural (tier 1 TABANLI):
+//     tier 1 → Süper Lig
+//     tier 2 → 1. Lig
+//     tier 3 → 2. Lig
+//     tier 4 → 3. Lig   … yani tier ≥ 2 için (tier - 1) + ". Lig"
+//
+//  ⚠️ Buradaki fonksiyon eskiden bir IIFE idi ve `if(false) return;`
+//     satırı olmasa bile hiç işe yaramıyordu: script çözümlenirken
+//     ANINDA çalışıyor, oysa ülke/lig verisi `bootstrapWorld()` ile
+//     ÇOK SONRA yükleniyordu. Yani _cftDb o an bomboştu ve döngü
+//     hiç dönmüyordu. Artık bootstrapWorld verileri yükledikten
+//     HEMEN SONRA çağrılıyor.
+// ═══════════════════════════════════════════════════════════════════
+function _ligTierEtiketi(tier){
+  const t = Number(tier);
+  if (!isFinite(t) || t <= 1) return 'Süper Lig';
+  return (t - 1) + '. Lig';
+}
+window._ligTierEtiketi = _ligTierEtiketi;
+
+function _ligAdlariniDuzelt(){
+  let duzeltilen = 0;
+  try {
+    for (const code of _cftGetCountryCodes()){
+      const country = _cftGetCountry(code);
+      if(!country || !Array.isArray(country.leagues)) continue;
+      // Dizi sırası = kademe sırası olsun (bazı yerler leagues[idx] ile eriyor)
+      country.leagues.sort((a,b) => (Number(a && a.tier)||0) - (Number(b && b.tier)||0));
+      country.leagues.forEach((lg, idx) => {
+        if(!lg) return;
+        const tier = Number.isFinite(Number(lg.tier)) ? Number(lg.tier) : (idx + 1);
+        lg.tier = tier;
+        const dogru  = _ligTierEtiketi(tier);
+        const mevcut = String(lg.name || '').trim();
+        if (!mevcut){ lg.name = dogru; duzeltilen++; return; }
+        // SADECE standart kalıptaki adları düzeltiriz ("2. Lig", "Türkiye 1. Lig",
+        // "Süper Lig" gibi). Özel/elle verilmiş bir isim varsa dokunmayız.
+        const m = /^(.*?)\s*(S[üu]per\s*Lig|\d+\.\s*Lig)\s*$/i.exec(mevcut);
+        if (!m) return;
+        const onek = (m[1] || '').trim();
+        const yeni = onek ? (onek + ' ' + dogru) : dogru;
+        if (yeni !== mevcut){ lg.name = yeni; duzeltilen++; }
+      });
+    }
+  } catch(e){}
+  if (duzeltilen) console.info('[lig] kademe adı düzeltildi:', duzeltilen);
+  return duzeltilen;
+}
+window._ligAdlariniDuzelt = _ligAdlariniDuzelt;
 
 const LG_REGIONS = {
   west:['EN','IE','SC','FR','DE','NL','BE','AT','CH'],
@@ -45707,6 +45745,9 @@ async function bootstrapWorld(){
       db[cc].total++;
     }
     _cftDb = db;
+    // 🆕 Kademe adlarını burada düzelt — veri YÜKLENDİKTEN sonra.
+    //    Sunucudaki teams.tier_name bayat/yanlış olsa bile ekranda doğru görünür.
+    try { _ligAdlariniDuzelt(); } catch(e) {}
     console.info('[bootstrap] _cftDb yüklendi:', Object.keys(db).length, 'ülke /', all.length, 'takım');
     // 🆕 Botları background'da preload et (boot'u bloke etmesin)
     // getOrCreateTeamRoster zaten gerektiğinde fetch ediyor; preload sadece optimizasyon
@@ -53443,7 +53484,7 @@ function _fedLeagueName(cc, tier) {
   } catch(e) {}
   const t = Number(tier);
   if (!isFinite(t)) return 'Lig';
-  return t <= 1 ? 'Süper Lig' : ((t - 1) + '. Lig');
+  return _ligTierEtiketi(t);
 }
 // Filtre butonları için kısaltılmış ad (uzun lig adları taşmasın)
 function _fedLeagueShort(name, tier) {
@@ -53453,7 +53494,7 @@ function _fedLeagueShort(name, tier) {
     return n.replace(/ligi?$/i, 'Lig').slice(0, 12) + '…';
   }
   const t = Number(tier);
-  return t <= 1 ? 'Süper Lig' : ((t - 1) + '. Lig');
+  return _ligTierEtiketi(t);
 }
 
 function computeFederationMembers(cc) {
@@ -63832,7 +63873,7 @@ async function tvOpenStat(kind) {
   const trnName = { champ:'Championship League', elite:'Elite League', conv:'Convergence League', enc:'EURO Nations Cup' };
   const phaseName = { group:'Grup Aşaması', playoff:'Play-off', po2:'Play-off 2', r32:'Son 32', r16:'Son 16', qf:'Çeyrek Final', sf:'Yarı Final', final:'Final' };
   const cupLogo = (k, sz) => (typeof _arCupLogo === 'function') ? _arCupLogo(k, sz || 20) : '🏆';
-  const lgName = (tier) => (typeof _tvLeagueNameOf === 'function') ? _tvLeagueNameOf(tgt.cc, tier) : (tier + '. Lig');
+  const lgName = (tier) => (typeof _tvLeagueNameOf === 'function') ? _tvLeagueNameOf(tgt.cc, tier) : _ligTierEtiketi(tier);
 
   const row = (sn, icon, title, meta, tag, win) =>
     `<div class="tvs-row">
@@ -63926,8 +63967,7 @@ function _tvLeagueNameOf(cc, tierIdx) {
     if (lg && lg.name) return lg.name;
   } catch(e) {}
   if (!isFinite(ti)) return 'Lig';
-  if (ti <= 1) return 'Süper Lig';
-  return (ti - 1) + '. Lig';
+  return _ligTierEtiketi(ti);
 }
 
 async function renderTrophyShelf() {
@@ -67780,6 +67820,54 @@ function _euRenderKnockoutMini(trnKey, season, userTeamName, roundLabel) {
   } catch(e) { return { html: '<div class="lg-scene-empty">Veri okunamadı</div>', userIn: false }; }
 }
 
+// 🆕 SON EURO CUP ŞAMPİYONU
+//   Yeni kura çekilene kadar Avrupa Sahnesi'ndeki EURO Cup kutusu boş
+//   kalıyordu. Artık kulüp turnuvalarındaki (CHM/ELI/CON) şampiyon
+//   rozetinin aynısı gösteriliyor — son şampiyon ülkenin bayrağıyla.
+//   encEnsureState sunucuda kayıt yoksa null döner, hiçbir şey üretmez.
+function _encSonSampiyon(season) {
+  try {
+    if (typeof encEnsureState !== 'function') return null;
+    const bu = Number(season) || 0;
+    for (let s = bu; s >= 2 && s >= bu - 5; s--) {
+      const st = encEnsureState(s);
+      const fm = st && st.knockout && st.knockout.final;
+      if (!fm) continue;
+      let kzKod = null, kzAd = null, kzBayrak = null;
+      if (fm.hs != null && fm.as != null && fm.hs !== fm.as) {
+        const ev = fm.hs > fm.as;
+        kzKod = ev ? fm.home : fm.away;
+        kzAd  = ev ? (fm.homeName || fm.home) : (fm.awayName || fm.away);
+        kzBayrak = ev ? fm.homeFlag : fm.awayFlag;
+      } else if (fm.pens && Array.isArray(fm.pens) && fm.pens.length === 2 && fm.pens[0] !== fm.pens[1]) {
+        const ev = fm.pens[0] > fm.pens[1];
+        kzKod = ev ? fm.home : fm.away;
+        kzAd  = ev ? (fm.homeName || fm.home) : (fm.awayName || fm.away);
+        kzBayrak = ev ? fm.homeFlag : fm.awayFlag;
+      }
+      if (!kzAd) continue;
+      if (!kzBayrak && typeof _hmUlkeBayrak === 'function') {
+        kzBayrak = _hmUlkeBayrak(kzKod) || _hmUlkeBayrak(kzAd) || '';
+      }
+      return { ad: kzAd, kod: kzKod, bayrak: kzBayrak || '🏳️', sezon: s };
+    }
+  } catch(e) {}
+  return null;
+}
+window._encSonSampiyon = _encSonSampiyon;
+
+// Kura hazır değilken gösterilecek gövde: mesaj + son şampiyon rozeti
+function _encBeklemeHtml(season, mesaj) {
+  const sm = _encSonSampiyon(season);
+  if (!sm) return '<div class="lg-scene-empty">' + mesaj + '</div>';
+  const rozet = (typeof _euSampiyonHtml === 'function')
+    ? _euSampiyonHtml({ ad: sm.ad, bayrak: sm.bayrak, trn: 'enc' }) : '';
+  return '<div class="lg-scene-empty" style="padding-bottom:4px">' + mesaj + '</div>'
+       + rozet
+       + '<div class="lg-scene-empty" style="padding-top:2px;font-size:10px;opacity:.75">'
+       + 'Sezon ' + sm.sezon + ' şampiyonu</div>';
+}
+
 // ─── EURO NATIONALS CUP ───
 // Maç formatı kulüp turnuvalarından farklı: { home: 'TR', homeName, homeFlag, hs, as, result, ... }
 // Kullanıcı eşleşmesi ülke koduyla (countryCode) yapılır.
@@ -67823,7 +67911,8 @@ function _euRenderEuroGroupMini(season, userCountry) {
 
     const state = encEnsureState(season);
     if (!state || !state.groups || !state.groups.length) {
-      return { html: '<div class="lg-scene-empty">Gruplar hazırlanıyor</div>', userIn: false };
+      // 🆕 Kura çekilene kadar son şampiyonun bayrağı dursun
+      return { html: _encBeklemeHtml(season - 1, 'Gruplar hazırlanıyor'), userIn: false };
     }
 
     // Kullanıcının ülkesinin grubu varsa onu, yoksa Grup A
@@ -67885,7 +67974,7 @@ function _euRenderEuroKnockoutMini(season, userCountry, roundLabel) {
 
     const state = encEnsureState(season);
     if (!state || !state.knockout) {
-      return { html: '<div class="lg-scene-empty">Bracket hazırlanıyor</div>', userIn: false };
+      return { html: _encBeklemeHtml(season - 1, 'Eşleşmeler hazırlanıyor'), userIn: false };
     }
 
     const ko = state.knockout;
@@ -67896,7 +67985,7 @@ function _euRenderEuroKnockoutMini(season, userCountry, roundLabel) {
     else if (/Final/i.test(roundLabel))  matches = ko.final ? [ko.final] : [];
     else                                  matches = ko.r16 || [];   // Son 16 default
 
-    if (!matches.length) return { html: '<div class="lg-scene-empty">Tur bilgisi yok</div>', userIn: false };
+    if (!matches.length) return { html: _encBeklemeHtml(season - 1, 'Tur kurası bekleniyor'), userIn: false };
 
     let userIn = false;
     // Kullanıcının maçını öne al
@@ -91593,7 +91682,10 @@ function _arLoading(){ return '<div class="ar-load"><div class="ar-spin"></div>Y
 function _arCurSeason(){ try { var i=getSeasonInfo(); return i && i.season ? i.season : 1; } catch(e){ return 1; } }
 function _arTierName(cc,tier){
   try { var c=_cftGetCountry(cc); var lg=((c&&c.leagues)||[]).find(function(l){return l.tier===tier;}); if(lg&&lg.name) return lg.name; } catch(e){}
-  return tier===0 ? 'Süper Lig' : (tier+'. Lig');
+  // ⚠️ `tier` 1 TABANLI gelir (match_state.tier / trophy.tierIdx). Eskiden
+  //    0 tabanlıymış gibi işleniyordu: Süper Lig "1. Lig", 1. Lig "2. Lig"
+  //    görünüyordu. Ortak kurala bağlandı.
+  return _ligTierEtiketi(tier);
 }
 function _arTeamMeta(cc,name){
   try { var c=_cftGetCountry(cc);
