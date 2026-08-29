@@ -1136,8 +1136,17 @@ body.nt-chat-active #page-national #nt-chat{
   flex-direction:column;
   padding:0; margin:0;
   background:var(--bg);
-  z-index:5;
+  /* ⚠️ Eskiden 5'ti. Hero bardaki sıralama/piyasa değeri rozetleri
+     (.thb-rank-stack) z-index:6 olduğu için sohbetin ÜSTÜNE biniyordu. */
+  z-index:8;
 }
+/* 🆕 Sohbet sekmesi açıkken hero bar gizlenir.
+   Kulüp sohbetinde hero bar zaten `#team-roster`ın İÇİNDE — sekme
+   değişince kendiliğinden kayboluyor. Milli takımda hero bar
+   sekmelerin DIŞINDA durduğu için her sekmede ekranda kalıyordu:
+   rozetler sohbetin üstüne biniyor, sekme şeridi de kayıyordu.
+   Artık kulüp sohbetiyle birebir aynı davranıyor. */
+body.nt-chat-active #page-national .nt-hero-bar{ display:none !important; }
 #page-national #nt-chat .vt-section{
   flex:1;display:flex;flex-direction:column;min-height:0;
   margin:0;padding:8px 0 0;border:none;background:transparent;
@@ -28776,7 +28785,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-29-reklam-398';
+const APP_BUILD = '2026-08-29-ntsohbet-399';
 
 (function _cacheBustCheck() {
   try {
@@ -58633,10 +58642,19 @@ function ntTab(name, el) {
   else if(name === 'trophies' && typeof ntRenderTrophies === 'function') ntRenderTrophies();
 
   if(name === 'chat') {
-    _ntChatSeritHizala();                  // 🆕 önce şeridi üst barın altına al
-    _ntChatUstOlc();                       // 🆕 sonra sekme şeridinin altını ölç
+    // ⚠️ SIRA ÖNEMLİ.
+    // 1) Önce sınıf: hero bar gizlenir, sayfa kısalır.
+    // 2) Sonra başa kaydır: hero bar gidince sekme şeridi zaten üst
+    //    barın hemen altına gelir; kaydırma konumuna bağlı ölçüm
+    //    yapmaya gerek kalmaz (eski yöntem, sohbet fixed olunca sayfa
+    //    kısaldığı için tarayıcı kaydırmayı kırpıyor ve sekmeler
+    //    ekrandan kayıyordu).
+    // 3) En son ölç.
     document.body.classList.add('nt-chat-active');
-    requestAnimationFrame(_ntChatUstOlc);  // render sonrası bir kez daha
+    _ntChatSeritHizala();
+    _ntChatUstOlc();
+    requestAnimationFrame(_ntChatUstOlc);  // render sonrası
+    setTimeout(_ntChatUstOlc, 140);        // yazı tipi/görsel oturunca
   } else {
     document.body.classList.remove('nt-chat-active');
   }
@@ -58673,12 +58691,10 @@ function _ntChatUstOlc(){
 function _ntChatSeritHizala(){
   try{
     if(document.body.classList.contains('kbd-open')) return;
-    const tabs = document.querySelector('#page-national .nt-tabs');
-    if(!tabs) return;
-    const tb  = document.getElementById('topbar');
-    const ust = tb ? Math.round(tb.getBoundingClientRect().height) : 0;
-    const hedef = Math.round(window.scrollY + tabs.getBoundingClientRect().top - ust);
-    window.scrollTo(0, Math.max(0, hedef));
+    // Hero bar `nt-chat-active` ile gizlendiği için sayfanın başında
+    // artık sadece başlık kutusu + sekme şeridi kalıyor. Başa almak
+    // yeterli; şerit üst barın hemen altına oturuyor.
+    window.scrollTo(0, 0);
   }catch(e){}
 }
 window._ntChatSeritHizala = _ntChatSeritHizala;
