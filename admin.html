@@ -744,7 +744,8 @@ function logout(){ TOKEN=null; META=null; CUR=null; clearSess(); document.body.c
 const DASH = [
   {t:'profiles',label:'Kullanıcılar'},{t:'players',label:'Oyuncular'},{t:'teams',label:'Takımlar'},
   {t:'match_state',label:'Canlı Maçlar'},{t:'match_results',label:'Maç Sonuçları'},{t:'user_wallet',label:'Cüzdanlar'},
-  {t:'tournament_state',label:'Turnuvalar'},{t:'transfer_listings',label:'Transfer İlanları'},{t:'social_posts',label:'Sosyal Gönderiler'}
+  {t:'tournament_state',label:'Turnuvalar'},{t:'transfer_listings',label:'Transfer İlanları'},{t:'social_posts',label:'Sosyal Gönderiler'},
+  {t:'ads',label:'Yayındaki Reklam'}
 ];
 function openDash(){
   CUR=null;
@@ -754,8 +755,25 @@ function openDash(){
   $('main').innerHTML = `<div class="titlebox fadein"><h2>Özet</h2><span class="cnt">CSC Admin · genel bakış</span></div>
     <div class="cardgrid fadein">${DASH.map(d=>`<div class="card" data-t="${d.t}"><div class="num" id="num-${d.t}">…</div><div class="lbl">${d.label}</div></div>`).join('')}</div>
     <div id="fbArea"></div>`;
-  $('main').querySelectorAll('.card').forEach(b=>b.onclick=()=>{ const t=b.dataset.t; if(t==='profiles') openUsers(); else if(t==='teams') openClubs(); else if(t==='players') openPlayers(); else openTable(t); });
+  $('main').querySelectorAll('.card').forEach(b=>b.onclick=()=>{ const t=b.dataset.t; if(t==='profiles') openUsers(); else if(t==='teams') openClubs(); else if(t==='players') openPlayers(); else if(t==='ads') openAds(); else openTable(t); });
   DASH.forEach(async d=>{
+    // Reklam kartı toplam kayıt değil, O AN YAYINDA olan reklam sayısını gösterir
+    if (d.t === 'ads') {
+      try{
+        const r = await api('list',{ table:'ads', limit:1000 });
+        const now = Date.now();
+        const yayinda = (r.rows||[]).filter(a => a.active !== false
+          && now >= new Date(a.starts_at).getTime()
+          && now <= new Date(a.ends_at).getTime()).length;
+        const el = $('num-ads');
+        if (el) {
+          el.textContent = yayinda.toLocaleString('tr');
+          const lbl = el.parentElement && el.parentElement.querySelector('.lbl');
+          if (lbl) lbl.textContent = 'Yayındaki Reklam · ' + (r.count||0) + ' kayıt';
+        }
+      } catch(e){ const el=$('num-ads'); if(el) el.textContent='—'; }
+      return;
+    }
     try{ const r=await api('list',{table:d.t,limit:1}); const el=$('num-'+d.t); if(el) el.textContent=(r.count||0).toLocaleString('tr'); }
     catch(e){ const el=$('num-'+d.t); if(el) el.textContent='—'; }
   });
