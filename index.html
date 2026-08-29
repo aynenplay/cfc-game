@@ -28776,7 +28776,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-29-bosluk-396';
+const APP_BUILD = '2026-08-29-sekme-397';
 
 (function _cacheBustCheck() {
   try {
@@ -58633,7 +58633,8 @@ function ntTab(name, el) {
   else if(name === 'trophies' && typeof ntRenderTrophies === 'function') ntRenderTrophies();
 
   if(name === 'chat') {
-    _ntChatUstOlc();                       // 🆕 sekme şeridinin altını ölç
+    _ntChatSeritHizala();                  // 🆕 önce şeridi üst barın altına al
+    _ntChatUstOlc();                       // 🆕 sonra sekme şeridinin altını ölç
     document.body.classList.add('nt-chat-active');
     requestAnimationFrame(_ntChatUstOlc);  // render sonrası bir kez daha
   } else {
@@ -58649,10 +58650,38 @@ function _ntChatUstOlc(){
     if(document.body.classList.contains('kbd-open')) return;  // klavye açıkken ölçme
     const tabs = document.querySelector('#page-national .nt-tabs');
     if(!tabs) return;
-    const alt = Math.round(tabs.getBoundingClientRect().bottom);
+    let alt = Math.round(tabs.getBoundingClientRect().bottom);
+    // ⚠️ getBoundingClientRect EKRANA göre ölçer. Milli takım sayfasının
+    //    başlığı + hero barı uzun olduğu için sayfa kaydırılmamışken
+    //    sekme şeridi ekranın çok aşağısında kalıyor. Ölçülen değer
+    //    doğrudan sohbet kutusunun ÜST kenarı olduğundan, kutuya bir
+    //    şerit kadar yer kalıyordu (620 px'lik pencerede 597 px → 23 px).
+    //    Güvenlik sınırı: üst kenar ekranın yarısını geçemez; geçerse
+    //    üst barın hemen altına sabitlenir.
+    const tb    = document.getElementById('topbar');
+    const tbAlt = tb ? Math.round(tb.getBoundingClientRect().bottom) : 0;
+    const sinir = Math.round((window.innerHeight || 800) * 0.5);
+    if(alt <= 0 || alt > sinir) alt = Math.max(0, tbAlt);
     if(alt > 0) document.documentElement.style.setProperty('--nt-chat-top', alt + 'px');
   }catch(e){}
 }
+
+// 🆕 Sohbet açılmadan önce sekme şeridini üst barın hemen altına kaydır.
+//    Böylece ölçüm her seferinde aynı sonucu verir ve sohbet kutusu
+//    ekranın tamamını kullanır — sayfanın nereye kaydırılmış olduğundan
+//    bağımsız.
+function _ntChatSeritHizala(){
+  try{
+    if(document.body.classList.contains('kbd-open')) return;
+    const tabs = document.querySelector('#page-national .nt-tabs');
+    if(!tabs) return;
+    const tb  = document.getElementById('topbar');
+    const ust = tb ? Math.round(tb.getBoundingClientRect().height) : 0;
+    const hedef = Math.round(window.scrollY + tabs.getBoundingClientRect().top - ust);
+    window.scrollTo(0, Math.max(0, hedef));
+  }catch(e){}
+}
+window._ntChatSeritHizala = _ntChatSeritHizala;
 window._ntChatUstOlc = _ntChatUstOlc;
 
 function teamTab(name, el) {
@@ -68504,8 +68533,23 @@ function _fixScrollToCurrent(deneme) {
               || kartlar.find(c => !c.classList.contains('is-past-card'))
               || kartlar[kartlar.length - 1];
       if (!hedef) return;
-      // scrollIntoView iç içe kaydırma kaplarını da doğru çözer
-      hedef.scrollIntoView({ block: 'center', inline: 'nearest', behavior: (n === 0 ? 'auto' : 'smooth') });
+      // ⚠️ Eskiden `hedef.scrollIntoView(...)` çağrılıyordu. scrollIntoView
+      //    hedefi görünür yapmak için ÜST KAPLARIN HEPSİNİ kaydırır —
+      //    sayfa da kayıyor, sekme şeridi (Kadro/Diziliş/Sohbet/...)
+      //    ekranın üstünden çıkıyordu. Sadece Fikstür'de olmasının sebebi
+      //    buydu; diğer sekmeler böyle bir çağrı yapmıyor.
+      //    Artık YALNIZCA liste kutusunun kendi scrollTop'u değişiyor.
+      const kutuR = el.getBoundingClientRect();
+      const kartR = hedef.getBoundingClientRect();
+      const ortala = (kartR.top - kutuR.top) + el.scrollTop
+                   - (el.clientHeight - kartR.height) / 2;
+      const enFazla = Math.max(0, el.scrollHeight - el.clientHeight);
+      const yeniTop = Math.max(0, Math.min(ortala, enFazla));
+      if (typeof el.scrollTo === 'function') {
+        el.scrollTo({ top: yeniTop, behavior: (n === 0 ? 'auto' : 'smooth') });
+      } else {
+        el.scrollTop = yeniTop;
+      }
       // Layout oturduktan sonra bir kez daha (görsel/font yüklemesi kaydırabiliyor)
       if (n === 0) _fixScrollToCurrent(1);
     } catch(e) {}
