@@ -28826,7 +28826,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-30-bayrak-407';
+const APP_BUILD = '2026-08-30-xsolla-408';
 
 (function _cacheBustCheck() {
   try {
@@ -72320,24 +72320,165 @@ function renderDiamondPacks() {
   }).join('');
 }
 
-function buyDiamondPack(idx) {
-  // 🔒 A2 · ELMAS PAKETİ ARTIK BEDAVA DEĞİL.
-  //   Bu fonksiyon hiçbir ödeme almadan cüzdana elmas yatırıyordu:
-  //   mağazadaki her "Satın Al" tıklaması bedava elmas demekti.
-  //   Elmas basma yetkisi yalnızca ödeme sağlayıcının webhook'una ait
-  //   olacak (sunucu tarafı, service_role). O bağlanana kadar bu yol kapalı.
-  const p = DIAMOND_PACKS[idx] || {};
-  const total = (p.amount || 0) + (p.bonus || 0);
-  if (typeof showInfoModal === 'function') {
-    showInfoModal({
-      icon: '🔜', iconColor: '#f59e0b',
-      title: 'Ödeme Sistemi Yakında',
-      subtitle: `${total.toLocaleString('tr')} 💎 · ${p.price || ''}`,
-      body: '<div class="info-modal-note">Elmas satın alma güvenli ödeme altyapısına bağlanıyor. '
-          + 'Çok yakında bu paketler aktif olacak.</div>'
+// ═══════════════════════════════════════════════════════════════════
+//  XSOLLA ÖDEME — elmas paketi satın alma
+//
+//  AKIŞ:
+//    1) Sunucudan ödeme jetonu iste (kullanıcı kimliği sunucuda
+//       doğrulanır, tutar ve elmas miktarı SUNUCUDAKİ tablodan gelir).
+//    2) Xsolla ödeme penceresini oyunun üzerinde aç.
+//    3) Pencere kapanınca cüzdanı sunucudan yokla — elmas Xsolla'nın
+//       webhook'u ile yatar, o yüzden birkaç saniye gecikebilir.
+//
+//  ⚠️ Bu dosyada elmas YATIRAN tek satır yok. İstemci sadece jeton
+//     ister ve sonucu bekler. Elmas basma yetkisi tamamen sunucuda.
+// ═══════════════════════════════════════════════════════════════════
+const XSOLLA_FN     = SUPABASE_URL + '/functions/v1/xsolla';
+const XSOLLA_WIDGET = 'https://cdn.xsolla.net/embed/paystation/1.2.3/widget.min.js';
+let _xsWidgetYukleniyor = null;
+
+function _xsWidgetYukle() {
+  if (window.XPayStationWidget) return Promise.resolve(true);
+  if (_xsWidgetYukleniyor) return _xsWidgetYukleniyor;
+  _xsWidgetYukleniyor = new Promise((coz) => {
+    const sc = document.createElement('script');
+    sc.src = XSOLLA_WIDGET;
+    sc.async = true;
+    sc.onload  = () => coz(!!window.XPayStationWidget);
+    sc.onerror = () => coz(false);
+    document.head.appendChild(sc);
+    setTimeout(() => coz(!!window.XPayStationWidget), 8000);
+  });
+  return _xsWidgetYukleniyor;
+}
+
+// Ödeme sonrası cüzdanı yokla — webhook birkaç saniye sürebilir
+async function _xsElmasBekle(oncekiDia, beklenenDia) {
+  const HEDEF = (Number(oncekiDia) || 0) + (Number(beklenenDia) || 0);
+  for (let i = 0; i < 20; i++) {                 // 20 × 1.5 sn ≈ 30 sn
+    await new Promise(r => setTimeout(r, 1500));
+    try {
+      const c = await wlLoadFromServer();
+      const simdi = Number(c && c.dia) || 0;
+      if (simdi >= HEDEF) { try { wlSyncHeader(); } catch(e) {} return simdi; }
+      if (simdi > (Number(oncekiDia) || 0)) { try { wlSyncHeader(); } catch(e) {} return simdi; }
+    } catch(e) {}
+  }
+  return null;
+}
+
+async function buyDiamondPack(idx) {
+  const p = DIAMOND_PACKS[idx];
+  if (!p) return;
+  const toplam = (p.amount || 0) + (p.bonus || 0);
+  const sku = 'dia_' + p.priceEur;
+
+  try { showShopToast('💳 Ödeme hazırlanıyor…', '#3b82f6'); } catch(e) {}
+
+  // ── 1) Oturum ──
+  let jwt = null;
+  try {
+    const { data } = await window.sb.auth.getSession();
+    jwt = data && data.session && data.session.access_token;
+  } catch(e) {}
+  if (!jwt) {
+    try { showShopToast('⚠️ Önce giriş yapman gerekiyor.', '#ef4444'); } catch(e) {}
+    return;
+  }
+
+  // Satın almadan önceki bakiye — sonradan karşılaştıracağız
+  let oncekiDia = 0;
+  try { const c = await wlLoadFromServer(); oncekiDia = Number(c && c.dia) || 0; } catch(e) {}
+
+  // ── 2) Jeton ──
+  let cevap = null;
+  try {
+    const r = await fetch(XSOLLA_FN + '?action=token', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + jwt,
+        'apikey': SUPABASE_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ sku })
     });
+    cevap = await r.json().catch(() => null);
+  } catch(e) {
+    console.warn('[xsolla] jeton isteği hatası', e);
+  }
+
+  if (!cevap || !cevap.ok || !cevap.token) {
+    const kod = (cevap && cevap.error) || 'baglanti_hatasi';
+    const mesajlar = {
+      xsolla_ayarlari_eksik: 'Ödeme sistemi henüz yapılandırılmadı.',
+      gecersiz_paket:        'Bu paket tanınmıyor.',
+      oturum_yok:            'Önce giriş yapman gerekiyor.',
+      yetkisiz_oturum:       'Oturumun düşmüş, tekrar giriş yap.',
+      jeton_alinamadi:       'Ödeme sağlayıcısına bağlanılamadı.',
+      baglanti_hatasi:       'Bağlantı kurulamadı, tekrar dene.'
+    };
+    try { showShopToast('⚠️ ' + (mesajlar[kod] || 'Ödeme başlatılamadı.'), '#ef4444'); } catch(e) {}
+    console.warn('[xsolla] jeton alınamadı', cevap);
+    return;
+  }
+
+  // ── 3) Ödeme penceresi ──
+  const hazir = await _xsWidgetYukle();
+
+  if (!hazir || !window.XPayStationWidget) {
+    // Kütüphane yüklenemediyse doğrudan ödeme sayfasına yolla
+    const taban = cevap.sandbox
+      ? 'https://sandbox-secure.xsolla.com/paystation4/?token='
+      : 'https://secure.xsolla.com/paystation4/?token=';
+    window.open(taban + encodeURIComponent(cevap.token), '_blank', 'noopener');
+    _xsSonucBekle(oncekiDia, cevap.dia || toplam);
+    return;
+  }
+
+  try {
+    window.XPayStationWidget.init({
+      access_token: cevap.token,
+      sandbox: !!cevap.sandbox,
+      lightbox: { width: '740px', height: '760px', spinner: 'round', spinnerColor: '#00e676' }
+    });
+    let kapandi = false;
+    window.XPayStationWidget.on('close', function(){
+      if (kapandi) return; kapandi = true;
+      _xsSonucBekle(oncekiDia, cevap.dia || toplam);
+    });
+    window.XPayStationWidget.open();
+  } catch(e) {
+    console.warn('[xsolla] pencere açılamadı', e);
+    try { showShopToast('⚠️ Ödeme penceresi açılamadı.', '#ef4444'); } catch(_) {}
+  }
+}
+
+async function _xsSonucBekle(oncekiDia, beklenenDia) {
+  try { showShopToast('⏳ Ödemen kontrol ediliyor…', '#3b82f6'); } catch(e) {}
+  const sonuc = await _xsElmasBekle(oncekiDia, beklenenDia);
+  try { if (typeof renderDiamondPacks === 'function') renderDiamondPacks(); } catch(e) {}
+  if (sonuc != null) {
+    if (typeof showInfoModal === 'function') {
+      showInfoModal({
+        icon: '💎', iconColor: '#00e676',
+        title: 'Elmasların Hesabında',
+        subtitle: (Number(sonuc)||0).toLocaleString('tr') + ' 💎 güncel bakiye',
+        body: '<div class="info-modal-note">Satın alman tamamlandı. İyi oyunlar!</div>'
+      });
+    } else {
+      try { showShopToast('💎 Elmasların hesabına geçti!', '#00e676'); } catch(e) {}
+    }
   } else {
-    showShopToast('🔜 Ödeme sistemi yakında aktif olacak.', '#f59e0b');
+    if (typeof showInfoModal === 'function') {
+      showInfoModal({
+        icon: '⏳', iconColor: '#f59e0b',
+        title: 'Ödeme İşleniyor',
+        subtitle: 'Elmaslar birkaç dakika içinde yatacak',
+        body: '<div class="info-modal-note">Ödemen alındıysa elmaslar en geç birkaç dakika '
+            + 'içinde hesabına geçer. Geçmezse mağaza sayfasını yenile; yine olmazsa '
+            + 'Ayarlar → Geri Bildirim üzerinden bize yaz.</div>'
+      });
+    }
   }
 }
 
