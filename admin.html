@@ -781,7 +781,7 @@ const DASH = [
   {t:'profiles',label:'Kullanıcılar'},{t:'players',label:'Oyuncular'},{t:'teams',label:'Takımlar'},
   {t:'match_state',label:'Canlı Maçlar'},{t:'match_results',label:'Maç Sonuçları'},{t:'user_wallet',label:'Cüzdanlar'},
   {t:'tournament_state',label:'Turnuvalar'},{t:'transfer_listings',label:'Transfer İlanları'},{t:'social_posts',label:'Sosyal Gönderiler'},
-  {t:'ads',label:'Yayındaki Reklam'}
+  {t:'ads',label:'Yayındaki Reklam'},{t:'payments',label:'Elmas Satışı'}
 ];
 function openDash(){
   CUR=null;
@@ -793,9 +793,32 @@ function openDash(){
     <div class="cardgrid fadein">${DASH.map(d=>`<div class="card" data-t="${d.t}"><div class="num" id="num-${d.t}">…</div><div class="lbl">${d.label}</div></div>`).join('')}</div>
     <div id="fbArea"></div>`;
   cvBasla();
-  $('main').querySelectorAll('.card').forEach(b=>b.onclick=()=>{ const t=b.dataset.t; if(t==='profiles') openUsers(); else if(t==='teams') openClubs(); else if(t==='players') openPlayers(); else if(t==='ads') openAds(); else openTable(t); });
+  $('main').querySelectorAll('.card').forEach(b=>b.onclick=()=>{ const t=b.dataset.t; if(t==='profiles') openUsers(); else if(t==='teams') openClubs(); else if(t==='players') openPlayers(); else if(t==='ads') openAds(); else if(t==='payments') openPayments(); else openTable(t); });
   DASH.forEach(async d=>{
     // Reklam kartı toplam kayıt değil, O AN YAYINDA olan reklam sayısını gösterir
+    // Ödeme kartı kayıt sayısı değil, seçili dönemin CİROSUNU gösterir
+    if (d.t === 'payments') {
+      try{
+        await _odVeriCek();
+        const kayit   = _odSuzulmus();
+        const gecerli = kayit.filter(x => x.status !== 'refunded');
+        const ciro    = gecerli.reduce((t,x)=>t+(Number(x.eur)||0),0);
+        const elmas   = gecerli.reduce((t,x)=>t+(Number(x.dia)||0),0);
+        const donemAd = (OD_DONEM.find(x=>x.k===OD_SECILI)||{}).ad || '';
+        const el = $('num-payments');
+        if (el) {
+          el.textContent = _odPara(ciro);
+          const lbl = el.parentElement && el.parentElement.querySelector('.lbl');
+          if (lbl) lbl.textContent = 'Elmas Satışı · ' + donemAd.toLowerCase()
+            + ' · ' + _fmtSayi(elmas) + ' 💎';
+        }
+      } catch(e){
+        const el = $('num-payments'); if (el) el.textContent = '—';
+        const lbl = el && el.parentElement && el.parentElement.querySelector('.lbl');
+        if (lbl) lbl.textContent = 'Elmas Satışı · okunamadı';
+      }
+      return;
+    }
     if (d.t === 'ads') {
       try{
         const r = await api('list',{ table:'ads', limit:1000 });
