@@ -20250,6 +20250,46 @@ body.drawer-open .hb-btn span:nth-child(3){transform:translateY(-6px) rotate(-45
 .hb-drawer .hb-drawer-list::-webkit-scrollbar{width:5px}
 .hb-drawer .hb-drawer-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,.22)}
 
+/* ══ ELMAS SATIN ALMA KUTLAMASI ══════════════════════════════════
+   Ödeme bitip elmas yattığında ana sayfada 1.3 sn görünür, sonra
+   elmaslar cüzdan rozetine uçar (mevcut wlFlyReward animasyonu). */
+.xsk-ov{
+  position:fixed; inset:0; z-index:8000;
+  display:flex; align-items:center; justify-content:center;
+  background:radial-gradient(circle at 50% 45%, rgba(0,176,255,.20), rgba(3,5,9,.86) 60%);
+  -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px);
+  opacity:0; transition:opacity .28s ease;
+}
+.xsk-ov.acik{ opacity:1 }
+.xsk-kutu{ text-align:center; transform:scale(.72); opacity:0;
+  transition:transform .42s cubic-bezier(.2,1.4,.4,1), opacity .3s ease }
+.xsk-ov.acik .xsk-kutu{ transform:scale(1); opacity:1 }
+.xsk-tas{
+  font-size:86px; line-height:1; display:block; margin-bottom:6px;
+  filter:drop-shadow(0 0 24px rgba(0,200,255,.85)) drop-shadow(0 0 52px rgba(0,140,255,.55));
+  animation:xskNabiz 1.15s ease-in-out infinite;
+}
+@keyframes xskNabiz{ 0%,100%{ transform:translateY(0) scale(1) } 50%{ transform:translateY(-7px) scale(1.06) } }
+.xsk-sayi{
+  font-family:'Barlow Condensed',sans-serif; font-weight:900;
+  font-size:64px; line-height:1; letter-spacing:1px; color:#7fe3ff;
+  text-shadow:0 0 18px rgba(0,190,255,.9), 0 0 46px rgba(0,140,255,.6);
+}
+.xsk-alt{
+  font-family:'Barlow Condensed',sans-serif; font-weight:800;
+  font-size:15px; letter-spacing:3px; text-transform:uppercase;
+  color:#cfe9ff; margin-top:10px; opacity:.9;
+}
+.xsk-isik{
+  position:absolute; width:340px; height:340px; border-radius:50%;
+  background:radial-gradient(circle, rgba(0,190,255,.30), transparent 62%);
+  animation:xskHalka 1.6s ease-out infinite; pointer-events:none;
+}
+@keyframes xskHalka{ 0%{ transform:scale(.55); opacity:.85 } 100%{ transform:scale(1.5); opacity:0 } }
+@media (max-width:420px){
+  .xsk-tas{ font-size:66px } .xsk-sayi{ font-size:48px } .xsk-isik{ width:250px;height:250px }
+}
+
 /* Drawer açıkken arka plan kaydırmasın */
 body.drawer-open{overflow:hidden}
 
@@ -28826,7 +28866,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-30-cuzdan-409';
+const APP_BUILD = '2026-08-30-kutlama-410';
 
 (function _cacheBustCheck() {
   try {
@@ -72352,19 +72392,79 @@ function _xsWidgetYukle() {
   return _xsWidgetYukleniyor;
 }
 
-// Ödeme sonrası cüzdanı yokla — webhook birkaç saniye sürebilir
-async function _xsElmasBekle(oncekiDia, beklenenDia) {
-  const HEDEF = (Number(oncekiDia) || 0) + (Number(beklenenDia) || 0);
-  for (let i = 0; i < 20; i++) {                 // 20 × 1.5 sn ≈ 30 sn
+// Ödeme sonrası cüzdanı yokla — webhook birkaç saniye sürebilir.
+//   ⚠️ Başlık ROZETİ bilerek güncellenmiyor: eski rakam ekranda kalsın ki
+//   kutlamadan sonra uçan elmaslar sayacı yükseltebilsin.
+//   Dönen değer: yatan elmas miktarı (yatmadıysa null).
+async function _xsElmasBekle(oncekiDia, beklenenDia, tur) {
+  const ONCE   = Number(oncekiDia) || 0;
+  const HEDEF  = ONCE + (Number(beklenenDia) || 0);
+  const ADIM   = Math.max(1, Number(tur) || 20);
+  for (let i = 0; i < ADIM; i++) {                // varsayılan 20 × 1.5 sn ≈ 30 sn
     await new Promise(r => setTimeout(r, 1500));
     try {
-      const c = await wlLoadFromServer();
+      const c = await wlLoadFromServer();          // _wlCache tazelenir, rozet DONUK kalır
       const simdi = Number(c && c.dia) || 0;
-      if (simdi >= HEDEF) { try { wlSyncHeader(); } catch(e) {} return simdi; }
-      if (simdi > (Number(oncekiDia) || 0)) { try { wlSyncHeader(); } catch(e) {} return simdi; }
+      if (simdi >= HEDEF) return simdi - ONCE;
+      if (simdi > ONCE)   return simdi - ONCE;     // kısmi/farklı tutar da olsa yakala
     } catch(e) {}
   }
   return null;
+}
+
+// 🎉 KUTLAMA — ana sayfada ışıldayan elmas, sonra cüzdana uçuş
+function _xsKutlama(miktar, bitti) {
+  miktar = Math.round(Number(miktar) || 0);
+  if (miktar <= 0) { if (bitti) bitti(); return; }
+
+  // Ana sayfaya dön (sayfa YENİDEN YÜKLENMEZ, sadece sekme değişir)
+  try {
+    if (typeof showPage === 'function') {
+      showPage('home', (typeof findNavBtn === 'function') ? findNavBtn('home') : null);
+    }
+  } catch(e) {}
+
+  const ov = document.createElement('div');
+  ov.className = 'xsk-ov';
+  ov.innerHTML = '<div class="xsk-isik"></div>'
+    + '<div class="xsk-kutu">'
+    +   '<span class="xsk-tas">💎</span>'
+    +   '<div class="xsk-sayi">+' + miktar.toLocaleString('tr') + '</div>'
+    +   '<div class="xsk-alt">Elmasların Hazır</div>'
+    + '</div>';
+  document.body.appendChild(ov);
+  requestAnimationFrame(() => ov.classList.add('acik'));
+
+  setTimeout(() => {
+    // Uçuşun başlayacağı nokta: ışıldayan elmasın bulunduğu yer.
+    // Ölçüm alınamazsa (nadir) ekranın ortasından uçur — animasyon
+    // hiç oynamamaktansa merkezden oynasın.
+    let kaynak = null;
+    try {
+      const tas = ov.querySelector('.xsk-tas');
+      const r = tas && tas.getBoundingClientRect();
+      if (r && r.width) kaynak = { left:r.left, top:r.top, width:r.width, height:r.height };
+    } catch(e) {}
+    if (!kaynak) {
+      const gw = window.innerWidth || 360, gh = window.innerHeight || 640;
+      kaynak = { left: gw/2 - 40, top: gh/2 - 40, width: 80, height: 80 };
+    }
+
+    ov.classList.remove('acik');
+    setTimeout(() => { try { ov.remove(); } catch(e) {} }, 300);
+
+    const kapat = () => {
+      try { window._WL_HOLD.dia = false; } catch(e) {}
+      try { wlSyncHeader(); } catch(e) {}
+      if (bitti) { try { bitti(); } catch(e) {} }
+    };
+    if (kaynak && typeof wlFlyReward === 'function') {
+      // wlFlyReward başlıktaki ESKİ rakamdan başlayıp sayarak yükseltir
+      wlFlyReward(kaynak, 'dia', miktar, kapat);
+    } else {
+      kapat();
+    }
+  }, 1300);
 }
 
 async function buyDiamondPack(idx) {
@@ -72431,7 +72531,8 @@ async function buyDiamondPack(idx) {
       ? 'https://sandbox-secure.xsolla.com/paystation4/?token='
       : 'https://secure.xsolla.com/paystation4/?token=';
     window.open(taban + encodeURIComponent(cevap.token), '_blank', 'noopener');
-    _xsSonucBekle(oncekiDia, cevap.dia || toplam);
+    try { window._WL_HOLD.dia = true; } catch(e) {}
+    _xsSonucBekle(oncekiDia, cevap.dia || toplam, 'done');
     return;
   }
 
@@ -72441,44 +72542,77 @@ async function buyDiamondPack(idx) {
       sandbox: !!cevap.sandbox,
       lightbox: { width: '740px', height: '760px', spinner: 'round', spinnerColor: '#00e676' }
     });
-    let kapandi = false;
+    // Rozeti DONDUR: elmas sunucuda yatsa bile başlıktaki rakam
+    // kutlama animasyonu sayana kadar eski değerinde kalsın.
+    try { window._WL_HOLD.dia = true; } catch(e) {}
+
+    let kapandi = false, durum = null;
+    window.XPayStationWidget.on('status-done',     function(){ durum = 'done'; });
+    window.XPayStationWidget.on('status-troubled', function(){ durum = 'troubled'; });
     window.XPayStationWidget.on('close', function(){
       if (kapandi) return; kapandi = true;
-      _xsSonucBekle(oncekiDia, cevap.dia || toplam);
+      _xsSonucBekle(oncekiDia, cevap.dia || toplam, durum);
     });
     window.XPayStationWidget.open();
   } catch(e) {
     console.warn('[xsolla] pencere açılamadı', e);
+    try { window._WL_HOLD.dia = false; wlSyncHeader(); } catch(_) {}
     try { showShopToast('⚠️ Ödeme penceresi açılamadı.', '#ef4444'); } catch(_) {}
   }
 }
 
-async function _xsSonucBekle(oncekiDia, beklenenDia) {
-  try { showShopToast('⏳ Ödemen kontrol ediliyor…', '#3b82f6'); } catch(e) {}
-  const sonuc = await _xsElmasBekle(oncekiDia, beklenenDia);
-  try { if (typeof renderDiamondPacks === 'function') renderDiamondPacks(); } catch(e) {}
-  if (sonuc != null) {
+// durum: 'done' (ödeme tamam) | 'troubled' (başarısız) | null (kullanıcı kapattı)
+async function _xsSonucBekle(oncekiDia, beklenenDia, durum) {
+  // ── Ödeme sağlayıcı "başarısız" dediyse beklemeye gerek yok ──
+  if (durum === 'troubled') {
+    try { window._WL_HOLD.dia = false; wlSyncHeader(); } catch(e) {}
     if (typeof showInfoModal === 'function') {
       showInfoModal({
-        icon: '💎', iconColor: '#00e676',
-        title: 'Elmasların Hesabında',
-        subtitle: (Number(sonuc)||0).toLocaleString('tr') + ' 💎 güncel bakiye',
-        body: '<div class="info-modal-note">Satın alman tamamlandı. İyi oyunlar!</div>'
+        icon: '⚠️', iconColor: '#ef4444',
+        title: 'Ödeme Tamamlanamadı',
+        subtitle: 'Hesabından para çekilmedi',
+        body: '<div class="info-modal-note">Ödeme sağlayıcı işlemi tamamlayamadı. '
+            + 'Kartında sorun olabilir ya da banka işlemi onaylamamış olabilir. '
+            + 'Farklı bir kart veya ödeme yöntemiyle tekrar deneyebilirsin.</div>'
       });
     } else {
-      try { showShopToast('💎 Elmasların hesabına geçti!', '#00e676'); } catch(e) {}
+      try { showShopToast('⚠️ Ödeme tamamlanamadı.', '#ef4444'); } catch(e) {}
     }
-  } else {
-    if (typeof showInfoModal === 'function') {
-      showInfoModal({
-        icon: '⏳', iconColor: '#f59e0b',
-        title: 'Ödeme İşleniyor',
-        subtitle: 'Elmaslar birkaç dakika içinde yatacak',
-        body: '<div class="info-modal-note">Ödemen alındıysa elmaslar en geç birkaç dakika '
-            + 'içinde hesabına geçer. Geçmezse mağaza sayfasını yenile; yine olmazsa '
-            + 'Ayarlar → Geri Bildirim üzerinden bize yaz.</div>'
-      });
-    }
+    return;
+  }
+
+  // ── Kullanıcı pencereyi kapattı: kısa bir yoklama yeter ──
+  //    (durum bildirimi kaçmış olabilir; elmas yattıysa yine kutlarız)
+  const iptalMi = (durum !== 'done');
+  if (!iptalMi) { try { showShopToast('⏳ Ödemen kontrol ediliyor…', '#3b82f6'); } catch(e) {} }
+
+  const kazanilan = await _xsElmasBekle(oncekiDia, beklenenDia, iptalMi ? 5 : 20);
+  try { if (typeof renderDiamondPacks === 'function') renderDiamondPacks(); } catch(e) {}
+
+  if (kazanilan != null) {
+    _xsKutlama(kazanilan);
+    return;
+  }
+
+  // Rozet dondurulmuştu — çöz
+  try { window._WL_HOLD.dia = false; wlSyncHeader(); } catch(e) {}
+
+  if (iptalMi) {
+    // Ödeme yapılmadan kapatıldı; sessiz geç, kullanıcıyı korkutma
+    try { showShopToast('Satın alma iptal edildi.', '#8a93a3'); } catch(e) {}
+    return;
+  }
+
+  if (typeof showInfoModal === 'function') {
+    showInfoModal({
+      icon: '⏳', iconColor: '#f59e0b',
+      title: 'Ödeme İşleniyor',
+      subtitle: 'Elmaslar birkaç dakika içinde yatacak',
+      body: '<div class="info-modal-note">Ödemen alındı ama elmaslar henüz görünmüyor. '
+          + 'Bu genelde birkaç dakika içinde kendiliğinden düzelir — mağaza sayfasını '
+          + 'yenileyip bakabilirsin. Yine olmazsa Ayarlar → Geri Bildirim üzerinden '
+          + 'bize yaz, işlem kaydın bizde duruyor.</div>'
+    });
   }
 }
 
