@@ -139,6 +139,25 @@
   .cvsat .cvsure{ font-size:11px; color:var(--dim); flex-shrink:0; }
   .cvbos{ padding:14px 12px; color:var(--dim); font-size:13px; }
 
+  /* ── ELMAS SATIŞLARI ── */
+  .od-ust{ display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:13px; }
+  .od-not{ font-size:11px; color:var(--dim); margin-top:3px; }
+  .od-sw{ display:inline-flex; align-items:center; gap:7px; font-size:12px; color:var(--dim); cursor:pointer; user-select:none; }
+  .od-sw input{ width:15px; height:15px; accent-color:var(--accent); cursor:pointer; }
+  .od-tablo{ border:1px solid var(--line); border-radius:12px; overflow:hidden; margin-top:12px; }
+  .od-tablo table{ width:100%; border-collapse:collapse; font-size:13px; }
+  .od-tablo th{ background:var(--panel2); color:var(--dim); font-size:10px; letter-spacing:.6px;
+    text-transform:uppercase; text-align:left; padding:9px 11px; font-weight:800; }
+  .od-tablo td{ padding:9px 11px; border-top:1px solid var(--line); vertical-align:middle; }
+  .od-tablo tr:hover td{ background:rgba(255,255,255,.02); }
+  .od-txn{ font-family:var(--mono); font-size:11px; color:var(--dim); cursor:pointer; }
+  .od-txn:hover{ color:var(--txt); }
+  .od-rozet{ display:inline-block; font-size:9px; font-weight:800; padding:2px 7px; border-radius:6px; letter-spacing:.5px; }
+  .od-ok{ background:rgba(46,195,107,.16); color:var(--accent); }
+  .od-iade{ background:rgba(226,59,90,.16); color:var(--red); }
+  .od-test{ background:rgba(255,213,79,.16); color:var(--gold); }
+  .od-para{ font-family:var(--disp); font-weight:900; font-size:15px; }
+
   /* ── REKLAM YÖNETİMİ ── */
   .rk-ozet{ display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-bottom:14px; }
   .rk-firma{ display:flex; align-items:center; gap:14px; padding:13px 15px; border:1px solid var(--line);
@@ -895,6 +914,195 @@ async function fbDelete(id){
 
 
 /* ═══════════════════════════════════════════════════════════════════
+   ELMAS SATIŞLARI — Xsolla ödeme raporu
+
+   Kaynak: `payments` tablosu. Her satır bir ödeme.
+   Test (sandbox) kayıtları varsayılan olarak GİZLİ — ciroyu kirletmesin.
+   ═══════════════════════════════════════════════════════════════════ */
+const OD_DONEM = [
+  { k:'bugun', ad:'Bugün'    },
+  { k:'hafta', ad:'Bu Hafta' },
+  { k:'ay',    ad:'Bu Ay'    },
+  { k:'yil',   ad:'Bu Yıl'   },
+  { k:'tumu',  ad:'Tümü'     }
+];
+let OD_SECILI  = 'ay';
+let OD_LISTE   = [];      // payments satırları
+let OD_ISIM    = {};      // user_id -> {ad, takim}
+let OD_KISI    = null;    // açık olan alıcı (null = liste)
+let OD_TEST    = false;   // sandbox kayıtları görünsün mü
+
+function _odBaslangic(k){
+  const d = new Date();
+  if (k === 'bugun'){ d.setHours(0,0,0,0); return d.getTime(); }
+  if (k === 'hafta'){
+    const g = (d.getDay() + 6) % 7;          // Pazartesi = 0
+    d.setDate(d.getDate() - g); d.setHours(0,0,0,0); return d.getTime();
+  }
+  if (k === 'ay')  return new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+  if (k === 'yil') return new Date(d.getFullYear(), 0, 1).getTime();
+  return 0;
+}
+function _odMs(t){ if(!t) return 0; const x = new Date(t).getTime(); return isNaN(x) ? 0 : x; }
+function _odTarih(t){
+  try { return new Date(t).toLocaleString('tr', { day:'2-digit', month:'2-digit', year:'numeric',
+                                                 hour:'2-digit', minute:'2-digit' }); }
+  catch(e){ return '—'; }
+}
+function _odPara(n){ return (Number(n)||0).toLocaleString('tr', { minimumFractionDigits:2, maximumFractionDigits:2 }) + ' €'; }
+
+async function _odVeriCek(){
+  const [pay, pl] = await Promise.all([
+    api('list', { table:'payments', limit:5000 }),
+    api('list', { table:'players',  limit:500, orderBy:'user_id', orderDir:'asc' }).catch(()=>({rows:[]}))
+  ]);
+  OD_LISTE = pay.rows || [];
+  OD_ISIM = {};
+  (pl.rows||[]).forEach(x => {
+    if (x && x.user_id) OD_ISIM[x.user_id] = { ad: x.name || '(isimsiz)', takim: x.team_name || '' };
+  });
+}
+
+function _odSuzulmus(){
+  const bas = _odBaslangic(OD_SECILI);
+  return OD_LISTE.filter(x =>
+    _odMs(x.created_at) >= bas && (OD_TEST || x.sandbox !== true)
+  );
+}
+
+async function openPayments(){
+  _opTemizle();
+  $('nav').querySelectorAll('.sub').forEach(b => b.classList.toggle('active', b.dataset.t === '__odeme__'));
+  const act = $('nav').querySelector('.sub.active'); if (act) act.closest('.cat').classList.add('open');
+  $('main').innerHTML = _opBaslik('Elmas Satışları','yükleniyor…') + '<div class="msg">Yükleniyor…</div>';
+  try { await _odVeriCek(); }
+  catch(e){
+    $('main').innerHTML = _opBaslik('Elmas Satışları','hata')
+      + '<div class="opnot" style="border-color:rgba(226,59,90,.35);color:#ff8ea3">'
+      + _rkEsc(e.message) + '<br><br>Tablo yeni oluşturulduysa <b>çıkış yapıp tekrar giriş yap</b>.</div>';
+    return;
+  }
+  OD_KISI = null;
+  odCiz();
+}
+
+function odCiz(){
+  if (OD_KISI) return odKisiCiz();
+
+  const kayit  = _odSuzulmus();
+  const gecerli = kayit.filter(x => x.status !== 'refunded');
+  const iade    = kayit.filter(x => x.status === 'refunded');
+
+  const ciro   = gecerli.reduce((t,x)=>t+(Number(x.eur)||0),0);
+  const elmas  = gecerli.reduce((t,x)=>t+(Number(x.dia)||0),0);
+  const iadeTL = iade.reduce((t,x)=>t+(Number(x.eur)||0),0);
+
+  // Alıcıya göre grupla
+  const kisi = {};
+  kayit.forEach(x => {
+    const k = kisi[x.user_id] = kisi[x.user_id] || {
+      uid:x.user_id, adet:0, ciro:0, elmas:0, iade:0, son:0
+    };
+    k.adet++;
+    if (x.status === 'refunded') { k.iade += Number(x.eur)||0; }
+    else { k.ciro += Number(x.eur)||0; k.elmas += Number(x.dia)||0; }
+    k.son = Math.max(k.son, _odMs(x.created_at));
+  });
+  const liste = Object.values(kisi).sort((a,b)=> b.ciro - a.ciro);
+  const donemAd = (OD_DONEM.find(d=>d.k===OD_SECILI)||{}).ad || '';
+
+  $('main').innerHTML = _opBaslik('Elmas Satışları', kayit.length + ' işlem · ' + liste.length + ' alıcı')
+    + '<div class="bcbox fadein" style="padding:14px 15px">'
+      + '<div class="od-ust">'
+        + '<div><div class="rk-sure-btns" id="odBtns">'
+          + OD_DONEM.map(d=>`<button data-k="${d.k}" class="${d.k===OD_SECILI?'on':''}">${d.ad}</button>`).join('')
+        + '</div><div class="od-not">Seçili dönem: <b>' + donemAd + '</b></div></div>'
+        + '<label class="od-sw"><input type="checkbox" id="odTest"' + (OD_TEST?' checked':'') + '>'
+        + 'Test (sandbox) kayıtlarını da göster</label>'
+      + '</div>'
+      + '<div class="rk-ozet" style="margin-bottom:0">'
+        + _opKart('CİRO',          _odPara(ciro),  donemAd.toLowerCase(), 's')
+        + _opKart('SATILAN ELMAS', _fmtSayi(elmas), gecerli.length + ' işlem')
+        + _opKart('ALICI',         liste.length,    'farklı kişi')
+        + _opKart('İADE',          _odPara(iadeTL), iade.length + ' işlem', iade.length?'k':'')
+      + '</div>'
+    + '</div>'
+    + (liste.length
+        ? liste.map(k => {
+            const bilgi = OD_ISIM[k.uid] || {};
+            return `<div class="rk-firma" onclick="odKisiAc('${k.uid}')">
+              <div class="rk-firma-o">
+                <div class="rk-firma-ad">${_rkEsc(bilgi.ad || k.uid.slice(0,8))}</div>
+                <div class="rk-firma-alt">${bilgi.takim ? _rkEsc(bilgi.takim) + ' · ' : ''}${k.adet} işlem · son: ${_odTarih(k.son)}</div>
+              </div>
+              <div class="rk-mini">
+                <div><div class="v" style="color:var(--gold)">${_odPara(k.ciro)}</div><div class="l">Ödediği</div></div>
+                <div><div class="v">${_fmtSayi(k.elmas)}</div><div class="l">Elmas</div></div>
+              </div>
+            </div>`;
+          }).join('')
+        : '<div class="opnot">Bu dönemde satış yok.</div>')
+    + '<div class="opnot">Bir alıcıya dokun → tarih, saat, paket ve Xsolla işlem numarasıyla '
+      + 'tüm ödemelerini gör. İşlem numarasına tıklayınca panoya kopyalanır — '
+      + 'Xsolla panelinde arattığında dekonta ulaşırsın.</div>';
+
+  const b = $('odBtns');
+  if (b) b.querySelectorAll('button').forEach(x => x.onclick = () => { OD_SECILI = x.dataset.k; odCiz(); });
+  const t = $('odTest');
+  if (t) t.onchange = () => { OD_TEST = t.checked; odCiz(); };
+}
+
+function odKisiAc(uid){ OD_KISI = uid; odCiz(); }
+function odGeri(){ OD_KISI = null; odCiz(); }
+
+function odKisiCiz(){
+  const bilgi = OD_ISIM[OD_KISI] || {};
+  const kayit = _odSuzulmus().filter(x => x.user_id === OD_KISI)
+                  .sort((a,b)=> _odMs(b.created_at) - _odMs(a.created_at));
+  const gecerli = kayit.filter(x => x.status !== 'refunded');
+  const ciro  = gecerli.reduce((t,x)=>t+(Number(x.eur)||0),0);
+  const elmas = gecerli.reduce((t,x)=>t+(Number(x.dia)||0),0);
+  const donemAd = (OD_DONEM.find(d=>d.k===OD_SECILI)||{}).ad || '';
+
+  $('main').innerHTML = _opBaslik(bilgi.ad || OD_KISI.slice(0,8), (bilgi.takim||'') + ' · ' + donemAd)
+    + '<div style="display:flex;gap:8px;margin-bottom:14px">'
+      + '<button class="btn" onclick="odGeri()">‹ Alıcılar</button>'
+    + '</div>'
+    + '<div class="rk-ozet">'
+      + _opKart('ÖDEDİĞİ',       _odPara(ciro),   donemAd.toLowerCase(), 's')
+      + _opKart('ALDIĞI ELMAS',  _fmtSayi(elmas), gecerli.length + ' işlem')
+      + _opKart('KULLANICI NO',  OD_KISI.slice(0,8), 'auth kimliği')
+    + '</div>'
+    + '<div class="od-tablo"><table>'
+      + '<tr><th>Tarih &amp; Saat</th><th>Paket</th><th>Tutar</th><th>Elmas</th>'
+      +     '<th>Durum</th><th>Xsolla İşlem No</th></tr>'
+      + kayit.map(x => {
+          const iade = x.status === 'refunded';
+          return `<tr>
+            <td>${_odTarih(x.created_at)}</td>
+            <td>${_rkEsc(x.sku||'—')}</td>
+            <td class="od-para">${_odPara(x.eur)}</td>
+            <td>${_fmtSayi(x.dia)}</td>
+            <td><span class="od-rozet ${iade?'od-iade':'od-ok'}">${iade?'İADE':'ÖDENDİ'}</span>
+                ${x.sandbox ? ' <span class="od-rozet od-test">TEST</span>' : ''}</td>
+            <td><span class="od-txn" title="Kopyalamak için tıkla"
+                      onclick="odKopyala('${_rkEsc(x.txn_id)}', this)">${_rkEsc(x.txn_id)}</span></td>
+          </tr>`;
+        }).join('')
+    + '</table></div>'
+    + (kayit.length ? '' : '<div class="opnot">Bu dönemde işlem yok.</div>');
+}
+
+function odKopyala(txn, el){
+  try {
+    navigator.clipboard.writeText(txn);
+    const eski = el.textContent;
+    el.textContent = 'kopyalandı ✓';
+    setTimeout(()=>{ el.textContent = eski; }, 1200);
+  } catch(e) {}
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    ZİYARET & AKTİFLİK ÖZETİ  (Özet sayfasının üstünde)
 
    Veri kaynağı:
@@ -1406,6 +1614,7 @@ const NAV = [
   { cat:'CSC MEDIA',      tables:['__medya__','social_posts','social_likes','social_follows'] },
   { cat:'İNBOX',          tables:['__duyuru__','user_inbox','broadcasts'] },
   { cat:'EKONOMİ',        tables:['__economy__','bet_slips','scratch_cards'] },
+  { cat:'ÖDEMELER',       tables:['__odeme__'] },
   { cat:'REKLAM',         tables:['__reklam__'] },
   { cat:'AYARLAR',        tables:['__ops__','match_writes'] }
 ];
@@ -1413,7 +1622,8 @@ const VIRT = { '__users__':'Kullanıcılar', '__players__':'Oyuncular', '__clubs
   '__ops__':'Operasyon', '__season__':'Sezon & Takvim', '__economy__':'Ekonomi Özeti',
   '__duyuru__':'Toplu Duyuru', '__ligler__':'Lig Tabloları', '__turnuva__':'Turnuva Durumu',
   '__fikstur__':'Günlük Fikstür', '__antrenman__':'Antrenman Yarışı', '__medya__':'Gönderi Denetimi',
-  '__reklam__':'Reklam Yönetimi' };
+  '__reklam__':'Reklam Yönetimi',
+  '__odeme__':'Elmas Satışları' };
 const CHEV = '<svg class="chev" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg>';
 
 function buildNav() {
@@ -1449,6 +1659,7 @@ function buildNav() {
     else if(t==='__antrenman__') openTraining();
     else if(t==='__medya__') openMedia();
     else if(t==='__reklam__') openAds();
+    else if(t==='__odeme__') openPayments();
     else openTable(t); });
 }
 
