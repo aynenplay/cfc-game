@@ -28826,7 +28826,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-30-xsolla-408';
+const APP_BUILD = '2026-08-30-cuzdan-409';
 
 (function _cacheBustCheck() {
   try {
@@ -87218,7 +87218,26 @@ function _wlApplyLocal(d_eur, d_dia, kind){
 }
 function _wlRpcApply(d_eur, d_dia, kind){
   if(!window.sb || !authUser || !authUser.id) return;
-  window.sb.rpc('user_wallet_apply', { p_uid: authUser.id, p_eur:d_eur||0, p_dia:d_dia||0, p_kind:kind||'adj' })
+  // 🔒 GÜVENLİK — artık `user_wallet_apply` DEĞİL, `wallet_spend` çağrılıyor.
+  //
+  //   Neden: `user_wallet_apply` içindeki "istemci para ekleyemez" koruması
+  //   ÇALIŞMIYORDU. Kontrol `current_user in ('authenticated','anon')` ile
+  //   yapılıyordu, ama o fonksiyon SECURITY DEFINER; böyle fonksiyonların
+  //   İÇİNDE `current_user` çağıranı değil FONKSİYON SAHİBİNİ (postgres)
+  //   döndürür. Yani koşul hiç doğru olmuyor, koruma hiç devreye girmiyordu.
+  //   Sonuç: konsoldan sınırsız para/elmas basılabiliyordu.
+  //
+  //   Kalıcı çözüm veritabanında: `user_wallet_apply` tarayıcıya tamamen
+  //   kapatıldı (revoke). Yerine yalnızca HARCAMAYA izin veren
+  //   `wallet_spend` açıldı — pozitif değer verilirse 'kredi_yasak' döner
+  //   ve cüzdanı her zaman çağıranın KENDİ kimliğinden alır.
+  if ((Number(d_eur)||0) > 0 || (Number(d_dia)||0) > 0) {
+    // Bu yol artık gelir eklemek için kullanılmıyor; yanlışlıkla çağrılırsa
+    // sunucudan gerçek bakiyeyi tazelemekle yetin.
+    if(typeof wlLoadFromServer==='function') wlLoadFromServer().then(()=>{ if(typeof wlSyncHeader==='function') wlSyncHeader(); });
+    return;
+  }
+  window.sb.rpc('wallet_spend', { p_eur:d_eur||0, p_dia:d_dia||0, p_kind:kind||'out' })
     .then(({data,error})=>{
       if(error){ console.warn('[Wallet] rpc hata:', error); return; }
       if(data && data.ok){
