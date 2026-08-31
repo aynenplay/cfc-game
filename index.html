@@ -28866,7 +28866,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-31-paket-412';
+const APP_BUILD = '2026-08-31-kayit-414';
 
 (function _cacheBustCheck() {
   try {
@@ -31534,7 +31534,7 @@ async function _loadTeamRosterFromServer(cc, teamName) {
           avatar_id: r.avatar_id || null,
           role: r.role || 'member',
           isBot: !!r.is_bot,
-          isUser: !r.is_bot,
+          isUser: _buSatirBenMiyim(r.user_id),
           userId: r.user_id || null,
           lastSeen: r.last_seen || null,
           goalsTotal: r.goals_total || 0,
@@ -31632,7 +31632,7 @@ async function preloadAllTeamRosters() {
         avatar_id: r.avatar_id || null,
         role: r.role || 'member',
         isBot: !!r.is_bot,
-        isUser: !r.is_bot,
+        isUser: _buSatirBenMiyim(r.user_id),
         lastSeen: r.last_seen || null,
         // Sezon istatistikleri (Edge function maç sonu doldurur)
         goalsTotal: r.goals_total || 0,
@@ -45558,6 +45558,24 @@ let selectedPos = null;
 let selectedSubPos = null;
 let authUser = null;
 
+// 🔴 KİMLİK — "bu satır BEN miyim?" sorusunun TEK doğru cevabı.
+//   Eskiden roster kayıtlarında `isUser: !r.is_bot` yazıyordu, yani
+//   BOT OLMAYAN HERKES "sen" sayılıyordu. Sonuç: milli takım ve kulüp
+//   kadrolarında başka gerçek oyuncular "SEN" rozetiyle çıkıyor,
+//   senin avatarını taşıyor, maç motoru onları senin oyuncun sanıyordu.
+//   Artık yalnızca oturum sahibinin satırı "user" sayılır.
+function _benimUid() {
+  try {
+    if (typeof window !== 'undefined' && window.authUser && window.authUser.id) return window.authUser.id;
+  } catch(e) {}
+  try { if (typeof authUser !== 'undefined' && authUser && authUser.id) return authUser.id; } catch(e) {}
+  return null;
+}
+function _buSatirBenMiyim(userId) {
+  const benim = _benimUid();
+  return !!(benim && userId && String(userId) === String(benim));
+}
+
 // ── KULLANICI TAKIMI ──
 // _userTeam = null → takımsız (default)
 // _userTeam = { countryCode, teamName, role:'user'|'captain'|'vice'|'member' }
@@ -46722,54 +46740,35 @@ function doRegister(){
       };
       /* cft_auth localStorage kaldırıldı - sadece Supabase */
 
-      // 🆕 players tablosuna kullanıcı satırı ekle (takımsız, online izleme için)
+      // 🔴 OYUNCU SATIRI ARTIK SUNUCUDA OLUŞUYOR.
+      //    Eskiden burada `players` tablosuna doğrudan insert deneniyordu.
+      //    Ama tabloda INSERT politikası YOK — istek her seferinde
+      //    reddediliyordu ve kayıt olan herkes "oyuncu kaydın
+      //    yazılamadı" uyarısı alıyordu. Politikayı açmak da doğru
+      //    değildi: o zaman kullanıcı kendi satırını istediği
+      //    güç/seviye ile oluşturabilirdi.
+      //
+      //    Çözüm: `on_auth_user_created` tetiği hesabı açarken oyuncu
+      //    satırını da yazıyor (kayit-tetigi-duzelt.sql). Burada
+      //    yalnızca satırın oluştuğunu DOĞRULUYORUZ.
       try {
-        const POS_GRP = (typeof POS_GROUP !== 'undefined') ? POS_GROUP : {};
-        // 🆕 pos boş gelirse MID fallback — Edge Function maçta pos_group olmadan kullanıcıyı
-        //   simülasyona dahil edemez (default 'MID' altına düşer ve forvet/defans hatalı oynar).
-        const _safePos = selectedPos || 'MID';
-        const posGroup = POS_GRP[_safePos] || _safePos || 'MID';
-        const flag = (typeof ccToFlag === 'function') ? ccToFlag(nationality) : '🏳️';
-        // 🔒 F4 · HATA ARTIK YUTULMUYOR.
-        //   Eskiden bu insert sessizce başarısız olabiliyordu: auth hesabı
-        //   oluşuyor ama `players` satırı olmuyordu → "hayalet hesap".
-        //   Kullanıcı giriş yapabiliyor ama hiçbir yerde görünmüyor,
-        //   takıma katılamıyor, maça çıkamıyordu. Üstelik ikinci kez
-        //   kayıt da olamıyor (e-posta zaten alınmış).
-        //   Artık: 3 kez denenir, yine olmazsa kullanıcı uyarılır.
-        let _plrOk = false, _plrHata = null;
-        for (let _d = 0; _d < 3 && !_plrOk; _d++) {
-          const { error: _pe } = await window.sb.from('players').insert({
-            user_id: data.user.id,
-            name: name,
-            nationality: nationality,
-            nation: flag,
-            pos: _safePos,
-            pos_group: posGroup,
-            is_bot: false,
-            level: 0, xp: 0, overall: 10, rating: 10,
-            abilities: (typeof _buildAbilities === 'function') ? _buildAbilities() : { GK:{}, DEF:{}, MID:{}, FWD:{} },
-            role: null,  // 🆕 Takıma girince member/vice/captain olur
-            avatar: '👤',
-            avatar_id: _regSelectedAvatar,  // 🆕 başkaları da seçilen avatarı görsün
-            last_seen: new Date().toISOString()
-          });
-          if (!_pe) { _plrOk = true; break; }
-          // Satır zaten varsa (tekrar kayıt / trigger oluşturmuş) sorun yok
-          if (_pe.code === '23505') { _plrOk = true; break; }
-          _plrHata = _pe;
+        let _plrOk = false;
+        for (let _d = 0; _d < 4 && !_plrOk; _d++) {
+          const { data: _row } = await window.sb.from('players')
+            .select('user_id').eq('user_id', data.user.id).maybeSingle();
+          if (_row) { _plrOk = true; break; }
           await new Promise(r => setTimeout(r, 400 * (_d + 1)));
         }
         if (!_plrOk) {
-          console.error('[register] players insert BAŞARISIZ:', _plrHata);
+          console.error('[register] oyuncu satırı bulunamadı (tetik çalışmamış olabilir)');
           authShowMsg('error',
-            'Hesap oluşturuldu ama oyuncu kaydın yazılamadı. Lütfen aynı e-posta ile '
-            + 'GİRİŞ YAP; kayıt otomatik tamamlanacak. Sorun sürerse destekle iletişime geç.');
+            'Hesap oluşturuldu ama oyuncu kaydın hazırlanamadı. Birkaç saniye sonra '
+            + 'aynı e-posta ile GİRİŞ YAP. Sorun sürerse destekle iletişime geç.');
           return;
         }
       } catch(e) {
-        console.error('[register] players insert istisna:', e);
-        authShowMsg('error','Oyuncu kaydı yazılamadı: ' + (e && e.message || e)
+        console.error('[register] oyuncu satırı kontrolü hatası:', e);
+        authShowMsg('error','Oyuncu kaydı doğrulanamadı: ' + (e && e.message || e)
           + ' — Aynı e-posta ile giriş yapmayı dene.');
         return;
       }
