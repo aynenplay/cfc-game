@@ -99498,6 +99498,37 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
 
   // 🎯 Takımım sayfasındaki butonların düğüm kimliği değişiyor mu?
   //    Değişiyorsa o düğüm yeniden yaratılıyor demektir.
+  // 🎯 KİM ÇİZİYOR? — kadroyu yeniden çizen fonksiyonları sarmalayıp
+  //    çağrı sayısını ve ÇAĞIRANIN yığın izini kaydediyoruz.
+  //    "Satır sürekli yeniden yaratılıyor" bulgusunun failini bulur.
+  var cizSay = { renderRoster:0, rosterBuildTeam:0, guestRenderRoster:0 };
+  var sonCagiran = '—', sonCagiranT = 0;
+  (function(){
+    function sar(ad){
+      var asil = window[ad];
+      if (typeof asil !== 'function' || asil.__teshisSarildi) return;
+      var yeni = function(){
+        try {
+          cizSay[ad]++;
+          var y = (new Error()).stack || '';
+          var satirlar = y.split('\n').slice(2, 5).join(' ‹ ')
+                          .replace(/https?:\/\/[^ )]*/g, '')
+                          .replace(/\s+/g, ' ').trim();
+          sonCagiran = ad + ' ← ' + satirlar.slice(0, 150);
+          sonCagiranT = Date.now();
+        } catch(e) {}
+        return asil.apply(this, arguments);
+      };
+      yeni.__teshisSarildi = true;
+      try { window[ad] = yeni; } catch(e) {}
+    }
+    // Fonksiyonlar tanımlandıktan sonra sarmala
+    setTimeout(function(){
+      ['renderRoster','rosterBuildTeam','guestRenderRoster'].forEach(sar);
+      console.info('[teşhis] çizim sayacı takıldı');
+    }, 1500);
+  })();
+
   var dugumSay = { geri:0, x:0, menu:0, satir:0 }, sonDugum = {};
   setInterval(function(){
     var s2 = document.querySelector('.page.active');
@@ -99580,6 +99611,11 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
       sr.push('BUTONLAR: ' + satir.join('  '));
       sr.push('YENİDEN YARATIM: geri=' + dugumSay.geri + ' x=' + dugumSay.x
               + ' menu=' + dugumSay.menu + ' satır=' + dugumSay.satir);
+      sr.push('ÇİZİM: renderRoster=' + cizSay.renderRoster
+              + ' build=' + cizSay.rosterBuildTeam
+              + ' guest=' + cizSay.guestRenderRoster
+              + (sonCagiranT ? ' · ' + Math.round((Date.now()-sonCagiranT)/1000) + 'sn önce' : ''));
+      sr.push('ÇAĞIRAN: ' + sonCagiran);
       // 🎯 Kadro satırının üstünü kim kaplıyor + hangi CSS engelliyor
       var _sat = document.querySelector('#rosterList .player-row');
       if (_sat) {
