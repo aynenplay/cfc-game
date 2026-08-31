@@ -28866,7 +28866,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-31-yetenek-415';
+const APP_BUILD = '2026-08-31-ekipman-416';
 
 (function _cacheBustCheck() {
   try {
@@ -69571,12 +69571,17 @@ function parseItemBonuses(stats) {
 }
 
 // 🆕 Aktif slot'lardaki itemlerin toplam bonuslarını hesapla
-function getEquippedBonuses() {
+// 🆕 `veri` verilirse O ekipman setinin bonusları hesaplanır.
+//    Boş bırakılırsa eskisi gibi giriş yapan kullanıcının kendi seti.
+//    Başkasının profilinde onun ekipmanını uygulamak için gerekli.
+function getEquippedBonuses(veri) {
   const totals = {};
-  // _eqData global state null/undefined ise localStorage'dan oku
-  let data = (typeof _eqData !== 'undefined' && _eqData) ? _eqData : null;
-  if (!data || !Array.isArray(data.activeSlots)) {
-    if (typeof getEqData === 'function') data = getEqData();
+  let data = veri || null;
+  if (!data) {
+    data = (typeof _eqData !== 'undefined' && _eqData) ? _eqData : null;
+    if (!data || !Array.isArray(data.activeSlots)) {
+      if (typeof getEqData === 'function') data = getEqData();
+    }
   }
   if (!data || !Array.isArray(data.activeSlots) || !Array.isArray(data.wardrobe)) return totals;
 
@@ -69749,6 +69754,23 @@ function _carBuildSkillsForVisitor(vp) {
     });
   }
 
+  // 🆕 Ekipman bonusu — bakılan oyuncunun kendi seti uygulanır.
+  //    Kendi profilinde bu iş `getSkillLevels()` içinde yapılıyor;
+  //    ziyaretçi görünümünde hiç yapılmıyordu, o yüzden başkasının
+  //    profilinde sadece ham yetenekler görünüyordu.
+  const _ekipmanUygula = (seviyeler) => {
+    try {
+      if (typeof _eqIsVisitor !== 'function' || !_eqIsVisitor()) return seviyeler;
+      if (typeof _getVisitorEqData !== 'function' || typeof getEquippedBonuses !== 'function') return seviyeler;
+      const bonuslar = getEquippedBonuses(_getVisitorEqData());
+      Object.keys(bonuslar).forEach(id => {
+        if (seviyeler[id] === undefined) return;
+        seviyeler[id] = Math.min(100, Math.round(seviyeler[id] * (1 + bonuslar[id] / 100)));
+      });
+    } catch(e) {}
+    return seviyeler;
+  };
+
   if (vp && !isExplicitBot && vpUid) {
     // Kendi satırın (ya da başka yoldan gelmiş taze veri) varsa onu yeğle
     const cached = _visitorSkillsCache[vpUid];
@@ -69756,18 +69778,18 @@ function _carBuildSkillsForVisitor(vp) {
       Object.keys(cached).forEach(id => {
         if (lvls[id] !== undefined) lvls[id] = cached[id];
       });
-      return lvls;
+      return _ekipmanUygula(lvls);
     }
-    if (_abBulundu) return lvls;          // abilities yeterli, istek atma
+    if (_abBulundu) return _ekipmanUygula(lvls);   // abilities yeterli, istek atma
     // Hiç veri yoksa son çare: kendi satırın için user_player'ı dene
     _loadVisitorSkills(vpUid).then(skills => {
       if (skills && typeof renderPlayerPage === 'function') {
         try { renderPlayerPage(); } catch(e) {}
       }
     });
-    return lvls;
+    return _ekipmanUygula(lvls);
   }
-  if (_abBulundu) return lvls;
+  if (_abBulundu) return _ekipmanUygula(lvls);
 
   // Durum 2: Bot → abilities'ten ana mevki ortalaması
   if (vp && vp.abilities && typeof vp.abilities === 'object') {
@@ -70992,7 +71014,12 @@ async function _loadVisitorEq(player) {
     const uid = player && (player.userId || player.user_id || player.uid);
     if (!uid || !window.sb) { _visitorEqCache = null; }
     else {
-      const { data } = await window.sb.from('user_player').select('equipment').eq('user_id', uid).maybeSingle();
+      // 🔴 `user_player` okuma politikası "sadece kendi satırın" diyor —
+      //    başkasının ekipmanı oradan ASLA gelmiyordu ve profilde
+      //    yalnızca temel yetenekler görünüyordu. Sunucu artık aynı
+      //    veriyi herkese açık `players.equipment` sütununa da yazıyor
+      //    (sync_player_equipment tetiği).
+      const { data } = await window.sb.from('players').select('equipment').eq('user_id', uid).maybeSingle();
       _visitorEqCache = (data && data.equipment && Object.keys(data.equipment).length > 0) ? data.equipment : null;
     }
   } catch(e) { _visitorEqCache = null; }
