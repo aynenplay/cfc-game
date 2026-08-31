@@ -28866,7 +28866,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-30-kutlama-410';
+const APP_BUILD = '2026-08-31-medya-411';
 
 (function _cacheBustCheck() {
   try {
@@ -78636,7 +78636,12 @@ async function betShareSlip(ev, slipId, btn) {
         ? `😤 ${legsRaw.length} maçlık kuponum ${hit}/${legsRaw.length} ile yattı.`
         : `🎯 Toto kuponum oynanıyor — ${legsRaw.length} maç, ${card.odds} oran.`);
 
-    await _socialAdapter.createPost(metin, { kind: 'tpl-toto', card });
+    const totoPost = await _socialAdapter.createPost(metin, { kind: 'tpl-toto', card });
+    if (!totoPost) {
+      btn.classList.remove('done');
+      _betToast('Paylaşılamadı');
+      return;
+    }
     _betSharedMark(slipId);
     slip.shared_at = new Date().toISOString();
     // Sunucuda kolon varsa işaretle (yoksa sessizce geç)
@@ -89967,14 +89972,17 @@ const SocialServerAdapter = {
       .select('reaction').eq('user_id', myId).eq('post_id', postId).maybeSingle();
     if (existing && existing.reaction === 'like') {
       // Kaldır
-      await window.sb.from('social_likes').delete().eq('user_id', myId).eq('post_id', postId);
+      const { error } = await window.sb.from('social_likes')
+        .delete().eq('user_id', myId).eq('post_id', postId);
+      if (error) { console.warn('[social] toggleLike sil:', error); return { hata: true }; }
       const count = await _socialCountReaction(postId, 'like');
       return { liked: false, count };
     } else {
       // Like at (varsa dislike sil)
-      await window.sb.from('social_likes').upsert({
+      const { error } = await window.sb.from('social_likes').upsert({
         user_id: myId, post_id: postId, reaction: 'like'
       }, { onConflict: 'user_id,post_id' });
+      if (error) { console.warn('[social] toggleLike:', error); return { hata: true }; }
       const count = await _socialCountReaction(postId, 'like');
       return { liked: true, count };
     }
@@ -89985,13 +89993,16 @@ const SocialServerAdapter = {
     const { data: existing } = await window.sb.from('social_likes')
       .select('reaction').eq('user_id', myId).eq('post_id', postId).maybeSingle();
     if (existing && existing.reaction === 'dislike') {
-      await window.sb.from('social_likes').delete().eq('user_id', myId).eq('post_id', postId);
+      const { error } = await window.sb.from('social_likes')
+        .delete().eq('user_id', myId).eq('post_id', postId);
+      if (error) { console.warn('[social] toggleDislike sil:', error); return { hata: true }; }
       const count = await _socialCountReaction(postId, 'dislike');
       return { disliked: false, count };
     } else {
-      await window.sb.from('social_likes').upsert({
+      const { error } = await window.sb.from('social_likes').upsert({
         user_id: myId, post_id: postId, reaction: 'dislike'
       }, { onConflict: 'user_id,post_id' });
+      if (error) { console.warn('[social] toggleDislike:', error); return { hata: true }; }
       const count = await _socialCountReaction(postId, 'dislike');
       return { disliked: true, count };
     }
@@ -90008,7 +90019,15 @@ const SocialServerAdapter = {
     const idx = p.reposts.indexOf(myId);
     if (idx === -1) p.reposts.push(myId); else p.reposts.splice(idx, 1);
     p.repostCount = p.reposts.length;
-    await window.sb.from('social_posts').update({ post_data: p }).eq('id', postId);
+    // ⚠️ Bu güncelleme yalnızca KENDİ gönderinde çalışır: satır sahibi
+    //    olmadığın için başkasının gönderisinde 0 satır etkilenir.
+    //    `.select()` ile gerçekten güncellendi mi kontrol ediyoruz.
+    const { data: upd, error } = await window.sb.from('social_posts')
+      .update({ post_data: p }).eq('id', postId).select('id');
+    if (error || !upd || !upd.length) {
+      console.warn('[social] toggleRepost yazılamadı:', error);
+      return { hata: true, sebep: 'izin_yok' };
+    }
     return { reposted: idx === -1, count: p.reposts.length };
   },
   async toggleFollow(authorId) {
@@ -90018,13 +90037,15 @@ const SocialServerAdapter = {
     const { data: existing } = await window.sb.from('social_follows')
       .select('follower_id').eq('follower_id', myId).eq('following_id', authorId).maybeSingle();
     if (existing) {
-      await window.sb.from('social_follows').delete()
+      const { error } = await window.sb.from('social_follows').delete()
         .eq('follower_id', myId).eq('following_id', authorId);
+      if (error) { console.warn('[social] takipten çık:', error); return { hata: true }; }
       return { following: false };
     } else {
-      await window.sb.from('social_follows').insert({
+      const { error } = await window.sb.from('social_follows').insert({
         follower_id: myId, following_id: authorId
       });
+      if (error) { console.warn('[social] takip et:', error); return { hata: true }; }
       return { following: true };
     }
   },
@@ -90035,8 +90056,19 @@ const SocialServerAdapter = {
       .select('author_id').eq('id', postId).maybeSingle();
     if (!row) return { deleted: false, reason: 'not_found' };
     if (row.author_id !== myId) return { deleted: false, reason: 'forbidden' };
-    await window.sb.from('social_posts').delete().eq('id', postId);
-    // Bağlı reaksiyonları da temizle
+    // `.select()` silinen satırları geri döndürür — boşsa silme
+    // GERÇEKLEŞMEMİŞTİR (ör. veritabanı izin vermedi). Eskiden bu
+    // kontrol yoktu ve kullanıcıya "silindi" deniyordu.
+    const { data: silinen, error } = await window.sb.from('social_posts')
+      .delete().eq('id', postId).select('id');
+    if (error) {
+      console.warn('[social] deletePost:', error);
+      return { deleted: false, reason: 'error' };
+    }
+    if (!silinen || !silinen.length) {
+      return { deleted: false, reason: 'forbidden' };
+    }
+    // Bağlı reaksiyonları da temizle (başarısız olsa da gönderi gitti)
     await window.sb.from('social_likes').delete().eq('post_id', postId);
     return { deleted: true };
   },
@@ -90531,6 +90563,14 @@ async function cfcMdSubmitPost() {
 
   try {
     const newPost = await _socialAdapter.createPost(text);
+    // ⚠️ createPost hata durumunda null döner. Eskiden bu kontrol
+    //    yoktu: metin kutusu temizleniyor, profil sekmesine geçiliyor
+    //    ve kullanıcı paylaştığını sanıyordu.
+    if (!newPost) {
+      if (typeof tfShowToast === 'function')
+        tfShowToast('❌ Gönderi paylaşılamadı, tekrar dene', '#ef5350');
+      return;
+    }
 
     ta.value = '';
     cfcMdUpdateCharCount();
@@ -90655,7 +90695,11 @@ async function cfcMdShareTemplate(kind, btn) {
         rank, points: Math.round(points * 100) / 100, squad,
       }};
     }
-    await _socialAdapter.createPost(content, extra);
+    const olusan = await _socialAdapter.createPost(content, extra);
+    if (!olusan) {
+      if (typeof tfShowToast === 'function') tfShowToast('❌ Paylaşılamadı', '#ef5350');
+      return;
+    }
     if (_cfcMdCurrentTab !== 'profile') {
       cfcMdTab('profile', document.querySelector('.cfcmd-tab[data-cfcmd-tab="profile"]'));
     } else { cfcMdRender(); }
@@ -90922,8 +90966,9 @@ async function cfcMdPlayCoupon(ev, postId) {
     // Oynama sayacına ekle (kişi başına bir kez)
     try {
       if (window.sb && typeof cfcMdGetMyId === 'function') {
-        await window.sb.from('social_plays').upsert(
+        const { error } = await window.sb.from('social_plays').upsert(
           { post_id: postId, user_id: cfcMdGetMyId() }, { onConflict: 'post_id,user_id' });
+        if (error) console.warn('[social] oynama sayacı:', error);
       }
     } catch(e) {}
   } catch(e) {
@@ -90938,18 +90983,27 @@ function cfcMdTotoToggle(ev, el) {
   if (el) el.classList.toggle('open');
 }
 
+// Ortak uyarı — işlem sunucuda gerçekleşmediyse kullanıcı bilsin
+function _cfcMdUyar(mesaj) {
+  try { if (typeof tfShowToast === 'function') tfShowToast('❌ ' + mesaj, '#ef5350'); }
+  catch(e) {}
+}
+
 async function cfcMdToggleLike(postId) {
-  await _socialAdapter.toggleLike(postId);
+  const r = await _socialAdapter.toggleLike(postId);
+  if (r && r.hata) _cfcMdUyar('Beğeni kaydedilemedi');
   cfcMdRender();
 }
 
 async function cfcMdToggleDislike(postId) {
-  await _socialAdapter.toggleDislike(postId);
+  const r = await _socialAdapter.toggleDislike(postId);
+  if (r && r.hata) _cfcMdUyar('İşlem kaydedilemedi');
   cfcMdRender();
 }
 
 async function cfcMdToggleRepost(postId) {
-  await _socialAdapter.toggleRepost(postId);
+  const r = await _socialAdapter.toggleRepost(postId);
+  if (r && r.hata) _cfcMdUyar('Yeniden paylaşım şu an kullanılamıyor');
   cfcMdRender();
 }
 
@@ -91240,7 +91294,12 @@ function cfcMdBackToMyProfile() {
 async function cfcMdToggleFollowUser(userId) {
   if (!userId) return;
   try {
-    await _socialAdapter.toggleFollow(userId);
+    const r = await _socialAdapter.toggleFollow(userId);
+    if (r && r.hata) {
+      if (typeof tfShowToast === 'function')
+        tfShowToast('❌ Takip işlemi kaydedilemedi', '#ef5350');
+      return;
+    }
     // 🆕 Cache'i yenile
     await cfcMdLoadFollows();
     // Profile'i yenile (takip butonu durumu güncellensin)
@@ -99502,7 +99561,7 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
 </script>
 <!-- ══ MASAÜSTÜ DÜZENİ + REKLAM ALANLARI ══════════════════════════
      Tamamı @media (min-width:1200px) içinde — mobil etkilenmez.
-     Reklam kodu için: #reklamSol ve #reklamSag içine yerleştir. -->
+     Reklam kodu için: #reklamSol1..3 ve #reklamSag1..3 içine yerleştir. -->
 <style>
 /* ═══════════════════════════════════════════════════════════════════
    MASAÜSTÜ DÜZENİ + REKLAM ALANLARI
@@ -99520,7 +99579,7 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
    ═══════════════════════════════════════════════════════════════════ */
 
 /* Reklam kutuları mobilde tamamen yok */
-.rk-yuva{ display:none }
+.rk-yuva, .rk-sutun{ display:none }
 
 @media (min-width:1200px){
 
@@ -99583,18 +99642,27 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
     margin-right:auto !important;
   }
 
-  /* Reklam yuvaları — sütunun dışında, dikey ortalı, sayfayla kaymaz */
-  .rk-yuva{
-    display:block;
+  /* Reklam sütunları — oyun sütununun dışında, dikey ortalı, sayfayla
+     kaymaz. Her sütunda alt alta 3 bağımsız yuva var:
+     sol1/sol2/sol3 ve sag1/sag2/sag3. Her yuvaya ayrı reklam basılır. */
+  .rk-sutun{
+    display:flex;
+    flex-direction:column;
+    gap:16px;
     position:fixed;
     top:50%;
     transform:translateY(-50%);
-    width:160px;
-    height:600px;
     z-index:20;
   }
   .rk-sol{ left:calc(50% - 410px - 24px - 160px) }
   .rk-sag{ left:calc(50% + 410px + 24px) }
+
+  .rk-yuva{
+    display:block;
+    position:relative;
+    width:160px;
+    height:200px;
+  }
 
   /* Boşken kesikli çerçeve + ölçü. Reklam kodu girince kendiliğinden kaybolur. */
   .rk-yuva:empty{
@@ -99603,7 +99671,7 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
     background:rgba(255,255,255,.02);
   }
   .rk-yuva:empty::after{
-    content:'160 × 600';
+    content:'160 × 200';
     position:absolute; inset:0;
     display:flex; align-items:center; justify-content:center;
     font-size:11px; letter-spacing:.5px;
@@ -99753,18 +99821,14 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
   }
 }
 
-/* 1560 px+ : half page (300×600) */
-@media (min-width:1560px){
-  .rk-yuva{ width:300px }
+/* 1560 px+ ve ekran yeterince uzunsa: 3 × 300×250 (standart orta
+   dikdörtgen). Yükseklik şartı olmadan 3×250+32 = 782 px sütun kısa
+   ekranlarda taşardı. Yuva SAYISI değişmez, sadece ölçü büyür. */
+@media (min-width:1560px) and (min-height:820px){
   .rk-sol{ left:calc(50% - 410px - 28px - 300px) }
   .rk-sag{ left:calc(50% + 410px + 28px) }
-  .rk-yuva:empty::after{ content:'300 × 600' }
-}
-
-/* 1920 px+ : 300×600 + 300×250 alt alta */
-@media (min-width:1920px){
-  .rk-yuva{ height:880px }
-  .rk-yuva:empty::after{ content:'300 × 600  +  300 × 250' }
+  .rk-yuva{ width:300px; height:250px }
+  .rk-yuva:empty::after{ content:'300 × 250' }
 }
 
 /* Fare varsa üzerine gelince belli olsun — dokunmatikte devreye girmez */
@@ -99774,8 +99838,16 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
   .nav-btn:hover{ filter:brightness(1.25) }
 }
 </style>
-<div class="rk-yuva rk-sol" id="reklamSol"></div>
-<div class="rk-yuva rk-sag" id="reklamSag"></div>
+<div class="rk-sutun rk-sol">
+  <div class="rk-yuva" id="reklamSol1"></div>
+  <div class="rk-yuva" id="reklamSol2"></div>
+  <div class="rk-yuva" id="reklamSol3"></div>
+</div>
+<div class="rk-sutun rk-sag">
+  <div class="rk-yuva" id="reklamSag1"></div>
+  <div class="rk-yuva" id="reklamSag2"></div>
+  <div class="rk-yuva" id="reklamSag3"></div>
+</div>
 
 <!-- ══ MASAÜSTÜ · yatay şeritler ═══════════════════════════════════
      Lig sahnesi / Avrupa sahnesi gibi yatay şeritler masaüstünde
@@ -99803,7 +99875,14 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
      • Sayaçlar `ad_hit` RPC'siyle artar; RPC yalnızca +1 yapabilir. -->
 <script>
 (function(){
-  var YUVALAR = { sol:'reklamSol', sag:'reklamSag' };
+  // Altı bağımsız yuva. `ESKI`, iki-yuvalı dönemden kalan
+  // 'sol' / 'sag' kayıtlarını üstteki yuvaya düşürür — eski
+  // reklamlar veritabanı güncellenmeden de görünmeye devam eder.
+  var YUVALAR = {
+    sol1:'reklamSol1', sol2:'reklamSol2', sol3:'reklamSol3',
+    sag1:'reklamSag1', sag2:'reklamSag2', sag3:'reklamSag3'
+  };
+  var ESKI = { sol1:'sol', sag1:'sag' };
   var TAZELE  = 10 * 60 * 1000;      // 10 dakikada bir yeniden çek
   var _son    = {};                  // yuva -> gösterilen reklam id
 
@@ -99880,9 +99959,17 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
         .limit(50)
         .then(function(r){
           var satirlar = (r && r.data) || [];
+          var kullanilan = {};          // aynı reklam iki yuvada çıkmasın
           Object.keys(YUVALAR).forEach(function(yuva){
-            var uygun = satirlar.filter(function(x){ return x.slot === yuva; });
-            bas(YUVALAR[yuva], agirlikliSec(uygun));
+            var uygun = satirlar.filter(function(x){
+              return x.slot === yuva || (ESKI[yuva] && x.slot === ESKI[yuva]);
+            });
+            var serbest = uygun.filter(function(x){ return !kullanilan[x.id]; });
+            // Başka seçenek kalmadıysa tekrar göstermek, yuvayı boş
+            // bırakmaktan iyidir.
+            var secim = agirlikliSec(serbest.length ? serbest : uygun);
+            if (secim) kullanilan[secim.id] = true;
+            bas(YUVALAR[yuva], secim);
           });
         }, function(){});
     } catch(e){}
