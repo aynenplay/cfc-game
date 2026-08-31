@@ -28866,7 +28866,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-31-ekipman-417';
+const APP_BUILD = '2026-08-31-ovr-418';
 
 (function _cacheBustCheck() {
   try {
@@ -31278,6 +31278,44 @@ function getPlayerPositionAvg(player, posGroup) {
 //   OVR = (KL_avg + DF_avg + OS_avg + FW_avg) / 4
 // 4 mevki ortalamasının ortalaması. Başka HİÇBİR yerden overall eklenmez
 // (seviye bonusu yok, maç ödülü overall yok). Yetenekler arttıkça OVR otomatik artar.
+// 🆕 EKİPMANLI OVR — oyuncu sayfasındaki 4 hat barının ortalamasıyla
+//   AYNI hesap. Modal eskiden sunucudaki ham `players.overall` değerini
+//   basıyordu; oyuncu sayfası ise ekipman bonuslu ortalamayı. Aynı kişi
+//   iki ekranda 24 ve 25 görünüyordu.
+//   Bonus kaynağı: kendinsen kendi setin, başkasıysa `_visitorEqCache`
+//   (yalnızca önbellek O kişiye aitse — `_visitorEqUid` ile doğrulanır).
+function _ovrEkipmanli(player) {
+  const ab = player && player.abilities;
+  if (!ab || typeof ab !== 'object' || !ab.GK || !ab.DEF || !ab.MID || !ab.FWD) return null;
+  const uid = player.userId || player.user_id || null;
+  let bon = null;
+  try {
+    const benim = (typeof window !== 'undefined' && window.authUser) ? window.authUser.id : null;
+    if (uid && benim && String(uid) === String(benim)) {
+      if (typeof getEquippedBonuses === 'function') bon = getEquippedBonuses();
+    } else if (uid && typeof _visitorEqUid !== 'undefined' && _visitorEqUid === uid) {
+      if (typeof getEquippedBonuses === 'function' && typeof _getVisitorEqData === 'function') {
+        bon = getEquippedBonuses(_getVisitorEqData());
+      }
+    }
+  } catch(e) {}
+  const grpAvg = (sub) => {
+    if (!sub || typeof sub !== 'object') return null;
+    let t = 0, n = 0;
+    for (const id in sub) {
+      const v = Number(sub[id]);
+      if (!isFinite(v)) continue;
+      const b = bon ? (Number(bon[id]) || 0) : 0;
+      t += Math.min(100, v * (1 + b / 100));
+      n++;
+    }
+    return n > 0 ? t / n : null;
+  };
+  const gk = grpAvg(ab.GK), df = grpAvg(ab.DEF), md = grpAvg(ab.MID), fw = grpAvg(ab.FWD);
+  if (gk == null || df == null || md == null || fw == null) return null;
+  return Math.max(1, Math.min(99, Math.round((gk + df + md + fw) / 4)));
+}
+
 function getPlayerMainOverall(player) {
   if (!player) return 10;
 
@@ -31333,7 +31371,10 @@ function getPlayerMainOverall(player) {
           return Math.max(1, Math.min(99, Math.round((gk + df + md + fw) / 4)));
         }
       }
-      // Sunucunun yazdığı değer
+      // 🆕 Ekipmanlı hesap — oyuncu sayfasıyla aynı sonucu verir
+      const _eqOvr = _ovrEkipmanli(player);
+      if (_eqOvr != null) return _eqOvr;
+      // Sunucunun yazdığı değer (yetenek seti yoksa)
       const _ovU = Number(player.overall || player.rating || 0);
       if (_ovU > 0) return Math.max(1, Math.min(99, Math.round(_ovU)));
       return 10;
@@ -51032,6 +51073,13 @@ async function openPlayerModal(player, ctx) {
         typeof _visitorSkillsCache !== 'undefined' && !_visitorSkillsCache[_ouid] &&
         typeof _loadVisitorSkills === 'function') {
       await _loadVisitorSkills(_ouid);
+    }
+    // 🆕 Ekipmanını da çek — modaldeki OVR, oyuncu sayfasındaki
+    //    ekipmanlı değerle aynı olsun (24 / 25 uyuşmazlığı buradan geliyordu).
+    if (player && !player.isBot && player.role !== 'user' && _ouid &&
+        typeof _loadVisitorEq === 'function' &&
+        (typeof _visitorEqUid === 'undefined' || _visitorEqUid !== _ouid)) {
+      await _loadVisitorEq(player);
     }
   } catch(e) { /* sessizce devam — fallback player kullanılır */ }
 
@@ -71008,11 +71056,13 @@ function saveEqData(data, immediate) {
 
 // 🆕 Ziyaretçi modu: bakılan oyuncunun ekipmanı (salt-okunur)
 let _visitorEqCache = null;
+let _visitorEqUid   = null;   // 🆕 önbellekteki ekipman KİMİN — yanlış kişiye uygulamayalım
 function _eqIsVisitor(){ return !!(typeof _visitedPlayerData !== 'undefined' && _visitedPlayerData && _visitedPlayerData.player); }
 async function _loadVisitorEq(player) {
   try {
     const uid = player && (player.userId || player.user_id || player.uid);
-    if (!uid || !window.sb) { _visitorEqCache = null; }
+    _visitorEqUid = uid || null;
+    if (!uid || !window.sb) { _visitorEqCache = null; _visitorEqUid = null; }
     else {
       // 🔴 `user_player` okuma politikası "sadece kendi satırın" diyor —
       //    başkasının ekipmanı oradan ASLA gelmiyordu ve profilde
@@ -71029,7 +71079,8 @@ async function _loadVisitorEq(player) {
   //    görüyordu. Artık tüm oyuncu sayfası yeniden çiziliyor, böylece
   //    yetenekler ekipman bonusuyla hesaplanıyor.
   try {
-    if (typeof renderPlayerPage === 'function') renderPlayerPage();
+    const ziyaretteyiz = (typeof _eqIsVisitor === 'function') && _eqIsVisitor();
+    if (ziyaretteyiz && typeof renderPlayerPage === 'function') renderPlayerPage();
     else {
       const tab = document.getElementById('pl-equipment');
       if (tab && tab.style.display !== 'none' && typeof renderEquipment === 'function') renderEquipment();
