@@ -28866,7 +28866,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-31-kayit-414';
+const APP_BUILD = '2026-08-31-yetenek-415';
 
 (function _cacheBustCheck() {
   try {
@@ -69718,29 +69718,56 @@ function _carBuildSkillsForVisitor(vp) {
     cat.skills.forEach(s => { lvls[s.id] = 10; });
   });
 
-  // Durum 1: Gerçek kullanıcı → cache'ten skills al (async yüklenir)
-  // Field adı player objesinde 'userId' (camelCase), Supabase row'da 'user_id'
   const vpUid = vp && (vp.userId || vp.user_id);
-  // isBot açıkça true değilse ve userId varsa → gerçek kullanıcı yolu
   const isExplicitBot = vp && vp.isBot === true;
+
+  // 🔴 TEK DÜNYA · TEK KAYNAK — `players.abilities`
+  //   Eskiden gerçek kullanıcıların yetenekleri yalnızca
+  //   `user_player.skills` içindeydi ve o tablonun okuma politikası
+  //   "sadece kendi satırın" diyor. Yani BAŞKASININ profilinde veri
+  //   asla gelmiyor, kod sessizce 10'a düşüyordu. (Uzun süre fark
+  //   edilmemesinin sebebi ayrı bir hataydı: bot olmayan herkes "sen"
+  //   sayıldığı için başkasının profilinde SENİN verilerin
+  //   gösteriliyordu.)
+  //
+  //   Artık sunucu, kullanıcının yeteneklerini herkesin okuyabildiği
+  //   `players.abilities` sütununa da yazıyor (sync_player_abilities
+  //   tetiği). Bot ya da gerçek kullanıcı — hepsi buradan okunur.
+  const _ab = vp && vp.abilities;
+  let _abBulundu = false;
+  if (_ab && typeof _ab === 'object') {
+    ['GK','DEF','MID','FWD'].forEach(g => {
+      const sub = _ab[g];
+      if (!sub || typeof sub !== 'object') return;
+      Object.keys(sub).forEach(id => {
+        const v = sub[id];
+        if (typeof v === 'number' && lvls[id] !== undefined) {
+          lvls[id] = v;
+          _abBulundu = true;
+        }
+      });
+    });
+  }
+
   if (vp && !isExplicitBot && vpUid) {
+    // Kendi satırın (ya da başka yoldan gelmiş taze veri) varsa onu yeğle
     const cached = _visitorSkillsCache[vpUid];
     if (cached) {
-      // Cache'ten her skill'i set et
       Object.keys(cached).forEach(id => {
         if (lvls[id] !== undefined) lvls[id] = cached[id];
       });
       return lvls;
     }
-    // Cache yoksa async yükle, gelince renderPlayerPage tetikle
+    if (_abBulundu) return lvls;          // abilities yeterli, istek atma
+    // Hiç veri yoksa son çare: kendi satırın için user_player'ı dene
     _loadVisitorSkills(vpUid).then(skills => {
       if (skills && typeof renderPlayerPage === 'function') {
         try { renderPlayerPage(); } catch(e) {}
       }
     });
-    // İlk render'da 10'larla dön (sonra cache dolunca yenilenir)
     return lvls;
   }
+  if (_abBulundu) return lvls;
 
   // Durum 2: Bot → abilities'ten ana mevki ortalaması
   if (vp && vp.abilities && typeof vp.abilities === 'object') {
