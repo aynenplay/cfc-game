@@ -28866,7 +28866,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-31-ovr-418';
+const APP_BUILD = '2026-08-31-dongu-419';
 
 (function _cacheBustCheck() {
   try {
@@ -50655,22 +50655,26 @@ function renderRoster(filter) {
   // 🆕 Squad info bar güncelle
   if (typeof updateSquadInfoBar === 'function') updateSquadInfoBar();
 
-  // 🆕 GERÇEK USER takım arkadaşları için skills cache'i pre-fetch
-  //   Cache dolunca getPlayerMainOverall 4 hat avg ile doğru OVR döner → yeniden render.
-  if (typeof _visitorSkillsCache !== 'undefined' && typeof _loadVisitorSkills === 'function') {
-    const needsLoad = players.filter(p =>
-      p && !p.isBot && p.role !== 'user' && (p.userId || p.user_id) &&
-      !_visitorSkillsCache[p.userId || p.user_id]
-    );
-    if (needsLoad.length > 0) {
-      Promise.all(needsLoad.map(p => _loadVisitorSkills(p.userId || p.user_id)))
-        .then(() => {
-          // En az bir oyuncunun skills'i yüklendiyse listeyi tazele
-          if (typeof renderRoster === 'function') renderRoster(filter);
-        })
-        .catch(() => {});
-    }
-  }
+  // 🔴 KALDIRILDI — SONSUZ YENİDEN ÇİZİM DÖNGÜSÜ
+  //
+  //   Burada takım arkadaşlarının yeteneklerini `user_player`'dan
+  //   önden çeken bir blok vardı ve iş bitince `renderRoster(filter)`
+  //   ile listeyi YENİDEN ÇİZİYORDU.
+  //
+  //   Ama `user_player` okuma politikası "sadece kendi satırın" diyor:
+  //   başkasının verisi ASLA gelmiyor, önbellek hiç dolmuyordu. Yani
+  //   her çizim yeni istek atıyor, istek bitince yeniden çiziyor,
+  //   o çizim yine istek atıyordu → saniyede ~100 tur.
+  //
+  //   Sonuçları: kadro satırları titriyordu; ve parmak kalkmadan önce
+  //   satır DOM'dan silindiği için tarayıcı `click` üretmiyordu —
+  //   mobilde "oyuncuya tıklanmıyor" sorununun kaynağı buydu.
+  //   (Ölçüm: renderRoster 10 saniyede 538 → 1119 çağrı.)
+  //
+  //   Artık gereksiz: sunucu, kullanıcıların yeteneklerini herkesin
+  //   okuyabildiği `players.abilities` sütununa yazıyor
+  //   (sync_player_abilities tetiği). Veri zaten kadroyla birlikte
+  //   geliyor, ayrıca çekmeye ve yeniden çizmeye gerek yok.
 }
 
 function removeBot(num, btn) {
@@ -69741,6 +69745,14 @@ async function _loadVisitorSkills(userId) {
       .eq('user_id', userId)
       .maybeSingle();
     const skills = (data && data.skills && typeof data.skills === 'object') ? data.skills : null;
+    if (!skills) {
+      // 🆕 Boş döndü (çoğunlukla RLS: başkasının satırı okunamaz).
+      //    Önbelleğe BOŞ yaz ki aynı kişi için tekrar tekrar istek
+      //    atılmasın. Eskiden bu yoktu ve çağıran kod her seferinde
+      //    yeniden deniyordu — sonsuz döngülerin zemini buydu.
+      _visitorSkillsCache[userId] = {};
+      return null;
+    }
     if (skills) {
       // skills formatı: {GK:{id:{level,points}}, DEF:{...}, MID:{...}, FWD:{...}}
       // Tüm 4 pos birleştir → flat {id:level} map
@@ -99503,6 +99515,12 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
   //    "Satır sürekli yeniden yaratılıyor" bulgusunun failini bulur.
   var cizSay = { renderRoster:0, rosterBuildTeam:0, guestRenderRoster:0 };
   var sonCagiran = '—', sonCagiranT = 0;
+  var benzersiz = {}, benzersizSira = [];   // farklı çağrı yolları + adetleri
+  var oncekiToplam = 0, hiz = 0;
+  setInterval(function(){
+    var t = cizSay.renderRoster + cizSay.rosterBuildTeam + cizSay.guestRenderRoster;
+    hiz = t - oncekiToplam; oncekiToplam = t;
+  }, 1000);
   (function(){
     function sar(ad){
       var asil = window[ad];
@@ -99510,13 +99528,26 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
       var yeni = function(){
         try {
           cizSay[ad]++;
-          var y = (new Error()).stack || '';
-          var satirlar = y.split('\n').slice(2, 5).join(' ‹ ')
-                          .replace(/https?:\/\/[^ )]*/g, '')
-                          .replace(/\s+/g, ' ').trim();
-          sonCagiran = ad + ' ← ' + satirlar.slice(0, 150);
+          // ⚠️ Safari'de stack'in ilk satırı ZATEN çağrılan fonksiyondur
+          //    (V8'deki "Error" başlık satırı yoktur). Bu yüzden hiçbir
+          //    satırı atmıyoruz; sadece URL'leri kısaltıp fonksiyon
+          //    adlarını bırakıyoruz.
+          var y = (new Error()).stack || '(yığın yok)';
+          var satirlar = y.split('\n').map(function(l){
+            return l.replace(/@?https?:\/\/[^\s)]*/g, '')
+                    .replace(/\s+/g, ' ').trim();
+          }).filter(function(l){ return l && l !== 'yeni'; });
+          sonCagiran = satirlar.slice(0, 4).join(' ‹ ').slice(0, 220);
+          if (!benzersiz[sonCagiran]) {
+            benzersiz[sonCagiran] = 0;
+            benzersizSira.push(sonCagiran);
+            if (benzersizSira.length > 4) {
+              delete benzersiz[benzersizSira.shift()];
+            }
+          }
+          benzersiz[sonCagiran]++;
           sonCagiranT = Date.now();
-        } catch(e) {}
+        } catch(e) { sonCagiran = 'yığın okunamadı: ' + e; }
         return asil.apply(this, arguments);
       };
       yeni.__teshisSarildi = true;
@@ -99615,7 +99646,11 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
               + ' build=' + cizSay.rosterBuildTeam
               + ' guest=' + cizSay.guestRenderRoster
               + (sonCagiranT ? ' · ' + Math.round((Date.now()-sonCagiranT)/1000) + 'sn önce' : ''));
-      sr.push('ÇAĞIRAN: ' + sonCagiran);
+      sr.push('HIZ: ' + hiz + ' çizim/sn');
+      sr.push('ÇAĞRI YOLLARI (' + benzersizSira.length + '):');
+      for (var bi = benzersizSira.length - 1; bi >= 0; bi--) {
+        sr.push('  ' + benzersiz[benzersizSira[bi]] + '× ' + benzersizSira[bi]);
+      }
       // 🎯 Kadro satırının üstünü kim kaplıyor + hangi CSS engelliyor
       var _sat = document.querySelector('#rosterList .player-row');
       if (_sat) {
