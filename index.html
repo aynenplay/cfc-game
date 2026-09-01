@@ -28918,7 +28918,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-01-modal-428';
+const APP_BUILD = '2026-09-01-sozlesme-429';
 
 (function _cacheBustCheck() {
   try {
@@ -50915,7 +50915,54 @@ function getPlayerContract(player, teamName) {
     }
   } catch(e) {}
 
-  // 🤖 Bot oyuncular ve diğer kullanıcılar: seed-based label (mevcut sistem)
+  // 🔴 BAŞKA GERÇEK KULLANICILAR — GERÇEK SÖZLEŞME
+  //   Eskiden herkesin sözleşmesi (kendi oyuncun hariç) oyuncu adının
+  //   hash'inden uyduruluyordu: takvim yılına bağlı sabit bir tarih.
+  //   Oyuncunun takıma ne zaman katıldığıyla, transferde belirlenen
+  //   süreyle (1-5 sezon) ilgisi yoktu ve sezon ilerledikçe hiç
+  //   kısalmıyordu. Gerçek sözleşme `players.user_team_data.contract`
+  //   içinde ve o tablo herkese açık — buradan okuyoruz.
+  //   Botlarda gerçek sözleşme yok, onlar aşağıdaki hash yolunda kalıyor.
+  try {
+    const uid2 = (player && (player.userId || player.user_id)) || null;
+    const c2 = (player && player.user_team_data && player.user_team_data.contract)
+            || (player && player.contract) || null;
+    if (uid2 && !player.isBot && c2 && c2.endsSeason) {
+      const info2 = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : null;
+      const suAn   = info2 ? (info2.season || 0) : 0;
+      const suAnGun = info2 ? (info2.dayInSeason || info2.day || 0) : 0;
+      const bitis  = Number(c2.endsSeason) || 0;
+      const kalanSezon = Math.max(0, bitis - suAn);
+      // Bitiş tarihi: bitiş sezonunun 40. günü
+      let tarihStr = null, bitisTarih = null;
+      if (typeof seasonDayToDate === 'function') {
+        const d40 = seasonDayToDate(40);
+        if (d40) {
+          bitisTarih = new Date(d40);
+          // Her sezon 40 gün — aradaki sezonları ekle
+          bitisTarih.setUTCDate(bitisTarih.getUTCDate() + kalanSezon * 40);
+          tarihStr = `${bitisTarih.getUTCDate()} ${_MONTHS_TR_FULL[bitisTarih.getUTCMonth()]} ${bitisTarih.getUTCFullYear()}`;
+        }
+      }
+      const kalanGun = kalanSezon * 40 + Math.max(0, 40 - suAnGun);
+      const sonSezon = (bitis === suAn);
+      const etiket = tarihStr
+        ? `Sezon ${bitis} sonu · ${tarihStr}`
+        : `Sezon ${bitis} sonu`;
+      return {
+        type: 'active',
+        endDate: bitisTarih,
+        label: etiket,
+        expiring: sonSezon && (40 - suAnGun) <= 10,
+        monthsLeft: Math.round(kalanGun / 30),
+        seasonsLeft: kalanSezon,
+        daysLeft: kalanGun,
+        contract: c2
+      };
+    }
+  } catch(e) {}
+
+  // 🤖 Bot oyuncular: seed-based label (gerçek sözleşme kaydı yok)
   const seed = _hashStr((player.name||'') + '|' + (teamName||''));
   // %12 boşta
   if((seed % 100) < 12) {
@@ -51227,10 +51274,21 @@ async function openPlayerModal(player, ctx) {
     contractHtml = `<div class="pm-contract free"><div class="pm-contract-val">${cleanLabel}</div></div>`;
   } else {
     const valCls = contract.expiring ? 'expiring' : '';
-    const expNote = contract.expiring ? ' · son 6 ay' : '';
+    // 🆕 Kalan süre — gerçek sözleşmede sezon/gün, bot sözleşmesinde ay.
+    //   Eskiden her ikisinde de "son 6 ay" yazıyordu; kullanıcının kendi
+    //   sözleşmesi 5 günle, botlarınki 6 ayla ölçülüyordu — aynı kartta
+    //   iki farklı ölçü.
+    let kalanNot = '';
+    if (contract.seasonsLeft != null) {
+      kalanNot = contract.seasonsLeft > 0
+        ? ` · ${contract.seasonsLeft} sezon kaldı`
+        : (contract.daysLeft != null ? ` · ${contract.daysLeft} gün kaldı` : '');
+    } else if (contract.expiring) {
+      kalanNot = ' · son 6 ay';
+    }
     contractHtml = `<div class="pm-contract">
       <div class="pm-contract-label">Kontrat Bitişi</div>
-      <div class="pm-contract-val ${valCls}">${contract.label}${expNote}</div>
+      <div class="pm-contract-val ${valCls}">${contract.label}${kalanNot}</div>
     </div>`;
   }
 
@@ -81705,7 +81763,7 @@ async function _jrOyuncuCek(uid) {
     //    uyruk görünüyordu, "Profili Gör" de aynı fonksiyona bağlı
     //    olduğu için hiçbir şey yapmıyordu.
     const { data, error } = await window.sb.from('players')
-      .select('id, num, name, pos, pos_group, sub_pos, nationality, nation, level, xp, overall, rating, abilities, avatar, avatar_id, team_name, country_code, role, is_bot')
+      .select('id, num, name, pos, pos_group, sub_pos, nationality, nation, level, xp, overall, rating, abilities, avatar, avatar_id, team_name, country_code, role, is_bot, user_team_data')
       .eq('user_id', uid).maybeSingle();
     if (error) { console.warn('[jr] oyuncu okunamadı:', error.message || error); return null; }
     if (!data) return null;
