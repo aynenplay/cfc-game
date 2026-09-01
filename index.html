@@ -28900,7 +28900,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-01-teklif-424';
+const APP_BUILD = '2026-09-01-red-427';
 
 (function _cacheBustCheck() {
   try {
@@ -34271,7 +34271,7 @@ window.inboxApproveJoinRequest = async function(msgId){
 };
 
 
-window.inboxRejectJoinRequest = function(msgId){
+window.inboxRejectJoinRequest = async function(msgId){
   const msgs = (typeof getInboxMsgs === 'function') ? getInboxMsgs() : null;
   if(!msgs) return;
   const idx = msgs.findIndex(m => m.id === msgId);
@@ -34296,20 +34296,29 @@ window.inboxRejectJoinRequest = function(msgId){
     saveJoinRequests(list);
   } catch(e){}
 
-  // Karşı tarafa red mesajı
+  // 🔴 RED CEVABI OYUNCUYA GİDER
+  //   Eskiden bu mesaj `msgs.unshift(...)` ile KAPTANIN KENDİ gelen
+  //   kutusuna yazılıyordu. İsteği gönderen oyuncu hiçbir zaman haber
+  //   almıyor, isteği sonsuza dek "bekliyor" görüyordu. Kaptanın kutusu
+  //   ise her reddettiğinde kendine hitap eden okunmamış bir mesajla
+  //   şişiyordu (rozet sayacı da onunla).
   const captainName = (typeof getTeamRealCaptainName === 'function')
     ? getTeamRealCaptainName(d.countryCode, d.teamName) : 'Kaptan';
-  msgs.unshift({
-    id: 'jr_resp_no_' + Date.now(),
-    from: `${d.teamName} Yönetimi`,
-    fromAvatar: '❌',
-    type: 'system',
-    subject: `Katılma İsteğin Reddedildi — ${d.teamName}`,
-    body: `${captainName}, ${d.teamName} takımına katılma isteğini reddetti.\n\nFarklı şartlarla yeni bir istek gönderebilir veya başka takımlara başvurabilirsin.`,
-    time: new Date().toLocaleDateString('tr'),
-    read: false,
-    thread: [],
-  });
+
+  if (d.requestorUserId && typeof inboxSendToUser === 'function') {
+    const gonderildi = await inboxSendToUser(d.requestorUserId, {
+      id: 'jr_resp_no_' + Date.now(),
+      from: `${d.teamName} Yönetimi`,
+      fromAvatar: '❌',
+      type: 'system',
+      subject: `Katılma İsteğin Reddedildi — ${d.teamName}`,
+      body: `${captainName}, ${d.teamName} takımına katılma isteğini reddetti.\n\n`
+          + `Farklı şartlarla yeni bir istek gönderebilir veya başka takımlara başvurabilirsin.`,
+    });
+    if (!gonderildi) console.warn('[jr] red bildirimi teslim edilemedi:', d.requestorUserId);
+  } else {
+    console.warn('[jr] red bildirimi gönderilemedi — isteyenin kimliği yok');
+  }
 
   if(typeof saveInboxMsgs === 'function') saveInboxMsgs(msgs);
   if(typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
@@ -81672,10 +81681,31 @@ async function _jrOyuncuCek(uid) {
   _jrOyuncuCache[uid] = null;                            // tekrar istek atma
   try {
     if (!window.sb) return null;
-    const { data } = await window.sb.from('players')
-      .select('name, pos, pos_group, sub_pos, nationality, nation, level, overall, abilities, avatar, avatar_id, market_value, team_name')
+    // ⚠️ `market_value` BU TABLODA YOK — o ad takım/ülke tablosuna ait.
+    //    Listede bulununca PostgREST tüm sorguyu hata döndürüyor, kod da
+    //    catch ile sessizce boş geçiyordu: kartta ne OVR ne yetenek ne
+    //    uyruk görünüyordu, "Profili Gör" de aynı fonksiyona bağlı
+    //    olduğu için hiçbir şey yapmıyordu.
+    const { data, error } = await window.sb.from('players')
+      .select('id, num, name, pos, pos_group, sub_pos, nationality, nation, level, xp, overall, rating, abilities, avatar, avatar_id, team_name, country_code, role, is_bot')
       .eq('user_id', uid).maybeSingle();
-    if (data) _jrOyuncuCache[uid] = data;
+    if (error) { console.warn('[jr] oyuncu okunamadı:', error.message || error); return null; }
+    if (!data) return null;
+
+    // 🆕 AVATAR YEDEĞİ — `players.avatar_id` boş kalabiliyor (eski kayıtlar,
+    //    kayıt akışının değiştiği dönemde açılan hesaplar). Avatar seçimi
+    //    `profiles` tablosuna da yazılıyor; boşsa oradan tamamlıyoruz.
+    //    Yoksa kart, oyuncunun gerçek avatarı yerine mevkiye göre üretilen
+    //    yedek emojiyi (sarı kafa) gösteriyordu.
+    if (!data.avatar_id) {
+      try {
+        const { data: pf } = await window.sb.from('profiles')
+          .select('avatar_id').eq('id', uid).maybeSingle();
+        if (pf && pf.avatar_id) data.avatar_id = pf.avatar_id;
+      } catch(e) {}
+    }
+
+    _jrOyuncuCache[uid] = data;
     return _jrOyuncuCache[uid];
   } catch(e) { return null; }
 }
@@ -81691,15 +81721,23 @@ function _jrEsc(x) {
 window.jrProfilAc = async function(uid) {
   try {
     const oy = await _jrOyuncuCek(uid);
-    if (!oy) { if (typeof showToast === 'function') showToast('Oyuncu bilgisi okunamadı'); return; }
+    if (!oy) {
+      console.warn('[jr] profil açılamadı — oyuncu satırı okunamadı:', uid);
+      if (typeof tfShowToast === 'function') tfShowToast('❌ Oyuncu bilgisi okunamadı', '#ef5350');
+      else if (typeof showToast === 'function') showToast('Oyuncu bilgisi okunamadı');
+      return;
+    }
     if (typeof openPlayerModal !== 'function') return;
     openPlayerModal({
       name: oy.name, pos: oy.pos, posGroup: oy.pos_group, subPos: oy.sub_pos,
       nationality: oy.nationality, nation: oy.nation,
-      level: oy.level, overall: oy.overall, rating: oy.overall,
+      level: oy.level, xp: oy.xp, overall: oy.overall, rating: oy.rating || oy.overall,
       abilities: oy.abilities, avatar: oy.avatar, avatar_id: oy.avatar_id,
-      userId: uid, user_id: uid, isBot: false, role: 'member', num: 0
-    }, { teamName: oy.team_name || 'Serbest', countryCode: oy.nationality || '', isOwnTeam: false });
+      userId: uid, user_id: uid, isBot: !!oy.is_bot, role: oy.role || 'member',
+      num: oy.num || 0, id: oy.id || null
+    }, { teamName: oy.team_name || 'Serbest',
+         countryCode: oy.country_code || oy.nationality || '',
+         teamLookupName: oy.team_name || null, isOwnTeam: false });
   } catch(e) { console.warn('[jr] profil açılamadı:', e); }
 };
 
@@ -81931,7 +81969,8 @@ function inboxRenderDetail(msg) {
     const ovr    = oy ? ((typeof getPlayerMainOverall === 'function')
                         ? getPlayerMainOverall({ ...oy, role:'member', isBot:false, userId:d.requestorUserId })
                         : (oy.overall || 10)) : '—';
-    const deger  = (oy && oy.market_value) ? fmt(Number(oy.market_value)) : '—';
+    // Piyasa değeri `players` tablosunda tutulmuyor (yalnız kişinin kendi
+    // `user_player` satırında) — başkası okuyamıyor, o yüzden gösterilmiyor.
 
     // Dört hat ortalaması
     const hatOrt = (grup) => {
@@ -81967,7 +82006,6 @@ function inboxRenderDetail(msg) {
             <div class="jr-rozetler">
               <span class="jr-rz jr-rz-pos">${mevki}</span>
               <span class="jr-rz jr-rz-lv">Seviye ${seviye}</span>
-              <span class="jr-rz jr-rz-mv">${deger}</span>
             </div>
             <div class="jr-uyruk">${bayrak} ${uyruk}</div>
           </div>
