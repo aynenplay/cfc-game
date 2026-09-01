@@ -14384,6 +14384,35 @@ body.inbox-open #main{visibility:hidden!important;pointer-events:none!important}
 .inbox-msg-type-badge.friendly_response{background:rgba(0,230,118,.14);color:var(--accent)}
 .inbox-msg-type-badge.join_request{background:rgba(179,157,219,.14);color:#b39ddb}
 .inbox-msg-type-badge.join_request_incoming{background:rgba(0,230,118,.14);color:var(--accent)}
+
+/* 🆕 Katılma isteği — oyuncu kartı */
+.jr-oyuncu{display:flex;align-items:center;gap:11px;padding:2px 0 11px;border-bottom:1px solid rgba(255,255,255,.06)}
+.jr-av{width:52px;height:52px;border-radius:10px;background:#171a20;border:1px solid #262b34;
+  display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;overflow:hidden}
+.jr-av img{width:100%;height:100%;object-fit:cover;display:block}
+.jr-ust{flex:1;min-width:0}
+.jr-ad{font-size:15px;font-weight:800;color:var(--text);letter-spacing:.2px}
+.jr-rozetler{display:flex;gap:5px;margin-top:5px;flex-wrap:wrap}
+.jr-rz{font-size:10px;font-weight:800;padding:2px 7px;border-radius:5px;letter-spacing:.3px}
+.jr-rz-pos{background:rgba(56,142,60,.18);color:#7bc47f}
+.jr-rz-lv{background:rgba(66,165,245,.16);color:#7cc0f5}
+.jr-rz-mv{background:rgba(255,213,79,.14);color:#ffd54f}
+.jr-uyruk{font-size:11px;color:var(--text3);margin-top:4px}
+.jr-ovr{text-align:center;padding-left:10px;border-left:1px solid rgba(255,255,255,.07);flex-shrink:0}
+.jr-ovr-n{font-size:26px;font-weight:900;color:var(--accent);line-height:1}
+.jr-ovr-l{font-size:10px;color:var(--text3);margin-top:2px;letter-spacing:.5px}
+.jr-hatlar{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:10px 0;
+  border-bottom:1px solid rgba(255,255,255,.06)}
+.jr-hatlar>div{text-align:center}
+.jr-hatlar span{display:block;font-size:10px;color:var(--text3);letter-spacing:.5px}
+.jr-hatlar b{display:block;font-size:14px;color:var(--text2);font-weight:800;margin-top:1px}
+.jr-not{margin-top:9px;padding:8px 10px;border-radius:8px;font-size:11px;line-height:1.5;
+  background:rgba(255,213,79,.07);border:1px solid rgba(255,213,79,.2);color:#d7c48a}
+.jr-not b{color:#ffd54f}
+.jr-profil-btn{width:100%;margin-top:7px;padding:9px;border-radius:8px;cursor:pointer;
+  background:transparent;border:1px solid rgba(255,255,255,.12);color:var(--text2);
+  font-family:inherit;font-size:12px;font-weight:700;letter-spacing:.3px}
+.jr-profil-btn:active{transform:scale(.99)}
 .inbox-empty{padding:40px;text-align:center;color:var(--text3);font-size:13px}
 
 /* Detay görünümü */
@@ -28866,7 +28895,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-08-31-ovr-421';
+const APP_BUILD = '2026-09-01-katilma-423';
 
 (function _cacheBustCheck() {
   try {
@@ -45657,6 +45686,22 @@ async function userTeamLoadFromServer() {
       };
       const ut = (data.user_team_data && typeof data.user_team_data === 'object') ? data.user_team_data : {};
       if (ut.tierIdx != null) _userTeam.tierIdx = ut.tierIdx;
+
+      // 🔴 SÖZLEŞME VERİSİ KORUNUR
+      //   Buradan yalnızca `tierIdx` alınıyordu. `_userTeam` yeniden
+      //   kurulduğu için `contract` ve yanındaki alanlar düşüyor,
+      //   sonraki herhangi bir `userTeamSave()` de eksik nesneyi
+      //   sunucuya yazarak sözleşmeyi KALICI olarak siliyordu.
+      //   Kaybolanlar: maaş, süre, katılım günü, ödenen taksit sayısı,
+      //   `lastPayKey`. Maaş ödemesi ve orantılı ilk maaş hesabı bu
+      //   alanlara dayandığı için sessizce bozuluyordu.
+      //   Artık kimlik dışındaki her alan olduğu gibi taşınıyor.
+      const _KIMLIK_ALANLARI = ['teamName','countryCode','role','num','tierIdx'];
+      Object.keys(ut).forEach(k => {
+        if (_KIMLIK_ALANLARI.indexOf(k) !== -1) return;   // kimlik daima kolonlardan
+        if (ut[k] === undefined) return;
+        _userTeam[k] = ut[k];
+      });
       // tierIdx'i takımın gerçek liginden doğrula/düzelt
       if (typeof _cftGetCountry === 'function') {
         const country = _cftGetCountry(_userTeam.countryCode);
@@ -81592,6 +81637,79 @@ function _trnKartArmalar(kok) {
   } catch(e) {}
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  KATILMA İSTEĞİ — oyuncu bilgisi + orantılı ilk maaş
+// ═══════════════════════════════════════════════════════════════
+
+// Maaş günleri ve sezon uzunluğu — tek doğru kaynak
+const JR_ODEME_GUNLERI = [10, 20, 30, 40];
+const JR_SEZON_GUN = 40;
+
+// İlk maaş orantılıdır: oyuncu sezonun ortasında katılırsa yalnızca
+// sahada geçirdiği günlerin karşılığını alır. Katılım günü SAYILIR.
+//   15. gün katılan → 20. günde 6 günlük (15,16,17,18,19,20)
+//   38. gün katılan → 40. günde 3 günlük, sonra yeni sezon sıfırdan
+function jrIlkOdeme(sezonMaasi, katilimGunu) {
+  const maas = Number(sezonMaasi) || 0;
+  const gun = Number(katilimGunu) || 1;
+  const gunluk = maas / JR_SEZON_GUN;
+  const odemeGunu = JR_ODEME_GUNLERI.find(g => g >= gun);
+  if (odemeGunu == null) return null;                    // sezon bitmiş
+  const gunSayisi = odemeGunu - gun + 1;
+  return { odemeGunu, gunSayisi, tutar: Math.round(gunluk * gunSayisi) };
+}
+
+// Bakılan oyuncunun kadro kartı verisi — `players` herkese açık okunur.
+let _jrOyuncuCache = {};
+async function _jrOyuncuCek(uid) {
+  if (!uid) return null;
+  if (Object.prototype.hasOwnProperty.call(_jrOyuncuCache, uid)) return _jrOyuncuCache[uid];
+  _jrOyuncuCache[uid] = null;                            // tekrar istek atma
+  try {
+    if (!window.sb) return null;
+    const { data } = await window.sb.from('players')
+      .select('name, pos, pos_group, sub_pos, nationality, nation, level, overall, abilities, avatar, avatar_id, market_value, team_name')
+      .eq('user_id', uid).maybeSingle();
+    if (data) _jrOyuncuCache[uid] = data;
+    return _jrOyuncuCache[uid];
+  } catch(e) { return null; }
+}
+
+// Oyuncu adı başkasının girdisi — HTML olarak basılmadan önce kaçırılır
+function _jrEsc(x) {
+  return String(x == null ? '' : x)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// "Profili Gör" — kadro kartını oyuncu modalinde açar
+window.jrProfilAc = async function(uid) {
+  try {
+    const oy = await _jrOyuncuCek(uid);
+    if (!oy) { if (typeof showToast === 'function') showToast('Oyuncu bilgisi okunamadı'); return; }
+    if (typeof openPlayerModal !== 'function') return;
+    openPlayerModal({
+      name: oy.name, pos: oy.pos, posGroup: oy.pos_group, subPos: oy.sub_pos,
+      nationality: oy.nationality, nation: oy.nation,
+      level: oy.level, overall: oy.overall, rating: oy.overall,
+      abilities: oy.abilities, avatar: oy.avatar, avatar_id: oy.avatar_id,
+      userId: uid, user_id: uid, isBot: false, role: 'member', num: 0
+    }, { teamName: oy.team_name || 'Serbest', countryCode: oy.nationality || '', isOwnTeam: false });
+  } catch(e) { console.warn('[jr] profil açılamadı:', e); }
+};
+
+// Kaptanın kadro doluluğu — kaç kişi, kaç yabancı
+function _jrKadroDurumu() {
+  try {
+    if (typeof ROSTER_DATA === 'undefined' || !Array.isArray(ROSTER_DATA)) return null;
+    const cc = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.countryCode : null;
+    const toplam = ROSTER_DATA.length;
+    const yabanci = cc ? ROSTER_DATA.filter(p => p && p.nationality && p.nationality !== cc).length : 0;
+    const limit = (typeof CFT_FOREIGN_LIMIT !== 'undefined') ? CFT_FOREIGN_LIMIT : 5;
+    return { toplam, max: 22, yabanci, yabanciMax: limit };
+  } catch(e) { return null; }
+}
+
 function inboxRenderDetail(msg) {
   document.getElementById('inboxDetailTitle').textContent = msg.subject;
 
@@ -81714,19 +81832,101 @@ function inboxRenderDetail(msg) {
         </div>
       </div>`;
   } else if (msg.type === 'join_request_incoming' && msg.joinReqIncomingData) {
-    // 🆕 Gelen katılma isteği — Kaptan/Yardımcı için onay/red kartı
+    // 🆕 Gelen katılma isteği — kaptan/yardımcı için oyuncu kartı + onay/red
     const d = msg.joinReqIncomingData;
     const fmt = v => v >= 1e6 ? (v/1e6).toFixed(2)+'M €' : v >= 1e3 ? Math.round(v/1e3)+'K €' : v+' €';
     const isApproved = msg.offerStatus === 'approved';
     const isRejected = msg.offerStatus === 'rejected';
+    const maas = Number(d.seasonSalary || d.yearlySalary || 0);
+
+    // Oyuncunun kadro verisi `players` tablosundan okunur (herkese açık).
+    // Mesajın içine gömmüyoruz: mesaj Edge fonksiyonundan geçerken
+    // bilinmeyen alanlar elenebiliyor ve kart boş kalıyordu.
+    const oy = (d.requestorUserId && _jrOyuncuCache[d.requestorUserId]) || null;
+    if (d.requestorUserId && !Object.prototype.hasOwnProperty.call(_jrOyuncuCache, d.requestorUserId)) {
+      _jrOyuncuCek(d.requestorUserId).then(r => {
+        // Veri geldi → yalnızca AYNI mesaj hâlâ açıksa bir kez yeniden çiz
+        if (r && _inboxCurrentMsg && _inboxCurrentMsg.id === msg.id) {
+          try { inboxRenderDetail(msg); } catch(e) {}
+        }
+      });
+    }
+
+    // Avatar — oyuncunun seçtiği görsel, yoksa mevkiye göre varsayılan
+    let avHtml = '👤';
+    try {
+      if (typeof getAvatarEmoji === 'function') {
+        avHtml = getAvatarEmoji(oy ? oy.avatar_id : null, oy ? oy.pos : null) || '👤';
+      }
+    } catch(e) {}
+
+    const bayrak = (oy && oy.nation) || '🏳️';
+    const uyruk  = (oy && oy.nationality) || '';
+    const mevki  = (oy && (oy.sub_pos || oy.pos)) || '—';
+    const seviye = (oy && oy.level != null) ? oy.level : '—';
+    const ovr    = oy ? ((typeof getPlayerMainOverall === 'function')
+                        ? getPlayerMainOverall({ ...oy, role:'member', isBot:false, userId:d.requestorUserId })
+                        : (oy.overall || 10)) : '—';
+    const deger  = (oy && oy.market_value) ? fmt(Number(oy.market_value)) : '—';
+
+    // Dört hat ortalaması
+    const hatOrt = (grup) => {
+      try {
+        const ab = oy && oy.abilities && oy.abilities[grup];
+        if (!ab || typeof ab !== 'object') return '—';
+        const v = Object.values(ab).filter(x => typeof x === 'number');
+        return v.length ? Math.round(v.reduce((a,b)=>a+b,0)/v.length) : '—';
+      } catch(e) { return '—'; }
+    };
+
+    const kd = _jrKadroDurumu();
+    const kadroYazi = kd
+      ? `${kd.toplam}/${kd.max} · yabancı ${kd.yabanci}/${kd.yabanciMax}`
+      : '—';
+    const kadroDolu = !!(kd && kd.toplam >= kd.max);
+
+    // İlk maaş orantılı — bugünkü oyun gününe göre
+    let bugunGun = 1;
+    try { if (typeof getSeasonInfo === 'function') bugunGun = getSeasonInfo().day || 1; } catch(e) {}
+    const ilk = jrIlkOdeme(maas, bugunGun);
+    const ilkYazi = ilk
+      ? `${fmt(ilk.tutar)} — ${ilk.odemeGunu}. günde (${ilk.gunSayisi} günlük)`
+      : 'sezon bitti, ilk ödeme yeni sezonda';
+
     html += `<div class="inbox-detail-text">${msg.body}</div>
       <div class="inbox-transfer-card" style="background:rgba(0,230,118,.05);border-color:rgba(0,230,118,.25)">
-        <div class="inbox-tc-title" style="color:#00e676">🤝 Katılma İsteği — Sözleşme Şartları</div>
-        <div class="inbox-tc-row"><span class="inbox-tc-label">Oyuncu</span><span class="inbox-tc-val">${d.requestorName}</span></div>
+
+        <div class="jr-oyuncu">
+          <div class="jr-av">${avHtml}</div>
+          <div class="jr-ust">
+            <div class="jr-ad">${_jrEsc(d.requestorName || '')}</div>
+            <div class="jr-rozetler">
+              <span class="jr-rz jr-rz-pos">${mevki}</span>
+              <span class="jr-rz jr-rz-lv">Seviye ${seviye}</span>
+              <span class="jr-rz jr-rz-mv">${deger}</span>
+            </div>
+            <div class="jr-uyruk">${bayrak} ${uyruk}</div>
+          </div>
+          <div class="jr-ovr"><div class="jr-ovr-n">${ovr}</div><div class="jr-ovr-l">OVR</div></div>
+        </div>
+
+        <div class="jr-hatlar">
+          <div><span>KL</span><b>${hatOrt('GK')}</b></div>
+          <div><span>DF</span><b>${hatOrt('DEF')}</b></div>
+          <div><span>OS</span><b>${hatOrt('MID')}</b></div>
+          <div><span>FW</span><b>${hatOrt('FWD')}</b></div>
+        </div>
+
+        <div class="inbox-tc-title" style="color:#00e676;margin-top:10px">Önerdiği sözleşme şartları</div>
         <div class="inbox-tc-row"><span class="inbox-tc-label">İmza Talebi 💎</span><span class="inbox-tc-val" style="color:var(--gold)">${(d.signingDiamond||0).toLocaleString('tr-TR')} 💎</span></div>
-        <div class="inbox-tc-row"><span class="inbox-tc-label">Sezon Maaşı</span><span class="inbox-tc-val">${fmt(d.seasonSalary || d.yearlySalary || 0)}</span></div>
-        <div class="inbox-tc-row"><span class="inbox-tc-label">Her Taksit</span><span class="inbox-tc-val">${fmt(Math.round((d.seasonSalary || d.yearlySalary || 0)/4))} × 4 (gün 10/20/30/40)</span></div>
-        <div class="inbox-tc-row" style="border-bottom:none"><span class="inbox-tc-label">Süre</span><span class="inbox-tc-val">${d.durationSeasons} sezon</span></div>
+        <div class="inbox-tc-row"><span class="inbox-tc-label">Sezon Maaşı</span><span class="inbox-tc-val">${fmt(maas)}</span></div>
+        <div class="inbox-tc-row"><span class="inbox-tc-label">Tam Taksit</span><span class="inbox-tc-val">${fmt(Math.round(maas/4))} × 4 (gün 10/20/30/40)</span></div>
+        <div class="inbox-tc-row"><span class="inbox-tc-label">İlk Ödeme</span><span class="inbox-tc-val" style="color:var(--accent2)">${ilkYazi}</span></div>
+        <div class="inbox-tc-row"><span class="inbox-tc-label">Süre</span><span class="inbox-tc-val">${d.durationSeasons} sezon</span></div>
+        <div class="inbox-tc-row" style="border-bottom:none"><span class="inbox-tc-label">Kadro Durumu</span><span class="inbox-tc-val" style="color:${kadroDolu?'#ef5350':'var(--accent)'}">${kadroYazi}</span></div>
+
+        <div class="jr-not">Onaylarsan kasadan yalnızca <b>imza talebi</b> düşer. Maaş, ödeme günlerinde yatar; ilk ödeme katıldığı günden itibaren orantılıdır.</div>
+
         ${(isApproved || isRejected) ?
           `<div style="margin-top:8px;padding:8px;border-radius:8px;font-size:11px;font-weight:700;text-align:center;background:${isApproved?'rgba(0,230,118,.15)':'rgba(239,83,80,.12)'};color:${isApproved?'var(--accent)':'#ef5350'}">
             ${isApproved?'✅ Onaylandı — Sözleşme imzalandı':'❌ Reddedildi'}
@@ -81734,7 +81934,8 @@ function inboxRenderDetail(msg) {
           `<div class="inbox-tc-actions">
             <button class="inbox-tc-accept" onclick="inboxApproveJoinRequest('${msg.id}')">✓ Onayla</button>
             <button class="inbox-tc-reject" onclick="inboxRejectJoinRequest('${msg.id}')">✕ Reddet</button>
-          </div>`}
+          </div>
+          ${d.requestorUserId ? `<button class="jr-profil-btn" onclick="jrProfilAc('${d.requestorUserId}')">👁 Profili Gör</button>` : ''}`}
       </div>`;
   } else if (!(msg.type === 'chat' && (msg.thread||[]).length)) {
     html += `<div class="inbox-detail-text">${msg.body}</div>`;
