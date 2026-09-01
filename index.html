@@ -16932,6 +16932,20 @@ body.inbox-open #main{visibility:hidden!important;pointer-events:none!important}
   max-width:78%;max-height:78%;
 }
 
+/* 🆕 GÜVENLİK AĞI — arma görseli kutusunu ASLA aşamaz.
+   Boyut kuralları `.hm-nm-crest` / `.crest-has-logo` sınıflarına bağlı.
+   Takım verisi sayfa yenilenmeden değiştiğinde (katılma onayı, transfer,
+   takım satın alma) önizleme bir kez yeniden çiziliyor ve o arada <img>
+   DOM'a girip kapsayıcı henüz sınıflarını almamış olabiliyor. O anda
+   hiçbir kural eşleşmediği için tarayıcı logoyu DOĞAL boyutunda
+   (500+ piksel) çiziyordu. Bu kural sınıftan bağımsız üst sınır koyar. */
+#page-home .hm-next-match img,
+#page-home .hm-nm-crest img{
+  max-width:100%;
+  max-height:100%;
+  object-fit:contain;
+}
+
 /* 🆕 Logo varsa: çerçeve, background, gölge ve glow kaldırılır + logo daha büyük */
 #page-home .hm-nm-crest.crest-has-logo,
 .hm-nm-crest.crest-has-logo{
@@ -28918,7 +28932,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-01-sozlesme-429';
+const APP_BUILD = '2026-09-01-arma-431';
 
 (function _cacheBustCheck() {
   try {
@@ -81793,27 +81807,42 @@ function _jrEsc(x) {
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-// "Profili Gör" — kadro kartını oyuncu modalinde açar
+// "Profili Gör" — DOĞRUDAN oyuncu profil sayfasına geçer.
+//   ⚠️ Eskiden `openPlayerModal` açıyordu ve hiçbir şey olmuyor gibi
+//   görünüyordu: gelen kutusu perdesi z-index 7000, oyuncu modalı 5500 —
+//   modal gelen kutusunun ARKASINDA açılıyordu. Üstelik perde tam opak.
+//   Artık gelen kutusu kapatılıyor ve `playerViewProfile` ile doğrudan
+//   ziyaretçi profiline geçiliyor (modal adımı yok).
 window.jrProfilAc = async function(uid) {
   try {
     const oy = await _jrOyuncuCek(uid);
     if (!oy) {
       console.warn('[jr] profil açılamadı — oyuncu satırı okunamadı:', uid);
       if (typeof tfShowToast === 'function') tfShowToast('❌ Oyuncu bilgisi okunamadı', '#ef5350');
-      else if (typeof showToast === 'function') showToast('Oyuncu bilgisi okunamadı');
       return;
     }
-    if (typeof openPlayerModal !== 'function') return;
-    openPlayerModal({
+    const player = {
       name: oy.name, pos: oy.pos, posGroup: oy.pos_group, subPos: oy.sub_pos,
       nationality: oy.nationality, nation: oy.nation,
       level: oy.level, xp: oy.xp, overall: oy.overall, rating: oy.rating || oy.overall,
       abilities: oy.abilities, avatar: oy.avatar, avatar_id: oy.avatar_id,
       userId: uid, user_id: uid, isBot: !!oy.is_bot, role: oy.role || 'member',
-      num: oy.num || 0, id: oy.id || null
-    }, { teamName: oy.team_name || 'Serbest',
-         countryCode: oy.country_code || oy.nationality || '',
-         teamLookupName: oy.team_name || null, isOwnTeam: false });
+      num: oy.num || 0, id: oy.id || null,
+      user_team_data: oy.user_team_data || null
+    };
+    const ctx = {
+      teamName: oy.team_name || 'Serbest',
+      countryCode: oy.country_code || oy.nationality || '',
+      teamLookupName: oy.team_name || null,
+      isOwnTeam: false
+    };
+    // Gelen kutusunu kapat — yoksa profil sayfası perdenin altında kalır
+    try { if (typeof inboxClose === 'function') inboxClose(); } catch(e) {}
+    if (typeof playerViewProfile === 'function') {
+      await playerViewProfile(JSON.stringify({ player, ctx }));
+    } else if (typeof openPlayerModal === 'function') {
+      openPlayerModal(player, ctx);
+    }
   } catch(e) { console.warn('[jr] profil açılamadı:', e); }
 };
 
@@ -81982,7 +82011,7 @@ function inboxRenderDetail(msg) {
           <button class="inbox-tc-accept" onclick="inboxAcceptTransfer('${msg.id}')">${satiyorum ? '✓ Kabul Et, Sat' : '✓ Kabul Et'}</button>
           <button class="inbox-tc-reject" onclick="inboxRejectTransfer('${msg.id}')">✕ Reddet</button>
         </div>
-        ${_tfUid ? `<button class="jr-profil-btn" onclick="jrProfilAc('${_tfUid}')">👁 Profili Gör</button>` : ''}`)}
+        ${_tfUid ? `<button class="jr-profil-btn" onclick="jrProfilAc('${_tfUid}')">Profili Gör</button>` : ''}`)}
       </div>`;
   } else if (msg.type === 'friendly_response' && msg.friendlyData) {
     // 🆕 Hazırlık maçı cevabı kartı
@@ -82113,7 +82142,7 @@ function inboxRenderDetail(msg) {
             <button class="inbox-tc-accept" onclick="inboxApproveJoinRequest('${msg.id}')">✓ Onayla</button>
             <button class="inbox-tc-reject" onclick="inboxRejectJoinRequest('${msg.id}')">✕ Reddet</button>
           </div>
-          ${d.requestorUserId ? `<button class="jr-profil-btn" onclick="jrProfilAc('${d.requestorUserId}')">👁 Profili Gör</button>` : ''}`}
+          ${d.requestorUserId ? `<button class="jr-profil-btn" onclick="jrProfilAc('${d.requestorUserId}')">Profili Gör</button>` : ''}`}
       </div>`;
   } else if (!(msg.type === 'chat' && (msg.thread||[]).length)) {
     html += `<div class="inbox-detail-text">${msg.body}</div>`;
