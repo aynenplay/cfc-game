@@ -5191,6 +5191,16 @@ select.form-input option{background:var(--bg)}
   background:var(--bg);
   display:flex;flex-direction:column;
 }
+/* 🆕 ANDROID KLAVYE — alanlar klavyenin altında kalmasın.
+   Android'de klavye açılınca görünür alan kısalıyor ama `100vh`
+   değişmiyor: sayfa klavyenin arkasına uzuyor ve odaklanılan input
+   görünmez oluyor. `--kbd-h` JS ile ölçülüp aşağıya boşluk bırakılıyor,
+   ekran da kaydırılabilir hale geliyor. */
+body.kbd-open #auth-screen{
+  min-height:auto;
+  padding-bottom:var(--kbd-h, 0px);
+}
+#auth-screen{ overflow-y:auto; -webkit-overflow-scrolling:touch }
 body.auth-acik{overflow-x:hidden}
 body.auth-acik #main,
 body.auth-acik #topbar,
@@ -11408,6 +11418,41 @@ body.team-vice .captain-or-vice-only.flex{display:flex}
 /* Lig pill'leri (yatay scroll) */
 .tbm-league-pills{display:flex;flex-wrap:nowrap;gap:8px;padding:12px 16px;overflow-x:auto;overflow-y:hidden;border-bottom:1px solid var(--border);background:rgba(0,0,0,.1);scroll-behavior:smooth;-webkit-overflow-scrolling:touch;touch-action:pan-x;overscroll-behavior:contain;flex-shrink:0}
 .tbm-league-pills::-webkit-scrollbar{display:none}
+
+/* 🆕 MASAÜSTÜ — klasman şeridi modalin dışına taşmasın + görünür çubuk
+   Şerit `flex-wrap:nowrap` ve zaten `overflow-x:auto`, ama esnek bir
+   kutunun varsayılan `min-width:auto` değeri içeriğin daralmasını
+   engelliyor: şerit kısalmak yerine kabı genişletiyor ve klasmanlar
+   modalin dışına taşıyordu. `min-width:0` bunu keser.
+   Mobilde parmakla kaydırıldığı için çubuk gizli kalıyor; masaüstünde
+   fareyle sürüklenebilsin diye görünür yapıyoruz. */
+@media (min-width:1200px){
+  .tbm-league-pills{
+    min-width:0;
+    max-width:100%;
+    scrollbar-width:thin;
+    scrollbar-color:rgba(255,255,255,.28) transparent;
+    padding-bottom:6px;
+  }
+  .tbm-league-pills::-webkit-scrollbar{
+    display:block;
+    height:8px;
+  }
+  .tbm-league-pills::-webkit-scrollbar-track{
+    background:rgba(255,255,255,.04);
+    border-radius:4px;
+  }
+  .tbm-league-pills::-webkit-scrollbar-thumb{
+    background:rgba(255,255,255,.24);
+    border-radius:4px;
+  }
+  .tbm-league-pills::-webkit-scrollbar-thumb:hover{
+    background:rgba(255,255,255,.38);
+  }
+  /* Şeritteki düğmeler daralmasın — daralırsa kaydırma yerine
+     sıkışırlar. Kabın kendisi ise daralabilmeli (üstteki min-width:0). */
+  .tbm-league-pills > *{ flex-shrink:0 }
+}
 .tbm-league-pill{flex-shrink:0;padding:9px 14px;background:var(--card);border:1px solid var(--border);border-radius:18px;cursor:pointer;font-size:13px;font-weight:700;color:var(--text2);transition:all .15s;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;font-family:inherit;line-height:1}
 .tbm-league-pill.active{background:#b39ddb;border-color:#b39ddb;color:#1a1a2e}
 .tbm-league-pill:hover:not(.active){background:rgba(255,255,255,.06);color:var(--text)}
@@ -28932,7 +28977,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-01-antrenman-432';
+const APP_BUILD = '2026-09-01-klavye-435';
 
 (function _cacheBustCheck() {
   try {
@@ -30832,6 +30877,30 @@ window.addEventListener('load', function() {
     toDelete.forEach(k => localStorage.removeItem(k));
   } catch(e) {}
 
+  // 🆕 Odaklanılan alan klavyenin altında kalırsa görünür alana kaydır.
+  //   Android'de tarayıcı bunu her zaman kendi yapmıyor; özellikle
+  //   `position:absolute` bir katmanın (giriş/kayıt ekranı) içindeyken.
+  (function odakKaydir(){
+    let zaman = null;
+    document.addEventListener('focusin', function(e){
+      const el = e.target;
+      if (!el || !el.matches || !el.matches('input, textarea, select')) return;
+      if (el.id === 'teamChatInput' || el.id === 'ntChatInput') return;  // sohbet kendi yönetiyor
+      clearTimeout(zaman);
+      // Klavyenin açılıp görünür alanın küçülmesini bekle
+      zaman = setTimeout(function(){
+        try {
+          const r = el.getBoundingClientRect();
+          const gorunen = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+          if (r.bottom > gorunen - 12 || r.top < 8) {
+            el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          }
+        } catch(err) {}
+      }, 320);
+    }, true);
+    document.addEventListener('focusout', function(){ clearTimeout(zaman); }, true);
+  })();
+
   // 🆕 Mobil klavye tespiti — visualViewport API + Input focus (en güvenilir)
   // Klavye açıldığında body.kbd-open eklenir → bottom nav gizle, chat'i tam ekrana al
   (function setupKeyboardDetection(){
@@ -30857,8 +30926,12 @@ window.addEventListener('load', function() {
       const _s = _aktifSohbet();
       const chat = _s.kutu;
       const ca = _s.alan;
-      if(!chat || !ca) return;
 
+      // 🔴 ÖLÇÜM HER ZAMAN YAPILIR
+      //   Eskiden burada `if(!chat || !ca) return;` vardı: sohbet kutusu
+      //   yoksa fonksiyon hemen çıkıyor ve `--kbd-h` HİÇ yazılmıyordu.
+      //   Giriş/kayıt ekranında sohbet olmadığı için klavye yüksekliği
+      //   bilinmiyor, alanlar klavyenin altında kalıyordu (Android).
       if(!document.body.classList.contains('kbd-open')){
         document.documentElement.style.setProperty('--kbd-h', '0px');
         return;
@@ -30872,6 +30945,9 @@ window.addEventListener('load', function() {
         kbdHeight = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
       }
       document.documentElement.style.setProperty('--kbd-h', kbdHeight + 'px');
+
+      // Sohbet kutusu yoksa (giriş/kayıt, form ekranları) burada biter
+      if(!chat || !ca) return;
 
       // En alta scroll — DOM güncellemesi sonrası garantili (çift RAF)
       requestAnimationFrame(() => {
@@ -46955,9 +47031,86 @@ function authSocial(provider){
   authShowMsg('success', '🔜 ' + name + ' ile giriş yakında aktif olacak.');
 }
 
-function showForgot(){
-  authShowMsg('success','Şifre sıfırlama bağlantısı e-posta adresinize gönderildi.');
+// 🔴 ŞİFRE SIFIRLAMA — eskiden bu fonksiyon HİÇBİR ŞEY GÖNDERMİYORDU.
+//   Yalnızca "gönderildi" yazısını basan bir kabuktu; Supabase'e istek
+//   bile atılmıyordu. Kullanıcı e-postayı boşuna bekliyordu.
+async function showForgot(){
+  const el = document.getElementById('loginEmail');
+  const email = (el && el.value || '').trim();
+
+  if (!email) {
+    authShowMsg('error','Önce e-posta adresini yaz, sonra "Şifremi Unuttum" a bas.');
+    try { if (el) el.focus(); } catch(e) {}
+    return;
+  }
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    authShowMsg('error','Geçerli bir e-posta adresi yaz.');
+    return;
+  }
+  if (!window.sb) { authShowMsg('error','Bağlantı yok. Sayfayı yenile.'); return; }
+
+  authShowMsg('success','Gönderiliyor…');
+  try {
+    const { error } = await window.sb.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + window.location.pathname
+    });
+    if (error) {
+      console.warn('[sifre] sıfırlama hatası:', error);
+      const m = String(error.message || '');
+      if (/rate|limit|too many/i.test(m)) {
+        authShowMsg('error','Çok sık denendi. Birkaç dakika sonra tekrar dene.');
+      } else {
+        authShowMsg('error','Gönderilemedi: ' + m);
+      }
+      return;
+    }
+    authShowMsg('success','Sıfırlama bağlantısı ' + email + ' adresine gönderildi. '
+      + 'Gelen kutusunu ve spam klasörünü kontrol et.');
+  } catch(e) {
+    console.error('[sifre] istisna:', e);
+    authShowMsg('error','Gönderilemedi: ' + (e && e.message || e));
+  }
 }
+
+// 🆕 SIFIRLAMA BAĞLANTISINDAN DÖNÜŞ
+//   Kullanıcı e-postadaki bağlantıya tıkladığında Supabase adrese
+//   `#access_token=...&type=recovery` ekleyerek geri gönderiyor.
+//   O anda oturum "recovery" modunda açılıyor; yeni şifreyi burada
+//   alıp yazıyoruz. Bu adım olmadan bağlantı işe yaramıyordu.
+(function(){
+  function sifreSifirlamaModuMu(){
+    try {
+      const h = window.location.hash || '';
+      return h.indexOf('type=recovery') !== -1;
+    } catch(e) { return false; }
+  }
+  async function yeniSifreIste(){
+    let yeni = '';
+    try { yeni = window.prompt('Yeni şifreni yaz (en az 6 karakter):') || ''; } catch(e) {}
+    yeni = yeni.trim();
+    if (!yeni) return;
+    if (yeni.length < 6) {
+      try { alert('Şifre en az 6 karakter olmalı.'); } catch(e) {}
+      return yeniSifreIste();
+    }
+    try {
+      const { error } = await window.sb.auth.updateUser({ password: yeni });
+      if (error) { try { alert('Şifre değiştirilemedi: ' + error.message); } catch(e) {} return; }
+      try { alert('Şifren güncellendi. Yeni şifrenle giriş yapabilirsin.'); } catch(e) {}
+      try { history.replaceState(null, '', window.location.pathname); } catch(e) {}
+    } catch(e) {
+      try { alert('Şifre değiştirilemedi: ' + (e && e.message || e)); } catch(_) {}
+    }
+  }
+  if (sifreSifirlamaModuMu()) {
+    const bekle = setInterval(function(){
+      if (!window.sb) return;
+      clearInterval(bekle);
+      setTimeout(yeniSifreIste, 400);
+    }, 200);
+    setTimeout(function(){ clearInterval(bekle); }, 15000);
+  }
+})();
 
 // Çıkış onay modalını göster
 function doLogout(){
