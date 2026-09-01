@@ -14413,6 +14413,11 @@ body.inbox-open #main{visibility:hidden!important;pointer-events:none!important}
   background:transparent;border:1px solid rgba(255,255,255,.12);color:var(--text2);
   font-family:inherit;font-size:12px;font-weight:700;letter-spacing:.3px}
 .jr-profil-btn:active{transform:scale(.99)}
+.tf-kasa-kutu{margin:11px 0;padding:12px;border-radius:10px;
+  background:rgba(0,230,118,.06);border:1px solid rgba(0,230,118,.28)}
+.tf-kasa-l{font-size:11px;color:var(--text3);letter-spacing:.3px}
+.tf-kasa-n{font-size:24px;font-weight:900;color:var(--accent);margin:3px 0;letter-spacing:.5px}
+.tf-kasa-a{font-size:11px;color:#7bc47f}
 .inbox-empty{padding:40px;text-align:center;color:var(--text3);font-size:13px}
 
 /* Detay görünümü */
@@ -28895,7 +28900,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-01-katilma-423';
+const APP_BUILD = '2026-09-01-teklif-424';
 
 (function _cacheBustCheck() {
   try {
@@ -81785,26 +81790,85 @@ function inboxRenderDetail(msg) {
     const signingDiamond  = td.signingDiamond  ?? 0;            // 💎 imza parası (€ değil)
     const yearlySalary    = td.yearlySalary    ?? (td.wage ? td.wage * 52 * 1000 : 0);
     const durationSeasons = td.durationSeasons ?? td.contract ?? 1;
-    const inst            = Math.round(yearlySalary / 2);
-    const totalCost       = transferFee + (yearlySalary * durationSeasons);  // imza elması € maliyete katılmaz
-    const showFee         = transferFee > 0;
+    // 🔴 KART İKİ TARAFA GÖRE DEĞİŞİR
+    //   Aynı mesaj tipi hem alıcıya (gönderdiğim kopya) hem SATAN
+    //   kulübün kaptanına düşüyor. Eskiden tek görünüm vardı ve satan
+    //   kaptana alıcının maaş yükü ("Yıllık Ücret", "Toplam Sözleşme
+    //   Maliyeti") gösteriliyordu — onu ilgilendirmeyen rakamlar.
+    //   Ayrıca taksit "×2/sezon" yazıyordu; oyunda maaş 4 taksit
+    //   (gün 10/20/30/40). Teklif modalı da 4 taksit gösteriyor.
+    const inst = Math.round(yearlySalary / 4);
+    const showFee = transferFee > 0;
+    // Satıcı mıyım? (mesaj bana geldiyse ve satıcı takım benim takımım)
+    const _benimTakim = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : null;
+    const satiyorum = !msg.sent && !!td.sellerTeam && td.sellerTeam === _benimTakim;
+
+    // Oyuncu kartı verisi — `players` tablosundan (herkese açık)
+    const _tfUid = td.playerUserId || td.sellerUserId || null;
+    const oyT = (_tfUid && _jrOyuncuCache[_tfUid]) || null;
+    if (_tfUid && !Object.prototype.hasOwnProperty.call(_jrOyuncuCache, _tfUid)) {
+      _jrOyuncuCek(_tfUid).then(r => {
+        if (r && _inboxCurrentMsg && _inboxCurrentMsg.id === msg.id) {
+          try { inboxRenderDetail(msg); } catch(e) {}
+        }
+      });
+    }
+    const tfAv = (typeof getAvatarEmoji === 'function')
+      ? (getAvatarEmoji(oyT ? oyT.avatar_id : null, oyT ? oyT.pos : null) || '👤') : '👤';
+    const tfMevki = (oyT && (oyT.sub_pos || oyT.pos)) || '—';
+    const tfSeviye = (oyT && oyT.level != null) ? oyT.level : '—';
+    const tfOvr = oyT ? ((typeof getPlayerMainOverall === 'function')
+                  ? getPlayerMainOverall({ ...oyT, role:'member', isBot:false, userId:_tfUid })
+                  : (oyT.overall || 10)) : '—';
+    const tfBayrak = (oyT && oyT.nation) || '';
+
+    const kdT = satiyorum ? _jrKadroDurumu() : null;
+
     html += `<div class="inbox-detail-text">${msg.body}</div>
       <div class="inbox-transfer-card">
-        <div class="inbox-tc-title">⚽ Transfer Teklifi</div>
-        <div class="inbox-tc-row"><span class="inbox-tc-label">Oyuncu</span><span class="inbox-tc-val">${td.playerName}</span></div>
-        ${showFee ? `<div class="inbox-tc-row"><span class="inbox-tc-label">Bonservis ${td.sellerTeam ? '('+td.sellerTeam+' kasasına)' : ''}</span><span class="inbox-tc-val" style="color:var(--gold)">${fmtFee(transferFee)}</span></div>` : ''}
-        <div class="inbox-tc-row"><span class="inbox-tc-label">İmza Parası (oyuncuya)</span><span class="inbox-tc-val" style="color:var(--accent2)">${fmtDia(signingDiamond)}</span></div>
-        <div class="inbox-tc-row"><span class="inbox-tc-label">Yıllık Ücret</span><span class="inbox-tc-val">${fmtFee(yearlySalary)}</span></div>
-        <div class="inbox-tc-row"><span class="inbox-tc-label">Her Taksit (×2/sezon)</span><span class="inbox-tc-val">${fmtFee(inst)}</span></div>
-        <div class="inbox-tc-row"><span class="inbox-tc-label">Sözleşme Süresi</span><span class="inbox-tc-val">${durationSeasons} sezon</span></div>
-        <div class="inbox-tc-row"><span class="inbox-tc-label">Toplam Sözleşme Maliyeti</span><span class="inbox-tc-val" style="color:var(--accent2)">${fmtFee(totalCost)}</span></div>
+        <div class="inbox-tc-title">${satiyorum ? '⚽ Oyuncuna Gelen Transfer Teklifi' : '⚽ Transfer Teklifi'}</div>
+
+        <div class="jr-oyuncu">
+          <div class="jr-av">${tfAv}</div>
+          <div class="jr-ust">
+            <div class="jr-ad">${_jrEsc(td.playerName || '')}</div>
+            <div class="jr-rozetler">
+              <span class="jr-rz jr-rz-pos">${tfMevki}</span>
+              <span class="jr-rz jr-rz-lv">Seviye ${tfSeviye}</span>
+            </div>
+            <div class="jr-uyruk">${tfBayrak} ${satiyorum ? 'senin kadrondan' : (td.sellerTeam || '')}</div>
+          </div>
+          <div class="jr-ovr"><div class="jr-ovr-n">${tfOvr}</div><div class="jr-ovr-l">OVR</div></div>
+        </div>
+
+        ${satiyorum ? `
+          ${showFee ? `<div class="tf-kasa-kutu">
+            <div class="tf-kasa-l">Bonservis — takım kasasına</div>
+            <div class="tf-kasa-n">${fmtFee(transferFee)}</div>
+            <div class="tf-kasa-a">Sistem belirledi · kulüp kasasına yatar, cüzdana değil</div>
+          </div>` : `<div class="jr-not">Bu oyuncu <b>serbest</b> — bonservis yok.</div>`}
+          <div class="inbox-tc-row"><span class="inbox-tc-label">İmza Elması (oyuncuya)</span><span class="inbox-tc-val" style="color:var(--gold)">${fmtDia(signingDiamond)}</span></div>
+          <div class="inbox-tc-row"><span class="inbox-tc-label">Alıcının Ödeyeceği Maaş</span><span class="inbox-tc-val">${fmtFee(yearlySalary)} /sezon</span></div>
+          <div class="inbox-tc-row"><span class="inbox-tc-label">Senin Maaş Yükün</span><span class="inbox-tc-val" style="color:var(--accent)">−${fmtFee(inst)} /taksit</span></div>
+          ${kdT ? `<div class="inbox-tc-row"><span class="inbox-tc-label">Kadron</span><span class="inbox-tc-val">${kdT.toplam}/${kdT.max} → <span style="color:#ef9a9a">${kdT.toplam-1}/${kdT.max}</span></span></div>` : ''}
+          <div class="inbox-tc-row" style="border-bottom:none"><span class="inbox-tc-label">Sözleşme Süresi</span><span class="inbox-tc-val">${durationSeasons} sezon</span></div>
+          <div class="jr-not">Kabul edersen bonservis <b>takım kasasına</b> yatar, oyuncu ${_jrEsc(td.buyerTeam || 'alıcı takıma')} kadrosuna geçer ve maaşı artık onların kasasından ödenir.</div>
+        ` : `
+          ${showFee ? `<div class="inbox-tc-row"><span class="inbox-tc-label">Bonservis ${td.sellerTeam ? '('+_jrEsc(td.sellerTeam)+' kasasına)' : ''}</span><span class="inbox-tc-val" style="color:var(--gold)">${fmtFee(transferFee)}</span></div>` : ''}
+          <div class="inbox-tc-row"><span class="inbox-tc-label">İmza Elması (oyuncuya)</span><span class="inbox-tc-val" style="color:var(--accent2)">${fmtDia(signingDiamond)}</span></div>
+          <div class="inbox-tc-row"><span class="inbox-tc-label">Sezon Maaşı</span><span class="inbox-tc-val">${fmtFee(yearlySalary)}</span></div>
+          <div class="inbox-tc-row"><span class="inbox-tc-label">Her Taksit (×4/sezon)</span><span class="inbox-tc-val">${fmtFee(inst)} · gün 10/20/30/40</span></div>
+          <div class="inbox-tc-row" style="border-bottom:none"><span class="inbox-tc-label">Sözleşme Süresi</span><span class="inbox-tc-val">${durationSeasons} sezon</span></div>
+        `}
+
         ${msg.offerStatus ? `<div style="margin-top:8px;padding:8px;border-radius:8px;font-size:11px;font-weight:700;text-align:center;background:${msg.offerStatus==='accepted'?'rgba(0,230,118,.15)':'rgba(239,83,80,.12)'};color:${msg.offerStatus==='accepted'?'var(--accent)':'#ef5350'}">
           ${msg.offerStatus==='accepted'?'✅ Kabul Edildi':'❌ Reddedildi'}
         </div>` :
         (msg.sent ? '' : `<div class="inbox-tc-actions">
-          <button class="inbox-tc-accept" onclick="inboxAcceptTransfer('${msg.id}')">✓ Kabul Et</button>
+          <button class="inbox-tc-accept" onclick="inboxAcceptTransfer('${msg.id}')">${satiyorum ? '✓ Kabul Et, Sat' : '✓ Kabul Et'}</button>
           <button class="inbox-tc-reject" onclick="inboxRejectTransfer('${msg.id}')">✕ Reddet</button>
-        </div>`)}
+        </div>
+        ${_tfUid ? `<button class="jr-profil-btn" onclick="jrProfilAc('${_tfUid}')">👁 Profili Gör</button>` : ''}`)}
       </div>`;
   } else if (msg.type === 'friendly_response' && msg.friendlyData) {
     // 🆕 Hazırlık maçı cevabı kartı
@@ -82331,6 +82395,9 @@ async function inboxSendTransferOffer(target, _legacyWage, _legacyContract, offe
       sellerTeam:     target.seller || null,
       // 🆕 Transfer gerçekleştirme bilgileri (kabul edilince oyuncu buraya gider)
       playerDbId:       target._playerDbId || null,
+      // 🆕 Oyuncunun hesap kimliği — satan kaptanın kartında avatar/OVR
+      //    `players` tablosundan bununla çekiliyor.
+      playerUserId:     (target._playerRef && (target._playerRef.userId || target._playerRef.user_id)) || null,
       sellerCountryCode: target._countryCode || null,
       buyerTeam:        target._buyerTeam || null,
       buyerCountryCode: target._buyerCountryCode || null,
