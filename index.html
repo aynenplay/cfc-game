@@ -29017,7 +29017,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-01-klavye-439';
+const APP_BUILD = '2026-09-01-sifre-440';
 
 (function _cacheBustCheck() {
   try {
@@ -47147,29 +47147,14 @@ async function showForgot(){
       return h.indexOf('type=recovery') !== -1;
     } catch(e) { return false; }
   }
-  async function yeniSifreIste(){
-    let yeni = '';
-    try { yeni = window.prompt('Yeni şifreni yaz (en az 6 karakter):') || ''; } catch(e) {}
-    yeni = yeni.trim();
-    if (!yeni) return;
-    if (yeni.length < 6) {
-      try { alert('Şifre en az 6 karakter olmalı.'); } catch(e) {}
-      return yeniSifreIste();
-    }
-    try {
-      const { error } = await window.sb.auth.updateUser({ password: yeni });
-      if (error) { try { alert('Şifre değiştirilemedi: ' + error.message); } catch(e) {} return; }
-      try { alert('Şifren güncellendi. Yeni şifrenle giriş yapabilirsin.'); } catch(e) {}
-      try { history.replaceState(null, '', window.location.pathname); } catch(e) {}
-    } catch(e) {
-      try { alert('Şifre değiştirilemedi: ' + (e && e.message || e)); } catch(_) {}
-    }
-  }
+  // 🆕 Tarayıcının `prompt` kutusu yerine uygulamanın kendi ekranı
+  //    (#pwResetScreen) açılıyor: iki alan, doğrulama, hata mesajları.
   if (sifreSifirlamaModuMu()) {
     const bekle = setInterval(function(){
-      if (!window.sb) return;
+      if (!window.sb || typeof pwrAc !== 'function') return;
       clearInterval(bekle);
-      setTimeout(yeniSifreIste, 400);
+      // Supabase bağlantıdaki jetonu işleyip oturumu kurana kadar bekle
+      setTimeout(function(){ try { pwrAc(); } catch(e) {} }, 500);
     }, 200);
     setTimeout(function(){ clearInterval(bekle); }, 15000);
   }
@@ -100419,6 +100404,123 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
   console.info('[dokunma] köprü aktif');
 })();
 </script>
+<!-- ══ ŞİFRE SIFIRLAMA EKRANI ═══════════════════════════════════════
+     Supabase yalnızca e-postadaki bağlantıyı üretir; şifreyi değiştiren
+     ekranı uygulamanın sağlaması gerekir. Bağlantıya tıklanınca adrese
+     `#type=recovery` ekleniyor ve bu ekran açılıyor. -->
+<div id="pwResetScreen" class="pwr-ov">
+  <div class="pwr-card">
+    <div class="pwr-logo">CITY SOCCER CLUB</div>
+    <h2 class="pwr-title">Yeni Şifre Belirle</h2>
+    <p class="pwr-sub" id="pwrSub">Hesabın için yeni bir şifre yaz.</p>
+
+    <div class="pwr-field">
+      <label class="pwr-lbl">Yeni Şifre</label>
+      <input id="pwrNew" class="pwr-inp" type="password" autocomplete="new-password"
+             placeholder="En az 6 karakter">
+    </div>
+    <div class="pwr-field">
+      <label class="pwr-lbl">Yeni Şifre (tekrar)</label>
+      <input id="pwrNew2" class="pwr-inp" type="password" autocomplete="new-password"
+             placeholder="Aynısını tekrar yaz">
+    </div>
+
+    <div id="pwrMsg" class="pwr-msg"></div>
+
+    <button id="pwrBtn" class="pwr-btn" onclick="pwrKaydet()">Şifreyi Güncelle</button>
+    <button class="pwr-btn pwr-btn-ghost" onclick="pwrKapat()">Vazgeç</button>
+  </div>
+</div>
+<style>
+.pwr-ov{
+  position:fixed; inset:0; z-index:9500; display:none;
+  background:var(--bg); overflow-y:auto;
+  align-items:flex-start; justify-content:center; padding:24px 16px;
+}
+.pwr-ov.open{ display:flex }
+.pwr-card{
+  width:100%; max-width:400px; margin-top:6vh;
+  background:repeating-linear-gradient(45deg,#15171c 0 2px,#101216 2px 4px);
+  background-color:#101216; border:1px solid #20242c; border-radius:16px;
+  padding:22px 20px 18px;
+}
+.pwr-logo{
+  font-family:Twemoji Country Flags,'Barlow Condensed',sans-serif;
+  font-size:13px; font-weight:900; letter-spacing:2px; color:var(--accent);
+  text-align:center; margin-bottom:14px;
+}
+.pwr-title{
+  font-family:Twemoji Country Flags,'Barlow Condensed',sans-serif;
+  font-size:24px; font-weight:900; letter-spacing:.5px; margin:0 0 6px; color:var(--text);
+}
+.pwr-sub{ font-size:12px; color:var(--text3); margin:0 0 18px; line-height:1.5 }
+.pwr-field{ margin-bottom:13px }
+.pwr-lbl{ display:block; font-size:11px; color:var(--text3); margin-bottom:5px; letter-spacing:.3px }
+.pwr-inp{
+  width:100%; box-sizing:border-box; padding:12px 13px;
+  background:var(--bg3); border:1px solid var(--border); border-radius:10px;
+  color:var(--text); font-family:inherit; font-size:16px;
+}
+.pwr-inp:focus{ outline:none; border-color:rgba(0,230,118,.45) }
+.pwr-msg{ font-size:12px; line-height:1.5; margin:4px 0 12px; min-height:18px }
+.pwr-msg.err{ color:#ef8b88 } .pwr-msg.ok{ color:var(--accent) }
+.pwr-btn{
+  width:100%; padding:13px; border-radius:10px; cursor:pointer; font-family:inherit;
+  font-size:14px; font-weight:800; letter-spacing:.3px; margin-bottom:8px;
+  background:rgba(0,230,118,.14); border:1px solid rgba(0,230,118,.45); color:var(--accent);
+}
+.pwr-btn:disabled{ opacity:.55; cursor:default }
+.pwr-btn-ghost{ background:transparent; border-color:rgba(255,255,255,.12); color:var(--text2) }
+</style>
+<script>
+// Şifre sıfırlama ekranı — aç/kapat/kaydet
+function pwrMsg(tip, metin){
+  const el = document.getElementById('pwrMsg');
+  if(!el) return;
+  el.className = 'pwr-msg' + (tip ? ' ' + tip : '');
+  el.textContent = metin || '';
+}
+function pwrAc(){
+  const ov = document.getElementById('pwResetScreen');
+  if(ov) ov.classList.add('open');
+  setTimeout(() => { try { document.getElementById('pwrNew').focus(); } catch(e) {} }, 200);
+}
+function pwrKapat(){
+  const ov = document.getElementById('pwResetScreen');
+  if(ov) ov.classList.remove('open');
+  try { history.replaceState(null, '', window.location.pathname); } catch(e) {}
+}
+async function pwrKaydet(){
+  const a = (document.getElementById('pwrNew').value || '');
+  const b = (document.getElementById('pwrNew2').value || '');
+  const btn = document.getElementById('pwrBtn');
+
+  if(a.length < 6){ pwrMsg('err','Şifre en az 6 karakter olmalı.'); return; }
+  if(a !== b){ pwrMsg('err','İki şifre birbirini tutmuyor.'); return; }
+  if(!window.sb){ pwrMsg('err','Bağlantı yok. Sayfayı yenile.'); return; }
+
+  btn.disabled = true; pwrMsg('', 'Güncelleniyor…');
+  try{
+    const { error } = await window.sb.auth.updateUser({ password: a });
+    if(error){
+      btn.disabled = false;
+      const m = String(error.message || '');
+      if(/expired|invalid/i.test(m)) {
+        pwrMsg('err','Bağlantının süresi dolmuş. Giriş ekranından yeniden sıfırlama iste.');
+      } else {
+        pwrMsg('err','Güncellenemedi: ' + m);
+      }
+      return;
+    }
+    pwrMsg('ok','Şifren güncellendi. Yeni şifrenle giriş yapabilirsin.');
+    setTimeout(() => { pwrKapat(); try { window.location.reload(); } catch(e) {} }, 1600);
+  }catch(e){
+    btn.disabled = false;
+    pwrMsg('err','Güncellenemedi: ' + (e && e.message || e));
+  }
+}
+</script>
+
 <!-- ══ MASAÜSTÜ DÜZENİ + REKLAM ALANLARI ══════════════════════════
      Tamamı @media (min-width:1200px) içinde — mobil etkilenmez.
      Reklam kodu için: #reklamSol1..3 ve #reklamSag1..3 içine yerleştir. -->
