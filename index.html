@@ -191,7 +191,9 @@ body.app-native *::after{
 body.app-native img{ filter:none !important }
 /* Kaydırma sırasında karo yeniden çizimini azalt */
 body.app-native{ overscroll-behavior-y:none }
-body.app-native .page{ transform:translateZ(0) }
+/* ⚠️ .page üzerine transform KOYMA. transform, içindeki position:fixed
+   overlay'lerin referansını viewport'tan .page'e çevirir; modaller
+   ekranın değil sayfanın ortasına konumlanır (33 overlay etkileniyor). */
 
 body:has([class*="-overlay"].open){overflow:hidden}
 [class*="-overlay"]{overscroll-behavior:contain}
@@ -422,7 +424,6 @@ h1,h2,h3,h4{font-family:Twemoji Country Flags,'Barlow Condensed',sans-serif;lett
 #main{padding-bottom:120px}  /* 2 sıralı bottom nav (108px) + 12px buffer */
 .page{display:none}
 .page.active{display:block;opacity:1}
-to{opacity:1;transform:translateY(0)}}
 
 
 
@@ -15033,7 +15034,7 @@ body.inbox-open #main{visibility:hidden!important;pointer-events:none!important}
 @keyframes tdnGlow{0%,100%{box-shadow:0 0 0 rgba(255,213,79,0)}50%{box-shadow:0 0 18px rgba(255,213,79,.35)}}
 
 /* 🆕 ANTRENMAN BAŞLAT — KARBON tasarım (sadece #trModal; diğer modaller etkilenmez) */
-#trModal{ align-items:center !important; justify-content:center !important; padding:16px !important; -webkit-backface-visibility:hidden; backface-visibility:hidden; transform:translateZ(0); }
+#trModal{ align-items:center !important; justify-content:center !important; padding:16px !important; }
 #trModal .tr-modal{
   width:360px !important; max-width:calc(100vw - 32px) !important; border-radius:22px !important;
   background-color:#10131a !important;
@@ -15045,7 +15046,10 @@ body.inbox-open #main{visibility:hidden!important;pointer-events:none!important}
   box-shadow:0 30px 70px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.05) !important;
   transform:scale(.85) !important; opacity:0;
   transition:transform .35s cubic-bezier(.34,1.56,.64,1), opacity .25s !important;
-  max-height:88vh !important; overflow-y:auto !important; padding:0 0 4px !important;
+  max-height:calc(100vh - 32px) !important;
+  max-height:calc(100dvh - 32px) !important;
+  overflow-y:auto !important; -webkit-overflow-scrolling:touch;
+  padding:0 0 4px !important;
 }
 #trModal.open .tr-modal{ transform:scale(1) !important; opacity:1; }
 #trModal .tr-modal-handle{ display:none !important; }
@@ -21818,19 +21822,6 @@ body.drawer-open{overflow:hidden}
 }
 .squad-warn-banner b{color:#ef5350}
 .squad-warn-icon{font-size:18px;flex-shrink:0}
-
-
-
-
-  background:linear-gradient(180deg, rgba(0,230,118,.18), rgba(0,176,80,.08));
-  color:#00e676;
-  border:1px solid rgba(0,230,118,.4);
-  border-radius:8px;
-  font-family:Twemoji Country Flags,'Barlow Condensed',sans-serif;
-  font-weight:900;letter-spacing:.5px;
-  text-transform:uppercase;
-  box-shadow:inset 0 1px 0 rgba(0,230,118,.15);
-}
 
 /* ═══════════════════════════════════════════════════════════════
    SONUÇLAR — PREMIUM (Stadium Suite gold)
@@ -29042,7 +29033,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-01-native-442';
+const APP_BUILD = '2026-09-02-trmodal-445';
 
 (function _cacheBustCheck() {
   try {
@@ -83733,7 +83724,14 @@ function trOpenModal(pos, skillId) {
   // 🆕 Çakışma önle: başka antrenman overlay'i açıksa kapat (eski modal arkada kalmasın)
   try { document.getElementById('trDoneModal')?.classList.remove('open'); } catch(e){}
   try { document.getElementById('lvlupOverlay')?.remove(); } catch(e){}
-  document.getElementById('trModal').classList.add('open');
+
+  // 🆕 Modal HTML'de #page-training icinde duruyor. Herhangi bir ata
+  //    elemana transform/filter/perspective gelirse position:fixed artik
+  //    ekrana degil O ATAYA gore konumlanir ve modal sayfanin ortasinda
+  //    kalir. <body>'ye tasiyarak bu riski tamamen kaldiriyoruz.
+  const _trOv = document.getElementById('trModal');
+  try { if (_trOv && _trOv.parentNode !== document.body) document.body.appendChild(_trOv); } catch(e){}
+  _trOv.classList.add('open');
 }
 
 function trCloseModal() {
