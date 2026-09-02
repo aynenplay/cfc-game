@@ -5221,11 +5221,37 @@ body.auth-acik #topbar,
 body.auth-acik #bottomnav{display:none !important}
 #auth-screen.hidden{display:none}
 /* Klavye açıkken: ekran tam kaplamaya devam eder (arka plan görünmez), alt boşluk = klavye yüksekliği → odaklanan alan klavyenin üstüne kadar kaydırılabilir */
-#auth-screen.kbd-active{padding-bottom:var(--auth-kbd-h,300px)}
+/* Not: alt boşluk artık kutunun kendi yüksekliğinden geliyor (bkz. auth-kbd-lock).
+   Bu kural yalnızca `visualViewport` desteklenmeyen eski tarayıcılar için yedek. */
+#auth-screen.kbd-active:not(.vv-ok){padding-bottom:var(--auth-kbd-h,300px)}
 #auth-screen.kbd-active .auth-card{flex:0 0 auto}
 /* Klavye açıkken belgeyi kilitle: iOS belgeyi kaydırıp sabit auth ekranını yukarı sürüklemesin
    (arka planda ana sayfa görünmesin / kaydırılamasın, ekran fazla yukarı kalkmasın) */
 body.auth-kbd-lock{position:fixed!important;top:0;left:0;right:0;width:100%;height:100%;overflow:hidden!important}
+
+/* 🔴 ANDROID KLAVYE — asıl düzeltme burada.
+   `#auth-screen` `min-height:100vh` ile duruyordu. Android'de `vh`
+   klavye açılınca KÜÇÜLMEZ: ekran tam boy kalıyor, gövde ise
+   `auth-kbd-lock` yüzünden `overflow:hidden` ile kırpıyordu. Sonuç:
+   klavyenin altına düşen alanlara ulaşmak fiziksel olarak imkânsızdı;
+   `scrollTop` denemeleri de boşa gidiyordu çünkü kutu kaydırılabilir
+   değildi (içerik kendi yüksekliğini aşmıyordu).
+   Çözüm: klavye açıkken kutunun yüksekliğini GÖRÜNÜR alana sabitle
+   (--auth-vh, JS `visualViewport.height` ile yazıyor) ve gerçek bir
+   kaydırma kabına çevir. Böylece hem otomatik kaydırma çalışır hem de
+   kullanıcı parmakla yukarı çekebilir. */
+body.auth-kbd-lock #auth-screen{
+  position:fixed !important;
+  top:0; left:0; right:0;
+  height:var(--auth-vh, 100dvh) !important;
+  min-height:0 !important;
+  max-height:var(--auth-vh, 100dvh) !important;
+  overflow-y:auto !important;
+  -webkit-overflow-scrolling:touch;
+  padding-bottom:28px;
+}
+/* Kart dikey ortalanmasın — yukarıdan aksın ki uzun formda üst kısım kaybolmasın */
+body.auth-kbd-lock #auth-screen{ justify-content:flex-start !important }
 
 /* Auth background decoration */
 .auth-bg{
@@ -28991,7 +29017,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-01-kadro-438';
+const APP_BUILD = '2026-09-01-klavye-439';
 
 (function _cacheBustCheck() {
   try {
@@ -31053,13 +31079,30 @@ window.addEventListener('load', function() {
     const vv = window.visualViewport;
     const isField = el => el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
     const kbdHeight = () => vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
-    const setKbdVar = () => scr.style.setProperty('--auth-kbd-h', (kbdHeight() || 300) + 'px');
+    // 🔴 Kutunun yüksekliğini GÖRÜNÜR alana sabitle.
+    //   Android'de `vh` klavyeyle küçülmediği için ekran tam boy kalıyor,
+    //   gövde de kırpıyordu → alt alanlara ulaşılamıyordu. Yüksekliği
+    //   `visualViewport.height` yapınca kutu gerçek bir kaydırma kabına
+    //   dönüşüyor; hem otomatik kaydırma hem parmakla kaydırma çalışıyor.
+    const setKbdVar = () => {
+      scr.style.setProperty('--auth-kbd-h', (kbdHeight() || 300) + 'px');
+      if (vv && vv.height) {
+        scr.style.setProperty('--auth-vh', Math.round(vv.height) + 'px');
+        scr.classList.add('vv-ok');
+      }
+    };
     const bringIntoView = () => {
       const el = document.activeElement;
       if(!vv || !isField(el) || !scr.contains(el)) return;
-      const kbdTop = vv.offsetTop + vv.height;          // klavyenin üst kenarı
-      const overlap = el.getBoundingClientRect().bottom + 16 - kbdTop; // alan klavyenin altına ne kadar taşıyor
-      if(overlap > 0) scr.scrollTop += overlap;          // yalnızca gerektiği kadar yukarı (klavyeye bitişik)
+      const r = el.getBoundingClientRect();
+      // Kutu artık görünür alana sabit → klavyenin üst kenarı = kutunun altı
+      const altSinir = vv.height - 16;
+      const ustSinir = 12;
+      if (r.bottom > altSinir) {
+        scr.scrollTop += (r.bottom - altSinir);
+      } else if (r.top < ustSinir) {
+        scr.scrollTop -= (ustSinir - r.top);
+      }
     };
     scr.addEventListener('focusin', (e) => {
       if(!isField(e.target)) return;
@@ -31068,7 +31111,11 @@ window.addEventListener('load', function() {
       scr.classList.add('kbd-active');
       document.body.classList.add('auth-kbd-lock');
       setKbdVar();
-      setTimeout(() => { setKbdVar(); bringIntoView(); }, 300);
+      // Klavye animasyonu 150-500 ms sürebiliyor; ölçümü birkaç kez tazele
+      [120, 300, 550, 850].forEach(ms => setTimeout(() => {
+        setKbdVar();
+        bringIntoView();
+      }, ms));
     });
     scr.addEventListener('focusout', () => {
       clearTimeout(blurT);
@@ -31076,8 +31123,10 @@ window.addEventListener('load', function() {
         if(isField(document.activeElement) && scr.contains(document.activeElement)) return;
         active = false;
         scr.classList.remove('kbd-active');
+        scr.classList.remove('vv-ok');
         document.body.classList.remove('auth-kbd-lock');
         scr.style.removeProperty('--auth-kbd-h');
+        scr.style.removeProperty('--auth-vh');
         scr.scrollTop = 0;
       }, 120);
     });
