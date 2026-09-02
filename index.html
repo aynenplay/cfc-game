@@ -168,6 +168,31 @@ body.drawer-open{overflow-x:hidden}
 
 /* 🆕 MERKEZİ MODAL SCROLL KİLİDİ — herhangi bir overlay açıkken arka sayfa kaymaz.
    Tek kuralla tüm modalları kapsar (her overlay sınıfı "-overlay" ile biter, ".open" ile açılır). */
+/* ═══════════════════════════════════════════════════════════════
+   ANDROID UYGULAMASI — KAYDIRMA TİTREMESİ
+   Uygulama WebView'da çalışırken <body> üzerine `app-native` sınıfı
+   ekleniyor (aşağıdaki betik). Aşağıdaki kurallar YALNIZCA orada
+   geçerli; tarayıcıdaki görünüm hiç değişmiyor.
+
+   Neden: dosyada 99 `backdrop-filter`, 91 `drop-shadow` ve 2 piksellik
+   120 çizgili degrade var. WebView kaydırma sırasında bu katmanları
+   her karede yeniden rasterize ediyor; karo hazır olmadan ekrana
+   basıldığında görüntü bir kare kayboluyor. Masaüstü ve iOS bunu
+   kaldırıyor, Android WebView kaldıramıyor.
+   ═══════════════════════════════════════════════════════════════ */
+body.app-native *,
+body.app-native *::before,
+body.app-native *::after{
+  backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;
+}
+/* Görsellerdeki gölge filtresi en pahalısı — arma/avatar her kaydırmada
+   yeniden çiziliyordu. Gölge yerine hafif bir kontur bırakıyoruz. */
+body.app-native img{ filter:none !important }
+/* Kaydırma sırasında karo yeniden çizimini azalt */
+body.app-native{ overscroll-behavior-y:none }
+body.app-native .page{ transform:translateZ(0) }
+
 body:has([class*="-overlay"].open){overflow:hidden}
 [class*="-overlay"]{overscroll-behavior:contain}
 
@@ -29017,7 +29042,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-01-sifre-440';
+const APP_BUILD = '2026-09-01-native-442';
 
 (function _cacheBustCheck() {
   try {
@@ -30917,7 +30942,21 @@ window.addEventListener('load', function() {
     toDelete.forEach(k => localStorage.removeItem(k));
   } catch(e) {}
 
-  // 🆕 Odaklanılan alan klavyenin altında kalırsa görünür alana kaydır.
+  // 🆕 Uygulama (Capacitor WebView) içinde miyiz? Öyleyse <body>'ye
+//   `app-native` sınıfı ekle — ağır görsel efektler orada kapatılıyor.
+(function appNativeIsaretle(){
+  function uygula(){
+    try {
+      const kapsayici = !!(window.Capacitor || window.cordova)
+        || / wv\)|; wv;/i.test(navigator.userAgent || '');
+      if (kapsayici && document.body) document.body.classList.add('app-native');
+    } catch(e) {}
+  }
+  if (document.body) uygula();
+  else document.addEventListener('DOMContentLoaded', uygula);
+})();
+
+// 🆕 Odaklanılan alan klavyenin altında kalırsa görünür alana kaydır.
   //   Android'de tarayıcı bunu her zaman kendi yapmıyor; özellikle
   //   `position:absolute` bir katmanın (giriş/kayıt ekranı) içindeyken.
   (function odakKaydir(){
@@ -100067,258 +100106,8 @@ window.CSC2D={Saha,Sahne,kadroUret,yedekUret,tohum,olayCevir,ANIM_KAT,formaCakis
 
 </script>
 
-<!-- ═══════════════════════════════════════════════════════════════════
-     TEŞHİS PANELİ — telefonda DevTools olmadan hata görmek için
-     Açmak için adresin sonuna  ?teshis=1  ekle:
-        https://citysoccer.club/?teshis=1
-     Kapatmak: panelin sağ üstündeki ✕  (ya da ?teshis=0)
-     Kapalıyken HİÇBİR ŞEY yapmaz, sıfır maliyet.
-     ═══════════════════════════════════════════════════════════════════ -->
-<script>
-(function(){
-  var AC = 'csc_teshis';
-  try {
-    var q = new URLSearchParams(location.search);
-    if (q.get('teshis') === '1') localStorage.setItem(AC, '1');
-    if (q.get('teshis') === '0') localStorage.removeItem(AC);
-  } catch(e) {}
-  var acik = false;
-  try { acik = localStorage.getItem(AC) === '1'; } catch(e) {}
-  if (!acik) return;
-
-  var hatalar = [], dokunmalar = [], uzunGorev = { adet: 0, toplam: 0, enUzun: 0 };
-
-  function kisaEl(el) {
-    if (!el || !el.tagName) return 'yok';
-    var c = (el.className && el.className.toString ? el.className.toString() : '').trim().split(/\s+/).slice(0,2).join('.');
-    return el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (c ? '.' + c : '');
-  }
-
-  // ── 1) JS hataları ──
-  window.addEventListener('error', function(e){
-    hatalar.push((e.message || 'hata') + ' @' + (e.filename||'').split('/').pop() + ':' + e.lineno);
-    if (hatalar.length > 6) hatalar.shift();
-    ciz();
-  }, true);
-  window.addEventListener('unhandledrejection', function(e){
-    var r = e.reason;
-    hatalar.push('PROMISE: ' + ((r && (r.message || r)) + '').slice(0,90));
-    if (hatalar.length > 6) hatalar.shift();
-    ciz();
-  });
-
-  // ── 2) Donma ölçümü (uzun görevler) ──
-  try {
-    if (window.PerformanceObserver && PerformanceObserver.supportedEntryTypes
-        && PerformanceObserver.supportedEntryTypes.indexOf('longtask') >= 0) {
-      new PerformanceObserver(function(list){
-        list.getEntries().forEach(function(en){
-          uzunGorev.adet++; uzunGorev.toplam += en.duration;
-          if (en.duration > uzunGorev.enUzun) uzunGorev.enUzun = en.duration;
-        });
-      }).observe({ entryTypes: ['longtask'] });
-    }
-  } catch(e) {}
-
-  // ── 3) Dokunma nereye ulaşıyor? (yakalama fazı — hiçbir şeyi engellemez) ──
-  var sonHedef = null, sonButon = null, sonT = 0;
-  ['pointerdown','touchstart','click'].forEach(function(tip){
-    document.addEventListener(tip, function(e){
-      var t = e.target;
-      var buton = t && t.closest ? t.closest('button,[onclick],a') : null;
-      if (tip === 'touchstart' || tip === 'pointerdown') { sonHedef = t; sonButon = buton; sonT = Date.now(); }
-      dokunmalar.unshift(tip[0].toUpperCase() + ' → ' + kisaEl(t) + (buton && buton !== t ? '  (btn: ' + kisaEl(buton) + ')' : ''));
-      if (dokunmalar.length > 6) dokunmalar.pop();
-      ciz();
-    }, true);
-  });
-
-  // 🎯 ASIL TEST: parmak kalkarken, dokunmanın başladığı düğüm HÂLÂ
-  //    belgede duruyor mu? Duruyorsa tarayıcı click üretmeli. Durmuyorsa
-  //    (araya bir yeniden çizim girip düğümü değiştirmişse) click ASLA
-  //    üretilmez — masaüstünde fare çok hızlı olduğu için fark edilmez,
-  //    mobilde parmak 100+ ms kaldığı için her seferinde denk gelir.
-  ['touchend','pointerup'].forEach(function(tip){
-    document.addEventListener(tip, function(){
-      if (!sonHedef) return;
-      var sure = Date.now() - sonT;
-      var bagli = sonHedef.isConnected;
-      var btnBagli = sonButon ? sonButon.isConnected : null;
-      dokunmalar.unshift('↑ ' + tip + ' ' + sure + 'ms · hedef' +
-        (bagli ? '=BAĞLI' : '=KOPTU⛔') +
-        (sonButon ? (' · buton' + (btnBagli ? '=BAĞLI' : '=KOPTU⛔')) : ''));
-      if (dokunmalar.length > 6) dokunmalar.pop();
-      ciz();
-    }, true);
-  });
-
-  // 🎯 Takımım sayfasındaki butonların düğüm kimliği değişiyor mu?
-  //    Değişiyorsa o düğüm yeniden yaratılıyor demektir.
-  // 🎯 KİM ÇİZİYOR? — kadroyu yeniden çizen fonksiyonları sarmalayıp
-  //    çağrı sayısını ve ÇAĞIRANIN yığın izini kaydediyoruz.
-  //    "Satır sürekli yeniden yaratılıyor" bulgusunun failini bulur.
-  var cizSay = { renderRoster:0, rosterBuildTeam:0, guestRenderRoster:0 };
-  var sonCagiran = '—', sonCagiranT = 0;
-  var benzersiz = {}, benzersizSira = [];   // farklı çağrı yolları + adetleri
-  var oncekiToplam = 0, hiz = 0;
-  setInterval(function(){
-    var t = cizSay.renderRoster + cizSay.rosterBuildTeam + cizSay.guestRenderRoster;
-    hiz = t - oncekiToplam; oncekiToplam = t;
-  }, 1000);
-  (function(){
-    function sar(ad){
-      var asil = window[ad];
-      if (typeof asil !== 'function' || asil.__teshisSarildi) return;
-      var yeni = function(){
-        try {
-          cizSay[ad]++;
-          // ⚠️ Safari'de stack'in ilk satırı ZATEN çağrılan fonksiyondur
-          //    (V8'deki "Error" başlık satırı yoktur). Bu yüzden hiçbir
-          //    satırı atmıyoruz; sadece URL'leri kısaltıp fonksiyon
-          //    adlarını bırakıyoruz.
-          var y = (new Error()).stack || '(yığın yok)';
-          var satirlar = y.split('\n').map(function(l){
-            return l.replace(/@?https?:\/\/[^\s)]*/g, '')
-                    .replace(/\s+/g, ' ').trim();
-          }).filter(function(l){ return l && l !== 'yeni'; });
-          sonCagiran = satirlar.slice(0, 4).join(' ‹ ').slice(0, 220);
-          if (!benzersiz[sonCagiran]) {
-            benzersiz[sonCagiran] = 0;
-            benzersizSira.push(sonCagiran);
-            if (benzersizSira.length > 4) {
-              delete benzersiz[benzersizSira.shift()];
-            }
-          }
-          benzersiz[sonCagiran]++;
-          sonCagiranT = Date.now();
-        } catch(e) { sonCagiran = 'yığın okunamadı: ' + e; }
-        return asil.apply(this, arguments);
-      };
-      yeni.__teshisSarildi = true;
-      try { window[ad] = yeni; } catch(e) {}
-    }
-    // Fonksiyonlar tanımlandıktan sonra sarmala
-    setTimeout(function(){
-      ['renderRoster','rosterBuildTeam','guestRenderRoster'].forEach(sar);
-      console.info('[teşhis] çizim sayacı takıldı');
-    }, 1500);
-  })();
-
-  var dugumSay = { geri:0, x:0, menu:0, satir:0 }, sonDugum = {};
-  setInterval(function(){
-    var s2 = document.querySelector('.page.active');
-    if (!s2 || s2.id !== 'page-team') return;
-    var m2 = { geri:'#page-team > .hm-title-box .hm-back-btn',
-               x:'#page-team > .hm-title-box .cal-close-btn',
-               menu:'#team-roster .thb-menu-btn',
-               satir:'#rosterList .player-row' };
-    for (var k2 in m2) {
-      var e2 = document.querySelector(m2[k2]);
-      if (e2 && sonDugum[k2] && e2 !== sonDugum[k2]) dugumSay[k2]++;
-      sonDugum[k2] = e2 || sonDugum[k2];
-    }
-  }, 250);
-  window.__teshisDugum = dugumSay;
-
-  // ── 4) Panel ──
-  var kutu = document.createElement('div');
-  kutu.id = 'cscTeshisPanel';
-  kutu.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:2147483647;'
-    + 'background:rgba(0,0,0,.88);color:#0f0;font:10px/1.35 monospace;'
-    + 'padding:6px 8px 8px;max-height:38vh;overflow:auto;pointer-events:auto;'
-    + 'border-top:2px solid #0f0;white-space:pre-wrap;word-break:break-all';
-  var kapat = document.createElement('button');
-  kapat.textContent = '✕';
-  kapat.style.cssText = 'position:absolute;top:4px;right:6px;background:#300;color:#f66;'
-    + 'border:1px solid #f66;border-radius:4px;font:12px monospace;padding:2px 7px;z-index:1';
-  kapat.onclick = function(){ try{ localStorage.removeItem(AC); }catch(e){} kutu.remove(); };
-  var govde = document.createElement('div');
-  kutu.appendChild(kapat); kutu.appendChild(govde);
-
-  function hazir(){ try { if (document.body && !kutu.parentNode) document.body.appendChild(kutu); } catch(e) {} }
-  // Betik </body> içinde çalıştığı için body zaten var — hemen ekle.
-  // DOMContentLoaded'ı yedek olarak bırakıyoruz (body henüz yoksa).
-  hazir();
-  if (!kutu.parentNode) document.addEventListener('DOMContentLoaded', hazir);
-
-  var sonKare = performance.now(), kare = 0, fps = 0;
-  (function say(){
-    kare++;
-    var s = performance.now();
-    if (s - sonKare >= 1000) { fps = kare; kare = 0; sonKare = s; ciz(); }
-    requestAnimationFrame(say);
-  })();
-
-  function ciz(){
-    if (!govde) return;
-    var sayfa = document.querySelector('.page.active');
-    var sr = [];
-    sr.push('TEŞHİS · fps:' + fps
-      + ' · donma:' + uzunGorev.adet + ' (en uzun ' + Math.round(uzunGorev.enUzun) + 'ms)');
-    sr.push('sayfa: ' + (sayfa ? sayfa.id : '?') + ' · body: ' + (document.body.className || '—').slice(0,60));
-    // 🔧 Sürükleme kilidi durumu — takılıysa dokunma koordinatları kayar
-    var bs = document.body.style;
-    var kilit = (bs.position === 'fixed') || document.documentElement.classList.contains('eq-drag-lock');
-    sr.push('KİLİT: ' + (kilit ? '⛔ TAKILI (body.position=' + bs.position + ' top=' + (bs.top||'-') + ')' : 'yok')
-      + ' · html: ' + (document.documentElement.className || '—').slice(0,40));
-    sr.push('scroll: ' + Math.round(window.scrollY) + ' · görünen: ' + window.innerWidth + 'x' + window.innerHeight);
-    // 🎯 BUTON İSABET TESTİ — her butonun merkezine sanal dokunuş yapıp
-    //    oraya gerçekte hangi öğenin denk geldiğini söyler. Kullanıcının
-    //    hiçbir şey yapmasına gerek yok, panel kendi ölçüyor.
-    if (sayfa && sayfa.id === 'page-team') {
-      var hedefler = [
-        ['geri', '#page-team > .hm-title-box .hm-back-btn'],
-        ['X',    '#page-team > .hm-title-box .cal-close-btn'],
-        ['menu', '#team-roster .thb-menu-btn'],
-        ['sekme','#page-team .team-tab'],
-        ['satır','#rosterList .player-row']
-      ];
-      var satir = [];
-      for (var hi = 0; hi < hedefler.length; hi++) {
-        var ad = hedefler[hi][0], el = document.querySelector(hedefler[hi][1]);
-        if (!el) { satir.push(ad + ':YOK'); continue; }
-        var r = el.getBoundingClientRect();
-        if (!r.width || !r.height) { satir.push(ad + ':0px'); continue; }
-        var ust = document.elementFromPoint(Math.round(r.left + r.width/2), Math.round(r.top + r.height/2));
-        var ok = !!(ust && (ust === el || el.contains(ust)));
-        satir.push(ad + ':' + (ok ? '✓' : '⛔' + kisaEl(ust)));
-      }
-      sr.push('BUTONLAR: ' + satir.join('  '));
-      sr.push('YENİDEN YARATIM: geri=' + dugumSay.geri + ' x=' + dugumSay.x
-              + ' menu=' + dugumSay.menu + ' satır=' + dugumSay.satir);
-      sr.push('ÇİZİM: renderRoster=' + cizSay.renderRoster
-              + ' build=' + cizSay.rosterBuildTeam
-              + ' guest=' + cizSay.guestRenderRoster
-              + (sonCagiranT ? ' · ' + Math.round((Date.now()-sonCagiranT)/1000) + 'sn önce' : ''));
-      sr.push('HIZ: ' + hiz + ' çizim/sn');
-      sr.push('ÇAĞRI YOLLARI (' + benzersizSira.length + '):');
-      for (var bi = benzersizSira.length - 1; bi >= 0; bi--) {
-        sr.push('  ' + benzersiz[benzersizSira[bi]] + '× ' + benzersizSira[bi]);
-      }
-      // 🎯 Kadro satırının üstünü kim kaplıyor + hangi CSS engelliyor
-      var _sat = document.querySelector('#rosterList .player-row');
-      if (_sat) {
-        var _cs = getComputedStyle(_sat);
-        var _r2 = _sat.getBoundingClientRect();
-        var _ust2 = document.elementFromPoint(Math.round(_r2.left + _r2.width/2),
-                                              Math.round(_r2.top + _r2.height/2));
-        sr.push('SATIR: pe=' + _cs.pointerEvents + ' ta=' + _cs.touchAction
-              + ' us=' + _cs.userSelect
-              + ' · üstteki=' + kisaEl(_ust2)
-              + ' · onclick=' + (_sat.getAttribute('onclick') ? 'var' : 'YOK'));
-      }
-    }
-    sr.push('— dokunmalar —');
-    sr.push(dokunmalar.length ? dokunmalar.join('\n') : '  (henüz yok)');
-    sr.push('— hatalar (' + hatalar.length + ') —');
-    sr.push(hatalar.length ? hatalar.join('\n') : '  yok');
-    govde.textContent = sr.join('\n');
-  }
-  ciz();                    // ilk çizim — beklemeden bilgi görünsün
-  setInterval(ciz, 1000);
-  console.info('[teşhis] panel açık. Kapatmak için ?teshis=0');
-})();
-</script>
+<!-- Teşhis paneli kaldırıldı (build 441). Mobil dokunma sorunu çözüldü;
+     panel yalnızca ?teshis=1 ile açılıyordu ama artık gerekmiyor. -->
 <!-- ═══════════════════════════════════════════════════════════════════
      DOKUNMA KÖPRÜSÜ — iOS'ta kaybolan click olayı
      ═══════════════════════════════════════════════════════════════════
