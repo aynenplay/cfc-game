@@ -28991,7 +28991,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-01-antrenman-437';
+const APP_BUILD = '2026-09-01-kadro-438';
 
 (function _cacheBustCheck() {
   try {
@@ -92709,8 +92709,29 @@ async function _rosterLiveSyncTick(){
     }
   }catch(e){}
 }
-setInterval(_rosterLiveSyncTick, 45 * 1000);   // 🆕 18 → 45 sn (pil)
+// 🔴 KADRO TAZELEME SIKLIĞI
+//   45 saniye, yeni katılan oyuncunun görünmesi için fazla uzundu:
+//   kaptan onaylıyor, diğer üyeler yarım dakikadan fazla eski listeyi
+//   görüyor ve "çıkıp girmek gerekiyor" hissi oluşuyordu.
+//   Sorgu hafif (yalnız user_id + is_bot) ve sadece Takımım sayfası
+//   açıkken çalışıyor, o yüzden 12 saniye pil açısından da güvenli.
+setInterval(_rosterLiveSyncTick, 12 * 1000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) _rosterLiveSyncTick(); });
+
+// 🆕 Takımım sayfası açıldığı ANDA da kontrol et — bir sonraki turu bekleme.
+//   `showPage('team')` zaten sunucudan çekiyor, ama sayfa zaten açıkken
+//   sekmeler arasında gezinirken (Kadro'ya dönüşte) tetiklenmiyordu.
+(function(){
+  try {
+    const tp = document.getElementById('page-team');
+    if (!tp || typeof MutationObserver === 'undefined') return;
+    new MutationObserver(() => {
+      if (tp.classList.contains('active')) {
+        try { _rosterLiveSyncTick(); } catch(e) {}
+      }
+    }).observe(tp, { attributes: true, attributeFilter: ['class'] });
+  } catch(e) {}
+})();
 
 // Enerji günlük reset kontrolü — her dakika kontrol et (gece yarısı geçişini yakalamak için)
 // Performans: fonksiyon hafif, sadece bugünün dayKey'i ile karşılaştırma yapar.
