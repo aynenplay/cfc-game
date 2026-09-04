@@ -29037,7 +29037,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-04-tani-449';
+const APP_BUILD = '2026-09-04-play-450';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -73058,8 +73058,24 @@ function _playAktifMi() {
     return !!(window.Capacitor
            && typeof window.Capacitor.getPlatform === 'function'
            && window.Capacitor.getPlatform() === 'android'
-           && window.CdvPurchase);
+           && window.cordova);
   } catch (e) { return false; }
+}
+
+// Eklentinin JS tarafi uygulamanin ICINDEKI yerel dosyalardan gelir.
+// Oyun sunucudan yuklendigi icin oraya ulasamiyor — bu yuzden ayni
+// dosyayi kendi sunucumuzdan yukluyoruz. Native taraf ve cordova
+// koprusu zaten hazir, store.js sadece koprüyü kullaniyor.
+function _playJsYukle() {
+  return new Promise(function (resolve) {
+    if (window.CdvPurchase) return resolve(true);
+    if (!window.cordova)     return resolve(false);
+    var sc = document.createElement('script');
+    sc.src = '/store.js';
+    sc.onload  = function () { resolve(!!window.CdvPurchase); };
+    sc.onerror = function () { console.warn('[play] store.js yuklenemedi'); resolve(false); };
+    document.head.appendChild(sc);
+  });
 }
 
 const PLAY_FN = SUPABASE_URL + '/functions/v1/play-verify';
@@ -73076,6 +73092,9 @@ async function _playKur() {
   if (_playHazir || _playKuruluyor || !_playAktifMi()) return _playHazir;
   _playKuruluyor = true;
   try {
+    const jsVar = await _playJsYukle();
+    if (!jsVar) { _playKuruluyor = false; return false; }
+
     const CdvPurchase = window.CdvPurchase;
     const store    = CdvPurchase.store;
     const Platform = CdvPurchase.Platform;
