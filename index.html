@@ -29037,7 +29037,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-04-play-450';
+const APP_BUILD = '2026-09-04-tani2-451';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -29079,13 +29079,17 @@ const APP_BUILD = '2026-09-04-play-450';
         var plat = '?';
         try { plat = (window.Capacitor && window.Capacitor.getPlatform)
                      ? window.Capacitor.getPlatform() : 'web'; } catch(x) {}
+        var fiyatSayisi = 0;
+        try { fiyatSayisi = Object.keys(window._playFiyat || {}).length; } catch (x) {}
         var parcalar = [
           plat,
           'Cap:'  + (window.Capacitor ? '✓' : '✗'),
-          'Plug:' + ((window.Capacitor && window.Capacitor.Plugins) ? '✓' : '✗'),
           'Cdv:'  + (window.cordova ? '✓' : '✗'),
-          'Purch:' + (window.CdvPurchase ? '✓' : '✗')
+          'Purch:' + (window.CdvPurchase ? '✓' : '✗'),
+          'Fiyat:' + fiyatSayisi + '/9'
         ];
+        if (typeof window._playUrunler === 'number') parcalar.push('Urun:' + window._playUrunler);
+        if (window._playSonHata) parcalar.push('Hata:' + String(window._playSonHata).slice(0, 60));
         o.textContent = parcalar.join(' · ');
       }
     } catch(err) {}
@@ -29093,6 +29097,11 @@ const APP_BUILD = '2026-09-04-play-450';
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', yaz);
   else yaz();
   setTimeout(yaz, 1200);
+  // Ayarlar acikken Play durumu degisirse gorelim
+  setInterval(function () {
+    var el = document.getElementById('setOrtam');
+    if (el && el.offsetParent !== null) yaz();
+  }, 2000);
 })();
 
 (function _cacheBustCheck() {
@@ -73138,6 +73147,7 @@ async function _playKur() {
 
     store.error(function (hata) {
       console.warn('[play] store hatasi', hata && hata.code, hata && hata.message);
+      try { window._playSonHata = (hata && (hata.code + ':' + hata.message)) || 'bilinmeyen'; } catch (x) {}
       // Kullanici pencereyi kapattiysa (6777003 / PAYMENT_CANCELLED) sessiz gec
       const iptal = hata && (hata.code === CdvPurchase.ErrorCode.PAYMENT_CANCELLED
                           || String(hata.message || '').toLowerCase().includes('cancel'));
@@ -73151,9 +73161,15 @@ async function _playKur() {
     await store.update();
 
     _playHazir = true;
+    try {
+      window._playUrunler = store.products
+        ? store.products.filter(function (u) { return u && u.getOffer && u.getOffer(); }).length
+        : 0;
+    } catch (x) { window._playUrunler = -1; }
     console.info('[play] hazir, urun sayisi', Object.keys(window._playFiyat).length);
   } catch (e) {
     console.warn('[play] kurulum hatasi', e);
+    try { window._playSonHata = 'kurulum:' + String((e && e.message) || e); } catch (x) {}
   } finally {
     _playKuruluyor = false;
   }
