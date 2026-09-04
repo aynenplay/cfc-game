@@ -29036,7 +29036,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-02-splash-447';
+const APP_BUILD = '2026-09-04-play-448';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -72913,7 +72913,7 @@ function renderDiamondPacks() {
       <div class="dp-icon">${p.icon}</div>
       <div class="dp-amount">${total.toLocaleString('tr')}</div>
       ${p.bonus ? `<div class="dp-bonus">+${p.bonus.toLocaleString('tr')} bonus (+${bonusPct}%)</div>` : `<div class="dp-bonus" style="visibility:hidden">.</div>`}
-      <div class="dp-price">${p.price}</div>
+      <div class="dp-price">${(window._playFiyat && window._playFiyat["dia_" + p.priceEur]) || p.price}</div>
       <div class="dp-btn">Satın Al</div>
     </div>
   `;
@@ -73027,9 +73027,227 @@ function _xsKutlama(miktar, bitti) {
   }, 1300);
 }
 
+// ═══════════════════════════════════════════════════════════════════
+//  GOOGLE PLAY BILLING
+//  Tarayicida hicbir sey degismez: Xsolla akisi aynen calisir.
+//  APK icinde ise Play Billing devreye girer — Play politikasi
+//  uygulama icinde harici odeme sayfasi acilmasini yasakliyor.
+// ═══════════════════════════════════════════════════════════════════
+
+// Play surumunde miyiz? (Capacitor + eklenti yuklu)
+function _playAktifMi() {
+  try {
+    return !!(window.Capacitor
+           && typeof window.Capacitor.getPlatform === 'function'
+           && window.Capacitor.getPlatform() === 'android'
+           && window.CdvPurchase);
+  } catch (e) { return false; }
+}
+
+const PLAY_FN = SUPABASE_URL + '/functions/v1/play-verify';
+
+// Play'den gelen yerel fiyatlar: { dia_3: '₺129,99', ... }
+window._playFiyat = {};
+let _playHazir = false;
+let _playKuruluyor = false;
+
+// Satin alma sonucu icin bekleyen soz (promise)
+let _playBekleyen = null;
+
+async function _playKur() {
+  if (_playHazir || _playKuruluyor || !_playAktifMi()) return _playHazir;
+  _playKuruluyor = true;
+  try {
+    const CdvPurchase = window.CdvPurchase;
+    const store    = CdvPurchase.store;
+    const Platform = CdvPurchase.Platform;
+    const ProductType = CdvPurchase.ProductType;
+
+    store.verbosity = CdvPurchase.LogLevel.WARNING;
+
+    // 9 paketi kaydet
+    (DIAMOND_PACKS || []).forEach(function (p) {
+      store.register({
+        id: 'dia_' + p.priceEur,
+        type: ProductType.CONSUMABLE,
+        platform: Platform.GOOGLE_PLAY,
+      });
+    });
+
+    // Urun bilgisi gelince yerel fiyati sakla ve kartlari tazele
+    store.when().productUpdated(function (urun) {
+      try {
+        const teklif = urun.getOffer && urun.getOffer();
+        const fiyat  = teklif && teklif.pricingPhases && teklif.pricingPhases[0]
+                     && teklif.pricingPhases[0].price;
+        if (fiyat) {
+          window._playFiyat[urun.id] = fiyat;
+          if (typeof renderShop === 'function' &&
+              document.getElementById('page-shop')?.classList.contains('active')) {
+            try { renderShop(); } catch (e) {}
+          }
+        }
+      } catch (e) {}
+    });
+
+    // ── Satin alma onaylandi: jetonu sunucuya dogrulat ──
+    store.when().approved(function (islem) {
+      _playDogrula(islem);
+    });
+
+    store.when().finished(function () {
+      // Urun tuketildi; yapacak bir sey yok.
+    });
+
+    store.error(function (hata) {
+      console.warn('[play] store hatasi', hata && hata.code, hata && hata.message);
+      // Kullanici pencereyi kapattiysa (6777003 / PAYMENT_CANCELLED) sessiz gec
+      const iptal = hata && (hata.code === CdvPurchase.ErrorCode.PAYMENT_CANCELLED
+                          || String(hata.message || '').toLowerCase().includes('cancel'));
+      if (_playBekleyen) {
+        const b = _playBekleyen; _playBekleyen = null;
+        b.reject(iptal ? { iptal: true } : { hata: (hata && hata.message) || 'Bilinmeyen hata' });
+      }
+    });
+
+    await store.initialize([Platform.GOOGLE_PLAY]);
+    await store.update();
+
+    _playHazir = true;
+    console.info('[play] hazir, urun sayisi', Object.keys(window._playFiyat).length);
+  } catch (e) {
+    console.warn('[play] kurulum hatasi', e);
+  } finally {
+    _playKuruluyor = false;
+  }
+  return _playHazir;
+}
+
+// Sunucuya dogrulat, elmas yatsin, sonra urunu tuket
+async function _playDogrula(islem) {
+  try {
+    const urunId = (islem.products && islem.products[0] && islem.products[0].id) || '';
+    const jeton  = islem.purchaseId || islem.transactionId ||
+                   (islem.nativePurchase && islem.nativePurchase.purchaseToken) || '';
+
+    if (!urunId || !jeton) {
+      console.warn('[play] eksik islem verisi', islem);
+      if (_playBekleyen) { const b=_playBekleyen; _playBekleyen=null; b.reject({ hata:'Satin alma verisi eksik' }); }
+      return;
+    }
+
+    let jwt = null;
+    try {
+      const { data } = await window.sb.auth.getSession();
+      jwt = data && data.session && data.session.access_token;
+    } catch (e) {}
+    if (!jwt) {
+      if (_playBekleyen) { const b=_playBekleyen; _playBekleyen=null; b.reject({ hata:'Oturum bulunamadi' }); }
+      return;
+    }
+
+    const cevap = await fetch(PLAY_FN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
+      body: JSON.stringify({ productId: urunId, purchaseToken: jeton }),
+    }).then(function (r) { return r.json(); }).catch(function () { return null; });
+
+    if (cevap && cevap.ok) {
+      // Elmas yatti — urunu tuket ki tekrar satin alinabilsin
+      try { islem.finish(); } catch (e) {}
+      if (_playBekleyen) { const b=_playBekleyen; _playBekleyen=null; b.resolve(cevap); }
+    } else {
+      console.warn('[play] dogrulama basarisiz', cevap);
+      // finish() CAGIRMIYORUZ: jeton duruyor, uygulama tekrar acildiginda
+      // approved yeniden tetiklenir ve bir daha denenir.
+      if (_playBekleyen) {
+        const b=_playBekleyen; _playBekleyen=null;
+        b.reject({ hata: (cevap && cevap.hata) || 'Dogrulama basarisiz', tekrarDenenecek: true });
+      }
+    }
+  } catch (e) {
+    console.warn('[play] dogrulama hatasi', e);
+    if (_playBekleyen) { const b=_playBekleyen; _playBekleyen=null; b.reject({ hata:String(e) }); }
+  }
+}
+
+// Magaza kartindan cagrilir
+async function _playSatinAl(idx) {
+  const p = DIAMOND_PACKS[idx];
+  if (!p) return;
+  const urunId = 'dia_' + p.priceEur;
+
+  try { showShopToast('💳 Google Play aciliyor…', '#3b82f6'); } catch (e) {}
+
+  if (!_playHazir) {
+    const ok = await _playKur();
+    if (!ok) {
+      try { showShopToast('⚠️ Odeme sistemi hazir degil, tekrar dene.', '#ef4444'); } catch (e) {}
+      return;
+    }
+  }
+
+  const store = window.CdvPurchase.store;
+  const urun  = store.get(urunId, window.CdvPurchase.Platform.GOOGLE_PLAY);
+  const teklif = urun && urun.getOffer && urun.getOffer();
+  if (!teklif) {
+    try { showShopToast('⚠️ Paket bulunamadi: ' + urunId, '#ef4444'); } catch (e) {}
+    return;
+  }
+
+  // Rozeti dondur — kutlama sayana kadar baslik eski degerde kalsin
+  try { window._WL_HOLD.dia = true; } catch (e) {}
+
+  const sonuc = new Promise(function (resolve, reject) {
+    _playBekleyen = { resolve: resolve, reject: reject };
+  });
+
+  try {
+    await teklif.order();
+    const veri = await sonuc;
+
+    // Cuzdani sunucudan tazele
+    try { if (typeof wlPullFromServer === 'function') await wlPullFromServer(); } catch (e) {}
+
+    const miktar = (veri && veri.dia) || ((p.amount || 0) + (p.bonus || 0));
+    if (typeof _xsKutlama === 'function') {
+      _xsKutlama(miktar, function () { try { renderShop(); } catch (e) {} });
+    } else {
+      try { window._WL_HOLD.dia = false; wlSyncHeader(); } catch (e) {}
+      try { showShopToast('✅ ' + miktar + ' elmas hesabina gecti!', '#00e676'); } catch (e) {}
+    }
+  } catch (h) {
+    try { window._WL_HOLD.dia = false; wlSyncHeader(); } catch (e) {}
+    if (h && h.iptal) return;                 // kullanici vazgecti, sessiz
+    if (h && h.tekrarDenenecek) {
+      try { showShopToast('⏳ Odeme alindi, elmaslar birazdan yatacak.', '#f59e0b'); } catch (e) {}
+    } else {
+      try { showShopToast('⚠️ ' + ((h && h.hata) || 'Odeme tamamlanamadi'), '#ef4444'); } catch (e) {}
+    }
+  } finally {
+    _playBekleyen = null;
+  }
+}
+
+// Uygulama acilinca Play'i hazirla (fiyatlar kartlarda gorunsun,
+// yarim kalmis satin almalar tamamlansin)
+(function _playOtoKur() {
+  function dene() { if (_playAktifMi()) _playKur(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', dene);
+  else dene();
+  setTimeout(dene, 2500);
+})();
+
+
 async function buyDiamondPack(idx) {
   const p = DIAMOND_PACKS[idx];
   if (!p) return;
+
+  // 🆕 APK icindeysek Xsolla'ya HIC gitmeden Play Billing'e gec.
+  //    Play politikasi uygulama icinde harici odeme sayfasi
+  //    acilmasini yasakliyor.
+  if (_playAktifMi()) return _playSatinAl(idx);
+
   const toplam = (p.amount || 0) + (p.bonus || 0);
   const sku = 'dia_' + p.priceEur;
 
