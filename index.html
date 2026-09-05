@@ -29037,7 +29037,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-04-tani2-451';
+const APP_BUILD = '2026-09-05-native-452';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -29085,7 +29085,7 @@ const APP_BUILD = '2026-09-04-tani2-451';
           plat,
           'Cap:'  + (window.Capacitor ? '✓' : '✗'),
           'Cdv:'  + (window.cordova ? '✓' : '✗'),
-          'Purch:' + (window.CdvPurchase ? '✓' : '✗'),
+          'PB:' + ((window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.PlayBilling) ? '✓' : '✗'),
           'Fiyat:' + fiyatSayisi + '/9'
         ];
         if (typeof window._playUrunler === 'number') parcalar.push('Urun:' + window._playUrunler);
@@ -73059,33 +73059,12 @@ function _xsKutlama(miktar, bitti) {
 //  Tarayicida hicbir sey degismez: Xsolla akisi aynen calisir.
 //  APK icinde ise Play Billing devreye girer — Play politikasi
 //  uygulama icinde harici odeme sayfasi acilmasini yasakliyor.
+//
+//  Native taraf: PlayBilling.java (Capacitor eklentisi).
+//  Cordova tabanli eklentiler burada CALISMIYOR: oyun sunucudan
+//  yuklendigi icin Capacitor kendi koprusunu enjekte ediyor ama
+//  Cordova uyumluluk katmani gelmiyor.
 // ═══════════════════════════════════════════════════════════════════
-
-// Play surumunde miyiz? (Capacitor + eklenti yuklu)
-function _playAktifMi() {
-  try {
-    return !!(window.Capacitor
-           && typeof window.Capacitor.getPlatform === 'function'
-           && window.Capacitor.getPlatform() === 'android'
-           && window.cordova);
-  } catch (e) { return false; }
-}
-
-// Eklentinin JS tarafi uygulamanin ICINDEKI yerel dosyalardan gelir.
-// Oyun sunucudan yuklendigi icin oraya ulasamiyor — bu yuzden ayni
-// dosyayi kendi sunucumuzdan yukluyoruz. Native taraf ve cordova
-// koprusu zaten hazir, store.js sadece koprüyü kullaniyor.
-function _playJsYukle() {
-  return new Promise(function (resolve) {
-    if (window.CdvPurchase) return resolve(true);
-    if (!window.cordova)     return resolve(false);
-    var sc = document.createElement('script');
-    sc.src = '/store.js';
-    sc.onload  = function () { resolve(!!window.CdvPurchase); };
-    sc.onerror = function () { console.warn('[play] store.js yuklenemedi'); resolve(false); };
-    document.head.appendChild(sc);
-  });
-}
 
 const PLAY_FN = SUPABASE_URL + '/functions/v1/play-verify';
 
@@ -73094,110 +73073,73 @@ window._playFiyat = {};
 let _playHazir = false;
 let _playKuruluyor = false;
 
-// Satin alma sonucu icin bekleyen soz (promise)
-let _playBekleyen = null;
+// Native eklentiye kisayol
+function _pb() {
+  try { return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.PlayBilling; }
+  catch (e) { return null; }
+}
+
+// Play surumunde miyiz?
+function _playAktifMi() {
+  try {
+    return !!(window.Capacitor
+           && typeof window.Capacitor.getPlatform === 'function'
+           && window.Capacitor.getPlatform() === 'android'
+           && _pb());
+  } catch (e) { return false; }
+}
 
 async function _playKur() {
   if (_playHazir || _playKuruluyor || !_playAktifMi()) return _playHazir;
   _playKuruluyor = true;
   try {
-    const jsVar = await _playJsYukle();
-    if (!jsVar) { _playKuruluyor = false; return false; }
+    const PB = _pb();
 
-    const CdvPurchase = window.CdvPurchase;
-    const store    = CdvPurchase.store;
-    const Platform = CdvPurchase.Platform;
-    const ProductType = CdvPurchase.ProductType;
+    await PB.baslat();
 
-    store.verbosity = CdvPurchase.LogLevel.WARNING;
+    const idler = (DIAMOND_PACKS || []).map(function (p) { return 'dia_' + p.priceEur; });
+    const sonuc = await PB.urunleriGetir({ productIds: idler });
 
-    // 9 paketi kaydet
-    (DIAMOND_PACKS || []).forEach(function (p) {
-      store.register({
-        id: 'dia_' + p.priceEur,
-        type: ProductType.CONSUMABLE,
-        platform: Platform.GOOGLE_PLAY,
-      });
+    const gelen = (sonuc && sonuc.urunler) || [];
+    gelen.forEach(function (u) {
+      if (u && u.productId && u.fiyat) window._playFiyat[u.productId] = u.fiyat;
     });
-
-    // Urun bilgisi gelince yerel fiyati sakla ve kartlari tazele
-    store.when().productUpdated(function (urun) {
-      try {
-        const teklif = urun.getOffer && urun.getOffer();
-        const fiyat  = teklif && teklif.pricingPhases && teklif.pricingPhases[0]
-                     && teklif.pricingPhases[0].price;
-        if (fiyat) {
-          window._playFiyat[urun.id] = fiyat;
-          if (typeof renderShop === 'function' &&
-              document.getElementById('page-shop')?.classList.contains('active')) {
-            try { renderShop(); } catch (e) {}
-          }
-        }
-      } catch (e) {}
-    });
-
-    // ── Satin alma onaylandi: jetonu sunucuya dogrulat ──
-    store.when().approved(function (islem) {
-      _playDogrula(islem);
-    });
-
-    store.when().finished(function () {
-      // Urun tuketildi; yapacak bir sey yok.
-    });
-
-    store.error(function (hata) {
-      console.warn('[play] store hatasi', hata && hata.code, hata && hata.message);
-      try { window._playSonHata = (hata && (hata.code + ':' + hata.message)) || 'bilinmeyen'; } catch (x) {}
-      // Kullanici pencereyi kapattiysa (6777003 / PAYMENT_CANCELLED) sessiz gec
-      const iptal = hata && (hata.code === CdvPurchase.ErrorCode.PAYMENT_CANCELLED
-                          || String(hata.message || '').toLowerCase().includes('cancel'));
-      if (_playBekleyen) {
-        const b = _playBekleyen; _playBekleyen = null;
-        b.reject(iptal ? { iptal: true } : { hata: (hata && hata.message) || 'Bilinmeyen hata' });
-      }
-    });
-
-    await store.initialize([Platform.GOOGLE_PLAY]);
-    await store.update();
+    window._playUrunler = gelen.length;
 
     _playHazir = true;
+
+    // Fiyatlar geldi — magaza aciksa kartlari tazele
     try {
-      window._playUrunler = store.products
-        ? store.products.filter(function (u) { return u && u.getOffer && u.getOffer(); }).length
-        : 0;
-    } catch (x) { window._playUrunler = -1; }
-    console.info('[play] hazir, urun sayisi', Object.keys(window._playFiyat).length);
+      if (typeof renderShop === 'function' &&
+          document.getElementById('page-shop') &&
+          document.getElementById('page-shop').classList.contains('active')) {
+        renderShop();
+      }
+    } catch (e) {}
+
+    // Yarim kalmis satin almalari tamamla
+    _playBekleyenleriIsle();
+
+    console.info('[play] hazir, urun sayisi', gelen.length);
   } catch (e) {
     console.warn('[play] kurulum hatasi', e);
-    try { window._playSonHata = 'kurulum:' + String((e && e.message) || e); } catch (x) {}
+    try { window._playSonHata = String((e && (e.message || e.errorMessage)) || e); } catch (x) {}
   } finally {
     _playKuruluyor = false;
   }
   return _playHazir;
 }
 
-// Sunucuya dogrulat, elmas yatsin, sonra urunu tuket
-async function _playDogrula(islem) {
+// Jetonu sunucuya dogrulat. Basarili olursa urunu tuket.
+// donus: { ok, dia, ad, tekrar } | null
+async function _playDogrula(urunId, jeton) {
   try {
-    const urunId = (islem.products && islem.products[0] && islem.products[0].id) || '';
-    const jeton  = islem.purchaseId || islem.transactionId ||
-                   (islem.nativePurchase && islem.nativePurchase.purchaseToken) || '';
-
-    if (!urunId || !jeton) {
-      console.warn('[play] eksik islem verisi', islem);
-      if (_playBekleyen) { const b=_playBekleyen; _playBekleyen=null; b.reject({ hata:'Satin alma verisi eksik' }); }
-      return;
-    }
-
     let jwt = null;
     try {
       const { data } = await window.sb.auth.getSession();
       jwt = data && data.session && data.session.access_token;
     } catch (e) {}
-    if (!jwt) {
-      if (_playBekleyen) { const b=_playBekleyen; _playBekleyen=null; b.reject({ hata:'Oturum bulunamadi' }); }
-      return;
-    }
+    if (!jwt) return { ok: false, hata: 'Oturum bulunamadi' };
 
     const cevap = await fetch(PLAY_FN, {
       method: 'POST',
@@ -73206,21 +73148,39 @@ async function _playDogrula(islem) {
     }).then(function (r) { return r.json(); }).catch(function () { return null; });
 
     if (cevap && cevap.ok) {
-      // Elmas yatti — urunu tuket ki tekrar satin alinabilsin
-      try { islem.finish(); } catch (e) {}
-      if (_playBekleyen) { const b=_playBekleyen; _playBekleyen=null; b.resolve(cevap); }
-    } else {
-      console.warn('[play] dogrulama basarisiz', cevap);
-      // finish() CAGIRMIYORUZ: jeton duruyor, uygulama tekrar acildiginda
-      // approved yeniden tetiklenir ve bir daha denenir.
-      if (_playBekleyen) {
-        const b=_playBekleyen; _playBekleyen=null;
-        b.reject({ hata: (cevap && cevap.hata) || 'Dogrulama basarisiz', tekrarDenenecek: true });
+      // Elmas yatti — urunu tuket ki tekrar satin alinabilsin.
+      // Dogrulama BASARISIZ olursa TUKETMIYORUZ: jeton Play'de kalir,
+      // uygulama tekrar acildiginda yeniden denenir, para bosa gitmez.
+      try { await _pb().tuket({ purchaseToken: jeton }); } catch (e) {
+        console.warn('[play] tuketilemedi', e);
+      }
+      return cevap;
+    }
+
+    console.warn('[play] dogrulama basarisiz', cevap);
+    return cevap || { ok: false, hata: 'Sunucuya ulasilamadi' };
+  } catch (e) {
+    console.warn('[play] dogrulama hatasi', e);
+    return { ok: false, hata: String(e) };
+  }
+}
+
+// Odeme alinmis ama islenmemis satin almalar (ag koptu, uygulama kapandi)
+async function _playBekleyenleriIsle() {
+  if (!_playAktifMi()) return;
+  try {
+    const sonuc = await _pb().bekleyenler();
+    const liste = (sonuc && sonuc.satinAlmalar) || [];
+    for (const sa of liste) {
+      if (!sa || !sa.productId || !sa.purchaseToken) continue;
+      const r = await _playDogrula(sa.productId, sa.purchaseToken);
+      if (r && r.ok && !r.tekrar) {
+        try { if (typeof wlPullFromServer === 'function') await wlPullFromServer(); } catch (e) {}
+        try { showShopToast('✅ ' + r.dia + ' elmas hesabina gecti!', '#00e676'); } catch (e) {}
       }
     }
   } catch (e) {
-    console.warn('[play] dogrulama hatasi', e);
-    if (_playBekleyen) { const b=_playBekleyen; _playBekleyen=null; b.reject({ hata:String(e) }); }
+    console.warn('[play] bekleyenler islenemedi', e);
   }
 }
 
@@ -73240,45 +73200,54 @@ async function _playSatinAl(idx) {
     }
   }
 
-  const store = window.CdvPurchase.store;
-  const urun  = store.get(urunId, window.CdvPurchase.Platform.GOOGLE_PLAY);
-  const teklif = urun && urun.getOffer && urun.getOffer();
-  if (!teklif) {
-    try { showShopToast('⚠️ Paket bulunamadi: ' + urunId, '#ef4444'); } catch (e) {}
-    return;
-  }
-
   // Rozeti dondur — kutlama sayana kadar baslik eski degerde kalsin
   try { window._WL_HOLD.dia = true; } catch (e) {}
 
-  const sonuc = new Promise(function (resolve, reject) {
-    _playBekleyen = { resolve: resolve, reject: reject };
-  });
-
   try {
-    await teklif.order();
-    const veri = await sonuc;
+    const satin = await _pb().satinAl({ productId: urunId });
+
+    const dogrulama = await _playDogrula(urunId, satin.purchaseToken);
+
+    if (!dogrulama || !dogrulama.ok) {
+      try { window._WL_HOLD.dia = false; wlSyncHeader(); } catch (e) {}
+      try {
+        showShopToast('⏳ Odeme alindi, elmaslar birazdan yatacak.', '#f59e0b');
+      } catch (e) {}
+      return;
+    }
 
     // Cuzdani sunucudan tazele
     try { if (typeof wlPullFromServer === 'function') await wlPullFromServer(); } catch (e) {}
 
-    const miktar = (veri && veri.dia) || ((p.amount || 0) + (p.bonus || 0));
+    const miktar = dogrulama.dia || ((p.amount || 0) + (p.bonus || 0));
     if (typeof _xsKutlama === 'function') {
       _xsKutlama(miktar, function () { try { renderShop(); } catch (e) {} });
     } else {
       try { window._WL_HOLD.dia = false; wlSyncHeader(); } catch (e) {}
       try { showShopToast('✅ ' + miktar + ' elmas hesabina gecti!', '#00e676'); } catch (e) {}
     }
+
   } catch (h) {
     try { window._WL_HOLD.dia = false; wlSyncHeader(); } catch (e) {}
-    if (h && h.iptal) return;                 // kullanici vazgecti, sessiz
-    if (h && h.tekrarDenenecek) {
-      try { showShopToast('⏳ Odeme alindi, elmaslar birazdan yatacak.', '#f59e0b'); } catch (e) {}
-    } else {
-      try { showShopToast('⚠️ ' + ((h && h.hata) || 'Odeme tamamlanamadi'), '#ef4444'); } catch (e) {}
+
+    const kod = (h && (h.code || h.errorCode)) || '';
+    const mesaj = (h && (h.message || h.errorMessage)) || '';
+
+    if (kod === 'IPTAL' || /iptal|cancel/i.test(mesaj)) return;   // vazgecti, sessiz
+
+    if (kod === 'ZATEN_VAR') {
+      // Onceki satin alma tuketilmemis — simdi isle
+      try { showShopToast('⏳ Onceki alisverisin isleniyor…', '#f59e0b'); } catch (e) {}
+      _playBekleyenleriIsle();
+      return;
     }
-  } finally {
-    _playBekleyen = null;
+
+    if (kod === 'BEKLEMEDE') {
+      try { showShopToast('⏳ Odemen onay bekliyor.', '#f59e0b'); } catch (e) {}
+      return;
+    }
+
+    try { showShopToast('⚠️ ' + (mesaj || 'Odeme tamamlanamadi'), '#ef4444'); } catch (e) {}
   }
 }
 
