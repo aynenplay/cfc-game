@@ -3705,3 +3705,53 @@ window.I18N_PATTERNS.en.push(
   [/^🌍 (.+?): Çeviri yakında! Şimdilik Türkçe kullanılıyor\.$/,
     '🌍 $1: translation coming soon! Turkish is used for now.']
 );
+
+/* ── 27. dalga · tarih biçimleri (virgülsüz), takvim, sezon başlığı ── */
+window.I18N_PATTERNS.en.push(
+  // "Pzt 7 Eyl" — maç önizleme / fikstür (virgülsüz biçim)
+  [/^(Pzr|Paz|Pzt|Sal|Çar|Per|Cum|Cmt) (\d{1,2}) (Oca|Şub|Mar|Nis|May|Haz|Tem|Ağu|Eyl|Eki|Kas|Ara)$/,
+    m => (window.I18N.en[m[1]] || m[1]) + ' ' + m[2] + ' ' + (window.I18N.en[m[3]] || m[3])],
+  [/^(Pzr|Paz|Pzt|Sal|Çar|Per|Cum|Cmt) (\d{1,2}) (Oca|Şub|Mar|Nis|May|Haz|Tem|Ağu|Eyl|Eki|Kas|Ara) (\d{4})$/,
+    m => (window.I18N.en[m[1]] || m[1]) + ' ' + m[2] + ' ' + (window.I18N.en[m[3]] || m[3]) + ' ' + m[4]],
+  [/^(Pzr|Paz|Pzt|Sal|Çar|Per|Cum|Cmt) (\d{1,2}) (Oca|Şub|Mar|Nis|May|Haz|Tem|Ağu|Eyl|Eki|Kas|Ara) · (.+)$/,
+    m => (window.I18N.en[m[1]] || m[1]) + ' ' + m[2] + ' ' + (window.I18N.en[m[3]] || m[3]) + ' · ' + m[4]],
+  // "Sezon 3 · Gün 23" — parçalı hâlleri de dahil (ana sayfa innerHTML ile yazıyor)
+  [/^· Gün (\d+)$/,                    '· Day $1'],
+  [/^- Gün (\d+)$/,                    '- Day $1'],
+  [/^Gün (\d+)$/,                      'Day $1'],
+  [/^· Gün (\d+) \/ (\d+)$/,           '· Day $1 / $2'],
+  [/^Sezon$/,                          'Season'],
+  // takvim alt açıklaması
+  [/^Sezonun (\d+)\. gününde$/,        'On day $1 of the season'],
+  [/^Sezonun (\d+)\. gününde · (\d+) gün kaldı$/, 'Day $1 of the season · $2 days left'],
+  [/^(\d+) gün kaldı$/,                '$1 days left'],
+  [/^(\d+)\. gününde$/,                'on day $1']
+);
+
+Object.assign(window.I18N.en, {
+  'Sezonun 40 günü boyunca neler yaşanacak':'What happens over the 40 days of the season',
+  'Sezon Takvimi':'Season Calendar',
+  'Sıralama modları':'Ranking modes',
+  'Sonraki Dönem':'Next Window',
+  'Kadro Dolu':'Squad Full',
+  'Bu istek, sistem güncellemesinden önce gönderilmiş. Oyuncudan yeni istek göndermesini iste.':'This request was sent before the system update. Ask the player to send a new one.',
+  'Ödeme sağlayıcı işlemi tamamlayamadı.':'The payment provider could not complete the transaction.',
+  'Ödemen alındı ama elmaslar henüz görünmüyor.':'Your payment went through but the diamonds are not showing yet.',
+  'İnternet bağlantını kontrol et, tekrar dene.':'Check your internet connection and try again.',
+  'Farklı bir kart veya ödeme yöntemiyle tekrar deneyebilirsin.':'You can try again with a different card or payment method.',
+  'bize yaz, işlem kaydın bizde duruyor.':'write to us — we still have a record of your transaction.',
+  'oyuncunun yeteneklerinin ortalamasıdır ve':'is the average of the player’s skills and',
+  'Sonuç puanına eklenir (grup maçında bonus yok)':'Added to the result points (no bonus in group matches)',
+  'Maç, lig ve turnuva ödülleri otomatik olarak':'Match, league and tournament rewards are automatically',
+  '🎁 Günlük Giriş Ödülleri':'🎁 Daily Login Rewards',
+  'Günlük Giriş Ödülleri':'Daily Login Rewards',
+  'Seri başlamadı':'Streak not started',
+  'Eksik çeviriler':'Missing translations',
+  'dokun → kopyala':'tap → copy',
+  'liste boş ✓':'list empty ✓',
+  'önce İngilizceye geç':'switch to English first',
+  'kopyalanamadı':'could not copy',
+  'G / B / M':'W / D / L',
+  'Kademe':'Tier',
+  'resmi':'competitive'
+});
