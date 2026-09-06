@@ -29037,7 +29037,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-05-pazar-454';
+const APP_BUILD = '2026-09-05-pazar-455';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -73870,14 +73870,45 @@ function cancelListing(listingId) {
   }
 }
 
-function _doCancelListing(listingId) {
-  const idx = _marketListings.findIndex(x=>x.id===listingId);
-  if(idx!==-1) { _marketListings[idx].listed = false; saveMarket(); }
-  showShopToast('İlan geri alındı.', 'var(--text2)');
-  renderMarket();
-  // 🆕 Ekipman tab açıksa dolabı yenile (satışta rozeti kalkar)
-  if (typeof renderWardrobe === 'function' && document.getElementById('eqWardrobe')) {
-    try { renderWardrobe(); } catch(_) {}
+async function _doCancelListing(listingId) {
+  // 🆕 İPTAL ARTIK SUNUCUDA. Eskiden burada yalnızca `listed=false`
+  //    yapılıyordu; ürün satıcının dolabına GERİ KONMUYORDU. İlan
+  //    verilirken dolaptan çıkarıldığı için iptal eden oyuncu ürününü
+  //    tamamen kaybediyordu.
+  showShopToast('⏳ İlan geri alınıyor…', 'var(--text2)');
+  try {
+    const _res = await edgeCall('market_cancel', { listing: listingId });
+    const d = _res && _res.data;
+    if (!_res.ok || !d || d.error) {
+      const msg = {
+        ilan_bulunamadi:    'İlan bulunamadı.',
+        senin_ilanin_degil: 'Bu ilan sana ait değil.',
+        ilan_zaten_kapali:  'Bu ilan zaten kapalı.',
+        dolap_dolu:         'Dolabın dolu. Önce bir item çıkar.',
+        item_bulunamadi:    'Ürün tanınmıyor.',
+        dolaba_konamadi:    'Ürün dolabına konamadı, ilan açık bırakıldı.'
+      }[d && d.error] || 'İlan geri alınamadı.';
+      showShopToast('❌ ' + msg, '#ef5350');
+      return;
+    }
+  } catch(e) {
+    showShopToast('❌ Sunucuya ulaşılamadı.', '#ef5350');
+    return;
+  }
+
+  // Listeden düşür + dolabı sunucudan tazele
+  try {
+    const idx = _marketListings.findIndex(x => x && x.id === listingId);
+    if (idx !== -1) _marketListings.splice(idx, 1);
+  } catch(e) {}
+  try { if (typeof _eqDataLoadFromServer === 'function') await _eqDataLoadFromServer(); } catch(e) {}
+
+  showShopToast('✅ İlan geri alındı, ürün dolabında.', 'var(--accent)');
+  try { renderMarket(_marketSearchQ || ''); } catch(e) {}
+  if (document.getElementById('eqWardrobe')) {
+    try { if (typeof renderSlots === 'function') renderSlots(); } catch(_) {}
+    try { if (typeof renderWardrobe === 'function') renderWardrobe(); } catch(_) {}
+    try { if (typeof _refreshSkillsAfterEquipChange === 'function') _refreshSkillsAfterEquipChange(); } catch(_) {}
   }
 }
 
