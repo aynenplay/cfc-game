@@ -3793,3 +3793,76 @@ window.I18N_PATTERNS.en.push(
   [/^(🟨|🟥|⚽|🅰️) (\d+) maç$/, m => m[1] + ' ' + m[2] + (m[2] === '1' ? ' match' : ' matches')],
   [/^(🟨|🟥|⚽|🅰️) (\d+) gol$/,  m => m[1] + ' ' + m[2] + (m[2] === '1' ? ' goal' : ' goals')]
 );
+
+/* ── 29. dalga · ekran görüntülerinden · ödül sistemi ── */
+Object.assign(window.I18N.en, {
+  'LIG MAÇ ÖDÜLLERİ':'LEAGUE MATCH REWARDS',
+  'KUPA MAÇ ÖDÜLLERİ':'CUP MATCH REWARDS',
+  'TURNUVA TUR & ŞAMPİYONLUK BONUSU':'TOURNAMENT ROUND & TITLE BONUS',
+  'LIG SEZON-SONU SIRALAMA (ŞAMPİYON)':'LEAGUE END-OF-SEASON RANKING (CHAMPION)',
+  'ŞAMPİYON ÖDÜLÜ':'CHAMPION PRIZE',
+  'Ödül Sistemi':'Reward System',
+  'Maç, turnuva ve lig sıralama ödülleri':'Match, tournament and league ranking rewards',
+  'AŞAMA':'STAGE',
+  'Aşama':'Stage',
+  'Gruba çıkış':'Group stage',
+  'Çeyrek':'Quarter-final',
+  'Yarı':'Semi-final',
+  'Finalist':'Runner-up',
+  'Şampiyon':'Champion',
+  'İlk 16 sıraya ödül verilir; aşağı sıralar kademeli azalır. Değerler 1.\'lik içindir.':'The top 16 places receive a prize; lower places are reduced in steps. The figures shown are for 1st place.',
+  'EURO National Cup finansal ödül vermez — yalnızca milli takım prestiji ve oyuncu istatistikleri.':'The EURO National Cup carries no financial prize — only national team prestige and player statistics.',
+  'finansal ödül vermez — yalnızca milli takım prestiji ve oyuncu istatistikleri.':'carries no financial prize — only national team prestige and player statistics.',
+
+  // ── takvim listesi ──
+  'Elite Ligi':'Elite League',
+  'Elite Ligi · Play-off':'Elite League · Play-off',
+  'Özel Etkinlik':'Special Event',
+  'Sezon Başı':'Start of Season',
+  'Sezon Sonu':'End of Season',
+  'Avrupa Play-off':'European Play-off',
+  'Federasyon Seçimi':'Federation Election',
+
+  // ── toto / eğlence ──
+  'kupon':'coupons',
+  'Süper Lig':'Super League',
+  'SALI':'TUE', 'PAZAR':'SUN', 'CUMA':'FRI',
+  'KAZI':'SCRATCH',
+  'KAZANDIN':'YOU WON',
+  '🎉 KAZANDIN':'🎉 YOU WON',
+  'bilet bedeli':'ticket price',
+  'ÖDÜLÜ AL':'CLAIM REWARD',
+  '🏆 ÖDÜLÜ AL':'🏆 CLAIM REWARD',
+
+  // ── ülkeler (toto lig listesi + filtre çipleri) ──
+  'Yunanistan':'Greece', 'İsveç':'Sweden', 'İspanya':'Spain', 'Hırvatistan':'Croatia',
+  'İtalya':'Italy', 'Rusya':'Russia', 'Türkiye':'Turkey', 'İngiltere':'England',
+  'Fransa':'France', 'Hollanda':'Netherlands', 'Almanya':'Germany', 'Portekiz':'Portugal',
+  'Belçika':'Belgium', 'İsviçre':'Switzerland', 'Avusturya':'Austria', 'Polonya':'Poland',
+  'Çekya':'Czechia', 'Danimarka':'Denmark', 'Norveç':'Norway', 'Finlandiya':'Finland',
+  'İrlanda':'Ireland', 'İskoçya':'Scotland', 'Sırbistan':'Serbia', 'Romanya':'Romania',
+  'Bulgaristan':'Bulgaria', 'Macaristan':'Hungary', 'Ukrayna':'Ukraine', 'İsrail':'Israel',
+  'Slovenya':'Slovenia', 'Bosna Hersek':'Bosnia and Herzegovina', 'Kuzey Makedonya':'North Macedonia',
+  'Bulgar':'Bulgarian'
+});
+
+window.I18N_PATTERNS.en.push(
+  // "Yunanistan · Süper Lig" → "Greece · Super League"
+  [/^(.+?) · Süper Lig$/,  m => (window.I18N.en[m[1]] || m[1]) + ' · Super League'],
+  [/^(.+?) · (\d+)\. Lig$/, m => (window.I18N.en[m[1]] || m[1]) + ' · '
+      + (['','','2nd','3rd','4th','5th','6th','7th','8th'][Number(m[2])] || m[2]+'.') + ' Division'],
+  // ülke filtresi çipi: "İtalya (34)"
+  [/^(.+?) \((\d+)\)$/, m => (window.I18N.en[m[1]] || m[1]) + ' (' + m[2] + ')'],
+  // "6 Eyl · Pazar" / "7 Eyl · Pazartesi"
+  [/^(\d{1,2}) (Oca|Şub|Mar|Nis|May|Haz|Tem|Ağu|Eyl|Eki|Kas|Ara) · (Pazar|Pazartesi|Salı|Çarşamba|Perşembe|Cuma|Cumartesi)$/,
+    m => m[1] + ' ' + (window.I18N.en[m[2]] || m[2]) + ' · ' + (window.I18N.en[m[3]] || m[3])],
+  // "6 Eylül · Pazar"
+  [/^(\d{1,2}) (Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık) · (Pazar|Pazartesi|Salı|Çarşamba|Perşembe|Cuma|Cumartesi)$/,
+    m => m[1] + ' ' + (window.I18N.en[m[2]] || m[2]) + ' · ' + (window.I18N.en[m[3]] || m[3])],
+  // "Today 0/10 kupon"
+  [/^(\d+)\/(\d+) kupon$/,        '$1/$2 coupons'],
+  [/^×(\d+) · (\d+)× bilet bedeli$/, '×$1 · $2× ticket price'],
+  [/^(🏆 )?ÖDÜLÜ AL · (.+)$/,     m => (m[1] || '') + 'CLAIM REWARD · ' + m[2]],
+  [/^Elite Ligi · (.+)$/,         'Elite League · $1'],
+  [/^(\d+) maçlık$/,              '$1-match']
+);

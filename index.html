@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '471';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '472';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -29169,7 +29169,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-06-dil-471';
+const APP_BUILD = '2026-09-06-dil-472';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -29886,15 +29886,31 @@ function T(metin) {
   // 4) Desen kuralları (sayı içeren dinamik metinler)
   if (sonuc === null) {
     const desenler = window.I18N_PATTERNS[_i18nLang] || [];
-    const aday = sadeMetin || ham;
-    for (let i = 0; i < desenler.length; i++) {
-      const d = desenler[i];
-      const mm = aday.match(d[0]);
-      if (mm) {
-        sonuc = (typeof d[1] === 'function')
-          ? d[1](mm)
-          : d[1].replace(/\$(\d)/g, (_, n) => mm[Number(n)] != null ? mm[Number(n)] : '');
-        break;
+    // ⚠️ ÖNEMLİ: eskiden yalnızca (sadeMetin || ham) denenirdi. HTML'de
+    // `Sezon <span>3</span> · Gün 23` gibi yazılan metinlerde düğüm
+    // " · Gün 23" olarak gelir; baştaki boşluk yüzünden /^· Gün (\d+)$/
+    // deseni HİÇ eşleşmiyordu. Artık kırpılmış hâli de deniyoruz ve
+    // eşleşirse baştaki/sondaki boşluğu aynen geri koyuyoruz.
+    const bas = (ham.match(/^\s*/) || [''])[0];
+    const bit = (ham.match(/\s*$/) || [''])[0];
+    const kirpik = ham.trim();
+    const adaylar = [];
+    if (sadeMetin) adaylar.push(sadeMetin);
+    if (adaylar.indexOf(ham) < 0) adaylar.push(ham);
+    if (adaylar.indexOf(kirpik) < 0) adaylar.push(kirpik);
+    for (let a = 0; a < adaylar.length && sonuc === null; a++) {
+      const aday = adaylar[a];
+      for (let i = 0; i < desenler.length; i++) {
+        const d = desenler[i];
+        const mm = aday.match(d[0]);
+        if (mm) {
+          const cev = (typeof d[1] === 'function')
+            ? d[1](mm)
+            : d[1].replace(/\$(\d)/g, (_, n) => mm[Number(n)] != null ? mm[Number(n)] : '');
+          // kırpılmış hâlden eşleştiyse boşlukları geri ekle
+          sonuc = (aday === kirpik && kirpik !== ham) ? (bas + cev + bit) : cev;
+          break;
+        }
       }
     }
   }
