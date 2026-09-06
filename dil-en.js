@@ -594,3 +594,132 @@ Object.assign(window.I18N.en, {
 '⚽ Maç tamamlandı · 90\'':'⚽ Match completed · 90\''
 });
 
+
+/* ── 5. dalga · statik ekran metinleri (paket 1) ─────────────────────
+   Kaynak: auth-screen + 14 sayfa bloğunda çevrilmemiş kalan metinler.
+   ATLANANLAR ve sebepleri:
+     'Ahmet Yılmaz'  → örnek isim; oyunda aynı adlı bir oyuncu varsa
+                       onun adı da çevrilirdi. Riskli, dokunulmadı.
+     '🇹🇷 Türkçe ›'   → cftUpdateLangDisplay() zaten dinamik yazıyor.
+   ─────────────────────────────────────────────────────────────────── */
+Object.assign(window.I18N.en, {
+  // ── giriş / ana sayfa ──
+  'Bu sezon giren':'Signed this season',
+  'Sezon başlamak üzere':'Season about to start',
+
+  // ── oyuncu ──
+  'Gücünüzü artırmak için ekipman kullanın. Maçlarda yetenek bonusu sağlayan itemleri mağazadan satın alıp slotlara kuşanın.':'Use equipment to boost your strength. Buy items that give skill bonuses in matches from the shop and equip them to your slots.',
+  '🌍 Milli Takım Oyuncusu':'🌍 National Team Player',
+  '📅 Bu Sezon':'📅 This Season',
+
+  // ── takım ──
+  '10., 20., 30. ve 40. günleri':'days 10, 20, 30 and 40',
+  'Bir takıma katıl veya kendi takımını kur. Takımsız oyuncu olarak antrenman, lig ve turnuva izleme erişimin var.':'Join a team or found your own. As a free agent you still have access to training and to watching leagues and tournaments.',
+  'Bu sezon: +0':'This season: +0',
+  'Bu sezon: +0 €':'This season: +0 €',
+  'Elmas':'Diamond',
+  'Elmas ile Kaydet':'Save with Diamonds',
+  'Evet, Hayır':'Yes, No',
+  'Gün 1 / 40':'Day 1 / 40',
+  'Kişisel cüzdanından kasaya euro veya elmas bağışla. Bağışlar geri alınamaz.':'Donate euros or diamonds from your personal wallet to the treasury. Donations cannot be reversed.',
+  'Kupa Koleksiyonu':'Trophy Collection',
+  'Seviye 1 → 2':'Level 1 → 2',
+  'Sezon Geliri & Giderleri · Sezon':'Season Income & Expenses · Season',
+  'Takımın felsefesini, hedeflerini ve değerlerini buraya yaz... (max 2000 karakter)':'Write your team’s philosophy, goals and values here... (max 2000 characters)',
+  'Toplam Kupa ›':'Total Trophies ›',
+  'belirlenir: oyuncunun güncel yetenek seviyesine göre hesaplanır, oyuncu geliştikçe maaşı artar. Her maaş gününde':'is set automatically: it is calculated from the player’s current skill level, so wages rise as the player improves. On each pay day',
+  'değiştirebilir. Sen sadece görüntülüyorsun.':'can change it. You are only viewing.',
+  'eklenir. Transferler ve oyuncu maaşları finanstan ödenir. Bağış yaparak finansa kişisel destek verebilirsin.':'is added. Transfers and player wages are paid from the finances. You can support the finances personally by donating.',
+  '‹ Geri':'‹ Back',
+
+  // ── antrenman ──
+  'ANTRENMAN':'TRAINING',
+  'Antrenman & Enerji':'Training & Energy',
+  'Antrenman Merkezi seviyesine':'to the Training Centre level',
+  'Antrenman süresi uzadıkça kazanım artar, ama daha çok enerji ve süre ister.':'Longer sessions give bigger gains, but cost more energy and time.',
+  'Düzenli antrenman, takımdaki yerini ve transfer değerini yükseltmenin en hızlı yoludur.':'Regular training is the fastest way to raise your place in the squad and your transfer value.',
+  'Enerji sunucu saatiyle (UTC 00:00) yenilenir. Bu, her ülkede aşağıdaki yerel saate denk gelir:':'Energy refills on server time (UTC 00:00). That corresponds to the following local time in each country:',
+  'Her antrenman':'Every training session costs',
+  'puan ve XP':'points and XP',
+
+  // ── transfer ──
+  'TRANSFER':'TRANSFERS',
+  'Teklif sunabilmek için':'To make an offer,',
+  '📋 Bonservis teklifini kendin girebilirsin. Satıcının belirlediği fiyatın':'📋 You can enter your own transfer fee. Of the price set by the seller,',
+
+  // ── eğlence / toto ──
+  '\'de sıfırlanır.':' reset.',
+  'Elmas ortalama her 200 bilette bir çıkar.':'A diamond appears on average once every 200 tickets.',
+  'Kazanç tavanı Toto ile ortaktır.':'The payout cap is shared with Toto.',
+  'Kupon 5–15 maç · misli 5 – 5.000 € · kazanç tavanı 2.500.000 € · oran tavanı 500':'Coupon 5–15 matches · stake 5 – 5,000 € · payout cap 2,500,000 € · odds cap 500',
+  'belirlenir; kazıma yalnızca animasyondur. Sayfayı yenilesen sonuç değişmez.':'is decided in advance; scratching is only an animation. Refreshing the page does not change the result.',
+  '⬛ Boş':'⬛ Blank',
+  '💎 Elmas':'💎 Diamond',
+
+  // ── takvim ──
+  'Gün 0 / 40':'Day 0 / 40',
+  'Transfer/Ara':'Transfer/Break',
+  '📅 Tümü':'📅 All',
+  '🔄 Transfer':'🔄 Transfer',
+  '🗓️ Sezon Takvimi':'🗓️ Season Calendar',
+
+  // ── federasyon ──
+  '+%3 hücum, +%3 savunma':'+3% attack, +3% defence',
+  '3 kişi':'3 people',
+  'Bu ülkede takım sahibi olan tüm kaptanlar otomatik olarak federasyon üyesidir. Sezon sonu seçimde her üyenin':'Every captain who owns a team in this country is automatically a federation member. In the end-of-season election each member has',
+  'SEZON 1':'SEASON 1',
+  'Sezon 1 görev süresi':'Season 1 term of office',
+  'vardır. Her rolün milli takım üzerinde farklı yetkileri vardır.':'. Each role has different powers over the national team.',
+
+  // ── görevler ──
+  'ANTRENMAN YILDIZI':'TRAINING STAR',
+  '🏆 Pro görevler oyunun en büyük zaferleri — şampiyonluklar ve milli takım. Tek seferlik, kalıcı.':'🏆 Pro missions are the game’s biggest achievements — titles and the national team. One-off and permanent.',
+
+  // ── sonuçlar / medya ──
+  'Veri yok':'No data',
+  '🤝 Hazırlık':'🤝 Friendly',
+  'Bu işlem geri alınamaz. Gönderi ve tüm beğeni bilgileri kalıcı olarak silinecek.':'This cannot be undone. The post and all of its likes will be permanently deleted.',
+
+  // ── sıralamalar ──
+  '🏆 Takım Puanı':'🏆 Team Points',
+  '💶 Piyasa Değeri':'💶 Market Value',
+  '📈 Seviye':'📈 Level',
+  '🛡️ Takım Gücü':'🛡️ Team Strength',
+  '🛡️ Takımlar':'🛡️ Teams',
+
+  // ── mağaza ──
+  '· Sonra:':'· After:',
+  '🏟️ Satıştaki takımları gör ve satın al. Listings kullanıcı ve botların ilanlarından oluşur.':'🏟️ Browse and buy teams that are for sale. Listings come from both users and bots.',
+  '🏟️ Takımlar':'🏟️ Teams',
+  '💡 Diamond ile oyuncu transfer eder, tesis yükseltir, item ve takım satın alabilirsin. Büyük paketler kademeli bonus kazandırır.':'💡 Use diamonds to sign players, upgrade facilities and buy items or teams. Larger packs give progressively bigger bonuses.',
+
+  // ── ayarlar ──
+  '2 sezon':'2 seasons',
+  'Aynısını tekrar yaz':'Type the same again',
+  'Beceri puanı maç motoruna ±%5 etki eder. Uzmanlık alanı belirli istatistiklere bonus verir.':'Skill points affect the match engine by ±5%. A specialisation gives a bonus to certain stats.',
+  'Bonservis ve maaş sistemce belirlenmiştir. Maaş sezonun 10., 20., 30. ve 40. günlerinde 4 taksit halinde takım kasasından oyuncu cüzdanına ödenir.':'The transfer fee and wage are set by the system. The wage is paid from the team treasury to the player’s wallet in 4 instalments, on days 10, 20, 30 and 40 of the season.',
+  'Bu oyuncu zaten kadronda':'This player is already in your squad',
+  'Daha Sonra':'Later',
+  'Hesabın için yeni bir şifre yaz.':'Choose a new password for your account.',
+  'Hesabını silmek kalıcıdır. Takımın, oyuncun, cüzdanın ve tüm ilerlemen geri alınamaz şekilde kaldırılır.':'Deleting your account is permanent. Your team, player, wallet and all progress are removed irreversibly.',
+  'Kupondan çıkar':'Remove from coupon',
+  'Opsiyonel. Onay verildiği an oyuncunun elmas cüzdanına aktarılır. Kasa elması (€ değil) kullanılır.':'Optional. Transferred to the player’s diamond wallet the moment it is approved. Treasury diamonds are used (not €).',
+  'Oyuncu Transfer › Boştaki Oyuncular kısmına eklenecek. Yerine yeni bir oyuncu gelecek.':'The player will be added to Transfers › Free Agents. A new player will take their place.',
+  'Oyuncu seviyesine göre hesaplandı (40 günlük antrenman maliyeti × 1,045).':'Calculated from the player’s level (40 days of training cost × 1.045).',
+  'Oyuncunun mevcut piyasa değeri. Onay verildiği an satıcı kasasına aktarılır.':'The player’s current market value. Transferred to the seller’s treasury the moment it is approved.',
+  'PUAN':'POINTS',
+  'Serbest oyuncu · bonservis yok':'Free agent · no transfer fee',
+  'Sürüm':'Version',
+  'Turnuva Şampiyonları':'Tournament Champions',
+  'Yeni Sezona Devam ▶':'Continue to New Season ▶',
+  'Yeni Şifre':'New Password',
+  'Yeni Şifre (tekrar)':'New Password (again)',
+  'Yeni Şifre Belirle':'Set New Password',
+  'seçebilirsin. Kaptan onaylarsa sözleşme imzalanır; maaş sezonun 10/20/30/40. günlerinde 4 taksit halinde ödenir.':'you can choose. If the captain approves, the contract is signed; the wage is paid in 4 instalments on days 10/20/30/40 of the season.',
+  'İki ödeme tipi de talep edilebilir. En az birini 0\'dan büyük belirle.':'You may request both payment types. Set at least one above 0.',
+  'İmza Parası 💎 — talep ettiğin elmas (kabul edilirse kasadan cüzdanına)':'Signing Fee 💎 — the diamonds you request (from the treasury to your wallet if accepted)',
+  'Şifreyi Güncelle':'Update Password',
+  'Şikayet, istek ve taleplerin admine iletilir. Genelde 24 saat içinde yanıtlanır.':'Your complaints, requests and suggestions go to the admin. Usually answered within 24 hours.',
+  '🔒 Gizlilik Politikası':'🔒 Privacy Policy',
+  '🗑️ Hesabımı Sil':'🗑️ Delete My Account'
+});
