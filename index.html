@@ -29037,7 +29037,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-05-cuzdan-453';
+const APP_BUILD = '2026-09-05-pazar-454';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -73651,7 +73651,11 @@ async function confirmBuy() {
             ilan_satildi: 'Bu item az önce başkası tarafından alındı.',
             yetersiz_elmas: 'Yetersiz elmas.',
             kendi_ilanin: 'Kendi ilanını satın alamazsın.',
-            ilan_bulunamadi: 'İlan bulunamadı.'
+            ilan_bulunamadi: 'İlan bulunamadı.',
+            zaten_sende: 'Bu item zaten sende.',
+            dolap_dolu: 'Dolabın dolu. Önce bir item çıkar.',
+            item_bulunamadi: 'Ürün tanınmıyor.',
+            teslimat_basarisiz_para_iade: 'Teslim edilemedi, elmasların iade edildi.'
           }[d && d.error] || 'Satın alınamadı.';
           showShopToast('❌ ' + msg, '#ef5350');
           // listeyi tazele — satılmış ilan ekrandan kalksın
@@ -73662,8 +73666,30 @@ async function confirmBuy() {
           _buyTarget = null;
           return;
         }
-        // Cüzdanı sunucudan tazele
+        // 🆕 TESLİMAT ARTIK SUNUCUDA. Eskiden burada return YOKTU: kod
+        //    aşağıdaki yerel yazma yoluna düşüyor, orada closeBuyModal()
+        //    tarafından null yapılmış _buyTarget okunmaya çalışılıyor ve
+        //    hata catch'e düşüyordu. Para gidiyor, ürün gelmiyordu.
         try { if (typeof wlLoadFromServer === 'function') await wlLoadFromServer(); } catch(e) {}
+        try { if (typeof _eqDataLoadFromServer === 'function') await _eqDataLoadFromServer(); } catch(e) {}
+
+        // İlanı listeden düşür
+        try {
+          const _i = _marketListings.findIndex(x => x && x.id === _lid);
+          if (_i >= 0) _marketListings.splice(_i, 1);
+        } catch(e) {}
+
+        showShopToast('✅ ' + item.name + ' dolabına eklendi!', 'var(--accent)');
+
+        try { if (typeof renderMarket === 'function') renderMarket(_marketSearchQ || ''); } catch(e) {}
+        if (document.getElementById('eqWardrobe')) {
+          try { if (typeof renderSlots === 'function') renderSlots(); } catch(_) {}
+          try { if (typeof renderWardrobe === 'function') renderWardrobe(); } catch(_) {}
+          try { if (typeof _refreshSkillsAfterEquipChange === 'function') _refreshSkillsAfterEquipChange(); } catch(_) {}
+        }
+        if (typeof achBump === 'function') achBump('item');
+        _buyTarget = null;
+        return;                       // 🆕 yerel yazma yolu ATLANIR
       } catch(e) {
         showShopToast('❌ Sunucuya ulaşılamadı.', '#ef5350');
         _buyTarget = null;
