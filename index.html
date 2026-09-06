@@ -13,9 +13,68 @@
      Güvenlik ağı devreye girerse bile ÖNCE çeviriyi çalıştırır, SONRA perdeyi
      kaldırır — yani hiçbir koşulda çevrilmemiş ekran gösterilmez. -->
 <script>
+// ═══════════════════════════════════════════════════════════════════
+//  🌍 DİL BELİRLEME — oyundaki TEK dil kaynağı
+//
+//  Karar bir kez verilir ve localStorage'a yazılır:
+//    1) 'cft_language' zaten varsa → o. (Oyuncunun elle seçimi ya da
+//       daha önce verilmiş ilk açılış kararı. Her şeyi ezer.)
+//    2) İlk açılış. Oyuncunun başka cft_* verisi VARSA bu eski bir
+//       oyuncudur; oyunu Türkçe öğrendi, dilini değiştirmiyoruz.
+//    3) Hiç verisi yoksa YENİ oyuncudur → cihaz dili.
+//       Cihaz dili desteklenmiyorsa İngilizce.
+//
+//  DESTEKLİ dil listesi burada. Yeni dil sözlüğü hazır olunca kodu
+//  bu diziye eklemek yeterli; CFT_LANGUAGES bu listeden besleniyor.
+// ═══════════════════════════════════════════════════════════════════
+window.CFT_DESTEKLI_DILLER = ['tr','en'];
+
+window._cftDilBelirle = function(){
+  var DESTEK = window.CFT_DESTEKLI_DILLER;
+  var LS = null;
+  try { LS = window.localStorage; } catch(e) {}
+  if (!LS) return 'tr';
+
+  // 1) Karar zaten verilmiş mi
+  try {
+    var secim = LS.getItem('cft_language');
+    if (secim && DESTEK.indexOf(secim) >= 0) return secim;
+  } catch(e) {}
+
+  // 2) Eski oyuncu mu — herhangi bir cft_* anahtarı var mı
+  var eskiOyuncu = false;
+  try {
+    for (var i = 0; i < LS.length; i++) {
+      var k = LS.key(i);
+      // 'cft_language' hariç: onun kendisi oyun verisi değil.
+      // (Desteklenmeyen bir dil kaydı varsa bu satır olmadan oyuncu
+      //  yanlışlıkla "eski oyuncu" sayılıp Türkçeye düşerdi.)
+      if (k && k.indexOf('cft_') === 0 && k !== 'cft_language') { eskiOyuncu = true; break; }
+    }
+  } catch(e) {}
+
+  var kod = 'tr';
+  if (!eskiOyuncu) {
+    // 3) Yeni oyuncu → cihazın tercih sırasındaki ilk desteklenen dil
+    kod = 'en';
+    try {
+      var liste = (navigator.languages && navigator.languages.length)
+                ? navigator.languages : [navigator.language || ''];
+      for (var j = 0; j < liste.length; j++) {
+        var c = String(liste[j] || '').toLowerCase().split('-')[0];
+        if (DESTEK.indexOf(c) >= 0) { kod = c; break; }
+      }
+    } catch(e) {}
+  }
+
+  // Kararı sabitle — bir daha sorulmasın
+  try { LS.setItem('cft_language', kod); } catch(e) {}
+  return kod;
+};
+
 (function(){
   var dil = 'tr';
-  try { dil = localStorage.getItem('cft_language') || 'tr'; } catch(e) {}
+  try { dil = window._cftDilBelirle(); } catch(e) {}
   if (dil === 'tr') return;
   try {
     document.documentElement.setAttribute('data-i18n-bekliyor', '1');
@@ -29057,7 +29116,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-05-takimsiz-462';
+const APP_BUILD = '2026-09-06-dil-463';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -29719,7 +29778,7 @@ window.I18N_PATTERNS = window.I18N_PATTERNS || { en: [] };
 
 const I18N_LANG_KEY = 'cft_language';
 let _i18nLang = 'tr';
-try { _i18nLang = localStorage.getItem(I18N_LANG_KEY) || 'tr'; } catch(e) {}
+try { _i18nLang = window._cftDilBelirle(); } catch(e) {}
 
 function i18nLang() { return _i18nLang; }
 function i18nAktif() { return _i18nLang !== 'tr' && !!window.I18N[_i18nLang]; }
@@ -29818,10 +29877,15 @@ const CFT_LANGUAGES = [
   {code:'it', flag:'🇮🇹', name:'Italian',   native:'Italiano',   supported:false},
   {code:'pt', flag:'🇵🇹', name:'Portuguese',native:'Português',  supported:false},
   {code:'ru', flag:'🇷🇺', name:'Russian',   native:'Русский',    supported:false},
-];
+].map(function(l){
+  // supported artık elle yazılmıyor: CFT_DESTEKLI_DILLER tek kaynak.
+  // Yeni dil eklenince iki listeyi ayrı ayrı güncelleme hatası olmaz.
+  var d = (window.CFT_DESTEKLI_DILLER || ['tr']);
+  return Object.assign({}, l, { supported: d.indexOf(l.code) >= 0 });
+});
 
 function cftGetLang(){
-  return localStorage.getItem('cft_language') || 'tr';
+  try { return window._cftDilBelirle(); } catch(e) { return 'tr'; }
 }
 
 // ═══════════════════════════════════════════════════════════════════
