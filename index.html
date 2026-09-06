@@ -29057,7 +29057,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-05-hazirlik-460';
+const APP_BUILD = '2026-09-05-acilis2-461';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -61605,10 +61605,18 @@ function showOnlinePlayersModal() {
 }
 
 // Sayfa açılışında ilk fetch + 60sn'de bir tekrar (heartbeat + sayaç tazeleme)
-// 🆕 Açılışta zaten çekiliyor (splash öncesi). Buradaki 5 sn'lik gecikmeli
-//    çağrı kaldırıldı: sayaç 0 görünüp sonra dolmasının sebebi buydu.
-//    Aşağıdaki dakikalık tazeleme yeterli.
-setInterval(() => { if (document.hidden) return; fetchOnlineStats(); pingLastSeen(); }, 60000);
+// 🆕 Açılışta splash öncesi zaten çekiliyor. Bu, ağ yavaş olduğunda
+//    (6 sn sınırına takılıp geçildiyse) devreye giren yedek tazeleme.
+//    Sıra önemli: önce kendini çevrimiçi işaretle, sonra listeyi çek.
+setTimeout(async () => {
+  try { await pingLastSeen(); } catch(e) {}
+  try { await fetchOnlineStats(); } catch(e) {}
+}, 8000);
+setInterval(async () => {
+  if (document.hidden) return;
+  try { await pingLastSeen(); } catch(e) {}       // önce kendini işaretle
+  try { await fetchOnlineStats(); } catch(e) {}   // sonra listeyi çek
+}, 60000);
 
 
 // 🆕 INBOX POLL — realtime yedeği. Sadece DEĞİŞİKLİK olunca render eder (WhatsApp gibi).
@@ -92685,13 +92693,28 @@ setTimeout(async ()=>{
   ]);
   try { authInit(); } catch(e) { console.warn('authInit hata:', e); }
 
-  // 🆕 ANA SAYFA VERİLERİ — splash kapanmadan ÖNCE hazır olsun.
-  //   Eskiden ikisi de arka planda geliyordu:
-  //     • kadro (ROSTER_DATA): rosterBuildTeam sunucu çağrısını beklemiyor,
-  //       ekran boş/eski kadroyla açılıyor, oyuncu kartında yanlış bilgi çıkıyordu
-  //     • çevrimiçi sayacı: açılıştan 5 sn sonra çekiliyordu, o ana kadar 0
-  //   Artık ikisi de burada, paralel ve zaman sınırlı bekleniyor.
-  //   6 sn içinde gelmezse splash yine de açılır — oyun asla kilitlenmez.
+  // 🆕 1) OTURUM KARARI — window.authUser burada doluyor.
+  //    Kadro yüklemesi authUser'a bağlı (_rosterRefreshFromServer, authUser
+  //    yoksa ilk satırda sessizce çıkıyor), o yüzden veri çekmeden ÖNCE
+  //    oturumun netleşmesini beklemek zorundayız.
+  //    En fazla 7 sn bekler, sonra devam eder (takılı kalmasın).
+  try {
+    if (window._authKarar) {
+      await Promise.race([
+        window._authKarar,
+        new Promise(function(r){ setTimeout(r, 7000); })
+      ]);
+    }
+  } catch(e) {}
+
+  // 🆕 2) ANA SAYFA VERİLERİ — splash kapanmadan ÖNCE hazır olsun.
+  //    • kadro (ROSTER_DATA): rosterBuildTeam sunucu çağrısını beklemiyordu,
+  //      ekran boş/eski kadroyla açılıyor, oyuncu kartında yanlış bilgi çıkıyordu
+  //    • çevrimiçi sayacı: açılıştan 5 sn sonra çekiliyordu, o ana kadar 0
+  //    ⚠️ SIRA ÖNEMLİ: önce pingLastSeen (kendini çevrimiçi işaretle),
+  //       SONRA fetchOnlineStats (listeyi çek). Ters olursa kendini
+  //       listede göremezsin ve sayaç 0 kalır.
+  //    6 sn içinde gelmezse splash yine de açılır.
   try {
     const _anaSayfaVerisi = Promise.all([
       (async () => {
@@ -92701,8 +92724,8 @@ setTimeout(async ()=>{
         }
       })().catch(e => console.warn('roster load hata:', e)),
       (async () => {
+        if (typeof pingLastSeen === 'function') await pingLastSeen();
         if (typeof fetchOnlineStats === 'function') await fetchOnlineStats();
-        if (typeof pingLastSeen === 'function') { try { pingLastSeen(); } catch(e) {} }
       })().catch(e => console.warn('online load hata:', e)),
     ]);
     await Promise.race([
@@ -92720,18 +92743,7 @@ setTimeout(async ()=>{
   try { if (typeof renderFixture === 'function') renderFixture(); } catch(e) {}
   try { if (typeof renderResultsPage === 'function') renderResultsPage(); } catch(e) {}
 
-  // 🆕 Splash, OTURUM KARARI verilene kadar kapanmaz.
-  //    Böylece hiç giriş yapmamış oyuncu ana sayfayı hiç görmez; açılış
-  //    animasyonundan doğrudan giriş/kayıt ekranına geçer.
-  //    En fazla 7 sn bekler, sonra yine de açar (takılı kalmasın).
-  try {
-    if (window._authKarar) {
-      await Promise.race([
-        window._authKarar,
-        new Promise(function(r){ setTimeout(r, 7000); })
-      ]);
-    }
-  } catch(e) {}
+  // Oturum kararı yukarıda beklendi (veri çekmeden önce authUser gerekiyordu).
   document.getElementById('splash').classList.add('hide');
 
   // 🆕 AÇILIŞ EMNİYETİ — hangi veri en son gelirse gelsin ana sayfa dolsun.
