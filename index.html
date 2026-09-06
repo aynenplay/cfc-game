@@ -25778,13 +25778,13 @@ body.drawer-open{overflow:hidden}
     <div id="hmGeneralSection" style="display:none">
       <!-- Takımı olan kullanıcı için içerik -->
       <div id="hmGeneralWithTeam">
-        <div class="hm-title-box">
+        <div class="hm-title-box" id="hmLeagueTitleBox">
           <div class="hm-title">LİG <span>SAHNESİ</span></div>
         </div>
         <div class="league-scroll" id="homeLeagueScroll"></div>
         <div class="lg-ticker" id="homeLeagueTicker"></div>
 
-        <div class="hm-title-box">
+        <div class="hm-title-box" id="hmEuroTitleBox">
           <div class="hm-title">AVRUPA <span>SAHNESİ</span></div>
         </div>
         <div class="league-scroll" id="homeEuroStrip"></div>
@@ -29057,7 +29057,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-05-acilis2-461';
+const APP_BUILD = '2026-09-05-takimsiz-462';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -61837,17 +61837,17 @@ function updateHero() {
       genSec.style.display = 'block';
       const withTeam = document.getElementById('hmGeneralWithTeam');
       const noTeam = document.getElementById('hmGeneralNoTeam');
-      if (hasTeam) {
-        if (withTeam) withTeam.style.display = 'block';
-        if (noTeam) noTeam.style.display = 'none';
-      } else {
-        if (withTeam) withTeam.style.display = 'none';
-        if (noTeam) noTeam.style.display = 'block';
-      }
+      // 🆕 Lig + Avrupa sahnesi takımsız oyuncuya da gösterilir.
+      //    Takımsızken ek olarak "Takıma Katıl" kartı da görünür.
+      if (withTeam) withTeam.style.display = 'block';
+      if (noTeam) noTeam.style.display = hasTeam ? 'none' : 'block';
     }
   }
 
-  if(!info.preSeason && hasTeam) {
+  // 🆕 Takım şartı kaldırıldı: takımsız oyuncu da uyruğunun lig özetini
+  //    ve Avrupa sahnesini görür. Lig paneli, oyuncunun ülkesinin ligi
+  //    yoksa renderHomeLeagueScene içinde kendini gizler.
+  if(!info.preSeason) {
     renderHomeLeagueScene();
     renderHomeEuro();
   }
@@ -67377,16 +67377,34 @@ function renderHomeLeagueScene() {
   const wrap = document.getElementById('homeLeagueScroll');
   if (!wrap) return;
 
-  // Kullanıcı ülkesi
-  const cc = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.countryCode)
+  const _titleBox = document.getElementById('hmLeagueTitleBox');
+  const _ticker   = document.getElementById('homeLeagueTicker');
+  const _goster = (ac) => {
+    const v = ac ? '' : 'none';
+    if (_titleBox) _titleBox.style.display = v;
+    if (_ticker)   _ticker.style.display   = v;
+    wrap.style.display = v;
+  };
+
+  // 🆕 Ülke seçimi: takımı varsa takımın ülkesi, YOKSA oyuncunun uyruğu.
+  //    Takımsız oyuncu da kendi ülkesinin lig özetini görsün.
+  let cc = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.countryCode)
     ? _userTeam.countryCode : null;
-  if (!cc || false || !_cftGetCountry(cc) || !Array.isArray(_cftGetCountry(cc).leagues)) {
-    wrap.innerHTML = '<div class="lg-scene-empty">Lig verileri yüklenemedi.</div>';
-    return;
+  if (!cc && typeof getUserNationalityCC === 'function') {
+    cc = getUserNationalityCC();
   }
 
-  const country = _cftGetCountry(cc);
-  const userTeamName = _userTeam.teamName;
+  // 🆕 Oyunda o ülkenin ligi yoksa panel HİÇ görünmesin.
+  //    (ör. oyuncu ABD'li ama oyunda ABD ligi yok → lig özeti çıkmaz)
+  const country = cc ? _cftGetCountry(cc) : null;
+  if (!country || !Array.isArray(country.leagues) || !country.leagues.length) {
+    _goster(false);
+    return;
+  }
+  _goster(true);
+
+  const userTeamName = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName)
+    ? _userTeam.teamName : null;
 
   const cards = country.leagues.map((league, tierIdx) => {
     const tierColor = (typeof LG2_TIER_COLOR !== 'undefined' && LG2_TIER_COLOR[tierIdx]) || '#78909c';
