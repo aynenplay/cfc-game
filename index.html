@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '470';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '471';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -29169,7 +29169,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-06-dil-470';
+const APP_BUILD = '2026-09-06-dil-471';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -29941,13 +29941,47 @@ window.i18nEksikKopyala = function () {
   var el = document.getElementById('setEksik');
   function yaz(m) { if (el) el.textContent = m; }
   try {
-    var liste = Array.from(window._i18nEksik || []).sort();
-    if (!liste.length) {
+    var hepsi = Array.from(window._i18nEksik || []).sort();
+    if (!hepsi.length) {
       yaz(i18nLang() === 'tr' ? 'önce İngilizceye geç' : 'liste boş ✓');
       return;
     }
-    var metin = liste.join('\n');
-    var bitti = function () { yaz(liste.length + ' kopyalandı ✓'); };
+
+    // ── ÖZEL İSİM AYIKLAMA ──────────────────────────────────────────
+    //  Oyuncu, takım ve şehir adları çeviri gerektirmez ama motor
+    //  onları da "çeviremedim" diye kaydediyor. Liste kirlenmesin diye
+    //  ayrı başlığa alıyoruz.
+    //  Kural: yalnızca harf/boşluk/nokta içeren, 1-3 kelimelik, her
+    //  kelimesi büyük harfle başlayan ve içinde Türkçe bağlaç/ek
+    //  bulunmayan metinler özel isim sayılır.
+    // NOT: \b kullanılamaz — JS'de ş/ğ/ı gibi harfler \w sayılmadığı için
+    // "Eskişehir" içindeki "Eski" yanlışlıkla kelime sınırı gibi görünür.
+    // Sınırı elle tanımlıyoruz.
+    var H = '[A-Za-zÇĞİÖŞÜçğıöşü]';
+    var TR_KELIME = new RegExp(
+      '(^|(?!' + H + ').)(ve|ile|için|bir|bu|şu|var|yok|daha|çok|az|sonra|önce|kadar|göre|tüm|her|maç|takım|oyuncu|puan|hafta|sezon|lig|kupa|gün|yeni|eski|toplam|sıra|kart|gol)((?!' + H + ').|$)', 'i');
+    function ozelIsimMi(t) {
+      if (!/^[A-Za-zÇĞİÖŞÜçğıöşü.\s'-]+$/.test(t)) return false;  // rakam/emoji varsa değil
+      if (TR_KELIME.test(t)) return false;
+      var p = t.trim().split(/\s+/);
+      if (p.length < 1 || p.length > 3) return false;
+      for (var i = 0; i < p.length; i++) {
+        var ilk = p[i].charAt(0);
+        if (ilk !== ilk.toLocaleUpperCase('tr')) return false;      // küçük harfle başlıyorsa değil
+      }
+      return true;
+    }
+
+    var liste = [], isim = [];
+    for (var i = 0; i < hepsi.length; i++) {
+      (ozelIsimMi(hepsi[i]) ? isim : liste).push(hepsi[i]);
+    }
+
+    var metin = '=== ÇEVRİLECEK (' + liste.length + ') ===\n'
+              + liste.join('\n')
+              + '\n\n=== ÖZEL İSİM ŞÜPHELİSİ (' + isim.length + ') — çevrilmeyecek ===\n'
+              + isim.join('\n');
+    var bitti = function () { yaz(liste.length + ' çevrilecek · ' + isim.length + ' isim ✓'); };
     var yedek = function () {
       try {
         var ta = document.createElement('textarea');

@@ -3755,3 +3755,41 @@ Object.assign(window.I18N.en, {
   'Kademe':'Tier',
   'resmi':'competitive'
 });
+
+/* ── 28. dalga · listenden çıkan GERÇEK eksikler ─────────────────────
+   Gönderdiğin listenin geri kalanı şehir/takım/oyuncu adıydı —
+   onlar özel isim, çevrilmiyor.
+   ─────────────────────────────────────────────────────────────────── */
+Object.assign(window.I18N.en, {
+  'EURO Cup · Kura Çekimi 🎲':'EURO Cup · The Draw 🎲',
+  'Kura Çekimi':'The Draw',
+  '3. Sağ Forvet':'3. Right Forward',
+  'Sağ Forvet':'Right Forward',
+  'Sol Forvet':'Left Forward',
+  'Sağ Kanat':'Right Wing',
+  'Sol Kanat':'Left Wing',
+  'Forvet Arkası':'Attacking Midfield',
+  'Sağ Bek':'Right Back',
+  'Sol Bek':'Left Back',
+  'Stoper':'Centre Back',
+  'Santrfor':'Striker'
+});
+window.I18N_PATTERNS.en.push(
+  // "⚽ 3. Lig · Week 1"  →  "⚽ 3rd Division · Week 1"
+  [/^(.*?)(\d+)\. Lig · Week (\d+)$/,
+    m => m[1] + (['','','2nd','3rd','4th','5th','6th','7th','8th'][Number(m[2])] || m[2]+'.') + ' Division · Week ' + m[3]],
+  [/^(.*?)(\d+)\. Lig · (.+)$/,
+    m => m[1] + (['','','2nd','3rd','4th','5th','6th','7th','8th'][Number(m[2])] || m[2]+'.') + ' Division · ' + m[3]],
+  // "⭐ Grup G · 4 Ülke"
+  [/^(.*?)Grup ([A-H]) · (\d+) Ülke$/, m => m[1] + 'Group ' + m[2] + ' · ' + m[3] + ' Countries'],
+  [/^(.*?)Grup ([A-H])$/,              m => m[1] + 'Group ' + m[2]],
+  // "Today · 6 Eylül Pazar"  (gün adı sonda)
+  [/^(.*?)(\d{1,2}) (Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık) (Pazar|Pazartesi|Salı|Çarşamba|Perşembe|Cuma|Cumartesi)$/,
+    m => m[1] + (window.I18N.en[m[4]] || m[4]) + ' ' + m[2] + ' ' + (window.I18N.en[m[3]] || m[3])],
+  // "🔄 Sıfırlanmaya: 7sa 55dk (🇹🇷 Türkiye)"
+  [/^🔄 Sıfırlanmaya: (\d+)sa (\d+)dk (.+)$/, '🔄 Resets in: $1h $2m $3'],
+  [/^🔄 Sıfırlanmaya: (\d+)dk (.+)$/,         '🔄 Resets in: $1m $2'],
+  // "🟨 1 maç" / "🟥 2 maç"
+  [/^(🟨|🟥|⚽|🅰️) (\d+) maç$/, m => m[1] + ' ' + m[2] + (m[2] === '1' ? ' match' : ' matches')],
+  [/^(🟨|🟥|⚽|🅰️) (\d+) gol$/,  m => m[1] + ' ' + m[2] + (m[2] === '1' ? ' goal' : ' goals')]
+);
