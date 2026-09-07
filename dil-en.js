@@ -2284,7 +2284,7 @@ window.I18N_PATTERNS.en.push(
   [/^(Pazar|Pazartesi|Salı|Çarşamba|Perşembe|Cuma|Cumartesi), (\d{1,2}) (Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık)$/,
     m => (window.I18N.en[m[1]] || m[1]) + ', ' + m[2] + ' ' + (window.I18N.en[m[3]] || m[3])],
   [/^(Bugün|Dün|Yarın) · (.+)$/,
-    m => (window.I18N.en[m[1]] || m[1]) + ' · ' + m[2]]
+    m => (window.I18N.en[m[1]] || m[1]) + ' · ' + _ic(m[2])]
 );
 
 /* ── 11. dalga · başarım kalıpları (desenle toplu çözüm) ── */
@@ -4699,4 +4699,58 @@ Object.assign(window.I18N.en, { 'Standart':'Standard' });
 window.I18N_PATTERNS.en.push(
   [/^\+(\d+) enerji$/,   '+$1 energy'],
   [/^→ \+(\d+) enerji$/, '→ +$1 energy']
+);
+
+/* ── 43. dalga · sonuçlar sayfası tarih şeridi + canlı maç dakikası ── */
+Object.assign(window.I18N.en, {
+  'dakika':'min',
+  'Sonuçlar':'Results',
+  'Ülke':'Country',
+  'Puan Durumu':'Standings',
+  'Canlı':'Live',
+  'Turnuva':'Tournament'
+});
+
+window.I18N_PATTERNS.en.push(
+  // "6 Eylül Pazar"  (tam ay + gün adı, ayraçsız)
+  [/^(\d{1,2}) (Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık) (Pazar|Pazartesi|Salı|Çarşamba|Perşembe|Cuma|Cumartesi)$/,
+    m => (window.I18N.en[m[3]] || m[3]) + ' ' + m[1] + ' ' + (window.I18N.en[m[2]] || m[2])],
+  // "Dün · 6 Eylül Pazar"  /  "Bugün · 7 Eylül Pazartesi"
+  [/^(Bugün|Dün|Yarın) · (\d{1,2}) (Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık) (Pazar|Pazartesi|Salı|Çarşamba|Perşembe|Cuma|Cumartesi)$/,
+    m => (window.I18N.en[m[1]] || m[1]) + ' · ' + (window.I18N.en[m[4]] || m[4]) + ' ' + m[2] + ' ' + (window.I18N.en[m[3]] || m[3])],
+  // canlı maç: "64' dakika"
+  [/^(\d+)' dakika$/,        "$1' min"],
+  [/^(\d+)'$/,               "$1'"]
+);
+
+/* ── 43b · canlı maç durum satırları (<b> ile bölünen parçalar) ── */
+Object.assign(window.I18N.en, {
+  'MAÇ BİTTİ':'FULL TIME',
+  'Maç bitti':'Match over',
+  'DEVRE ARASI':'HALF TIME',
+  'Maç sona erdi.':'The match has ended.',
+  'Sonuç kaydedildi.':'The result has been saved.'
+});
+
+/* ── 44. dalga · CSC Media ── */
+Object.assign(window.I18N.en, {
+  'Aklından ne geçiyor? (en fazla 280 karakter)':'What’s on your mind? (max 280 characters)',
+  'Takip Et':'Follow',
+  'Takipten Çık':'Unfollow',
+  'Gönderilerim':'Your Posts',
+  'Beğeni':'Like',
+  'Beğenme':'Dislike',
+  'Takipçi':'Follower',
+  'Takip':'Follow',
+  'Gönderi':'Post',
+  'Takım Arıyorum':'Looking For A Team',
+  'Kulüp Arıyorum':'Looking for a Club',
+  'Profilim':'My Profile',
+  'Küresel':'Global',
+  'Ulusal':'National'
+});
+window.I18N_PATTERNS.en.push(
+  [/^Aklından ne geçiyor\? \(en fazla (\d+) karakter\)$/, 'What’s on your mind? (max $1 characters)'],
+  [/^\(en fazla (\d+) karakter\)$/,  '(max $1 characters)'],
+  [/^en fazla (\d+) karakter$/,      'max $1 characters']
 );
