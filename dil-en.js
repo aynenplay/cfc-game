@@ -3848,7 +3848,7 @@ Object.assign(window.I18N.en, {
 
 window.I18N_PATTERNS.en.push(
   // "Yunanistan · Süper Lig" → "Greece · Super League"
-  [/^(.+?) · Süper Lig$/,  m => (window.I18N.en[m[1]] || m[1]) + ' · Super League'],
+  [/^(.+?) · Süper Lig$/,  m => _ic(m[1]) + ' · Super League'],
   [/^(.+?) · (\d+)\. Lig$/, m => (window.I18N.en[m[1]] || m[1]) + ' · '
       + (['','','2nd','3rd','4th','5th','6th','7th','8th'][Number(m[2])] || m[2]+'.') + ' Division'],
   // ülke filtresi çipi: "İtalya (34)"
@@ -3865,4 +3865,129 @@ window.I18N_PATTERNS.en.push(
   [/^(🏆 )?ÖDÜLÜ AL · (.+)$/,     m => (m[1] || '') + 'CLAIM REWARD · ' + m[2]],
   [/^Elite Ligi · (.+)$/,         'Elite League · $1'],
   [/^(\d+) maçlık$/,              '$1-match']
+);
+
+/* Desen içindeki alt metni çevirmek için: önce sözlük, sonra tam T().
+   "12 maç · Süper Lig" gibi metinlerde iç kısım ("12 maç") yalnızca
+   sözlüğe bakılınca çevrilemiyordu; T() desenleri de deniyor. */
+window._i18nIcCevir = function (t) {
+  if (window.I18N && window.I18N.en && window.I18N.en[t] != null) return window.I18N.en[t];
+  try { if (typeof window.T === 'function') { var r = window.T(t); if (r != null) return r; } } catch (e) {}
+  return t;
+};
+var _ic = window._i18nIcCevir;
+
+/* ── 30. dalga · ARŞİV sayfası (tamamı) ─────────────────────────────
+   Sayfa gövdesi JS'te string birleştirmeyle üretiliyor
+   ('<div>'+deger+'Galibiyet</div>'), bu yüzden önceki taramalarımda
+   görünmemişti.
+   ─────────────────────────────────────────────────────────────────── */
+Object.assign(window.I18N.en, {
+  // ── sekmeler / başlıklar ──
+  'ARŞİV':'ARCHIVE',
+  'ÖZETİM':'MY SUMMARY',
+  'LİGLER':'LEAGUES',
+  'KUPALAR':'CUPS',
+
+  // ── özet sekmesi ──
+  'Lig Performansı':'League Performance',
+  'Kazanımlar':'Achievements',
+  'Sezon Ödülü':'Season Prize',
+  'lig sıralama ödülü':'league placement prize',
+  'Kasaya yatan':'Paid into treasury',
+  'Galibiyet':'Won',
+  'Beraber':'Drawn',
+  'Mağlup':'Lost',
+  'Attı':'Scored',
+  'Yedi':'Conceded',
+  'Averaj':'Goal Diff.',
+  'Sıra':'Rank',
+  'Takım':'Teams',
+  'TAKIM':'TEAM',
+  'SZN':'SSN',
+  'ŞAMPİYON':'CHAMPION',
+  '🏆 Şampiyon':'🏆 Champion',
+  'Bir takımda değilsin.':'You are not in a team.',
+  'Takıma katıldığında sezon özetin burada görünecek.':'Your season summary will appear here once you join a team.',
+
+  // ── lig sekmesi ──
+  'TÜM PUAN DURUMU ▾':'FULL TABLE ▾',
+  '1-4 Yükselme':'1-4 Promotion',
+  '1 CHM':'1 CHM', '2 CHM-PO':'2 CHM-PO', '3 ELI':'3 ELI',
+  '4 ELI-PO':'4 ELI-PO', '5 CON':'5 CON', '6 CON-PO':'6 CON-PO',
+
+  // ── kupa / arşiv sekmesi ──
+  'Kupa Kazananlar':'Cup Winners',
+  'Tüm takımlar':'All teams',
+  '🌍 Tüm Ülkeler':'🌍 All Countries',
+  'tüm turnuvalar':'all tournaments',
+  '📋 TÜM TURNUVA DETAYLARI ▸':'📋 ALL TOURNAMENT DETAILS ▸',
+  'Aşama verisi yok.':'No stage data.',
+  'Bu sezon için maç kaydı yok.':'No match records for this season.',
+  'Final oynandı · kazanan penaltılarla belirlendi (kayıt yok)':'The final was played · the winner was decided on penalties (no record)',
+  '⏳ Final henüz oynanmadı.':'⏳ The final has not been played yet.',
+  '⏳ Yükleniyor…':'⏳ Loading…',
+  'Veri yüklenemedi.':'Could not load the data.',
+  '● Devam ediyor':'● In progress',
+  '· CANLI':'· LIVE',
+
+  // ── turnuva aşama adları ──
+  'Grup Aşaması':'Group Stage',
+  'Son 32':'Round of 32',
+  'Son 16':'Round of 16',
+  'Çeyrek Final':'Quarter-final',
+  'Yarı Final':'Semi-final',
+  'Avrupa':'Europe'
+});
+
+window.I18N_PATTERNS.en.push(
+  // "⬆️ Süper Lig'e yükseldi" / "⬇️ 2. Lig'e düştü" / "✔️ Süper Lig'de kaldı"
+  [/^⬆️ (.+?)'e yükseldi$/,  m => '⬆️ Promoted to '  + (window.I18N.en[m[1]] || m[1])],
+  [/^⬆️ (.+?)'a yükseldi$/,  m => '⬆️ Promoted to '  + (window.I18N.en[m[1]] || m[1])],
+  [/^⬇️ (.+?)'e düştü$/,     m => '⬇️ Relegated to ' + (window.I18N.en[m[1]] || m[1])],
+  [/^⬇️ (.+?)'a düştü$/,     m => '⬇️ Relegated to ' + (window.I18N.en[m[1]] || m[1])],
+  [/^✔️ (.+?)'de kaldı$/,    m => '✔️ Stayed in '    + (window.I18N.en[m[1]] || m[1])],
+  [/^✔️ (.+?)'da kaldı$/,    m => '✔️ Stayed in '    + (window.I18N.en[m[1]] || m[1])],
+  [/^⬆️ (.+?)'e yükselenler$/, m => '⬆️ Promoted to '  + (window.I18N.en[m[1]] || m[1])],
+  [/^⬇️ (.+?)'e düşenler$/,    m => '⬇️ Relegated to ' + (window.I18N.en[m[1]] || m[1])],
+  // "🏆 Süper Lig Şampiyonu"
+  [/^🏆 (.+?) Şampiyonu$/,   m => '🏆 ' + (window.I18N.en[m[1]] || m[1]) + ' Champion'],
+  [/^🏅 Ligde (\d+)\.$/, m => {
+    var n = Number(m[1]), sf = ['th','st','nd','rd'][(n % 100 - n % 10 != 10) * (n % 10 < 4) * (n % 10)] || 'th';
+    return '🏅 ' + n + sf + ' in the league';
+  }],
+  // "Süper Lig · 3." / "Süper Lig · 3. sıra"
+  [/^(.+?) · (\d+)\. sıra$/, m => (window.I18N.en[m[1]] || m[1]) + ' · rank ' + m[2]],
+  [/^(.+?) · (\d+)\.$/,      m => (window.I18N.en[m[1]] || m[1]) + ' · ' + m[2]],
+  // "Süper Lig · Sezon 3"
+  [/^(.+?) · Sezon (\d+)$/,  m => _ic(m[1]) + ' · Season ' + m[2]],
+  // "12 maç · Süper Lig"
+  [/^(\d+) maç · (.+)$/,     m => m[1] + ' matches · ' + _ic(m[2])],
+  // sezon şeridi: "SEZON 3" / "SEZON 3 · CANLI"
+  [/^SEZON (\d+)$/,          'SEASON $1'],
+  [/^SEZON (\d+) · CANLI$/,  'SEASON $1 · LIVE'],
+  // "Antakya için Sezon 3 lig kaydı bulunamadı."
+  [/^(.+?) için Sezon (\d+) lig kaydı bulunamadı\.$/, 'No league record found for $1 in Season $2.'],
+  [/^Sezon (\d+) için (.+?) lig kaydı yok\.$/,        'No league record for $2 in Season $1.'],
+  // "Champions League · Sezon 3 · 4 kupa"
+  [/^(.+?) · Sezon (\d+) · (\d+) kupa$/,
+    m => (window.I18N.en[m[1]] || m[1]) + ' · Season ' + m[2] + ' · ' + m[3] + (m[3] === '1' ? ' cup' : ' cups')],
+  [/^Sezon (\d+) Kazananlar$/,  'Season $1 Winners'],
+  // "🌍 Avrupa kupası katılım hakkı · Sezon 4"
+  [/^🌍 Avrupa kupası katılım hakkı · Sezon (\d+)$/, '🌍 European qualification · Season $1'],
+  [/^(\d+) takım · Sezon (\d+)$/, '$1 teams · Season $2']
+);
+
+/* ── 30b · arşivde kalan iki metin ── */
+Object.assign(window.I18N.en, {
+  'Avrupa kupası katılım hakkı':'European qualification',
+  '🌍 Avrupa kupası katılım hakkı':'🌍 European qualification',
+  'Sezon Kazananlar':'Season Winners',
+  'Şampiyonu':'Champion'
+});
+
+/* ── 30c · arşiv filtre mesajı ── */
+window.I18N_PATTERNS.en.push(
+  [/^Bu filtrede Sezon (\d+) kupası yok\.$/, 'No Season $1 cups match this filter.'],
+  [/^Bu filtrede (.+?) kupası yok\.$/, m => 'No ' + (window.I18N.en[m[1]] || m[1]) + ' cups match this filter.']
 );
