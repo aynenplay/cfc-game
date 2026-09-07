@@ -4293,3 +4293,56 @@ window.I18N_PATTERNS.en.push(
   [/^Maliyet kasadan düşülür · her değişimde \+(\d+) artar$/,
     'Cost is deducted from the treasury · rises by +$1 each change']
 );
+
+/* ── 38. dalga · oyuncu mevkileri (tam adlar) + kariyer başlangıcı ── */
+Object.assign(window.I18N.en, {
+  'Kaleci':'Goalkeeper',
+  'Sağ Bek':'Right Back',
+  'Stoper':'Centre Back',
+  'Sol Bek':'Left Back',
+  'Defansif Orta Saha':'Defensive Midfielder',
+  'Merkez Orta Saha':'Central Midfielder',
+  'Sağ Kanat':'Right Winger',
+  'Sol Kanat':'Left Winger',
+  'Forvet Arkası':'Attacking Midfielder',
+  'Sağ Forvet':'Right Forward',
+  'Sol Forvet':'Left Forward',
+  'Forvet':'Striker',
+  'Kariyer başlangıcı:':'Career start:',
+  '🎬 Kariyer başlangıcı:':'🎬 Career start:',
+  'Piyasa Değeri':'Market Value',
+  'Güncel Maaş':'Current Salary',
+  'Uluslararası':'International'
+});
+
+window.I18N_PATTERNS.en.push(
+  // "1. Sol Forvet"  /  "2. Forvet"  /  "3. Sol Kanat"
+  [/^(\d+)\. (Kaleci|Sağ Bek|Stoper|Sol Bek|Defansif Orta Saha|Merkez Orta Saha|Sağ Kanat|Sol Kanat|Forvet Arkası|Sağ Forvet|Sol Forvet|Forvet)$/,
+    m => m[1] + '. ' + (window.I18N.en[m[2]] || m[2])],
+  // "🎬 Kariyer başlangıcı: 27 May 2026 · S1"
+  [/^🎬 Kariyer başlangıcı: (.+)$/,  m => '🎬 Career start: ' + _ic(m[1])],
+  [/^Kariyer başlangıcı: (.+)$/,     m => 'Career start: ' + _ic(m[1])],
+  // "27 May 2026 · S1"   (ay kısaltması + sezon)
+  [/^(\d{1,2}) (Oca|Şub|Mar|Nis|May|Haz|Tem|Ağu|Eyl|Eki|Kas|Ara) (\d{4}) · S(\d+)$/,
+    m => m[1] + ' ' + (window.I18N.en[m[2]] || m[2]) + ' ' + m[3] + ' · S' + m[4]],
+  [/^(\d{1,2}) (Oca|Şub|Mar|Nis|May|Haz|Tem|Ağu|Eyl|Eki|Kas|Ara) (\d{4})$/,
+    m => m[1] + ' ' + (window.I18N.en[m[2]] || m[2]) + ' ' + m[3]]
+);
+
+/* ── 38b · mevki grubu kısaltmaları + seviye rozeti ──────────────────
+   KL = Kaleci, OS = Orta Saha (DF/FW zaten İngilizce).
+   Bunlar hem bar etiketi hem de eski mevki kodu; her iki bağlamda da
+   GK / MF doğru karşılık.
+   ─────────────────────────────────────────────────────────────────── */
+Object.assign(window.I18N.en, {
+  'KL':'GK',
+  'OS':'MF',
+  'SV':'LV',
+  'Sv':'Lv',
+  'STB':'CB', 'SB':'RB', 'DOS':'DM', 'SAK':'RM', 'SOK':'LM'
+});
+window.I18N_PATTERNS.en.push(
+  [/^SV (\d+)$/,   'LV $1'],
+  [/^SV(\d+)$/,    'LV$1'],
+  [/^→ ?LV\.(\d+)$/, '→ LV.$1']
+);
