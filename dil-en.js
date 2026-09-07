@@ -4641,3 +4641,62 @@ Object.assign(window.I18N.en, {
   'Ara Transfer Dönemi':'Mid-Season Transfer Window',
   'Sezon Sonu Dönemi':'End of Season Period'
 });
+
+/* ── 42. dalga · TESİSLER sekmesi ── */
+Object.assign(window.I18N.en, {
+  'Takım Kapasitesi':'Team Capacity',
+  'Stadyum Kapasitesi':'Stadium Capacity',
+  'Antrenman Merkezi':'Training Centre',
+  'Sağlık Merkezi':'Medical Centre',
+  'Performans Merkezi':'Performance Centre',
+  'Finans Merkezi':'Finance Centre',
+  'Takım Kasası':'Team Treasury',
+  'Maksimum':'Maximum',
+  'Bütçe':'Budget',
+  'İlerleme':'Progress',
+  'Yükselt':'Upgrade',
+  'Standart iyileşme süresi':'Standard recovery time'
+});
+
+window.I18N_PATTERNS.en.push(
+  // seviye rozeti: "Sv 8/10"
+  [/^Sv (\d+)\/(\d+)$/,                        'Lv $1/$2'],
+  // etki etiketleri
+  [/^(\d+) oyuncu kapasitesi$/,                '$1 player capacity'],
+  [/^→ (\d+) oyuncu kapasitesi$/,              '→ $1 player capacity'],
+  [/^(.+?) seyirci · €(.+?)\/maç \(Süper Lig\)$/, '$1 spectators · €$2/match (Super League)'],
+  [/^(.+?) seyirci · €(.+?)\/maç$/,            '$1 spectators · €$2/match'],
+  [/^→ (.+?) seyirci · €(.+?)\/maç$/,          '→ $1 spectators · €$2/match'],
+  [/^Eş zamanlı (\d+) antrenman$/,             '$1 simultaneous sessions'],
+  [/^→ Eş zamanlı (\d+) antrenman$/,           '→ $1 simultaneous sessions'],
+  [/^Sakatlık süresi −%(\d+)$/,                'Injury duration −$1%'],
+  [/^→ Sakatlık süresi −%(\d+)$/,              '→ Injury duration −$1%'],
+  [/^\+(\d+) bonus enerji\/gün$/,              '+$1 bonus energy/day'],
+  [/^→ \+(\d+) bonus enerji\/gün$/,            '→ +$1 bonus energy/day'],
+  [/^\+%(\d+) bilet geliri$/,                  '+$1% ticket income'],
+  [/^→ \+%(\d+) bilet geliri$/,                '→ +$1% ticket income'],
+  [/^\+%(\d+) gelir$/,                         '+$1% income'],
+  [/^→ \+%(\d+) gelir$/,                       '→ +$1% income'],
+  // yüzde biçimi: Türkçe "%70" → İngilizce "70%"
+  [/^%(\d+)$/,                                 '$1%'],
+  [/^%(\d+) (.+)$/,           m => m[1] + '% ' + _ic(m[2])],
+  [/^\+%(\d+)$/,                               '+$1%'],
+  [/^−%(\d+)$/,                                '−$1%']
+);
+
+/* ── 42b · eksi işaretli yüzde varyantları ── */
+window.I18N_PATTERNS.en.push(
+  [/^→ −%(\d+) (.+)$/,  m => '→ −' + m[1] + '% ' + _ic(m[2])],
+  [/^−%(\d+) (.+)$/,    m => '−' + m[1] + '% ' + _ic(m[2])],
+  [/^→ \+%(\d+) (.+)$/, m => '→ +' + m[1] + '% ' + _ic(m[2])],
+  [/^\+%(\d+) (.+)$/,   m => '+' + m[1] + '% ' + _ic(m[2])],
+  [/^gelir$/,           'income'],
+  [/^bilet geliri$/,    'ticket income']
+);
+
+/* ── 42c · tesis son kalanlar ── */
+Object.assign(window.I18N.en, { 'Standart':'Standard' });
+window.I18N_PATTERNS.en.push(
+  [/^\+(\d+) enerji$/,   '+$1 energy'],
+  [/^→ \+(\d+) enerji$/, '→ +$1 energy']
+);
