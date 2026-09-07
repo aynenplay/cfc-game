@@ -3861,7 +3861,7 @@ window.I18N_PATTERNS.en.push(
     m => m[1] + ' ' + (window.I18N.en[m[2]] || m[2]) + ' · ' + (window.I18N.en[m[3]] || m[3])],
   // "Today 0/10 kupon"
   [/^(\d+)\/(\d+) kupon$/,        '$1/$2 coupons'],
-  [/^×(\d+) · (\d+)× bilet bedeli$/, '×$1 · $2× ticket price'],
+  [/^×([\d.,]+) · ([\d.,]+)× bilet bedeli$/, '×$1 · $2× ticket price'],
   [/^(🏆 )?ÖDÜLÜ AL · (.+)$/,     m => (m[1] || '') + 'CLAIM REWARD · ' + m[2]],
   [/^Elite Ligi · (.+)$/,         'Elite League · $1'],
   [/^(\d+) maçlık$/,              '$1-match']
@@ -4161,4 +4161,34 @@ window.I18N_PATTERNS.en.push(
   [/^Sezon (\d+) sonu sıralamasından · Play-Off'a gidecek takımlar$/,
     'From the end-of-season $1 standings · teams going to the Play-Off'],
   [/^(.+?) — Senin Takımın$/,  m => _ic(m[1]) + ' — Your Team']
+);
+
+/* ── 35. dalga · kazı kazan kalanları ── */
+Object.assign(window.I18N.en, {
+  'KAZI':'SCRATCH',
+  'KAZI KAZAN':'SCRATCH & WIN',
+  '3 aynı sembol':'3 matching symbols',
+  '2. KAZI':'2. SCRATCH',
+  '9 kutucuğu parmakla aç':'Reveal the 9 panels with your finger'
+});
+window.I18N_PATTERNS.en.push(
+  [/^×([\d.,]+) · ([\d.,]+)× bilet bedeli$/,  '×$1 · $2× ticket price'],
+  [/^([\d.,]+)× bilet bedeli$/,               '$1× ticket price'],
+  [/^(\d+)\/(\d+) bilet$/,                    '$1/$2 tickets'],
+  [/^Bugün (\d+)\/(\d+) bilet$/,              'Today $1/$2 tickets']
+);
+
+/* ── 35b · maç motoru canvas uyarıları (oyuncu adı korunur) ── */
+window.I18N_PATTERNS.en.push(
+  [/^(.+?) vurdu, top auta gitti$/,          '$1 shot, the ball went wide'],
+  [/^(.+?) vurdu — (.+?) kurtardı$/,         '$1 shot — $2 saved it'],
+  [/^(.+?)['’](in|ın|nin|nın) şutu direkten döndü!$/, '$1’s shot came back off the post!'],
+  [/^(.+?)['’](in|ın|nin|nın) vuruşu direğe çarptı!$/, '$1’s strike hit the post!'],
+  [/^(.+?): (.+?) çıktı, (.+?) girdi$/,      '$1: $2 off, $3 on'],
+  [/^(.+?) topu kaptı$/,                     '$1 won the ball'],
+  [/^(.+?) ofsayta düştü$/,                  '$1 was caught offside'],
+  [/^(.+?) kafayla gol attı!$/,              '$1 scored with a header!'],
+  [/^(.+?) penaltıyı gole çevirdi\.?$/,      '$1 converted the penalty'],
+  [/^(.+?) penaltıyı kaçırdı!$/,             '$1 missed the penalty!'],
+  [/^(.+?) sakatlandı$/,                     '$1 is injured']
 );
