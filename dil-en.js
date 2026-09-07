@@ -4192,3 +4192,48 @@ window.I18N_PATTERNS.en.push(
   [/^(.+?) penaltıyı kaçırdı!$/,             '$1 missed the penalty!'],
   [/^(.+?) sakatlandı$/,                     '$1 is injured']
 );
+
+/* ── 36. dalga · milli takım kadrosu, sohbet, turnuva maç günleri ── */
+Object.assign(window.I18N.en, {
+  // ── kadro / sohbet rozetleri ──
+  'SEN':'YOU',
+  'Sen':'You',
+  'Yrd. Kpt.':'Asst. Cpt.',
+  'YRD. KPT.':'ASST. CPT.',
+  'Kpt.':'Cpt.',
+  'Kaptan':'Captain',
+  'İlk 11':'Starting XI',
+  'Yedek':'Substitute',
+  'BOT':'BOT',
+  'Milli Takım Kadrosu':'National Team Squad',
+  '⭐ Milli Takım Kadrosu':'⭐ National Team Squad',
+
+  // ── büyük harfli ay kısaltmaları (turnuva maç günü şeridi) ──
+  'OCA':'JAN', 'ŞUB':'FEB', 'MAR':'MAR', 'NİS':'APR', 'MAY':'MAY', 'HAZ':'JUN',
+  'TEM':'JUL', 'AĞU':'AUG', 'EYL':'SEP', 'EKİ':'OCT', 'KAS':'NOV', 'ARA':'DEC',
+
+  'Güncel aşama:':'Current stage:',
+  'Güncel aşama':'Current stage'
+});
+
+window.I18N_PATTERNS.en.push(
+  // "1. MAÇ GÜNÜ · 17 EYL Per"  (ay BÜYÜK, gün adı normal — CSS büyütüyor)
+  [/^(\d+)\. MAÇ GÜNÜ · (\d{1,2}) (OCA|ŞUB|MAR|NİS|MAY|HAZ|TEM|AĞU|EYL|EKİ|KAS|ARA) (Paz|Pzt|Sal|Çar|Per|Cum|Cmt)$/,
+    m => 'MATCHDAY ' + m[1] + ' · ' + (window.I18N.en[m[4]] || m[4]) + ' ' + m[2] + ' ' + (window.I18N.en[m[3]] || m[3])],
+  [/^(\d+)\. MAÇ GÜNÜ · (.+)$/,  m => 'MATCHDAY ' + m[1] + ' · ' + _ic(m[2])],
+  [/^(\d+)\. MAÇ GÜNÜ$/,         'MATCHDAY $1'],
+  // "1. Maç Günü · 17 Eyl Per"
+  [/^(\d+)\. Maç Günü · (\d{1,2}) (Oca|Şub|Mar|Nis|May|Haz|Tem|Ağu|Eyl|Eki|Kas|Ara) (Paz|Pzt|Sal|Çar|Per|Cum|Cmt)$/,
+    m => 'Matchday ' + m[1] + ' · ' + (window.I18N.en[m[4]] || m[4]) + ' ' + m[2] + ' ' + (window.I18N.en[m[3]] || m[3])],
+  // "17 EYL Per" / "17 Eyl Per"  (tek başına tarih)
+  [/^(\d{1,2}) (OCA|ŞUB|MAR|NİS|MAY|HAZ|TEM|AĞU|EYL|EKİ|KAS|ARA) (Paz|Pzt|Sal|Çar|Per|Cum|Cmt)$/,
+    m => (window.I18N.en[m[3]] || m[3]) + ' ' + m[1] + ' ' + (window.I18N.en[m[2]] || m[2])],
+  [/^(\d{1,2}) (Oca|Şub|Mar|Nis|May|Haz|Tem|Ağu|Eyl|Eki|Kas|Ara) (Paz|Pzt|Sal|Çar|Per|Cum|Cmt)$/,
+    m => (window.I18N.en[m[3]] || m[3]) + ' ' + m[1] + ' ' + (window.I18N.en[m[2]] || m[2])],
+  // "Türkiye · Güncel aşama: Group Stage"
+  [/^(.+?) · Güncel aşama: (.+)$/, m => _ic(m[1]) + ' · Current stage: ' + _ic(m[2])],
+  [/^(.+?) · Güncel aşama:$/,      m => _ic(m[1]) + ' · Current stage:'],
+  // "MİLLİ TAKIM KADROSU (17/18)"
+  [/^⭐ Milli Takım Kadrosu \((\d+)\/(\d+)\)$/, '⭐ National Team Squad ($1/$2)'],
+  [/^Milli Takım Kadrosu \((\d+)\/(\d+)\)$/,   'National Team Squad ($1/$2)']
+);
