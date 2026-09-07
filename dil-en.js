@@ -4031,3 +4031,39 @@ Object.assign(window.I18N.en, {
   'tüm ülkeler':'all countries',
   'tüm takımlar':'all teams'
 });
+
+/* ── 32. dalga · sıralama birim etiketleri + destek formu ───────────
+   Bu etiketler koda küçük harfle yazılıp CSS ile büyütülüyor
+   (text-transform:uppercase), o yüzden ekranda "YETENEK" görünüyor
+   ama sözlük anahtarı "yetenek".
+   ─────────────────────────────────────────────────────────────────── */
+Object.assign(window.I18N.en, {
+  'yetenek':'skill',
+  'puan':'points',
+  'toplam':'total',
+  'gol':'goals',
+  'asist':'assists',
+  'piyasa değeri':'market value',
+  'seviye':'level',
+  'Serbest':'Free',
+  'Aranıyor…':'Searching…',
+  'Eşleşen sonuç yok':'No matching result',
+  'Bağlantı yok':'No connection',
+
+  // ── destek / talep formları ──
+  'Buraya yaz…':'Write here…',
+  'Buraya yaz...':'Write here...',
+  'Mesajını yaz...':'Write your message...',
+  'Milli takıma mesaj yaz...':'Write a message to the national team...',
+  'Sorunu Bildir':'Report a Problem',
+  'İstek Gönder':'Send Request',
+  'Talep İlet':'Submit Request',
+  'Şikayet, istek ve taleplerin admine iletilir. Genelde 24 saat içinde yanıtlanır.':'Your complaints, requests and suggestions go to the admin. Usually answered within 24 hours.'
+});
+
+/* ── 32b · kalan kısa etiketler ── */
+Object.assign(window.I18N.en, {
+  'Pas':'Passes',
+  'seçim gününde':'on election day',
+  'yönetimsiz':'unmanaged'
+});
