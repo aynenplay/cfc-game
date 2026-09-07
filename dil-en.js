@@ -4237,3 +4237,59 @@ window.I18N_PATTERNS.en.push(
   [/^⭐ Milli Takım Kadrosu \((\d+)\/(\d+)\)$/, '⭐ National Team Squad ($1/$2)'],
   [/^Milli Takım Kadrosu \((\d+)\/(\d+)\)$/,   'National Team Squad ($1/$2)']
 );
+
+/* ── 37. dalga · finans, kit renkleri, manifesto, maaş detayı ── */
+Object.assign(window.I18N.en, {
+  // ── finans / son işlemler ──
+  'Son İşlemler':'Recent Transactions',
+  'Galibiyet Primi':'Win Bonus',
+  'Beraberlik Primi':'Draw Bonus',
+  'Mağlubiyet':'Defeat',
+  'Bilet Geliri':'Ticket Income',
+  'Maaş Ödemesi':'Wage Payment',
+  'Finans Merkezi Bonus':'Finance Centre Bonus',
+  'Sezon Sonu':'End of Season',
+  'Kasa':'Treasury',
+  'TREASURY':'TREASURY',
+  'Gelir':'Income',
+  'Gider':'Expense',
+
+  // ── kit renkleri ──
+  'Beyaz':'White', 'Siyah':'Black', 'Kırmızı':'Red', 'Koyu Mavi':'Navy',
+  'Açık Mavi':'Sky Blue', 'Yeşil':'Green', 'Sarı':'Yellow', 'Turuncu':'Orange',
+  'Mor':'Purple', 'Pembe':'Pink', 'Bordo':'Maroon', 'Lacivert':'Dark Navy',
+  'Camgöbeği':'Cyan', 'Gri':'Grey', 'Altın':'Gold',
+  'Forma':'Shirt', 'Şort':'Shorts', 'Çorap':'Socks',
+  'Takım Formaları':'Team Kits',
+  'elmas':'diamonds',
+
+  // ── manifesto ──
+  'Bu takımın henüz manifestosu yazılmadı.':'This team has not written a manifesto yet.',
+  'Henüz manifesto yazılmadı':'No manifesto written yet',
+  'Takımın yöneticileri tarafından yazıldı':'Written by the team’s management'
+});
+
+window.I18N_PATTERNS.en.push(
+  // maaş detayı: "Yetenek 10"
+  [/^Yetenek (\d+)$/,                        'Skill $1'],
+  [/^Seviye (\d+) → (\d+)$/,                 'Level $1 → $2'],
+  [/^🎉 Yetenek (\d+) → (\d+)$/,             '🎉 Skill $1 → $2'],
+  // finans satırları
+  [/^Galibiyet Primi @ (.+)$/,               'Win Bonus @ $1'],
+  [/^Galibiyet Primi vs (.+)$/,              'Win Bonus vs $1'],
+  [/^Beraberlik Primi @ (.+)$/,              'Draw Bonus @ $1'],
+  [/^Beraberlik Primi vs (.+)$/,             'Draw Bonus vs $1'],
+  [/^Bilet Geliri: (.+)$/,                   'Ticket Income: $1'],
+  [/^Bilet Geliri \((.+?) \/ (.+?) kapasite\)$/, 'Ticket Income ($1 / $2 capacity)'],
+  [/^Bilet Geliri \((.+)\)$/,                'Ticket Income ($1)'],
+  [/^Maaş Ödemesi: (.+?) \(Sezon (\d+) Gün (\d+)\)$/, 'Wage Payment: $1 (Season $2 Day $3)'],
+  [/^Maaş Ödemesi: (.+)$/,                   'Wage Payment: $1'],
+  [/^Finans Merkezi Bonus \(\+%(\d+)\)$/,    'Finance Centre Bonus (+$1%)'],
+  [/^Sezon Sonu \((.+)\)$/,                  'End of Season ($1)'],
+  [/^(.+?) Bonusu \((.+?)\)$/,     m => _ic(m[1]) + ' Bonus (' + m[2] + ')'],
+  // kit: "Sonraki değişim: 300 elmas"
+  [/^Sonraki değişim: (\d+) elmas$/,         'Next change: $1 diamonds'],
+  [/^(\d+) elmas$/,                          '$1 diamonds'],
+  [/^Maliyet kasadan düşülür · her değişimde \+(\d+) artar$/,
+    'Cost is deducted from the treasury · rises by +$1 each change']
+);
