@@ -4597,3 +4597,47 @@ window.I18N_PATTERNS.en.push(
   [/^(.+?): "Maç sonrası nasıldın\?"$/,       '$1: "How did you feel after the match?"'],
   [/^İlk 11 tamamlanmadan kaydedilemez \((.*)$/, 'Cannot be saved before the starting XI is complete ($1']
 );
+
+/* ── 41. dalga · ÖDÜL SİSTEMİ modalı (gerçek yazımlarla) ─────────────
+   Bu başlıklar koda NORMAL harfle yazılmış, ekranda CSS büyütüyor.
+   Daha önce BÜYÜK harfli eklediğim için hiç tutmamıştı. Ayrıca alt
+   nottaki kesme işareti tipografik (’), düz (') değil.
+   ─────────────────────────────────────────────────────────────────── */
+Object.assign(window.I18N.en, {
+  'Lig Maç Ödülleri':'League Match Rewards',
+  'Kupa Maç Ödülleri':'Cup Match Rewards',
+  'Turnuva Tur & Şampiyonluk Bonusu':'Tournament Round & Title Bonus',
+  'Lig Sezon-Sonu Sıralama (Şampiyon)':'League End-of-Season Standings (Champion)',
+  'Şampiyon ödülü':'Champion prize',
+  'Beraberlik':'Draw',
+  'İlk 16 sıraya ödül verilir; aşağı sıralar kademeli azalır. Değerler 1.’lik içindir.':'The top 16 places receive a prize; lower places are reduced in steps. The figures shown are for 1st place.',
+  'İlk 16 sıraya ödül verilir; aşağı sıralar kademeli azalır. Değerler 1.\'lik içindir.':'The top 16 places receive a prize; lower places are reduced in steps. The figures shown are for 1st place.',
+
+  // ── lig istatistik alt başlığı ──
+  'Sezonda atılan toplam gol':'Total goals scored this season',
+  'Sezonda atılan toplam asist':'Total assists made this season',
+  'Sezonda yapılan toplam asist':'Total assists made this season'
+});
+
+window.I18N_PATTERNS.en.push(
+  // "Çar 2 Eylül 2026"  (kısaltma gün + TAM ay + yıl)
+  [/^(Paz|Pzt|Sal|Çar|Per|Cum|Cmt) (\d{1,2}) (Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık) (\d{4})$/,
+    m => (window.I18N.en[m[1]] || m[1]) + ' ' + m[2] + ' ' + (window.I18N.en[m[3]] || m[3]) + ' ' + m[4]],
+  // "Çarşamba, 2 Eylül 2026"
+  [/^(Pazar|Pazartesi|Salı|Çarşamba|Perşembe|Cuma|Cumartesi), (\d{1,2}) (Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık) (\d{4})$/,
+    m => (window.I18N.en[m[1]] || m[1]) + ', ' + m[2] + ' ' + (window.I18N.en[m[3]] || m[3]) + ' ' + m[4]],
+  // "2 Eylül 2026"
+  [/^(\d{1,2}) (Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık) (\d{4})$/,
+    m => m[1] + ' ' + (window.I18N.en[m[2]] || m[2]) + ' ' + m[3]],
+  [/^Sezonda atılan toplam (gol|asist)$/,
+    m => 'Total ' + (m[1] === 'gol' ? 'goals scored' : 'assists made') + ' this season']
+);
+
+/* ── 41b · sezon takvimi bilgi kutuları (çok satırlı metinler) ── */
+Object.assign(window.I18N.en, {
+  'Bu günlerde lig maçları oynanmaz. Takımlar transfer pazarı açık kalır; kadronu güçlendirmek, sakat veya formdan düşen oyuncularını değiştirmek için sezon ortasındaki son fırsattır.':'No league matches are played on these days. The transfer market stays open — this is the last chance mid-season to strengthen your squad and replace injured or out-of-form players.',
+  'Lig sezonu sona erdi. Bu dönemde sezon sonu transfer pazarı açılır ve milli takımların katıldığı':'The league season is over. The end-of-season transfer market opens and the',
+  'turnuvası başlar. Bir sonraki sezon hazırlıkları için kadronu yeniden şekillendirme zamanı.':'tournament for national teams begins. Time to reshape your squad for next season.',
+  'Ara Transfer Dönemi':'Mid-Season Transfer Window',
+  'Sezon Sonu Dönemi':'End of Season Period'
+});
