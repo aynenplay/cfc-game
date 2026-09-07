@@ -4129,3 +4129,36 @@ window.I18N_PATTERNS.en.push(
   [/^(\d+) ücretsiz Bronz bilet$/,      '$1 free Bronze ticket'],
   [/^Günde (\d+) ücretsiz Bronz bilet$/,'$1 free Bronze ticket every day']
 );
+
+/* ── 34. dalga · turnuva ağacı (eşleşme durumları, tarihler) ── */
+Object.assign(window.I18N.en, {
+  'Bekliyor':'Pending',
+  'BEKLİYOR':'PENDING',
+  'belirleniyor':'to be decided',
+  'tarih bekleniyor':'date pending',
+  'Planlı':'Planned',
+  'PLANLI':'PLANNED',
+  'tek maç':'single leg',
+  'Bu turnuva için takvim olayı bulunamadı.':'No calendar event found for this tournament.',
+  'Final':'Final',
+  'Final 🏆':'Final 🏆',
+  'UZT':'AET',
+  'Pen':'Pen'
+});
+
+window.I18N_PATTERNS.en.push(
+  // ağaç tarihi: "8 Eyl · 9 Eyl"
+  [/^(\d{1,2}) (Oca|Şub|Mar|Nis|May|Haz|Tem|Ağu|Eyl|Eki|Kas|Ara) · (\d{1,2}) (Oca|Şub|Mar|Nis|May|Haz|Tem|Ağu|Eyl|Eki|Kas|Ara)$/,
+    m => m[1] + ' ' + (window.I18N.en[m[2]] || m[2]) + ' · ' + m[3] + ' ' + (window.I18N.en[m[4]] || m[4])],
+  // "1.M 8 Eyl · 2.M 9 Eyl"  /  "1.M 2-1 · 2.M 0-0"
+  [/^1\.M (.+?) · 2\.M (.+)$/, m => 'Leg 1 ' + _ic(m[1]) + ' · Leg 2 ' + _ic(m[2])],
+  [/^(\d+)\.M (.+)$/,          m => 'Leg ' + m[1] + ' ' + _ic(m[2])],
+  // "8 Eyl · tek maç"
+  [/^(.+?) · tek maç$/,        m => _ic(m[1]) + ' · single leg'],
+  // "5. Maç Günü · 8 Eyl"
+  [/^(\d+)\. Maç Günü · (.+)$/, m => 'Matchday ' + m[1] + ' · ' + _ic(m[2])],
+  // "Sezon 3 sonu sıralamasından · Play-Off'a gidecek takımlar"
+  [/^Sezon (\d+) sonu sıralamasından · Play-Off'a gidecek takımlar$/,
+    'From the end-of-season $1 standings · teams going to the Play-Off'],
+  [/^(.+?) — Senin Takımın$/,  m => _ic(m[1]) + ' — Your Team']
+);
