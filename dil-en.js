@@ -3779,7 +3779,7 @@ window.I18N_PATTERNS.en.push(
   [/^(.*?)(\d+)\. Lig · Week (\d+)$/,
     m => m[1] + (['','','2nd','3rd','4th','5th','6th','7th','8th'][Number(m[2])] || m[2]+'.') + ' Division · Week ' + m[3]],
   [/^(.*?)(\d+)\. Lig · (.+)$/,
-    m => m[1] + (['','','2nd','3rd','4th','5th','6th','7th','8th'][Number(m[2])] || m[2]+'.') + ' Division · ' + m[3]],
+    m => m[1] + (['','','2nd','3rd','4th','5th','6th','7th','8th'][Number(m[2])] || m[2]+'.') + ' Division · ' + _ic(m[3])],
   // "⭐ Grup G · 4 Ülke"
   [/^(.*?)Grup ([A-H]) · (\d+) Ülke$/, m => m[1] + 'Group ' + m[2] + ' · ' + m[3] + ' Countries'],
   [/^(.*?)Grup ([A-H])$/,              m => m[1] + 'Group ' + m[2]],
@@ -3849,10 +3849,10 @@ Object.assign(window.I18N.en, {
 window.I18N_PATTERNS.en.push(
   // "Yunanistan · Süper Lig" → "Greece · Super League"
   [/^(.+?) · Süper Lig$/,  m => _ic(m[1]) + ' · Super League'],
-  [/^(.+?) · (\d+)\. Lig$/, m => (window.I18N.en[m[1]] || m[1]) + ' · '
+  [/^(.+?) · (\d+)\. Lig$/, m => _ic(m[1]) + ' · '
       + (['','','2nd','3rd','4th','5th','6th','7th','8th'][Number(m[2])] || m[2]+'.') + ' Division'],
   // ülke filtresi çipi: "İtalya (34)"
-  [/^(.+?) \((\d+)\)$/, m => (window.I18N.en[m[1]] || m[1]) + ' (' + m[2] + ')'],
+  [/^(.+?) \((\d+)\)$/, m => _ic(m[1]) + ' (' + m[2] + ')'],
   // "6 Eyl · Pazar" / "7 Eyl · Pazartesi"
   [/^(\d{1,2}) (Oca|Şub|Mar|Nis|May|Haz|Tem|Ağu|Eyl|Eki|Kas|Ara) · (Pazar|Pazartesi|Salı|Çarşamba|Perşembe|Cuma|Cumartesi)$/,
     m => m[1] + ' ' + (window.I18N.en[m[2]] || m[2]) + ' · ' + (window.I18N.en[m[3]] || m[3])],
@@ -3991,3 +3991,43 @@ window.I18N_PATTERNS.en.push(
   [/^Bu filtrede Sezon (\d+) kupası yok\.$/, 'No Season $1 cups match this filter.'],
   [/^Bu filtrede (.+?) kupası yok\.$/, m => 'No ' + (window.I18N.en[m[1]] || m[1]) + ' cups match this filter.']
 );
+
+/* ── 31. dalga · arşiv: kademe altyazıları, rekorlar, sayaçlar ── */
+Object.assign(window.I18N.en, {
+  'en üst kademe':'top tier',
+  'orta kademe':'mid tier',
+  'alt kademe':'lower tier',
+  'milli takımlar':'national teams',
+  'Rekorlar':'Records',
+  '🌍 Rekorlar için yukarıdan bir ülke seç.':'🌍 Choose a country above to see records.',
+  'Rekorlar için yukarıdan bir ülke seç.':'Choose a country above to see records.',
+  'MİLLİ TAKIMLAR KUPASI':'NATIONS CUP',
+  'CHAMPIONSHIP LEAGUE':'CHAMPIONSHIP LEAGUE',
+  'ELITE LEAGUE':'ELITE LEAGUE',
+  'CONVERGENCE LEAGUE':'CONVERGENCE LEAGUE'
+});
+
+window.I18N_PATTERNS.en.push(
+  // "Sezon 3 · en üst kademe"
+  [/^Sezon (\d+) · (.+)$/, m => 'Season ' + m[1] + ' · ' + _ic(m[2])],
+  // "16 takım" / "16 takım · Sezon 3"
+  [/^(\d+) takım$/,               '$1 teams'],
+  [/^(\d+) takım · (.+)$/,        m => m[1] + ' teams · ' + _ic(m[2])],
+  // "37 PUAN · +12"
+  [/^(\d+) PUAN · (.+)$/,         '$1 POINTS · $2'],
+  [/^(\d+) PUAN$/,                '$1 POINTS'],
+  [/^(\d+) puan · (.+)$/,         m => m[1] + ' points · ' + _ic(m[2])],
+  // "20 maç · 12 puan · +5 av."
+  [/^(\d+) maç · (\d+) puan · (.+) av\.$/, '$1 matches · $2 points · $3 GD'],
+  [/^(\d+) maç$/,                 m => m[1] + (m[1] === '1' ? ' match' : ' matches')],
+  [/^(.+?) · Sezon (\d+) · (\d+) kupa$/,
+    m => _ic(m[1]) + ' · Season ' + m[2] + ' · ' + m[3] + (m[3] === '1' ? ' cup' : ' cups')]
+);
+
+/* ── 31b · küçük harfli varyantlar ── */
+Object.assign(window.I18N.en, {
+  'Tüm ülkeler':'All countries',
+  'Tüm takımlar':'All teams',
+  'tüm ülkeler':'all countries',
+  'tüm takımlar':'all teams'
+});
