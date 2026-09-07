@@ -4067,3 +4067,65 @@ Object.assign(window.I18N.en, {
   'seçim gününde':'on election day',
   'yönetimsiz':'unmanaged'
 });
+
+/* ── 33. dalga · kazı kazan, transfer, oyuncu kartı ── */
+Object.assign(window.I18N.en, {
+  // ── kazı kazan ──
+  'ALTIN':'GOLD',
+  'BRONZ':'BRONZE',
+  'GÜMÜŞ':'SILVER',
+  'AL':'CLAIM',
+  'Altın':'Gold', 'Bronz':'Bronze', 'Gümüş':'Silver',
+  'Altın Bilet':'Gold Ticket', 'Bronz Bilet':'Bronze Ticket', 'Gümüş Bilet':'Silver Ticket',
+  'bilet bedeli':'ticket price',
+
+  // ── transfer ──
+  '📭 Satışta oyuncu yok.':'📭 No players for sale.',
+  'Satışta oyuncu yok.':'No players for sale.',
+  'Takım liderleri buraya oyuncu ekleyebilir.':'Team leaders can add players here.',
+  'Oyuncu veya mevki ara...':'Search player or position...',
+  'Satış Listesi':'Sale List',
+  'Serbest Oyuncu Listesi':'Free Agent List',
+
+  // ── oyuncu kartı ──
+  'Yrd. Kaptan':'Asst. Captain',
+  'YRD. KAPTAN':'ASST. CAPTAIN',
+  'Yrd. Kaptan · Sen':'Asst. Captain · You',
+  '⭐ Yrd. Kaptan':'⭐ Asst. Captain',
+  '👑 Kaptan':'👑 Captain',
+  '★ Sen':'★ You',
+  'Kariyer:':'Career:',
+  '🎬 Kariyer:':'🎬 Career:',
+  'Lig':'League',
+  'Piyasa':'Market',
+  'Maaş':'Wage',
+  'Sözleşme':'Contract',
+  'Profili Gör':'View Profile',
+  'Mesaj Gönder':'Send Message',
+  'Teklif Yap':'Make Offer',
+  'Takımı Gör':'View Team',
+  'Milli Takım':'National Team',
+  'Forvet':'Forward',
+  'Sol Forvet':'Left Forward',
+  'Sağ Forvet':'Right Forward',
+  'Kaleci':'Goalkeeper',
+  'Defans':'Defence',
+  'Orta Saha':'Midfield'
+});
+
+window.I18N_PATTERNS.en.push(
+  // "Sv. 12" / "Sv.12" — seviye rozeti
+  [/^Sv\.\s?(\d+)$/,                     'Lv. $1'],
+  [/^Sv\.(\d+) · (.+)$/,   m => 'Lv.' + m[1] + ' · ' + _ic(m[2])],
+  // "🎬 Kariyer: 17 Tem 2026 · S2"
+  [/^🎬 Kariyer: (.+)$/,   m => '🎬 Career: ' + _ic(m[1])],
+  [/^Kariyer: (.+)$/,      m => 'Career: ' + _ic(m[1])],
+  // "17 Tem 2026 · S2"
+  [/^(\d{1,2}) (Oca|Şub|Mar|Nis|May|Haz|Tem|Ağu|Eyl|Eki|Kas|Ara) (\d{4}) · S(\d+)$/,
+    m => m[1] + ' ' + (window.I18N.en[m[2]] || m[2]) + ' ' + m[3] + ' · S' + m[4]],
+  // "Artvin · Lig"
+  [/^(.+?) · Lig$/,        m => m[1] + ' · League'],
+  // günlük ücretsiz bilet
+  [/^(\d+) ücretsiz Bronz bilet$/,      '$1 free Bronze ticket'],
+  [/^Günde (\d+) ücretsiz Bronz bilet$/,'$1 free Bronze ticket every day']
+);
