@@ -3453,7 +3453,10 @@ window.I18N_PATTERNS.en.push(
   [/^Kaptan (.+?)'a sözleşme yenileme talebi gönderdin\.$/, 'You sent a contract renewal request to captain $1.'],
   [/^Enerjin tamamen doldu \((.+?)\)\.$/,             'Your energy is full ($1).'],
   [/^Giriş serin (\d+)\. günde\.$/,                   'Your login streak is on day $1.'],
-  [/^Haftalık yarışını (\d+)\. sırada tamamladın\.$/, 'You finished the weekly race in $1 place.'],
+  [/^Haftalık yarışını (\d+)\. sırada tamamladın\.$/, m => {
+    var n=Number(m[1]), sf=['th','st','nd','rd'][(n%100-n%10!=10)*(n%10<4)*(n%10)]||'th';
+    return 'You finished the weekly race in ' + n + sf + ' place.';
+  }],
   [/^Tebrikler! Maçtaki performansınla XP kazanarak (\d+)\. seviyeye yükseldin\.$/,
     'Congratulations! Your performance earned XP and took you to level $1.'],
   [/^Tebrikler, (\d+)\. seviyeye ulaştın\.$/,         'Congratulations, you reached level $1.'],
@@ -3615,7 +3618,7 @@ window.I18N_PATTERNS.en.push(
   [/^SEZON (\d+) SONA ERDİ$/,                 'SEASON $1 HAS ENDED'],
   [/^Sezon (\d+) sona erdi!$/,                'Season $1 has ended!'],
   [/^Sezon (\d+) Federasyon Başkanı:$/,       'Season $1 Federation President:'],
-  [/^Sezon (\d+) Sonuçlandı — (\d+)\. Sıra$/, 'Season $1 finished — $2 place'],
+  // (bu desen 45c'deki sıra ekli sürümle değiştirildi)
   [/^Sezona (\d+) gün$/,                      '$1 days to the season'],
   [/^Sezonun (\d+)\. gününde · (\d+) gün kaldı$/, 'On day $1 of the season · $2 days left'],
   [/^Sezon Gün (\d+) — bu tarihte lig maçı yok\.$/, 'Season day $1 — no league match on this date.'],
@@ -4753,4 +4756,119 @@ window.I18N_PATTERNS.en.push(
   [/^Aklından ne geçiyor\? \(en fazla (\d+) karakter\)$/, 'What’s on your mind? (max $1 characters)'],
   [/^\(en fazla (\d+) karakter\)$/,  '(max $1 characters)'],
   [/^en fazla (\d+) karakter$/,      'max $1 characters']
+);
+
+/* ── 45. dalga (1/2) · INBOX gövde satırları (sabit metinler) ────────
+   Inbox gövdeleri \n → <br> ile bölünüyor, her satır ayrı metin
+   düğümü oluyor. Bu yüzden satır satır çevriliyor.
+   ─────────────────────────────────────────────────────────────────── */
+Object.assign(window.I18N.en, {
+  '📊 Sistemce hesaplanan yeni maaş teklifi:':'📊 New wage calculated by the system:',
+  '📊 Sistemce hesaplanan yeni maaş:':'📊 New wage calculated by the system:',
+  '• Yeni sezon maaşı:':'• New season wage:',
+  '• Yeni yıllık maaş:':'• New annual wage:',
+  '• İlk imza maaşı:':'• First signing wage:',
+  '• İmza primi:':'• Signing bonus:',
+  '• Yeni bitiş: 1 sezon uzatma':'• New end: extended by 1 season',
+  'Mesaj kaydedilemedi.':'The message could not be saved.',
+  'Yeni Mesaj':'New Message',
+  'Maç Başlıyor':'Match Starting',
+  'Kupon Sonuçlandı':'Coupon Settled',
+  'Haftalık Yarış Bitti':'Weekly Race Over',
+  'Tüm mesajları sil':'Delete all messages',
+  'Mesajı sil':'Delete message',
+  'Okundu işaretle':'Mark as read',
+  'Gelen Kutusu':'Inbox',
+  'Yeni mesaj yok':'No new messages'
+});
+
+window.I18N_PATTERNS.en.push(
+  // ── sözleşme / maaş satırları ──
+  [/^• Sezon maaşı: (.+?) \((.+?)\)$/,          '• Season wage: $1 ($2)'],
+  [/^• Sezon maaşı: (.+)$/,                     '• Season wage: $1'],
+  [/^• Yeni maaş: (.+?) \((.+?)\)$/,            '• New wage: $1 ($2)'],
+  [/^• Yeni maaş: (.+)$/,                       '• New wage: $1'],
+  [/^• Yeni sezon maaşı: (.+)$/,                '• New season wage: $1'],
+  [/^• Yeni sezon maaşın: (.+?) \(ilk imza maaşı\)$/, '• Your new season wage: $1 (first signing wage)'],
+  [/^• Yeni sezon maaşın: (.+?) \(ilk imzaladığın maaş — büyüme yansıtılmadı\)$/,
+    '• Your new season wage: $1 (the wage you first signed — growth not applied)'],
+  [/^• Yeni sezon maaşın: (.+)$/,               '• Your new season wage: $1'],
+  [/^• Yeni yıllık maaş: (.+)$/,                '• New annual wage: $1'],
+  [/^• İlk imza maaşı: (.+)$/,                  '• First signing wage: $1'],
+  [/^• İmza primi: (.+)$/,                      '• Signing bonus: $1'],
+  [/^• İmza Talebi: (.+)$/,                     '• Signing request: $1'],
+  [/^• Süre: (\d+) sezon$/,                     '• Length: $1 seasons'],
+  [/^• Yeni bitiş: (\d+)\. sezon sonu$/,        '• New end: end of season $1'],
+  [/^• Sözleşme bir sezon daha uzadı: (\d+)\. sezon sonu$/,
+    '• The contract was extended by one more season: end of season $1'],
+  [/^⚠️ Reddedersen: maaşın ilk imza seviyene \((.+?)\) düşer \+ takımdan ayrılma serbestliği kazanırsın\.$/,
+    '⚠️ If you decline: your wage drops to the first signing level ($1) and you gain the freedom to leave the team.'],
+  [/^ile sözleşmen (\d+)\. sezon sonunda doldu\.$/,  'your contract expired at the end of season $1.'],
+  [/^ile sözleşmen (\d+) gün içinde sona eriyor\.$/, 'your contract expires in $1 days.'],
+  [/^Sözleşmen (\d+) Gün Sonra Bitiyor$/,       'Your Contract Expires In $1 Days'],
+  [/^Kaptan (.+?)'a sözleşme yenileme talebi gönderdin\.$/,
+    'You sent a contract renewal request to captain $1.']
+);
+
+/* ── 45. dalga (2/2) · bildirimler, seviye, kupon, oylama ── */
+window.I18N_PATTERNS.en.push(
+  // ── seviye / XP bildirimleri ──
+  [/^Seviye (\d+)'a Yükseldin!$/,               'You Reached Level $1!'],
+  [/^Seviye (\d+)'e Yükseldin!$/,               'You Reached Level $1!'],
+  [/^(.+?) Sv\.(\d+)'e yükseldi$/,              '$1 rose to Lv.$2'],
+  [/^(.+?) maçta \+(\d+) XP kazandı$/,          '$1 earned +$2 XP in the match'],
+  [/^Tebrikler, (\d+)\. seviyeye ulaştın\.$/,   'Congratulations, you reached level $1.'],
+  [/^Tebrikler! Maçtaki performansınla XP kazanarak (\d+)\. seviyeye yükseldin\.$/,
+    'Congratulations! Your performance earned XP and took you to level $1.'],
+  // ── kupon / ödül ──
+  [/^🎉 Tebrikler! (.+?) bültenindeki kuponun (\d+)\/8 isabet ile kazandı\.$/,
+    '🎉 Congratulations! Your coupon in the $1 bulletin won with $2/8 correct.'],
+  [/^🎯 İsabet: (\d+)\/8 \(oran %(.+?)\)$/,     '🎯 Correct: $1/8 (odds $2%)'],
+  [/^🎯 İsabet: (\d+)\/(\d+)$/,                 '🎯 Correct: $1/$2'],
+  [/^💰 Ödül: (.+)$/,                           '💰 Reward: $1'],
+  [/^💎 (.+?) elmas hesabına yansıdı\.$/,        '💎 $1 diamonds have been credited to your account.'],
+  [/^(.+?): (.+?) 💎 ödülün hesabına eklendi$/, '$1: $2 💎 reward credited to your account'],
+  [/^Tebrikler! (.+?) yarışında \*\*#(\d+)\*\* sırada bitirdin\.$/,
+    'Congratulations! You finished #$2 in the $1 race.'],
+  [/^Haftalık yarışını (\d+)\. sırada tamamladın\.$/, m => {
+    var n=Number(m[1]), sf=['th','st','nd','rd'][(n%100-n%10!=10)*(n%10<4)*(n%10)]||'th';
+    return 'You finished the weekly race in ' + n + sf + ' place.';
+  }],
+  // ── giriş serisi / hediye ──
+  [/^Giriş serin (\d+)\. günde\.$/,             'Your login streak is on day $1.'],
+  [/^Gün (\d+) Hediyen Hazır$/,                 'Day $1 Gift Ready'],
+  // ── oylama ──
+  [/^(.+?) adayına oy vermek üzeresin\..*$/,
+    'You are about to vote for $1. ⚠️ A cast vote cannot be changed or cancelled.'],
+  // ── kadro / transfer uyarıları ──
+  [/^Bu takımda yabancı oyuncu kontenjanı dolu \((\d+)\/(\d+)\)\.$/,
+    'This team’s foreign player quota is full ($1/$2).'],
+  [/^Takımda başka gerçek oyuncu yok\. (.+?) \(bot\) kaptan olacak.*$/,
+    'There is no other real player in the team. $1 (bot) will become captain and you will be an ordinary member, which lets you leave. Do you confirm?'],
+  [/^Tüm mesajların \((\d+) adet\) silinecek\. Bu işlem geri alınamaz\.$/,
+    'All your messages ($1) will be deleted. This cannot be undone.'],
+  [/^Sezon (\d+) Sonuçlandı — (\d+)\. Sıra$/, m => {
+    var n=Number(m[2]), sf=['th','st','nd','rd'][(n%100-n%10!=10)*(n%10<4)*(n%10)]||'th';
+    return 'Season ' + m[1] + ' Finished — ' + n + sf + ' Place';
+  }],
+  [/^Slot (\d+) Aç\?$/,                         'Unlock Slot $1?']
+);
+
+/* ── 45c · inbox başlıkları "Konu — Ad" kalıbı ── */
+window.I18N_PATTERNS.en.push(
+  [/^Resmi Transfer Teklifi — (.+)$/,        'Official Transfer Offer — $1'],
+  [/^Transfer Tamamlandı — (.+)$/,           'Transfer Completed — $1'],
+  [/^Transfer Bildirimi — (.+)$/,            'Transfer Notice — $1'],
+  [/^Teklif Gönderildi — (.+)$/,             'Offer Sent — $1'],
+  [/^Kişisel Teklif — (.+)$/,                'Personal Offer — $1'],
+  [/^Katılma İsteğin Reddedildi — (.+)$/,    'Your Join Request Was Declined — $1'],
+  [/^Bildirim Gönderildi — (.+)$/,           'Notification Sent — $1'],
+  [/^Sözleşmen Sona Erdi — (.+)$/,           'Your Contract Has Expired — $1'],
+  [/^Sözleşmen Yenilendi — (.+)$/,           'Your Contract Was Renewed — $1'],
+  [/^Yenileme Onaylandı — (.+)$/,            'Renewal Approved — $1'],
+  [/^Yenileme Reddedildi — (.+)$/,           'Renewal Declined — $1'],
+  [/^Yenileme Talebi Gönderildi — (.+)$/,    'Renewal Request Sent — $1'],
+  [/^Sözleşme Yenileme Talebi — (.+)$/,      'Contract Renewal Request — $1'],
+  [/^Milli Takıma Davet — (.+)$/,            'National Team Call-Up — $1'],
+  [/^Maaş Ödemesi — (.+)$/,                  'Wage Payment — $1']
 );
