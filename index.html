@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '490';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '496';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -29169,7 +29169,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-07-inbox-490';
+const APP_BUILD = '2026-09-08-transfer-496';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -29861,7 +29861,23 @@ function T(metin) {
   // 1) Birebir
   if (Object.prototype.hasOwnProperty.call(sozluk, ham)) sonuc = sozluk[ham];
 
-  // 2) Baştaki/sondaki boşluk ve emoji/simge dışarıda bırakılarak
+  // 2) 🆕 SADECE baştaki/sondaki boşluk kırpılarak.
+  //    ⚠️ Bu adım, emoji soyan adımdan ÖNCE gelmek ZORUNDA. Sebebi:
+  //    sözlükte anahtar emojisiyle birlikte durabiliyor
+  //    ("📨 Teklifler": "📨 Offers"). Metin düğümü sondaki boşlukla
+  //    gelirse ("📨 Teklifler ") adım 1 tutmaz; emoji soyan adım da
+  //    sözlükte olmayan çıplak "Teklifler"i arar ve çeviri kaçardı.
+  //    Boşluk sadeleştirme adımı ise yalnız çift boşluk/satır sonu
+  //    varsa çalıştığından tek boşluğu hiç yakalamıyordu.
+  const _bas = (ham.match(/^\s*/) || [''])[0];
+  const _bit = (ham.match(/\s*$/) || [''])[0];
+  const _kirpik = ham.trim();
+  if (sonuc === null && _kirpik && _kirpik !== ham
+      && Object.prototype.hasOwnProperty.call(sozluk, _kirpik)) {
+    sonuc = _bas + sozluk[_kirpik] + _bit;
+  }
+
+  // 3) Baştaki/sondaki boşluk ve emoji/simge dışarıda bırakılarak
   if (sonuc === null) {
     const m = ham.match(/^([\s ]*(?:[^\p{L}\p{N}]*[\s ]*)?)(.*?)([\s ]*)$/u);
     if (m && m[2] && m[2] !== ham) {
@@ -29870,20 +29886,18 @@ function T(metin) {
     }
   }
 
-  // 3) HTML girintisi yüzünden içinde satır sonu / çoklu boşluk olan metinler.
+  // 4) HTML girintisi yüzünden içinde satır sonu / çoklu boşluk olan metinler.
   //    Kaynak kodda alt alta yazılan etiketler böyle gelir; birebir eşleşmez.
   //    Boşlukları sadeleştirip dene, baştaki/sondaki boşluğu koru.
   let sadeMetin = null;
   if (sonuc === null && /\s\s|\n|\t/.test(ham)) {
-    const bas = (ham.match(/^\s*/) || [''])[0];
-    const bit = (ham.match(/\s*$/) || [''])[0];
-    sadeMetin = ham.trim().replace(/\s+/g, ' ');
+    sadeMetin = _kirpik.replace(/\s+/g, ' ');
     if (sadeMetin && sadeMetin !== ham && Object.prototype.hasOwnProperty.call(sozluk, sadeMetin)) {
-      sonuc = bas + sozluk[sadeMetin] + bit;
+      sonuc = _bas + sozluk[sadeMetin] + _bit;
     }
   }
 
-  // 4) Desen kuralları (sayı içeren dinamik metinler)
+  // 5) Desen kuralları (sayı içeren dinamik metinler)
   if (sonuc === null) {
     const desenler = window.I18N_PATTERNS[_i18nLang] || [];
     // ⚠️ ÖNEMLİ: eskiden yalnızca (sadeMetin || ham) denenirdi. HTML'de
@@ -29891,9 +29905,7 @@ function T(metin) {
     // " · Gün 23" olarak gelir; baştaki boşluk yüzünden /^· Gün (\d+)$/
     // deseni HİÇ eşleşmiyordu. Artık kırpılmış hâli de deniyoruz ve
     // eşleşirse baştaki/sondaki boşluğu aynen geri koyuyoruz.
-    const bas = (ham.match(/^\s*/) || [''])[0];
-    const bit = (ham.match(/\s*$/) || [''])[0];
-    const kirpik = ham.trim();
+    const bas = _bas, bit = _bit, kirpik = _kirpik;
     const adaylar = [];
     if (sadeMetin) adaylar.push(sadeMetin);
     if (adaylar.indexOf(ham) < 0) adaylar.push(ham);
@@ -30022,6 +30034,13 @@ window.i18nEksikKopyala = function () {
 //  ekranın başka yerlerinde de geçiyor, hepsini bozardı. Bu yüzden
 //  başlıkları burada, dile göre üretiyoruz.
 // ═══════════════════════════════════════════════════════════════════
+// Tarih biçimi için yerel ayar: TR "27.05.2026", EN "27/05/2026".
+// toLocaleDateString('tr-TR') sabit yazıldığı yerlerde bunu kullanıyoruz.
+window._tarihYerel = function () {
+  try { return (typeof i18nLang === 'function' && i18nLang() !== 'tr') ? 'en-GB' : 'tr-TR'; }
+  catch (e) { return 'tr-TR'; }
+};
+
 window._ligKolon = function () {
   var en = false;
   try { en = (typeof i18nLang === 'function' && i18nLang() !== 'tr'); } catch (e) {}
@@ -37014,7 +37033,7 @@ function _renderHmTournamentMatch(t) {
   const formHtml = (results, rev) => {
     const cells = Array(5).fill('q');
     results.slice(-5).forEach((r, i) => { cells[i] = (r === '?' ? 'q' : r.toLowerCase()); });
-    const labels = { w:'G', d:'B', l:'M', q:'?' };
+    const _lk = window._ligKolon(); const labels = { w:_lk.g, d:_lk.b, l:_lk.m, q:'?' };
     const arr = rev ? [...cells].reverse() : cells;
     return arr.map(r => `<div class="hm-nm-fc ${r}">${labels[r]||'?'}</div>`).join('');
   };
@@ -43960,7 +43979,7 @@ function showSeasonEndCeremony(result) {
       if (typeof getTeamLast5Matches === 'function' && typeof _userTeam !== 'undefined' && _userTeam) {
         f = getTeamLast5Matches({ name: _userTeam.teamName, countryCode: _userTeam.countryCode }) || [];
       }
-      const harf = { w:'G', d:'B', l:'M' };
+      const _lk = window._ligKolon(); const harf = { w:_lk.g, d:_lk.b, l:_lk.m };
       const ic = f.slice(0,5).map(x => {
         const h = harf[String(x).toLowerCase()] || '?';
         return `<div class="sez-fc ${h}">${h}</div>`;
@@ -62629,7 +62648,7 @@ function _renderHomeNextMatchCore() {
       // ? karakteri CSS class olamaz → q'ya çevir
       cells[i] = (r === '?' ? 'q' : r.toLowerCase());
     });
-    const labels = { w:'G', d:'B', l:'M', q:'?' };
+    const _lk = window._ligKolon(); const labels = { w:_lk.g, d:_lk.b, l:_lk.m, q:'?' };
     const arr = rev ? [...cells].reverse() : cells;
     return arr.map(r => `<div class="hm-nm-fc ${r}">${labels[r]||'?'}</div>`).join('');
   };
@@ -62835,7 +62854,7 @@ function _renderHmFriendlyMatch(fm) {
     results.slice(-5).forEach((r, i) => {
       cells[i] = (r === '?' ? 'q' : r.toLowerCase());
     });
-    const labels = { w:'G', d:'B', l:'M', q:'?' };
+    const _lk = window._ligKolon(); const labels = { w:_lk.g, d:_lk.b, l:_lk.m, q:'?' };
     const arr = rev ? [...cells].reverse() : cells;
     return arr.map(r => `<div class="hm-nm-fc ${r}">${labels[r]||'?'}</div>`).join('');
   };
@@ -63485,7 +63504,7 @@ function _renderHmNationalMatch(n) {
         const hucre = Array(5).fill('q');
         const liste = (arr || []).slice(0, 5);
         liste.forEach((r, i) => { hucre[i] = r || 'q'; });
-        const etiket = { w: 'G', d: 'B', l: 'M', q: '?' };
+        const _lk = window._ligKolon(); const etiket = { w: _lk.g, d: _lk.b, l: _lk.m, q: '?' };
         const son = ters ? hucre.slice().reverse() : hucre;
         return son.map(r => `<div class="hm-nm-fc ${r}">${etiket[r] || '?'}</div>`).join('');
       };
@@ -64554,7 +64573,9 @@ async function renderHomeRankingSummary(){
     : `<span class="hm-race-team-logo" style="background:${bg};color:${tc}">${esc(short)}</span>`;
   const rowLogo=(r,bd,name,score)=>`<div class="hm-race-row rank-${r}"><span class="hm-race-rank">${r}</span>${bd}<span class="hm-race-name">${esc(name)}</span><span class="hm-race-score">${esc(score)}</span></div>`;
   const rowFlag=(r,flag,name,score)=>`<div class="hm-race-row rank-${r}"><span class="hm-race-rank">${r}</span><span class="hm-race-flag">${flag||'🏳️'}</span><span class="hm-race-name">${esc(name)}</span><span class="hm-race-score">${esc(score)}</span></div>`;
-  const col=(cls,icon,label,tab,rows)=>`<div class="hm-race-col ${cls}"><div class="hm-race-col-title"><span class="hm-race-col-icon">${icon}</span><span class="hm-race-col-label">${label}</span><button class="hm-race-col-go" onclick="event.stopPropagation();goToRankingTab('${tab}')" title="Sıralamalar — ${label}" aria-label="${label} sıralaması">${ARROW}</button></div><div class="hm-race-list">${rows||'<div class="hm-race-empty" style="padding:14px 6px">Veri yok</div>'}</div></div>`;
+  const _cvr=(t)=>{ try{ return (typeof T==='function') ? T(t) : t; }catch(e){ return t; } };
+  const col=(cls,icon,label,tab,rows)=>{ const L=_cvr(label), S=_cvr('Sıralamalar');
+    return `<div class="hm-race-col ${cls}"><div class="hm-race-col-title"><span class="hm-race-col-icon">${icon}</span><span class="hm-race-col-label">${L}</span><button class="hm-race-col-go" onclick="event.stopPropagation();goToRankingTab('${tab}')" title="${S} — ${L}" aria-label="${L}">${ARROW}</button></div><div class="hm-race-list">${rows||'<div class="hm-race-empty" style="padding:14px 6px">Veri yok</div>'}</div></div>`; };
 
   // Milli + Ligler: yerel hesap (sıralama ile AYNI kaynak: world_state / teams) — yuvarlama YOK
   let natRows='',ligRows='';
@@ -66942,8 +66963,9 @@ function renderCareerPage() {
       teamHistEl.innerHTML = sorted.map(h => {
         const isCurrent = !h.leaveDate;
         const teamFlag = (_cftGetCountry(h.countryCode) || {}).flag || '🏳️';
-        const startDate = h.joinDate ? new Date(h.joinDate).toLocaleDateString('tr-TR') : '—';
-        const endDate = h.leaveDate ? new Date(h.leaveDate).toLocaleDateString('tr-TR') : 'Aktif';
+        const startDate = h.joinDate ? new Date(h.joinDate).toLocaleDateString(window._tarihYerel()) : '—';
+        const endDate = h.leaveDate ? new Date(h.leaveDate).toLocaleDateString(window._tarihYerel())
+          : ((typeof T === 'function') ? T('Aktif') : 'Aktif');
         const days = isCurrent ? _carDaysSince(h.joinDate) : Math.floor((new Date(h.leaveDate) - new Date(h.joinDate)) / 86400000);
 
         // Bu takımdaki maç istatistikleri (varsa)
@@ -66959,7 +66981,7 @@ function renderCareerPage() {
             <div class="car-team-flag">${teamFlag}</div>
             <div class="car-team-info">
               <div class="car-team-name">${h.teamName}${isCurrent ? ' <span style="color:#00e676;font-size:10px">●</span>' : ''}</div>
-              <div class="car-team-period">${startDate} → ${endDate} · ${days} gün${h.leagueName ? ' · ' + h.leagueName : ''}</div>
+              <div class="car-team-period">${startDate} → ${endDate} · ${days} ${(typeof T === 'function') ? T('gün') : 'gün'}${h.leagueName ? ' · ' + h.leagueName : ''}</div>
             </div>
             <div class="car-team-stats">
               ${teamMatches.length}M · ${teamGoals}G · ${teamAssists}A

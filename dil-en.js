@@ -4872,3 +4872,231 @@ window.I18N_PATTERNS.en.push(
   [/^Milli Takıma Davet — (.+)$/,            'National Team Call-Up — $1'],
   [/^Maaş Ödemesi — (.+)$/,                  'Wage Payment — $1']
 );
+
+/* ── 46. dalga · oyuncu KARİYER sekmesi ── */
+Object.assign(window.I18N.en, {
+  '🔁 Transferler':'🔁 Transfers',
+  'Transferler':'Transfers',
+  '📅 Sezonluk Performans':'📅 Seasonal Performance',
+  'Sezonluk Performans':'Seasonal Performance',
+  'oyuna katılım':'joined the game',
+  'ilk maç kaydı':'first match record',
+  'Kariyer başlangıcı':'Career start',
+  '🎬 Kariyer başlangıcı':'🎬 Career start',
+  'Aktif':'Active',
+  'gün':'days',
+  'Piyasa Değeri Gelişimi':'Market Value Progression',
+  'Başarımlar':'Achievements',
+  'Serbest':'Free'
+});
+window.I18N_PATTERNS.en.push(
+  [/^🎬 Kariyer başlangıcı → (.+)$/,   '🎬 Career start → $1'],
+  [/^Kariyer başlangıcı → (.+)$/,      'Career start → $1'],
+  [/^(.+?) · oyuna katılım$/,     m => _ic(m[1]) + ' · joined the game'],
+  [/^(.+?) · ilk maç kaydı$/,     m => _ic(m[1]) + ' · first match record'],
+  [/^(\d+) maç · ortalama (.+?) gol$/, '$1 matches · $2 goals per game'],
+  [/^(\d+) gün$/,                      m => m[1] + (m[1] === '1' ? ' day' : ' days')]
+);
+
+/* ── 46b · ortalama gol/asist ifadeleri ── */
+window.I18N_PATTERNS.en.push(
+  [/^ortalama (.+?) gol$/,    '$1 goals per game'],
+  [/^ortalama (.+?) asist$/,  '$1 assists per game'],
+  [/^ortalama (.+?) reyting$/,'$1 average rating'],
+  [/^ortalama (.+)$/,         'average $1']
+);
+
+/* ── 47. dalga · avatar isimleri + inbox bildirimleri ── */
+Object.assign(window.I18N.en, {
+  // ── avatar seçimi ──
+  'Klasik':'Classic',
+  'Esmer':'Dark-haired',
+  'Sarışın':'Blond',
+  'Kızıl':'Red-haired',
+  'Sakallı':'Bearded',
+  'Asyalı':'Asian',
+  'Avatar Değiştir':'Change Avatar',
+  'Profilinde görünecek avatarı seç':'Choose the avatar shown on your profile',
+  'Değiştir':'Change',
+  'İptal':'Cancel',
+
+  // ── inbox bildirim başlıkları ──
+  '✅ Ceza Bitti':'✅ Suspension Over',
+  'Ceza Bitti':'Suspension Over',
+  '💰 Kulüp Kasası':'💰 Club Treasury',
+  'Kulüp Kasası':'Club Treasury',
+  '⭐ Maçın Adamı':'⭐ Man of the Match',
+  'Maçın Adamı':'Man of the Match',
+  'Maçın Adamı Seçildin!':'You were named Man of the Match!',
+  '🏋️ Antrenman Yıldızı':'🏋️ Training Star',
+  'Antrenman Yıldızı':'Training Star',
+  '⭐ Haftanın Yıldızı':'⭐ Player of the Week',
+  'Haftanın Yıldızı':'Player of the Week',
+  '🏥 Sakatlık İyileşti':'🏥 Injury Healed',
+  '📅 Yaklaşan Maç':'📅 Upcoming Match',
+  '⚽ Maç Günü':'⚽ Matchday',
+  '🗳️ Oylama Sonuçlandı':'🗳️ Voting Closed',
+  'Kaptan Oylaması':'Captain Vote',
+  'Formasyon Oylaması':'Formation Vote',
+  'Oylama süresi doldu.':'The voting period has ended.',
+  'Maç Geliri':'Match Income',
+  'GALİBİYET':'WIN',
+  'BERABERLİK':'DRAW',
+  'MAĞLUBİYET':'DEFEAT',
+  'Pozisyon:':'Position:',
+  'Reyting:':'Rating:',
+  'Hazırlıklarını yap. Strateji ve kadro ayarlarını gözden geçir.':'Get ready. Review your strategy and squad settings.',
+  'sakatlığı atlattı ve antrenmanlara döndü.':'has recovered from injury and is back in training.',
+  'kart cezasını tamamladı ve tekrar maçlara çıkmaya hazır.':'has served the card suspension and is available again.'
+});
+
+window.I18N_PATTERNS.en.push(
+  // "Onur Onur cezası bitti"
+  [/^(.+?) cezası bitti$/,                     '$1 suspension is over'],
+  [/^(.+?) kart cezasını tamamladı ve tekrar maçlara çıkmaya hazır\.$/,
+    '$1 has served the card suspension and is available again.'],
+  [/^(.+?) sakatlığı atlattı ve antrenmanlara döndü\.$/,
+    '$1 has recovered from injury and is back in training.'],
+  // "Pozisyon: LB Reyting: 10"   (tek satırda birleşik hâli)
+  [/^Pozisyon: (.+?) Reyting: (\d+)$/,         'Position: $1 Rating: $2'],
+  [/^Pozisyon: (.+)$/,                         'Position: $1'],
+  [/^Reyting: (\d+)$/,                         'Rating: $1'],
+  // "Maç Geliri — Artvin 4-0 Antakya"
+  [/^Maç Geliri — (.+)$/,                      'Match Income — $1'],
+  [/^GALİBİYET — (.+)$/,                       'WIN — $1'],
+  [/^BERABERLİK — (.+)$/,                      'DRAW — $1'],
+  [/^MAĞLUBİYET — (.+)$/,                      'DEFEAT — $1'],
+  // "Antrenman Yıldızı — 1. Oldun!"
+  [/^Antrenman Yıldızı — (\d+)\. Oldun!$/, m => {
+    var n=Number(m[1]), sf=['th','st','nd','rd'][(n%100-n%10!=10)*(n%10<4)*(n%10)]||'th';
+    return 'Training Star — you finished ' + n + sf + '!';
+  }],
+  [/^Haftanın Yıldızı — (\d+)\. Oldun!$/, m => {
+    var n=Number(m[1]), sf=['th','st','nd','rd'][(n%100-n%10!=10)*(n%10<4)*(n%10)]||'th';
+    return 'Player of the Week — you finished ' + n + sf + '!';
+  }],
+  [/^(\d+)\. Oldun!$/, m => {
+    var n=Number(m[1]), sf=['th','st','nd','rd'][(n%100-n%10!=10)*(n%10<4)*(n%10)]||'th';
+    return 'You finished ' + n + sf + '!';
+  }],
+  // "Bugün Artvin ile maç var!" / "Yarın Artvin maçı var"
+  [/^Bugün (.+?) ile maç var!$/,               'You have a match against $1 today!'],
+  [/^Yarın (.+?) maçı var$/,                   'You have a match against $1 tomorrow'],
+  // inbox zaman damgası: "08 Eyl 11:31"
+  [/^(\d{1,2}) (Oca|Şub|Mar|Nis|May|Haz|Tem|Ağu|Eyl|Eki|Kas|Ara) (\d{1,2}:\d{2})$/,
+    m => m[1] + ' ' + (window.I18N.en[m[2]] || m[2]) + ' ' + m[3]]
+);
+
+/* ── 48. dalga · Avrupa sahnesi aşama başlıkları ─────────────────────
+   "Championship · Son 16" tek metin düğümü olarak geliyor; aşama adı
+   sunucudan ham Türkçe ("Son 16", "Çeyrek Final" …) gelebiliyor.
+   ─────────────────────────────────────────────────────────────────── */
+Object.assign(window.I18N.en, {
+  'Son 16':'Round of 16',
+  'Son 32':'Round of 32',
+  'Son 8':'Quarter-finals',
+  'Son 4':'Semi-finals',
+  'Çeyrek Final':'Quarter-final',
+  'Yarı Final':'Semi-final',
+  'Grup Aşaması':'Group Stage',
+  'Play-off':'Play-off',
+  'Play-off 2':'Play-off 2',
+  'Avrupa Sahnesi':'Europe Stage',
+  'Lig Sahnesi':'League Stage',
+  'Turnuva':'Tournament',
+  'Eleme':'Knockout',
+  'Eleme Turu':'Knockout Round'
+});
+
+window.I18N_PATTERNS.en.push(
+  // "Championship · Son 16"  /  "EURO Cup · Çeyrek Final"
+  [/^(.+?) · (Son 16|Son 32|Son 8|Son 4|Çeyrek Final|Yarı Final|Grup Aşaması|Play-off 2|Play-off|Final|Eleme|Eleme Turu)$/,
+    m => _ic(m[1]) + ' · ' + (window.I18N.en[m[2]] || m[2])],
+  [/^(.+?) - (Son 16|Son 32|Son 8|Son 4|Çeyrek Final|Yarı Final|Grup Aşaması|Play-off 2|Play-off|Final)$/,
+    m => _ic(m[1]) + ' - ' + (window.I18N.en[m[2]] || m[2])],
+  // "Son 16 · 1. Maç"  (çift maçlı turlarda ayak numarası)
+  [/^Son (\d+) · (\d+)\. Maç$/,         'Round of $1 · Leg $2'],
+  [/^Çeyrek Final · (\d+)\. Maç$/,      'Quarter-final · Leg $1'],
+  [/^Yarı Final · (\d+)\. Maç$/,        'Semi-final · Leg $1'],
+  [/^Final · (\d+)\. Maç$/,             'Final · Leg $1'],
+  [/^Son (\d+)$/,                       'Round of $1'],
+  [/^Son (\d+):$/,                      'Round of $1:'],
+  [/^Son (\d+) ·$/,                     'Round of $1 ·'],
+  // "Son 16 Geçiş Primi" gibi ödül satırları zaten sözlükte
+  [/^Son (\d+) Geçiş Primi$/,           'Round of $1 Bonus']
+);
+
+/* ─── Dalga 49 · Ana sayfa sıralama özeti + maç motoru büyük harf etiketleri ─── */
+Object.assign(window.I18N.en, {
+  // Ana sayfa "Ranking Summary" kutusu (kaynakta BÜYÜK harf yazılı)
+  'OYUNCULAR':'PLAYERS',
+  'TAKIMLAR':'TEAMS',
+  'Sıralamalar':'Rankings',
+
+  // Maç olay şeridi (msEventStrip)
+  'KORNER':'CORNER',
+  'FAUL':'FOUL',
+  'PENALTI!':'PENALTY!',
+
+  // Maç motoru canvas uyarıları
+  'OFSAYT':'OFFSIDE',
+  'PENALTI':'PENALTY',
+
+  // Eleme maçı uzatma / penaltı rozetleri
+  'UZ 1':'ET 1',
+  'UZ 2':'ET 2',
+  'UZATMADA KAZANAN':'WINNER AFTER EXTRA TIME',
+  'PENALTILARLA KAZANAN':'WINNER ON PENALTIES',
+
+  // Başkanlık seçimi
+  'OY VER':'VOTE',
+  '✓ OYUM':'✓ MY VOTE',
+
+  // Gelen kutusu etiketi
+  'UYARI':'WARNING',
+
+  // Takımsız oyuncu (sıralama satırlarında takım adı yerine)
+  'SERBEST':'FREE AGENT'
+});
+
+/* ─── Dalga 50 · Çelişkili tekrar eden anahtarların düzeltmesi ───
+   Sözlükte aynı anahtar birden çok kez yazılmış; JS'te SON yazılan geçerli.
+   Aşağıdakiler yanlış olan sürümü geçersiz kılar. Dosyanın en sonunda kalmalı. */
+Object.assign(window.I18N.en, {
+  'Takım':'Team',            // tekil — "Teams" yanlıştı
+  'Galibiyet':'Win',         // isim — "Won" fiil, etiket olarak yanlıştı
+  'Yarı':'Half',             // devre; yarı final değil (o "Yarı Final")
+  '1. Yarı':'1st Half',
+  '2. Yarı':'2nd Half',
+  '2. KAZI':'2ND SCRATCH'    // "2. SCRATCH" İngilizce değil
+});
+
+/* ─── Dalga 51 · Transfer sayfası + gelen kutusu transfer modalı ─── */
+Object.assign(window.I18N.en, {
+  'Teklifler':'Offers',
+  '✓ Kabul Et':'✓ Accept',
+  '✓ Kabul Et, Sat':'✓ Accept & Sell',
+  '✕ Reddet':'✕ Decline',
+  '✅ Kabul Edildi':'✅ Accepted',
+  '❌ Reddedildi':'❌ Declined',
+  '❌ Teklif reddedildi.':'❌ Offer declined.',
+  '🔒 Sadece kaptan/yardımcı kaptan teklif sunabilir.':'🔒 Only the captain or assistant captain can make an offer.',
+  'Kadro dolu.':'Squad is full.',
+  'Kadro dolu (18/18) — önce oyuncu çıkar.':'Squad is full (18/18) — release a player first.',
+  '⚠️ En az birini (€ veya 💎) 0\'dan büyük belirle.':'⚠️ Set at least one of them (€ or 💎) above 0.',
+  '⚠️ En az birini (€ veya 💎) 0’dan büyük belirle.':'⚠️ Set at least one of them (€ or 💎) above 0.',
+  'Bu oyuncu ':'This player is ',
+  'serbest':'a free agent',
+  ' — bonservis yok.':' — no transfer fee.',
+  'Kabul edersen bonservis ':'If you accept, the transfer fee goes to the ',
+  'takım kasasına':'team treasury'
+});
+
+window.I18N_PATTERNS.en.push(
+  [/^\((\d+)\/(\d+) yardımcı\)$/, '($1/$2 assistants)'],   // Kaptan Yetkileri (3/3 yardımcı)
+  [/^Teklif: (.+)$/, 'Offer: $1'],   // Teklif: 250K €
+  [/^(.+) · gün 10\/20\/30\/40$/, '$1 · days 10/20/30/40'],   // 24.500 € · gün 10/20/30/40
+  [/^(.+) — (\d+)\. günde \((\d+) günlük\)$/, '$1 — on day $2 ($3 days)'],   // ilk ödeme
+  [/^Bonservis \((.+) kasasına\)$/, 'Transfer Fee (to $1)'],   // Bonservis (Artvin kasasına)
+  [/^ ?yatar, oyuncu (.+?) kadrosuna geçer ve maaşı artık onların kasasından ödenir\.$/, '; the player joins $1 and their wages are paid by that club from now on.'],  // jr-not cümlesi
+);
