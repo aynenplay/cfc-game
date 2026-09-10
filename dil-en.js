@@ -5100,3 +5100,137 @@ window.I18N_PATTERNS.en.push(
   [/^Bonservis \((.+) kasasına\)$/, 'Transfer Fee (to $1)'],   // Bonservis (Artvin kasasına)
   [/^ ?yatar, oyuncu (.+?) kadrosuna geçer ve maaşı artık onların kasasından ödenir\.$/, '; the player joins $1 and their wages are paid by that club from now on.'],  // jr-not cümlesi
 );
+
+/* ─── Dalga 52 · Gelen kutusu mesaj GÖVDELERİ ───────────────────────
+   index.html'de 6 gövde dalı artık \n → <br> yapıyor; her satır ayrı
+   metin düğümü. 45. dalga bu varsayımla yazılmıştı ama bayrak+takım adı
+   satırın başında olduğu için desenlerin çoğu tutmuyordu; burada
+   gerçek şablonlardan (index.html) birebir çıkarılan satırlar var.
+   Takım/oyuncu adları çevrilmez; ülke adları sözlükteki karşılığıyla
+   (_ic) yazılır — arayüzün geri kalanıyla aynı ("Türkiye" → "Turkey"). */
+Object.assign(window.I18N.en, {
+  '• Süre: 1 sezon':'• Length: 1 season',
+  '1 gol +50XP':'1 goal +50XP',
+  '1 asist +30XP':'1 assist +30XP',
+  'Galibiyet +20XP':'Win +20XP',
+  'Beraberlik +5XP':'Draw +5XP',
+  'Bir başarımı tamamladın.':'You completed an achievement.',
+  'Gönderdiğin mesaj:':'Your message:',
+  '— Yönetim cevabı —':'— Reply from the team —',
+  '📊 Oy sonuçları:':'📊 Vote results:',
+  'Yetkilerin:':'Your powers:',
+  '• Milli takım kadrosu seçimi':'• National team squad selection',
+  '• Diziliş ve taktik':'• Formation and tactics',
+  '• 3 yardımcı atama':'• Appoint 3 assistants',
+  'Durum: 🆓 Serbest (kontratsız)':'Status: 🆓 Free agent (no contract)',
+  'Kulüp onayı gerekmiyor — kabul edersen sözleşme imzalanır.':'No club approval needed — if you accept, the contract is signed.',
+  'Kulüp yönetimi olarak teklifi değerlendirip oyuncu ile görüşme izni verip vermeyeceğimize karar vereceğiz.':'As the club management, we will review the offer and decide whether to allow talks with the player.',
+  'Kulüp onay verirse oyuncu ile kişisel görüşmeye geçebilirsin.':'If the club approves, you can move on to personal talks with the player.',
+  '💰 Ödül:':'💰 Reward:',
+  '• Yeteneklerin gelişti, piyasa değerin arttı.':'• Your skills improved and your market value rose.',
+  '• Ödülünü Etkinlik > Yarış ekranından almayı unutma.':'• Don’t forget to claim your reward from Events > Race.',
+  'Eğlence > Kazı Kazan ekranından "Ödülü Al" ile tahsil edebilirsin.':'You can collect it from Entertainment > Scratch Card with "Claim Reward".',
+  '• Yenileme talebini Takımım > Sözleşme ekranından gönderebilirsin.':'• You can send a renewal request from My Team > Contract.',
+  '• Diziliş ekranından yedeklerle rotasyon yap.':'• Rotate with substitutes from the Formation screen.',
+  '• Antrenman sayfasından yeteneklerini geliştirebilirsin.':'• You can improve your skills on the Training page.',
+  '• Ödüllerini Etkinlik > Başarımlar ekranından "Topla" butonuyla alabilirsin.':'• Claim your rewards from Events > Achievements with the "Collect" button.'
+});
+
+(function () {
+  var AY = /(Oca|Şub|Mar|Nis|May|Haz|Tem|Ağu|Eyl|Eki|Kas|Ara)/.source;
+  function sira(n) {
+    n = Number(n);
+    return n + (['th','st','nd','rd'][(n % 100 - n % 10 != 10) * (n % 10 < 4) * (n % 10)] || 'th');
+  }
+  function gun(n) { return n + (String(n) === '1' ? ' day' : ' days'); }
+  function tarih(t) { return /^\d{2}\.\d{2}\.\d{4}$/.test(t) ? t.replace(/\./g, '/') : t; }
+
+  // Öne alınanlar: önceki dalgalarda aynı satırı YANLIŞ/yarım çeviren
+  // genel desenler var (ör. "(.+?) × 4 (gün …)" → "• Taksit: … (days …)").
+  window.I18N_PATTERNS.en.unshift(
+    [/^• Taksit: (.+?) × 4 \(gün 10\/20\/30\/40\)$/, '• Instalment: $1 × 4 (days 10/20/30/40)'],
+    [/^• (Sezon maaşı|Yeni maaş): (.+?) \((\+?)%(-?\d+)\)$/,
+      m => '• ' + (m[1] === 'Yeni maaş' ? 'New wage' : 'Season wage') + ': ' + m[2] + ' (' + m[3] + m[4] + '%)'],
+    [/^Final Sıralaman: (\d+)\. \((.+)\)$/,      m => 'Your final position: ' + sira(m[1]) + ' (' + _ic(m[2]) + ')'],
+    [/^(.+?) ŞAMPİYONU!$/,                      m => _ic(m[1]) + ' CHAMPION!'],
+    [/^Tebrikler! (.+?) yarışında \*\*#(\d+)\*\* sırada bitirdin\.$/,
+      m => 'Congratulations! You finished #' + m[2] + ' in the ' + _ic(m[1]) + ' race.'],
+    [/^(\d+) başarımı tamamladın\.$/,           'You completed $1 achievements.'],
+    [/^(.+?) kadromuz hazır\. (.+?) (\d{1,2}:\d{2})'de iyi bir maç çıkaralım\.$/,
+      m => 'The ' + m[1] + ' squad is ready. Let’s have a good match on ' + tarih(m[2]) + ' at ' + m[3] + '.']
+  );
+
+  window.I18N_PATTERNS.en.push(
+    // ── detay ekranı gönderen satırı: "Kimden: X · 10 Eyl 10:10" ──
+    [new RegExp('^· (\\d{1,2}) ' + AY + ' (\\d{1,2}:\\d{2})$'),
+      m => '· ' + m[1] + ' ' + (window.I18N.en[m[2]] || m[2]) + ' ' + m[3]],
+    // ── maç günü / yarın maç / oylama ──
+    [/^Saat (\d{1,2}):(\d{2})$/,                'Time $1:$2'],
+    [/^Sonuç: "(.+)" \((\d+)\/(\d+) oy\)$/,      'Result: "$1" ($2/$3 votes)'],
+    // ── sözleşme ──
+    [/^(.+?) ile sözleşmen (\d+) gün içinde sona eriyor\.$/, m => 'Your contract with ' + m[1] + ' expires in ' + gun(m[2]) + '.'],
+    [/^(.+?) ile sözleşmen (\d+)\. sezon sonunda doldu\.$/,  'Your contract with $1 expired at the end of season $2.'],
+    [/^(.+?) ile sözleşmen başarıyla yenilendi\.$/,         'Your contract with $1 was renewed successfully.'],
+    [/^(.+?) ile sözleşmeni yenilemedin\.$/,                'You did not renew your contract with $1.'],
+    [/^(.+?) sözleşmesini yenilemek istiyor\.$/,            '$1 wants to renew their contract.'],
+    [/^• Mevcut maaş: (.+)$/,                               '• Current wage: $1'],
+    [/^• Reddedersen: oyuncu (.+?) ilk maaşa düşer \+ ayrılma serbestliği kazanır$/,
+      '• If you decline: the player drops to the first wage of $1 and gains the freedom to leave'],
+    [/^(.+?) kaptanı yenileme talebini ONAYLADI\.$/,        'The $1 captain APPROVED the renewal request.'],
+    [/^(.+?) kaptanı yenileme talebini REDDETTİ\.(?: \(Gerekçe: (.+)\))?$/,
+      m => 'The ' + m[1] + ' captain DECLINED the renewal request.' + (m[2] ? ' (Reason: ' + _ic(m[2]) + ')' : '')],
+    // ── katılma isteği ──
+    [/^(.+?) takımına şartlarla katılma isteği gönderdin\.$/, 'You sent $1 a request to join, with your terms.'],
+    [/^(.+?) takımına katılma isteği gönderdin\.$/,         'You sent $1 a request to join.'],
+    [/^(.+?) adlı oyuncu (.+?) takımına katılmak istiyor\.$/, '$1 wants to join $2.'],
+    [/^(.+?), (.+?) takımına katılma isteğini reddetti\.$/,  '$1 declined your request to join $2.'],
+    [/^• Sezon Maaşı: (.+)$/,                               '• Season Wage: $1'],
+    // ── maç sonrası seviye ──
+    [/^Tebrikler! Maçtaki performansınla (\d+) XP kazanarak (\d+)\. seviyeye yükseldin\.$/,
+      'Congratulations! Your match performance earned you $1 XP and took you to level $2.'],
+    // ── federasyon seçimi ──
+    [/^Tebrikler! (.+?) Futbol Federasyonu (\d+)\. sezon başkanı olarak seçildin\.$/,
+      m => 'Congratulations! You have been elected president of the ' + _ic(m[1]) + ' Football Federation for season ' + m[2] + '.'],
+    [/^Maalesef (\d+)\. sezon başkan seçimini kazanamadın\.$/, 'Unfortunately you did not win the season $1 presidential election.'],
+    [/^(\d+)\. sezon (.+?) Futbol Federasyonu başkan seçimi tamamlandı\.$/,
+      m => 'The season ' + m[1] + ' presidential election of the ' + _ic(m[2]) + ' Football Federation is complete.'],
+    [/^• Aldığın oy: (\d+)\/(\d+)$/,                        '• Votes received: $1/$2'],
+    [/^📊 Senin oyun: (\d+)\/(\d+)$/,                       '📊 Your votes: $1/$2'],
+    [/^(🏛️ )?Yeni başkan: (.+)$/,                           m => (m[1] || '') + 'New president: ' + m[2]],
+    [/^Toplam oy: (\d+)$/,                                  'Total votes: $1'],
+    // ── milli takım daveti (tek satır) ──
+    [/^Tebrikler! (.+?) Milli Takım kadrosuna alındınız\. Forma numaranız (.+?), kadrodaki rolünüz: (İlk 11|Yedek kadro)\. Bu davet zorunludur — milli takım maçlarında oynamakla yükümlüsünüz\. (.+?) formasını gururla taşıyın!(.*)$/,
+      m => 'Congratulations! You have been called up to the ' + _ic(m[1]) + ' national team squad. Your shirt number is ' + m[2]
+         + ', your role: ' + (m[3] === 'İlk 11' ? 'Starting XI' : 'Substitute') + '. This call-up is mandatory — you are required to play in national team matches. Wear the '
+         + _ic(m[4]) + ' shirt with pride!' + m[5]],
+    // ── transfer ──
+    [/^(.+?) \((\d+) OVR\) takıma katıldı\.$/,               '$1 ($2 OVR) joined the team.'],
+    [/^(.+?) bonservis (.+?) kasasına aktarıldı\.$/,
+      m => (m[1] === 'Ücretsiz' ? 'No transfer fee was paid' : m[1] + ' transfer fee was paid') + ' to ' + (m[2] === 'satıcı' ? 'the seller' : m[2]) + '.'],
+    [/^(.+?) sana doğrudan kişisel bir transfer teklifi sundu\.$/, '$1 has made you a direct personal transfer offer.'],
+    [/^(.+?), oyuncumuz (.+?) için kulübümüze resmi bir transfer teklifi sundu\.$/,
+      '$1 has made our club an official transfer offer for our player $2.'],
+    [/^(.+?) adlı boştaki oyuncuya kişisel teklif gönderdin\.$/, 'You sent a personal offer to free agent $1.'],
+    [/^(.+?) kulübüne (.+?) için resmi transfer teklifi gönderdin\.$/, 'You sent $1 an official transfer offer for $2.'],
+    [/^Kontrat Durumu: (.+)$/,                              m => 'Contract Status: ' + _ic(m[1])],
+    [/^• Bonservis: (.+?) \((.+?) kasasına\)$/,
+      m => '• Transfer Fee: ' + m[1] + ' (' + (m[2] === 'satıcı kulüp' ? 'to the selling club’s treasury' : 'to the ' + m[2] + ' treasury') + ')'],
+    [/^• Sezonluk Maaş: (.+?) \(4 taksit, gün 10\/20\/30\/40\)$/, '• Season Wage: $1 (4 instalments, days 10/20/30/40)'],
+    [/^↳ Her taksit: (.+)$/,                                '↳ Each instalment: $1'],
+    [/^• İmza Parası: (.+?) \(oyuncu elmas cüzdanına\)$/,    '• Signing Fee: $1 (to the player’s diamond wallet)'],
+    // ── toto / piyasa / yarış / kadro ──
+    [/^📊 Havuz: (.+)$/,                                    '📊 Pool: $1'],
+    [/^• Güncel piyasa değerin: (.+?) üzeri$/,              '• Current market value: over $1'],
+    [/^Haftalık (.+?) yarışını (\d+)\. sırada tamamladın\.(.*)$/,
+      m => 'You finished the weekly ' + _ic(m[1]) + ' race in ' + sira(m[2]) + ' place.' + m[3]],
+    [/^Kadroda (\d+) oyuncunun kondisyonu kritik seviyede \(%30 altı\)\.$/,
+      '$1 players in the squad have critical fitness (below 30%).'],
+    // ── hazırlık maçı cevapları ──
+    [/^Selam! (.+?) olarak (.+?) (\d{1,2}:\d{2})'deki hazırlık maçı teklifini kabul ediyoruz\. Hazırız!$/,
+      m => 'Hi! As ' + m[1] + ', we accept the friendly match offer for ' + tarih(m[2]) + ' at ' + m[3] + '. We’re ready!'],
+    [/^Davet için teşekkürler\. (.+?) tarihinde (\d{1,2}:\d{2})'de sahada görüşürüz\.$/,
+      m => 'Thanks for the invitation. See you on the pitch on ' + tarih(m[1]) + ' at ' + m[2] + '.'],
+    [/^Maalesef (.+?) (\d{1,2}:\d{2})'de takvimimiz uygun değil\. Başka bir zaman tekrar deneyebilirsin\.$/,
+      m => 'Unfortunately our schedule does not allow ' + tarih(m[1]) + ' at ' + m[2] + '. You can try again another time.']
+  );
+})();
