@@ -5184,7 +5184,7 @@ Object.assign(window.I18N.en, {
     [/^(.+?) takımına katılma isteği gönderdin\.$/,         'You sent $1 a request to join.'],
     [/^(.+?) adlı oyuncu (.+?) takımına katılmak istiyor\.$/, '$1 wants to join $2.'],
     [/^(.+?), (.+?) takımına katılma isteğini reddetti\.$/,  '$1 declined your request to join $2.'],
-    [/^• Sezon Maaşı: (.+)$/,                               '• Season Wage: $1'],
+    [/^• Sezon Maaşı: (.+?)( \(sistem maaşı\)| \(sistem\))?$/, m => '• Season Wage: ' + m[1] + (m[2] ? ' (system wage)' : '')],
     // ── maç sonrası seviye ──
     [/^Tebrikler! Maçtaki performansınla (\d+) XP kazanarak (\d+)\. seviyeye yükseldin\.$/,
       'Congratulations! Your match performance earned you $1 XP and took you to level $2.'],
@@ -5245,3 +5245,63 @@ window.I18N_PATTERNS.en.push(
   [/^(⚡\s*)?\d+\s*💎\s*Bitir$/,  m => m[0].replace(/Bitir$/, 'Finish')],
   [/^(\d+)\/(\d+) Aktif$/,       '$1/$2 Active']
 );
+
+/* ─── Dalga 54 · Sunucudan (Edge) gelen gelen kutusu mesajları + kalan başlık/gönderenler ───
+   Kaynak: tick-matches (maaş, lig sıralama ödülü), approve-join-request
+   (katılma onayı). Bu mesajlar Supabase'e Türkçe yazılıyor; çeviri
+   gösterim anında yapıldığı için ESKİ mesajlar da çevrilir. */
+Object.assign(window.I18N.en, {
+  'Sözleşme şartların:':'Your contract terms:',
+  '• Takım kasasına yatırıldı.':'• Paid into the team treasury.',
+  '• Tür: Sözleşmesiz (istediğin zaman ayrılabilirsin)':'• Type: No contract (you can leave at any time)',
+  'Duyuru':'Announcement',
+  'Pazar Yeri':'Marketplace',
+  'Toto Sistem':'Toto System',
+  'Teknik Ekip':'Technical Staff',
+  'Performans':'Performance',
+  'Sistem':'System'
+});
+
+(function () {
+  function sira(n) {
+    n = Number(n);
+    return n + (['th','st','nd','rd'][(n % 100 - n % 10 != 10) * (n % 10 < 4) * (n % 10)] || 'th');
+  }
+  // Öne alınanlar: genel desenler "Taksit" ve yarış adını Türkçe bırakıyordu.
+  window.I18N_PATTERNS.en.unshift(
+    [/^Maaş Ödemesi — (\d+)\/4 Taksit$/,                 'Wage Payment — Instalment $1/4'],
+    [/^(.+?): (.+?) 💎 ödülün hesabına eklendi$/,         m => _ic(m[1]) + ': ' + m[2] + ' 💎 reward credited to your account']
+  );
+  window.I18N_PATTERNS.en.push(
+    // ── maaş ödemesi (tick-matches) ──
+    [/^(.+?) kasasından maaş ödemen yatırıldı\.$/,       'Your wage has been paid from the $1 treasury.'],
+    [/^• Taksit: (\d+)\/4$/,                            '• Instalment: $1/4'],
+    [/^• Tutar: (.+)$/,                                 '• Amount: $1'],
+    [/^• Sezon (\d+) · Gün (\d+)$/,                     '• Season $1 · Day $2'],
+    [/^• Gönderen: (.+)$/,                              '• From: $1'],
+    // ── lig sıralama ödülü (tick-matches) ──
+    [/^Sezon (\d+) (.+?) Sıralama Ödülü$/,             m => 'Season ' + m[1] + ' ' + _ic(m[2]) + ' Ranking Prize'],
+    [/^(.+?), (.+?)'nde sezonu (\d+)\. sırada tamamladı\.$/, m => m[1] + ' finished the season ' + sira(m[3]) + ' in the ' + _ic(m[2]) + '.'],
+    [/^• Sıralama ödülü: (.+)$/,                        '• Ranking prize: $1'],
+    // ── katılma onayı (approve-join-request) ──
+    [/^Sözleşmen Onaylandı — (.+)$/,                    'Your Contract Was Approved — $1'],
+    [/^Takıma Katıldın — (.+)$/,                        'You Joined the Team — $1'],
+    [/^(.+?) İçin Sözleşme Onayladın$/,                 'You Approved a Contract for $1'],
+    [/^(.+?) Takıma Katıldı$/,                          '$1 Joined the Team'],
+    [/^🎉 Tebrikler! (.+?), (.+?) takımına katılma isteğini onayladı\.$/, '🎉 Congratulations! $1 approved your request to join $2.'],
+    [/^• İmza Parası: (.+?) \(cüzdanına yatırıldı\)$/,  '• Signing Fee: $1 (paid into your wallet)'],
+    [/^• İmza Parası: (.+?) \(kasadan oyuncu cüzdanına\)$/, '• Signing Fee: $1 (from the treasury to the player’s wallet)'],
+    [/^Artık (.+?) takımının kontratlı oyuncususun\.$/,  'You are now a contracted player of $1.'],
+    [/^Artık (.+?) takımının üyesisin\.$/,               'You are now a member of $1.'],
+    [/^(.+?) adlı oyuncuyu takıma kattın( \(sözleşmesiz üye\))?\.$/,
+      m => 'You added ' + m[1] + ' to the team' + (m[2] ? ' (member without a contract)' : '') + '.'],
+    // ── index.html başlık / gönderen kalıntıları ──
+    [/^(.+?) sahada$/,                                  '$1 is back on the pitch'],
+    [/^(Şikayet|İstek|Talep|Bildirim)ine Cevap Geldi$/,
+      m => 'Reply to your ' + ({ 'Şikayet':'complaint', 'İstek':'request', 'Talep':'request', 'Bildirim':'report' })[m[1]]],
+    [/^Resmi Teklif — (.+)$/,                           'Official Offer — $1'],
+    [/^(.+?) Federasyonu$/,                             m => _ic(m[1]) + ' Federation'],
+    [/^Federasyon (Başkanı|Yardımcısı) · (.+)$/,        m => 'Federation ' + (m[1] === 'Başkanı' ? 'President' : 'Assistant') + ' · ' + m[2]],
+    [/^(.+?) Kaptanı$/,                                 '$1 Captain']
+  );
+})();
