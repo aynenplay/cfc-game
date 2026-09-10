@@ -5305,3 +5305,177 @@ Object.assign(window.I18N.en, {
     [/^(.+?) Kaptanı$/,                                 '$1 Captain']
   );
 })();
+
+/* ─── Dalga 55 · tick-matches sunucu mesajları (sysInbox) ────────────
+   Kaynak: tick-matches index.ts — şampiyonluk/terfi/düşme, maaş borcu,
+   kasa uyarısı, federasyon seçimi, sezon liderleri, milli takım kadrosu,
+   maç sonu (sonuç, maçın adamı, kırmızı kart, sakatlık, maç geliri),
+   pazar yeri satışı, kaptanlık devri, yenileme kararı, yarış ödülü,
+   toto kuponu, turnuva kura/grup/tur/elenme. Supabase'e Türkçe yazılıyor;
+   gösterimde çevrildiği için eski mesajlar da İngilizce görünür. */
+Object.assign(window.I18N.en, {
+  // ── başlıklar / gönderenler ──
+  'Kasa Yetersiz — Maaşlar Ödenemiyor':'Insufficient Funds — Wages Cannot Be Paid',
+  'Başkanlık görevin sona erdi':'Your presidency has ended',
+  'Federasyon Yardımcısı Oldun':'You Became Federation Vice President',
+  'Federasyon Seçimi Sonuçlandı':'Federation Election Concluded',
+  'Milli Takıma Seçildin!':'You Were Called Up to the National Team!',
+  'Milli Takım Kadrosundan Çıkarıldın':'You Were Dropped from the National Team Squad',
+  'Kırmızı Kart — Ceza Aldın':'Red Card — You Are Suspended',
+  'Sakatlandın':'You Got Injured',
+  'Sezon Ödülleri':'Season Awards',
+  'Disiplin Kurulu':'Disciplinary Committee',
+  'Sağlık Ekibi':'Medical Team',
+  'Kulüp Yönetimi':'Club Management',
+  // ── gövde satırları ──
+  '• Şampiyonluk ödülü kulüp kasasına yatırıldı.':'• The championship prize was paid into the club treasury.',
+  'Kupa dolabında yerini aldı. Tebrikler!':'The trophy has taken its place in the cabinet. Congratulations!',
+  '• Yeni sezon fikstürü kısa süre içinde açılacak.':'• The new season fixtures will be published shortly.',
+  'Kadronu güçlendirmeyi unutma.':'Don’t forget to strengthen your squad.',
+  '• Gelecek sezon geri dönmek için kadroyu ve tesisleri güçlendir.':'• Strengthen your squad and facilities to bounce back next season.',
+  'Borç 2 taksite ulaşırsa serbest kalma hakkın doğar.':'If the debt reaches 2 instalments, you earn the right to leave as a free agent.',
+  '• Oyuncular 2 taksit borçta serbest kalma hakkı kazanır.':'• Players earn the right to leave as free agents once 2 instalments are unpaid.',
+  'Gelir artırmak için tesisleri yükselt, oyuncu sat veya bağış topla.':'To raise income, upgrade facilities, sell players or collect donations.',
+  'Yeni seçim açıldı, tekrar aday olabilirsin.':'A new election has opened; you can stand again.',
+  '• Milli takım kaptanlığı da sende — kadroyu sen belirlersin.':'• You are also national team captain — you pick the squad.',
+  'Milli Takım sayfasından kadro ve dizilişi düzenleyebilirsin.':'You can edit the squad and formation on the National Team page.',
+  'Milli takım kararlarında görüş bildirebilirsin.':'You can give your input on national team decisions.',
+  'Sezonu en yüksek ortalama maç reytingiyle tamamladın. ⭐':'You finished the season with the highest average match rating. ⭐',
+  'Ödülünü Etkinlik > Başarımlar ekranından almayı unutma.':'Don’t forget to claim your reward from Events > Achievements.',
+  '• Milli takım maçları EURO Nations Cup takviminde.':'• National team matches follow the EURO Nations Cup calendar.',
+  'Formayı hak ettin, sahada göster!':'You earned the shirt — now prove it on the pitch!',
+  '• Kulübünde iyi performans göstererek kadroya geri dönebilirsin.':'• You can earn a recall by performing well for your club.',
+  '• Kadroyu federasyon başkanı (milli takım kaptanı) belirler.':'• The squad is picked by the federation president (national team captain).',
+  'Maç detaylarını Sonuçlar sayfasından inceleyebilirsin.':'You can review the match details on the Results page.',
+  '• Bir sonraki lig maçında forma giyemezsin.':'• You will miss the next league match.',
+  '• Ceza durumunu Takımım > Kadro ekranından takip edebilirsin.':'• Track your suspension on My Team > Squad.',
+  '• İyileşme süren dolana kadar maçlarda oynayamazsın.':'• You cannot play until your recovery time is over.',
+  '• Kalan süreyi Takımım > Kadro ekranında görebilirsin.':'• You can see the remaining time on My Team > Squad.',
+  '• Bilet geliri (ev sahibi)':'• Ticket revenue (home team)',
+  '• Galibiyet primi':'• Win bonus',
+  '• Beraberlik primi':'• Draw bonus',
+  '• Prim yok':'• No bonus',
+  'Ayrıntılar için Takımım > Kasa ekranına bak.':'See My Team > Treasury for details.',
+  'Pazar yerindeki ilanın satıldı.':'Your marketplace listing has sold.',
+  'Elmaslar cüzdanına yatırıldı.':'The diamonds have been paid into your wallet.',
+  'Cüzdanına yatırıldı. İyi antrenmanlar!':'Paid into your wallet. Enjoy your training!',
+  'Bir dahaki bültende bol şans!':'Better luck with the next bulletin!',
+  'Ödülünü Eğlence → Toto → Kuponlarım sekmesindeki "ÖDÜLÜ AL" butonuyla cüzdanına aktar.':'Move your reward to your wallet with the "CLAIM REWARD" button in Entertainment → Toto → My Coupons.',
+  'Final tek maç oynanır. Kadronu ve taktiğini hazırla.':'The final is a single match. Get your squad and tactics ready.',
+  '• Aşama ödülü kulüp kasasına işlendi.':'• The stage prize was credited to the club treasury.',
+  'Yeni sezonda tekrar!':'Again next season!',
+  // ── turnuva mesaj kartı (trnData) ──
+  'Elendin':'Knocked Out',
+  'Turnuva geliri':'Tournament revenue',
+  'Tek maç':'Single match',
+  'Gruba Git →':'Go To Group →'
+});
+
+(function () {
+  function sira(n) {
+    n = Number(n);
+    return n + (['th','st','nd','rd'][(n % 100 - n % 10 != 10) * (n % 10 < 4) * (n % 10)] || 'th');
+  }
+  function cogul(n, tek) { return n + ' ' + tek + (String(n) === '1' ? '' : 's'); }
+  function mac(ad) { return ad === 'Hazırlık Maçı' ? 'friendly' : _ic(ad); }
+  var TRN = '(Championship League|Elite League|Convergence League|EURO Nations Cup|Turnuva)';
+  window.I18N_PATTERNS.en.push(
+    // ── başlıklar ──
+    [/^ŞAMPİYON OLDUK! — (.+)$/,                  m => 'WE ARE CHAMPIONS! — ' + _ic(m[1])],
+    [/^Üst Lige Yükseldik! — (.+)$/,              m => 'Promoted! — ' + _ic(m[1])],
+    [/^Alt Lige Düştük — (.+)$/,                  m => 'Relegated — ' + _ic(m[1])],
+    [/^Maaşın Ödenemedi — (\d+)\. Taksit Borcu$/, m => 'Your Wage Was Not Paid — ' + cogul(m[1], 'Instalment') + ' Owed'],
+    [/^GOL KRALI OLDUN! — Sezon (\d+)$/,          'TOP SCORER! — Season $1'],
+    [/^ASİST KRALI OLDUN! — Sezon (\d+)$/,        'TOP ASSIST PROVIDER! — Season $1'],
+    [/^SEZONUN OYUNCUSU — Ortalama (.+)$/,        'PLAYER OF THE SEASON — Average $1'],
+    [/^Ürünün Satıldı — (.+)$/,                   m => 'Your Item Sold — ' + _ic(m[1])],
+    [/^Kaptanlık Sende — (.+)$/,                  'You Are Now Captain — $1'],
+    [/^(.+?) — #(\d+) Ödülün$/,                   m => _ic(m[1]) + ' — Your #' + m[2] + ' Reward'],
+    [/^Kuponun Yattı — (\d+) Maç$/,               'Your Coupon Lost — $1 Matches'],
+    [/^Kuponun Tuttu! — (.+)$/,                   'Your Coupon Won! — $1'],
+    [/^(.+?) Rakibin Belli Oldu$/,                m => 'Your ' + _ic(m[1]) + ' Opponent Is Set'],
+    [/^(.+?) Grubuna Kaldın — Rakiplerin$/,       'You Are in Group $1 — Your Opponents'],
+    [/^FİNALDEYİZ! — (.+)$/,                      'WE ARE IN THE FINAL! — $1'],
+    [/^(.+?)'desin!$/,                            m => 'You Are in the ' + _ic(m[1]) + '!'],
+    [/^(.+?) Turunda Elendin$/,                   m => 'Knocked Out in the ' + _ic(m[1])],
+    [/^(.+?) Milli Takımı$/,                      m => _ic(m[1]) + ' National Team'],
+    // ── şampiyonluk / terfi / düşme ──
+    [/^(.+?) Sezon (\d+) (.+?) şampiyonu! 🏆$/,   m => m[1] + ' are Season ' + m[2] + ' ' + _ic(m[3]) + ' champions! 🏆'],
+    [/^• Sıralama: (\d+)\.$/,                     m => '• Position: ' + sira(m[1])],
+    [/^(.+?) sezonu (.+?)'nde (\d+)\. sırada bitirdi ve bir üst lige yükseldi\.$/,
+      m => m[1] + ' finished ' + sira(m[3]) + ' in the ' + _ic(m[2]) + ' and won promotion.'],
+    [/^(.+?) sezonu (.+?)'nde (\d+)\. sırada tamamladı ve alt lige düştü\.$/,
+      m => m[1] + ' finished ' + sira(m[3]) + ' in the ' + _ic(m[2]) + ' and were relegated.'],
+    [/^• Yeni lig: (.+)$/,                        m => '• New league: ' + _ic(m[1])],
+    // ── maaş borcu / kasa ──
+    [/^(.+?) kasasında yeterli bakiye olmadığı için bu taksit ödenemedi\.$/,
+      'This instalment could not be paid because the $1 treasury has insufficient funds.'],
+    [/^• Sezon (\d+), Gün (\d+)$/,                '• Season $1, Day $2'],
+    [/^• Toplam borç: (\d+) taksit$/,             m => '• Total owed: ' + cogul(m[1], 'instalment')],
+    [/^🔓 (\d+) taksit borç birikti — sözleşmeni tek taraflı feshedip serbest kalabilirsin\.$/,
+      '🔓 $1 instalments are owed — you can terminate your contract unilaterally and become a free agent.'],
+    [/^(.+?) kasasında maaş ödemeleri için yeterli bakiye yok\.$/, 'The $1 treasury does not have enough funds to pay wages.'],
+    [/^• Ödenemeyen taksit: (.+)$/,               '• Unpaid instalment: $1'],
+    // ── federasyon ──
+    [/^(\d+) gün boyunca oyuna girmediğin için federasyon başkanlığı ve milli takım teknik direktörlüğü görevin sona erdi\.$/,
+      'Because you did not log in for $1 days, your federation presidency and national team manager role have ended.'],
+    [/^(.+?) federasyon başkanlığını kazandın\. 🏛️$/, 'You won the $1 federation presidency. 🏛️'],
+    [/^(.+?) federasyonunda başkan yardımcısı oldun\.$/, 'You became vice president of the $1 federation.'],
+    [/^(.+?) federasyon seçimi tamamlandı\.$/,     'The $1 federation election is complete.'],
+    [/^• Yardımcılar: (.+)$/,                     '• Vice presidents: $1'],
+    [/^• Başkan: (.+)$/,                          '• President: $1'],
+    // ── sezon liderleri ──
+    [/^Sezonu (\d+) golle en golcü oyuncu olarak tamamladın\. 👑$/, 'You finished the season as top scorer with $1 goals. 👑'],
+    [/^Sezonu (\d+) asistle lider tamamladın\. 🎯$/, 'You finished the season as assist leader with $1 assists. 🎯'],
+    [/^• Takım: (.+)$/,                           '• Team: $1'],
+    [/^• Gol: (\d+)$/,                            '• Goals: $1'],
+    [/^• Asist: (\d+)$/,                          '• Assists: $1'],
+    [/^• Ortalama reyting: (.+)$/,                '• Average rating: $1'],
+    // ── milli takım kadrosu ──
+    [/^(.+?) milli takım kadrosuna çağrıldın\.$/,  m => 'You have been called up to the ' + _ic(m[1]) + ' national team squad.'],
+    [/^(.+?) milli takım kadrosunda artık yer almıyorsun\.$/, m => 'You are no longer in the ' + _ic(m[1]) + ' national team squad.'],
+    [/^• Forma numaran: (.+)$/,                   '• Your shirt number: $1'],
+    // ── maç sonu ──
+    [/^(.+?) maçı tamamlandı\.$/,                  m => 'The ' + mac(m[1]) + ' match is over.'],
+    [/^• Skor: (.+)$/,                            '• Score: $1'],
+    [/^• Maç reytingin: (.+)$/,                   '• Your match rating: $1'],
+    [/^(.+?) - (.+?) maçının en iyi oyuncusu sensin\.$/, 'You were the best player in $1 - $2.'],
+    [/^• Turnuva: (.+)$/,                         m => '• Competition: ' + _ic(m[1])],
+    [/^(.+?) - (.+?) maçında kırmızı kart gördün\.$/, 'You were shown a red card in $1 - $2.'],
+    [/^(.+?) - (.+?) maçında sakatlandın\.$/,      'You got injured in $1 - $2.'],
+    [/^(.+?) maçının gelirleri kasaya işlendi\.$/, m => 'Revenue from the ' + mac(m[1]) + ' match has been credited to the treasury.'],
+    // ── pazar yeri / kaptanlık / yenileme ──
+    [/^• Ürün: (.+)$/,                            m => '• Item: ' + _ic(m[1])],
+    [/^(.+?) takımdan ayrıldı\.$/,                 '$1 has left the team.'],
+    [/^(.+?) takımının yeni kaptanı sensin\. Kadro, taktik ve kasa yetkileri artık senin sorumluluğunda\.$/,
+      'You are the new captain of $1. Squad, tactics and treasury permissions are now your responsibility.'],
+    [/^Kaptan (.+?) sözleşme yenileme talebini ONAYLADI\.$/, 'Captain $1 APPROVED your contract renewal request.'],
+    [/^Kaptan (.+?) sözleşme yenileme talebini REDDETTİ\.$/, 'Captain $1 DECLINED your contract renewal request.'],
+    // ── yarış ödülü / toto ──
+    [/^(.+?) haftası (.+?) yarışını #(\d+)\. sırada tamamladın\.$/,
+      m => 'You finished #' + m[3] + ' in the ' + _ic(m[2]) + ' race for the week of ' + m[1] + '.'],
+    [/^• Ödül: (.+)$/,                            '• Reward: $1'],
+    [/^(\d+) maçlık kuponun tutmadı\.$/,           'Your $1-match coupon lost.'],
+    [/^(\d+) maçlık kuponun kazandı\.$/,           'Your $1-match coupon won.'],
+    [/^• Tutan ayak: (\d+)\/(\d+)$/,              '• Correct legs: $1/$2'],
+    [/^• Misli: (.+)$/,                           '• Stake: $1'],
+    [/^• Toplam oran: (.+)$/,                     '• Total odds: $1'],
+    [/^• Kazanç: (.+)$/,                          '• Winnings: $1'],
+    // ── turnuva ──
+    [new RegExp('^Bu sezon ' + TRN + ' (.+?) turunda (.+?) ile eşleştin\\.$'),
+      m => 'This season you were drawn against ' + m[3] + ' in the ' + _ic(m[1]) + ' ' + _ic(m[2]) + '.'],
+    [new RegExp('^' + TRN + " grup aşamasında (.+?) Grubu'na düştün\\. Gruptaki rakiplerin aşağıda\\.$"),
+      m => 'You were drawn into Group ' + m[2] + ' in the ' + _ic(m[1]) + ' group stage. Your group opponents are below.'],
+    [new RegExp('^(.+?) ' + TRN + ' finaline yükseldi!$'), m => m[1] + ' reached the ' + _ic(m[2]) + ' final!'],
+    [/^(.+?) turunu geçtin ve (.+?) turuna yükseldin\.$/, m => 'You got through the ' + _ic(m[1]) + ' and advanced to the ' + _ic(m[2]) + '.'],
+    [new RegExp('^(.+?) ' + TRN + ' yolculuğunu (.+?) turunda tamamladı\\.$'),
+      m => m[1] + '’s ' + _ic(m[2]) + ' run ended in the ' + _ic(m[3]) + '.'],
+    [/^• Ulaşılan aşama: (.+)$/,                  m => '• Stage reached: ' + _ic(m[1])],
+    // ── turnuva mesaj kartı (trnData) ──
+    [/^(🎯 )?([A-Z]) Grubu$/,                     m => (m[1] || '') + 'Group ' + m[2]],
+    [/^(\d+) (Takım|Ülke)$/,                      m => m[1] + ' ' + (m[2] === 'Takım' ? 'Teams' : 'Countries')],
+    [/^✅ (.+?) Sonucu$/,                          m => '✅ ' + _ic(m[1]) + ' Result'],
+    [/^(\d{1,2}) (Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık)(?: (\d{4}))? (\d{1,2}:\d{2})$/,
+      m => m[1] + ' ' + (window.I18N.en[m[2]] || m[2]) + (m[3] ? ' ' + m[3] : '') + ' ' + m[4]]
+  );
+})();
