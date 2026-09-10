@@ -5479,3 +5479,15 @@ Object.assign(window.I18N.en, {
       m => m[1] + ' ' + (window.I18N.en[m[2]] || m[2]) + (m[3] ? ' ' + m[3] : '') + ' ' + m[4]]
   );
 })();
+
+/* ─── Dalga 56 · Antrenman başlatma penceresi ────────────────────────
+   Süre kartı "⚡ 3 · +100 puan" ve özet "⚡ 3 (463 mevcut)" sayı içeren
+   tek metin düğümü; sözlük yetmiyor. Seviye atlama önizlemesi de aynı pencerede. */
+Object.assign(window.I18N.en, {
+  'Yetersiz Enerji':'Not Enough Energy'
+});
+window.I18N_PATTERNS.en.push(
+  [/^(⚡\s*)?(\d+) · \+(\d+) puan$/,     m => (m[1] || '') + m[2] + ' · +' + m[3] + ' points'],
+  [/^(⚡\s*)?(\d+) \((\d+) mevcut\)$/,   m => (m[1] || '') + m[2] + ' (' + m[3] + ' available)'],
+  [/^Sv\.(\d+) → Sv\.(\d+)$/,           'Lv.$1 → Lv.$2']
+);
