@@ -5234,3 +5234,14 @@ Object.assign(window.I18N.en, {
       m => 'Unfortunately our schedule does not allow ' + tarih(m[1]) + ' at ' + m[2] + '. You can try again another time.']
   );
 })();
+
+/* ─── Dalga 53 · Antrenman kartı butonları ───────────────────────────
+   "⚡ 9💎 Bitir" tek metin düğümü (sayı içinde) → sözlük yetmiyor.
+   Tesis satırı "Sv.10 · 4/10 Aktif": iç kısım _ic ile bu desene düşüyor. */
+Object.assign(window.I18N.en, {
+  'Bitir':'Finish'
+});
+window.I18N_PATTERNS.en.push(
+  [/^(⚡\s*)?\d+\s*💎\s*Bitir$/,  m => m[0].replace(/Bitir$/, 'Finish')],
+  [/^(\d+)\/(\d+) Aktif$/,       '$1/$2 Active']
+);
