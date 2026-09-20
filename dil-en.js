@@ -5640,3 +5640,50 @@ I18N_PATTERNS.en.push(
      " Azerbaycan–Hollanda · " — iki tarafı ayrı ayrı çevir. */
   [/^[^–\n]{2,40}–[^–\n]{2,40}$/, m => m[0].split('–').map(_esAd).join('–')]
 );
+
+/* ── 60. dalga · MODAL TARAMASI (20 Eylül) ──────────────────────────
+   Transfer / takıma katılma / gelen teklif / takım satın alma / kaptan
+   ayrılma modalları tarandı; kalan Türkçe düğümler. */
+Object.assign(window.I18N.en, {
+  '✅ Yenilendi':'✅ Renewed',
+  '❌ Reddettin':'❌ You declined',
+  '❌ Teklif verisi bozuk':'❌ Offer data is corrupt',
+
+  /* Kaptan ayrılamaz modalı */
+  'KAPTAN AYRILAMAZ':'CAPTAIN CANNOT LEAVE',
+  'Yetkiyi Devret':'Hand Over Captaincy',
+  'TAKIMDA KALIRSIN':'YOU STAY IN THE TEAM',
+  'TAKIMDAN ÇIKARSIN':'YOU LEAVE THE TEAM',
+  'NEDEN?':'WHY?',
+  'takımının kaptanısın. Ayrılabilmen için önce kaptanlığı devretmen ya da takımı satman gerekiyor.':
+    '— you are the captain of this team. To leave you must first hand over the captaincy or sell the team.',
+  'Kaptan doğrudan ayrılamaz; aksi halde takım':'The captain cannot leave directly; otherwise the team is left',
+  'yönetimsiz':'leaderless.',
+  'kalır. Takımda başka gerçek oyuncu yoksa yetkiyi bir':
+    'If there is no other real player in the team, you can hand the captaincy over',
+  'bota':'to a bot',
+  'devredebilirsin.':'instead.',
+
+  /* Enerji bilgi kutusu */
+  'ile başlarsın. Takım tesisin (Performans Merkezi) her seviye için':
+    'to start with. Your team facility (Performance Centre) adds',
+  '. Yani toplamda':'. So in total',
+
+  /* Toto bülten alt notu */
+  '. Biletlerin':'. Of the tickets,',
+  "%41,5'i":'%41,5'
+});
+
+I18N_PATTERNS.en.unshift(
+  /* Takımı sat kartı: "%40 iade: 1.200 💎. Takım pazara döner." */
+  [/^%(\d+) iade: (.+?) 💎\. Takım pazara döner\.$/,
+    '$1% refund: $2 💎. The team returns to the market.']
+);
+
+I18N_PATTERNS.en.push(
+  [/^Kulübü: (.+)$/,            m => 'Club: ' + _ic(m[1])],
+  [/^(.+?) Slot (\d+)'e kuşanıldı$/, m => _ic(m[1]) + ' equipped in slot ' + m[2]],
+  [/^(\d+)\. Klas\.$/,          'Tier $1'],
+  [/^En iyi 50'de (.+?) yok\. Tümü'ne dönüp listeye bak\.$/,
+    m => 'No ' + _ic(m[1]) + ' in the top 50. Go back to All and check the list.']
+);
