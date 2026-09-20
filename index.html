@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '509';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '510';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -5391,6 +5391,30 @@ body.auth-kbd-lock #auth-screen{
 body.auth-kbd-lock #auth-screen{ justify-content:flex-start !important }
 
 /* Auth background decoration */
+/* 🆕 509: Giriş/kayıt ekranı sağ üst dil seçici */
+.auth-lang-chip{
+  position:absolute;
+  top:calc(env(safe-area-inset-top,0px) + 12px);
+  right:14px;
+  z-index:20;
+  display:flex;align-items:center;gap:6px;
+  padding:7px 10px;
+  background:rgba(255,255,255,.06);
+  border:1px solid var(--border);
+  border-radius:10px;
+  color:var(--text2);
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:13px;font-weight:800;letter-spacing:.6px;
+  cursor:pointer;-webkit-tap-highlight-color:transparent;
+  backdrop-filter:blur(6px);
+  transition:background .15s,border-color .15s,color .15s;
+}
+.auth-lang-chip:hover,.auth-lang-chip:active{
+  background:rgba(255,255,255,.11);border-color:var(--accent);color:var(--text);
+}
+.auth-lang-chip .alc-flag{font-family:Twemoji Country Flags,sans-serif;font-size:15px;line-height:1}
+.auth-lang-chip .alc-ar{font-size:10px;opacity:.7;margin-left:1px}
+@media (max-width:360px){ .auth-lang-chip{padding:6px 8px;font-size:12px} }
 .auth-bg{
   position:absolute;top:0;left:0;right:0;height:320px;
   background:linear-gradient(160deg,#0d2a1a 0%,#0a1020 60%,var(--bg) 100%);
@@ -25170,6 +25194,13 @@ body.drawer-open{overflow:hidden}
 </div>
 
 <div id="auth-screen" class="hidden">
+  <!-- 🆕 509: giriş yapmadan dil seçimi -->
+  <div class="auth-lang-chip" id="authLangChip" onclick="langOpenModal()"
+       role="button" tabindex="0" title="Dil / Language" data-noi18n>
+    <span class="alc-flag" id="authLangFlag">🇹🇷</span>
+    <span id="authLangCode">TR</span>
+    <span class="alc-ar">▾</span>
+  </div>
   <div class="auth-bg">
     <div class="auth-bg-circle1"></div>
     <div class="auth-bg-circle2"></div>
@@ -29177,7 +29208,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-20-olcek-509';
+const APP_BUILD = '2026-09-20-olcek-510';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -30329,6 +30360,7 @@ function i18nDilAyarla(kod) {
 
   // 3) Açık ekranı tazele (dinamik üretilen metinler yeniden yazılsın)
   try { if (typeof cftUpdateLangDisplay === 'function') cftUpdateLangDisplay(); } catch(e) {}
+  try { if (typeof authLangChipGuncelle === 'function') authLangChipGuncelle(); } catch(e) {}
   try { if (typeof renderHomeNextMatch === 'function') renderHomeNextMatch(true); } catch(e) {}
   try { if (typeof inboxUpdateBadge === 'function') inboxUpdateBadge(); } catch(e) {}
   console.info('[i18n] dil değişti →', _i18nLang);
@@ -30349,6 +30381,18 @@ function cftUpdateLangDisplay(){
   el.innerHTML = `${lang.flag} ${lang.native} ›`;
 }
 
+// 🆕 509: Giriş/kayıt ekranındaki dil çipini güncelle
+function authLangChipGuncelle(){
+  try{
+    const l = CFT_LANGUAGES.find(x => x.code === cftGetLang()) || CFT_LANGUAGES[0];
+    const f = document.getElementById('authLangFlag');
+    const c = document.getElementById('authLangCode');
+    if(f) f.textContent = l.flag;
+    if(c) c.textContent = l.code.toUpperCase();
+  }catch(e){}
+}
+document.addEventListener('DOMContentLoaded', authLangChipGuncelle);
+
 function langOpenModal(){
   const list = document.getElementById('langList');
   if(!list) return;
@@ -30356,13 +30400,25 @@ function langOpenModal(){
   list.innerHTML = CFT_LANGUAGES.map(l => `
     <div class="lang-item ${l.code===cur?'active':''}" onclick="langSelect('${l.code}')">
       <div class="lang-flag">${l.flag}</div>
-      <div class="lang-info" data-noi18n>
-        <div class="lang-name">${l.name}${!l.supported?' <span style="color:var(--text3);font-size:9px;font-weight:600">• yakında</span>':''}</div>
-        <div class="lang-native">${l.native}</div>
+      <div class="lang-info">
+        <div class="lang-name"><span data-noi18n>${l.name}</span>${!l.supported?' <span style="color:var(--text3);font-size:9px;font-weight:600">• yakında</span>':''}</div>
+        <div class="lang-native" data-noi18n>${l.native}</div>
       </div>
       <div class="lang-check">✓</div>
     </div>
   `).join('');
+  // 🆕 509: alt not, desteklenen dillerden üretilir
+  try{
+    const n = document.querySelector('#langModal .lang-modal-note');
+    if(n){
+      const hazir = CFT_LANGUAGES.filter(l => l.supported).map(l => l.native);
+      n.innerHTML = hazir.length >= CFT_LANGUAGES.length
+        ? ''
+        : 'ℹ️ <span data-noi18n>' + hazir.map(x => '<b>' + x + '</b>').join(', ')
+          + '</span> hazır. Diğer diller için çeviri yakında.';
+      n.style.display = n.innerHTML ? '' : 'none';
+    }
+  }catch(e){}
   document.getElementById('langModal').classList.add('open');
 }
 
@@ -30390,6 +30446,7 @@ function langSelect(code){
     try {
       if (typeof i18nDilAyarla === 'function') i18nDilAyarla(code);
       else localStorage.setItem('cft_language', code);
+      authLangChipGuncelle();
       if (typeof rosterToast === 'function') {
         rosterToast(code === 'tr' ? '🇹🇷 Dil: Türkçe' : '🌍 Language: ' + (lang.native || code), 'ok');
       }

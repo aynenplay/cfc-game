@@ -301,7 +301,7 @@ Object.assign(window.I18N.en, {
 'Yaş Aralığı':'Age Range','45 ve üzeri':'45 and over','Avatarını':'Your Avatar',
 'Mevkini':'Your Position','Alt mevkini seç:':'Choose your sub-position:','Kayıt Ol 🎉':'Sign Up 🎉',
 'Devam ederek':'By continuing you accept the','Kullanım Şartları':'Terms of Use',
-'\'nı ve':'and the','\'nı kabul etmiş olursunuz.':'.',
+'\'nı ve':' and the ','\'nı kabul etmiş olursunuz.':'.',
 'Profilinde görünecek avatarı seç. Daha sonra Oyuncu sayfandan değiştirebilirsin.':
   'Choose the avatar shown on your profile. You can change it later from your Player page.',
 'Tercih ettiğin pozisyon yeteneklerini etkiler. Antrenmanlarla tüm mevkileri geliştirebilirsin.':
@@ -5773,3 +5773,9 @@ I18N_PATTERNS.en.push(
   [/^En iyi 50'de (.+?) yok\. Tümü'ne dönüp listeye bak\.$/,
     m => 'No ' + _ic(m[1]) + ' in the top 50. Go back to All and check the list.']
 );
+
+/* ── 61. dalga · giriş ekranı dil seçici (509) ─────────────────── */
+Object.assign(window.I18N.en, {
+  'hazır. Diğer diller için çeviri yakında.':'are ready. More languages coming soon.',
+  'Dil / Language':'Language'
+});

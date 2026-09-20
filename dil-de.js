@@ -282,7 +282,7 @@ Object.assign(window.I18N.de, {
 'Ad Soyad':'Vor- und Nachname','Uyruk':'Nationalität','Yaş Aralığı':'Altersgruppe','45 ve üzeri':'45 und älter',
 'Avatarını':'Deinen Avatar','Mevkini':'Deine Position','Alt mevkini seç:':'Wähle deine Unterposition:',
 'Kayıt Ol 🎉':'Registrieren 🎉','Devam ederek':'Mit dem Fortfahren akzeptierst du die',
-'Kullanım Şartları':'Nutzungsbedingungen','\'nı ve':'und die','\'nı kabul etmiş olursunuz.':'.',
+'Kullanım Şartları':'Nutzungsbedingungen','\'nı ve':' und die ','\'nı kabul etmiş olursunuz.':'.',
 'Profilinde görünecek avatarı seç. Daha sonra Oyuncu sayfandan değiştirebilirsin.':
   'Wähle den Avatar, der in deinem Profil erscheint. Du kannst ihn später auf deiner Spielerseite ändern.',
 'Tercih ettiğin pozisyon yeteneklerini etkiler. Antrenmanlarla tüm mevkileri geliştirebilirsin.':
@@ -3629,3 +3629,9 @@ var _esAdDe = window._i18nEsAdDe;
     }]
   );
 })();
+
+/* ── Giriş ekranı dil seçici (509) ─────────────────────────────── */
+Object.assign(window.I18N.de, {
+  'hazır. Diğer diller için çeviri yakında.':'sind verfügbar. Weitere Sprachen folgen in Kürze.',
+  'Dil / Language':'Sprache'
+});
