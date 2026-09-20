@@ -29177,7 +29177,7 @@ body.drawer-open{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-20-olcek-504';
+const APP_BUILD = '2026-09-20-olcek-506';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -35976,10 +35976,26 @@ async function resOpenFinishedMatch(matchKey) {
   if (!entry && _dbKey && window.sb) {
     try {
       const { data, error } = await window.sb.from('match_state')
-        .select('events,stats,home_lineup,away_lineup,home_score,away_score,status,sim_minute')
+        .select('events,stats,home_lineup,away_lineup,home_score,away_score,status,sim_minute,season,day_in_season,home_team,away_team')
         .eq('match_key', _dbKey)
         .maybeSingle();
       if (!error && data) {
+        // 🆕 ARŞİV YEDEĞİ — eski maçlarda match_state'teki olay/istatistik verisi
+        //   temizlenmiş olabilir (aynı veri match_results.data içinde duruyor).
+        //   Boşsa oradan oku; modal "gol atılmadı" demesin.
+        if ((!Array.isArray(data.events) || !data.events.length) && data.status === 'finished') {
+          try {
+            const { data: _mr } = await window.sb.from('match_results')
+              .select('data')
+              .eq('season', data.season).eq('day_in_season', data.day_in_season)
+              .eq('home_team', data.home_team).eq('away_team', data.away_team)
+              .maybeSingle();
+            if (_mr && _mr.data) {
+              if (Array.isArray(_mr.data.events)) data.events = _mr.data.events;
+              if (_mr.data.stats && !data.stats) data.stats = _mr.data.stats;
+            }
+          } catch(e) { console.warn('[fm] arşiv yedeği hata:', e); }
+        }
         entry = {
           events: data.events,
           stats: data.stats,
@@ -56551,6 +56567,17 @@ function ntLoadStrategy() {
 let _ntDizilisDurum = 'yok';
 
 // kullaniciEylemi = true → kullanıcı bilerek değiştirdi, her durumda kaydet
+// 🆕 506: Milli takım stratejisini SUNUCUYA yazma yetkisi var mı?
+//   Yalnızca federasyon başkanı/yardımcısı yazabilir; diğer herkeste RAM cache kullanılır.
+function _ntStratYazabilir() {
+  try {
+    if (!window.sb) return false;
+    const cc = (typeof fedActiveCountry === 'function') ? fedActiveCountry() : 'TR';
+    const rol = (typeof fedUserRole === 'function') ? fedUserRole(cc) : null;
+    return rol === 'president' || rol === 'vice';
+  } catch (e) { return false; }
+}
+
 function ntSaveStrategy(kullaniciEylemi) {
   try {
     // 🆕 Kayıtlı diziliş eşleşmediyse (kadro/roster bayat) otomatik üretilmiş
@@ -56596,6 +56623,10 @@ function ntSaveStrategy(kullaniciEylemi) {
     };
     // Anında RAM cache'i güncelle (load'ta tutarlı)
     _ntStrategyCache = blob;
+    // 🆕 506: Yetki yoksa zamanlayıcıyı HİÇ kurma. Eskiden kontrol setTimeout'un
+    //   içindeydi; flushNtStrategySave() bekleyen zamanlayıcıyı iptal edip isteği
+    //   kontrolsüz gönderdiği için her açılışta 403 düşüyordu.
+    if (!_ntStratYazabilir()) return;
     // Debounced Supabase save (500ms)
     if (_ntStrategySaveTimer) clearTimeout(_ntStrategySaveTimer);
     _ntStrategySaveTimer = setTimeout(async () => {
@@ -57518,6 +57549,8 @@ async function flushNtStrategySave() {
   if (!_ntStrategySaveTimer) return;
   clearTimeout(_ntStrategySaveTimer); _ntStrategySaveTimer = null;
   if (!window.sb || !_ntStrategyCache) return;
+  // 🆕 506: Yetkisiz kullanıcıda sunucuya hiç gitme (RLS 403'ü önler).
+  if (!_ntStratYazabilir()) return;
   try {
     const ntName = (typeof _ntCountryName === 'function') ? _ntCountryName() : 'TR';
     const cc = (typeof fedActiveCountry === 'function') ? fedActiveCountry() : 'TR';
