@@ -5599,3 +5599,44 @@ window.I18N_PATTERNS.en.push(
   [/^(.+?)'a düştün$/,                 m => 'Relegated to ' + _ic(m[1])],
   [/^(.+?) turu geçti$/,               m => _ic(m[1]) + ' advanced']
 );
+
+/* ── 59. dalga · CSC Media kupon kartı, Toto kuponlarım, göreli zaman ───
+   Kullanıcı bildirimi (20 Eylül): paylaşılan kuponda tarih/isabet Türkçe,
+   ülke adları Türkçe, "N maç bekliyor / oynanıyor" çevrilmiyor,
+   "1g" göreli zaman Türkçe, "· Kademe 4" çevrilmiyor. */
+
+/* "A – B" düğümünde takım/ülke adını çevirir; baştaki-sondaki sayı,
+   işaret ve boşlukları olduğu gibi bırakır ("1 Azerbaycan" → "1 Azerbaijan"). */
+window._i18nEsAd = function (s) {
+  try {
+    var m = String(s).match(/^([^A-Za-zÇĞİÖŞÜçğıöşü]*)([\s\S]*?)([^A-Za-zÇĞİÖŞÜçğıöşü]*)$/);
+    if (!m || !m[2]) return s;
+    return m[1] + _ic(m[2]) + m[3];
+  } catch (e) { return s; }
+};
+var _esAd = window._i18nEsAd;
+
+I18N_PATTERNS.en.push(
+  /* göreli zaman: 30sn · 5dk · 2sa · 1g */
+  [/^(\d+)sn$/, '$1s'],
+  [/^(\d+)dk$/, '$1m'],
+  [/^(\d+)sa$/, '$1h'],
+  [/^(\d+)g$/,  '$1d'],
+
+  /* lig başlığı: "4. Lig · Kademe 4" ikinci düğümü */
+  [/^· Kademe (\d+)$/, '· Tier $1'],
+
+  /* paylaşılan kupon üst satırı: "18 Eyl · İsabet 4/5" */
+  [/^(.+?) · İsabet (\d+)\/(\d+)$/, m => _ic(m[1]) + ' · Correct ' + m[2] + '/' + m[3]],
+  /* "18 Eyl · 0/0 tuttu · 5 maç bekliyor" */
+  [/^(.+?) · (\d+)\/(\d+) tuttu · (\d+) maç bekliyor$/,
+    m => _ic(m[1]) + ' · ' + m[2] + '/' + m[3] + ' correct · ' + m[4] + ' matches pending'],
+
+  /* kupon özeti: "#12 · 11:48 · 0/0 · 5 maç bekliyor" ve "0/0 · 5 maç bekliyor" */
+  [/^(.*\d) · (\d+) maç bekliyor$/,        '$1 · $2 matches pending'],
+  [/^(.*\d) · 🔴 (\d+) maç oynanıyor$/,    '$1 · 🔴 $2 matches in play'],
+
+  /* eşleşme satırları: "Norveç – İngiltere", "1 Azerbaycan–Hollanda 1-2",
+     " Azerbaycan–Hollanda · " — iki tarafı ayrı ayrı çevir. */
+  [/^[^–\n]{2,40}–[^–\n]{2,40}$/, m => m[0].split('–').map(_esAd).join('–')]
+);
