@@ -18,6 +18,92 @@ window.I18N.en = window.I18N.en || {};
 window.I18N_PATTERNS = window.I18N_PATTERNS || {};
 window.I18N_PATTERNS.en = window.I18N_PATTERNS.en || [];
 
+/* ── index.html'den taşınan çekirdek desenler (509) ────────────────
+   Bunlar eskiden index.html'in i18n bölümündeydi ve `.en`'e sabitti.
+   Çok dilli yapıya geçerken buraya alındı; sıra korunuyor. */
+// ── Desen kuralları: içinde sayı geçen dinamik metinler ──
+window.I18N_PATTERNS.en.push(
+  [/^Gün (\d+)$/,                         'Day $1'],
+  [/^Gün (\d+) \/ (\d+)$/,                'Day $1 / $2'],
+  [/^Sezon (\d+)$/,                       'Season $1'],
+  [/^Sezon (\d+)'de başlar$/,             'Starts in Season $1'],
+  [/^Hafta (\d+)$/,                       'Week $1'],
+  [/^(\d+)\. Hafta$/,                     'Week $1'],
+  [/^(\d+)\. Lig$/,                       m => ['','2nd','3rd','4th','5th','6th','7th','8th'][Number(m[1])] + ' Division'],
+  [/^(\d+)\. Lig (\d+)\. Hafta$/,         m => ['','2nd','3rd','4th','5th','6th','7th','8th'][Number(m[1])] + ' Division · Week ' + m[2]],
+  [/^Seri: (\d+)\/7 gün$/,                'Streak: $1/7 days'],
+  [/^Gün (\d+) Hediyen Hazır$/,           'Day $1 Gift Ready'],
+  [/^(\d+) gün$/,                         '$1 days'],
+  [/^(\d+) maç$/,                         '$1 matches'],
+  [/^(\d+) gol$/,                         '$1 goals'],
+  [/^(\d+) asist$/,                       '$1 assists'],
+  [/^Cezalı \((\d+) maç\)$/,              'Suspended ($1 matches)'],
+  [/^Sakat — (\d+)s iyileşme$/,           'Injured — $1h recovery'],
+  [/^Kademe (\d+)$/,                      'Tier $1'],
+  [/^Grup (\d+)\. Maç$/,                  'Group Matchday $1'],
+  [/^Son (\d+) - (\d+)\. Maç$/,           'Round of $1 - Leg $2'],
+  [/^(\d+)\. maç$/,                       'Leg $1'],
+  [/^(\d+) takım · (\d+) maç$/,           '$1 teams · $2 matches'],
+  // Yetenek bonusları:  "Oyun Görüşü +3%"  →  "Vision +3%"
+  [/^(.+?) \+(\d+)%$/,                    m => (window.I18N.en[m[1]] || m[1]) + ' +' + m[2] + '%'],
+  // "... cezası" → "... suspension"
+  [/^(.+?) cezası$/,                      m => (window.I18N.en[m[1]] || m[1]) + ' suspension']
+);
+
+// ═══ 🌍 İNGİLİZCE SÖZLÜK — 2. DALGA (açılış ekranı + kalan arayüz) ═══
+/* sözlük dil-en.js dosyasına taşındı */
+
+window.I18N_PATTERNS.en.push(
+  [/^Cezalı \(\$\{_susp\} maç\)$/,        'Suspended (${_susp} matches)'],
+  [/^Yarın ·$/,                           'Tomorrow ·'],
+  [/^(\d+) kişi$/,                        '$1 people'],
+  [/^(\d+)\. sıra$/,                      'Rank $1'],
+  [/^(\d+)\. Maç$/,                       'Matchday $1'],
+  [/^(\d+) maça çık$/,                    'Play $1 matches'],
+  [/^(\d+) kez maçın adamı ol$/,          'Be man of the match $1 times'],
+  [/^(\d+) kez takıma katıl$/,            'Join a team $1 times'],
+  [/^%(\d+) hazır$/,                      '$1% ready'],
+  [/^\+%(\d+) hücum, \+%(\d+) savunma$/,  '+$1% attack, +$2% defence'],
+  [/^(\d+) takım · (\d+) maç$/,           '$1 teams · $2 matches'],
+  [/^(\d+)\/(\d+) gün$/,                  '$1/$2 days']
+);
+
+// ═══ 🌍 İNGİLİZCE SÖZLÜK — 3. DALGA ═══
+/* sözlük dil-en.js dosyasına taşındı */
+
+window.I18N_PATTERNS.en.push(
+  [/^(.+?) · Hafta (\d+)$/,   m => (window.I18N.en[m[1]] || m[1]) + ' · Week ' + m[2]],
+  [/^· Gün (\d+)$/,           '· Day $1'],
+  [/^Gün (\d+) ·$/,           'Day $1 ·'],
+  [/^Sezon (\d+) görev süresi$/, 'Season $1 quest window'],
+  [/^(\d+)\.,\s*(\d+)\.,\s*(\d+)\. ve (\d+)\. günleri$/, 'days $1, $2, $3 and $4'],
+  [/^Son (\d+) Maç$/,         'Last $1 Matches'],
+  [/^Son (\d+) maç$/,         'Last $1 matches'],
+  [/^(\d+) farklı rol$/,      '$1 different roles'],
+  [/^(\d+) kişi · Başkan tarafından atandı$/, '$1 people · appointed by the President']
+);
+
+// ═══ 🌍 İNGİLİZCE — 4. DALGA (son rötuşlar) ═══
+/* sözlük dil-en.js dosyasına taşındı */
+
+window.I18N_PATTERNS.en.push(
+  // "Cuma, 7 Ağustos 2026" → "Friday, 7 August 2026"
+  [/^(Pazartesi|Salı|Çarşamba|Perşembe|Cuma|Cumartesi|Pazar), (\d{1,2}) (Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık) (\d{4})$/,
+    m => (window.I18N.en[m[1]] || m[1]) + ', ' + m[2] + ' ' + (window.I18N.en[m[3]] || m[3]) + ' ' + m[4]],
+  [/^(\d{1,2}) (Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık) (\d{4})$/,
+    m => m[1] + ' ' + (window.I18N.en[m[2]] || m[2]) + ' ' + m[3]],
+  [/^⚽ Maç tamamlandı · (.+)$/, '⚽ Match completed · $1'],
+  [/^Sv\. (\d+)$/,               'Lv. $1'],
+  [/^Sezon (\d+) sona erdi$/,    'Season $1 has ended'],
+  [/^(\d+)\. denemede yüklendi$/, 'loaded on attempt $1']
+);
+
+
+
+
+
+
+
 /* ── 1. dalga ─────────────────────────────────────────── */
 Object.assign(window.I18N.en, {
 // ── Gezinme / genel eylemler ──
