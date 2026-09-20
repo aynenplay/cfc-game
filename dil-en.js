@@ -5491,3 +5491,111 @@ window.I18N_PATTERNS.en.push(
   [/^(⚡\s*)?(\d+) \((\d+) mevcut\)$/,   m => (m[1] || '') + m[2] + ' (' + m[3] + ' available)'],
   [/^Sv\.(\d+) → Sv\.(\d+)$/,           'Lv.$1 → Lv.$2']
 );
+
+/* ─── Dalga 57 · Yayın öncesi son tarama ─────────────────────────────
+   (1) TARİH/GÜN/AY: oyunda ~20 ayrı yerde Türkçe gün/ay dizileriyle
+       metin üretiliyor ("12 Eylül 2026 · Cuma"). Tek tek desen yazmak
+       yerine: düğüm yalnızca tarih parçalarından oluşuyorsa (gün/ay adı
+       + rakam + ayraç) her parçayı çeviren genel bir kural.
+   (2) Toto / Kuponlarım / paylaşılan kupon kartı
+   (3) CSC Media otomatik paylaşım metinleri
+   (4) Taramada çıkan kalan arayüz metinleri                        */
+Object.assign(window.I18N.en, {
+  // ── toto bağlamı: bu anahtarlar oyunda YALNIZCA kupon ekranlarında geçiyor ──
+  'İsabet':'Correct',       // eskiden 'Accuracy' (şut isabeti) — kuponda yanlıştı
+  'Tuttu':'Correct',        // eskiden 'Saved' (kaleci kurtarışı) — kuponda yanlıştı
+  'Olası':'Potential',
+  // ── toto sekmeleri / butonları ──
+  'KUPON YAP':'CREATE COUPON',
+  'KUPONLARIM':'MY COUPONS',
+  'BÜLTEN':'COUPON',
+  'İSTATİSTİK':'STATISTICS',
+  'Kuponlarım':'My Coupons',
+  'Kupon Yap':'Create Coupon',
+  'Oran':'Odds',
+  'KAZANDI':'WON',
+  'KAYBETTİ':'LOST',
+  'DEVAM EDİYOR':'IN PROGRESS',
+  'ödül bekliyor':'reward pending',
+  'misli':'stake',
+  'Maç ·':'Matches ·',
+  'Gol ·':'Goals ·',
+  // ── kalan arayüz ──
+  'Hızlı Atak':'Quick Attack',
+  'Üst lige yükseldin':'You have been promoted',
+  'Alt lige düştün':'You have been relegated',
+  'Henüz mesaj yok — ilk yazan sen ol.':'No messages yet — be the first to write.',
+  'Henüz takipçin yok.':'You have no followers yet.',
+  'Fikstür verisi yok':'No fixture data'
+});
+
+(function () {
+  // ── (1) TARİH ÇEVİRİCİSİ ──────────────────────────────────────────
+  var GUN = {
+    'Pazartesi':'Monday','Salı':'Tuesday','Çarşamba':'Wednesday','Perşembe':'Thursday',
+    'Cuma':'Friday','Cumartesi':'Saturday','Pazar':'Sunday',
+    'Pzt':'Mon','Sal':'Tue','Çar':'Wed','Per':'Thu','Cum':'Fri','Cmt':'Sat','Paz':'Sun','Pzr':'Sun'
+  };
+  var AY = {
+    'Ocak':'January','Şubat':'February','Mart':'March','Nisan':'April','Mayıs':'May','Haziran':'June',
+    'Temmuz':'July','Ağustos':'August','Eylül':'September','Ekim':'October','Kasım':'November','Aralık':'December',
+    'Oca':'Jan','Şub':'Feb','Mar':'Mar','Nis':'Apr','May':'May','Haz':'Jun',
+    'Tem':'Jul','Ağu':'Aug','Eyl':'Sep','Eki':'Oct','Kas':'Nov','Ara':'Dec'
+  };
+  var OZEL = { 'Bugün':'Today','Dün':'Yesterday','Yarın':'Tomorrow','Saat':'Time','Gün':'Day','Sezon':'Season' };
+  var HARITA = {};
+  [GUN, AY, OZEL].forEach(function (o) { for (var k in o) HARITA[k] = o[k]; });
+  var ANAHTARLAR = Object.keys(HARITA).sort(function (a, b) { return b.length - a.length; });
+  var PARCA = new RegExp('(' + ANAHTARLAR.join('|') + ')', 'g');
+  // Tarih dışı harf kalmadıysa çevir: "📅 Bugün · 12 Eylül 2026 · Cuma" → "📅 Today · 12 September 2026 · Friday"
+  // Yalnızca TAMAMEN tarih parçalarından oluşan düğümler eşleşsin: aralarda
+  // harf geçmemeli, yoksa normal cümleler de bu kurala düşerdi.
+  var SINIR = '[^A-Za-zÇĞİÖŞÜçğıöşü]*';
+  var TARIH_RE = new RegExp('^' + SINIR + '(?:(?:' + ANAHTARLAR.join('|') + ')' + SINIR + ')+$');
+  window.I18N_PATTERNS.en.push(
+    [TARIH_RE, function (m) {
+      return m[0].replace(PARCA, function (t) { return HARITA[t]; })
+                 .replace(/(^|[\s·|(])(\d{2})\.(\d{2})\.(\d{4})(?=$|[\s·|),])/g, '$1$2/$3/$4');
+    }],
+    [/^(\d{2})\.(\d{2})\.(\d{4})$/,                   '$1/$2/$3'],
+    [/^(\d{2})\.(\d{2})\.(\d{4}) (\d{1,2}:\d{2})$/,   '$1/$2/$3 $4'],
+
+    // ── (2) Kuponlarım / paylaşılan kupon kartı ──
+    [/^([\d.,]+) € misli$/,                           '$1 € stake'],
+    [/^(\d+)\/(\d+) tuttu · (\d+) maç bekliyor$/,
+      m => m[1] + '/' + m[2] + ' correct · ' + m[3] + ' match' + (m[3] === '1' ? '' : 'es') + ' pending'],
+    [/^(\d+) Gol$/,                                   m => m[1] + ' Goal' + (m[1] === '1' ? '' : 's')],
+    [/^(\d+) Asist$/,                                 m => m[1] + ' Assist' + (m[1] === '1' ? '' : 's')],
+    [/^Serbest · (.+)$/,                              'Free · $1'],
+    [/^(.+?) · Seviye$/,                              m => _ic(m[1]) + ' · Level'],
+
+    // ── (3) CSC Media otomatik paylaşım metinleri ──
+    [/^🏆 Toto kuponum tuttu! (\d+) maç, (.+?) oran, (.+?) kazanç\.$/,
+      '🏆 My Toto coupon won! $1 matches, $2 odds, $3 winnings.'],
+    [/^😤 (\d+) maçlık kuponum (\d+)\/(\d+) ile yattı\.$/,
+      '😤 My $1-match coupon lost with $2/$3 correct.'],
+    [/^🎯 Toto kuponum oynanıyor — (\d+) maç, (.+?) oran\.$/,
+      '🎯 My Toto coupon is live — $1 matches, $2 odds.'],
+
+    // ── (4) kalan arayüz ──
+    [/^(.+?)'e yükseldin$/,                           m => 'Promoted to ' + _ic(m[1])],
+    [/^(.+?)'a yükseldin$/,                           m => 'Promoted to ' + _ic(m[1])],
+    [/^(.+?) · ([A-Z]{2,3})$/,                        m => _ic(m[1]) + ' · ' + m[2]],
+    [/^([\d.,]+)M kişi$/,                             '$1M people'],
+    [/^([\d.,]+)K kişi$/,                             '$1K people']
+  );
+})();
+
+/* ─── Dalga 58 · Yayın taramasının son kalanları ─────────────────── */
+Object.assign(window.I18N.en, {
+  '13-16 Düşme':'13-16 Relegation',
+  'Az':'Rarely'                     // şut sıklığı seçeneği (Çok Az / Az / Orta / Sık / Çok Sık)
+});
+window.I18N_PATTERNS.en.push(
+  [/^(\d+)’LÜ KUPA$/,                  '$1 TROPHIES'],
+  [/^(.+?) tam puan durumu$/,          m => _ic(m[1]) + ' full table'],
+  [/^(.+?) turnuvasına git$/,          m => 'Go to ' + _ic(m[1])],
+  [/^(.+?)'e düştün$/,                 m => 'Relegated to ' + _ic(m[1])],
+  [/^(.+?)'a düştün$/,                 m => 'Relegated to ' + _ic(m[1])],
+  [/^(.+?) turu geçti$/,               m => _ic(m[1]) + ' advanced']
+);
