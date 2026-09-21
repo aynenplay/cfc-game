@@ -5835,3 +5835,4 @@ Object.assign(window.I18N.en, {
   'Ofsayt':'Offsides','Oyuncu reytingleri':'Player ratings'
 });
 Object.assign(window.I18N.en, { 'Çıkış yapılıyor…':'Signing out…' });
+Object.assign(window.I18N.en, { 'Giriş başarılı, oyun yükleniyor…':'Signed in, loading the game…' });

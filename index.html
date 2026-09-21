@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '516';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '517';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -29348,7 +29348,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-21-olcek-516';
+const APP_BUILD = '2026-09-21-olcek-517';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -29451,14 +29451,6 @@ try {
         /* cft_auth localStorage kaldırıldı - sadece Supabase */
         // RAM cache'leri temizle
         try { _wlCache = null; _energyCache = null; } catch(e) {}
-        // (515) Başka cihazdan çıkış / oturum süresi doldu → sayfayı temiz yükle
-        //   (aynı sayfada tekrar giriş, "bir kez yükle" bayrakları yüzünden eksik veri getiriyordu)
-        let _girisliydi = false; try { _girisliydi = !!(authUser || window.authUser); } catch(e) { _girisliydi = !!window.authUser; }
-        if (!window._cikisYapiliyor && _girisliydi) {
-          window._cikisYapiliyor = true;
-          setTimeout(() => { try { location.reload(); } catch(e) {} }, 300);
-          return;
-        }
         if (typeof showAuthScreen === 'function') showAuthScreen();
         else { const a = document.getElementById('auth-screen'); if (a) a.classList.remove('hidden'); }
       }
@@ -47030,6 +47022,16 @@ function doLogin(){
       if(error){ authShowMsg('error', 'Giriş hatası: ' + error.message); return; }
       if(!data.user){ authShowMsg('error','Giriş başarısız (kullanıcı yok)'); return; }
 
+      // (516) GİRİŞ SONRASI TAM YÜKLEME — oturum kaydedildi; sayfa yeniden açılınca
+      //   uygulama, kayıtlı oturumla açılıştaki TAM yükleme yolundan geçer (sezon,
+      //   maç durumu, turnuvalar, kadro, canlı bağlantılar, çevrimiçi sayacı…).
+      //   Eskiden burada ayrı ve eksik bir yükleme yapılıyordu; çıkış yapıp tekrar
+      //   girince ya da ilk girişte bazı veriler hiç gelmiyordu.
+      authShowMsg('success', 'Giriş başarılı, oyun yükleniyor…');
+      try { sessionStorage.setItem('cft_girisYeni', '1'); } catch(e) {}
+      setTimeout(() => { try { location.reload(); } catch(e) {} }, 150);
+      return;
+
       // Profil çek
       const { data: profile } = await window.sb.from('profiles')
         .select('*').eq('id', data.user.id).maybeSingle();
@@ -47352,33 +47354,24 @@ function hideLogoutConfirm(){
 function doLogoutConfirmed(){
   hideLogoutConfirm();
 
-  // (515) ÇIKIŞTAN SONRA SAYFA YENİLENİR.
-  //   Eskiden çıkış aynı sayfada kalıyordu; tekrar girişte "bir kez yükle" bayrakları
-  //   (sezon/fikstür/turnuva/realtime/kadro yüklemeleri) zaten "yapıldı" durumunda
-  //   kaldığı için veriler eksik geliyor, önceki kullanıcının RAM verisi de karışabiliyordu.
-  //   Temiz sayfa = ilk açılışla birebir aynı yükleme.
-  let _uid = null; try { _uid = (authUser && authUser.id) || (window.authUser && window.authUser.id) || null; } catch(e) {}
+  // (516) Çıkışta sayfa YENİLENMEZ (açılış ekranı görünmesin) — giriş ekranı gösterilir.
+  //   Tam ve temiz yükleme, girişten sonra yapılır (doLogin → sayfa yenilenir).
   window._cikisYapiliyor = true;
-  const _sure = (pr, ms) => Promise.race([pr, new Promise(r => setTimeout(r, ms))]);
+  setTimeout(() => { window._cikisYapiliyor = false; }, 3000);
+
+  // 🔒 F4 · ÇEVRİMİÇİ DAMGASINI TEMİZLE — signOut'tan ÖNCE (sonra RLS reddeder)
+  let _uid = null; try { _uid = (authUser && authUser.id) || (window.authUser && window.authUser.id) || null; } catch(e) {}
+  const _oturumKapat = () => {
+    // Ağ hatasıyla signOut başarısız olursa oturum anahtarını elle sil (sonraki açılışta otomatik giriş olmasın)
+    const _sil = () => { try { Object.keys(localStorage).forEach(k => { if (/^sb-.*-auth-token/.test(k)) localStorage.removeItem(k); }); } catch(e) {} };
+    try { if (window.sb) window.sb.auth.signOut().then(r => { if (r && r.error) _sil(); }, _sil); } catch(e) { _sil(); }
+  };
   try {
-    const perde = document.createElement('div');
-    perde.style.cssText = 'position:fixed;inset:0;z-index:2147483600;background:var(--bg,#07090d);display:flex;align-items:center;justify-content:center;color:#9aa4b2;font:600 14px Barlow,sans-serif';
-    perde.textContent = (typeof T === 'function') ? T('Çıkış yapılıyor…') : 'Çıkış yapılıyor…';
-    document.body.appendChild(perde);
-  } catch(e) {}
-  (async () => {
-    // 🔒 F4 · çevrimiçi damgasını sıfırla — signOut'tan ÖNCE (sonra RLS reddeder)
-    try {
-      if (window.sb && _uid) await _sure(window.sb.from('players').update({ last_seen: new Date(0).toISOString() }).eq('user_id', _uid), 2500);
-    } catch(e) {}
-    try { if (window.sb) await _sure(window.sb.auth.signOut(), 2500); } catch(e) {}
-    // Oturum anahtarı kalmışsa (ağ hatası) elle sil — yenilemede otomatik giriş olmasın
-    try {
-      Object.keys(localStorage).forEach(k => { if (/^sb-.*-auth-token/.test(k) || k === 'cft_auth') localStorage.removeItem(k); });
-    } catch(e) {}
-    try { location.reload(); } catch(e) {}
-  })();
-  return;
+    if (window.sb && _uid) {
+      window.sb.from('players').update({ last_seen: new Date(0).toISOString() }).eq('user_id', _uid)
+        .then(_oturumKapat, _oturumKapat);
+    } else _oturumKapat();
+  } catch(e) { _oturumKapat(); }
 
   // Tüm kullanıcıya özel verileri temizle (sadece cft_auth — diğer her şey Supabase'te zaten)
   try{

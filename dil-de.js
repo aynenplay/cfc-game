@@ -3691,3 +3691,4 @@ Object.assign(window.I18N.de, {
   'Ofsayt':'Abseits','Oyuncu reytingleri':'Spielerbewertungen'
 });
 Object.assign(window.I18N.de, { 'Çıkış yapılıyor…':'Abmelden…' });
+Object.assign(window.I18N.de, { 'Giriş başarılı, oyun yükleniyor…':'Angemeldet, Spiel wird geladen…' });
