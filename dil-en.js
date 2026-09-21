@@ -5836,3 +5836,17 @@ Object.assign(window.I18N.en, {
 });
 Object.assign(window.I18N.en, { 'Çıkış yapılıyor…':'Signing out…' });
 Object.assign(window.I18N.en, { 'Giriş başarılı, oyun yükleniyor…':'Signed in, loading the game…' });
+
+/* ── 522 · Kadro durum bildirimi (zil + modal) ── */
+Object.assign(window.I18N.en, {
+  'Durum bildirimleri':'Status alerts','Bildirim yok':'No alerts','Oyuncu maça hazır':'Player is match-ready',
+  'İyileşme süresi — geri sayım':'Recovery time — countdown',
+  'Kırmızı kart cezası · resmi maçlarda oynayamaz':'Red card ban · cannot play official matches',
+  '4 sarı kart cezası · resmi maçlarda oynayamaz':'4 yellow cards ban · cannot play official matches',
+  'Sezon birikimi · 4. sarıda 1 maç ceza':'Season tally · 4th yellow = 1-match ban',
+  'Yorgunluk':'Fatigue','Yorgun':'Tired','Kondisyon düşük · dinlenmesi gerekiyor':'Low stamina · needs rest',
+  'Düşük moral':'Low morale','Maç performansı düşebilir':'Match performance may drop',
+  'Yüksek moral':'High morale','Formunun zirvesinde':'At the peak of his form',
+  'Satış ilanı aktif':'Sale listing active','Transferde':'On transfer list'
+});
+I18N_PATTERNS.en.unshift([/^🏷️ Transferde(?: · (.+))?$/, m => '🏷️ On transfer list' + (m[1] ? ' · ' + m[1] : '')]);
