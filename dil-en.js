@@ -5829,3 +5829,8 @@ I18N_PATTERNS.en.unshift(
   [/^Toplam (\d+)-(\d+)( \(uzt\. (\d+)-(\d+)\))?$/, m => 'Aggregate ' + m[1] + '-' + m[2] + (m[3] ? ' (a.e.t. ' + m[4] + '-' + m[5] + ')' : '')],
   [/^90' (\d+)-(\d+) · Uzatma (\d+)-(\d+)$/, "90' $1-$2 · Extra time $3-$4"]
 );
+
+Object.assign(window.I18N.en, {
+  'Kartlar':'Cards','Topla oynama':'Possession','İsabetli şut':'Shots on target','Pas isabeti':'Pass accuracy',
+  'Ofsayt':'Offsides','Oyuncu reytingleri':'Player ratings'
+});

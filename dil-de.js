@@ -3685,3 +3685,8 @@ window.I18N_PATTERNS.de.unshift(
   [/^Toplam (\d+)-(\d+)( \(uzt\. (\d+)-(\d+)\))?$/, function (m) { return 'Gesamt ' + m[1] + '-' + m[2] + (m[3] ? ' (n.V. ' + m[4] + '-' + m[5] + ')' : ''); }],
   [/^90' (\d+)-(\d+) · Uzatma (\d+)-(\d+)$/, function (m) { return "90' " + m[1] + '-' + m[2] + ' · Verlängerung ' + m[3] + '-' + m[4]; }]
 );
+
+Object.assign(window.I18N.de, {
+  'Kartlar':'Karten','Topla oynama':'Ballbesitz','İsabetli şut':'Schüsse aufs Tor','Pas isabeti':'Passquote',
+  'Ofsayt':'Abseits','Oyuncu reytingleri':'Spielerbewertungen'
+});
