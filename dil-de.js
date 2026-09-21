@@ -3635,3 +3635,34 @@ Object.assign(window.I18N.de, {
   'hazır. Diğer diller için çeviri yakında.':'sind verfügbar. Weitere Sprachen folgen in Kürze.',
   'Dil / Language':'Sprache'
 });
+
+/* ── Maç motoru düzeltmeleri (511) ─────────────────────────────── */
+Object.assign(window.I18N.de, {
+  'Bitti':'Beendet','Uzatma':'Verlängerung',
+  '🟥 Kırmızı kart gören oyuncunun yerine oyuncu alınamaz':'🟥 Ein vom Platz gestellter Spieler kann nicht ersetzt werden',
+  'Bu oyuncu artık sahada değil':'Dieser Spieler ist nicht mehr auf dem Platz',
+  '⏳ Değişiklik gönderiliyor…':'⏳ Wechsel wird gesendet…',
+  '⚠️ Oyuncu numarası bulunamadı':'⚠️ Rückennummer nicht gefunden',
+  '❌ Bu oyuncu artık sahada değil':'❌ Dieser Spieler ist nicht mehr auf dem Platz',
+  '❌ Oyundan çıkan oyuncu tekrar giremez':'❌ Ein ausgewechselter Spieler darf nicht zurückkehren',
+  '❌ Bu yedek maç kadrosunda yok':'❌ Dieser Ersatzspieler steht nicht im Spieltagskader',
+  '❌ Maç bitti':'❌ Das Spiel ist beendet',
+  '❌ Değişiklik yetkin yok':'❌ Du darfst keine Wechsel vornehmen',
+  '❌ Bu maç senin takımının değil':'❌ Das ist nicht das Spiel deines Teams',
+  '❌ Değişiklik sunucuya iletilemedi':'❌ Der Wechsel konnte nicht an den Server übermittelt werden'
+});
+window.I18N_PATTERNS.de.unshift(
+  [/^🚑 (.+) sakat — (\d+) gün sonra oynayabilir$/,  function (m) { return '🚑 ' + m[1] + ' ist verletzt — wieder verfügbar in ' + m[2] + (m[2] === '1' ? ' Tag' : ' Tagen'); }],
+  [/^🚑 (.+) sakat — (\d+) saat sonra oynayabilir$/, function (m) { return '🚑 ' + m[1] + ' ist verletzt — wieder verfügbar in ' + m[2] + (m[2] === '1' ? ' Stunde' : ' Stunden'); }],
+  [/^🟥 (.+) cezalı — (\d+) resmi maç oynayamaz$/,   function (m) { return '🟥 ' + m[1] + ' ist gesperrt — fehlt ' + m[2] + (m[2] === '1' ? ' Pflichtspiel' : ' Pflichtspiele'); }]
+);
+
+/* ── Sakatlık geri sayımı (512) ────────────────────────────────── */
+Object.assign(window.I18N.de, {
+  'Sakat':'Verletzt',
+  'İyileşmeye kalan':'Wieder fit in',
+  'Her sakatlık 50 saat sürer. Her seviye iyileşme süresini %5 kısaltır.':'Jede Verletzung dauert 50 Stunden. Jede Stufe verkürzt die Ausfallzeit um 5%.'
+});
+window.I18N_PATTERNS.de.unshift(
+  [/^(.+?) sakatlığı · (.+) sahalardan uzak$/, function (m) { return _icD(m[1]) + '-Verletzung · fällt ' + m[2] + ' aus'; }]
+);

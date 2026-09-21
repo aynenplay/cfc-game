@@ -5779,3 +5779,34 @@ Object.assign(window.I18N.en, {
   'hazır. Diğer diller için çeviri yakında.':'are ready. More languages coming soon.',
   'Dil / Language':'Language'
 });
+
+/* ── 62. dalga · maç motoru düzeltmeleri (511) ─────────────────── */
+Object.assign(window.I18N.en, {
+  'Bitti':'Ended','Uzatma':'Extra time',
+  '🟥 Kırmızı kart gören oyuncunun yerine oyuncu alınamaz':'🟥 A sent-off player cannot be replaced',
+  'Bu oyuncu artık sahada değil':'This player is no longer on the pitch',
+  '⏳ Değişiklik gönderiliyor…':'⏳ Sending substitution…',
+  '⚠️ Oyuncu numarası bulunamadı':'⚠️ Player number not found',
+  '❌ Bu oyuncu artık sahada değil':'❌ This player is no longer on the pitch',
+  '❌ Oyundan çıkan oyuncu tekrar giremez':'❌ A substituted player cannot come back on',
+  '❌ Bu yedek maç kadrosunda yok':'❌ This substitute is not in the matchday squad',
+  '❌ Maç bitti':'❌ The match is over',
+  '❌ Değişiklik yetkin yok':'❌ You are not allowed to make substitutions',
+  '❌ Bu maç senin takımının değil':'❌ This is not your team’s match',
+  '❌ Değişiklik sunucuya iletilemedi':'❌ The substitution could not be sent to the server'
+});
+I18N_PATTERNS.en.unshift(
+  [/^🚑 (.+) sakat — (\d+) gün sonra oynayabilir$/,  m => '🚑 ' + m[1] + ' is injured — available in ' + m[2] + (m[2] === '1' ? ' day' : ' days')],
+  [/^🚑 (.+) sakat — (\d+) saat sonra oynayabilir$/, m => '🚑 ' + m[1] + ' is injured — available in ' + m[2] + (m[2] === '1' ? ' hour' : ' hours')],
+  [/^🟥 (.+) cezalı — (\d+) resmi maç oynayamaz$/,   m => '🟥 ' + m[1] + ' is suspended — out for ' + m[2] + (m[2] === '1' ? ' official match' : ' official matches')]
+);
+
+/* ── 63. dalga · sakatlık geri sayımı (512) ─────────────────────── */
+Object.assign(window.I18N.en, {
+  'Sakat':'Injured',
+  'İyileşmeye kalan':'Back in',
+  'Her sakatlık 50 saat sürer. Her seviye iyileşme süresini %5 kısaltır.':'Every injury lasts 50 hours. Each level cuts recovery time by 5%.'
+});
+I18N_PATTERNS.en.unshift(
+  [/^(.+?) sakatlığı · (.+) sahalardan uzak$/, m => _ic(m[1]) + ' injury · out for ' + m[2]]
+);
