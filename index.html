@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '514';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '515';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -3866,6 +3866,7 @@ select.form-input option{background:var(--bg)}
   border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.6),0 0 0 1px rgba(0,0,0,.2);color:#fff;
   font-family:Barlow,system-ui,sans-serif;animation:tmdGir .18s ease-out}
 @keyframes tmdGir{from{transform:translateY(8px) scale(.98);opacity:0}to{transform:none;opacity:1}}
+.tmd.hazir{animation:none}
 .tmd-hd{display:flex;align-items:center;gap:8px;padding:9px 10px 9px 12px;border-bottom:1px solid rgba(255,255,255,.08);
   background:linear-gradient(90deg,color-mix(in srgb,var(--acc) 16%,#16285a),#16285a);position:sticky;top:0;z-index:1}
 .tmd-comp{flex:1;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;letter-spacing:.3px;color:#c9d3ef;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -29347,7 +29348,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-21-olcek-514';
+const APP_BUILD = '2026-09-21-olcek-515';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -76224,7 +76225,20 @@ async function trnMacDetayAc(id) {
   let rows = [];
   try { rows = await _trnMdVeri(d); } catch (e) { console.warn('[trnMacDetay]', e); }
   d._rows = rows; d._id = id;
-  if (o.classList.contains('open') && window._trnMdKayitlar[id] === d) o.innerHTML = _trnMdHtml(d, rows);
+  if (o.classList.contains('open') && window._trnMdKayitlar[id] === d) _trnMdYerindeGuncelle(o, d, rows);
+}
+// (514) Veri gelince modalı YENİDEN AÇMADAN içeriği güncelle — eskiden innerHTML baştan
+//   yazılıyor, giriş animasyonu ikinci kez oynuyor ve üst üste iki modal açılmış gibi görünüyordu.
+function _trnMdYerindeGuncelle(o, d, rows) {
+  const eski = o.querySelector('.tmd');
+  const sc = eski ? eski.scrollTop : 0;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = _trnMdHtml(d, rows);
+  const yeni = tmp.querySelector('.tmd');
+  if (!eski || !yeni) { o.innerHTML = tmp.innerHTML; return; }
+  yeni.classList.add('hazir');
+  eski.replaceWith(yeni);
+  yeni.scrollTop = sc;
 }
 // İki maçlı eşleşmede ayrıntı (kart/istatistik/reyting) hangi maçın gösterileceği
 function trnMdAyakSec(id, i) {
@@ -76232,9 +76246,7 @@ function trnMdAyakSec(id, i) {
   const o = document.getElementById('trnMdOverlay');
   if (!d || !o || !d._rows) return;
   d._ayak = i;
-  const sc = (o.querySelector('.tmd') || {}).scrollTop || 0;
-  o.innerHTML = _trnMdHtml(d, d._rows);
-  const t = o.querySelector('.tmd'); if (t) t.scrollTop = sc;
+  _trnMdYerindeGuncelle(o, d, d._rows);
 }
 // Her ayak için { events, stats, kickoff_at } — önce match_state (anahtar ya da takım adları),
 //   olay yoksa match_results.data (eski maçlarda match_state temizlenmiş olabilir)
