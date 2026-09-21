@@ -3690,3 +3690,4 @@ Object.assign(window.I18N.de, {
   'Kartlar':'Karten','Topla oynama':'Ballbesitz','İsabetli şut':'Schüsse aufs Tor','Pas isabeti':'Passquote',
   'Ofsayt':'Abseits','Oyuncu reytingleri':'Spielerbewertungen'
 });
+Object.assign(window.I18N.de, { 'Çıkış yapılıyor…':'Abmelden…' });

@@ -5834,3 +5834,4 @@ Object.assign(window.I18N.en, {
   'Kartlar':'Cards','Topla oynama':'Possession','İsabetli şut':'Shots on target','Pas isabeti':'Pass accuracy',
   'Ofsayt':'Offsides','Oyuncu reytingleri':'Player ratings'
 });
+Object.assign(window.I18N.en, { 'Çıkış yapılıyor…':'Signing out…' });
