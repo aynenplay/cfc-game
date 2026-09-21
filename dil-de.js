@@ -3666,3 +3666,22 @@ Object.assign(window.I18N.de, {
 window.I18N_PATTERNS.de.unshift(
   [/^(.+?) sakatlığı · (.+) sahalardan uzak$/, function (m) { return _icD(m[1]) + '-Verletzung · fällt ' + m[2] + ' aus'; }]
 );
+
+/* ── Maç detayı modalı (512) ───────────────────────────────────── */
+Object.assign(window.I18N.de, {
+  'DEVAM':'LÄUFT','Rövanş maçı bekleniyor':'Rückspiel steht noch aus','tur atladı':'ist weiter',
+  'Penaltılarla':'Im Elfmeterschießen:','Uzatmada':'In der Verlängerung:','Eşleşme':'Duell','TOPLAM':'GESAMT',
+  'UZATMA SONU':'NACH VERLÄNGERUNG','Gol yok':'Keine Tore','Penaltı atışları':'Elfmeterschießen',
+  'Tüm atışlar':'Alle Schüsse','Kaleci kurtardı':'Gehalten','Direkten döndü':'Pfosten','Auta gitti':'Vorbei',
+  'Kaçtı':'Verschossen','Maç Detayı ›':'Spieldetails ›',
+  'Atış ayrıntısı bu maç için kayıtlı değil':'Für dieses Spiel sind keine Einzelschüsse gespeichert',
+  'Uzatma/penaltı kaydı yok (eski maç)':'Keine Daten zu Verlängerung/Elfmetern (älteres Spiel)'
+});
+window.I18N_PATTERNS.de.unshift(
+  [/^(\d)\. MAÇ$/, function (m) { return m[1] + '. SPIEL'; }],
+  [/^(\d)\. maç$/, function (m) { return m[1] + '. Spiel'; }],
+  [/^(\d)\. Maç ›$/, function (m) { return m[1] + '. Spiel ›'; }],
+  [/^İlk atan: (.+)$/, function (m) { return 'Beginnt: ' + m[1]; }],
+  [/^Toplam (\d+)-(\d+)( \(uzt\. (\d+)-(\d+)\))?$/, function (m) { return 'Gesamt ' + m[1] + '-' + m[2] + (m[3] ? ' (n.V. ' + m[4] + '-' + m[5] + ')' : ''); }],
+  [/^90' (\d+)-(\d+) · Uzatma (\d+)-(\d+)$/, function (m) { return "90' " + m[1] + '-' + m[2] + ' · Verlängerung ' + m[3] + '-' + m[4]; }]
+);

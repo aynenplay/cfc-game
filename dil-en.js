@@ -5810,3 +5810,22 @@ Object.assign(window.I18N.en, {
 I18N_PATTERNS.en.unshift(
   [/^(.+?) sakatlığı · (.+) sahalardan uzak$/, m => _ic(m[1]) + ' injury · out for ' + m[2]]
 );
+
+/* ── 64. dalga · maç detayı modalı (512) ───────────────────────── */
+Object.assign(window.I18N.en, {
+  'DEVAM':'ONGOING','Rövanş maçı bekleniyor':'Second leg to come','tur atladı':'advanced',
+  'Penaltılarla':'On penalties,','Uzatmada':'In extra time,','Eşleşme':'Tie','TOPLAM':'AGGREGATE',
+  'UZATMA SONU':'AFTER EXTRA TIME','Gol yok':'No goals','Penaltı atışları':'Penalty shoot-out',
+  'Tüm atışlar':'All kicks','Kaleci kurtardı':'Saved','Direkten döndü':'Hit the post','Auta gitti':'Wide',
+  'Kaçtı':'Missed','Maç Detayı ›':'Match Details ›',
+  'Atış ayrıntısı bu maç için kayıtlı değil':'Kick-by-kick details were not recorded for this match',
+  'Uzatma/penaltı kaydı yok (eski maç)':'No extra time / penalty record (older match)'
+});
+I18N_PATTERNS.en.unshift(
+  [/^(\d)\. MAÇ$/, 'LEG $1'],
+  [/^(\d)\. maç$/, 'Leg $1'],
+  [/^(\d)\. Maç ›$/, 'Leg $1 ›'],
+  [/^İlk atan: (.+)$/, m => 'First to shoot: ' + m[1]],
+  [/^Toplam (\d+)-(\d+)( \(uzt\. (\d+)-(\d+)\))?$/, m => 'Aggregate ' + m[1] + '-' + m[2] + (m[3] ? ' (a.e.t. ' + m[4] + '-' + m[5] + ')' : '')],
+  [/^90' (\d+)-(\d+) · Uzatma (\d+)-(\d+)$/, "90' $1-$2 · Extra time $3-$4"]
+);
