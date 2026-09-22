@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '524';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '526';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -19002,6 +19002,7 @@ body.drawer-open .hb-btn span:nth-child(3){transform:translateY(-6px) rotate(-45
 }
 /* 🆕 Ziyaretçi banner — yalnız guest-mode aktifken görünür */
 #page-national .nt-guest-banner{display:none}
+#page-national.nt-guest-own .nt-guest-banner .pl-vb-back{display:none}
 #page-national.nt-guest-mode .nt-guest-banner{
   display:flex;align-items:center;gap:10px;margin:10px 14px 0;padding:9px 12px;
   background:linear-gradient(90deg,rgba(255,213,79,.12),rgba(255,213,79,.06));
@@ -29460,7 +29461,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-22-olcek-524';
+const APP_BUILD = '2026-09-22-olcek-526';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -45263,13 +45264,8 @@ function showPage(name,btn){
     // 🆕 Sekme görünürlüğü: KENDİ milli takımın (ziyaretçi DEĞİL) → TÜM 7 sekme görünür.
     //   Yabancı milli takım (ziyaretçi modu) → kısıtlı görünüm (Diziliş/Sohbet/Analiz gizli).
     //   Düzenleme yetkisi AYRICA ntCanEditFormation (başkan/yardımcı) ile sınırlı; üyeler salt görüntüler.
-    try {
-      const pageEl = document.getElementById('page-national');
-      if (pageEl) {
-        if (window._ntViewingCC) pageEl.classList.add('nt-guest-mode');
-        else pageEl.classList.remove('nt-guest-mode');
-      }
-    } catch(e) {}
+    // 🆕 526 — kendi milli takımında da kadroda değilse ziyaretçi modu
+    try { if (typeof _ntZiyaretciModuUygula === 'function') _ntZiyaretciModuUygula(); } catch(e) {}
     // Açılışta Kadro sekmesini aktif göster
     const rosterTabBtn = document.querySelector('#page-national .team-tab');
     if(typeof ntTab === 'function') ntTab('roster', rosterTabBtn);
@@ -48291,6 +48287,29 @@ function rosterKickPlayer(playerNum){
     return;
   }
 
+  // 🆕 525 — Satış listesindeki oyuncu kovulamaz. Eskiden kovulan oyuncunun
+  //   ilanı transfer listesinde asılı kalıyordu.
+  try {
+    const _ilan = (typeof _kdTfIlan === 'function') ? _kdTfIlan(p, _userTeam.teamName) : null;
+    if (_ilan) {
+      if (typeof closePlayerModal === 'function') closePlayerModal();
+      if (typeof showInfoModal === 'function') {
+        showInfoModal({
+          icon: '🏷️', iconColor: '#f59e0b',
+          title: 'Oyuncu Satış Listesinde',
+          subtitle: '<span data-noi18n>' + _escapeHtml(p.name) + '</span>',
+          body: '<div class="info-modal-rows"><div class="info-modal-row"><div class="info-modal-row-ic">🚫</div>'
+              + '<div class="info-modal-row-body"><div class="info-modal-row-val" style="font-size:14px">Satış listesindeki oyuncu kovulamaz.</div></div></div></div>'
+              + '<div class="info-modal-note">Önce oyuncuyu satış listesinden çıkar, sonra takımdan kovabilirsin.</div>',
+          btnText: 'Anladım'
+        });
+      } else {
+        rosterToast('Satış listesindeki oyuncu kovulamaz. Önce satış listesinden çıkar.', 'err');
+      }
+      return;
+    }
+  } catch(e) {}
+
   // Custom confirm modal aç
   _pendingKickNum = playerNum;
   const msgEl = document.getElementById('kickConfirmMsg');
@@ -50179,6 +50198,49 @@ function capLeaveSellTeam() {
 }
 window.capLeaveSellTeam = capLeaveSellTeam;
 
+// 🆕 525 — Takımdan ayrılamama bilgisi: tarayıcı alert() yerine oyunun bilgi modalı
+function _ayrilamazModal(check) {
+  const reason = (check && check.reason) || 'Şu anda ayrılamazsın.';
+  if (typeof showInfoModal !== 'function') { try { alert(reason); } catch(e) {} return; }
+  const esc = (typeof _escapeHtml === 'function') ? _escapeHtml : (x => String(x));
+  const c = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.contract : null;
+  const sozlesmeli = !!(c && typeof userHasActiveContract === 'function' && userHasActiveContract() && !c.canLeaveFreely
+                        && _userTeam.role !== 'captain');
+  if (!sozlesmeli) {
+    // Genel neden (ör. kaptan) — metni satırlarıyla göster
+    const satirlar = String(reason).split('\n').map(x => x.trim()).filter(Boolean);
+    const baslik = satirlar.shift() || 'Ayrılamazsın';
+    showInfoModal({ icon: '⚠️', iconColor: '#f59e0b', title: esc(baslik.replace(/^[⚠️🔒\s]+/u, '')),
+      body: satirlar.map(x => '<div style="font-size:13px;color:#cfd8e3;line-height:1.5;margin-bottom:8px">' + esc(x) + '</div>').join(''),
+      btnText: 'Anladım' });
+    return;
+  }
+  const info = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : null;
+  const bitis = (typeof c.endsSeason === 'number') ? c.endsSeason : null;
+  const kalan = (info && bitis != null) ? Math.max(0, bitis - info.season + 1) : null;
+  const maas = Number(c.seasonSalary || c.yearlySalary || 0);
+  const satir = (ic, lbl, val) => '<div class="info-modal-row"><div class="info-modal-row-ic">' + ic + '</div>'
+    + '<div class="info-modal-row-body"><div class="info-modal-row-lbl">' + lbl + '</div>'
+    + '<div class="info-modal-row-val">' + val + '</div></div></div>';
+  let rows = '';
+  if (bitis != null) rows += satir('📅', 'Sözleşme bitişi', '<span>Sezon</span> <span data-noi18n>' + bitis + '</span>');
+  if (kalan != null) rows += satir('⏳', 'Kalan süre', '<span data-noi18n>' + kalan + '</span> <span>sezon</span>');
+  if (maas > 0) rows += satir('💶', 'Sezon maaşı', '<span data-noi18n>' + (maas / 1000).toLocaleString('tr') + 'K €</span> <span>· 4 taksit</span>');
+  const sart = ['Takım 2 maaş taksitini ödeyemezse (kasa yetersiz)', 'Sözleşme süresi dolarsa', 'Sezon sonu yenileme reddedildiyse']
+    .map(x => '<div style="display:flex;gap:8px;font-size:12.5px;color:#cfd8e3;line-height:1.45;margin-top:6px"><span style="color:#69f0ae">•</span><span>' + x + '</span></div>').join('');
+  showInfoModal({
+    icon: '🔒', iconColor: '#f59e0b',
+    title: 'Sözleşmen Aktif',
+    subtitle: '<span data-noi18n>' + esc(_userTeam.teamName || '') + '</span> <span>ile sözleşmen var</span>',
+    body: (rows ? '<div class="info-modal-rows">' + rows + '</div>' : '')
+      + '<div class="info-modal-note">Sözleşmeli oyuncu kendi isteğiyle takımdan ayrılamaz.</div>'
+      + '<div style="margin-top:12px;font-size:11px;font-weight:800;letter-spacing:.6px;color:#8b90a0;text-transform:uppercase">Ayrılma hakkı şu durumlarda doğar</div>'
+      + sart,
+    btnText: 'Anladım'
+  });
+}
+window._ayrilamazModal = _ayrilamazModal;
+
 function leaveTeamPrompt(satisOnayli) {
   // Ziyaretçi modunda kesinlikle çalışmaz
   if(typeof _viewingTeam !== 'undefined' && _viewingTeam) return;
@@ -50194,8 +50256,7 @@ function leaveTeamPrompt(satisOnayli) {
     const _kaptan = !!(_userTeam && _userTeam.role === 'captain');
     if (_kaptan && !satisOnayli) { capLeaveShow(); return; }
     if (!_kaptan) {
-      try { alert(check.reason || 'Şu anda ayrılamazsın.'); } catch(e) {}
-      if (typeof showJoinToast === 'function') showJoinToast('🔒 Sözleşmen aktif');
+      _ayrilamazModal(check);
       return;
     }
   }
@@ -55932,10 +55993,55 @@ function _ntHeroFlagSrc(cc){
   } catch(e) { return null; }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// 🆕 526 — MİLLİ TAKIM ZİYARETÇİ MODU
+//   Tam erişim: milli takım KADROSUNDAKİLER + T.D. / yardımcılar (kadroyu
+//   yönettikleri için). Diğer herkes — kendi ülkesinin milli takımına
+//   bakarken bile — ziyaretçi modunda görür: sohbet, diziliş ve analiz
+//   sekmeleri kapalı (yabancı milli takım görünümüyle aynı kısıtlar).
+//   Eskiden sohbete kadroda olmayan herkes yazabiliyordu.
+// ═══════════════════════════════════════════════════════════════════
+function _ntTamErisim() {
+  if (typeof window !== 'undefined' && window._ntViewingCC) return false;
+  try { if (typeof ntCanEditFormation === 'function' && ntCanEditFormation()) return true; } catch(e) {}
+  try { if (typeof isUserInNationalSquad === 'function' && isUserInNationalSquad()) return true; } catch(e) {}
+  return false;
+}
+window._ntTamErisim = _ntTamErisim;
+function _ntZiyaretciModuUygula() {
+  const pageEl = document.getElementById('page-national');
+  if (!pageEl) return;
+  const misafir = !_ntTamErisim();
+  const kendi = !window._ntViewingCC;
+  pageEl.classList.toggle('nt-guest-mode', misafir);
+  pageEl.classList.toggle('nt-guest-own', misafir && kendi);
+  const txt = pageEl.querySelector('#ntGuestBanner .pl-vb-text');
+  if (txt) {
+    const yeni = (misafir && kendi)
+      ? 'Ziyaretçi görünümü — milli takım kadrosunda olmadığın için sohbet ve diziliş kapalı.'
+      : 'Ziyaretçi görünümü — bu milli takımda değişiklik yapamazsın.';
+    if (txt.getAttribute('data-tr') !== yeni) { txt.setAttribute('data-tr', yeni); txt.textContent = yeni; }
+  }
+  if (misafir) {
+    const active = pageEl.querySelector('.team-tab.active');
+    const tab = active ? active.dataset.ntTab : null;
+    if (tab && ['formation', 'chat', 'callup'].indexOf(tab) !== -1) {
+      const rosterTab = pageEl.querySelector('.team-tab[data-nt-tab="roster"]');
+      if (rosterTab && typeof ntTab === 'function') ntTab('roster', rosterTab);
+    }
+    try { if (typeof _ntChatAboneKapat === 'function') _ntChatAboneKapat(); } catch(e) {}
+  }
+}
+window._ntZiyaretciModuUygula = _ntZiyaretciModuUygula;
+
 function ntRender() {
   const cc = (typeof fedActiveCountry === 'function') ? fedActiveCountry() : 'TR';
   if (typeof _loadNtPoolFromServer === 'function') _loadNtPoolFromServer(cc).catch(()=>{});
-  if (typeof _loadNtSquadFromServer === 'function') _loadNtSquadFromServer(cc).catch(()=>{});
+  // 🆕 526 — kadro / federasyon yetkisi gelince ziyaretçi modunu yeniden değerlendir
+  if (typeof _loadNtSquadFromServer === 'function') _loadNtSquadFromServer(cc)
+    .then(() => { try { _ntZiyaretciModuUygula(); } catch(e) {} }).catch(()=>{});
+  if (typeof _loadFedStateFromServer === 'function') _loadFedStateFromServer(cc)
+    .then(() => { try { _ntZiyaretciModuUygula(); } catch(e) {} }).catch(()=>{});
   const country = (true) ? _cftGetCountry(cc) : null;
   const pres = (typeof fedGetPresident === 'function') ? fedGetPresident(cc) : null;
   const flagEl  = document.getElementById('ntHeroFlag');
@@ -58307,6 +58413,12 @@ function _ntChatUlke() {
 function ntRenderChat() {
   const el = document.getElementById('nt-chat');
   if(!el) return;
+  // 🆕 526 — kadroda olmayan sohbeti göremez / yazamaz
+  if (typeof _ntTamErisim === 'function' && !_ntTamErisim()) {
+    el.innerHTML = '';
+    try { _ntZiyaretciModuUygula(); } catch(e) {}
+    return;
+  }
   el.innerHTML = `
     <div class="vt-section nt-chat-section">
       <div class="chat-header-row">
@@ -58393,6 +58505,11 @@ window._ntChatAboneKapat = _ntChatAboneKapat;
 async function ntSendChat() {
   const inp = document.getElementById('ntChatInput');
   if (!inp || !inp.value.trim()) return;
+  // 🆕 526 — yalnızca kadrodakiler (ve T.D. / yardımcılar) yazabilir
+  if (typeof _ntTamErisim === 'function' && !_ntTamErisim()) {
+    if (typeof showToast === 'function') showToast('Milli takım sohbetine yalnızca kadrodaki oyuncular yazabilir.');
+    return;
+  }
   const area = document.getElementById('ntChatArea');
   if (!area) return;
   const text = inp.value.trim().slice(0, 300);
@@ -59736,6 +59853,11 @@ function ntFocusRoster() {
 
 // ──────── MİLLİ TAKIM sekme geçişi ────────
 function ntTab(name, el) {
+  // 🆕 526 — ziyaretçi modunda kapalı sekmeler (menüden de açılamasın)
+  if (['formation','chat','callup'].indexOf(name) !== -1 && typeof _ntTamErisim === 'function' && !_ntTamErisim()) {
+    name = 'roster';
+    el = document.querySelector('#page-national .team-tab[data-nt-tab="roster"]');
+  }
   const PANES = ['roster','formation','chat','fixture','standings','callup','trophies'];
   PANES.forEach(t => {
     const e = document.getElementById('nt-' + t);
@@ -61311,11 +61433,9 @@ function memberLeaveTeam() {
   const check = (typeof canUserLeaveTeam === 'function') ? canUserLeaveTeam() : { allowed: true };
 
   if (!check.allowed) {
-    // Ayrılamaz — sebep göster (alert + toast)
-    try { alert(check.reason || 'Şu anda ayrılamazsın.'); } catch(e) {}
-    if (typeof showJoinToast === 'function') {
-      showJoinToast(_userTeam.role === 'captain' ? '⚠️ Kaptan ayrılamaz' : '🔒 Sözleşmen aktif');
-    }
+    // 🆕 525 — tarayıcı alert() yerine oyunun bilgi modalı
+    if (_userTeam.role === 'captain' && typeof capLeaveShow === 'function') { capLeaveShow(); return; }
+    _ayrilamazModal(check);
     return;
   }
 

@@ -5861,3 +5861,26 @@ Object.assign(window.I18N.en, {
   'Başkanlığa bot kaptanlı en güçlü kulüp atanır':'the strongest club with a bot captain is appointed president',
   'Gerçek aday çıkmazsa başkanlığa bot kaptanlı en güçlü kulüp atanır.':'If no real candidate stands, the strongest club with a bot captain is appointed president.'
 });
+
+/* ── 525 · Kovma engeli + sözleşme modalı ── */
+Object.assign(window.I18N.en, {
+  'Oyuncu Satış Listesinde':'Player Is Listed for Sale',
+  'Satış listesindeki oyuncu kovulamaz.':'A player on the sale list cannot be released.',
+  'Önce oyuncuyu satış listesinden çıkar, sonra takımdan kovabilirsin.':'Remove the player from the sale list first, then you can release him.',
+  'Satış listesindeki oyuncu kovulamaz. Önce satış listesinden çıkar.':'A listed player cannot be released. Remove him from the sale list first.',
+  'Sözleşmen Aktif':'Your Contract Is Active','ile sözleşmen var':'— you are under contract',
+  'Sözleşme bitişi':'Contract ends','Kalan süre':'Time left','Sezon maaşı':'Season salary',
+  'sezon':'season(s)','· 4 taksit':'· 4 instalments',
+  'Sözleşmeli oyuncu kendi isteğiyle takımdan ayrılamaz.':'A player under contract cannot leave the team voluntarily.',
+  'Ayrılma hakkı şu durumlarda doğar':'You may leave if',
+  'Takım 2 maaş taksitini ödeyemezse (kasa yetersiz)':'The team misses 2 salary instalments (insufficient funds)',
+  'Sözleşme süresi dolarsa':'Your contract expires',
+  'Sezon sonu yenileme reddedildiyse':'The end-of-season renewal was declined',
+  'Ayrılamazsın':'You cannot leave','Takımın yok.':'You have no team.','Şu anda ayrılamazsın.':'You cannot leave right now.'
+});
+
+/* ── 526 · Milli takım ziyaretçi modu ── */
+Object.assign(window.I18N.en, {
+  'Ziyaretçi görünümü — milli takım kadrosunda olmadığın için sohbet ve diziliş kapalı.':'Visitor view — chat and line-up are closed because you are not in the national squad.',
+  'Milli takım sohbetine yalnızca kadrodaki oyuncular yazabilir.':'Only players in the squad can write in the national team chat.'
+});

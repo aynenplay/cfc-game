@@ -3717,3 +3717,26 @@ Object.assign(window.I18N.de, {
   'Başkanlığa bot kaptanlı en güçlü kulüp atanır':'der stärkste Verein mit Bot-Kapitän wird zum Präsidenten ernannt',
   'Gerçek aday çıkmazsa başkanlığa bot kaptanlı en güçlü kulüp atanır.':'Tritt kein echter Kandidat an, wird der stärkste Verein mit Bot-Kapitän zum Präsidenten ernannt.'
 });
+
+/* ── 525 · Kovma engeli + sözleşme modalı ── */
+Object.assign(window.I18N.de, {
+  'Oyuncu Satış Listesinde':'Spieler steht auf der Verkaufsliste',
+  'Satış listesindeki oyuncu kovulamaz.':'Ein Spieler auf der Verkaufsliste kann nicht entlassen werden.',
+  'Önce oyuncuyu satış listesinden çıkar, sonra takımdan kovabilirsin.':'Nimm den Spieler zuerst von der Verkaufsliste, dann kannst du ihn entlassen.',
+  'Satış listesindeki oyuncu kovulamaz. Önce satış listesinden çıkar.':'Gelistete Spieler können nicht entlassen werden. Zuerst von der Verkaufsliste nehmen.',
+  'Sözleşmen Aktif':'Dein Vertrag ist aktiv','ile sözleşmen var':'— du stehst unter Vertrag',
+  'Sözleşme bitişi':'Vertragsende','Kalan süre':'Restlaufzeit','Sezon maaşı':'Saisongehalt',
+  'sezon':'Saison(s)','· 4 taksit':'· 4 Raten',
+  'Sözleşmeli oyuncu kendi isteğiyle takımdan ayrılamaz.':'Ein Spieler unter Vertrag kann das Team nicht freiwillig verlassen.',
+  'Ayrılma hakkı şu durumlarda doğar':'Du darfst gehen, wenn',
+  'Takım 2 maaş taksitini ödeyemezse (kasa yetersiz)':'das Team 2 Gehaltsraten nicht zahlt (zu wenig Geld)',
+  'Sözleşme süresi dolarsa':'dein Vertrag ausläuft',
+  'Sezon sonu yenileme reddedildiyse':'die Verlängerung zum Saisonende abgelehnt wurde',
+  'Ayrılamazsın':'Du kannst nicht gehen','Takımın yok.':'Du hast kein Team.','Şu anda ayrılamazsın.':'Du kannst gerade nicht gehen.'
+});
+
+/* ── 526 · Milli takım ziyaretçi modu ── */
+Object.assign(window.I18N.de, {
+  'Ziyaretçi görünümü — milli takım kadrosunda olmadığın için sohbet ve diziliş kapalı.':'Besucheransicht — Chat und Aufstellung sind gesperrt, da du nicht im Nationalkader stehst.',
+  'Milli takım sohbetine yalnızca kadrodaki oyuncular yazabilir.':'Nur Spieler im Kader können im Nationalteam-Chat schreiben.'
+});
