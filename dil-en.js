@@ -5850,3 +5850,14 @@ Object.assign(window.I18N.en, {
   'Satış ilanı aktif':'Sale listing active','Transferde':'On transfer list'
 });
 I18N_PATTERNS.en.unshift([/^🏷️ Transferde(?: · (.+))?$/, m => '🏷️ On transfer list' + (m[1] ? ' · ' + m[1] : '')]);
+
+/* ── 524 · Federasyon seçim kuralları ── */
+Object.assign(window.I18N.en, {
+  'Kulüp kaptanları seçim açılana kadar istediği zaman aday olabilir; adaylar burada listelenir':'Club captains may stand at any time until the election opens; candidates are listed here',
+  '\'da biter — öncesinde oy verilemez':' ends — no voting before then',
+  'Oy çıkmazsa:':'No votes cast:',
+  'Tek aday varsa o aday başkan olur; birden fazla aday varsa etkisi yüksek olan kazanır':'a sole candidate becomes president; with several candidates the one with the highest influence wins',
+  'Aday yoksa:':'No candidates:',
+  'Başkanlığa bot kaptanlı en güçlü kulüp atanır':'the strongest club with a bot captain is appointed president',
+  'Gerçek aday çıkmazsa başkanlığa bot kaptanlı en güçlü kulüp atanır.':'If no real candidate stands, the strongest club with a bot captain is appointed president.'
+});

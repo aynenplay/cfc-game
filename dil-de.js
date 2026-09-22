@@ -3706,3 +3706,14 @@ Object.assign(window.I18N.de, {
   'Satış ilanı aktif':'Verkaufsanzeige aktiv','Transferde':'Auf der Transferliste'
 });
 I18N_PATTERNS.de.unshift([/^🏷️ Transferde(?: · (.+))?$/, function (m) { return '🏷️ Auf der Transferliste' + (m[1] ? ' · ' + m[1] : ''); }]);
+
+/* ── 524 · Federasyon seçim kuralları ── */
+Object.assign(window.I18N.de, {
+  'Kulüp kaptanları seçim açılana kadar istediği zaman aday olabilir; adaylar burada listelenir':'Vereinskapitäne können bis zur Eröffnung der Wahl jederzeit kandidieren; die Kandidaten werden hier aufgeführt',
+  '\'da biter — öncesinde oy verilemez':' — vorher kann nicht abgestimmt werden',
+  'Oy çıkmazsa:':'Keine Stimmen:',
+  'Tek aday varsa o aday başkan olur; birden fazla aday varsa etkisi yüksek olan kazanır':'ein einziger Kandidat wird Präsident; bei mehreren gewinnt der mit dem höchsten Einfluss',
+  'Aday yoksa:':'Keine Kandidaten:',
+  'Başkanlığa bot kaptanlı en güçlü kulüp atanır':'der stärkste Verein mit Bot-Kapitän wird zum Präsidenten ernannt',
+  'Gerçek aday çıkmazsa başkanlığa bot kaptanlı en güçlü kulüp atanır.':'Tritt kein echter Kandidat an, wird der stärkste Verein mit Bot-Kapitän zum Präsidenten ernannt.'
+});

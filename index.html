@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '522';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '524';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -17919,6 +17919,7 @@ body.inbox-open #main{visibility:hidden!important;pointer-events:none!important}
   padding:0 4px;
 }
 .lg-scene-row.eu-match-row.is-user .eu-score{color:var(--accent)}
+.eu-score .eu-pen{display:block;font-size:8.5px;font-weight:800;opacity:.75;letter-spacing:.2px;line-height:1;margin-top:1px}
 .eu-stage-label{
   font-size:9.5px;color:var(--text3);
   padding:4px 4px 2px;
@@ -29459,7 +29460,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-21-olcek-522';
+const APP_BUILD = '2026-09-22-olcek-524';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -43368,6 +43369,134 @@ function _liveMatchStopPolling() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// 🆕 523 — TURNUVA CANLI TAZELEME
+//   ESKİ: tournament_state ve turnuva maçları yalnızca açılışta çekiliyordu.
+//   Maç bitse de ana sayfadaki turnuva kartında skor, ağaçta tur atlayan
+//   takım ancak sayfa yenilenince (çoğu kişide ertesi gün) görünüyordu.
+//   YENİ: şu an oynanan / az önce biten turnuva maçları hafif bir sorguyla
+//   izlenir. Yeni biten maç görülünce turnuva durumu + yeni tur fikstürü
+//   çekilir ve açık ekran yeniden çizilir. Sunucu sonraki turu bir sonraki
+//   dakikalık tick'te kurduğu için 75 sn ve 150 sn sonra iki kez daha bakılır.
+// ═══════════════════════════════════════════════════════════════════
+window._trnCanli = window._trnCanli || { calisiyor: false, canli: false, tur: 0, ekTimer: [], tamSon: 0 };
+
+async function _trnCanliKontrol(zorla) {
+  const d = window._trnCanli;
+  if (d.calisiyor || !window.sb || document.hidden) return;
+  if (typeof _matchStateCache === 'undefined' || !_matchStateCache || !_matchStateCache.byKey) return;
+  let info = null;
+  try { info = getSeasonInfo(); } catch(e) {}
+  if (!info || info.preSeason || !info.season) return;
+  d.tur++;
+  // Canlı turnuva maçı varken her tur (20 sn), yokken 4 turda bir (80 sn)
+  if (!zorla && !d.canli && (d.tur % 4) !== 1) return;
+  d.calisiyor = true;
+  try {
+    const now = Date.now();
+    const { data, error } = await window.sb.from('match_state')
+      .select('match_key,status,home_score,away_score,sim_minute,started_at,tournament_key,tournament_phase')
+      .eq('season', info.season).not('tournament_key', 'is', null)
+      .gte('kickoff_at', new Date(now - 4 * 3600 * 1000).toISOString())
+      .lte('kickoff_at', new Date(now + 10 * 60 * 1000).toISOString())
+      .limit(500);
+    if (error || !Array.isArray(data)) return;
+    d.canli = data.some(r => r.status === 'running');
+    const byKey = _matchStateCache.byKey;
+    const yeniBiten = [];
+    let degisti = false;
+    for (const r of data) {
+      const dst = byKey[r.match_key];
+      if (!dst) { if (r.status === 'finished') yeniBiten.push(r.match_key); continue; }
+      if (r.status === 'finished' && dst.status !== 'finished') yeniBiten.push(r.match_key);
+      if (dst.status !== r.status || dst.home_score !== r.home_score || dst.away_score !== r.away_score) {
+        dst.status = r.status; dst.home_score = r.home_score; dst.away_score = r.away_score;
+        dst.sim_minute = r.sim_minute; dst.started_at = r.started_at;
+        degisti = true;
+      }
+    }
+    if (degisti) _matchStateCache.loadedAt = Date.now();   // _matchResultsLoad önbelleği tazelensin
+    if (yeniBiten.length) {
+      await _trnTamTazele(info.season, yeniBiten);
+      // Sunucu sonraki turu bir sonraki tick'te kurar → biraz sonra tekrar bak
+      d.ekTimer.forEach(t => clearTimeout(t));
+      d.ekTimer = [75000, 150000].map(ms => setTimeout(() => {
+        _trnTamTazele(info.season, []).catch(() => {});
+      }, ms));
+    } else if (degisti) {
+      _trnCanliCiz();
+    }
+  } catch(e) { console.warn('[trn canlı] hata:', e); }
+  finally { d.calisiyor = false; }
+}
+
+// Turnuva durumu + eksik/yeni maç satırları + penaltı bilgisi → yeniden çiz
+async function _trnTamTazele(season, bitenKeys) {
+  const d = window._trnCanli;
+  if (!window.sb) return;
+  if (Date.now() - d.tamSon < 5000) return;   // üst üste tetiklenmesin
+  d.tamSon = Date.now();
+  try {
+    const isler = [];
+    if (typeof _tournamentStateLoadFromServer === 'function') isler.push(_tournamentStateLoadFromServer());
+    if (typeof _encLoadFromServer === 'function') isler.push(_encLoadFromServer(season));
+    // Biten maçların tam satırı + yeni kurulan turun (ileri tarihli) maçları
+    isler.push((async () => {
+      const q1 = (bitenKeys && bitenKeys.length)
+        ? window.sb.from('match_state').select(_MS_COLS).in('match_key', bitenKeys.slice(0, 200))
+        : null;
+      const q2 = window.sb.from('match_state').select(_MS_COLS)
+        .eq('season', season).not('tournament_key', 'is', null)
+        .gte('kickoff_at', new Date(Date.now() - 10 * 60 * 1000).toISOString())
+        .order('kickoff_at', { ascending: true }).limit(300);
+      const res = await Promise.all([q1, q2].filter(Boolean));
+      res.forEach(r => { if (r && Array.isArray(r.data)) _msMerge(r.data); });
+    })());
+    await Promise.all(isler.map(p => p.catch(e => console.warn('[trn tazele]', e))));
+    // Berabere biten eleme maçlarının penaltı/uzatma bilgisini (yeniden) çek
+    try {
+      const pk = [];
+      const byKey = (_matchStateCache && _matchStateCache.byKey) || {};
+      for (const k in byKey) {
+        const m = byKey[k];
+        if (!m || m.season !== season || !m.tournament_key || m.status !== 'finished') continue;
+        if (!m.tournament_phase || /group|grup/i.test(m.tournament_phase)) continue;
+        if (m.home_score !== m.away_score) continue;
+        if (window._penCache && window._penCache.byKey[k] === null) delete window._penCache.byKey[k];
+        if (!(window._penCache && window._penCache.byKey[k])) pk.push(k);
+      }
+      if (pk.length && typeof _penYukle === 'function') await _penYukle(pk);
+    } catch(e) {}
+  } catch(e) { console.warn('[trn tazele] hata:', e); }
+  _trnCanliCiz();
+}
+
+// Açık ekranı yeniden çiz (kaydırma konumları korunur)
+function _trnCanliCiz() {
+  try { if (typeof renderHomeEuro === 'function') renderHomeEuro(); } catch(e) {}
+  try {
+    const pg = document.querySelector('.page.active');
+    const id = pg && pg.id;
+    if (id === 'page-tournaments' && typeof trn2Render === 'function') {
+      // Ağaç yatay kaydırılmışsa yeniden çizimde yerinde kalsın
+      const kay = [];
+      pg.querySelectorAll('*').forEach((el, i) => {
+        if (el.scrollLeft || el.scrollTop) kay.push([i, el.scrollLeft, el.scrollTop]);
+      });
+      const wy = window.scrollY;
+      trn2Render();
+      const hepsi = pg.querySelectorAll('*');
+      kay.forEach(([i, l, t]) => { const el = hepsi[i]; if (el) { el.scrollLeft = l; el.scrollTop = t; } });
+      window.scrollTo(0, wy);
+    } else if (id === 'page-national') {
+      if (document.getElementById('nt-fixture') && typeof ntRenderFixture === 'function') ntRenderFixture();
+    }
+  } catch(e) { console.warn('[trn çiz] hata:', e); }
+}
+window._trnCanliKontrol = _trnCanliKontrol;
+setInterval(() => { _trnCanliKontrol(false); }, 20000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(() => _trnCanliKontrol(true), 1500); });
+
+// ═══════════════════════════════════════════════════════════════════
 //  🆕 FORMA RENK SİSTEMİ
 // ═══════════════════════════════════════════════════════════════════
 // 15 temel renk paleti — kaptanlar bu renklerden seçim yapar.
@@ -54556,6 +54685,10 @@ function _fedMapState(cc, row, votesByTeam) {
     electionSeason: row.election_season || null,
     lastElectedSeason: (row.election_phase === 'completed') ? (row.election_season || 0) : 0,
     candidates: (row.candidates || []).map(toId).filter(Boolean),
+    // 🆕 524 — başvurular (sonraki seçimin adayları). Sunucu adaylığı hangi alana
+    //   yazarsa yazsın ikisi birlikte gösterilir.
+    applicants: Array.from(new Set([...(row.applicants || []), ...(row.candidates || [])]))
+      .map(t => typeof t === 'string' ? t : (t && (t.team || t.name))).map(toId).filter(Boolean),
     votes: votes,
     history: Array.isArray(row.history) ? row.history : [],
     userCandidacy: _fedServerCandidacy(cc, row, members) || !!_fedCandidacy[cc]
@@ -54905,9 +55038,8 @@ function fedVote(candidateId) {
   if(!me) return false;
   // 🆕 Sunucudaki aday listesi boş olabilir (kimse resmi başvurmadı) —
   //   bu durumda canlı hesaplanan aday listesi geçerli sayılır.
-  const _resmi = Array.isArray(state.candidates) ? state.candidates : [];
-  const _gecerli = _resmi.length ? _resmi
-    : ((typeof fedComputeCandidates === 'function') ? fedComputeCandidates(cc) : []);
+  // 🆕 524 — yalnızca başvuru yapmış adaylara oy verilir (bot yedek listesi yok)
+  const _gecerli = Array.from(new Set([...(state.candidates || []), ...(state.applicants || [])]));
   if(!_gecerli.includes(candidateId)) return false;
   if(state.votes && state.votes[me.id]) return false;
   const cand = computeFederationMembers(cc).find(m => m.id === candidateId);
@@ -54926,7 +55058,7 @@ function fedGetTally(cc) {
   const state = fedLoad(cc);
   if(!state) return {};
   const tally = {};
-  (state.candidates || []).forEach(id => { tally[id] = 0; });
+  Array.from(new Set([...(state.candidates || []), ...(state.applicants || [])])).forEach(id => { tally[id] = 0; });
   Object.values(state.votes || {}).forEach(cId => {
     if(cId in tally) tally[cId] += 1;
   });
@@ -55471,18 +55603,21 @@ function fedRenderElection() {
   let candHtml = '';
   // Hangi adayları gösterelim?
   let candIds = [];
-  if(phase === 'open') {
-    // 🆕 Sunucudaki aday listesi boşsa (kimse başvurmadıysa) canlı hesapla —
-    //   eskiden seçim gününde "Henüz aday yok" yazıyordu.
-    candIds = (Array.isArray(state.candidates) && state.candidates.length)
-      ? state.candidates
-      : ((typeof fedComputeCandidates === 'function') ? fedComputeCandidates(cc) : []);
-  } else if(phase === 'completed' && state.history && state.history.length) {
+  // 🆕 524 — Liste yalnızca GERÇEKTEN başvuranlar. Eskiden başvuru yokken en
+  //   etkili 5 bot kulüp "aday" gibi gösteriliyor ve onlara oy verilebiliyordu.
+  const _basvuranlar = Array.from(new Set([...(state.candidates || []), ...(state.applicants || [])]));
+  const _uyeMi = (id) => members.some(m => m.id === id);
+  if(phase === 'completed' && state.history && state.history.length && state.lastElectedSeason === curSeason) {
     const last = state.history[state.history.length - 1];
-    candIds = last.candidates || [];
+    // Sunucu geçmişte takım adı tutuyor → üye id'sine çevir
+    candIds = (last.candidates || []).map(t => {
+      if (_uyeMi(t)) return t;
+      const m = members.find(x => x.teamName === t); return m ? m.id : null;
+    }).filter(Boolean);
+    // Seçim bitti ama sonraki seçim için başvurular da görünsün
+    if (!candIds.length) candIds = _basvuranlar;
   } else {
-    // Kapalı — preview için potansiyel adaylar (canlı hesap)
-    candIds = fedComputeCandidates(cc);
+    candIds = _basvuranlar;
   }
   // 🆕 Aday olan kullanıcı HER ZAMAN listede (yerel opt-in); yeni başvuran üstte görünür
   if (isMember && me && phase !== 'completed' && (typeof fedIsUserCandidate === 'function') && fedIsUserCandidate(cc) && !candIds.includes(me.id)) {
@@ -55493,7 +55628,9 @@ function fedRenderElection() {
   const userVote = fedGetUserVote(cc);
   const totalVotes = Object.values(tally).reduce((s,v) => s+v, 0);
   const winnerId = (phase === 'completed' && state.history && state.history.length)
-    ? state.history[state.history.length - 1].presidentId
+    ? (function(){ const w = state.history[state.history.length - 1].presidentId;
+        if (members.some(m => m.id === w)) return w;
+        const m = members.find(x => x.teamName === w); return m ? m.id : w; })()
     : null;
   const lastTally = (phase === 'completed' && state.history && state.history.length)
     ? state.history[state.history.length - 1].tally || {}
@@ -55557,15 +55694,17 @@ function fedRenderElection() {
         : '');
   candHtml = `<div class="fede-cand-title">${_candTitle}</div>${_candSub}` + (candIds.length > 0
     ? `<div class="fede-cand-list">${candCards}</div>`
-    : `<div style="padding:18px;text-align:center;color:var(--text3);font-size:11px">Henüz aday yok — ilk aday sen ol!</div>`);
+    : `<div style="padding:18px;text-align:center;color:var(--text3);font-size:11px">Henüz aday yok — ilk aday sen ol!<br><span style="font-size:10.5px">Gerçek aday çıkmazsa başkanlığa bot kaptanlı en güçlü kulüp atanır.</span></div>`);
 
   // === KURALLAR ===
   const rulesHtml = `
     <div class="fede-rules">
       <div class="fede-rules-title">📋 Seçim Kuralları</div>
       <ul class="fede-rules-list">
-        <li>• <b>Adaylık:</b> Tüm üyeler istediği zaman aday olabilir; en yüksek 5 etki kullanıcıya bonus aday olur</li>
-        <li>• <b>Oylama:</b> Sezonun <b>1. günü 00:00</b>'da başlar, <b>3. günü 19:00</b>'da biter</li>
+        <li>• <b>Adaylık:</b> Kulüp kaptanları seçim açılana kadar istediği zaman aday olabilir; adaylar burada listelenir</li>
+        <li>• <b>Oylama:</b> Sezonun <b>1. günü 00:00</b>'da başlar, <b>3. günü 19:00</b>'da biter — öncesinde oy verilemez</li>
+        <li>• <b>Oy çıkmazsa:</b> Tek aday varsa o aday başkan olur; birden fazla aday varsa etkisi yüksek olan kazanır</li>
+        <li>• <b>Aday yoksa:</b> Başkanlığa bot kaptanlı en güçlü kulüp atanır</li>
         <li>• <b>Oylar:</b> Her üyenin <b>1 oyu</b> vardır — adaylar da oy kullanabilir</li>
         <li>• <b>Gizlilik:</b> Kimin kime oy verdiği görünmez; yalnızca <b>toplam oy ve yüzde</b> gösterilir</li>
         <li>• <b>Sonuç:</b> En çok oyu alan başkan, 2-3-4. sıra yardımcı olur</li>
@@ -65950,11 +66089,24 @@ let _msHomeRefreshTimer = null;
 let _msHomeTries = 0;
 // 🆕 Ana sayfa tam yüklenene kadar dene: takım (_userTeam), ülke DB (_cftDb) ve maç
 //   önbelleği farklı zamanlarda geliyor; biri eksikken render "veri yok" basıp kalıyordu.
+// 🆕 524 — Ana sayfa lig sahnesinin ülkesi: takım varsa takımın ülkesi,
+//   takımsızsa oyuncunun uyruğu (renderHomeLeagueScene ile aynı kural).
+function _hmSahneCC() {
+  try {
+    if (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.countryCode) return _userTeam.countryCode;
+    if (typeof getUserNationalityCC === 'function') return getUserNationalityCC();
+  } catch(e) {}
+  return null;
+}
+window._hmSahneCC = _hmSahneCC;
 function _msHomeReady() {
   try {
-    if (typeof _userTeam === 'undefined' || !_userTeam || !_userTeam.countryCode) return false;
+    // ESKİ: takım yoksa hep false → takımsız oyuncuda ülke maçları hiç çekilmiyor,
+    //   lig sahnesi sıfır puanla kalıyordu (lige girince yükleniyordu).
+    const _cc = _hmSahneCC();
+    if (!_cc) return false;
     if (typeof _cftGetCountry !== 'function') return false;
-    const c = _cftGetCountry(_userTeam.countryCode);
+    const c = _cftGetCountry(_cc);
     if (!c || !Array.isArray(c.leagues) || !c.leagues.length) return false;
     if (!_matchStateCache || !_matchStateCache.byKey) return false;
     return true;
@@ -67824,8 +67976,8 @@ function renderHomeLeagueTicker() {
   const wrap = document.getElementById('homeLeagueTicker');
   if (!wrap) return;
 
-  const cc = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.countryCode)
-    ? _userTeam.countryCode : null;
+  // 🆕 524 — takımsızsa uyruğun ülkesi (lig sahnesiyle aynı)
+  const cc = (typeof _hmSahneCC === 'function') ? _hmSahneCC() : null;
   if (!cc) { wrap.style.display = 'none'; return; }
 
   if (!_matchStateCache || !_matchStateCache.byKey) {
@@ -68678,8 +68830,12 @@ function _euMatchRowHtml(m, userTeamName) {
     const aggH = (m.leg1.hs||0) + (m.leg2.as||0);
     const aggA = (m.leg1.as||0) + (m.leg2.hs||0);
     score = `${aggH}-${aggA}`;
-  } else if (m.hs != null && m.as != null) {
+  } else if (typeof m.hs === 'number' && typeof m.as === 'number') {
+    // (523) oynanmamış eşleşmede hs/as '' geliyor — eskiden "-" yazıyordu
     score = `${m.hs}-${m.as}`;
+  }
+  if (score !== 'vs' && m.pens && m.pens.homePens != null) {
+    score += `<small class="eu-pen" data-noi18n>(${m.pens.homePens}-${m.pens.awayPens} P)</small>`;
   }
   return `
     <div class="lg-scene-row eu-match-row${isUserRow ? ' is-user' : ''}">
@@ -68889,13 +69045,9 @@ function _encSonSampiyon(season) {
       const fm = st && st.knockout && st.knockout.final;
       if (!fm) continue;
       let kzKod = null, kzAd = null, kzBayrak = null;
-      if (fm.hs != null && fm.as != null && fm.hs !== fm.as) {
-        const ev = fm.hs > fm.as;
-        kzKod = ev ? fm.home : fm.away;
-        kzAd  = ev ? (fm.homeName || fm.home) : (fm.awayName || fm.away);
-        kzBayrak = ev ? fm.homeFlag : fm.awayFlag;
-      } else if (fm.pens && Array.isArray(fm.pens) && fm.pens.length === 2 && fm.pens[0] !== fm.pens[1]) {
-        const ev = fm.pens[0] > fm.pens[1];
+      const _fs = _encSkor(fm);
+      if (_fs && _fs.kazanan) {
+        const ev = _fs.kazanan === 'home';
         kzKod = ev ? fm.home : fm.away;
         kzAd  = ev ? (fm.homeName || fm.home) : (fm.awayName || fm.away);
         kzBayrak = ev ? fm.homeFlag : fm.awayFlag;
@@ -68930,6 +69082,29 @@ function _encBeklemeHtml(season, mesaj) {
 // Maç formatı kulüp turnuvalarından farklı: { home: 'TR', homeName, homeFlag, hs, as, result, ... }
 // Kullanıcı eşleşmesi ülke koduyla (countryCode) yapılır.
 
+// 🆕 523 — ENC maç skoru tek yerden. encEnsureState skorları hg/ag, penaltıyı
+//   {homePens, awayPens} olarak verir; kart ve şampiyon kontrolü ise hs/as ve
+//   pens dizisi bekliyordu → skor hiç yazılmıyor, şampiyon hiç çıkmıyordu.
+function _encSkor(m) {
+  if (!m) return null;
+  const h = (m.hg != null) ? m.hg : m.hs;
+  const a = (m.ag != null) ? m.ag : m.as;
+  if (typeof h !== 'number' || typeof a !== 'number') return null;
+  let ph = null, pa = null;
+  if (m.pens) {
+    if (Array.isArray(m.pens)) { ph = m.pens[0]; pa = m.pens[1]; }
+    else { ph = m.pens.homePens; pa = m.pens.awayPens; }
+  }
+  let kazanan = (m.result === 'home' || m.result === 'away') ? m.result : null;
+  if (!kazanan) {
+    if (h > a) kazanan = 'home';
+    else if (a > h) kazanan = 'away';
+    else if (ph != null && pa != null && ph !== pa) kazanan = ph > pa ? 'home' : 'away';
+  }
+  return { h, a, ph, pa, kazanan };
+}
+window._encSkor = _encSkor;
+
 function _euEuroMatchRowHtml(m, userCountry) {
   if (!m) return '';
   const isUserHome = m.home === userCountry;
@@ -68942,8 +69117,10 @@ function _euEuroMatchRowHtml(m, userCountry) {
   const homeTc = '#fff', awayTc = '#fff';
   // Skor: hs/as → "vs" eğer yoksa
   let score = 'vs';
-  if (m.hs != null && m.as != null) {
-    score = `${m.hs}-${m.as}`;
+  const _sk = _encSkor(m);
+  if (_sk) {
+    score = `${_sk.h}-${_sk.a}`;
+    if (_sk.ph != null && _sk.pa != null) score += `<small class="eu-pen" data-noi18n>(${_sk.ph}-${_sk.pa} P)</small>`;
   }
   return `
     <div class="lg-scene-row eu-match-row${isUserRow ? ' is-user' : ''}">
@@ -69066,13 +69243,9 @@ function _euRenderEuroKnockoutMini(season, userCountry, roundLabel) {
       if (/final/i.test(String(roundLabel || '')) && matches.length === 1) {
         const fm = matches[0];
         let kzKod = null, kzAd = null, kzBayrak = null;
-        if (fm.hs != null && fm.as != null && fm.hs !== fm.as) {
-          const ev = fm.hs > fm.as;
-          kzKod    = ev ? fm.home : fm.away;
-          kzAd     = ev ? (fm.homeName || fm.home) : (fm.awayName || fm.away);
-          kzBayrak = ev ? fm.homeFlag : fm.awayFlag;
-        } else if (fm.pens && Array.isArray(fm.pens) && fm.pens.length === 2 && fm.pens[0] !== fm.pens[1]) {
-          const ev = fm.pens[0] > fm.pens[1];
+        const _fs = _encSkor(fm);
+        if (_fs && _fs.kazanan) {
+          const ev = _fs.kazanan === 'home';
           kzKod    = ev ? fm.home : fm.away;
           kzAd     = ev ? (fm.homeName || fm.home) : (fm.awayName || fm.away);
           kzBayrak = ev ? fm.homeFlag : fm.awayFlag;
@@ -93800,13 +93973,14 @@ setTimeout(async ()=>{
     const tick = async () => {
       tries++;
       try {
-        const ut = (typeof _userTeam !== 'undefined') ? _userTeam : null;
-        if (ut && ut.countryCode && typeof _msEnsureCountry === 'function') {
-          await _msEnsureCountry(ut.countryCode);
+        // 🆕 524 — takımsız oyuncu için uyruğunun ülkesi
+        const _cc = (typeof _hmSahneCC === 'function') ? _hmSahneCC() : null;
+        if (_cc && typeof _msEnsureCountry === 'function') {
+          await _msEnsureCountry(_cc);
         }
         if (typeof _msRefreshHomePanels === 'function') _msRefreshHomePanels(true);
         const ready = (typeof _msHomeReady === 'function') ? _msHomeReady() : true;
-        if (ready || tries >= 8) return;
+        if ((ready && _cc) || tries >= 12) return;
       } catch(e) {}
       setTimeout(tick, 1000);
     };
