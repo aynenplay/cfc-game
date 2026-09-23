@@ -3752,3 +3752,6 @@ Object.assign(window.I18N.de, {
   'Keşfet ve yüksel':'Entdecken und aufsteigen','Şehirler, kulüpler':'Städte und Vereine',
   'Ülkeler ve gurur':'Nationen und Stolz','Daha çok şehir':'Mehr Städte'
 });
+
+/* ── 528 · Yeni sezon fikstürü ── */
+Object.assign(window.I18N.de, { 'Yeni Sezon':'Neue Saison' });
