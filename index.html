@@ -29496,7 +29496,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-23-olcek-528';
+const APP_BUILD = '2026-09-23-olcek-530';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -32268,11 +32268,24 @@ function generateMatchSquad(teamData, isHome, seed) {
   // 🆕 POS UYUMLU YERLEŞTİRME: template slot pos'una göre eşleşen oyuncu seç
   // (sıralı botPlayers[i] yanlış — stoperi kaleciye koyabiliyordu)
   // ════════════════════════════════════════════════════
-  const botPlayers = getOrCreateTeamRoster(teamData);
+  // 🆕 529 — Hazır kadro verilebilir (milli takım maçlarında kulüp kadrosu yok)
+  let botPlayers = (Array.isArray(teamData._roster) && teamData._roster.length)
+    ? teamData._roster.slice()
+    : getOrCreateTeamRoster(teamData);
+  // 🆕 529 — Kadro bulunamazsa (ör. takım DB'de yok) maç ekranı ÇÖKMESİN:
+  //   şablona göre yer tutucu oyuncular üretilir.
+  if (!Array.isArray(botPlayers) || !botPlayers.length) {
+    const _tr = Number(teamRating) || 70;
+    botPlayers = template.players.map((tp, i) => ({
+      num: i + 1, name: (teamData.short || String(teamData.name || '').slice(0, 3).toUpperCase()) + ' ' + (i + 1),
+      pos: tp.pos, overall: _tr, rating: _tr, level: 0
+    }));
+  }
   const placed = _placeRosterToTemplate(template.players, botPlayers);
 
   const players = template.players.map((tp, i) => {
     const bp = placed[i] || botPlayers[i] || botPlayers[0];
+    if (!bp) return { num: i + 1, name: '—', pos: tp.pos, rating: Number(teamRating) || 70, level: 0, x: tp.x, y: tp.y };
     const playedPosGroup = (typeof POS_GROUP !== 'undefined' && POS_GROUP[tp.pos]) || 'MID';
     const effRating = (typeof getPlayerEffectiveRating === 'function')
       ? getPlayerEffectiveRating(bp, playedPosGroup)
@@ -38069,7 +38082,8 @@ function openMatchScreenV2(opts) {
   }
 
   // 🆕 Squad üret — izleyici modunda SUNUCU lineup'ı kullan (uydurma yok)
-  if (opts.spectator && home._serverLineup && away._serverLineup) {
+  // 🆕 529 — milli maçta da (izleyici olmasa bile) sunucu kadrosu kullanılır
+  if ((opts.spectator || opts.national) && home._serverLineup && away._serverLineup) {
     curHome = _buildSquadFromServerLineup(home, home._serverLineup, true);
     curAway = _buildSquadFromServerLineup(away, away._serverLineup, false);
   } else {
@@ -65335,6 +65349,32 @@ function _msSkorbordBayrak(evAd, depAd) {
 }
 window._msSkorbordBayrak = _msSkorbordBayrak;
 
+// 🆕 529 — Milli maç için 11'lik kadro: milli havuz (players.nationality) üzerinden.
+//   Kulüp kadrosu olmadığı için generateMatchSquad'a hazır liste veririz.
+async function _ntMacKadrosu(cc) {
+  try {
+    if (!cc) return null;
+    let pool = (typeof ntPlayerPool === 'function') ? (ntPlayerPool(cc) || []) : [];
+    if (!pool.length && typeof _loadNtPoolFromServer === 'function') {
+      pool = (await _loadNtPoolFromServer(cc)) || [];
+    }
+    if (!pool.length) return null;
+    // Kayıtlı milli kadro varsa onu kullan, yoksa en iyi oyuncular
+    let liste = null;
+    try {
+      const ids = (typeof ntLoadSquadIds === 'function') ? ntLoadSquadIds(cc) : null;
+      if (Array.isArray(ids) && ids.length) {
+        const byId = {}; pool.forEach(p => { if (p && p.ntId) byId[p.ntId] = p; });
+        const secili = ids.map(i => byId[i]).filter(Boolean);
+        if (secili.length >= 11) liste = secili;
+      }
+    } catch(e) {}
+    if (!liste) liste = pool.slice().sort((a, b) => (b.overall || 0) - (a.overall || 0));
+    return liste.slice(0, 18);
+  } catch(e) { return null; }
+}
+window._ntMacKadrosu = _ntMacKadrosu;
+
 async function hmOpenNationalMatch(n) {
   try {
     if (!n || !n.match) return;
@@ -65372,7 +65412,8 @@ async function hmOpenNationalMatch(n) {
     let row = null;
     try {
       if (window.sb) {
-        const SEL = 'match_key,home_team,away_team,kickoff_at,status,league_name';
+        // 🆕 529 — sunucu kadroları da çekilir (milli maçta uydurma kadro olmasın)
+        const SEL = 'match_key,home_team,away_team,kickoff_at,status,league_name,home_lineup,away_lineup';
         if (n.matchKey) {
           const { data } = await window.sb.from('match_state').select(SEL).eq('match_key', n.matchKey).maybeSingle();
           row = data || null;
@@ -65405,9 +65446,24 @@ async function hmOpenNationalMatch(n) {
       if (typeof showToast === 'function') showToast('Maç ekranı açılamadı');
       return;
     }
+    // 🆕 529 — Kadro kaynağı: sunucu lineup'ı yoksa milli havuzdan 11 kur.
+    //   Eskiden kulüp kadrosu aranıyordu; milli takımın kulüp kadrosu olmadığı
+    //   için maç ekranı hata verip hiç açılmıyordu ("Maça Git" çalışmıyordu).
+    const _evCC  = _evSahibi ? cc : (_kod(evAd)  || rakipKod);
+    const _depCC = _evSahibi ? (_kod(depAd) || rakipKod) : cc;
+    let _evKadro = null, _depKadro = null;
+    try {
+      if (!(row && row.home_lineup && row.away_lineup)) {
+        const r2 = await Promise.all([_ntMacKadrosu(_evCC), _ntMacKadrosu(_depCC)]);
+        _evKadro = r2[0]; _depKadro = r2[1];
+      }
+    } catch(e) {}
     openMatchScreenV2({
-      home:  { name: evAd,  short: String(evAd).slice(0, 3).toUpperCase(),  countryCode: _evSahibi ? cc : (_kod(evAd) || rakipKod) },
-      away:  { name: depAd, short: String(depAd).slice(0, 3).toUpperCase(), countryCode: _evSahibi ? (_kod(depAd) || rakipKod) : cc },
+      national: true,
+      home:  { name: evAd,  short: String(evAd).slice(0, 3).toUpperCase(),  countryCode: _evCC,
+               _serverLineup: (row && row.home_lineup) || null, _roster: _evKadro },
+      away:  { name: depAd, short: String(depAd).slice(0, 3).toUpperCase(), countryCode: _depCC,
+               _serverLineup: (row && row.away_lineup) || null, _roster: _depKadro },
       league: '🏴 EURO Nations Cup · ' + (n.round || ''),
       venue: evAd + ' Milli Stadı',
       hClass: 'c1', aClass: 'c2',
@@ -66315,6 +66371,7 @@ async function _msLoadCore() {
     try {
       const _gun = (typeof getSeasonInfo === 'function') ? (getSeasonInfo().dayInSeason || 0) : 0;
       if (cc && _gun >= 38) jobs.push(_msQuery(q => q.eq('season', S + 1).eq('country_code', cc)));
+      if (_gun >= 38) jobs.push(_msQuery(q => q.eq('season', S + 1).is('tier', null)));   // yeni sezon turnuva maçları
     } catch(e) {}
     jobs.push(_msQuery(q => q.eq('season', S).is('tier', null)));                        // turnuvalar + hazırlık
     jobs.push(_msQuery(q => q.gte('kickoff_at', t0).lt('kickoff_at', t1)));              // bugünün dünyası
@@ -66358,6 +66415,14 @@ async function _msEnsureCountry(cc, season) {
   try {
     const rows = await _msQuery(q => q.eq('season', S).eq('country_code', cc));
     _msMerge(rows);
+    // 🆕 529 — sezon dönüşü 39. günde: 38. günden itibaren yeni sezon da yüklenir
+    try {
+      const _g = (typeof getSeasonInfo === 'function') ? (getSeasonInfo().dayInSeason || 0) : 0;
+      if (_g >= 38) {
+        const rows2 = await _msQuery(q => q.eq('season', S + 1).eq('country_code', cc));
+        if (rows2 && rows2.length) _msMerge(rows2);
+      }
+    } catch(e) {}
     _msRefreshActivePage();
     console.info('[match_state] ülke yüklendi:', cc, 'S' + S, '+' + rows.length);
   } catch(e) {
@@ -68672,6 +68737,10 @@ function renderHomeEuro() {
   const wrap = document.getElementById('homeEuroStrip');
   if(!wrap) return;
   const info = getSeasonInfo();
+  // 🆕 529 — Kulüp turnuvaları (CHM/ELI/CON) 39. günden itibaren YENİ sezonu
+  //   gösterir; EURO Nations Cup finali 40. günde oynandığı için o gerçek
+  //   sezonda kalır.
+  const _kupaSezon = (typeof _etkinSezon === 'function') ? _etkinSezon() : info.season;
 
   if(info.preSeason) {
     wrap.innerHTML = `
@@ -68686,7 +68755,7 @@ function renderHomeEuro() {
 
   // Hak kazananlar var mı?
   let qual;
-  try { qual = trn2GetQualifiers(info.season); } catch(e) { qual = null; }
+  try { qual = trn2GetQualifiers(_kupaSezon); } catch(e) { qual = null; }
   if (!qual || (!qual.champ.length && !qual.elite.length && !qual.conv.length)) {
     wrap.innerHTML = `
       <div class="home-empty-card">
@@ -68741,22 +68810,22 @@ function renderHomeEuro() {
     } else {
       // ─── Kulüp turnuvası (chm/eli/con) ───
       if (stage.type === 'playoff') {
-        const r = _euRenderPlayoffMini(def.key, info.season, userTeamName);
+        const r = _euRenderPlayoffMini(def.key, _kupaSezon, userTeamName);
         bodyHtml = r.html;
         userInTrn = r.userIn;
         stageLabel = 'Play-off';
       } else if (stage.type === 'po2') {
-        const r = _euRenderPlayoff2Mini(def.key, info.season, userTeamName);
+        const r = _euRenderPlayoff2Mini(def.key, _kupaSezon, userTeamName);
         bodyHtml = r.html;
         userInTrn = r.userIn;
         stageLabel = 'Play-off 2';
       } else if (stage.type === 'group') {
-        const r = _euRenderGroupMini(def.key, info.season, userTeamName);
+        const r = _euRenderGroupMini(def.key, _kupaSezon, userTeamName);
         bodyHtml = r.html;
         userInTrn = r.userIn;
         stageLabel = stage.round || 'Grup Aşaması';
       } else if (stage.type === 'knockout') {
-        const r = _euRenderKnockoutMini(def.key, info.season, userTeamName, stage.round);
+        const r = _euRenderKnockoutMini(def.key, _kupaSezon, userTeamName, stage.round);
         bodyHtml = r.html;
         userInTrn = r.userIn;
         stageLabel = stage.round || 'Eleme';
@@ -68830,7 +68899,7 @@ function _euGetCurrentStage(type, dayInSeason) {
   const _tkeyMap = { chm: 'champ', eli: 'elite', con: 'conv' };
   const _tkey = _tkeyMap[type];
   if (_tkey && typeof getSeasonInfo === 'function') {
-    const _season = getSeasonInfo().season;
+    const _season = (typeof _etkinSezon === 'function') ? _etkinSezon() : getSeasonInfo().season;
     const ph = _trnGuncelFaz(_tkey, _season);
     if (ph) {
       if (ph === 'playoff') return { type: 'playoff',  round: 'Play-off',   day: 0 };
@@ -75558,6 +75627,20 @@ function renderStatList(countryCode, tierIdx, statType) {
 // 🆕 calcLeagueStandings MEMO: aynı maç verisi (loadedAt) için tekrar tam tarama yapma.
 let _lgStandCache = {};
 let _lgStandCacheAt = -1;
+// 🆕 529 — ETKİN SEZON: Sezon dönüşü (küme düşme/çıkma + yeni fikstür + yeni
+//   Avrupa kuraları) 39. günde yapılıyor. Bu yüzden 39. günden itibaren lig
+//   tabloları, lig fikstürü ve Avrupa turnuvaları YENİ sezonu gösterir.
+//   (EURO Nations Cup finali 40. günde oynandığı için o gerçek sezonda kalır.)
+const SEZON_DONUS_GUNU = 39;
+function _etkinSezon() {
+  try {
+    const info = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : null;
+    if (!info || info.preSeason) return info ? info.season : 1;
+    return (info.dayInSeason >= SEZON_DONUS_GUNU) ? (info.season + 1) : info.season;
+  } catch(e) { return 1; }
+}
+window._etkinSezon = _etkinSezon;
+
 function calcLeagueStandings(countryCode, tierIdx, opts) {
   // 🆕 SUPABASE TEK KAYNAK — eski _matchResultsLoad cache + lokal fikstür hesabı kaldırıldı.
   //   _matchStateCache.byKey'den ülke+tier'a uyan finished maçları okur, puan tablosu üretir.
@@ -75566,8 +75649,9 @@ function calcLeagueStandings(countryCode, tierIdx, opts) {
   const league = country.leagues[tierIdx];
   if (!league) return [];
 
-  const info = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : { season: 1 };
-  const season = (opts && typeof opts.season === 'number') ? opts.season : info.season;
+  const season = (opts && typeof opts.season === 'number') ? opts.season
+    : ((typeof _etkinSezon === 'function') ? _etkinSezon()
+       : ((typeof getSeasonInfo === 'function') ? getSeasonInfo().season : 1));
   const tier1 = tierIdx + 1; // 0-based → 1-based
 
   // 🆕 MEMO: maç verisi değişmediyse cache'ten dön (her render'da tüm maç taraması yapma)
@@ -75920,6 +76004,8 @@ function lg2RenderFixture() {
   }
 
   const { season, seasonStart } = info;
+  // 🆕 529 — 39. günden itibaren yeni sezon fikstürü gösterilir
+  const _fixSezon = (typeof _etkinSezon === 'function') ? _etkinSezon() : season;
   const today    = new Date();
   const DAYS_TR  = ['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
   const MONTHS_F = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -75948,7 +76034,7 @@ function lg2RenderFixture() {
     m.countryCode === _lg2Country && 
     m.tier === _tier1based &&
     !m.tournament_key &&
-    m.season === season          // 🆕 sadece BU sezon (geçmiş sezon maçları karışmasın)
+    m.season === _fixSezon       // 🆕 sadece BU sezon (geçmiş sezon maçları karışmasın)
   );
   // 🆕 Cache boşsa async yükle, yüklendikten sonra tekrar render
   if (_allFromMs.length === 0 && typeof _loadAllMatchStateFromServer === 'function' && !window._lg2FixLoadingFlag) {
@@ -77593,7 +77679,9 @@ function trn2ToggleRoadmap(trnKey, btn) {
 
 // ── Ana render ──
 function trn2Render() {
-  const { season, dayInSeason, preSeason } = getSeasonInfo();
+  const { dayInSeason, preSeason } = getSeasonInfo();
+  // 🆕 529 — 39. günden itibaren yeni sezon turnuvaları gösterilir
+  const season = (typeof _etkinSezon === 'function') ? _etkinSezon() : getSeasonInfo().season;
   const lbl = document.getElementById('trn2SeasonLabel');
   if(lbl) {
     if(season < 2) {
@@ -77605,7 +77693,8 @@ function trn2Render() {
     }
   }
   if(_trn2ActiveTab === 'qual') { trn2RenderQual(season); return; }
-  if(_trn2ActiveTab === 'euroNation') { trn2RenderEuroNation(season); return; }
+  // 🆕 529 — EURO Nations Cup finali 40. günde oynanır → gerçek sezonda kalır
+  if(_trn2ActiveTab === 'euroNation') { trn2RenderEuroNation(getSeasonInfo().season); return; }
   trn2RenderTrn(_trn2ActiveTab, season);
 }
 
