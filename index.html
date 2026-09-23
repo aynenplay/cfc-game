@@ -29514,7 +29514,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-23-olcek-532';
+const APP_BUILD = '2026-09-23-olcek-533';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -68771,7 +68771,8 @@ function renderHomeEuro() {
   // 🆕 529 — Kulüp turnuvaları (CHM/ELI/CON) 39. günden itibaren YENİ sezonu
   //   gösterir; EURO Nations Cup finali 40. günde oynandığı için o gerçek
   //   sezonda kalır.
-  const _kupaSezon = (typeof _etkinSezon === 'function') ? _etkinSezon() : info.season;
+  const _kupaSezon = (typeof _trnGosterSezon === 'function') ? _trnGosterSezon('champ')
+    : ((typeof _etkinSezon === 'function') ? _etkinSezon() : info.season);
 
   if(info.preSeason) {
     wrap.innerHTML = `
@@ -68930,7 +68931,8 @@ function _euGetCurrentStage(type, dayInSeason) {
   const _tkeyMap = { chm: 'champ', eli: 'elite', con: 'conv' };
   const _tkey = _tkeyMap[type];
   if (_tkey && typeof getSeasonInfo === 'function') {
-    const _season = (typeof _etkinSezon === 'function') ? _etkinSezon() : getSeasonInfo().season;
+    const _season = (typeof _trnGosterSezon === 'function') ? _trnGosterSezon(_tkey)
+      : ((typeof _etkinSezon === 'function') ? _etkinSezon() : getSeasonInfo().season);
     const ph = _trnGuncelFaz(_tkey, _season);
     if (ph) {
       if (ph === 'playoff') return { type: 'playoff',  round: 'Play-off',   day: 0 };
@@ -75663,11 +75665,42 @@ let _lgStandCacheAt = -1;
 //   tabloları, lig fikstürü ve Avrupa turnuvaları YENİ sezonu gösterir.
 //   (EURO Nations Cup finali 40. günde oynandığı için o gerçek sezonda kalır.)
 const SEZON_DONUS_GUNU = 39;
+// 🆕 533 — Kulüp turnuvası için gösterilecek sezon: SONRAKİ sezonun kurası
+//   sunucuda kurulmuşsa (39. günde kurulur) onu göster. Gün hesabına değil,
+//   verinin kendisine bakar; saat dilimi / gün kayması sorun çıkarmaz.
+function _trnGosterSezon(trnKey) {
+  try {
+    const s = (typeof getSeasonInfo === 'function') ? (getSeasonInfo().season || 1) : 1;
+    if (!trnKey || trnKey === 'enc' || trnKey === 'euroNation') return s;
+    const _k = (trnKey === 'euro') ? 'natcup' : trnKey;
+    const st = (typeof _tournamentStateGet === 'function') ? _tournamentStateGet(_k, s + 1) : null;
+    const fx = st && st.fixture;
+    const varMi = !!(st && (st.phase || (fx && (
+      (Array.isArray(fx.playoff) && fx.playoff.length) ||
+      (Array.isArray(fx.groups) && fx.groups.length) ||
+      (Array.isArray(fx.r32) && fx.r32.length) ||
+      (Array.isArray(fx.r16) && fx.r16.length)))));
+    return varMi ? (s + 1) : s;
+  } catch(e) { return (typeof getSeasonInfo === 'function') ? getSeasonInfo().season : 1; }
+}
+window._trnGosterSezon = _trnGosterSezon;
+
 function _etkinSezon() {
   try {
     const info = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : null;
     if (!info || info.preSeason) return info ? info.season : 1;
-    return (info.dayInSeason >= SEZON_DONUS_GUNU) ? (info.season + 1) : info.season;
+    if (info.dayInSeason >= SEZON_DONUS_GUNU) return info.season + 1;
+    // 🆕 533 — Gün hesabına ek güvence: sonraki sezonun LİG fikstürü önbellekte
+    //   varsa (sunucu 39. günde kurar) yeni sezon gösterilir.
+    try {
+      if (_matchStateCache && _matchStateCache.byKey) {
+        const s2 = info.season + 1;
+        for (const m of Object.values(_matchStateCache.byKey)) {
+          if (m && m.season === s2 && m.tier != null && !m.tournament_key) return s2;
+        }
+      }
+    } catch(e) {}
+    return info.season;
   } catch(e) { return 1; }
 }
 window._etkinSezon = _etkinSezon;
@@ -77712,7 +77745,9 @@ function trn2ToggleRoadmap(trnKey, btn) {
 function trn2Render() {
   const { dayInSeason, preSeason } = getSeasonInfo();
   // 🆕 529 — 39. günden itibaren yeni sezon turnuvaları gösterilir
-  const season = (typeof _etkinSezon === 'function') ? _etkinSezon() : getSeasonInfo().season;
+  const season = (typeof _trnGosterSezon === 'function')
+    ? _trnGosterSezon(_trn2ActiveTab === 'qual' ? 'champ' : _trn2ActiveTab)
+    : ((typeof _etkinSezon === 'function') ? _etkinSezon() : getSeasonInfo().season);
   const lbl = document.getElementById('trn2SeasonLabel');
   if(lbl) {
     if(season < 2) {
@@ -78497,7 +78532,7 @@ function _bkbGuncelTurIdx(bracket, trnKey) {
   try {
     if (!Array.isArray(bracket) || bracket.length === 0) return 0;
     const AD = { r32:'Son 32', r16:'Son 16', qf:'Çeyrek Final', sf:'Yarı Final', final:'Final' };
-    const season = (typeof _etkinSezon === 'function') ? _etkinSezon()
+    const season = (typeof _trnGosterSezon === 'function') ? _trnGosterSezon(trnKey)
       : ((typeof getSeasonInfo === 'function') ? getSeasonInfo().season : null);
     const ph = (typeof _trnGuncelFaz === 'function' && season && trnKey && trnKey !== 'enc')
       ? _trnGuncelFaz(trnKey, season) : null;
@@ -78900,8 +78935,8 @@ function _trnGuncelAsamaAyarla() {
     if (!info.preSeason && gun >= 34 && encVar) anahtar = 'euroNation';
     else {
       // 🆕 532 — 39. günden itibaren yeni sezon turnuvaları
-      const _ts = (typeof _etkinSezon === 'function') ? _etkinSezon() : info.season;
       for (const k of ['champ', 'elite', 'conv']) {
+        const _ts = (typeof _trnGosterSezon === 'function') ? _trnGosterSezon(k) : info.season;
         try { if (typeof trn2GetUserStatus === 'function' && trn2GetUserStatus(k, _ts)) { anahtar = k; break; } } catch(e) {}
       }
     }
