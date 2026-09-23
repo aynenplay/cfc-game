@@ -3740,3 +3740,15 @@ Object.assign(window.I18N.de, {
   'Ziyaretçi görünümü — milli takım kadrosunda olmadığın için sohbet ve diziliş kapalı.':'Besucheransicht — Chat und Aufstellung sind gesperrt, da du nicht im Nationalkader stehst.',
   'Milli takım sohbetine yalnızca kadrodaki oyuncular yazabilir.':'Nur Spieler im Kader können im Nationalteam-Chat schreiben.'
 });
+
+/* ── 527 · Banner bantları (alt yazılar) ── */
+Object.assign(window.I18N.de, {
+  'Elit şehirler':'Elite-Städte','Yeni şehirler':'Neue Städte','Güçlü şehirler':'Stärkere Städte',
+  'Yükselen yetenekler':'Aufstrebende Talente','Küçük şehir, büyük tutku':'Kleine Stadt, große Leidenschaft',
+  'Bir maç, büyük yarın':'Ein Spiel, ein größeres Morgen',
+  'Avrupa’nın en iyisi':'Das Beste Europas','Avrupa’nın elitleri':'Europas Elite',
+  'Daha çok kulüp':'Mehr Vereine','Ülkeler yarışır':'Nationen messen sich',
+  'En iyi performans':'Beste Leistungen','Çok çalış, yüksel':'Hart arbeiten, aufsteigen',
+  'Keşfet ve yüksel':'Entdecken und aufsteigen','Şehirler, kulüpler':'Städte und Vereine',
+  'Ülkeler ve gurur':'Nationen und Stolz','Daha çok şehir':'Mehr Städte'
+});

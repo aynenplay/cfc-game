@@ -5884,3 +5884,15 @@ Object.assign(window.I18N.en, {
   'Ziyaretçi görünümü — milli takım kadrosunda olmadığın için sohbet ve diziliş kapalı.':'Visitor view — chat and line-up are closed because you are not in the national squad.',
   'Milli takım sohbetine yalnızca kadrodaki oyuncular yazabilir.':'Only players in the squad can write in the national team chat.'
 });
+
+/* ── 527 · Banner bantları (alt yazılar) ── */
+Object.assign(window.I18N.en, {
+  'Elit şehirler':'Elite cities','Yeni şehirler':'New cities','Güçlü şehirler':'Stronger cities',
+  'Yükselen yetenekler':'Rising talents','Küçük şehir, büyük tutku':'Small city, big passion',
+  'Bir maç, büyük yarın':'One game, a bigger tomorrow',
+  'Avrupa’nın en iyisi':'The best of Europe','Avrupa’nın elitleri':'Europe’s elite',
+  'Daha çok kulüp':'More clubs','Ülkeler yarışır':'Nations compete',
+  'En iyi performans':'Top performers','Çok çalış, yüksel':'Hard work, higher levels',
+  'Keşfet ve yüksel':'Discover and rise','Şehirler, kulüpler':'Cities and clubs',
+  'Ülkeler ve gurur':'Nations and pride','Daha çok şehir':'More cities'
+});
