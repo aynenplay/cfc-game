@@ -29559,7 +29559,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-23-olcek-542';
+const APP_BUILD = '2026-09-23-olcek-543';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -74109,7 +74109,7 @@ let _bldBasladi = false;
 //   içine zamanını üreten küçük bir blok + ayarlar ekranına bir anahtar.
 const BLD_TIPLER = ['mac2','macSonu','gunluk','fedSecim','sezon','anlik'];
 function _bldVarsayilan(){
-  return { acik:true, mac2:true, macSonu:true, gunluk:true, fedSecim:true, sezon:true, anlik:true, soruldu:false };
+  return { acik:true, mac2:true, macSonu:true, gunluk:true, fedSecim:true, sezon:true, anlik:true };
 }
 function _bldAyar(){
   try { return Object.assign(_bldVarsayilan(), JSON.parse(localStorage.getItem(BLD_ANAHTAR) || 'null') || {}); }
@@ -74124,6 +74124,9 @@ function _bldLN(){
 }
 function _bldOrtam(){
   if (_bldLN()) return 'native';
+  // 🆕 543 — Eklentisiz eski APK: WebView'in Notification API'si telefona bildirim
+  //   gösteremez; burada izin sormak "soruldu" işaretini boşa harcıyordu.
+  if (window.Capacitor) return 'yok';
   if (typeof Notification !== 'undefined') return 'web';
   return 'yok';
 }
@@ -74426,8 +74429,11 @@ async function _bldBaslat(){
     const ay = _bldAyar();
     if (!ay.acik) return;
     let izin = await _bldIzinDurum();
-    if (izin !== 'granted' && !ay.soruldu) {
-      ay.soruldu = true; _bldAyarYaz(ay);          // bir kez sor, bir daha rahatsız etme
+    // 🆕 543 — "bir kez sor" işareti ortama göre tutulur (native / web). Eski APK'da
+    //   konmuş bir işaret, güncellemeden sonra telefonun izin sorusunu engellemesin.
+    const _sk = 'soruldu_' + _bldOrtam();
+    if (izin !== 'granted' && !ay[_sk]) {
+      ay[_sk] = true; _bldAyarYaz(ay);             // bir kez sor, bir daha rahatsız etme
       izin = await _bldIzinIste();
     }
     if (izin === 'granted') await _bldMacTara(true);
@@ -74454,7 +74460,7 @@ async function bldToggleAna(el){
   ay.acik = !ay.acik;
   if (ay.acik) {
     let izin = await _bldIzinDurum();
-    if (izin !== 'granted') { ay.soruldu = true; izin = await _bldIzinIste(); }
+    if (izin !== 'granted') { ay['soruldu_' + _bldOrtam()] = true; izin = await _bldIzinIste(); }
     if (izin !== 'granted') {
       ay.acik = false; _bldAyarYaz(ay); bldAyarlariYansit();
       _bldIcSerit(T('Bildirim izni kapalı'), T('Bildirimleri açmak için telefon ayarlarından izin vermelisin.'));
