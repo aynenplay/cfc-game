@@ -3766,3 +3766,20 @@ Object.assign(window.I18N.de, {
   'Bildirim izni kapalı':'Benachrichtigungen sind blockiert',
   'Bildirimleri açmak için telefon ayarlarından izin vermelisin.':'Erlaube Benachrichtigungen in den Telefoneinstellungen.'
 });
+
+/* ── 540 · Bildirim türleri ── */
+Object.assign(window.I18N.de, {
+  'Maç bitti!':'Spiel beendet!',
+  'maçının sonucu hazır. Sonuca bak!':'— das Ergebnis steht fest. Schau es dir an!',
+  'Günlük hediyen hazır!':'Dein Tagesgeschenk wartet!',
+  'Bugünkü giriş hediyeni henüz almadın. Serini bozma!':'Du hast dein heutiges Login-Geschenk noch nicht abgeholt. Halte deine Serie!',
+  'Federasyon seçimi başladı':'Verbandswahl ist eröffnet',
+  'Oyunu kullan — seçim 3. günün akşamı kapanıyor.':'Gib deine Stimme ab — die Wahl endet am Abend des 3. Tages.',
+  'Yeni sezon başlıyor!':'Eine neue Saison beginnt!',
+  'Yeni fikstür ve ligler belli oldu. Kadronu kontrol et!':'Neue Spielpläne und Ligen stehen fest. Prüfe deinen Kader!',
+  'Maç sonucu':'Spielergebnis',
+  'Günlük giriş hediyesi':'Tägliches Login-Geschenk',
+  'Federasyon seçimi':'Verbandswahl',
+  'Yeni sezon ve fikstür':'Neue Saison und Spielplan',
+  'Mesaj ve anlık olaylar':'Nachrichten und Live-Ereignisse'
+});

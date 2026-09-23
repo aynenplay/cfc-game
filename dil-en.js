@@ -5910,3 +5910,20 @@ Object.assign(window.I18N.en, {
   'Bildirim izni kapalı':'Notifications are blocked',
   'Bildirimleri açmak için telefon ayarlarından izin vermelisin.':'To enable notifications, allow them in your phone settings.'
 });
+
+/* ── 540 · Bildirim türleri ── */
+Object.assign(window.I18N.en, {
+  'Maç bitti!':'Match finished!',
+  'maçının sonucu hazır. Sonuca bak!':'— the result is in. Check it out!',
+  'Günlük hediyen hazır!':'Your daily gift is waiting!',
+  'Bugünkü giriş hediyeni henüz almadın. Serini bozma!':'You haven’t claimed today’s login gift. Keep your streak alive!',
+  'Federasyon seçimi başladı':'Federation election is open',
+  'Oyunu kullan — seçim 3. günün akşamı kapanıyor.':'Cast your vote — voting closes on the evening of day 3.',
+  'Yeni sezon başlıyor!':'A new season begins!',
+  'Yeni fikstür ve ligler belli oldu. Kadronu kontrol et!':'New fixtures and leagues are out. Check your squad!',
+  'Maç sonucu':'Match result',
+  'Günlük giriş hediyesi':'Daily login gift',
+  'Federasyon seçimi':'Federation election',
+  'Yeni sezon ve fikstür':'New season and fixtures',
+  'Mesaj ve anlık olaylar':'Messages and live events'
+});
