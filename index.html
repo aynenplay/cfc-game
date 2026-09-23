@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '540';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '541';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -29381,6 +29381,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
       <div class="setting-row" id="set-row-bld-fedSecim" style="padding-left:18px"><span class="setting-label" style="color:var(--text2)">Federasyon seçimi</span><div class="toggle" id="set-toggle-bld-fedSecim" onclick="bldToggleTip('fedSecim')"></div></div>
       <div class="setting-row" id="set-row-bld-sezon" style="padding-left:18px"><span class="setting-label" style="color:var(--text2)">Yeni sezon ve fikstür</span><div class="toggle" id="set-toggle-bld-sezon" onclick="bldToggleTip('sezon')"></div></div>
       <div class="setting-row" id="set-row-bld-anlik" style="padding-left:18px"><span class="setting-label" style="color:var(--text2)">Mesaj ve anlık olaylar</span><div class="toggle" id="set-toggle-bld-anlik" onclick="bldToggleTip('anlik')"></div></div>
+      <div class="setting-row" onclick="bldTestGonder()" style="cursor:pointer;padding-left:18px"><span class="setting-label" style="color:var(--accent)">Test bildirimi gönder</span><span class="setting-value" style="color:var(--text3)">›</span></div>
       <div class="setting-row"><span class="setting-label">Maç Sesi</span><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
       <div class="setting-row"><span class="setting-label">Buton Sesi</span><div class="toggle on" id="set-toggle-buttonsound" onclick="cftToggleButtonSound(this)"></div></div>
       <div class="setting-row"><span class="setting-label">Müzik</span><div class="toggle" id="set-toggle-music" onclick="cftToggleMusic(this)"></div></div>
@@ -29558,7 +29559,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-23-olcek-540';
+const APP_BUILD = '2026-09-23-olcek-541';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -29607,6 +29608,9 @@ const APP_BUILD = '2026-09-23-olcek-540';
           'Cap:'  + (window.Capacitor ? '✓' : '✗'),
           'Cdv:'  + (window.cordova ? '✓' : '✗'),
           'PB:' + ((window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.PlayBilling) ? '✓' : '✗'),
+          // 🔔 541 — bildirim eklentisi yüklü mü + izin durumu
+          'LN:' + ((window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) ? '✓' : '✗')
+            + (window._bldIzinSon ? '(' + window._bldIzinSon + ')' : ''),
           'Fiyat:' + fiyatSayisi + '/9'
         ];
         if (typeof window._playUrunler === 'number') parcalar.push('Urun:' + window._playUrunler);
@@ -74125,10 +74129,12 @@ function _bldOrtam(){
 }
 
 async function _bldIzinDurum(){
+  let s = 'denied';
   const LN = _bldLN();
-  if (LN) { try { const r = await LN.checkPermissions(); return (r && r.display) || 'prompt'; } catch(e){ return 'prompt'; } }
-  if (typeof Notification !== 'undefined') return Notification.permission === 'default' ? 'prompt' : Notification.permission;
-  return 'denied';
+  if (LN) { try { const r = await LN.checkPermissions(); s = (r && r.display) || 'prompt'; } catch(e){ s = 'prompt'; } }
+  else if (typeof Notification !== 'undefined') s = (Notification.permission === 'default') ? 'prompt' : Notification.permission;
+  window._bldIzinSon = s;                          // Ayarlar > Ortam satırı gösterir
+  return s;
 }
 async function _bldIzinIste(){
   const LN = _bldLN();
@@ -74460,6 +74466,43 @@ async function bldToggleTip(tip){
   ay[tip] = !ay[tip]; _bldAyarYaz(ay); bldAyarlariYansit();
   await _bldMacTara(true);
 }
+// 🔔 541 — TEST BİLDİRİMİ: zincirin tamamını 10 saniyede doğrular
+//   (eklenti var mı → izin var mı → planlama çalışıyor mu → telefona düşüyor mu)
+async function bldTestGonder(){
+  const S = (b, g) => _bldIcSerit(_bldT(b), _bldT(g));
+  try {
+    const ortam = _bldOrtam();
+    if (ortam === 'yok') {
+      S('Bildirim eklentisi yüklü değil', 'APK bildirim eklentisi olmadan derlenmiş. Uygulamayı güncellemelisin.');
+      return;
+    }
+    let izin = await _bldIzinDurum();
+    if (izin !== 'granted') izin = await _bldIzinIste();
+    if (izin !== 'granted') {
+      S('Bildirim izni kapalı', 'Bildirimleri açmak için telefon ayarlarından izin vermelisin.');
+      return;
+    }
+    const baslik = _bldT('Test bildirimi'), govde = _bldT('Bildirimler çalışıyor! Maç hatırlatmaları telefonuna gelecek.');
+    const LN = _bldLN();
+    if (LN) {
+      await LN.schedule({ notifications: [{
+        id: 1999999999, title: baslik, body: govde, channelId: BLD_KANAL,
+        schedule: { at: new Date(Date.now() + 10000), allowWhileIdle: true }, extra: { tip: 'test' }
+      }] });
+      let bekleyen = 0;
+      try { const p = await LN.getPending(); bekleyen = ((p && p.notifications) || []).length; } catch(e){}
+      _bldIcSerit(_bldT('10 saniye içinde bildirim gelecek'),
+        _bldT('Uygulamayı arka plana alıp bekle.') + ' ' + _bldT('Planlı bildirim:') + ' ' + bekleyen);
+      return;
+    }
+    // Tarayıcı
+    setTimeout(() => _bldGoster(baslik, govde), 10000);
+    _bldIcSerit(_bldT('10 saniye içinde bildirim gelecek'), _bldT('Tarayıcı modunda sayfa açık kalmalı.'));
+  } catch(e) {
+    S('Test bildirimi gönderilemedi', String((e && e.message) || e).slice(0, 80));
+  }
+}
+window.bldTestGonder = bldTestGonder;
 window.bldToggleAna = bldToggleAna;
 window.bldToggleTip = bldToggleTip;
 window.bldAyarlariYansit = bldAyarlariYansit;

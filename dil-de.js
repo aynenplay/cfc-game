@@ -3783,3 +3783,17 @@ Object.assign(window.I18N.de, {
   'Yeni sezon ve fikstür':'Neue Saison und Spielplan',
   'Mesaj ve anlık olaylar':'Nachrichten und Live-Ereignisse'
 });
+
+/* ── 541 · Test bildirimi ── */
+Object.assign(window.I18N.de, {
+  'Test bildirimi gönder':'Testbenachrichtigung senden',
+  'Test bildirimi':'Testbenachrichtigung',
+  'Bildirimler çalışıyor! Maç hatırlatmaları telefonuna gelecek.':'Benachrichtigungen funktionieren! Spielerinnerungen kommen auf dein Handy.',
+  '10 saniye içinde bildirim gelecek':'In 10 Sekunden kommt eine Benachrichtigung',
+  'Uygulamayı arka plana alıp bekle.':'Lege die App in den Hintergrund und warte.',
+  'Planlı bildirim:':'Geplante Benachrichtigungen:',
+  'Tarayıcı modunda sayfa açık kalmalı.':'Im Browsermodus muss die Seite geöffnet bleiben.',
+  'Bildirim eklentisi yüklü değil':'Benachrichtigungs-Plugin nicht installiert',
+  'APK bildirim eklentisi olmadan derlenmiş. Uygulamayı güncellemelisin.':'Diese App-Version enthält das Benachrichtigungs-Plugin nicht. Bitte aktualisiere die App.',
+  'Test bildirimi gönderilemedi':'Testbenachrichtigung fehlgeschlagen'
+});

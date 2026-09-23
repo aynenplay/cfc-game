@@ -5927,3 +5927,17 @@ Object.assign(window.I18N.en, {
   'Yeni sezon ve fikstür':'New season and fixtures',
   'Mesaj ve anlık olaylar':'Messages and live events'
 });
+
+/* ── 541 · Test bildirimi ── */
+Object.assign(window.I18N.en, {
+  'Test bildirimi gönder':'Send test notification',
+  'Test bildirimi':'Test notification',
+  'Bildirimler çalışıyor! Maç hatırlatmaları telefonuna gelecek.':'Notifications work! Match reminders will reach your phone.',
+  '10 saniye içinde bildirim gelecek':'A notification will arrive in 10 seconds',
+  'Uygulamayı arka plana alıp bekle.':'Put the app in the background and wait.',
+  'Planlı bildirim:':'Scheduled notifications:',
+  'Tarayıcı modunda sayfa açık kalmalı.':'In browser mode, keep the page open.',
+  'Bildirim eklentisi yüklü değil':'Notification plugin not installed',
+  'APK bildirim eklentisi olmadan derlenmiş. Uygulamayı güncellemelisin.':'This app version was built without the notification plugin. Please update the app.',
+  'Test bildirimi gönderilemedi':'Test notification failed'
+});
