@@ -29514,7 +29514,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-23-olcek-531';
+const APP_BUILD = '2026-09-23-olcek-532';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -45437,7 +45437,21 @@ function showPage(name,btn){
   inboxUpdateBadge();
   if(name==='transfers') { tfRender(); }
   if(name==='leagues' && !lgInitDone){ lgRender(); lgInitDone=true; }
-  if(name==='tournaments') { if (!_trnGuncelAsamaAyarla()) trn2Render(); }
+  if(name==='tournaments') {
+    if (!_trnGuncelAsamaAyarla()) trn2Render();
+    // 🆕 532 — sayfa her açıldığında turnuva durumunu sunucudan tazele; yeni
+    //   sezonun kurası (39. günde kurulur) beklemeden görünsün.
+    try {
+      if (typeof _tournamentStateLoadFromServer === 'function') {
+        _tournamentStateLoadFromServer().then(() => {
+          try {
+            const _pg = document.querySelector('.page.active');
+            if (_pg && _pg.id === 'page-tournaments' && typeof trn2Render === 'function') trn2Render();
+          } catch(e) {}
+        }).catch(()=>{});
+      }
+    } catch(e) {}
+  }
   if(name==='tournaments' && !trnInitDone){
     trnBuildGroups(TRN_DATA.championship.teams,'trnGroups');
     trnBuildBracket('trnBracket', bracketRounds16);
@@ -78483,7 +78497,8 @@ function _bkbGuncelTurIdx(bracket, trnKey) {
   try {
     if (!Array.isArray(bracket) || bracket.length === 0) return 0;
     const AD = { r32:'Son 32', r16:'Son 16', qf:'Çeyrek Final', sf:'Yarı Final', final:'Final' };
-    const season = (typeof getSeasonInfo === 'function') ? getSeasonInfo().season : null;
+    const season = (typeof _etkinSezon === 'function') ? _etkinSezon()
+      : ((typeof getSeasonInfo === 'function') ? getSeasonInfo().season : null);
     const ph = (typeof _trnGuncelFaz === 'function' && season && trnKey && trnKey !== 'enc')
       ? _trnGuncelFaz(trnKey, season) : null;
     if (ph && AD[ph]) {
@@ -78884,8 +78899,10 @@ function _trnGuncelAsamaAyarla() {
     let anahtar = null;
     if (!info.preSeason && gun >= 34 && encVar) anahtar = 'euroNation';
     else {
+      // 🆕 532 — 39. günden itibaren yeni sezon turnuvaları
+      const _ts = (typeof _etkinSezon === 'function') ? _etkinSezon() : info.season;
       for (const k of ['champ', 'elite', 'conv']) {
-        try { if (typeof trn2GetUserStatus === 'function' && trn2GetUserStatus(k, info.season)) { anahtar = k; break; } } catch(e) {}
+        try { if (typeof trn2GetUserStatus === 'function' && trn2GetUserStatus(k, _ts)) { anahtar = k; break; } } catch(e) {}
       }
     }
     if (!anahtar) return false;
