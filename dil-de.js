@@ -3755,3 +3755,14 @@ Object.assign(window.I18N.de, {
 
 /* ── 528 · Yeni sezon fikstürü ── */
 Object.assign(window.I18N.de, { 'Yeni Sezon':'Neue Saison' });
+
+/* ── 538 · Bildirimler ── */
+Object.assign(window.I18N.de, {
+  'Maç başlıyor!':'Anpfiff steht bevor!',
+  'maçına 2 dakika kaldı. Yerini al!':'— noch 2 Minuten bis zum Anpfiff. Nimm deinen Platz ein!',
+  'Maç hatırlatmaları':'Spielerinnerungen',
+  'Maç başlamadan önce hatırlatma':'Eine Erinnerung vor dem Spielbeginn',
+  'Maç başlangıcı (2 dk önce)':'Spielbeginn (2 Min. vorher)',
+  'Bildirim izni kapalı':'Benachrichtigungen sind blockiert',
+  'Bildirimleri açmak için telefon ayarlarından izin vermelisin.':'Erlaube Benachrichtigungen in den Telefoneinstellungen.'
+});

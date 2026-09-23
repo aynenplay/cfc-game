@@ -5899,3 +5899,14 @@ Object.assign(window.I18N.en, {
 
 /* ── 528 · Yeni sezon fikstürü ── */
 Object.assign(window.I18N.en, { 'Yeni Sezon':'New Season' });
+
+/* ── 538 · Bildirimler ── */
+Object.assign(window.I18N.en, {
+  'Maç başlıyor!':'Kick-off is close!',
+  'maçına 2 dakika kaldı. Yerini al!':'— 2 minutes to kick-off. Take your place!',
+  'Maç hatırlatmaları':'Match reminders',
+  'Maç başlamadan önce hatırlatma':'A reminder before your match starts',
+  'Maç başlangıcı (2 dk önce)':'Match start (2 min before)',
+  'Bildirim izni kapalı':'Notifications are blocked',
+  'Bildirimleri açmak için telefon ayarlarından izin vermelisin.':'To enable notifications, allow them in your phone settings.'
+});

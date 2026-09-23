@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '528';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '539';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -470,6 +470,8 @@ h1,h2,h3,h4{font-family:Twemoji Country Flags,'Barlow Condensed',sans-serif;lett
   box-shadow:0 0 16px rgba(0,230,118,.6);
   animation:loadbar 1.6s cubic-bezier(.65,0,.35,1) infinite;
 }
+/* 🔔 538 — uygulama içi bildirim şeridi */
+@keyframes bldIn{from{opacity:0;transform:translateY(-14px)}to{opacity:1;transform:translateY(0)}}
 @keyframes loadbar{
   0%{left:-40%}
   100%{left:100%}
@@ -29372,7 +29374,8 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 
       <div class="settings-group-title">Oyun</div>
       <div class="setting-row" onclick="langOpenModal()" style="cursor:pointer"><span class="setting-label">Dil</span><span class="setting-value" id="set-lang-value">🇹🇷 Türkçe ›</span></div>
-      <div class="setting-row"><span class="setting-label">Bildirimler</span><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+      <div class="setting-row"><span class="setting-label">Bildirimler</span><div class="toggle" id="set-toggle-bildirim" onclick="bldToggleAna(this)"></div></div>
+      <div class="setting-row" id="set-row-bld-mac" style="padding-left:18px"><span class="setting-label" style="color:var(--text2)">Maç başlangıcı (2 dk önce)</span><div class="toggle" id="set-toggle-bld-mac" onclick="bldToggleMac(this)"></div></div>
       <div class="setting-row"><span class="setting-label">Maç Sesi</span><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
       <div class="setting-row"><span class="setting-label">Buton Sesi</span><div class="toggle on" id="set-toggle-buttonsound" onclick="cftToggleButtonSound(this)"></div></div>
       <div class="setting-row"><span class="setting-label">Müzik</span><div class="toggle" id="set-toggle-music" onclick="cftToggleMusic(this)"></div></div>
@@ -29550,7 +29553,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-23-olcek-537';
+const APP_BUILD = '2026-09-23-olcek-539';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -50064,6 +50067,8 @@ function renderSettings() {
 
   // (Takım bölümü ayarlardan kaldırıldı — takım yönetimi Takım sayfasından yapılır)
 
+  // 🔔 538 — bildirim anahtarlarının durumunu yansıt
+  try { if (typeof bldAyarlariYansit === 'function') bldAyarlariYansit(); } catch(e) {}
 }
 
 
@@ -74069,6 +74074,312 @@ function _xsKutlama(miktar, bitti) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+//  🔔 538 — BİLDİRİM ALTYAPISI (cihaz içi / local notification)
+//  Sunucuya, FCM'e veya push jetonuna GEREK YOK: maç saatleri fikstürden
+//  önceden bilindiği için hatırlatmalar doğrudan cihazda planlanır ve
+//  uygulama kapalıyken de çalışır.
+//    APK      → @capacitor/local-notifications
+//    Tarayıcı → Notification API (sayfa açıkken) + uygulama içi şerit
+//  Yeni bildirim türü eklemek: BLD_TIP listesine bir satır + _bldPlanla
+//  içinde o türün zamanını üret. Gerisi (izin, kanal, ayar, iptal) hazır.
+// ═══════════════════════════════════════════════════════════════════
+// CSC26 logosu — bildirim şeridi ve tarayıcı bildirimi ikonu (88x88 png, ~6 KB)
+const BLD_LOGO = 'data:image/png;base64,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';
+const BLD_ANAHTAR  = 'cft_bildirim';
+const BLD_KANAL    = 'csc-mac';
+const BLD_MAC_ONCE = 2 * 60 * 1000;        // maç başlangıcından 2 dk önce
+const BLD_PENCERE  = 72 * 60 * 60 * 1000;  // kaç saat ilerisi planlansın
+const BLD_WEB_UFUK = 6 * 60 * 60 * 1000;   // tarayıcıda timer ufku
+let _bldWebZaman = [];
+let _bldSonTarama = 0;
+let _bldBasladi = false;
+
+function _bldVarsayilan(){ return { acik:true, mac2:true, soruldu:false }; }
+function _bldAyar(){
+  try { return Object.assign(_bldVarsayilan(), JSON.parse(localStorage.getItem(BLD_ANAHTAR) || 'null') || {}); }
+  catch(e){ return _bldVarsayilan(); }
+}
+function _bldAyarYaz(y){ try { localStorage.setItem(BLD_ANAHTAR, JSON.stringify(y)); } catch(e){} }
+
+// Capacitor LocalNotifications eklentisi (APK)
+function _bldLN(){
+  try { return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) || null; }
+  catch(e){ return null; }
+}
+function _bldOrtam(){
+  if (_bldLN()) return 'native';
+  if (typeof Notification !== 'undefined') return 'web';
+  return 'yok';
+}
+
+async function _bldIzinDurum(){
+  const LN = _bldLN();
+  if (LN) { try { const r = await LN.checkPermissions(); return (r && r.display) || 'prompt'; } catch(e){ return 'prompt'; } }
+  if (typeof Notification !== 'undefined') return Notification.permission === 'default' ? 'prompt' : Notification.permission;
+  return 'denied';
+}
+async function _bldIzinIste(){
+  const LN = _bldLN();
+  if (LN) { try { const r = await LN.requestPermissions(); return (r && r.display) || 'denied'; } catch(e){ return 'denied'; } }
+  if (typeof Notification !== 'undefined') { try { return await Notification.requestPermission(); } catch(e){ return 'denied'; } }
+  return 'denied';
+}
+
+// match_key → sabit sayısal id (yeniden planlarken kopya oluşmasın)
+function _bldId(anahtar){
+  let h = 5381; const s = String(anahtar || '');
+  for (let i = 0; i < s.length; i++) h = (((h * 33) ^ s.charCodeAt(i)) >>> 0);
+  return (h % 2000000000) + 1;
+}
+
+// Bildirim metni — dil desteğiyle
+function _bldMacMetin(row, takim){
+  const rakip = (row.home_team === takim) ? row.away_team : row.home_team;
+  const _T = (typeof T === 'function') ? T : (x => x);
+  return {
+    baslik: _T('Maç başlıyor!'),
+    govde: (rakip || '') + ' ' + _T('maçına 2 dakika kaldı. Yerini al!')
+  };
+}
+
+// Planlanacak listeyi üret
+function _bldListeUret(rows, takim){
+  const simdi = Date.now(), liste = [];
+  for (const r of (rows || [])) {
+    if (!r || !r.kickoff_at) continue;
+    if (r.status === 'finished') continue;
+    const t = new Date(r.kickoff_at).getTime();
+    if (!isFinite(t)) continue;
+    const ne = t - BLD_MAC_ONCE;
+    if (ne <= simdi + 15000) continue;            // çok yakın/geçmiş
+    if (ne > simdi + BLD_PENCERE) continue;       // çok uzak
+    const m = _bldMacMetin(r, takim);
+    liste.push({ id:_bldId('mac2:' + (r.match_key || (r.home_team + r.away_team + r.kickoff_at))),
+                 at:ne, baslik:m.baslik, govde:m.govde, key:r.match_key || '' });
+  }
+  liste.sort((a,b) => a.at - b.at);
+  return liste.slice(0, 32);                      // Android kuyruk sınırına saygı
+}
+
+// Bekleyen tüm planları iptal et
+async function _bldTemizle(){
+  const LN = _bldLN();
+  if (LN) {
+    try {
+      const p = await LN.getPending();
+      const eski = (p && p.notifications) || [];
+      if (eski.length) await LN.cancel({ notifications: eski.map(n => ({ id: n.id })) });
+    } catch(e){}
+  }
+  _bldWebZaman.forEach(clearTimeout); _bldWebZaman = [];
+}
+
+// Tarayıcı/uygulama içi gösterim
+function _bldGoster(baslik, govde){
+  try {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      const n = new Notification(baslik, { body: govde, tag: 'csc-mac', icon: BLD_LOGO, badge: BLD_LOGO });
+      n.onclick = function(){ try { window.focus(); if (typeof showPage === 'function') showPage('home', null); } catch(e){} n.close(); };
+      return;
+    }
+  } catch(e){}
+  _bldIcSerit(baslik, govde);
+}
+
+// Uygulama açıkken üstte beliren şerit (izin yoksa da kullanıcı haberdar olur)
+function _bldIcSerit(baslik, govde){
+  try {
+    const eski = document.getElementById('bldSerit'); if (eski) eski.remove();
+    const d = document.createElement('div');
+    d.id = 'bldSerit';
+    d.style.cssText = 'position:fixed;left:10px;right:10px;top:10px;z-index:99999;display:flex;gap:10px;align-items:center;'
+      + 'padding:11px 13px;border-radius:13px;background:linear-gradient(160deg,#141a23,#0d1219);'
+      + "border:1px solid rgba(0,230,118,.40);box-shadow:0 10px 26px -10px rgba(0,0,0,.8);font-family:Twemoji Country Flags,'Saira',sans-serif;"
+      + 'cursor:pointer;animation:bldIn .25s ease';
+    d.innerHTML = '<img src="' + BLD_LOGO + '" alt="" style="width:44px;height:44px;border-radius:11px;flex-shrink:0;'
+      + 'box-shadow:0 2px 8px rgba(0,0,0,.55)"><div style="min-width:0">'
+      + '<div style="font-family:Twemoji Country Flags,\'Oswald\',sans-serif;font-size:13px;font-weight:700;color:#fff">'
+      + _escapeHtml(baslik) + '</div>'
+      + '<div style="font-size:11.5px;font-weight:600;color:#c2c9d6;margin-top:2px">' + _escapeHtml(govde) + '</div></div>';
+    d.onclick = function(){ d.remove(); try { if (typeof showPage === 'function') showPage('home', null); } catch(e){} };
+    document.body.appendChild(d);
+    setTimeout(() => { try { d.remove(); } catch(e){} }, 12000);
+  } catch(e){}
+}
+
+// Asıl planlama
+async function _bldPlanla(rows, takim){
+  const ay = _bldAyar();
+  await _bldTemizle();
+  if (!ay.acik || !ay.mac2) return 0;
+  const liste = _bldListeUret(rows, takim);
+  if (!liste.length) return 0;
+
+  const LN = _bldLN();
+  if (LN) {
+    try {
+      await LN.schedule({ notifications: liste.map(x => ({
+        id: x.id, title: x.baslik, body: x.govde,
+        schedule: { at: new Date(x.at), allowWhileIdle: true },
+        channelId: BLD_KANAL,
+        // smallIcon verilmedi → eklenti varsayılanı (uygulama ikonu) kullanılır.
+        // res/drawable/ic_stat_icon.png eklersen burada belirtip kullanabilirsin.
+        extra: { tip: 'mac2', match_key: x.key }
+      })) });
+    } catch(e){ console.warn('[bld] planlama hatası:', e && e.message); return 0; }
+    console.info('[bld] ' + liste.length + ' maç hatırlatması planlandı (native)');
+    return liste.length;
+  }
+
+  // Tarayıcı: sayfa açık kaldığı sürece
+  let n = 0;
+  for (const x of liste) {
+    const gecikme = x.at - Date.now();
+    if (gecikme <= 0 || gecikme > BLD_WEB_UFUK) continue;
+    _bldWebZaman.push(setTimeout(() => _bldGoster(x.baslik, x.govde), gecikme));
+    n++;
+  }
+  if (n) console.info('[bld] ' + n + ' maç hatırlatması kuruldu (tarayıcı)');
+  return n;
+}
+
+// Yaklaşan maçları getir (kendi kulübün + uyruğunun milli maçları)
+async function _bldMaclariGetir(takim){
+  const simdi = Date.now();
+  if (window._hmStripCache && window._hmStripCache.takim === takim
+      && Array.isArray(window._hmStripCache.rows)
+      && (simdi - window._hmStripCache.t) < 5 * 60 * 1000) {
+    return window._hmStripCache.rows;
+  }
+  if (!window.sb) return [];
+  const nowIso = new Date(simdi - 5 * 60 * 1000).toISOString();
+  const kolon = 'match_key,home_team,away_team,kickoff_at,status';
+  let rows = [];
+  if (takim) {
+    try {
+      const { data } = await window.sb.from('match_state').select(kolon)
+        .or('home_team.eq.' + takim + ',away_team.eq.' + takim)
+        .gte('kickoff_at', nowIso).neq('status', 'finished')
+        .order('kickoff_at', { ascending: true }).limit(15);
+      rows = data || [];
+    } catch(e){}
+  }
+  // Milli maçlar (EURO Nations Cup) — kadroda olmasan da uyruğunun maçı
+  try {
+    const uyruk = (typeof getUserNationalityCC === 'function' ? getUserNationalityCC() : null)
+               || (window.authUser && window.authUser.nationality) || null;
+    let ulkeAd = null;
+    try { const c = (typeof _cftGetCountry === 'function' && uyruk) ? _cftGetCountry(uyruk) : null;
+          ulkeAd = (c && (c.name || c.countryName)) || null; } catch(e){}
+    if (uyruk) {
+      const adlar = [ulkeAd, uyruk].filter(Boolean);
+      const or = adlar.map(a => 'home_team.eq.' + a + ',away_team.eq.' + a).join(',');
+      const { data: nt } = await window.sb.from('match_state').select(kolon)
+        .eq('tournament_key', 'enc').or(or)
+        .gte('kickoff_at', nowIso).neq('status', 'finished')
+        .order('kickoff_at', { ascending: true }).limit(6);
+      if (Array.isArray(nt) && nt.length) {
+        const var_ = new Set(rows.map(r => r.match_key));
+        for (const r of nt) if (!var_.has(r.match_key)) rows.push(r);
+      }
+    }
+  } catch(e){}
+  return rows;
+}
+
+// Tarama + planlama
+async function _bldMacTara(zorla){
+  try {
+    if (_bldOrtam() === 'yok') return;
+    const ay = _bldAyar();
+    if (!ay.acik || !ay.mac2) { await _bldTemizle(); return; }
+    if (!zorla && (Date.now() - _bldSonTarama) < 5 * 60 * 1000) return;
+    if ((await _bldIzinDurum()) !== 'granted') return;
+    _bldSonTarama = Date.now();
+    const takim = (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName) || '';
+    const rows = await _bldMaclariGetir(takim);
+    await _bldPlanla(rows, takim);
+  } catch(e){ console.warn('[bld] tarama hatası:', e && e.message); }
+}
+
+// Açılış
+async function _bldBaslat(){
+  if (_bldBasladi) return; _bldBasladi = true;
+  try {
+    if (_bldOrtam() === 'yok') return;
+    const LN = _bldLN();
+    if (LN) {
+      if (LN.createChannel) {
+        const _Tk = (typeof T === 'function') ? T : (x => x);
+        try { await LN.createChannel({ id: BLD_KANAL, name: _Tk('Maç hatırlatmaları'),
+          description: _Tk('Maç başlamadan önce hatırlatma'), importance: 5, visibility: 1, vibration: true }); } catch(e){}
+      }
+      if (LN.addListener) {
+        try { LN.addListener('localNotificationActionPerformed', function(){
+          try { if (typeof showPage === 'function') showPage('home', null); } catch(e){}
+        }); } catch(e){}
+      }
+    }
+    const ay = _bldAyar();
+    if (!ay.acik) return;
+    let izin = await _bldIzinDurum();
+    if (izin !== 'granted' && !ay.soruldu) {
+      ay.soruldu = true; _bldAyarYaz(ay);          // bir kez sor, bir daha rahatsız etme
+      izin = await _bldIzinIste();
+    }
+    if (izin === 'granted') await _bldMacTara(true);
+    try { bldAyarlariYansit(); } catch(e){}
+  } catch(e){ console.warn('[bld] başlatma:', e && e.message); }
+}
+
+// ── Ayarlar ekranı ──
+function bldAyarlariYansit(){
+  try {
+    const ay = _bldAyar();
+    const a = document.getElementById('set-toggle-bildirim');
+    const m = document.getElementById('set-toggle-bld-mac');
+    if (a) a.classList.toggle('on', !!ay.acik);
+    if (m) m.classList.toggle('on', !!(ay.acik && ay.mac2));
+    const satir = document.getElementById('set-row-bld-mac');
+    if (satir) satir.style.opacity = ay.acik ? '1' : '.45';
+  } catch(e){}
+}
+async function bldToggleAna(el){
+  const ay = _bldAyar();
+  ay.acik = !ay.acik;
+  if (ay.acik) {
+    let izin = await _bldIzinDurum();
+    if (izin !== 'granted') { ay.soruldu = true; izin = await _bldIzinIste(); }
+    if (izin !== 'granted') {
+      ay.acik = false; _bldAyarYaz(ay); bldAyarlariYansit();
+      _bldIcSerit(T('Bildirim izni kapalı'), T('Bildirimleri açmak için telefon ayarlarından izin vermelisin.'));
+      return;
+    }
+  }
+  _bldAyarYaz(ay); bldAyarlariYansit();
+  await _bldMacTara(true);
+}
+async function bldToggleMac(el){
+  const ay = _bldAyar();
+  if (!ay.acik) { bldAyarlariYansit(); return; }
+  ay.mac2 = !ay.mac2; _bldAyarYaz(ay); bldAyarlariYansit();
+  await _bldMacTara(true);
+}
+window.bldToggleAna = bldToggleAna;
+window.bldToggleMac = bldToggleMac;
+window.bldAyarlariYansit = bldAyarlariYansit;
+window._bldMacTara = _bldMacTara;
+window._bldBaslat = _bldBaslat;
+
+// Uygulama öne geldiğinde + periyodik tazeleme
+try {
+  document.addEventListener('visibilitychange', function(){
+    if (!document.hidden) { try { _bldMacTara(true); } catch(e){} }
+  });
+  setInterval(function(){ try { _bldMacTara(false); } catch(e){} }, 10 * 60 * 1000);
+} catch(e){}
+
+// ═══════════════════════════════════════════════════════════════════
 //  GOOGLE PLAY BILLING
 //  Tarayicida hicbir sey degismez: Xsolla akisi aynen calisir.
 //  APK icinde ise Play Billing devreye girer — Play politikasi
@@ -94411,6 +94722,10 @@ setTimeout(async ()=>{
     };
     setTimeout(tick, 300);
   })();
+
+  // 🔔 538 — bildirim altyapısını başlat (izin + kanal + maç hatırlatmaları).
+  //   Açılışı yavaşlatmamak için oyun yüklendikten birkaç saniye sonra.
+  try { setTimeout(function(){ try { _bldBaslat(); } catch(e) {} }, 4500); } catch(e) {}
   
   // 🆕 KRİTİK OLMAYAN VERİLER — arka planda paralel yüklenir, UI bekletmez
   // Bunlar açılış anında gerekmez, sayfaya girince/etkileşimde kullanılır
