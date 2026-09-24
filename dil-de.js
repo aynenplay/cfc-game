@@ -3814,3 +3814,11 @@ Object.assign(window.I18N.de, {
   'Henüz aday yok.':'Noch keine Kandidaten.',
   'Başkan:':'Präsident:'
 });
+
+/* ── 548 · Bildirim ayarları modalı ── */
+Object.assign(window.I18N.de, {
+  'Bildirim Ayarları':'Benachrichtigungseinstellungen',
+  'Açık':'An',
+  'Kapalı':'Aus',
+  'Bildirimler, uygulama kapalıyken de telefonuna gelir.':'Benachrichtigungen erreichen dein Handy auch bei geschlossener App.'
+});

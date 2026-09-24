@@ -5958,3 +5958,11 @@ Object.assign(window.I18N.en, {
   'Henüz aday yok.':'No candidates yet.',
   'Başkan:':'President:'
 });
+
+/* ── 548 · Bildirim ayarları modalı ── */
+Object.assign(window.I18N.en, {
+  'Bildirim Ayarları':'Notification Settings',
+  'Açık':'On',
+  'Kapalı':'Off',
+  'Bildirimler, uygulama kapalıyken de telefonuna gelir.':'Notifications reach your phone even when the app is closed.'
+});
