@@ -5941,3 +5941,9 @@ Object.assign(window.I18N.en, {
   'APK bildirim eklentisi olmadan derlenmiş. Uygulamayı güncellemelisin.':'This app version was built without the notification plugin. Please update the app.',
   'Test bildirimi gönderilemedi':'Test notification failed'
 });
+
+/* ── 544 · EURO Cup kura bekleme ── */
+Object.assign(window.I18N.en, {
+  'Yeni turnuvaya':'New tournament:',
+  'Kura bugün çekiliyor':'The draw takes place today'
+});

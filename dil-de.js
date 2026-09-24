@@ -3797,3 +3797,9 @@ Object.assign(window.I18N.de, {
   'APK bildirim eklentisi olmadan derlenmiş. Uygulamayı güncellemelisin.':'Diese App-Version enthält das Benachrichtigungs-Plugin nicht. Bitte aktualisiere die App.',
   'Test bildirimi gönderilemedi':'Testbenachrichtigung fehlgeschlagen'
 });
+
+/* ── 544 · EURO Cup kura bekleme ── */
+Object.assign(window.I18N.de, {
+  'Yeni turnuvaya':'Neues Turnier:',
+  'Kura bugün çekiliyor':'Die Auslosung findet heute statt'
+});
