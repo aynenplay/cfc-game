@@ -29588,7 +29588,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-24-olcek-545';
+const APP_BUILD = '2026-09-24-olcek-546';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -72955,11 +72955,9 @@ function itemActionSellOrCancel(itemId) {
         confirmText: 'Evet, Geri Al',
         cancelText: 'İptal',
         danger: true,
-        onConfirm: () => {
-          if (typeof _removeListingByItemId === 'function') _removeListingByItemId(itemId);
-          showEqToast(item.name + ' satıştan kaldırıldı', 'var(--text2)');
-          renderWardrobe();
-        }
+        // 🆕 546 — iptal SUNUCUDA (market_cancel). Toast ve dolap yenileme
+        //   _doCancelListing içinde, yalnızca sunucu onaylayınca yapılır.
+        onConfirm: () => { _removeListingByItemId(itemId); }
       });
     }
     return;
@@ -72992,17 +72990,15 @@ function _isItemOnSale(itemId) {
   return _marketListings.some(l => l.itemId === itemId && l.listed);
 }
 
+// 🆕 546 — ESKİ HATA: dolaptan iptal yalnızca yerel listede `listed=false` yapıp
+//   saveMarket() ile istemciden upsert ediyordu. item_listings'e istemciden
+//   güncelleme RLS'e takılıyor, hata da kontrol edilmiyordu → iptal ekranda
+//   görünüp veritabanına hiç yazılmıyor, oyuna tekrar girince ilan geri geliyordu.
+//   Artık pazar yeri sayfasındaki "İlanı Geri Al" ile aynı sunucu çağrısı.
 function _removeListingByItemId(itemId) {
-  if (typeof _marketListings === 'undefined') return;
-  const idx = _marketListings.findIndex(l => l.itemId === itemId && l.listed);
-  if (idx >= 0) {
-    _marketListings[idx].listed = false;
-    if (typeof saveMarket === 'function') saveMarket();
-  }
-  // 🆕 Pazar yeri sayfası açıksa yenile
-  if (typeof renderMarket === 'function' && document.getElementById('marketList')) {
-    try { renderMarket(); } catch(_) {}
-  }
+  const l = (_marketListings || []).find(x => x && x.itemId === itemId && x.listed);
+  if (!l) return;
+  _doCancelListing(l.id);
 }
 
 function itemSellQuickOpen(item) {
@@ -73060,7 +73056,7 @@ function itemSellQuickConfirm() {
   };
   if (typeof _marketListings !== 'undefined') {
     _marketListings.push(listing);
-    if (typeof saveMarket === 'function') saveMarket();
+    saveMarket(listing);
   }
 
   showEqToast(_itemSellQuickItem.name + ' pazar yerine listelendi · ' + price + ' 💎', '#5fb8ff');
@@ -75443,26 +75439,36 @@ async function _doCancelListing(listingId) {
   }
 }
 
-async function saveMarket() {
-  // 🆕 Supabase tek doğru kaynak — kullanıcının kendi listinglerini upsert et
-  if (!window.sb || !authUser || !authUser.id) return;
-  const myListings = _marketListings.filter(l => l.sellerUserId === authUser.id || l.seller === (authUser?.name || ''));
-  try {
-    for (const l of myListings) {
-      const dataExtra = Object.assign({}, l);
-      delete dataExtra.id; delete dataExtra.seller; delete dataExtra.sellerUserId;
-      delete dataExtra.price; delete dataExtra.listed; delete dataExtra.createdAt;
-      await window.sb.from('item_listings').upsert({
-        id: l.id,
-        seller_name: l.seller || (authUser?.name || 'Bilinmeyen'),
-        seller_user_id: authUser.id,
-        price: l.price || 0,
-        listed: l.listed !== false,
-        data: dataExtra,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'id' });
-    }
-  } catch(e) { console.warn('[market] save hata:', e); }
+// 🆕 546 — Yalnızca YENİ ilanı ekler. Eskiden kullanıcının bellekteki TÜM
+//   ilanlarını `listed` değeriyle upsert ediyordu: iptal/satış gibi durum
+//   değişiklikleri istemciden yazılmaya çalışılıyor (RLS'e takılıp sessizce
+//   kayboluyor), bayat bir önbellek kapanmış ilanı yeniden açmaya çalışıyordu.
+//   İptal (market_cancel) ve satış (market_buy) yalnızca sunucuda.
+async function saveMarket(l) {
+  if (!l || !window.sb || !authUser || !authUser.id) return false;
+  const dataExtra = Object.assign({}, l);
+  delete dataExtra.id; delete dataExtra.seller; delete dataExtra.sellerUserId;
+  delete dataExtra.price; delete dataExtra.listed; delete dataExtra.createdAt;
+  l.sellerUserId = authUser.id;
+  const { error } = await window.sb.from('item_listings').insert({
+    id: l.id,
+    seller_name: l.seller || (authUser.name || 'Bilinmeyen'),
+    seller_user_id: authUser.id,
+    price: l.price || 0,
+    listed: true,
+    data: dataExtra,
+    updated_at: new Date().toISOString()
+  });
+  if (error) {
+    console.warn('[market] ilan eklenemedi:', error.message || error);
+    const i = _marketListings.indexOf(l);
+    if (i !== -1) _marketListings.splice(i, 1);
+    showShopToast('❌ İlan verilemedi, tekrar dene.', '#ef5350');
+    try { if (typeof renderWardrobe === 'function' && document.getElementById('eqWardrobe')) renderWardrobe(); } catch(e) {}
+    try { if (typeof renderMarket === 'function' && document.getElementById('marketList')) renderMarket(); } catch(e) {}
+    return false;
+  }
+  return true;
 }
 
 // ── Satış Modalı ──
@@ -75512,14 +75518,15 @@ function confirmSell() {
 
   // Pazara ekle
   initMarketListings();
-  _marketListings.push({
+  const _yeniIlan = {
     id: 'ml_'+Date.now(),
     itemId: _sellItemId,
     seller: authUser?.name||'Sen',
     price,
     listed: true,
-  });
-  saveMarket();
+  };
+  _marketListings.push(_yeniIlan);
+  saveMarket(_yeniIlan);
 
   // Dolaptan çıkar
   eq.wardrobe = eq.wardrobe.filter(w=>w.id!==_sellItemId);
