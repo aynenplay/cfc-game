@@ -5966,3 +5966,16 @@ Object.assign(window.I18N.en, {
   'Kapalı':'Off',
   'Bildirimler, uygulama kapalıyken de telefonuna gelir.':'Notifications reach your phone even when the app is closed.'
 });
+
+/* ── 550 · Push kanalı ── */
+Object.assign(window.I18N.en, {
+  'Mesajlar ve teklifler':'Messages and offers',
+  'Yeni mesaj, transfer teklifi ve katılma isteği':'New messages, transfer offers and join requests'
+});
+
+/* ── 553 · Lig: geçen sezon tablosu ── */
+Object.assign(window.I18N.en, {
+  'Final tablosu':'Final table',
+  'Geçen sezonun son hâli — renkler o sezon kazanılan Avrupa bileti ve küme düşmeyi gösterir.':'Last season’s final standings — colours show the European places and relegation earned that season.',
+  'Bu lig için geçen sezon kaydı bulunamadı.':'No record of last season was found for this league.'
+});

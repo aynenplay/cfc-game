@@ -3822,3 +3822,16 @@ Object.assign(window.I18N.de, {
   'Kapalı':'Aus',
   'Bildirimler, uygulama kapalıyken de telefonuna gelir.':'Benachrichtigungen erreichen dein Handy auch bei geschlossener App.'
 });
+
+/* ── 550 · Push kanalı ── */
+Object.assign(window.I18N.de, {
+  'Mesajlar ve teklifler':'Nachrichten und Angebote',
+  'Yeni mesaj, transfer teklifi ve katılma isteği':'Neue Nachrichten, Transferangebote und Beitrittsanfragen'
+});
+
+/* ── 553 · Lig: geçen sezon tablosu ── */
+Object.assign(window.I18N.de, {
+  'Final tablosu':'Abschlusstabelle',
+  'Geçen sezonun son hâli — renkler o sezon kazanılan Avrupa bileti ve küme düşmeyi gösterir.':'Endstand der letzten Saison — die Farben zeigen die in jener Saison erreichten Europapokalplätze und Abstiege.',
+  'Bu lig için geçen sezon kaydı bulunamadı.':'Für diese Liga wurde keine Vorsaison gefunden.'
+});
