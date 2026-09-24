@@ -5947,3 +5947,14 @@ Object.assign(window.I18N.en, {
   'Yeni turnuvaya':'New tournament:',
   'Kura bugün çekiliyor':'The draw takes place today'
 });
+
+/* ── 547 · Federasyon seçim sekmesi ── */
+Object.assign(window.I18N.en, {
+  'Adaylar — Oyunu Ver':'Candidates — Cast Your Vote',
+  'Seçim Adayları':'Election Candidates',
+  'Sonraki Sezon Adayları':'Next Season Candidates',
+  'Üye Değil':'Not a Member',
+  'Başkanlığa aday olanlar · oy verme yalnızca':'Candidates for the presidency · voting only',
+  'Henüz aday yok.':'No candidates yet.',
+  'Başkan:':'President:'
+});

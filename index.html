@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '544';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '547';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -19891,7 +19891,8 @@ body.drawer-open .hb-btn span:nth-child(3){transform:translateY(-6px) rotate(-45
 .fede-cand.is-user{border-left:3px solid var(--accent)}
 .fede-cand.voted-by-me{background:rgba(0,230,118,.08);border-color:rgba(0,230,118,.4)}
 .fede-cand.is-winner{background:linear-gradient(90deg,rgba(255,213,79,.14),transparent);border-color:rgba(255,213,79,.45)}
-.fede-cand-avt{width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-size:18px;background:rgba(255,255,255,.05);border-radius:50%;flex-shrink:0}
+.fede-cand-avt{width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-size:18px;background:rgba(255,255,255,.05);border-radius:50%;flex-shrink:0;overflow:hidden}
+.fede-cand-avt .avatar-img{border-radius:50%}
 .fede-cand-info{flex:1;min-width:0}
 .fede-cand-name{font-size:12.5px;font-weight:700;line-height:1.2;display:flex;align-items:center;gap:5px}
 .fede-cand-team{font-size:10.5px;color:var(--text3);margin-top:2px}
@@ -29588,7 +29589,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-24-olcek-546';
+const APP_BUILD = '2026-09-24-olcek-547';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -54787,6 +54788,7 @@ function computeFederationMembers(cc) {
       let captainOverall = null;
       let captainLevel = null;
       let captainPos = null;
+      let capIsBot = true;
       try {
         let captain = null;
         if (isUserTeam && typeof ROSTER_DATA !== 'undefined' && Array.isArray(ROSTER_DATA)) {
@@ -54802,6 +54804,9 @@ function computeFederationMembers(cc) {
         if (captain) {
           captainName = captain.name;
           avatar = captain.avatar || '🤖';
+          // 🆕 547 — gerçek kaptanın avatar görseli (botlarda yok)
+          if (!captain.isBot && captain.avatar_id) avatar_id = captain.avatar_id;
+          capIsBot = !!captain.isBot;
           captainOverall = captain.overall || captain.rating || null;
           captainLevel = (typeof captain.level === 'number') ? captain.level : null;
           captainPos = captain.pos || null;
@@ -54845,6 +54850,7 @@ function computeFederationMembers(cc) {
         tier: league.tier,
         power,
         isUser: isUserTeam,
+        isBotCaptain: isUserTeam ? false : capIsBot,
         // Influence skoru: tier yüksekse + rank düşükse daha güçlü oy
         influence: Math.round((7 - league.tier) * 10 + (16 - Math.min(team.rank,16)))
       });
@@ -54856,6 +54862,11 @@ function computeFederationMembers(cc) {
 // 🆕 Federasyon state'i SUNUCUDAN (federation_state) — RAM cache + fed_tick tetikleme.
 // Sunucu otoriter: başkan/seçim/oylar sunucuda; client team_name -> member.id köprüsüyle eşler.
 const _fedStateCache = {};
+// 🆕 547 — Sunucudan gelen HAM satır (takım adlarıyla). Üye kimliği lig sırası ve
+//   sıralamaya bağlı ('cap_TR_t1_r3') ve sıralama/lig değişince kayıyor. Eşleme bir
+//   kez yapılıp saklandığında adaylar ve oylar kayboluyordu (ziyaretçide aday listesi
+//   boş, oylar yanlış kişide). Artık eşleme ham veriden her okumada tazeleniyor.
+const _fedStateRaw = {};
 const _fedStateLoaded = {};
 const _fedStateLoading = {};
 const _fedCandidacy = {};
@@ -54935,8 +54946,15 @@ async function _loadFedStateFromServer(cc) {
     if (row && vtRes && Array.isArray(vtRes.data)) {
       vtRes.data.forEach(v => { if (v.election_season === row.election_season) votesByTeam[v.voter_team] = v.candidate_team; });
     }
+    _fedStateRaw[cc] = { row, votesByTeam };
     _fedStateCache[cc] = _fedMapState(cc, row, votesByTeam);
-    if (typeof fedActiveCountry === 'function' && fedActiveCountry() === cc && typeof fedRender === 'function') fedRender();
+    _fedStateCache[cc]._t = Date.now();
+    if (typeof fedActiveCountry === 'function' && fedActiveCountry() === cc && typeof fedRender === 'function') {
+      fedRender();
+      // 🆕 547 — seçim sekmesi açıksa o da yenilensin (oy sayısı hemen görünsün)
+      const _sec = document.getElementById('fed-election');
+      if (_sec && _sec.style.display !== 'none') fedRenderElection();
+    }
     return _fedStateCache[cc];
   })();
   return _fedStateLoading[cc];
@@ -54945,6 +54963,11 @@ async function _loadFedStateFromServer(cc) {
 // Federasyon state'i (sunucu cache; yüklenene kadar boş iskelet döner)
 function fedLoad(cc) {
   cc = cc || 'TR';
+  const _raw = _fedStateRaw[cc];
+  if (_raw && (!_fedStateCache[cc] || (Date.now() - (_fedStateCache[cc]._t || 0)) > 1500)) {
+    _fedStateCache[cc] = _fedMapState(cc, _raw.row, _raw.votesByTeam);
+    _fedStateCache[cc]._t = Date.now();
+  }
   if (_fedStateCache[cc]) return _fedStateCache[cc];
   if (window.sb && !_fedStateLoaded[cc]) _loadFedStateFromServer(cc).catch(()=>{});
   return _fedMapState(cc, null, null);
@@ -55265,13 +55288,21 @@ function fedVote(candidateId) {
   if(state.votes && state.votes[me.id]) return false;
   const cand = computeFederationMembers(cc).find(m => m.id === candidateId);
   if(!cand || !window.sb) return false;
-  window.sb.rpc('fed_cast_vote', { p_cc: cc, p_candidate_team: cand.teamName })
+  // 🆕 547 — Sunucu onayı beklenir; onaylanınca oy ANINDA sayıma eklenir.
+  //   Eskiden sekme RPC bitmeden çiziliyor, sonra da yenilenmiyordu → "0 oy",
+  //   ancak oyundan çıkıp girince 1 görünüyordu.
+  return window.sb.rpc('fed_cast_vote', { p_cc: cc, p_candidate_team: cand.teamName })
     .then(({ error }) => {
-      if (error) { console.warn('[fed] oy hata:', error.message); return; }
+      if (error) { console.warn('[fed] oy hata:', error.message); return false; }
+      const _raw = _fedStateRaw[cc];
+      if (_raw) {
+        _raw.votesByTeam = Object.assign({}, _raw.votesByTeam, { [me.teamName]: cand.teamName });
+        if (_fedStateCache[cc]) _fedStateCache[cc]._t = 0;
+      }
       _fedStateLoaded[cc] = false;
       _loadFedStateFromServer(cc).catch(()=>{});
-    });
-  return true;
+      return true;
+    }, () => false);
 }
 
 // Mevcut tally (UI için anlık görüntü)
@@ -55423,7 +55454,7 @@ function fedRenderHero() {
   }
   if(nameEl) nameEl.textContent = country.name + ' Futbol Federasyonu';
   if(metaEl) metaEl.textContent = members.length + ' üye · ' + country.leagues.length + ' lig · ' + country.total + ' takım sahibi';
-  if(presLbl) presLbl.textContent = 'Başkan: ' + (pres ? pres.captainName : '—');
+  if(presLbl) presLbl.innerHTML = '<span>Başkan:</span> <span data-noi18n>' + _escapeHtml(pres ? pres.captainName : '—') + '</span>';
   const presAv = document.getElementById('fedHeroPresAvatar');
   if(presAv) presAv.innerHTML = '👑';
   if(memEl) memEl.textContent = members.length;
@@ -55690,6 +55721,7 @@ function saveCoachProfile() {
 }
 
 // ──────── SEÇİM SEKMESİ ────────
+const _fedKadroDenendi = new Set();   // 🆕 547 — aday kadrosu yükleme denemesi (tekrar yok)
 function fedRenderElection() {
   const root = document.getElementById('fedElectionRoot');
   if(!root) return;
@@ -55724,7 +55756,7 @@ function fedRenderElection() {
         <div class="fede-banner-desc">Sezon ${state.electionSeason || curSeason} başkanlık seçimi · 3. günün <b>19:00</b>'ında biter</div>
         <div class="fede-vote-count">
           <span class="fvc-icon">🗳️</span>
-          <span class="fvc-text"><b>${votedCount}</b> / ${totalVoters} üye oy kullandı</span>
+          <span class="fvc-text"><b>${votedCount}</b><span data-noi18n>&nbsp;/&nbsp;${totalVoters}</span> <span>üye oy kullandı</span></span>
           <div class="fvc-bar"><div class="fvc-fill" style="width:${totalVoters>0?Math.round(votedCount/totalVoters*100):0}%"></div></div>
         </div>
       </div>
@@ -55845,6 +55877,20 @@ function fedRenderElection() {
     candIds = [me.id].concat(candIds);
   }
 
+  // 🆕 547 — aday takımın kadrosu henüz yüklenmediyse kaptan bot sanılıyor, adı ve
+  //   avatarı yanlış çıkıyordu. Eksik kadroları bir kez yükleyip yeniden çiz.
+  try {
+    if (typeof _loadTeamRosterFromServer === 'function') {
+      const _eks = candIds.map(id => members.find(m => m.id === id))
+        .filter(m => m && !_teamRosterCache[cc + ':' + m.teamName] && !_fedKadroDenendi.has(cc + ':' + m.teamName));
+      if (_eks.length) {
+        _eks.forEach(m => _fedKadroDenendi.add(cc + ':' + m.teamName));
+        Promise.all(_eks.map(m => _loadTeamRosterFromServer(cc, m.teamName).catch(() => null)))
+          .then(() => { if (_fedStateCache[cc]) _fedStateCache[cc]._t = 0; fedRenderElection(); });
+      }
+    }
+  } catch(e) {}
+
   const tally = fedGetTally(cc);
   const userVote = fedGetUserVote(cc);
   const totalVotes = Object.values(tally).reduce((s,v) => s+v, 0);
@@ -55891,11 +55937,23 @@ function fedRenderElection() {
           <div class="fede-cand-pct">%${pct}</div>
         </div>
       `;
+    } else if(phase === 'open') {
+      // 🆕 547 — ziyaretçi (kaptan değil): sayımı görür, oy veremez
+      rightHtml = `
+        <div style="text-align:right;margin-right:6px">
+          <div class="fede-cand-tally">${myTally}</div>
+          <div class="fede-cand-pct">%${pct}</div>
+        </div>
+        <button class="fede-cand-vote-btn" disabled>🔒 Üye Değil</button>
+      `;
     }
+    // 🆕 547 — gerçek kaptanların avatar görseli; botlar eskisi gibi
+    const _avt = (!cand.isBotCaptain && cand.avatar_id && typeof getAvatarEmoji === 'function')
+      ? getAvatarEmoji(cand.avatar_id, cand.captainPos) : cand.avatar;
 
     return `
       <div class="fede-cand ${isInc?'is-incumbent':''} ${isUser?'is-user':''} ${votedByMe?'voted-by-me':''} ${isWinner?'is-winner':''}">
-        <div class="fede-cand-avt">${cand.avatar}</div>
+        <div class="fede-cand-avt">${_avt}</div>
         <div class="fede-cand-info">
           <div class="fede-cand-name">${cand.captainName}${isInc?' <span style="font-size:10px;color:#ffd54f">👑</span>':''}${isWinner?' <span style="font-size:10px;color:#ffd54f">🏛️</span>':''}</div>
           <div class="fede-cand-team">${cand.teamName} · ${cand.leagueName}</div>
@@ -55909,13 +55967,13 @@ function fedRenderElection() {
   const _candTitle = phase === 'open' ? '🗳️ Adaylar — Oyunu Ver'
     : (phase === 'completed' ? '🗳️ Seçim Adayları' : '🗳️ Sonraki Sezon Adayları');
   const _candSub = phase === 'closed'
-    ? '<div class="fede-cand-sub">Başkanlığa aday olanlar · oylama sezon başında açılır · oy verme <b>seçim gününde</b> açılır</div>'
+    ? '<div class="fede-cand-sub">Başkanlığa aday olanlar · oy verme yalnızca <b>seçim gününde</b></div>'
     : (phase === 'open'
         ? `<div class="fede-cand-sub">Toplam <b>${totalVotes}</b> oy kullanıldı · oylar gizlidir, yalnızca toplamlar görünür</div>`
         : '');
   candHtml = `<div class="fede-cand-title">${_candTitle}</div>${_candSub}` + (candIds.length > 0
     ? `<div class="fede-cand-list">${candCards}</div>`
-    : `<div style="padding:18px;text-align:center;color:var(--text3);font-size:11px">Henüz aday yok — ilk aday sen ol!<br><span style="font-size:10.5px">Gerçek aday çıkmazsa başkanlığa bot kaptanlı en güçlü kulüp atanır.</span></div>`);
+    : `<div style="padding:18px;text-align:center;color:var(--text3);font-size:11px">${isMember ? 'Henüz aday yok — ilk aday sen ol!' : 'Henüz aday yok.'}<br><span style="font-size:10.5px">Gerçek aday çıkmazsa başkanlığa bot kaptanlı en güçlü kulüp atanır.</span></div>`);
 
   // === KURALLAR ===
   const rulesHtml = `
@@ -55982,7 +56040,7 @@ function fedRenderElection() {
         const _votes = (id) => (h.tally && h.tally[id]) || 0;
         const _pct = (id) => total > 0 ? Math.round((_votes(id)/total)*100) : 0;
         const rowsHtml = (ranked.length ? ranked : [h.presidentId].filter(Boolean)).map((id, ri) => {
-          const role = ri === 0 ? '👑 Başkan' : (ri <= 3 ? 'Yrd. Başkan ' + ri : 'Aday');
+          const role = ri === 0 ? '👑 Başkan' : (ri <= 3 ? 'Yrd. Başkan <span data-noi18n>' + ri + '</span>' : 'Aday');
           return `<div class="fede-hist-cand ${ri===0?'is-pres':(ri<=3?'is-vice':'')}">
             <span class="fhc-rank">${ri+1}</span>
             <span class="fhc-name">${_nm(id)}</span>
@@ -56067,8 +56125,9 @@ function fedCastVoteClick(candidateId) {
     message: `<b>${candName}</b> adayına oy vermek üzeresin.<br><br>⚠️ Verilen oy <b>değiştirilemez</b> ve <b>iptal edilemez</b>.`,
     confirmText: 'Evet, oy ver',
     confirmStyle: 'ok',
-    onConfirm: () => {
-      if(fedVote(candidateId)) {
+    onConfirm: async () => {
+      const ok = await fedVote(candidateId);
+      if(ok) {
         fedShowToast('✅ Oyun kaydedildi: ' + candName, 'ok');
         fedRenderElection();
       } else {

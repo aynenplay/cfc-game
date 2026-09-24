@@ -3803,3 +3803,14 @@ Object.assign(window.I18N.de, {
   'Yeni turnuvaya':'Neues Turnier:',
   'Kura bugün çekiliyor':'Die Auslosung findet heute statt'
 });
+
+/* ── 547 · Federasyon seçim sekmesi ── */
+Object.assign(window.I18N.de, {
+  'Adaylar — Oyunu Ver':'Kandidaten — Stimme abgeben',
+  'Seçim Adayları':'Wahlkandidaten',
+  'Sonraki Sezon Adayları':'Kandidaten der nächsten Saison',
+  'Üye Değil':'Kein Mitglied',
+  'Başkanlığa aday olanlar · oy verme yalnızca':'Kandidaten für das Präsidentenamt · Abstimmung nur',
+  'Henüz aday yok.':'Noch keine Kandidaten.',
+  'Başkan:':'Präsident:'
+});
