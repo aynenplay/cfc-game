@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '558';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '559';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -29778,7 +29778,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-25-takim-558';
+const APP_BUILD = '2026-09-25-encsamp-559';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -69659,11 +69659,45 @@ function _euRenderKnockoutMini(trnKey, season, userTeamName, roundLabel) {
 //   kalıyordu. Artık kulüp turnuvalarındaki (CHM/ELI/CON) şampiyon
 //   rozetinin aynısı gösteriliyor — son şampiyon ülkenin bayrağıyla.
 //   encEnsureState sunucuda kayıt yoksa null döner, hiçbir şey üretmez.
+// 🆕 559 — Geçmiş sezonun finali: istemcideki maç sonuçları önbelleği yalnız içinde
+//   bulunulan sezonu tutuyor. Yeni sezona geçince geçen sezonun final skoru bulunamıyor,
+//   şampiyon kartı yerine "Gruplar hazırlanıyor" çıkıyordu. Final sonucu bir kez
+//   sunucudan (match_results · enc · final) okunur, gelince kart yeniden çizilir.
+const _encFinalSunucu = {};   // sezon → {ad,kod,bayrak,sezon} | false (yok) | null (yükleniyor)
+function _encFinalSunucudanYukle(sz) {
+  if (!window.sb || _encFinalSunucu[sz] !== undefined) return;
+  _encFinalSunucu[sz] = null;
+  try {
+    window.sb.from('match_results')
+      .select('home_team,away_team,home_score,away_score,pensWinner:data->>pensWinner,etWinner:data->>etWinner')
+      .eq('season', sz).eq('tournament_key', 'enc').eq('tournament_phase', 'final').limit(1)
+      .then(({ data, error }) => {
+        const m = (!error && Array.isArray(data)) ? data[0] : null;
+        let ad = null;
+        if (m) {
+          const hs = Number(m.home_score), as = Number(m.away_score);
+          if (hs > as) ad = m.home_team;
+          else if (as > hs) ad = m.away_team;
+          else {
+            const w = m.pensWinner || m.etWinner || null;
+            if (w === m.home_team || w === m.away_team) ad = w;
+          }
+        }
+        if (!ad) { _encFinalSunucu[sz] = false; return; }
+        let kod = null;
+        try { for (const cc of _cftGetCountryCodes()) { const c = _cftGetCountry(cc); if (c && c.name === ad) { kod = cc; break; } } } catch(e) {}
+        const bayrak = (typeof _hmUlkeBayrak === 'function' && (_hmUlkeBayrak(kod) || _hmUlkeBayrak(ad))) || '🏳️';
+        _encFinalSunucu[sz] = { ad, kod, bayrak, sezon: sz };
+        try { if (typeof renderHomeEuro === 'function') renderHomeEuro(); } catch(e) {}
+      }, () => { _encFinalSunucu[sz] = false; });
+  } catch(e) { _encFinalSunucu[sz] = false; }
+}
 function _encSonSampiyon(season) {
   try {
     if (typeof encEnsureState !== 'function') return null;
     const bu = Number(season) || 0;
     for (let s = bu; s >= 2 && s >= bu - 5; s--) {
+      if (_encFinalSunucu[s]) return _encFinalSunucu[s];   // 🆕 559: sunucudan gelen final
       const st = encEnsureState(s);
       const fm = st && st.knockout && st.knockout.final;
       if (!fm) continue;
@@ -69681,6 +69715,8 @@ function _encSonSampiyon(season) {
       }
       return { ad: kzAd, kod: kzKod, bayrak: kzBayrak || '🏳️', sezon: s };
     }
+    // 🆕 559: önbellekte bulunamadı → son sezonların finalini sunucudan iste (bir kez)
+    for (let s = bu; s >= 2 && s >= bu - 5; s--) _encFinalSunucudanYukle(s);
   } catch(e) {}
   return null;
 }
