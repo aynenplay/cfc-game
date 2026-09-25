@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '554';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '555';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -13257,6 +13257,18 @@ html.eq-drag-lock body{
 .shop-item-card.out-of-stock{opacity:.55;cursor:default}
 .shop-item-card.out-of-stock .sic-buy-btn{display:none}
 .sic-oos-badge{font-size:9px;font-weight:700;color:#ef5350;width:100%;text-align:center}
+/* 🆕 555 — mağaza nadirlik filtresi */
+.item-rar-row{display:flex;gap:5px;padding:8px 10px 0}
+.irr-btn{--c:#8b90a0;flex:1 1 auto;min-width:0;display:flex;align-items:center;justify-content:center;gap:4px;height:30px;padding:0 7px;border-radius:9px;
+  border:1px solid rgba(255,255,255,.08);background:repeating-linear-gradient(45deg,#15171c 0 2px,#101216 2px 4px);color:var(--text2);cursor:pointer;
+  font-family:Twemoji Country Flags,'Barlow Condensed',sans-serif;font-weight:900;font-size:12px;letter-spacing:.3px;white-space:nowrap;transition:all .15s}
+.irr-btn b{font-weight:700;font-size:10.5px;color:var(--text3);letter-spacing:0}
+.irr-dot{width:7px;height:7px;border-radius:50%;background:var(--c);box-shadow:0 0 6px var(--c);flex-shrink:0}
+.irr-btn.irr-elit{--c:#ff9800}.irr-btn.irr-pro{--c:#ce93d8}.irr-btn.irr-common{--c:#b0bec5}.irr-btn.irr-all{--c:#00e676}
+.irr-btn.irr-elit span{color:#ff9800}.irr-btn.irr-pro span{color:#ce93d8}.irr-btn.irr-common span{color:#b0bec5}
+.irr-btn.active{border-color:var(--c);background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.02));box-shadow:0 0 10px -2px var(--c),inset 0 0 0 1px var(--c)}
+.irr-btn.active b{color:#fff}
+.irr-btn.irr-all.active span{color:#fff}
 /* ═══ 🆕 554 — ITEM GÖRSELLERİ + MAĞAZA 3'LÜ KART + EKİPMAN TEK SATIR ═══ */
 .itm-gorsel{display:block;width:100%;height:100%;object-fit:cover;pointer-events:none;-webkit-user-drag:none;user-select:none;-webkit-touch-callout:none}
 /* Mağaza kartı (B · oyun çerçevesi) */
@@ -29388,6 +29400,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
     </div>
     <div id="shop-items" style="display:none">
       <div class="item-filter-row" id="itemFilterRow"></div>
+      <div class="item-rar-row" id="itemRarRow"></div>
       <div class="item-grid" id="itemGrid"></div>
     </div>
     <div id="shop-market" style="display:none">
@@ -29671,7 +29684,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-25-item-554';
+const APP_BUILD = '2026-09-25-nadir-555';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -73931,6 +73944,7 @@ const DIAMOND_PACKS = [
 ];
 
 let _shopItemFilter = 'all';
+let _shopRarFilter  = 'all';   // 🆕 555 — nadirlik filtresi: all | elit | pro | common
 let _marketSearchQ  = '';
 let _marketListings = []; // Pazar yeri satışları
 let _buyTarget      = null;
@@ -75260,7 +75274,16 @@ function renderShopItems() {
 
   const grid = document.getElementById('itemGrid');
   if(!grid) return;
-  const items = _shopItemFilter==='all' ? SHOP_ITEMS : SHOP_ITEMS.filter(i=>i.cat===_shopItemFilter);
+  const _katItems = _shopItemFilter==='all' ? SHOP_ITEMS : SHOP_ITEMS.filter(i=>i.cat===_shopItemFilter);
+  // 🆕 555 — nadirlik filtresi (kategori ile birlikte çalışır) + her seçenekte kaç item olduğu
+  const rarEl = document.getElementById('itemRarRow');
+  if (rarEl) {
+    const say = r => r==='all' ? _katItems.length : _katItems.filter(i=>i.rarity===r).length;
+    rarEl.innerHTML = [['all','Tümü'],['elit','ELİT'],['pro','PRO'],['common','COMMON']].map(([r,lbl]) =>
+      `<button class="irr-btn irr-${r}${_shopRarFilter===r?' active':''}" onclick="setItemRarFilter('${r}')">`
+      + `${r==='all'?'':'<i class="irr-dot"></i>'}<span>${lbl}</span> <b data-noi18n>${say(r)}</b></button>`).join('');
+  }
+  const items = _shopRarFilter==='all' ? _katItems : _katItems.filter(i=>i.rarity===_shopRarFilter);
   const eq    = getEqData();
   const stocks = getShopStocks();
 
@@ -75294,6 +75317,10 @@ function renderShopItems() {
   }).join('');
 }
 
+function setItemRarFilter(r) {   // 🆕 555
+  _shopRarFilter = (r==='elit'||r==='pro'||r==='common') ? r : 'all';
+  renderShopItems();
+}
 function setItemFilter(cat, btn) {
   _shopItemFilter = cat;
   document.querySelectorAll('.item-filter-btn').forEach(b=>b.classList.remove('active'));
