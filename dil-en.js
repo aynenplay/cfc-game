@@ -6003,3 +6003,8 @@ Object.assign(window.I18N.en, {
   'En yeni':'Newest', 'En ucuz':'Cheapest', 'En pahalı':'Priciest',
   'ilan':'listings', 'SENİN':'YOURS', 'Bu filtrede ilan yok.':'No listings match this filter.'
 });
+
+// 🆕 558 — satıştaki takımlar
+Object.assign(window.I18N.en, {
+  'Euro':'Euro', 'En güçlü':'Strongest', 'Bu filtrede takım yok.':'No teams match this filter.'
+});

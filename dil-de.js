@@ -3859,3 +3859,8 @@ Object.assign(window.I18N.de, {
   'En yeni':'Neueste', 'En ucuz':'Günstigste', 'En pahalı':'Teuerste',
   'ilan':'Angebote', 'SENİN':'DEINS', 'Bu filtrede ilan yok.':'Keine Angebote für diesen Filter.'
 });
+
+// 🆕 558 — satıştaki takımlar
+Object.assign(window.I18N.de, {
+  'Euro':'Euro', 'En güçlü':'Stärkste', 'Bu filtrede takım yok.':'Keine Teams für diesen Filter.'
+});
