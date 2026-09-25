@@ -3835,3 +3835,8 @@ Object.assign(window.I18N.de, {
   'Geçen sezonun son hâli — renkler o sezon kazanılan Avrupa bileti ve küme düşmeyi gösterir.':'Endstand der letzten Saison — die Farben zeigen die in jener Saison erreichten Europapokalplätze und Abstiege.',
   'Bu lig için geçen sezon kaydı bulunamadı.':'Für diese Liga wurde keine Vorsaison gefunden.'
 });
+
+// 🆕 554 — mağaza kartı
+Object.assign(window.I18N.de, {
+  'Stok Yok':'Nicht vorrätig'
+});

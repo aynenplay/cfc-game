@@ -5979,3 +5979,8 @@ Object.assign(window.I18N.en, {
   'Geçen sezonun son hâli — renkler o sezon kazanılan Avrupa bileti ve küme düşmeyi gösterir.':'Last season’s final standings — colours show the European places and relegation earned that season.',
   'Bu lig için geçen sezon kaydı bulunamadı.':'No record of last season was found for this league.'
 });
+
+// 🆕 554 — mağaza kartı
+Object.assign(window.I18N.en, {
+  'Stok Yok':'Out Of Stock'
+});
