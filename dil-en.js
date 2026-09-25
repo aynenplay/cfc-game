@@ -5984,3 +5984,15 @@ Object.assign(window.I18N.en, {
 Object.assign(window.I18N.en, {
   'Stok Yok':'Out Of Stock'
 });
+
+// 🆕 556 — sıralama kuralları (son 5 sezon · ülke puanı 1.-2. kademe)
+Object.assign(window.I18N.en, {
+  'Takım Puanı yalnızca son 5 sezonun maçlarından hesaplanır; 6. sezon başlayınca en eski sezon düşer.':'Team Points are calculated only from matches of the last 5 seasons; when season 6 starts the oldest season drops off.',
+  'Milli takım puanı yalnızca son 5 sezonun maçlarından hesaplanır; 6. sezon başlayınca en eski sezon düşer.':'National team points are calculated only from matches of the last 5 seasons; when season 6 starts the oldest season drops off.',
+  'Ülke puanına yalnızca':'Only',
+  '1. ve 2. kademe':'1st and 2nd tier',
+  'lig maçları ile':'league matches and',
+  'maçları sayılır.':'matches count towards the country coefficient.',
+  'Böylece alt ligi çok olan ülkeler, kulüp sayısı fazla diye avantajlı olmaz.':'This way countries with many lower divisions gain no advantage just from having more clubs.',
+  '🌍 Ülke Puanı — 1. ve 2. kademe + Avrupa kupaları · son 5 sezon':'🌍 Country Points — 1st & 2nd tier + European cups · last 5 seasons'
+});

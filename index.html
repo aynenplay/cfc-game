@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '555';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '556';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -1133,6 +1133,18 @@ h1,h2,h3,h4{font-family:Twemoji Country Flags,'Barlow Condensed',sans-serif;lett
 .rk-cnt-totalblock .lst-stat-val{font-size:16px}
 .rk-cnt-total{font-family:Twemoji Country Flags,'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:var(--gold);text-align:right;flex-shrink:0;min-width:54px}
 .rk-cnt-row.me-row{background:rgba(0,230,118,.07);border-left:3px solid var(--accent);padding-left:11px}
+/* 🆕 556 — Ülke sıralaması mobil: üstte sıra/bayrak/ad/toplam, altta 5 sezon kutusu tam genişlik */
+@media (max-width:600px){
+  .lst-row.rk-cnt-r{flex-wrap:wrap;row-gap:8px;padding:10px 10px 10px}
+  .rk-cnt-r .rk-cnt-nameblock{flex:1 1 0;width:auto;min-width:0}
+  .rk-cnt-r .rk-cnt-nameblock .lst-pname{font-size:14px}
+  .rk-cnt-r .rk-cnt-szrow{order:5;flex:1 1 100%;gap:5px}
+  .rk-cnt-r .rk-cnt-szchip{padding:5px 2px 6px;border-radius:8px}
+  .rk-cnt-r .rk-cnt-szchip-lbl{font-size:9px;margin-bottom:3px}
+  .rk-cnt-r .rk-cnt-szchip-val{font-size:14px;letter-spacing:0}
+  .rk-cnt-r .rk-cnt-totalblock{min-width:0}
+  .rk-cnt-r .rk-cnt-totalblock .lst-stat-val{font-size:20px}
+}
 
 /* TOTO */
 .toto-header{margin:12px;background:linear-gradient(135deg,#1a1200 0%,#120a00 100%);border-radius:var(--radius);border:1px solid #3a2a00;padding:16px}
@@ -29184,7 +29196,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 
     <!-- ÜLKELER -->
     <div id="rk-countries" style="display:none">
-      <div class="rk-info">🌍 Ülke Puanı — kulüplerin Takım Puanı toplamı · son 5 sezon</div>
+      <div class="rk-info">🌍 Ülke Puanı — 1. ve 2. kademe + Avrupa kupaları · son 5 sezon</div>
       <div class="rk-list" id="rkCountriesList"></div>
     </div>
 
@@ -29684,7 +29696,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-25-nadir-555';
+const APP_BUILD = '2026-09-25-siralama-556';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -92496,7 +92508,9 @@ function rkCalcCountries(){
     .map(([code, country]) => {
       // Canlı toplam: ülkenin kulüplerinin team_points toplamı (teams'ten yüklü — her zaman güncel)
       let live = 0;
-      (country.leagues || []).forEach(lg => (lg.teams || []).forEach(t => { live += (t.teamPoints || 0); }));
+      // 🆕 556: yalnızca 1. ve 2. kademe kulüpleri (sunucudaki ülke puanı kuralıyla aynı)
+      (country.leagues || []).forEach((lg, li) => { if ((Number(lg.tier) || (li + 1)) > 2) return;
+        (lg.teams || []).forEach(t => { live += (t.teamPoints || 0); }); });
       live = parseFloat(live.toFixed(2));
       // Edge son-5-sezon penceresi varsa onu kullan (6. sezondan itibaren 1. sezonu düşürür); yoksa canlı toplam.
       const ep = _countryPts(code);
@@ -93195,7 +93209,9 @@ function _rkInfoContent(tab){
     <tr><td>4. Lig</td><td>0.25 / 0.20 / 0.15</td></tr>
     <tr><td>5. Lig</td><td>0.20 / 0.15 / 0.10</td></tr>
     <tr><td>6. Lig</td><td>0.15 / 0.10 / 0.05</td></tr></table>
-    <p>Sıra, <b>tüm kademelerdeki</b> takımlar arasında gerçek küresel sıradır.</p>` };
+    <p>Sıra, <b>tüm kademelerdeki</b> takımlar arasında gerçek küresel sıradır.</p>
+    <h4>Son 5 sezon penceresi</h4>
+    <p>Takım Puanı yalnızca son 5 sezonun maçlarından hesaplanır; 6. sezon başlayınca en eski sezon düşer.</p>` };
   if(tab==='national') return { title:'Milli Takım Sıralaması — Kurallar', html:`
     <h4>EURO National Cup performansı</h4>
     <p>Milli takım puanı yalnızca <b>EURO National Cup</b> maçlarından gelir.</p>
@@ -93208,10 +93224,13 @@ function _rkInfoContent(tab){
     <tr><td>Çeyrek Final</td><td>+1.25</td></tr>
     <tr><td>Yarı Final</td><td>+1.5</td></tr>
     <tr><td>Final</td><td>+1.75</td></tr></table>
-    <p><b>Şampiyon</b> (final galibi) ayrıca <b>+2.0</b> puan alır.</p>` };
+    <p><b>Şampiyon</b> (final galibi) ayrıca <b>+2.0</b> puan alır.</p>
+    <h4>Son 5 sezon penceresi</h4>
+    <p>Milli takım puanı yalnızca son 5 sezonun maçlarından hesaplanır; 6. sezon başlayınca en eski sezon düşer.</p>` };
   if(tab==='countries') return { title:'Ülke Sıralaması — Kurallar', html:`
     <h4>Ülke Puanı</h4>
-    <p>Bir ülkenin puanı, o ülkenin <b>tüm kulüplerinin</b> topladığı <b>Takım Puanı</b> toplamıdır.</p>
+    <p>Ülke puanına yalnızca <b>1. ve 2. kademe</b> lig maçları ile <b>Avrupa kupası</b> maçları sayılır.</p>
+    <p>Böylece alt ligi çok olan ülkeler, kulüp sayısı fazla diye avantajlı olmaz.</p>
     <p>Takım Puanı her resmi maç sonucunun kademe çarpanıyla hesaplanır (Takımlar sekmesindeki bilgi kutusuyla aynı çarpanlar).</p>
     <h4>Son 5 sezon penceresi</h4>
     <p>Yalnızca <b>son 5 sezonun</b> katkısı sayılır; 6. sezon başlayınca en eski sezon düşer. Her sezonun katkısı satırdaki kartlarda ayrı görünür.</p>` };
