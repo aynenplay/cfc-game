@@ -3852,3 +3852,10 @@ Object.assign(window.I18N.de, {
   'Böylece alt ligi çok olan ülkeler, kulüp sayısı fazla diye avantajlı olmaz.':'So haben Länder mit vielen unteren Ligen keinen Vorteil nur wegen der größeren Anzahl an Vereinen.',
   '🌍 Ülke Puanı — 1. ve 2. kademe + Avrupa kupaları · son 5 sezon':'🌍 Länderpunkte — 1. & 2. Spielklasse + Europapokale · letzte 5 Saisons'
 });
+
+// 🆕 557 — pazar yeri (filtre, sıralama, ilan detayı)
+Object.assign(window.I18N.de, {
+  'Fiyat':'Preis', 'Mağaza fiyatı':'Shoppreis', 'İlanı Geri Al':'Angebot zurückziehen',
+  'En yeni':'Neueste', 'En ucuz':'Günstigste', 'En pahalı':'Teuerste',
+  'ilan':'Angebote', 'SENİN':'DEINS', 'Bu filtrede ilan yok.':'Keine Angebote für diesen Filter.'
+});
