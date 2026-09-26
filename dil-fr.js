@@ -5680,3 +5680,9 @@ Object.assign(window.I18N.fr, {
   "Kazanan kupon": "Tickets gagnés",
   "Kaybeden kupon": "Tickets perdus"
 });
+
+/* 571 — Menü grup başlıkları */
+Object.assign(window.I18N.fr, {
+  "Dünya": "Monde",
+  "Ekstra": "Extras"
+});

@@ -6026,3 +6026,9 @@ Object.assign(window.I18N.en, {
   "Kazanan kupon": "Winning coupons",
   "Kaybeden kupon": "Losing coupons"
 });
+
+/* 571 — Menü grup başlıkları */
+Object.assign(window.I18N.en, {
+  "Dünya": "World",
+  "Ekstra": "Extras"
+});

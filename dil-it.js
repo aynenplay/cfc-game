@@ -5618,3 +5618,9 @@ Object.assign(window.I18N.it, {
   "Kazanan kupon": "Schedine vinte",
   "Kaybeden kupon": "Schedine perse"
 });
+
+/* 571 — Menü grup başlıkları */
+Object.assign(window.I18N.it, {
+  "Dünya": "Mondo",
+  "Ekstra": "Extra"
+});

@@ -3882,3 +3882,9 @@ Object.assign(window.I18N.de, {
   "Kazanan kupon": "Gewonnene Scheine",
   "Kaybeden kupon": "Verlorene Scheine"
 });
+
+/* 571 — Menü grup başlıkları */
+Object.assign(window.I18N.de, {
+  "Dünya": "Welt",
+  "Ekstra": "Extras"
+});

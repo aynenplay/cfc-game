@@ -5650,3 +5650,9 @@ Object.assign(window.I18N.ru, {
   "Kazanan kupon": "Выигравшие купоны",
   "Kaybeden kupon": "Проигравшие купоны"
 });
+
+/* 571 — Menü grup başlıkları */
+Object.assign(window.I18N.ru, {
+  "Dünya": "Мир",
+  "Ekstra": "Прочее"
+});
