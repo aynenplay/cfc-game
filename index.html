@@ -29778,7 +29778,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-26-dil-567';
+const APP_BUILD = '2026-09-26-toto-568';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -82160,14 +82160,36 @@ async function betLoadMySlips(force) {
     return;
   }
   el.innerHTML = '<div class="bet-empty">⏳ Yükleniyor…</div>';
+  // 568 — yalnız son 3 gün: devam eden, 3 gün içinde oynanan/sonuçlanan ve ödülü alınmamış kuponlar
+  const sinir = new Date(Date.now() - 3 * 86400000).toISOString();
   try {
     const { data } = await window.sb.from('bet_slips')
       .select('id,stake,total_odds,potential_win,status,legs,payout,created_at,settled_at,claimed_at,shared_at')
-      .eq('user_id', authUser.id).order('created_at', { ascending: false }).limit(60);
+      .eq('user_id', authUser.id)
+      .or(`status.eq.pending,created_at.gte.${sinir},settled_at.gte.${sinir},and(status.eq.won,claimed_at.is.null)`)
+      .order('created_at', { ascending: false }).limit(60);
     _betMySlips = data || [];
   } catch(e) { _betMySlips = []; }
+  await _betSkorTamamla(_betMySlips);
   betRenderMySlips();
   try { betRenderWallet(); } catch(e) {}
+}
+
+// 568 — Kupondaki maç önbellekte yoksa (başka ülke / geçmiş gün) skoru görünmüyordu:
+//   eksik maçlar tek sorguda çekilip yalnız byKey'e eklenir (gün listeleri değişmez).
+async function _betSkorTamamla(slips) {
+  if (!_matchStateCache || !_matchStateCache.byKey) _matchStateCache = { dayMap: {}, byKey: {}, loadedAt: 0 };
+  const byKey = _matchStateCache.byKey;
+  const eksik = [];
+  (slips || []).forEach(s => (Array.isArray(s.legs) ? s.legs : []).forEach(l => {
+    const k = l && l.match_key;
+    if (k && !byKey[k] && eksik.indexOf(k) < 0) eksik.push(k);
+  }));
+  for (let i = 0; i < eksik.length; i += 100) {
+    const parca = eksik.slice(i, i + 100);
+    const rows = await _msQuery(q => q.in('match_key', parca));
+    rows.forEach(m => { if (m && m.match_key && !byKey[m.match_key]) byKey[m.match_key] = _msFmtRow(m); });
+  }
 }
 
 // 🆕 KUPON MESAJI ARTIK SUNUCUDA ÜRETİLİYOR (settleBetSlips → sysInbox).
