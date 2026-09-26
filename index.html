@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '563';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '565';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -29778,7 +29778,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-26-perf-563';
+const APP_BUILD = '2026-09-26-perf-565';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -32185,6 +32185,33 @@ const _teamRosterCache = {};
 const _teamRosterLoading = {};
 
 // Tek takım için Supabase'ten botlar+kullanıcılar (hydrated)
+// 🆕 565 — Birden çok takımın kadrosunu TEK sorguda yükler (eskiden takım başına ayrı
+//   istek: lig istatistik sekmesi ~18, federasyon seçimi aday sayısı kadar). Satırlar
+//   tek-takım yükleyiciyle AYNI dönüşümden geçer → önbellekteki kadro birebir aynı.
+const _KADRO_KOLON = 'id, num, name, pos, pos_group, sub_pos, nationality, nation, level, xp, overall, rating, abilities, role, avatar, avatar_id, is_bot, user_id, last_seen, goals_total, assists_total, matches_played, match_ratings, stats_by_comp, season_yellow, suspend_matches, suspend_reason, injury_until';
+async function _kadrolariTopluYukle(cc, teamNames) {
+  if (!window.sb || !cc || !Array.isArray(teamNames)) return;
+  const eksik = Array.from(new Set(teamNames.filter(n => n && !_teamRosterCache[cc + ':' + n] && !_teamRosterLoading[cc + ':' + n])));
+  if (!eksik.length) return;
+  const gruplar = {};
+  for (let i = 0; i < eksik.length; i += 20) {
+    const parca = eksik.slice(i, i + 20);
+    for (let from = 0; from < 5000; from += 1000) {
+      const { data, error } = await window.sb.from('players').select(_KADRO_KOLON + ', team_name')
+        .eq('country_code', cc).in('team_name', parca)
+        .order('team_name').order('num').range(from, from + 999);
+      if (error) { console.warn('[teamRoster toplu] hata:', error); return; }
+      if (!Array.isArray(data) || !data.length) break;
+      for (const r of data) (gruplar[r.team_name] || (gruplar[r.team_name] = [])).push(r);
+      if (data.length < 1000) break;
+    }
+  }
+  for (const tn of eksik) {
+    const rows = gruplar[tn];
+    if (rows && rows.length && !_teamRosterCache[cc + ':' + tn]) _teamRosterCache[cc + ':' + tn] = _kadroSatirlariniCevir(rows, cc);
+  }
+}
+
 async function _loadTeamRosterFromServer(cc, teamName) {
   if (!window.sb) return null;
   const key = cc + ':' + teamName;
@@ -32193,12 +32220,22 @@ async function _loadTeamRosterFromServer(cc, teamName) {
   _teamRosterLoading[key] = (async () => {
     try {
       const { data, error } = await window.sb.from('players')
-        .select('id, num, name, pos, pos_group, sub_pos, nationality, nation, level, xp, overall, rating, abilities, role, avatar, avatar_id, is_bot, user_id, last_seen, goals_total, assists_total, matches_played, match_ratings, stats_by_comp, season_yellow, suspend_matches, suspend_reason, injury_until')
+        .select(_KADRO_KOLON)
         .eq('country_code', cc)
         .eq('team_name', teamName)
         .order('num');
       if (error) { console.warn('[teamRoster] hata:', error); return null; }
       if (!data || data.length === 0) return null;
+      const players = _kadroSatirlariniCevir(data, cc);
+      _teamRosterCache[key] = players;
+      return players;
+    } catch(e) { console.warn('[teamRoster] exception:', e); return null; }
+    finally { delete _teamRosterLoading[key]; }
+  })();
+  return _teamRosterLoading[key];
+}
+
+function _kadroSatirlariniCevir(data, cc) {
       // SQUAD_SLOTS_15 ile starter/x/y bilgisini birleştir
       const players = data.map((r, i) => {
         const sl = (typeof SQUAD_SLOTS_15 !== 'undefined' && SQUAD_SLOTS_15[i]) || {};
@@ -32245,12 +32282,7 @@ async function _loadTeamRosterFromServer(cc, teamName) {
           x: sl.x, y: sl.y,
         };
       });
-      _teamRosterCache[key] = players;
       return players;
-    } catch(e) { console.warn('[teamRoster] exception:', e); return null; }
-    finally { delete _teamRosterLoading[key]; }
-  })();
-  return _teamRosterLoading[key];
 }
 
 // Önyükleme: bir kerelik tüm takımları cache'le (ağır, isteğe bağlı)
@@ -38648,9 +38680,10 @@ function _msStartViewerBeat(mk) {
     if (!key) return;
     if (typeof MS !== 'undefined' && MS && MS.finished && !listeZorla) return;
     const _liste = (listeZorla === true || !!document.getElementById('viewersModal')) ? '&liste=1' : '';
-    fetch(`${SUPABASE_URL}/functions/v1/tick-matches?action=viewer_beat&match_key=${encodeURIComponent(key)}&user_id=${encodeURIComponent(window.authUser.id)}${_liste}`, {
-      headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY }
-    }).then(r => r.ok ? r.json() : null)
+    // 🔒 565 — kimlik oturumdan (sunucu adresteki user_id'ye artık bakmıyor)
+    _oturumJwt().then(_jwt => _jwt ? fetch(`${SUPABASE_URL}/functions/v1/tick-matches?action=viewer_beat&match_key=${encodeURIComponent(key)}&user_id=${encodeURIComponent(window.authUser.id)}${_liste}`, {
+      headers: { 'Authorization': 'Bearer ' + _jwt, 'apikey': SUPABASE_KEY }
+    }) : null).then(r => (r && r.ok) ? r.json() : null)
       .then(d => {
         if (d && typeof d.viewer_count === 'number') {
           const el = document.getElementById('msViewerCount');
@@ -40332,9 +40365,11 @@ function closeMatchScreen(){
   try {
     if (window._viewerBeatMatchKey && window.authUser && window.authUser.id &&
         typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_KEY !== 'undefined') {
-      fetch(`${SUPABASE_URL}/functions/v1/tick-matches?action=viewer_leave&match_key=${encodeURIComponent(window._viewerBeatMatchKey)}&user_id=${encodeURIComponent(window.authUser.id)}`, {
-        headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY }
-      }).catch(() => {});
+      const _mkL = window._viewerBeatMatchKey;
+      const _uidL = window.authUser.id;
+      _oturumJwt().then(_jwt => { if (_jwt) return fetch(`${SUPABASE_URL}/functions/v1/tick-matches?action=viewer_leave&match_key=${encodeURIComponent(_mkL)}&user_id=${encodeURIComponent(_uidL)}`, {
+        headers: { 'Authorization': 'Bearer ' + _jwt, 'apikey': SUPABASE_KEY }
+      }); }).catch(() => {});
     }
   } catch(e) {}
   window._viewerBeatMatchKey = null;
@@ -48284,6 +48319,7 @@ function rosterBuildTeam(countryCode) {
 
 // players tablosundan gelen ham veriyi ROSTER_DATA formatına çevir
 function _buildRosterFromPlayers(playersList, countryCode) {
+  try { _authUserEsitle(); } catch(e) {}   // 🆕 565
   const myUserId = (window.authUser || {}).id;
   const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
   const nowMs = Date.now();
@@ -48350,6 +48386,7 @@ async function _rosterRefreshFromServer(countryCode) {
   if (!window.sb || !_userTeam || !_userTeam.teamName) return;
   // 🆕 authUser hazır değilse atla — _buildRosterFromPlayers seni user_id ile tanır;
   //   myUserId boşken çekersen kendi satırın "bot" işaretlenir. Login sonrası tekrar çağrılır.
+  try { _authUserEsitle(); } catch(e) {}   // 🆕 565 — giriş akışındaki kullanıcıyı eşitle
   if (!(window.authUser || {}).id) return;
   try {
     const { data, error } = await window.sb.from('players')
@@ -56252,7 +56289,8 @@ function fedRenderElection() {
         .filter(m => m && !_teamRosterCache[cc + ':' + m.teamName] && !_fedKadroDenendi.has(cc + ':' + m.teamName));
       if (_eks.length) {
         _eks.forEach(m => _fedKadroDenendi.add(cc + ':' + m.teamName));
-        Promise.all(_eks.map(m => _loadTeamRosterFromServer(cc, m.teamName).catch(() => null)))
+        // 🆕 565 — adayların kadroları tek toplu sorguyla
+        _kadrolariTopluYukle(cc, _eks.map(m => m.teamName)).catch(() => null)
           .then(() => { if (_fedStateCache[cc]) _fedStateCache[cc]._t = 0; fedRenderElection(); });
       }
     }
@@ -76781,12 +76819,8 @@ async function _loadAllLeagueRostersForRanking(countryCode, tierIdx) {
     return !_teamRosterCache[key];
   });
   if (!missing.length) return; // hepsi zaten yüklü
-  // Paralel yükle (tek-takım yükleyici hidrasyon + slot mantığını korur)
-  await Promise.all(missing.map(t =>
-    (typeof _loadTeamRosterFromServer === 'function')
-      ? _loadTeamRosterFromServer(countryCode, t.name).catch(()=>null)
-      : Promise.resolve(null)
-  ));
+  // 🆕 565 — eksik takımlar TEK toplu sorguyla (aynı dönüşüm, aynı önbellek)
+  try { await _kadrolariTopluYukle(countryCode, missing.map(t => t.name)); } catch(e) {}
 }
 
 function computePlayerStats(countryCode, tierIdx, opts) {
@@ -84226,6 +84260,7 @@ async function _inboxLoadFromServer(hafif) {
   // authUser hazır değilse Supabase auth'tan fallback
   // 🆕 563 — önce giriş akışındaki authUser (her 2 sn auth sunucusuna getUser atılmasın)
   let uid = (typeof authUser !== 'undefined' && authUser && authUser.id) || (window.authUser && window.authUser.id) || null;
+  if (uid) { try { _authUserEsitle(); } catch(e) {} }   // 🆕 565 — eski yan etki geri (kadro vb. buna bakıyor)
   if (!uid) {
     try {
       const { data: { user } } = await window.sb.auth.getUser();
@@ -84523,6 +84558,34 @@ function _sysSentAdd(id) {
 //   bu, herkesin herkes adına işlem yapabilmesi demekti.
 //   Artık sunucu kimliği JWT'den çözüyor, ?user parametresi kullanılmıyor.
 // ══════════════════════════════════════════════════════════════
+// 🆕 565 — HATA DÜZELTMESİ: kendi kadron görünmüyordu.
+//   window.authUser.id eskiden gelen kutusu yükleyicisinin yan etkisiyle doluyordu;
+//   563'te o yükleyici giriş akışındaki authUser'ı doğrudan kullanmaya başlayınca bu yan
+//   etki kalktı ve _rosterRefreshFromServer "kullanıcı hazır değil" deyip kadroyu hiç
+//   çekmedi. Artık iki kaynak açıkça eşitleniyor.
+function _authUserEsitle() {
+  try {
+    const _lx = (typeof authUser !== 'undefined' && authUser && authUser.id) ? authUser : null;
+    if (!_lx) return (window.authUser && window.authUser.id) || null;
+    if (!window.authUser) window.authUser = {};
+    if (!window.authUser.id) window.authUser.id = _lx.id;
+    return window.authUser.id;
+  } catch(e) { return (window.authUser && window.authUser.id) || null; }
+}
+window._authUserEsitle = _authUserEsitle;
+
+// 🆕 565 — izleyici / takım gücü uçları artık oturum ister: kullanıcının erişim anahtarı
+async function _oturumJwt() {
+  try {
+    if (window.sb && window.sb.auth) {
+      const { data } = await window.sb.auth.getSession();
+      return (data && data.session && data.session.access_token) || null;
+    }
+  } catch(e) {}
+  return null;
+}
+window._oturumJwt = _oturumJwt;
+
 async function edgeCall(action, params, opts) {
   const o = opts || {};
   let jwt = null;
@@ -86559,12 +86622,13 @@ async function _loadVisitedTeamTrophies(countryCode, teamName) {
     if (!mk || !window.authUser || !window.authUser.id) return;
     if (typeof SUPABASE_URL === 'undefined' || typeof SUPABASE_KEY === 'undefined') return;
     const url = `${SUPABASE_URL}/functions/v1/tick-matches?action=viewer_leave&match_key=${encodeURIComponent(mk)}&user_id=${encodeURIComponent(window.authUser.id)}`;
+    // 🔒 565 — sunucu kimliği oturumdan alıyor; sendBeacon başlık taşıyamadığı için keepalive
+    //   fetch. Gönderilemezse sunucu eski izleyici kaydını 75 sn içinde zaten temizliyor.
     try {
-      if (navigator.sendBeacon) {
-        navigator.sendBeacon(url);
-      } else {
-        fetch(url, { method: 'GET', keepalive: true, headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY } }).catch(() => {});
-      }
+      _oturumJwt().then(_jwt => {
+        if (!_jwt) return;
+        fetch(url, { method: 'GET', keepalive: true, headers: { 'Authorization': 'Bearer ' + _jwt, 'apikey': SUPABASE_KEY } }).catch(() => {});
+      }).catch(() => {});
     } catch(e) {}
   }
 })();
@@ -87064,7 +87128,9 @@ async function _recomputeTeamOvrServer(cc, name){
   if(!cc || !name) return null;
   try{
     const url = `${SUPABASE_URL}/functions/v1/tick-matches?action=recompute_team&cc=${encodeURIComponent(cc)}&name=${encodeURIComponent(name)}`;
-    const r = await fetch(url, { headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY } });
+    const _jwt = await _oturumJwt();   // 🔒 565 — oturum zorunlu
+    if (!_jwt) return null;
+    const r = await fetch(url, { headers: { 'Authorization': 'Bearer ' + _jwt, 'apikey': SUPABASE_KEY } });
     const d = r.ok ? await r.json() : null;
     if(d && d.ok && typeof d.team_ovr === 'number'){
       const key = cc + ':' + name;
