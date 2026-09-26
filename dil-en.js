@@ -2693,7 +2693,7 @@ Object.assign(window.I18N.en, {
   'Estağfurullah.':'Not at all.', 'Selam! Hoşbuldum.':'Hi! Good to be here.',
   'Az önce':'Just now', 'Şimdi':'Now', 'Başlangıç':'Start', 'Belirtilmemiş':'Not specified',
   'Diğer':'Other', 'İyi':'Good', 'Süper':'Great', 'Ağır':'Heavy',
-  'Yumuşak':'Soft', 'Planlı':'Planned', 'Popüler':'Popular', 'AÇIK':'OPEN', 'AÇILIŞ':'KICK-OFF',
+  'Yumuşak':'Soft', 'Planlı':'Planned', 'Popüler':'Popular', 'Efsane':'Legend', 'AÇIK':'OPEN', 'AÇILIŞ':'KICK-OFF',
   'GİZLE ▴':'HIDE ▴', 'GİR':'ENTER', 'YARIN':'TOMORROW',
   'BAŞARI':'ACHIEVEMENT', 'BİLGİ':'INFO', 'KUPA':'TROPHY', 'KAZANÇ':'WINNINGS',
   'SONUÇ':'RESULT', 'PUAN ·':'POINTS ·', 'GELİŞİM':'PROGRESS', 'ÖZEL':'SPECIAL',

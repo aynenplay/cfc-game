@@ -1593,7 +1593,7 @@ Object.assign(window.I18N.de, {
 'Anladım':'Verstanden','Anladım, teşekkürler.':'Verstanden, danke.','Tamam, aklımda olacak.':'Alles klar, ich merke es mir.',
 'Önemli değil dostum.':'Kein Problem, mein Freund.','Estağfurullah.':'Keine Ursache.','Selam! Hoşbuldum.':'Hallo! Schön, hier zu sein.',
 'Az önce':'Gerade eben','Şimdi':'Jetzt','Başlangıç':'Beginn','Belirtilmemiş':'Nicht angegeben','Diğer':'Sonstige',
-'İyi':'Gut','Süper':'Super','Ağır':'Schwer','Yumuşak':'Mild','Planlı':'Geplant','Popüler':'Beliebt',
+'İyi':'Gut','Süper':'Super','Ağır':'Schwer','Yumuşak':'Mild','Planlı':'Geplant','Popüler':'Beliebt', 'Efsane':'Legende',
 'AÇIK':'OFFEN','AÇILIŞ':'ANPFIFF','GİZLE ▴':'AUSBLENDEN ▴','GİR':'BETRETEN','YARIN':'MORGEN',
 'BAŞARI':'ERFOLG','BİLGİ':'INFO','KUPA':'TROPHÄE','KAZANÇ':'GEWINN','SONUÇ':'ERGEBNIS','PUAN ·':'PUNKTE ·',
 'GELİŞİM':'FORTSCHRITT','ÖZEL':'BESONDERS','GÖREVDE':'IM AMT','GÜMÜŞ':'SILBER','ELİT':'ELITE',
