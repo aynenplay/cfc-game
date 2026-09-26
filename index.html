@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '561';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '563';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -29778,7 +29778,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-26-perf-561';
+const APP_BUILD = '2026-09-26-perf-563';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -30396,7 +30396,14 @@ window._sayfaGizli = _sayfaGizli;
 document.addEventListener('visibilitychange', function() {
   if (_sayfaGizli()) return;
   // Görünür oldu → sunucudan taze veri çek, ekranı tazele
-  try { if (typeof _loadAllMatchStateFromServer === 'function') _loadAllMatchStateFromServer(); } catch(e) {}
+  // 🆕 563 — 1 saatten kısa ayrılıkta TÜM maç verisi (~5 bin satır, 5-8 istek) yerine
+  //   yalnız bu arada oynanan/başlayan maçlar çekilir (değişebilecek tek dilim).
+  try {
+    const _sc = window._msScope || {};
+    const _son = _sc.syncAt || _sc.coreAt || 0;
+    if (_son && (Date.now() - _son) < 60 * 60 * 1000 && typeof _msTazeleDelta === 'function') _msTazeleDelta(_son);
+    else if (typeof _loadAllMatchStateFromServer === 'function') _loadAllMatchStateFromServer();
+  } catch(e) {}
   try {
     const aktif = document.querySelector('.page.active');
     if (aktif && aktif.id === 'page-home' && typeof renderHomeNextMatch === 'function') {
@@ -36817,14 +36824,15 @@ async function resOpenFinishedMatch(matchKey) {
         //   Boşsa oradan oku; modal "gol atılmadı" demesin.
         if ((!Array.isArray(data.events) || !data.events.length) && data.status === 'finished') {
           try {
+            // 🆕 563 — yalnız olaylar ve istatistik (data'nın tamamı değil)
             const { data: _mr } = await window.sb.from('match_results')
-              .select('data')
+              .select('ev:data->events,st:data->stats')
               .eq('season', data.season).eq('day_in_season', data.day_in_season)
               .eq('home_team', data.home_team).eq('away_team', data.away_team)
               .maybeSingle();
-            if (_mr && _mr.data) {
-              if (Array.isArray(_mr.data.events)) data.events = _mr.data.events;
-              if (_mr.data.stats && !data.stats) data.stats = _mr.data.stats;
+            if (_mr) {
+              if (Array.isArray(_mr.ev)) data.events = _mr.ev;
+              if (_mr.st && !data.stats) data.stats = _mr.st;
             }
           } catch(e) { console.warn('[fm] arşiv yedeği hata:', e); }
         }
@@ -40149,6 +40157,7 @@ async function _msPushSubToServer(outNum, inNum) {
     if (typeof MS === 'undefined' || !MS || !MS.match_key) return { ok: false, error: 'mac_yok' };
     if (typeof _msCanControlTactics === 'function' && !_msCanControlTactics()) return { ok: false, error: 'yetki_yok' };
     const _res = await edgeCall('match_sub', { match_key: MS.match_key, out: outNum, in: inNum });
+    try { MS._kadroZorla = true; } catch(e) {}   // 🆕 563 — bekleyen değişiklik kadroda görünsün
     const _d = _res && _res.data;
     if (!_res || !_res.ok || !_d || _d.error) return { ok: false, error: (_d && _d.error) || 'sunucu_hatasi' };
     return { ok: true, minute: _d.minute };
@@ -41877,11 +41886,27 @@ async function startMatch(){
       let liveRow = null;
       if (MS.match_key && window.sb) {
         try {
+          // 🆕 563 — kadrolar (büyük JSON) yalnız gerekince: ilk okuma, 4 turda bir, oyuncu
+          //   değişikliği/kırmızı/sakatlık olayı sonrası, maç sonuna doğru ve bitişte.
+          const _onc = (typeof _liveMatchCache === 'object' && _liveMatchCache) ? _liveMatchCache[MS.match_key] : null;
+          MS._kadroTur = (MS._kadroTur || 0) + 1;
+          const _kadroGerek = !_onc || !_onc.home_lineup || MS._kadroKey !== MS.match_key || MS._kadroZorla ||
+            (MS._kadroTur % 4 === 1) || _onc.status !== 'running' || (Number(_onc.sim_minute) || 0) >= 85;
+          const _kolon = 'match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,events,stats,started_at,kickoff_at,tournament_key,tournament_phase,viewer_count,last_tick_at'
+            + (_kadroGerek ? ',home_lineup,away_lineup' : '');
           const { data: _one } = await window.sb.from('match_state')
-            .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,events,stats,home_lineup,away_lineup,started_at,kickoff_at,tournament_key,tournament_phase,viewer_count,last_tick_at')
+            .select(_kolon)
             .eq('match_key', MS.match_key)
             .maybeSingle();
           if (_one) {
+            if (_kadroGerek) { MS._kadroKey = MS.match_key; MS._kadroZorla = false; }
+            else { _one.home_lineup = _onc.home_lineup; _one.away_lineup = _onc.away_lineup; }
+            // Kadroyu değiştiren olay sayısı değiştiyse bir sonraki okumada kadroyu da al
+            try {
+              const _ks = (Array.isArray(_one.events) ? _one.events : []).filter(e => e && (e.type === 'sub' || e.type === 'red' || e.type === 'injury' || e.type === 'secondyellow')).length;
+              if (MS._kadroOlaySay !== undefined && _ks !== MS._kadroOlaySay) MS._kadroZorla = true;
+              MS._kadroOlaySay = _ks;
+            } catch(e) {}
             liveRow = _one;
             // RAM cache'i de bu maç için güncelle (diğer ekranlar tutarlı kalsın)
             if (typeof _liveMatchCache === 'object' && _liveMatchCache) _liveMatchCache[MS.match_key] = _one;
@@ -43510,13 +43535,21 @@ function _emptyWorldState() {
 // ═══════════════════════════════════════════════════════════════
 let _tournamentStateCache = {};
 
-async function _tournamentStateLoadFromServer() {
+async function _tournamentStateLoadFromServer(sadeceGuncel) {
   try {
     if (!window.sb) { _tournamentStateCache = {}; return; }
-    const { data, error } = await window.sb.from('tournament_state')
+    // 🆕 563 — açılışta tüm sezonlar bir kez; sonraki tazelemelerde yalnız bu sezon ve
+    //   sonrası (geçmiş sezonların fikstürü değişmez). Eskiden her turnuva maçı bitince
+    //   ve sayfa her açılınca tüm sezonların tüm fikstürleri yeniden indiriliyordu.
+    let _S = 0;
+    try { _S = (getSeasonInfo().season) || 0; } catch(e) {}
+    const _kismi = !!(sadeceGuncel && _S && _tournamentStateCache && Object.keys(_tournamentStateCache).length);
+    let _q = window.sb.from('tournament_state')
       .select('tournament_key,season,phase,fixture,qualified_teams,results');
+    if (_kismi) _q = _q.gte('season', _S);
+    const { data, error } = await _q;
     if (error) { console.warn('[tournament_state] load hata:', error); return; }
-    const cache = {};
+    const cache = _kismi ? { ..._tournamentStateCache } : {};
     for (const row of (data || [])) {
       const k = `${row.tournament_key}_s${row.season}`;
       cache[k] = {
@@ -43764,7 +43797,11 @@ function _liveMatchStartPolling() {
       try {
         for (const k in _liveMatchCache) { if (_liveMatchCache[k] && _liveMatchCache[k].status === 'running') liveCount++; }
       } catch(e) {}
-      const want = liveCount > 0 ? 7000 : 45000;
+      // 🆕 563 — Sonuçlar sayfasında görünen skorları _resUpdateLiveCells zaten 7 sn'de
+      //   tazeliyor; bu genel liste orada 21 sn'de bir yeter (TOTO'da 7 sn kalır).
+      const _apg = document.querySelector('.page.active');
+      const _sonuclarda = !!(_apg && _apg.id === 'page-results');
+      const want = liveCount > 0 ? (_sonuclarda ? 21000 : 7000) : 45000;
       if (want !== window._lmPollMs) {
         window._lmPollMs = want;
         if (_liveMatchPollTimer) clearInterval(_liveMatchPollTimer);
@@ -43798,6 +43835,14 @@ window._trnCanli = window._trnCanli || { calisiyor: false, canli: false, tur: 0,
 async function _trnCanliKontrol(zorla) {
   const d = window._trnCanli;
   if (d.calisiyor || !window.sb || document.hidden) return;
+  // 🆕 563 — turnuva kartı/ağacı yalnız ana sayfa, turnuvalar ve milli takım sayfasında görünüyor;
+  //   diğer sayfalarda 20-80 sn'de bir sorgu atılmaz (sayfaya dönünce hemen bakılır).
+  if (!zorla) {
+    const _ap = document.querySelector('.page.active');
+    const _id = _ap && _ap.id;
+    if (_id !== 'page-home' && _id !== 'page-tournaments' && _id !== 'page-national') return;
+  }
+  d.sonKontrol = Date.now();
   if (typeof _matchStateCache === 'undefined' || !_matchStateCache || !_matchStateCache.byKey) return;
   let info = null;
   try { info = getSeasonInfo(); } catch(e) {}
@@ -43852,8 +43897,9 @@ async function _trnTamTazele(season, bitenKeys) {
   d.tamSon = Date.now();
   try {
     const isler = [];
-    if (typeof _tournamentStateLoadFromServer === 'function') isler.push(_tournamentStateLoadFromServer());
-    if (typeof _encLoadFromServer === 'function') isler.push(_encLoadFromServer(season));
+    // 🆕 563 — yalnız güncel sezon; ENC ayrıca çekilmez (turnuva yüklemesi _encStateCache'i de dolduruyor)
+    if (typeof _tournamentStateLoadFromServer === 'function') isler.push(_tournamentStateLoadFromServer(true));
+    else if (typeof _encLoadFromServer === 'function') isler.push(_encLoadFromServer(season));
     // Biten maçların tam satırı + yeni kurulan turun (ileri tarihli) maçları
     isler.push((async () => {
       const q1 = (bitenKeys && bitenKeys.length)
@@ -45654,15 +45700,20 @@ function showPage(name,btn){
     renderPlayerPage();
   }
   if(name==='settings') { if(typeof renderSettings === 'function') renderSettings(); }
+  // 🆕 563 — turnuva canlı kontrolü diğer sayfalarda durduğu için ilgili sayfaya dönünce bak
+  if (name==='home' || name==='tournaments' || name==='national') {
+    try { const _tc = window._trnCanli; if (_tc && Date.now() - (_tc.sonKontrol || 0) > 60000 && typeof _trnCanliKontrol === 'function') setTimeout(() => _trnCanliKontrol(true), 600); } catch(e) {}
+  }
   if(name==='home') {
     // 🆕 Ana sayfaya her dönüşte TÜM değerler tazelensin (son 5 maç, takım gücü, hazırlık maçları).
     //   Throttle'ı sıfırla → renderHomeNextMatch fresh veri çeksin.
     window._frmLastLoad = 0;
     if(typeof updateHero === 'function') updateHero();
-    // 🆕 SIRALAMA ÖZETİ — her dönüşte sunucudan taze çek
-    if(typeof renderHomeRankingSummary === 'function') { try { renderHomeRankingSummary(); } catch(e){} }
+    // 🆕 SIRALAMA ÖZETİ — updateHero zaten çiziyor (563: ikinci çağrı kaldırıldı; 60 sn önbellekli)
+    if(typeof updateHero !== 'function' && typeof renderHomeRankingSummary === 'function') { try { renderHomeRankingSummary(); } catch(e){} }
     // 🆕 ETKİNLİK AKIŞI — server leaderboard cache'ini sıfırla → taze çekip yeniden render et
-    try { if (typeof _evRaceServerLbCache !== 'undefined' && _evRaceServerLbCache) { _evRaceServerLbCache.train = null; _evRaceServerLbCache.rating = null; } } catch(e){}
+    // 🆕 563 — önbellek her dönüşte değil, 2 dakikadan eskiyse tazelenir
+    try { if (typeof _evRaceServerLbCache !== 'undefined' && _evRaceServerLbCache) { const _t = Date.now(); if (_evRaceServerLbCache.train && _t - (_evRaceServerLbCache.train.t || 0) > 120000) _evRaceServerLbCache.train = null; if (_evRaceServerLbCache.rating && _t - (_evRaceServerLbCache.rating.t || 0) > 120000) _evRaceServerLbCache.rating = null; } } catch(e){}
     if(typeof renderHomeEventFeed === 'function') { try { renderHomeEventFeed(true); } catch(e){} }
   }
   if(name==='shop') { renderDiamondPacks(); const sb=document.getElementById('shopDiamondBal'); if(sb) { const _dd=document.getElementById('diamond-display'); sb.textContent=(_dd && (_dd.dataset.tam || _dd.textContent))||'0'; } }
@@ -45790,7 +45841,7 @@ function showPage(name,btn){
     //   sezonun kurası (39. günde kurulur) beklemeden görünsün.
     try {
       if (typeof _tournamentStateLoadFromServer === 'function') {
-        _tournamentStateLoadFromServer().then(() => {
+        _tournamentStateLoadFromServer(true).then(() => {
           try {
             const _pg = document.querySelector('.page.active');
             if (_pg && _pg.id === 'page-tournaments' && typeof trn2Render === 'function') trn2Render();
@@ -55034,6 +55085,40 @@ function _fedLeagueShort(name, tier) {
   return _ligTierEtiketi(t);
 }
 
+// 🆕 563 — Federasyon üyelerinin kaptan bilgisi: eskiden her takım için ayrı AĞIR kadro
+//   sorgusu (yetenekler dahil, ülke başına ~57 istek / ~6 MB) atılıyordu; kullanılan tek
+//   bilgi kaptanın adı/avatarı/gücü. Artık ülke başına tek hafif sorgu (10 dk önbellek).
+//   Seçim kuralı kadroyla AYNI: numara sırasında ilk kaptan/kullanıcı, yoksa en küçük numara.
+window._fedKaptanOnb = window._fedKaptanOnb || {};
+function _fedKaptanlariYukle(cc) {
+  if (!window.sb || !cc) return Promise.resolve(null);
+  const o = window._fedKaptanOnb[cc];
+  if (o && (o.yukleniyor || (Date.now() - o.t) < 10 * 60 * 1000)) return o.p || Promise.resolve(o);
+  const kayit = { t: 0, yukleniyor: true, byTeam: (o && o.byTeam) || null, p: null };
+  window._fedKaptanOnb[cc] = kayit;
+  kayit.p = (async () => {
+    const liste = {};
+    for (let from = 0; from < 10000; from += 1000) {
+      const { data, error } = await window.sb.from('players')
+        .select('team_name,num,name,avatar,avatar_id,is_bot,overall,rating,level,pos,role')
+        .eq('country_code', cc).order('team_name').order('num').range(from, from + 999);
+      if (error || !Array.isArray(data) || !data.length) break;
+      for (const r of data) { if (r && r.team_name) (liste[r.team_name] || (liste[r.team_name] = [])).push(r); }
+      if (data.length < 1000) break;
+    }
+    const byTeam = {};
+    for (const tn in liste) {
+      const L = liste[tn];
+      const c = L.find(p => p && (p.role === 'captain' || p.role === 'user')) || L[0];
+      if (c) byTeam[tn] = c;
+    }
+    kayit.byTeam = byTeam; kayit.t = Date.now(); kayit.yukleniyor = false;
+    try { if (typeof fedActiveCountry === 'function' && fedActiveCountry() === cc && typeof fedRender === 'function') fedRender(); } catch(e) {}
+    return kayit;
+  })().catch(() => { kayit.yukleniyor = false; kayit.t = Date.now() - 9 * 60 * 1000; return kayit; });
+  return kayit.p;
+}
+
 function computeFederationMembers(cc) {
   if(false || !_cftGetCountry(cc)) return [];
   const country = _cftGetCountry(cc);
@@ -55063,11 +55148,23 @@ function computeFederationMembers(cc) {
         if (isUserTeam && typeof ROSTER_DATA !== 'undefined' && Array.isArray(ROSTER_DATA)) {
           // Kullanıcının takımı: ROSTER_DATA'dan role:'user' olanı
           captain = ROSTER_DATA.find(p => p && (p.role === 'user' || p.role === 'captain'));
-        } else if (typeof getOrCreateTeamRoster === 'function') {
-          const teamData = { ...team, countryCode: cc };
-          const roster = getOrCreateTeamRoster(teamData);
-          if (Array.isArray(roster)) {
-            captain = roster.find(p => p && (p.role === 'captain' || p.role === 'user')) || roster[0];
+        } else {
+          // 🆕 563 — önce zaten yüklü kadro (birebir aynı), yoksa ülke başına hafif kaptan
+          //   listesi; takım takım ağır kadro sorgusu ATILMAZ.
+          const _kk = String(cc).toUpperCase().slice(0, 2) + ':' + team.name;
+          const _yuklu = (typeof _teamRosterCache !== 'undefined' && _teamRosterCache && _teamRosterCache[_kk]) ? _teamRosterCache[_kk] : null;
+          const _hf = window._fedKaptanOnb && window._fedKaptanOnb[cc];
+          if (Array.isArray(_yuklu) && _yuklu.length) {
+            captain = _yuklu.find(p => p && (p.role === 'captain' || p.role === 'user')) || _yuklu[0];
+          } else if (_hf && _hf.byTeam) {
+            const r = _hf.byTeam[team.name];
+            if (r) captain = {
+              name: r.name, avatar: r.avatar || (r.is_bot ? '🤖' : '👤'), avatar_id: r.avatar_id || null,
+              isBot: !!r.is_bot, overall: r.overall || 10, rating: r.rating || 10,
+              level: r.level || 0, pos: r.pos
+            };
+          } else {
+            _fedKaptanlariYukle(cc);
           }
         }
         if (captain) {
@@ -55200,6 +55297,7 @@ async function _loadFedStateFromServer(cc) {
   if (!window.sb || _fedStateLoaded[cc]) return _fedStateCache[cc] || null;
   if (_fedStateLoading[cc]) return _fedStateLoading[cc];
   _fedStateLoading[cc] = (async () => {
+    try { _fedKaptanlariYukle(cc); } catch(e) {}   // 🆕 563 — paralel, hafif
     const si = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : null;
     if (si && !si.preSeason) {
       await window.sb.rpc('fed_tick', { p_cc: cc, p_season: si.season || 1, p_day: si.dayInSeason || 1, p_hour: new Date().getHours() }).then(()=>{}, ()=>{});
@@ -61062,6 +61160,8 @@ let _frmMatchesCache = [];
 // Server'dan tüm hazırlık maçlarını yükle (bootstrap)
 async function _frmLoadFromServer() {
   if (!window.sb) { _frmMatchesCache = []; return; }
+  // 🆕 563 — özellik kapalıyken (FRM_AKTIF=false) dakikada bir sorgu atılmasın
+  if (typeof FRM_AKTIF !== 'undefined' && !FRM_AKTIF) { _frmMatchesCache = []; return; }
   try {
     // 🆕 SADECE KENDİ DAVETLERİM — eskiden tüm dünyanın hazırlık maçları çekiliyordu.
     //   Başka oyuncuların bekleyen davetlerine de bu istemci bot cevabı üretiyor,
@@ -62723,7 +62823,8 @@ setInterval(() => {
   //   Eskiden kapalıyken 8sn'de bir sorgu atıyordu — boşta dururken bile
   //   dakikada ~8 istek demekti (pil + ısınma).
   if (!isOpen && (_inboxPollCnt % 15 !== 0)) return;
-  _inboxLoadFromServer().then(() => {
+  // 🆕 563 — açıkken ara turlar hafif (yalnız updated_at), 15 turda bir tam okuma
+  _inboxLoadFromServer(isOpen && (_inboxPollCnt % 15 !== 0)).then(() => {
     if (typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
     // 🆕 Veri değişmediyse hiçbir şey yapma — liste/sohbet olduğu gibi kalır
     if (!window._inboxChanged) return;
@@ -66046,21 +66147,26 @@ async function renderHomeRankingSummary(){
     ligRows=lig.map((c,i)=>rowFlag(i+1,c.f,c.n,fmt2(c.total))).join(''); }catch(e){}
 
   // Oyuncular + Takımlar: sıralamayla AYNI sunucu sorgusu, ilk 5; logo = inlineBadge (gerçek logo görseli)
+  // 🆕 563 — 60 sn önbellek (ana sayfa her açılışta 27 bin oyuncu sıralanıyordu)
   let plRows='',tmRows='';
+  const _hro = window._hmRankOnb || (window._hmRankOnb = { t: 0, pl: null, tm: null });
+  const _hroTaze = (Date.now() - _hro.t) < 60000;
   if(window.sb){
     try{
-      const {data}=await window.sb.from('players')
+      const {data}=_hroTaze && _hro.pl ? { data: _hro.pl } : await window.sb.from('players')
         .select('name, country_code, team_name, overall, level')
         .order('overall',{ascending:false,nullsFirst:false})
         .order('level',{ascending:false,nullsFirst:false})
         .limit(5);
+      if(Array.isArray(data) && !_hroTaze) _hro.pl = data;
       if(Array.isArray(data)) plRows=data.map((p,i)=>{const v=_rkTeamVisuals(p.country_code,p.team_name);return rowLogo(i+1,badge(p.team_name,p.country_code,v.bg,v.tc,v.short),p.name,String(Math.round(Number(p.overall)||0)));}).join('');
     }catch(e){}
     try{
-      const {data}=await window.sb.from('teams')
+      const {data}=_hroTaze && _hro.tm ? { data: _hro.tm } : await window.sb.from('teams')
         .select('country_code, name, team_points')
         .order('team_points',{ascending:false,nullsFirst:false})
         .limit(5);
+      if(Array.isArray(data) && !_hroTaze) { _hro.tm = data; _hro.t = Date.now(); }
       if(Array.isArray(data)) tmRows=data.map((t,i)=>{const v=_rkTeamVisuals(t.country_code,t.name);return rowLogo(i+1,badge(t.name,t.country_code,v.bg,v.tc,v.short),t.name,fmt2(t.team_points));}).join('');
     }catch(e){}
   }
@@ -66708,6 +66814,24 @@ function _msMerge(rows) {
   return n;
 }
 
+// 🆕 563 — Sekmeye dönüşte artımlı tazeleme: son senkrondan 1 saat öncesinden şimdiye
+//   kadar başlama saati olan maçlar (skor/durum yalnız bunlarda değişebilir).
+async function _msTazeleDelta(sonMs) {
+  if (!window.sb) return;
+  if (window._msDeltaCalisiyor) return;
+  if (window._msScope && window._msScope.syncAt && Date.now() - window._msScope.syncAt < 20000) return;   // üst üste sekme değişimi
+  window._msDeltaCalisiyor = true;
+  try {
+    const t0 = new Date((sonMs || Date.now()) - 60 * 60 * 1000).toISOString();
+    const t1 = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    const rows = await _msQuery(q => q.gte('kickoff_at', t0).lte('kickoff_at', t1));
+    _msMerge(rows);
+    window._msScope.syncAt = Date.now();
+    _msRefreshActivePage();
+  } catch(e) { console.warn('[match_state] delta hata:', e); }
+  finally { window._msDeltaCalisiyor = false; }
+}
+
 // Sayfalı sorgu (filtreyi build fonksiyonu kurar)
 async function _msQuery(build) {
   const out = [];
@@ -66715,6 +66839,8 @@ async function _msQuery(build) {
   for (let from = 0; from < 30000; from += PAGE) {
     let q = window.sb.from('match_state').select(_MS_COLS);
     q = build(q);
+    // 🆕 563 — sıralı sayfalama: ORDER BY olmadan sayfalar çakışıp satır atlayabiliyordu
+    q = q.order('kickoff_at', { ascending: true }).order('match_key', { ascending: true });
     const { data, error } = await q.range(from, from + PAGE - 1);
     if (error) { console.warn('[match_state] sorgu hatası:', error.message); break; }
     if (!Array.isArray(data) || data.length === 0) break;
@@ -66838,6 +66964,7 @@ async function _msLoadCore() {
     }
     window._msScope.season = S;
     window._msScope.coreAt = Date.now();
+    window._msScope.syncAt = Date.now();
     // 🆕 Takım henüz yüklenmediyse ülke dilimi eksik kaldı — userTeamLoadFromServer
     //   tamamlanınca _msEnsureCountry ile tamamlanacak.
     window._msScope.pendingCountry = !cc;
@@ -67692,6 +67819,21 @@ async function _resUpdateLiveCells() {
   const liveKeys = window._resLiveKeys || [];
   const allKeys = window._resAllKeys || [];
   if (!allKeys.length || !window.sb) return;
+  // 🆕 563 — listede canlı ya da 90 sn içinde başlayacak maç yoksa her turda değil,
+  //   ~1 dakikada bir sor (eskiden saatlerce canlı maç yokken de 7 sn'de bir soruluyordu).
+  try {
+    window._resHucreTur = (window._resHucreTur || 0) + 1;
+    const _bk = (_matchStateCache && _matchStateCache.byKey) || {};
+    const _n = Date.now();
+    const _yakin = (liveKeys.length > 0) || allKeys.some(k => {
+      const c = _bk[k];
+      if (!c) return true;
+      if (c.status === 'running') return true;
+      const ko = c.matchDateTime ? Date.parse(c.matchDateTime) : 0;
+      return !ko || (ko - _n < 90000 && _n - ko < 30 * 60000);
+    });
+    if (!_yakin && (window._resHucreTur % 8) !== 1) return;
+  } catch(e) {}
   let rows = [];
   try {
     const { data } = await window.sb.from('match_state')
@@ -81004,10 +81146,36 @@ async function _encStatHesapla(sezon) {
   const v = { scorers: [], assisters: [], ratings: [], mac: 0 };
   try {
     if (!window.sb) return v;
-    const { data } = await window.sb.from('match_state')
-      .select('home_team,away_team,events,home_lineup,away_lineup')
+    // 🆕 563 — bitmiş maç değişmez: her 5 dk'da tüm maçları (olay + iki kadro) yeniden
+    //   indirmek yerine yalnız YENİ bitenler çekilir. Gece temizliğinde olayları silinmiş
+    //   eski maçlar için olaylar match_results'tan tamamlanır (istatistik boş kalıyordu).
+    const _mo = window._encMacOnb || (window._encMacOnb = {});
+    const { data: _anah } = await window.sb.from('match_state')
+      .select('match_key,home_team,away_team,day_in_season')
       .eq('tournament_key', 'enc').eq('season', sezon).eq('status', 'finished');
-    const maclar = data || [];
+    const _liste = _anah || [];
+    const _eksik = _liste.filter(r => r && r.match_key && !_mo[r.match_key]).map(r => r.match_key);
+    for (let i = 0; i < _eksik.length; i += 40) {
+      const { data: _rows } = await window.sb.from('match_state')
+        .select('match_key,home_team,away_team,day_in_season,events,home_lineup,away_lineup')
+        .in('match_key', _eksik.slice(i, i + 40));
+      for (const r of (_rows || [])) if (r && r.match_key) _mo[r.match_key] = r;
+    }
+    const _olaysiz = _eksik.map(k => _mo[k]).filter(r => r && !(Array.isArray(r.events) && r.events.length));
+    if (_olaysiz.length) {
+      try {
+        const { data: _mr } = await window.sb.from('match_results')
+          .select('home_team,away_team,day_in_season,ev:data->events')
+          .eq('season', sezon).eq('tournament_key', 'enc');
+        const _mrMap = {};
+        for (const m of (_mr || [])) _mrMap[m.home_team + '|' + m.away_team + '|' + m.day_in_season] = m.ev;
+        for (const r of _olaysiz) {
+          const ev = _mrMap[r.home_team + '|' + r.away_team + '|' + r.day_in_season];
+          if (Array.isArray(ev)) r.events = ev;
+        }
+      } catch(e) {}
+    }
+    const maclar = _liste.map(r => _mo[r.match_key]).filter(Boolean);
     v.mac = maclar.length;
 
     const gol = {}, asist = {}, reyt = {};
@@ -84053,10 +84221,11 @@ async function _inboxDeliverChat(toUserId, convId, fromPeer, item) {
 }
 
 // Server'dan kendi inbox'unu yükle (bootstrap + login sonrası)
-async function _inboxLoadFromServer() {
+async function _inboxLoadFromServer(hafif) {
   if (!window.sb) { _inboxCache = null; return; }
   // authUser hazır değilse Supabase auth'tan fallback
-  let uid = (window.authUser && window.authUser.id) || null;
+  // 🆕 563 — önce giriş akışındaki authUser (her 2 sn auth sunucusuna getUser atılmasın)
+  let uid = (typeof authUser !== 'undefined' && authUser && authUser.id) || (window.authUser && window.authUser.id) || null;
   if (!uid) {
     try {
       const { data: { user } } = await window.sb.auth.getUser();
@@ -84070,10 +84239,18 @@ async function _inboxLoadFromServer() {
   }
   if (!uid) { _inboxCache = null; return; }
   try {
+    // 🆕 563 — HAFİF KONTROL: kutu açıkken 2 sn'de bir 200 mesajlık blob yerine yalnız
+    //   updated_at okunur; değişmediyse hiçbir şey indirilmez. (Tam okuma 30 sn'de bir sürer.)
+    if (hafif && window._inboxUpdatedAt && _inboxCache) {
+      const { data: _u, error: _ue } = await window.sb.from('user_inbox')
+        .select('updated_at').eq('user_id', uid).maybeSingle();
+      if (!_ue && _u && _u.updated_at === window._inboxUpdatedAt) { window._inboxChanged = false; return; }
+    }
     const { data, error } = await window.sb.from('user_inbox')
-      .select('messages')
+      .select('messages,updated_at')
       .eq('user_id', uid)
       .maybeSingle();
+    if (!error && data) window._inboxUpdatedAt = data.updated_at || null;
     if (error) { console.warn('[inbox] load hata:', error); _inboxCache = null; return; }
     // 🆕 DEĞİŞİKLİK TESPİTİ — yeni veri eskiyle aynıysa render etme (WhatsApp gibi).
     //   İmza: her mesajın id + read + son içerik/zaman. Aynıysa _inboxChanged=false.
@@ -89812,7 +89989,7 @@ async function _evRacePreloadServerLb() {
       limit_count: 200
     });
     if (!error && Array.isArray(data)) {
-      _evRaceServerLbCache.rating = { cycleStart: cycleStartMs, data };
+      _evRaceServerLbCache.rating = { cycleStart: cycleStartMs, data, t: Date.now() };
     }
   } catch(e) { console.warn('[race lb rating] hata:', e); }
   // 🆕 Train leaderboard — server-side, tüm gerçek kullanıcıların train_log toplamı
@@ -89821,7 +89998,7 @@ async function _evRacePreloadServerLb() {
       cycle_start_ms: cycleStartMs
     });
     if (!error && Array.isArray(data)) {
-      _evRaceServerLbCache.train = { cycleStart: cycleStartMs, data };
+      _evRaceServerLbCache.train = { cycleStart: cycleStartMs, data, t: Date.now() };
     }
   } catch(e) { console.warn('[race lb train] hata:', e); }
 }
@@ -96095,9 +96272,10 @@ async function _arFetchLeague(season, cc){
 /* ── Veri: kupa finalleri (sezon) — match_state kaynaklı (kesin faz bilgisi) ── */
 async function _arPens(season, home, away){
   try{
-    var r = await window.sb.from('match_results').select('data')
+    // 🆕 563 — yalnız penaltı skoru (data'nın tamamı değil)
+    var r = await window.sb.from('match_results').select('pens:data->pens')
       .eq('season',season).eq('home_team',home).eq('away_team',away).limit(1);
-    var d = r.data && r.data[0] && r.data[0].data;
+    var d = r.data && r.data[0];
     if(d && Array.isArray(d.pens) && d.pens.length===2) return d.pens;
   }catch(e){}
   return null;
