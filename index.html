@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '560';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '561';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -29778,7 +29778,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-26-perf-560';
+const APP_BUILD = '2026-09-26-perf-561';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -38632,11 +38632,15 @@ function _msStartViewerBeat(mk) {
     badgeEl.style.cursor = 'pointer';
     badgeEl.onclick = () => { if (typeof showViewersModal === 'function') showViewersModal(); };
   }
-  const doBeat = () => {
+  // 🆕 561 — 15 sn → 30 sn; maç bitince atılmaz; izleyici listesi (3 ek sorgu)
+  //   yalnız liste penceresi açıkken istenir.
+  const doBeat = (listeZorla) => {
     if (document.hidden) return;
     const key = window._viewerBeatMatchKey;
     if (!key) return;
-    fetch(`${SUPABASE_URL}/functions/v1/tick-matches?action=viewer_beat&match_key=${encodeURIComponent(key)}&user_id=${encodeURIComponent(window.authUser.id)}`, {
+    if (typeof MS !== 'undefined' && MS && MS.finished && !listeZorla) return;
+    const _liste = (listeZorla === true || !!document.getElementById('viewersModal')) ? '&liste=1' : '';
+    fetch(`${SUPABASE_URL}/functions/v1/tick-matches?action=viewer_beat&match_key=${encodeURIComponent(key)}&user_id=${encodeURIComponent(window.authUser.id)}${_liste}`, {
       headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY }
     }).then(r => r.ok ? r.json() : null)
       .then(d => {
@@ -38652,8 +38656,9 @@ function _msStartViewerBeat(mk) {
         }
       }).catch(() => {});
   };
+  window._viewerBeatNow = doBeat;
   doBeat();
-  window._viewerBeatTimer = setInterval(doBeat, 15000);
+  window._viewerBeatTimer = setInterval(doBeat, 30000);
 }
 window._msStartViewerBeat = _msStartViewerBeat;
 
@@ -41828,7 +41833,22 @@ async function startMatch(){
       }
       // 🆕 Edge Function'ı kendi tetikle — cron beklemeden anında tick
       // (Maç bitince Edge Function action=tick_match çağrılırsa "skipped" döner, zararsız)
-      if (MS.match_key && !MS.finished && typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_KEY !== 'undefined') {
+      // 🆕 561 — Sunucu (cron) maçı zaten 7 sn'de bir ilerletiyor. İzleyen HER oyuncunun
+      //   ayrıca 7 sn'de bir tetiklemesi sunucuyu ikinci kez çalıştırıyordu. Artık yalnız
+      //   sunucu geride kaldıysa (son tik 20 sn'den eski / başlama saati 15 sn geçti) çağrılır.
+      const _tikGerek = (() => {
+        const d = MS._sunucuDurum;
+        if (!d) return true;                                   // ilk poll: durum bilinmiyor
+        if (d === 'finished') return false;
+        if (d === 'scheduled') return !!MS._sunucuKoMs && (Date.now() - MS._sunucuKoMs > 15000);
+        if (d === 'running') {
+          const yas = MS._sunucuTikMs ? (Date.now() - MS._sunucuTikMs) : 1e9;
+          if ((MS._serverSimMin || 0) === 45 && yas < 130000) return false;   // devre arası
+          return yas > 20000;
+        }
+        return true;
+      })();
+      if (_tikGerek && MS.match_key && !MS.finished && typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_KEY !== 'undefined') {
         try {
           // 🔍 DEBUG: hataları console'a yaz (sessiz failure → tick atmadan yağıyordu)
           fetch(`${SUPABASE_URL}/functions/v1/tick-matches?action=tick_match&match_key=${encodeURIComponent(MS.match_key)}`, {
@@ -41858,13 +41878,22 @@ async function startMatch(){
       if (MS.match_key && window.sb) {
         try {
           const { data: _one } = await window.sb.from('match_state')
-            .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,events,stats,home_lineup,away_lineup,started_at,kickoff_at,tournament_key,tournament_phase,viewer_count')
+            .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,events,stats,home_lineup,away_lineup,started_at,kickoff_at,tournament_key,tournament_phase,viewer_count,last_tick_at')
             .eq('match_key', MS.match_key)
             .maybeSingle();
           if (_one) {
             liveRow = _one;
             // RAM cache'i de bu maç için güncelle (diğer ekranlar tutarlı kalsın)
             if (typeof _liveMatchCache === 'object' && _liveMatchCache) _liveMatchCache[MS.match_key] = _one;
+            // 🆕 561 — sunucu durumunu sakla (tick_match yalnız gerekince çağrılsın)
+            MS._sunucuDurum = _one.status || null;
+            MS._sunucuTikMs = _one.last_tick_at ? new Date(_one.last_tick_at).getTime() : 0;
+            MS._sunucuKoMs = _one.kickoff_at ? new Date(_one.kickoff_at).getTime() : 0;
+            // 🆕 561 — izleyici sayısı poll'dan (maç satırı Realtime aboneliği kaldırıldı)
+            if (typeof _one.viewer_count === 'number') {
+              const _vcEl = document.getElementById('msViewerCount');
+              if (_vcEl) _vcEl.textContent = _one.viewer_count;
+            }
           }
         } catch(e) { console.warn('[match-screen one-fetch] hata:', e && e.message); }
       }
@@ -62512,8 +62541,13 @@ async function fetchOnlineStats() {
   if (!window.sb) return;
   try {
     // Toplam (tek SELECT count)
-    const { count: total } = await window.sb.from('players')
-      .select('id', { count: 'exact', head: true });
+    // 🆕 561 — toplam oyuncu sayısı nadiren değişir: 10 dk önbellek (27 bin satır sayımı)
+    let total = _onlineCache.total || 0;
+    if (!_onlineCache.totalTs || Date.now() - _onlineCache.totalTs > 600000) {
+      const { count: _tc, error: _tcErr } = await window.sb.from('players')
+        .select('id', { count: 'exact', head: true });
+      if (!_tcErr && typeof _tc === 'number') { total = _tc; _onlineCache.totalTs = Date.now(); }
+    }
     // Online kullanıcılar (son 5 dakika, sadece gerçek kullanıcılar)
     const fiveMinAgo = new Date(Date.now() - 5*60*1000).toISOString();
     const { data: list, error } = await window.sb.from('players')
@@ -62539,6 +62573,7 @@ async function fetchOnlineStats() {
       }));
     }
     _onlineCache = {
+      totalTs: _onlineCache.totalTs || 0,
       total: total || 0,
       online: enriched.length,
       list: enriched,
@@ -62658,14 +62693,20 @@ function showOnlinePlayersModal() {
 // 🆕 Açılışta splash öncesi zaten çekiliyor. Bu, ağ yavaş olduğunda
 //    (6 sn sınırına takılıp geçildiyse) devreye giren yedek tazeleme.
 //    Sıra önemli: önce kendini çevrimiçi işaretle, sonra listeyi çek.
+// 🆕 561 — last_seen artık YALNIZ 180 sn'lik presence yazıcısı ile yazılıyor
+//   (_updateLastSeen). Buradaki 60 sn'lik ikinci yazıcı her dakika players satırını
+//   güncelleyip takım arkadaşlarının ekranında ağır kadro yenilemesini tetikliyordu;
+//   ayrıca her seferinde auth sunucusuna getUser() isteği atıyordu.
+//   Çevrimiçi sayacı yalnız ana sayfa açıkken tazelenir.
 setTimeout(async () => {
-  try { await pingLastSeen(); } catch(e) {}
+  try { if (typeof window._presenceYaz === 'function') await window._presenceYaz(true); } catch(e) {}
   try { await fetchOnlineStats(); } catch(e) {}
 }, 8000);
 setInterval(async () => {
   if (document.hidden) return;
-  try { await pingLastSeen(); } catch(e) {}       // önce kendini işaretle
-  try { await fetchOnlineStats(); } catch(e) {}   // sonra listeyi çek
+  const _ap = document.querySelector('.page.active');
+  if (!_ap || _ap.id !== 'page-home') return;
+  try { await fetchOnlineStats(); } catch(e) {}
 }, 60000);
 
 
@@ -62751,6 +62792,8 @@ function showViewersModal() {
   modal.querySelector('#viewersModalClose').addEventListener('click', () => modal.remove());
   document.body.appendChild(modal);
   _renderViewersModalList();
+  // 🆕 561 — liste artık yalnız pencere açıkken çekiliyor: açılışta hemen tazele
+  try { if (typeof window._viewerBeatNow === 'function') window._viewerBeatNow(true); } catch(e) {}
 }
 
 // İzleyici listesi render (modal açıkken beat geldiğinde de çağrılır)
@@ -95270,15 +95313,21 @@ setTimeout(async ()=>{
   //   Çevrimiçi eşiği 5 dakika olduğu için 3 dakikada bir yazmak aynı sonucu verir.
   //   Sekme arka plandayken hiç yazılmaz; öne gelince hemen bir kez yazılır.
   try {
-    if (window.sb && window.authUser && window.authUser.id) {
+    // 🆕 561 — tek presence yazıcısı: girişi açılıştan SONRA yapan kullanıcı için de
+    //   çalışsın diye zamanlayıcı her durumda kurulur, kullanıcı çağrı anında kontrol edilir.
+    if (window.sb) {
       const _updateLastSeen = async (zorla) => {
         if (!zorla && document.hidden) return;
+        // Kullanıcı kimliği: sözcüksel authUser (giriş akışı) veya window.authUser
+        const _uid = (typeof authUser !== 'undefined' && authUser && authUser.id) || (window.authUser && window.authUser.id);
+        if (!_uid) return;
         try {
           await window.sb.from('players')
             .update({ last_seen: new Date().toISOString() })
-            .eq('user_id', window.authUser.id);
+            .eq('user_id', _uid);
         } catch(e) {}
       };
+      window._presenceYaz = _updateLastSeen;
       _updateLastSeen(true);
       if (!window._presenceTimer) {
         window._presenceTimer = setInterval(_updateLastSeen, 180 * 1000);
@@ -95355,6 +95404,15 @@ setTimeout(async ()=>{
       window._rtMatchChannel = null;
       window._rtMatchKey = null;
       window.rtWatchMatch = function (mk) {
+        // 🆕 561 — ABONELİK KALDIRILDI: maç ekranı zaten 7 sn'lik okuma ile besleniyor,
+        //   bu kanal her tikte yalnız arkadaki sayfayı yeniden çizdirip ek sorgu attırıyordu.
+        //   (match_state Realtime yayınından da çıkarıldı → DB her tikte satırı çözmüyor.)
+        try {
+          if (window._rtMatchChannel) { try { window.sb.removeChannel(window._rtMatchChannel); } catch(e) {} }
+          window._rtMatchChannel = null;
+          window._rtMatchKey = null;
+        } catch(e) {}
+        return;
         try {
           if (window._rtMatchKey === mk) return;
           if (window._rtMatchChannel) { try { window.sb.removeChannel(window._rtMatchChannel); } catch(e) {} }
@@ -95386,6 +95444,33 @@ setTimeout(async ()=>{
         } catch(e) { console.warn('[realtime] players refresh hata:', e); }
       }, 1000);
       
+      // 🆕 561 — oyuncu satırı imzası (last_seen hariç, yalnız basit alanlar). İmza aynıysa
+      //   değişen tek şey çevrimiçi damgasıdır → kadro yeniden çekilmez, yerelde işlenir.
+      const _rtOyuncuImza = {};
+      const _rtSadeceDamga = (payload) => {
+        if (!payload || payload.eventType !== 'UPDATE' || !payload.new || payload.new.id == null) return false;
+        const n = payload.new, parca = [];
+        Object.keys(n).sort().forEach(k => {
+          if (k === 'last_seen' || k === 'updated_at') return;
+          const v = n[k];
+          if (v !== null && typeof v === 'object') return;   // jsonb alanlar (TOAST'ta gelmeyebilir)
+          parca.push(k + '=' + String(v));
+        });
+        const imza = parca.join('|'), onceki = _rtOyuncuImza[n.id];
+        _rtOyuncuImza[n.id] = imza;
+        if (onceki === undefined || onceki !== imza) return false;
+        try {
+          const r = (typeof ROSTER_DATA !== 'undefined' && Array.isArray(ROSTER_DATA)) ? ROSTER_DATA.find(x => x && x.id === n.id) : null;
+          if (r && n.last_seen) {
+            r.lastSeen = n.last_seen;
+            const ms = new Date(n.last_seen).getTime();
+            const esik = (typeof ONLINE_THRESHOLD_MS !== 'undefined') ? ONLINE_THRESHOLD_MS : 5 * 60 * 1000;
+            r.isOnline = !!ms && (Date.now() - ms < esik);
+          }
+        } catch(e) {}
+        return true;
+      };
+
       // 🆕 ÖLÇEK: filtresiz abonelik, dünyadaki HER oyuncu satırı değişiminde
       //   (çevrimiçi damgası, maç istatistikleri) tüm istemcileri uyandırıyordu.
       //   Artık yalnızca kendi takımımın satırları dinleniyor.
@@ -95405,7 +95490,12 @@ setTimeout(async ()=>{
             .on('postgres_changes', {
               event: '*', schema: 'public', table: 'players',
               filter: 'team_name=eq.' + tn
-            }, _refreshPlayers)
+            }, (payload) => {
+              // 🆕 561 — satırda yalnız last_seen değiştiyse (çevrimiçi damgası) ağır kadro
+              //   sorgusunu (~115 KB) atma; çevrimiçi bilgisini yerelde güncelle.
+              try { if (_rtSadeceDamga(payload)) return; } catch(e) {}
+              _refreshPlayers();
+            })
             .subscribe();
           window._rtTeamChannels.teamData = window.sb.channel('rt-team-data-' + tn)
             .on('postgres_changes', {
