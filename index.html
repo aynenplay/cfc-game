@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '559';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '560';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -29778,7 +29778,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-25-encsamp-559';
+const APP_BUILD = '2026-09-26-perf-560';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -43638,9 +43638,14 @@ async function _liveMatchLoadFromServer() {
     const _lmNow = Date.now();
     const _lmFrom = new Date(_lmNow - 30 * 60 * 1000).toISOString();
     const _lmTo   = new Date(_lmNow + 4 * 60 * 60 * 1000).toISOString();
+    // 🆕 560 — EURO Cup maçları yalnızca BU SEZON. Eskiden sezon sınırı yoktu:
+    //   her 7 sn'de geçmiş sezonların bütün EURO maçları da çekiliyordu.
+    let _lmSz = 0;
+    try { const _si = getSeasonInfo(); _lmSz = (_si && _si.season) || 0; } catch(e) {}
+    const _lmEnc = _lmSz ? ',and(tournament_key.eq.enc,season.eq.' + _lmSz + ')' : '';
     const { data: liveRows, error: e1 } = await window.sb.from('match_state')
       .select('match_key,season,day_in_season,country_code,tier,league_name,home_team,away_team,status,sim_minute,home_score,away_score,started_at,kickoff_at,tournament_key,tournament_phase')
-      .or('status.eq.running,and(status.eq.scheduled,kickoff_at.gte.' + _lmFrom + ',kickoff_at.lte.' + _lmTo + '),tournament_key.eq.enc')
+      .or('status.eq.running,and(status.eq.scheduled,kickoff_at.gte.' + _lmFrom + ',kickoff_at.lte.' + _lmTo + ')' + _lmEnc)
       .order('kickoff_at', { ascending: true })
       .limit(1000);
     if (e1) { console.warn('[live_match] hata:', e1.message); }
@@ -86964,17 +86969,37 @@ async function trCollect(id) {
   // 🆕 Sunucu doğrulaması — AWAIT edilir: hızlı sekme geçişi/yenilemede istek iptal
   //   olup toplama SUNUCUYA yazılmadan kaybolmasın. Modal zaten yukarıda gösterildiği
   //   için his hâlâ ANINDA; burada sadece sunucu onayını bekleyip kesin değerle eşitliyoruz.
-  try {
-    const r = await window.sb.rpc('train_collect', { p_id: id });
-    if (r && r.data && r.data.ok) {
-      if (r.data.skills) _skillsCache = r.data.skills;
-      if (Array.isArray(r.data.active)) _activeCache = r.data.active;
-      if (typeof trRenderSkills === 'function') { try { trRenderSkills(); } catch(e){} }
-      else if (typeof trRender === 'function') { try { trRender(); } catch(e){} }
-    } else {
-      console.warn('[trCollect] sunucu reddetti (optimistic kaldi):', r && r.data);
-    }
-  } catch(e) { console.warn('[trCollect] rpc hata:', e); }
+  // 🆕 560 — Sunucu yoğunken istek hata verirse eskiden yalnızca konsola yazılıyordu:
+  //   ekranda toplanmış görünüp sunucuda toplanmamış kalıyordu. Artık 1 kez yeniden
+  //   denenir; yine olmazsa iyimser değişiklik geri alınır ve kullanıcıya söylenir.
+  let r = null;
+  for (let _den = 0; _den < 2; _den++) {
+    try {
+      r = await window.sb.rpc('train_collect', { p_id: id });
+      if (r && !r.error) break;
+      console.warn('[trCollect] rpc hata:', r && r.error);
+    } catch(e) { r = null; console.warn('[trCollect] rpc hata:', e); }
+    if (_den === 0) await new Promise(res => setTimeout(res, 2500));
+  }
+  if (r && !r.error && r.data && r.data.ok) {
+    if (r.data.skills) _skillsCache = r.data.skills;
+    if (Array.isArray(r.data.active)) _activeCache = r.data.active;
+    if (typeof trRenderSkills === 'function') { try { trRenderSkills(); } catch(e){} }
+    else if (typeof trRender === 'function') { try { trRender(); } catch(e){} }
+  } else if (r && !r.error) {
+    console.warn('[trCollect] sunucu reddetti (optimistic kaldi):', r && r.data);
+  } else {
+    // Sunucuya yazılamadı → geri al: yetenek eski haline, antrenman tekrar "toplanabilir"
+    try {
+      if (_skillsCache && _skillsCache[pos]) _skillsCache[pos][skillId] = cur;
+      const _ac = Array.isArray(_activeCache) ? _activeCache : [];
+      if (!_ac.some(a => a && a.id === id)) _activeCache = _ac.concat([entry]);
+      document.getElementById('trDoneModal')?.classList.remove('open');
+      trRender();
+    } catch(e) {}
+    trToast(T('Sunucuya ulaşılamadı, antrenman toplanmadı. Biraz sonra tekrar dene.'), '#e53935');
+    return;
+  }
 
   // 🆕 Yetenek arttı → OVR'yi sunucuda tazele. Bloke etmez.
   //   Takımı varsa: recompute_team tüm kadronun players.overall'ını da yazar.

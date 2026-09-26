@@ -3864,3 +3864,8 @@ Object.assign(window.I18N.de, {
 Object.assign(window.I18N.de, {
   'Euro':'Euro', 'En güçlü':'Stärkste', 'Bu filtrede takım yok.':'Keine Teams für diesen Filter.'
 });
+
+// 🆕 560 — antrenman toplama sunucu hatası
+Object.assign(window.I18N.de, {
+  'Sunucuya ulaşılamadı, antrenman toplanmadı. Biraz sonra tekrar dene.':'Server nicht erreichbar, Training wurde nicht eingesammelt. Bitte versuche es gleich noch einmal.'
+});
