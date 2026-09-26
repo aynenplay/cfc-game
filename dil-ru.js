@@ -5637,3 +5637,16 @@ window.I18N_PATTERNS.ru.push(
   [/^(\d+)\. Klas\.$/, "Дивизион $1"],
   [/^En iyi 50'de (.+?) yok\. Tümü'ne dönüp listeye bak\.$/, m => 'В топ-50 нет: ' + _icR(m[1]) + '. Вернись во «Все» и проверь список.']
 );
+
+/* 570 — Toto İstatistik */
+Object.assign(window.I18N.ru, {
+  "Son 3 gün": "Последние 3 дня",
+  "kuponlar 3 gün sonra silindiği için istatistik bu dönemi kapsar": "купоны удаляются через 3 дня, поэтому статистика охватывает этот период",
+  "Net sonuç": "Чистый итог",
+  "▲ KÂRDA": "▲ В ПЛЮСЕ",
+  "▼ ZARARDA": "▼ В МИНУСЕ",
+  "devam ediyor": "в игре",
+  "Kazanma oranı": "Доля выигрышей",
+  "Kazanan kupon": "Выигравшие купоны",
+  "Kaybeden kupon": "Проигравшие купоны"
+});

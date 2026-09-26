@@ -5605,3 +5605,16 @@ window.I18N_PATTERNS.it.push(
   [/^(\d+)\. Klas\.$/, "$1ª Div."],
   [/^En iyi 50'de (.+?) yok\. Tümü'ne dönüp listeye bak\.$/, m => 'Nessun risultato per ' + _icI(m[1]) + ' nella top 50. Torna a «Tutti» e controlla la lista.']
 );
+
+/* 570 — Toto İstatistik */
+Object.assign(window.I18N.it, {
+  "Son 3 gün": "Ultimi 3 giorni",
+  "kuponlar 3 gün sonra silindiği için istatistik bu dönemi kapsar": "le schedine vengono eliminate dopo 3 giorni, quindi le statistiche coprono questo periodo",
+  "Net sonuç": "Risultato netto",
+  "▲ KÂRDA": "▲ IN UTILE",
+  "▼ ZARARDA": "▼ IN PERDITA",
+  "devam ediyor": "in corso",
+  "Kazanma oranı": "Percentuale vincite",
+  "Kazanan kupon": "Schedine vinte",
+  "Kaybeden kupon": "Schedine perse"
+});

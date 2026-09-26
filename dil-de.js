@@ -3869,3 +3869,16 @@ Object.assign(window.I18N.de, {
 Object.assign(window.I18N.de, {
   'Sunucuya ulaşılamadı, antrenman toplanmadı. Biraz sonra tekrar dene.':'Server nicht erreichbar, Training wurde nicht eingesammelt. Bitte versuche es gleich noch einmal.'
 });
+
+/* 570 — Toto İstatistik */
+Object.assign(window.I18N.de, {
+  "Son 3 gün": "Letzte 3 Tage",
+  "kuponlar 3 gün sonra silindiği için istatistik bu dönemi kapsar": "Scheine werden nach 3 Tagen gelöscht, daher umfasst die Statistik diesen Zeitraum",
+  "Net sonuç": "Nettoergebnis",
+  "▲ KÂRDA": "▲ IM PLUS",
+  "▼ ZARARDA": "▼ IM MINUS",
+  "devam ediyor": "laufen noch",
+  "Kazanma oranı": "Gewinnquote",
+  "Kazanan kupon": "Gewonnene Scheine",
+  "Kaybeden kupon": "Verlorene Scheine"
+});

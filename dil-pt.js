@@ -5599,3 +5599,16 @@ window.I18N_PATTERNS.pt.push(
   [/^(\d+)\. Klas\.$/, "$1ª Div."],
   [/^En iyi 50'de (.+?) yok\. Tümü'ne dönüp listeye bak\.$/, m => 'Nenhum ' + _icP(m[1]) + ' no top 50. Volte para Todos e confira a lista.']
 );
+
+/* 570 — Toto İstatistik */
+Object.assign(window.I18N.pt, {
+  "Son 3 gün": "Últimos 3 dias",
+  "kuponlar 3 gün sonra silindiği için istatistik bu dönemi kapsar": "os bilhetes são apagados após 3 dias, então as estatísticas cobrem este período",
+  "Net sonuç": "Resultado líquido",
+  "▲ KÂRDA": "▲ NO LUCRO",
+  "▼ ZARARDA": "▼ NO PREJUÍZO",
+  "devam ediyor": "em andamento",
+  "Kazanma oranı": "Taxa de acerto",
+  "Kazanan kupon": "Bilhetes ganhos",
+  "Kaybeden kupon": "Bilhetes perdidos"
+});

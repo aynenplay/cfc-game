@@ -6013,3 +6013,16 @@ Object.assign(window.I18N.en, {
 Object.assign(window.I18N.en, {
   'Sunucuya ulaşılamadı, antrenman toplanmadı. Biraz sonra tekrar dene.':'Could not reach the server, training was not collected. Please try again shortly.'
 });
+
+/* 570 — Toto İstatistik */
+Object.assign(window.I18N.en, {
+  "Son 3 gün": "Last 3 days",
+  "kuponlar 3 gün sonra silindiği için istatistik bu dönemi kapsar": "coupons are deleted after 3 days, so stats cover this period",
+  "Net sonuç": "Net result",
+  "▲ KÂRDA": "▲ IN PROFIT",
+  "▼ ZARARDA": "▼ AT A LOSS",
+  "devam ediyor": "in progress",
+  "Kazanma oranı": "Win rate",
+  "Kazanan kupon": "Winning coupons",
+  "Kaybeden kupon": "Losing coupons"
+});
