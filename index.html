@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '576';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '578';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -26436,6 +26436,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
       <div class="inbox-search">
         <input type="text" placeholder="🔍 Mesajlarda ara..." oninput="inboxSearch(this.value)" id="inboxSearchInput"/>
       </div>
+      <div id="inboxCipler" class="gk-cipler"></div>
       <div id="inboxMsgList" class="inbox-msg-list"></div>
     </div>
 
@@ -29964,7 +29965,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-28-dizilis-577';
+const APP_BUILD = '2026-09-28-gelenkutusu-578';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -85439,8 +85440,9 @@ function _inboxFmtDateTime(ts) {
   if (typeof ts !== 'number' || isNaN(ts)) return '';
   try {
     const d = new Date(ts);
-    const tarih = d.toLocaleDateString('tr-TR', { day:'2-digit', month:'short' });
-    const saat  = d.toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
+    const _loc = (typeof _i18nLang !== 'undefined' && _i18nLang && _i18nLang !== 'tr') ? _i18nLang : 'tr-TR';   // 578 — seçili dilde tarih
+    const tarih = d.toLocaleDateString(_loc, { day:'2-digit', month:'short' });
+    const saat  = d.toLocaleTimeString(_loc, { hour:'2-digit', minute:'2-digit' });
     return `${tarih} ${saat}`;
   } catch(e) { return ''; }
 }
@@ -85453,10 +85455,13 @@ function inboxRenderList() {
   const q    = _inboxSearch.toLowerCase();
   // 🆕 ts garanti et (eski mesajlarda yoksa türet), en yeni en üstte sırala
   msgs.forEach(m => { if (typeof m.ts !== 'number') m.ts = _inboxParseTs(m.time); });
+  // 578 — kategori çipleri (okunmamış sayılarıyla) + çip filtresi
+  if (typeof _gkCipler === 'function') _gkCipler(msgs);
   const filtered = msgs.filter(m =>
-    !q || (m.from||'').toLowerCase().includes(q) ||
+    (!q || (m.from||'').toLowerCase().includes(q) ||
     (m.subject||'').toLowerCase().includes(q) ||
-    (m.body||'').toLowerCase().includes(q)
+    (m.body||'').toLowerCase().includes(q)) &&
+    (typeof _gkFiltre === 'undefined' || _gkFiltre === 'tumu' || _gkTur(m).kat === _gkFiltre)
   ).sort((a,b) => (b.ts||0) - (a.ts||0));
 
   if(!filtered.length) {
@@ -85464,45 +85469,7 @@ function inboxRenderList() {
     return;
   }
 
-  el.innerHTML = filtered.map(m => {
-    const avCls = m.type==='transfer'?'transfer-av':m.type==='system'?'system-av':m.type==='join_request_incoming'?'transfer-av':'';
-    const safeId = m.id.replace(/'/g,"\\'");
-    // 🆕 Gönderdiğim mesajsa (sent) başlıkta ALICI ismi göster, değilse gönderen
-    const headName = m.sent ? ('↗ ' + (m.toName || m.to || 'Alıcı')) : (m.from || '—');
-    const dtStr = _inboxFmtDateTime(m.ts);
-    const prevText = m.subject ? m.subject : ((m.body||'').substring(0,52));
-    // 🆕 Liste avatarı: transfer→takım logosu, sohbet→karşı avatar, diğer→emoji
-    let avHtml = m.fromAvatar || '👤';
-    if (m.type === 'transfer') {
-      const _tn = String(m.from || '').replace(/^[^\p{L}\p{N}]+/u, '').trim();
-      const _logo = (typeof teamLogoUrl === 'function' && _tn) ? teamLogoUrl({ name: _tn }) : '';
-      if (_logo) avHtml = `<img src="${_logo}" alt="" loading="lazy">`;
-    } else if (m.type === 'chat') {
-      const _avId = m.sent ? ((authUser||{}).avatarId) : (m.peerAvatarId || m.fromAvatarId);
-      if (_avId && typeof getAvatarEmoji === 'function') {
-        const v = getAvatarEmoji(_avId);
-        if (v && /<img/.test(v)) avHtml = v; else if (v) avHtml = v;
-      }
-    }
-    // 🆕 WhatsApp swipe-to-delete: arkada kırmızı sil, üstte kayan satır
-    return `<div class="inbox-swipe" data-id="${safeId}">
-      <div class="inbox-msg-row ${m.read?'':'unread'}" onclick="inboxOpenMsg('${safeId}')">
-        <div class="inbox-msg-avatar ${avCls}">${avHtml}</div>
-        <div class="inbox-msg-content">
-          <div class="inbox-msg-from">${headName}</div>
-          <div class="inbox-msg-preview">${prevText}</div>
-        </div>
-        <div class="inbox-msg-meta">
-          <div class="inbox-msg-time">${dtStr}</div>
-          ${!m.read?'<div class="inbox-msg-badge">&nbsp;</div>':''}
-        </div>
-      </div>
-      <div class="inbox-swipe-del" onclick="inboxDeleteMsg('${safeId}')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-        <span>Sil</span>
-      </div>
-    </div>`;
-  }).join('');
+  el.innerHTML = _gkListeHtml(filtered);
 
   // 🆕 Swipe-to-delete davranışını bağla
   if (typeof _inboxBindSwipe === 'function') _inboxBindSwipe(el);
@@ -85926,17 +85893,19 @@ function inboxRenderDetail(msg) {
 
   const body = document.getElementById('inboxDetailBody');
 
-  // Ana mesaj
-  const _who = msg.sent ? `Kime: <b>${msg.toName || msg.to || 'Alıcı'}</b>` : `Kimden: <b>${msg.from||'—'}</b>`;
-  const _dt = _inboxFmtDateTime(typeof msg.ts === 'number' ? msg.ts : _inboxParseTs(msg.time));
-  let html = `<div class="inbox-detail-from">${_who} · ${_dt}</div>
-    <div class="inbox-detail-subject">${msg.subject}</div>`;
+  // Ana mesaj — 578: karbon başlık (gönderen kutusu + tarih + konu)
+  _gkYanitGizle(false);
+  let html = _gkDetayBas(msg);
+  // 578 — para fişi (kâğıt) / maç kartı / düz sistem mesajı (karbon)
+  if (_gkOzelGovde(msg, html, body)) return;
 
   // 🆕 Turnuva bildirimi mi? (kura / sonuç / grup / şampiyon)
   if (msg.trnData) {
     html += `<div class="inbox-detail-text">${msg.body ? String(msg.body).replace(/\n/g,'<br>') : ''}</div>`;
     try { html += _trnMesajKarti(msg.trnData); } catch(e) { console.warn('[trn kart]', e); }
+    html += _gkEylemHtml(msg);
     body.innerHTML = html;
+    _gkYanitGizle(true);
     try { _trnKartArmalar(body); } catch(e) {}
     return;
   }
@@ -106194,6 +106163,551 @@ function _dzYedekBitir(e, birak) {
     }
   } catch (err) {}
   try { K.secYedek(null); } catch (_) {}
+}
+
+</script>
+<style id="gk-css">
+/* ═══════════════════════════════════════════════════════════════════
+   578 · GELEN KUTUSU — liste: karbon · maç sonucu: karbon kart ·
+   para mesajları: kâğıt fiş · transfer / katılma / diğer sistem: karbon kart
+   ═══════════════════════════════════════════════════════════════════ */
+#inboxPanel{--gkFin:#46d17a;--gkMac:#66b3ff;--gkKul:#ffd166;--gkSoh:#00b0ff;--gkDuy:#b388ff;--gkKot:#ff5a5a;--gkKart:#161920;--gkCizgi:#252830}
+#inboxPanel .gk-i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+#inboxPanel .kt-fin{--k:var(--gkFin)}#inboxPanel .kt-mac{--k:var(--gkMac)}#inboxPanel .kt-kul{--k:var(--gkKul)}
+#inboxPanel .kt-soh{--k:var(--gkSoh)}#inboxPanel .kt-duy{--k:var(--gkDuy)}#inboxPanel .kt-kot{--k:var(--gkKot)}
+
+/* ── liste ── */
+#inboxPanel .inbox-search{border-bottom:0;padding:12px 12px 8px}
+#inboxPanel .inbox-search input{height:40px;border-radius:12px;background:var(--gkKart);padding:0 12px;font:500 15px 'Barlow',sans-serif}
+.gk-cipler{display:flex;gap:6px;padding:0 12px 8px;overflow-x:auto;scrollbar-width:none;flex-shrink:0;border-bottom:1px solid var(--border)}
+.gk-cipler::-webkit-scrollbar{display:none}
+.gk-cip{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:999px;background:var(--gkKart);border:1px solid var(--gkCizgi);
+  font:700 12.5px/1 'Barlow',sans-serif;color:var(--text2);cursor:pointer;-webkit-user-select:none;user-select:none}
+.gk-cip b{font:800 11px/1 'Barlow Condensed',sans-serif;color:#06210f;background:var(--accent);border-radius:99px;padding:3px 6px}
+.gk-cip.on{background:rgba(0,230,118,.12);border-color:rgba(0,230,118,.5);color:#fff}
+.gk-gun{padding:12px 16px 6px;font:800 11px/1 'Barlow Condensed',sans-serif;letter-spacing:1.4px;text-transform:uppercase;color:var(--text3)}
+#inboxMsgList .inbox-swipe{border-bottom:1px solid #1b1e25}
+#inboxMsgList .inbox-msg-row.gk-satir{gap:11px;padding:11px 14px 11px 16px;background:var(--bg2);align-items:center}
+#inboxMsgList .inbox-msg-row.gk-satir.unread{background:linear-gradient(90deg,rgba(0,230,118,.06),var(--bg2) 60%)}
+#inboxMsgList .inbox-msg-row.gk-satir.unread::before{top:10px;bottom:10px;border-radius:0 3px 3px 0}
+.gk-tas{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;flex-shrink:0;overflow:hidden;color:var(--k,#8b90a0);
+  background:color-mix(in srgb,var(--k,#8b90a0) 13%,#12151b);border:1px solid color-mix(in srgb,var(--k,#8b90a0) 28%,transparent)}
+.gk-tas .gk-i{width:21px;height:21px}
+.gk-tas.gk-av{border-radius:50%;background:#1d2129;border-color:#2c313b;font-size:20px}
+.gk-tas img{width:100%;height:100%;object-fit:cover;display:block}
+.gk-tas.gk-logo{background:#1d2129;border-color:#2c313b;padding:5px}
+.gk-tas.gk-logo img{object-fit:contain}
+.gk-ic{flex:1;min-width:0}
+.gk-s1{display:flex;align-items:baseline;gap:8px}
+.gk-s1 b{flex:1;min-width:0;font:700 14.5px/1.2 'Barlow',sans-serif;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.unread .gk-s1 b{color:#fff}
+.gk-s1 time{font:700 11.5px/1 'Barlow Condensed',sans-serif;color:var(--text3);letter-spacing:.3px;white-space:nowrap}
+.unread .gk-s1 time{color:var(--accent)}
+.gk-s2{display:flex;align-items:center;gap:8px;margin-top:4px}
+.gk-oz{flex:1;min-width:0;font:500 13px/1.25 'Barlow',sans-serif;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gk-pil{flex-shrink:0;font:800 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.3px;padding:4px 7px;border-radius:7px;white-space:nowrap}
+.gk-pil.art{color:var(--gkFin);background:rgba(70,209,122,.12)}
+.gk-pil.eks{color:var(--gkKot);background:rgba(255,90,90,.12)}
+.gk-pil.G{color:#06210f;background:var(--gkFin)}.gk-pil.B{color:#1a1400;background:var(--gkKul)}.gk-pil.M{color:#fff;background:var(--gkKot)}
+.gk-nokta{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px rgba(0,230,118,.6);flex-shrink:0}
+#inboxMsgList .inbox-msg-meta{display:none}
+
+/* ── detay ortak ── */
+#inboxDetailView .inbox-detail-header{display:none}
+#inboxDetailBody.inbox-detail-body{padding:0 0 18px;background:var(--bg2);background-image:none}
+.gk-meta{display:flex;align-items:center;gap:10px;padding:14px 16px 4px}
+.gk-meta .gk-kim{flex:1;min-width:0}
+.gk-meta .gk-kim b{display:block;font:700 14px/1.2 'Barlow',sans-serif;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gk-meta .gk-kim small{font:600 12px/1.2 'Barlow',sans-serif;color:var(--text3)}
+.gk-konu{padding:8px 16px 12px;font:900 21px/1.15 'Barlow Condensed',sans-serif;letter-spacing:.2px;color:#fff}
+.gk-eylem{display:flex;gap:8px;padding:14px 16px 0}
+.gk-eylem button{flex:1;height:44px;border-radius:12px;border:1px solid var(--gkCizgi);background:var(--gkKart);color:var(--text);cursor:pointer;
+  font:800 14px/1 'Barlow Condensed',sans-serif;letter-spacing:.8px;text-transform:uppercase;display:flex;align-items:center;justify-content:center;gap:7px}
+.gk-eylem button.bir{background:var(--accent);border-color:transparent;color:#06210f}
+.gk-eylem button.sil{flex:0 0 52px;color:var(--text2)}
+.gk-eylem button .gk-i{width:17px;height:17px}
+.gk-not{margin:12px 16px 0;padding:10px 12px;border-radius:12px;background:rgba(255,152,0,.08);border:1px solid rgba(255,152,0,.3);color:#ffcc80;font:600 12.5px/1.4 'Barlow',sans-serif;display:flex;gap:8px}
+.gk-not .gk-i{width:17px;height:17px;color:#ff9800;margin-top:1px}
+#inboxDetailBody .inbox-detail-text{margin:0 16px;max-width:none;background:none;border:0;border-radius:0;padding:0 0 4px;font:500 13.5px/1.55 'Barlow',sans-serif;color:var(--text2)}
+#inboxDetailBody .inbox-thread-msg{padding:0 14px}
+#inboxDetailBody > div[style*="uppercase"]{margin-left:16px !important}
+
+/* ── karbon kart (sistem mesajları) ── */
+.gk-kart{margin:4px 14px 0;border-radius:18px;background:linear-gradient(180deg,#1a1e26,#14171d);border:1px solid #262a33;position:relative;overflow:hidden;box-shadow:0 12px 26px rgba(0,0,0,.35)}
+.gk-kart:before{content:'';position:absolute;left:0;right:0;top:0;height:3px;background:var(--k,#8b90a0)}
+.gk-ku{display:flex;align-items:center;gap:11px;padding:16px 16px 10px}
+.gk-ku .gk-tas{width:38px;height:38px;border-radius:11px}
+.gk-ku h3{font:900 15px/1 'Barlow Condensed',sans-serif;letter-spacing:1.4px;text-transform:uppercase;color:#fff}
+.gk-ku small{display:block;margin-top:4px;font:600 12px/1 'Barlow',sans-serif;color:var(--text2)}
+.gk-metin{padding:2px 16px 16px;font:500 13.5px/1.55 'Barlow',sans-serif;color:var(--text2)}
+.gk-metin p{margin:0 0 6px}
+.gk-metin .gk-bos{height:8px}
+.gk-metin .gk-madde{display:block;margin:0 0 4px;padding:8px 11px;border-radius:10px;background:#1d2129;color:var(--text);font-weight:600}
+
+/* ── maç kartı (karbon) ── */
+.gk-mac{margin:4px 14px 0;border-radius:18px;overflow:hidden;border:1px solid #262a33;background:#14171d;box-shadow:0 12px 26px rgba(0,0,0,.35)}
+.gk-mac .sb{position:relative;padding:14px 14px 16px;background:linear-gradient(112deg,var(--e1) 0 44%,#0e1117 44% 56%,var(--e2) 56% 100%)}
+.gk-mac .tr{display:flex;justify-content:space-between;align-items:center;gap:8px;font:800 11.5px/1 'Barlow Condensed',sans-serif;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.88);text-shadow:0 1px 2px rgba(0,0,0,.5)}
+.gk-mac .ic{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;margin-top:12px}
+.gk-mac .tk{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0;font:900 14px/1.1 'Barlow Condensed',sans-serif;letter-spacing:.8px;text-transform:uppercase;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6);text-align:center}
+.gk-mac .tk span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gk-mac .ar{width:52px;height:52px;display:grid;place-items:center;border-radius:50%;font:900 14px/1 'Barlow Condensed',sans-serif;box-shadow:0 3px 8px rgba(0,0,0,.45)}
+.gk-mac .ar.lg{background:none;box-shadow:none;border-radius:0}
+.gk-mac .ar img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 3px 5px rgba(0,0,0,.45))}
+.gk-mac .ar.by{font-size:34px;background:none;box-shadow:none;font-family:'Twemoji Country Flags',sans-serif}
+.gk-mac .sk{padding:8px 14px;border-radius:12px;background:#fff;color:#0a0c10;font:900 32px/1 'Barlow Condensed',sans-serif;letter-spacing:1px;box-shadow:0 6px 14px rgba(0,0,0,.4);white-space:nowrap}
+.gk-mac .gl{padding:10px 16px 4px}
+.gk-mac .gl div{display:flex;align-items:center;gap:8px;padding:5px 0;font:600 13px/1 'Barlow',sans-serif;color:var(--text)}
+.gk-mac .gl div.dep{flex-direction:row-reverse;text-align:right}
+.gk-mac .gl div em{font:800 12px/1 'Barlow Condensed',sans-serif;font-style:normal;color:var(--text3);min-width:24px}
+.gk-mac .gl div .gk-i{width:14px;height:14px;color:var(--text2)}
+.gk-mac .gl div.ben{color:var(--accent);font-weight:800}
+.gk-mac .ksb{padding:8px 16px 2px;font:800 11px/1 'Barlow Condensed',sans-serif;letter-spacing:1.3px;text-transform:uppercase;color:var(--text3)}
+.gk-mac .kat{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:8px;padding:12px 16px 16px}
+.gk-mac .kat div{border-radius:12px;background:#1d2129;padding:10px 6px;text-align:center}
+.gk-mac .kat b{display:block;font:900 22px/1 'Barlow Condensed',sans-serif;color:#fff}
+.gk-mac .kat small{display:block;margin-top:4px;font:700 10.5px/1 'Barlow',sans-serif;letter-spacing:.4px;text-transform:uppercase;color:var(--text3)}
+.gk-mac .kat div.iyi b{color:var(--gkFin)}
+.gk-mac .kat div.yz b{color:var(--gold)}
+
+/* ── kâğıt fiş (para mesajları) ── */
+.gk-kagit{--kg:#f3efe6;position:relative;margin:18px 16px 8px;padding:18px 18px 14px;background:var(--kg);color:#22252c;
+  font:500 13px/1.45 ui-monospace,'SFMono-Regular','Roboto Mono','DejaVu Sans Mono',Menlo,Consolas,monospace;filter:drop-shadow(0 14px 22px rgba(0,0,0,.55))}
+.gk-kagit:before,.gk-kagit:after{content:'';position:absolute;left:0;right:0;height:10px;background-size:14px 10px;background-repeat:repeat-x}
+.gk-kagit:before{top:-9px;background-image:linear-gradient(135deg,transparent 50%,var(--kg) 50%),linear-gradient(225deg,transparent 50%,var(--kg) 50%);background-position:0 0,7px 0}
+.gk-kagit:after{bottom:-9px;background-image:linear-gradient(45deg,transparent 50%,var(--kg) 50%),linear-gradient(315deg,transparent 50%,var(--kg) 50%);background-position:0 0,7px 0}
+.gk-kagit .lg{text-align:center;font:900 17px/1 'Barlow Condensed',sans-serif;letter-spacing:3px;color:#111}
+.gk-kagit .lg small{display:block;margin-top:4px;font:600 10.5px/1 ui-monospace,'Roboto Mono','DejaVu Sans Mono',monospace;letter-spacing:.5px;color:#6a6d74}
+.gk-kagit .bs{margin:12px 0 10px;text-align:center;font-weight:800;letter-spacing:1px;text-transform:uppercase}
+.gk-kagit .cz{border-top:1.5px dashed #b9b4a8;margin:9px 0}
+.gk-kagit .sr{display:flex;align-items:baseline;gap:6px}
+.gk-kagit .sr span{white-space:nowrap}
+.gk-kagit .sr i{flex:1;border-bottom:1.5px dotted #b3aea2;transform:translateY(-4px);min-width:10px}
+.gk-kagit .sr b{font-weight:700;text-align:right;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gk-kagit .alt{color:#7a7d84;font-size:11.5px}
+.gk-kagit .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:4px;font-weight:800;font-size:15px;text-transform:uppercase}
+.gk-kagit .top b{font:900 26px/1 'Barlow Condensed',sans-serif;letter-spacing:.4px;color:#0f7a3c;white-space:nowrap}
+.gk-kagit .top b.eks{color:#c62828}
+.gk-kagit .kod{height:38px;margin:12px 6px 4px;background:repeating-linear-gradient(90deg,#1b1d22 0 2px,transparent 2px 4px,#1b1d22 4px 5px,transparent 5px 8px,#1b1d22 8px 11px,transparent 11px 12px,#1b1d22 12px 13px,transparent 13px 16px)}
+.gk-kagit .rf{text-align:center;font-size:10.5px;letter-spacing:2px;color:#6a6d74}
+.gk-kagit .dm{position:absolute;right:16px;top:74px;padding:5px 9px;border:2.5px solid #0f7a3c;border-radius:6px;color:#0f7a3c;font:900 16px/1 'Barlow Condensed',sans-serif;letter-spacing:2px;transform:rotate(-12deg);opacity:.82;text-transform:uppercase;pointer-events:none}
+.gk-kagit .dm.kot{border-color:#c62828;color:#c62828}
+.gk-kagit .tkb{display:flex;gap:4px;margin:6px 0 2px}
+.gk-kagit .tkb span{flex:1;text-align:center;padding:4px 0;border:1.5px solid #22252c;font-weight:800;font-size:11.5px}
+.gk-kagit .tkb span.d{background:#22252c;color:var(--kg)}
+.gk-kagit .tkb span.s{border-style:dashed;color:#7a7d84;border-color:#9a9da4}
+.gk-kagit .tkb span.x{border-color:#c62828;color:#c62828}
+.gk-kagit .mc{text-align:center;font-weight:800;margin-top:2px}
+.gk-kagit .ay{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:baseline;margin-bottom:3px}
+.gk-kagit .ay small{display:block;color:#7a7d84;font-size:11px}
+.gk-kagit .ay em{font-style:normal;font-weight:800}
+.gk-kagit .ay.yok{color:#9a9da4;text-decoration:line-through}
+.gk-kagit .not{margin-top:8px;font-size:11.5px;color:#5a5d64;text-align:center}
+.gk-kagit [data-noi18n]{font:inherit}
+.gk-kagit .bayrak{font-family:'Twemoji Country Flags',sans-serif}
+
+/* ── mevcut kartlar (transfer / katılma / sözleşme / hazırlık) karbon ── */
+#inboxDetailBody .inbox-transfer-card{margin:10px 14px 0;padding:16px;border-radius:18px;background:linear-gradient(180deg,#1a1e26,#14171d) !important;border:1px solid #262a33 !important;
+  position:relative;overflow:hidden;box-shadow:0 12px 26px rgba(0,0,0,.35)}
+#inboxDetailBody .inbox-transfer-card:before{content:'';position:absolute;left:0;right:0;top:0;height:3px;background:var(--gkKul)}
+#inboxDetailBody .inbox-tc-title{font:900 15px/1 'Barlow Condensed',sans-serif !important;letter-spacing:1.4px;text-transform:uppercase;color:#fff !important;margin:2px 0 12px}
+#inboxDetailBody .inbox-tc-row{padding:8px 0;border-bottom:1px solid #20242c;font:600 13px/1.3 'Barlow',sans-serif;gap:12px}
+#inboxDetailBody .inbox-tc-label{color:var(--text2)}
+#inboxDetailBody .inbox-tc-val{text-align:right}
+#inboxDetailBody .inbox-tc-actions{gap:8px;margin-top:14px}
+#inboxDetailBody .inbox-tc-accept,#inboxDetailBody .inbox-tc-reject{height:44px;padding:0 10px;border-radius:12px;font:800 14px/1 'Barlow Condensed',sans-serif;letter-spacing:.8px;text-transform:uppercase}
+#inboxDetailBody .inbox-tc-accept{background:var(--accent);color:#06210f}
+#inboxDetailBody .inbox-tc-reject{background:rgba(255,90,90,.08);border-color:rgba(255,90,90,.4);color:#ff8a80}
+#inboxDetailBody .jr-profil-btn{border-radius:12px}
+
+</style>
+<script id="gk-js">
+/* ═══════════════════════════════════════════════════════════════════
+   578 · GELEN KUTUSU
+   • Liste: karbon (kategori çipleri, gün grupları, tutar / skor)
+   • Maç sonucu: karbon maç kartı
+   • Para mesajları (maaş, maç geliri, toto, lig ödülü, pazar, yarış): kâğıt fiş
+   • Transfer, katılma isteği ve diğer sistem mesajları: karbon kart
+   Yeni mesajlar sunucudan yapısal veriyle (msg.fis / msg.mac) gelir; eski
+   mesajlar kendi metinlerinden çözülür, çözülemeyen düz karbon kartta kalır.
+   ═══════════════════════════════════════════════════════════════════ */
+const GK_IK = {
+  cuzdan: '<path d="M3.5 7.5h14a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3h-11a3 3 0 0 1-3-3z"/><path d="M3.5 7.5l11-3.2v3.2"/><circle cx="16.3" cy="13.5" r="1.2"/>',
+  kasa: '<path d="M3 9.5l9-5.5 9 5.5"/><path d="M5.5 10v7.5M9.8 10v7.5M14.2 10v7.5M18.5 10v7.5"/><path d="M3 20h18"/>',
+  top: '<circle cx="12" cy="12" r="9"/><path d="M12 7.2l3.6 2.6-1.4 4.3H9.8L8.4 9.8z"/><path d="M12 3v4.2M20.6 9.4l-5 .4M3.4 9.4l5 .4M6.6 19.2l3.2-5.1M17.4 19.2l-3.2-5.1"/>',
+  bilet: '<path d="M4 6.5h16v3.2a2.3 2.3 0 0 0 0 4.6v3.2H4v-3.2a2.3 2.3 0 0 0 0-4.6z"/><path d="M14 6.5v11" stroke-dasharray="1.6 2.2"/>',
+  uyari: '<path d="M12 3.5l9.5 16.5h-19z"/><path d="M12 10v4.5M12 17.4v.3"/>',
+  duyuru: '<path d="M3.5 10.5v3a1 1 0 0 0 1 1H7l6.5 4.5V5L7 9.5H4.5a1 1 0 0 0-1 1z"/><path d="M17 9.2a4 4 0 0 1 0 5.6M19.6 6.8a7.5 7.5 0 0 1 0 10.4"/>',
+  belge: '<path d="M6.5 3h8.5l4 4v14h-12.5z"/><path d="M14.5 3v4.5H19M9.5 12.5h6.5M9.5 16.5h4.5"/>',
+  sohbet: '<path d="M4 5h16v11H9.5L5 19.5V16H4z"/>',
+  sil: '<path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/>',
+  git: '<path d="M9 5l7 7-7 7"/>',
+  yildiz: '<path d="M12 3.5l2.6 5.6 6 .7-4.5 4.1 1.2 6-5.3-3-5.3 3 1.2-6L3.4 9.8l6-.7z"/>',
+  kupa: '<path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4M12 14v3M8 20h8M9.5 17h5"/>',
+  kart: '<rect x="7" y="3.5" width="10" height="17" rx="1.6"/>',
+  saglik: '<rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M12 8v8M8 12h8"/>',
+  yukari: '<path d="M12 19V5M6 11l6-6 6 6"/>',
+  asagi: '<path d="M12 5v14M6 13l6 6 6-6"/>',
+  tac: '<path d="M4 17.5l-1-10 5 4 4-6 4 6 5-4-1 10z"/><path d="M4 20.5h16"/>',
+  bayrak: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
+  grafik: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  simsek: '<path d="M13 2.5L4.5 13.5H12l-1 8 8.5-11H12z"/>',
+  hediye: '<rect x="3.5" y="8" width="17" height="4" rx="1"/><path d="M5 12v8.5h14V12M12 8v12.5M12 8C10 4 6.5 4.5 7 7c.3 1.2 2.5 1 5 1zM12 8c2-4 5.5-3.5 5-1-.3 1.2-2.5 1-5 1z"/>',
+  madalya: '<circle cx="12" cy="15" r="5.5"/><path d="M8.5 3.5l3.5 6 3.5-6M12 12.8l.9 1.8 2 .3-1.4 1.4.3 2-1.8-1-1.8 1 .3-2-1.4-1.4 2-.3z"/>',
+  elmas: '<path d="M6 3.5h12l3 5-9 12-9-12z"/><path d="M3 8.5h18M9 3.5l3 17 3-17"/>',
+  transfer: '<path d="M4 8h13l-3.5-3.5M20 16H7l3.5 3.5"/>',
+  kisi: '<circle cx="10" cy="8" r="4"/><path d="M3 20c0-3.8 3.1-6 7-6s7 2.2 7 6M19 8v6M16 11h6"/>',
+  destek: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="M5.6 5.6l4 4M14.4 14.4l4 4M18.4 5.6l-4 4M9.6 14.4l-4 4"/>',
+};
+const _gkIk = (ad) => `<svg class="gk-i" viewBox="0 0 24 24">${GK_IK[ad] || GK_IK.duyuru}</svg>`;
+const _gkE = (s) => (typeof _escapeHtml === 'function') ? _escapeHtml(s) : String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const _gkAd = (s) => _gkE(String(s || '').replace(/^[^\p{L}\p{N}]+/u, '').trim());   // gönderen adının başındaki emojiyi at
+const _gkSay = (v) => Math.abs(Math.round(Number(v) || 0)).toLocaleString('tr-TR');
+function _gkPara(v, para, isaret) {
+  const n = Number(v) || 0;
+  const s = isaret ? (n < 0 ? '−' : '+') : '';
+  return s + _gkSay(n) + (para === 'dia' ? ' 💎' : ' €');
+}
+const _gkNum = (s) => { const m = String(s || '').replace(/\./g, '').match(/-?\d+(?:,\d+)?/); return m ? Number(m[0].replace(',', '.')) : null; };
+const _gkNd = (s) => `<span data-noi18n>${_gkE(s)}</span>`;   // isim / değer — çevirici dokunmasın
+
+// ── Tür → kategori + ikon ──
+const GK_KAT = { fin: 'Finans', mac: 'Maç', kul: 'Kulüp', soh: 'Sohbet', duy: 'Duyuru' };
+const GK_TUR = {
+  maas: ['fin', 'cuzdan'], maas_borc: ['fin', 'uyari', 1], kasa: ['fin', 'kasa'], kasa_kritik: ['fin', 'uyari', 1], lig_odulu: ['fin', 'kupa'],
+  pazar_satis: ['fin', 'elmas'], yaris_odul: ['fin', 'madalya'], toto: ['fin', 'bilet'], kazikazan: ['fin', 'bilet'], piyasa_degeri: ['fin', 'grafik'],
+  mac_sonucu: ['mac', 'top'], motm: ['mac', 'yildiz'], ceza: ['mac', 'kart', 1], sakatlik: ['mac', 'saglik', 1], league: ['mac', 'kupa'],
+  turnuva_kura: ['mac', 'kupa'], turnuva_grup: ['mac', 'kupa'], tur_atladi: ['mac', 'yukari'], final: ['mac', 'kupa'], elendi: ['mac', 'asagi', 1],
+  sampiyon: ['mac', 'kupa'], terfi: ['mac', 'yukari'], dusme: ['mac', 'asagi', 1], kupa: ['mac', 'kupa'],
+  gol_krali: ['mac', 'yildiz'], asist_krali: ['mac', 'yildiz'], reyting_krali: ['mac', 'yildiz'],
+  kaptanlik: ['kul', 'tac'], sozlesme: ['kul', 'belge'], kadro_uyari: ['kul', 'uyari', 1], federasyon: ['kul', 'bayrak'],
+  nt_secildi: ['kul', 'bayrak'], nt_cikarildi: ['kul', 'bayrak'], seviye: ['kul', 'grafik'], enerji: ['kul', 'simsek'],
+  gunluk: ['kul', 'hediye'], basarim: ['kul', 'madalya'], yaris: ['kul', 'madalya'],
+  duyuru: ['duy', 'duyuru'], destek: ['duy', 'destek'],
+};
+function _gkTur(m) {
+  if (!m) return { kat: 'duy', ikon: 'duyuru' };
+  if (m.type === 'chat') return { kat: 'soh', ikon: 'sohbet' };
+  if (m.type === 'transfer') return { kat: 'kul', ikon: 'transfer' };
+  if (m.type === 'join_request_incoming' || m.type === 'join_request') return { kat: 'kul', ikon: 'kisi' };
+  if (m.type === 'contract_renewal' || m.type === 'contract_renewal_request') return { kat: 'kul', ikon: 'belge' };
+  if (m.type === 'friendly_response') return { kat: 'mac', ikon: 'top' };
+  if (m.trnData) return { kat: 'mac', ikon: 'kupa' };
+  let k = m.sysKind;
+  if ((!k || k === 'genel') && /^salary_/.test(String(m.id))) k = 'maas';
+  if ((!k || k === 'genel') && /^lgprize_/.test(String(m.id))) k = 'lig_odulu';
+  const t = GK_TUR[k];
+  if (!t) return { kat: m.type === 'system' ? 'duy' : 'kul', ikon: 'duyuru', kind: k };
+  return { kat: t[0], ikon: t[1], kot: !!t[2], kind: k };
+}
+
+// ── Eski (verisiz) mesajlardan fiş / maç verisi çıkar ──
+function _gkFis(m) {
+  if (m.fis && typeof m.fis === 'object') return m.fis;
+  const tr = _gkTur(m), b = String(m.body || ''), sj = String(m.subject || '');
+  const bul = (re) => { const x = b.match(re); return x ? x[1] : null; };
+  const sezonGun = () => { const x = b.match(/Sezon (\d+)\s*[·,]\s*Gün (\d+)/); return x ? [Number(x[1]), Number(x[2])] : [null, null]; };
+  try {
+    if (tr.kind === 'maas') {
+      const tk = sj.match(/(\d)\/4/); const tt = _gkNum(bul(/Tutar: ([\d.]+) €/)); const [sz, gn] = sezonGun();
+      if (!tk || !tt) return null;
+      return { tur: 'maas', tutar: tt, para: 'eur', takim: String(m.from || '').replace(/^[^\p{L}\p{N}]+/u, ''), sezon: sz, gun: gn, taksit: Number(tk[1]), taksitToplam: 4 };
+    }
+    if (tr.kind === 'maas_borc') {
+      const tt = _gkNum(bul(/Tutar: ([\d.]+) €/)); const [sz, gn] = sezonGun(); const bc = _gkNum(bul(/Toplam borç: (\d+)/));
+      if (!tt) return null;
+      return { tur: 'maas_borc', tutar: -tt, para: 'eur', takim: String(m.from || '').replace(/^[^\p{L}\p{N}]+/u, ''), sezon: sz, gun: gn, borc: bc || 1 };
+    }
+    if (tr.kind === 'lig_odulu') {
+      const tt = _gkNum(bul(/Sıralama ödülü: ([\d.]+) €/)); const [sz, gn] = sezonGun(); const x = b.match(/^(.+?), (.+?)'n?de sezonu (\d+)\. sırada/);
+      if (!tt) return null;
+      return { tur: 'lig_odulu', tutar: tt, para: 'eur', takim: x ? x[1] : '', lig: x ? x[2] : '', sira: x ? Number(x[3]) : null, sezon: sz, gun: gn };
+    }
+    if (tr.kind === 'toto') {
+      const misli = _gkNum(bul(/Misli: ([\d.]+) €/));
+      const w = sj.match(/Kuponun Tuttu! — ([\d.]+) €/);
+      if (w) return { tur: 'toto', durum: 'kazandi', tutar: _gkNum(w[1]), para: 'eur', misli, oran: _gkNum(bul(/Toplam oran: ([\d.,]+)/)), ayak: [] };
+      const l = sj.match(/Kuponun Yattı — (\d+) Maç/); const tu = b.match(/Tutan ayak: (\d+)\/(\d+)/);
+      if (l) return { tur: 'toto', durum: 'kaybetti', tutar: 0, para: 'eur', misli, tutan: tu ? Number(tu[1]) : null, ayakSay: Number(l[1]), ayak: [] };
+      return null;
+    }
+    if (tr.kind === 'pazar_satis') {
+      const tt = _gkNum(bul(/Tutar: ([\d.]+) 💎/)); if (!tt) return null;
+      return { tur: 'pazar', tutar: tt, para: 'dia', urun: bul(/Ürün: (.+)/) || '' };
+    }
+    if (tr.kind === 'yaris_odul') {
+      const tt = _gkNum(bul(/Ödül: ([\d.]+) 💎/)); const x = sj.match(/^(.+?) — #(\d+)/); if (!tt) return null;
+      return { tur: 'yaris', tutar: tt, para: 'dia', etiket: x ? x[1] : '', sira: x ? Number(x[2]) : null, hafta: (b.match(/^(\S+) haftası/) || [])[1] || '' };
+    }
+  } catch (e) {}
+  return null;
+}
+function _gkMac(m) {
+  if (m.mac && typeof m.mac === 'object') return m.mac;
+  if (_gkTur(m).kind !== 'mac_sonucu') return null;
+  const x = String(m.subject || '').match(/^(GALİBİYET|BERABERLİK|MAĞLUBİYET) — (.+) (\d+)-(\d+) (.+)$/);
+  if (!x) return null;
+  const b = String(m.body || '');
+  const n = (re) => { const y = b.match(re); return y ? Number(y[1]) : null; };
+  return { t: String(m.from || '').replace(/^[^\p{L}\p{N}]+/u, '').trim(), ev: x[2], dep: x[5], s: [Number(x[3]), Number(x[4])], taraf: 'home', gol: [],
+           ben: { gol: n(/Gol: (\d+)/) || 0, asist: n(/Asist: (\d+)/) || 0, reyting: n(/Maç reytingin: ([\d.]+)/) }, motm: false };
+}
+
+// ── Liste ──
+let _gkFiltre = 'tumu';
+function _gkSaat(ts) {
+  if (typeof ts !== 'number') return '';
+  const d = new Date(ts), bugun = new Date(); bugun.setHours(0, 0, 0, 0);
+  const fark = Math.floor((bugun.getTime() - new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()) / 864e5);
+  const loc = (typeof _i18nLang !== 'undefined' && _i18nLang && _i18nLang !== 'tr') ? _i18nLang : 'tr-TR';
+  if (fark <= 1) return d.toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit' });
+  if (fark < 7) return d.toLocaleDateString(loc, { weekday: 'short' });
+  return d.toLocaleDateString(loc, { day: '2-digit', month: '2-digit' });
+}
+function _gkGun(ts) {
+  const d = new Date(ts), bugun = new Date(); bugun.setHours(0, 0, 0, 0);
+  const fark = Math.floor((bugun.getTime() - new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()) / 864e5);
+  return fark <= 0 ? 'Bugün' : fark === 1 ? 'Dün' : fark < 7 ? 'Bu hafta' : 'Daha eski';
+}
+function _gkTas(m, tr) {
+  let ic = _gkIk(tr.ikon), cls = 'gk-tas kt-' + (tr.kot ? 'kot' : tr.kat);
+  try {
+    if (m.type === 'transfer') {
+      const tn = String(m.from || '').replace(/^[^\p{L}\p{N}]+/u, '').trim();
+      const u = (typeof teamLogoUrl === 'function' && tn) ? teamLogoUrl({ name: tn }) : '';
+      if (u) { ic = `<img src="${u}" alt="" loading="lazy">`; cls += ' gk-logo'; }
+    } else if (m.type === 'chat') {
+      const id = m.sent ? ((typeof authUser !== 'undefined' && authUser) || {}).avatarId : (m.peerAvatarId || m.fromAvatarId);
+      const v = (id && typeof getAvatarEmoji === 'function') ? getAvatarEmoji(id) : '';
+      ic = v || (m.fromAvatar || '👤'); cls += ' gk-av';
+    }
+  } catch (e) {}
+  return `<div class="${cls}">${ic}</div>`;
+}
+function _gkPil(m) {
+  const f = _gkFis(m);
+  if (f) {
+    if (f.tur === 'toto' && f.durum === 'kaybetti') return '<span class="gk-pil eks">Kaybetti</span>';
+    if (typeof f.tutar === 'number' && f.tutar) return `<span class="gk-pil ${f.tutar > 0 ? 'art' : 'eks'}" data-noi18n>${_gkPara(f.tutar, f.para, true)}</span>`;
+  }
+  const d = _gkMac(m);
+  if (d && Array.isArray(d.s)) {
+    const b = d.taraf === 'away' ? d.s[1] : d.s[0], r = d.taraf === 'away' ? d.s[0] : d.s[1];
+    const x = b > r ? 'G' : b === r ? 'B' : 'M';
+    return `<span class="gk-pil ${x}" data-noi18n>${d.s[0]}-${d.s[1]}</span>`;
+  }
+  return '';
+}
+function gkFiltre(k) { _gkFiltre = k; inboxRenderList(); try { document.getElementById('inboxMsgList').scrollTop = 0; } catch (e) {} }
+function _gkCipler(tum) {
+  const el = document.getElementById('inboxCipler');
+  if (!el) return;
+  const yeni = { tumu: 0 };
+  tum.forEach(m => { if (!m.read) { const k = _gkTur(m).kat; yeni[k] = (yeni[k] || 0) + 1; yeni.tumu++; } });
+  const cip = (k, ad) => `<div class="gk-cip ${_gkFiltre === k ? 'on' : ''}" onclick="gkFiltre('${k}')">${ad}${yeni[k] ? `<b data-noi18n>${yeni[k]}</b>` : ''}</div>`;
+  el.innerHTML = cip('tumu', 'Tümü') + Object.keys(GK_KAT).map(k => cip(k, GK_KAT[k])).join('');
+}
+function _gkListeHtml(liste) {
+  let h = '', son = '';
+  liste.forEach(m => {
+    const tr = _gkTur(m);
+    const g = _gkGun(m.ts);
+    if (g !== son) { h += `<div class="gk-gun">${g}</div>`; son = g; }
+    const safeId = String(m.id).replace(/'/g, "\\'");
+    const kim = m.sent ? ('↗ ' + _gkAd(m.toName || m.to || 'Alıcı')) : _gkAd(m.from || '—');
+    const oz = m.subject ? _gkE(m.subject) : _gkE(String(m.body || '').substring(0, 60));
+    h += `<div class="inbox-swipe" data-id="${_gkE(m.id)}">
+      <div class="inbox-msg-row gk-satir kt-${tr.kot ? 'kot' : tr.kat} ${m.read ? '' : 'unread'}" onclick="inboxOpenMsg('${safeId}')">
+        ${_gkTas(m, tr)}
+        <div class="gk-ic"><div class="gk-s1"><b ${m.type === 'chat' ? 'data-noi18n' : ''}>${kim}</b><time data-noi18n>${_gkSaat(m.ts)}</time></div>
+          <div class="gk-s2"><span class="gk-oz" ${m.type === 'chat' ? 'data-noi18n' : ''}>${oz}</span>${_gkPil(m)}${m.read ? '' : '<i class="gk-nokta"></i>'}</div></div>
+      </div>
+      <div class="inbox-swipe-del" onclick="inboxDeleteMsg('${safeId}')">${_gkIk('sil')}<span>Sil</span></div>
+    </div>`;
+  });
+  return h;
+}
+
+// ── Detay ──
+function _gkYanitGizle(gizle) {
+  const r = document.querySelector('#inboxDetailView .inbox-reply-bar');
+  if (r) r.style.display = gizle ? 'none' : '';
+}
+function _gkDetayBas(m) {
+  const tr = _gkTur(m);
+  const dt = (typeof _inboxFmtDateTime === 'function') ? _inboxFmtDateTime(typeof m.ts === 'number' ? m.ts : _inboxParseTs(m.time)) : '';
+  const kim = m.sent ? `<span>Kime</span>: ${_gkNd(String(m.toName || m.to || '—'))}` : (m.type === 'chat' ? _gkNd(String(m.from || '—')) : _gkAd(m.from || '—'));
+  return `<div class="gk-meta">${_gkTas(m, tr)}<div class="gk-kim"><b>${kim}</b><small data-noi18n>${_gkE(dt)}</small></div></div>`
+    + (m.subject ? `<div class="gk-konu" ${m.type === 'chat' ? 'data-noi18n' : ''}>${_gkE(m.subject)}</div>` : '');
+}
+const GK_EYLEM = {
+  cuzdan: ['Cüzdanı aç', 'cuzdan', () => { if (typeof wlOpenLog === 'function') wlOpenLog(); }],
+  kasa: ['Kasayı aç', 'kasa', () => _gkGit('team', () => { const b = document.querySelector(".team-tab[onclick*=\"'treasury'\"]"); if (typeof teamTab === 'function') teamTab('treasury', b); })],
+  toto: ['Kuponlarım', 'bilet', () => _gkGit('entertainment', () => { if (typeof totoTab === 'function') totoTab('mycoupons', document.querySelectorAll('.toto-top-tab')[2]); })],
+  sonuc: ['Sonuçlar', 'top', () => _gkGit('results')],
+  takim: ['Takımım', 'kasa', () => _gkGit('team')],
+  sozlesme: ['Sözleşmem', 'belge', () => { if (typeof openContractRenewalModal === 'function') { inboxClose(); openContractRenewalModal(); } }],
+  milli: ['Milli takım', 'bayrak', () => _gkGit('national')],
+  antrenman: ['Antrenman', 'simsek', () => _gkGit('training')],
+  etkinlik: ['Etkinlik', 'madalya', () => _gkGit('events')],
+  turnuva: ['Turnuvam', 'kupa', () => _gkGit('tournaments')],
+};
+const GK_EYLEM_TUR = { maas: 'cuzdan', maas_borc: 'sozlesme', kasa: 'kasa', kasa_kritik: 'kasa', lig_odulu: 'kasa', pazar_satis: 'cuzdan', yaris_odul: 'cuzdan',
+  toto: 'toto', kazikazan: 'etkinlik', mac_sonucu: 'sonuc', motm: 'sonuc', ceza: 'takim', sakatlik: 'takim', sozlesme: 'sozlesme', kaptanlik: 'takim', kadro_uyari: 'takim',
+  federasyon: 'milli', nt_secildi: 'milli', nt_cikarildi: 'milli', seviye: 'antrenman', enerji: 'antrenman', gunluk: 'etkinlik', basarim: 'etkinlik', yaris: 'etkinlik',
+  turnuva_kura: 'turnuva', turnuva_grup: 'turnuva', tur_atladi: 'turnuva', final: 'turnuva', elendi: 'turnuva', sampiyon: 'turnuva', kupa: 'turnuva', league: 'sonuc' };
+function _gkGit(sayfa, sonra) {
+  try { inboxClose(); } catch (e) {}
+  try { showPage(sayfa, (typeof findNavBtn === 'function') ? findNavBtn(sayfa) : null); } catch (e) {}
+  if (sonra) setTimeout(() => { try { sonra(); } catch (e) {} }, 250);
+}
+function gkEylem(k) { const e = GK_EYLEM[k]; if (e) e[2](); }
+function gkSil(id) { inboxDeleteMsg(id); inboxBackToList(); }
+function _gkEylemHtml(m) {
+  const tr = _gkTur(m);
+  const k = m.trnData ? 'turnuva' : GK_EYLEM_TUR[tr.kind];
+  const e = k && GK_EYLEM[k];
+  const safeId = String(m.id).replace(/'/g, "\\'");
+  return `<div class="gk-eylem">${e ? `<button class="bir" onclick="gkEylem('${k}')">${_gkIk(e[1])}${e[0]}</button>` : ''}`
+    + `<button class="sil" onclick="gkSil('${safeId}')" aria-label="Sil">${_gkIk('sil')}</button></div>`;
+}
+function _gkMetin(b) {
+  return String(b || '').split('\n').map(s => {
+    const t = s.trim();
+    if (!t) return '<div class="gk-bos"></div>';
+    return t.startsWith('•') ? `<span class="gk-madde">${_gkE(t)}</span>` : `<p>${_gkE(t)}</p>`;
+  }).join('');
+}
+function _gkSistemKart(m) {
+  const tr = _gkTur(m);
+  return `<div class="gk-kart kt-${tr.kot ? 'kot' : tr.kat}"><div class="gk-ku">${_gkTas(m, tr)}<div><h3>${GK_KAT[tr.kat] || 'Sistem'}</h3><small>${_gkAd(m.from || '')}</small></div></div>`
+    + `<div class="gk-metin">${_gkMetin(m.body)}</div></div>`;
+}
+
+// ── Kâğıt fiş ──
+function _gkRef(f, m) {
+  if (f.ref) return f.ref;
+  const on = { maas: 'MS', maas_borc: 'MB', kasa_kritik: 'KK', mac_geliri: 'MG', lig_odulu: 'LO', toto: 'TT', pazar: 'PZ', yaris: 'YR' }[f.tur] || 'CS';
+  let h = 0; for (const c of String(m.id || '')) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return on + '-' + (f.sezon != null ? f.sezon + '-' + (f.gun != null ? f.gun + '-' : '') : '') + h.toString(16).slice(-4).toUpperCase().padStart(4, '0');
+}
+function _gkBayrak(cc) {
+  try { const c = (typeof _cftGetCountry === 'function') ? _cftGetCountry(cc) : null; return (c && c.flag) ? `<span class="bayrak">${c.flag}</span> ` : ''; } catch (e) { return ''; }
+}
+function _gkKagit(f, m) {
+  const para = f.para || 'eur';
+  const sr = (a, b, alt) => `<div class="sr"><span>${a}</span><i></i><b>${b}</b></div>` + (alt ? `<div class="alt">&nbsp;&nbsp;${alt}</div>` : '');
+  const sezonGun = (f.sezon != null) ? `<span>Sezon</span> ${_gkNd(f.sezon)}${f.gun != null ? ` · <span>Gün</span> ${_gkNd(f.gun)}` : ''}` : '';
+  const dt = (typeof _inboxFmtDateTime === 'function') ? _inboxFmtDateTime(typeof m.ts === 'number' ? m.ts : Date.now()) : '';
+  const kot = f.tur === 'maas_borc' || f.tur === 'kasa_kritik' || (f.tur === 'toto' && f.durum === 'kaybetti');
+  const B = { maas: ['Maaş bordrosu', 'Ödendi'], maas_borc: ['Maaş bordrosu', 'Ödenmedi'], kasa_kritik: ['Kasa uyarısı', 'Yetersiz'], mac_geliri: ['Maç gelir fişi', 'Kasada'],
+    lig_odulu: ['Lig ödülü', 'Kasada'], toto: ['Toto kuponu', f.durum === 'kaybetti' ? 'Kaybetti' : 'Kazandı'], pazar: ['Pazar satış fişi', 'Satıldı'], yaris: ['Yarış ödülü', 'Ödendi'] }[f.tur] || ['Fiş', ''];
+  let h = `<div class="gk-kagit"><div class="lg">CITY SOCCER CLUB<small data-noi18n>${_gkE(dt)}</small></div>`
+    + `<div class="bs">*** <span>${B[0]}</span>${f.tur === 'toto' && f.kupon ? ' ' + _gkNd('#' + f.kupon) : ''} ***</div>`
+    + (B[1] ? `<div class="dm ${kot ? 'kot' : ''}">${B[1]}</div>` : '');
+  if (f.tur === 'mac_geliri' && f.ev) h += `<div class="mc">${_gkNd(f.ev + ' ' + (f.s ? f.s[0] + '-' + f.s[1] : '') + ' ' + f.dep)}</div><div class="alt" style="text-align:center"><span>${_gkE(f.lig || '')}</span></div>`;
+  else if (sezonGun) h += `<div class="alt">${sezonGun}</div>`;
+  h += '<div class="cz"></div>';
+  const kulupKasasi = (t) => `${_gkBayrak(f.cc)}${_gkNd(t || '')} · <span>kulüp kasası</span>`;
+  if (f.tur === 'maas') {
+    const ben = ((typeof authUser !== 'undefined' && authUser) || {}).name || '';
+    h += sr('Ödeyen', kulupKasasi(f.takim)) + sr('Alan', `${_gkNd(ben)} · <span>cüzdan</span>`);
+    if (f.sezonMaas) h += sr('Sezon maaşı', _gkNd(_gkPara(f.sezonMaas, para)));
+    if (f.taksit) h += sr('Bu taksit', _gkNd(f.taksit + ' / ' + (f.taksitToplam || 4)));
+  } else if (f.tur === 'maas_borc') {
+    h += sr('Borçlu', kulupKasasi(f.takim)) + sr('Ödenemeyen taksit', _gkNd(_gkPara(f.tutar, para)));
+    if (f.borc) h += sr('Toplam borç', `${_gkNd(f.borc)} <span>taksit</span>`);
+  } else if (f.tur === 'kasa_kritik') {
+    h += sr('Takım', _gkNd(f.takim || ''));
+    if (f.oyuncu) h += sr('Oyuncu', _gkNd(f.oyuncu));
+    h += sr('Ödenemeyen taksit', _gkNd(_gkPara(f.tutar, para)));
+  } else if (f.tur === 'mac_geliri') {
+    (f.kalem || []).forEach(k => {
+      const ad = k.k === 'bilet' ? 'Bilet geliri' : k.k === 'beraberlik' ? 'Beraberlik primi' : 'Galibiyet primi';
+      const alt = k.k === 'bilet' && k.seyirci ? `${_gkNd(_gkSay(k.seyirci))} <span>seyirci</span> ${_gkNd('× ' + String(k.birim).replace('.', ',') + ' €')}` : '';
+      h += sr(ad, _gkNd(_gkPara(k.tutar, para)), alt);
+    });
+    if (!(f.kalem || []).length) h += sr('Prim', _gkNd('0 €'));
+  } else if (f.tur === 'lig_odulu') {
+    h += sr('Takım', _gkNd(f.takim || '')) + (f.lig ? sr('Lig', `<span>${_gkE(f.lig)}</span>`) : '') + (f.sira ? sr('Sıra', _gkNd(f.sira + '.')) : '');
+  } else if (f.tur === 'toto') {
+    (f.ayak || []).forEach(a => {
+      h += `<div class="ay ${a.tuttu ? '' : 'yok'}"><span>${_gkNd(a.ev + '–' + a.dep)}<small>${_gkNd(a.skor + ' ' + (a.tuttu ? '✓' : '✗'))}</small></span><em data-noi18n>${_gkE(a.secim)}</em><span data-noi18n>${_gkE(String(Number(a.oran).toFixed(2)).replace('.', ','))}</span></div>`;
+    });
+    if ((f.ayak || []).length) h += '<div class="cz"></div>';
+    if (f.misli) h += sr('Misli', _gkNd(_gkPara(f.misli, para)));
+    if (f.oran) h += sr('Toplam oran', _gkNd(String(f.oran).replace('.', ',')));
+    if (f.durum === 'kaybetti' && f.ayakSay) h += sr('Tutan', _gkNd((f.tutan != null ? f.tutan : '?') + ' / ' + f.ayakSay));
+  } else if (f.tur === 'pazar') {
+    h += sr('Ürün', _gkNd(f.urun || ''));
+  } else if (f.tur === 'yaris') {
+    h += (f.etiket ? sr('Yarış', `<span>${_gkE(f.etiket)}</span>`) : '') + (f.sira ? sr('Sıra', _gkNd('#' + f.sira)) : '') + (f.hafta ? sr('Hafta', _gkNd(f.hafta)) : '');
+  }
+  if ((f.tur === 'maas' || f.tur === 'maas_borc') && (f.taksit || f.gun)) {
+    const gunler = [10, 20, 30, 40];
+    const idx = f.gun ? gunler.indexOf(Number(f.gun)) : -1;
+    h += `<div class="tkb" data-noi18n>${gunler.map((g, i) => {
+      const c = f.tur === 'maas_borc' ? (i === idx ? 'x' : '') : (i < f.taksit ? 'd' : i === f.taksit ? 's' : '');
+      return `<span class="${c}">G${g}</span>`;
+    }).join('')}</div>`;
+    if (f.tur === 'maas' && f.taksit && f.taksit < 4) h += sr('Sonraki ödeme', `<span>Gün</span> ${_gkNd(gunler[f.taksit] + ' · ' + _gkPara(f.tutar, para))}`);
+  }
+  h += '<div class="cz"></div>';
+  const topAd = kot ? (f.tur === 'toto' ? 'Kaybetti' : 'Ödenmedi') : (f.tur === 'toto' ? 'Kazanç' : 'Toplam');
+  const topDeger = f.tur === 'toto' && f.durum === 'kaybetti' ? _gkPara(-(f.misli || 0), para, true) : kot ? _gkPara(f.tutar, para) : _gkPara(f.tutar, para, true);
+  h += `<div class="top"><span>${topAd}</span><b class="${kot ? 'eks' : ''}" data-noi18n>${topDeger}</b></div>`;
+  if (typeof f.bakiye === 'number') h += sr(para === 'dia' ? 'Elmas bakiyen' : 'Cüzdan bakiyen', _gkNd(_gkPara(f.bakiye, para)));
+  h += `<div class="kod"></div><div class="rf" data-noi18n>${_gkE(_gkRef(f, m))}</div>`;
+  if (f.tur === 'maas_borc') h += `<div class="not">${f.serbest || (f.borc || 0) >= 2 ? '2 taksit borç birikti — sözleşmeni tek taraflı feshedip serbest kalabilirsin.' : 'Borç 2 taksite ulaşırsa serbest kalma hakkın doğar.'}</div>`;
+  if (f.tur === 'kasa_kritik') h += '<div class="not">Gelir artırmak için tesisleri yükselt, oyuncu sat veya bağış topla.</div>';
+  if (f.tur === 'toto' && f.durum === 'kazandi') h += '<div class="not">Ödülünü Toto → Kuponlarım ekranından al.</div>';
+  return h + '</div>';
+}
+
+// ── Maç kartı (karbon) ──
+function _gkMacKart(d) {
+  const b = d.taraf === 'away' ? d.s[1] : d.s[0], r = d.taraf === 'away' ? d.s[0] : d.s[1];
+  const x = b > r ? 'G' : b === r ? 'B' : 'M';
+  const sonuc = { G: 'Galibiyet', B: 'Beraberlik', M: 'Mağlubiyet' }[x];
+  let e1 = '#1f3a5f', e2 = '#4a1f3a';
+  try {
+    if (!d.milli && typeof pickMatchJerseys === 'function') { const j = pickMatchJerseys(d.ev, d.dep); e1 = j.home.shirt || e1; e2 = j.away.shirt || e2; }
+  } catch (e) {}
+  const arma = (ad, renk) => {
+    if (d.milli) { const by = (typeof _hmUlkeBayrak === 'function') ? _hmUlkeBayrak(ad) : ''; if (by) return `<div class="ar by">${by}</div>`; }
+    const u = (typeof teamLogoUrl === 'function') ? teamLogoUrl({ name: ad }) : '';
+    if (u) return `<div class="ar lg"><img src="${u}" alt="" loading="lazy"></div>`;
+    const tx = (typeof _gmYaziRengi === 'function') ? _gmYaziRengi(renk) : '#fff';
+    return `<div class="ar" style="background:${renk};color:${tx}" data-noi18n>${_gkE(String(ad || '?').slice(0, 3).toUpperCase())}</div>`;
+  };
+  const benAd = d.ben && d.ben.oyuncu;
+  let h = `<div class="gk-mac"><div class="sb" style="--e1:${e1};--e2:${e2}"><div class="tr"><span>${_gkE(d.t || '')}</span><span class="gk-pil ${x}">${sonuc}</span></div>
+    <div class="ic"><div class="tk">${arma(d.ev, e1)}<span data-noi18n>${_gkE(d.ev)}</span></div><div class="sk" data-noi18n>${d.s[0]} : ${d.s[1]}</div><div class="tk">${arma(d.dep, e2)}<span data-noi18n>${_gkE(d.dep)}</span></div></div></div>`;
+  if (Array.isArray(d.gol) && d.gol.length) {
+    h += `<div class="gl">${d.gol.map(g => `<div class="${g[2] === 'dep' ? 'dep' : 'ev'} ${benAd && g[1] === benAd ? 'ben' : ''}"><em data-noi18n>${Number(g[0]) || 0}'</em>${_gkIk('top')}<span data-noi18n>${_gkE(g[1])}</span></div>`).join('')}</div>`;
+  }
+  const bn = d.ben || {};
+  const kutu = [[bn.gol || 0, 'Gol', (bn.gol || 0) > 0], [bn.asist || 0, 'Asist', (bn.asist || 0) > 0]];
+  if (typeof bn.reyting === 'number') kutu.push([bn.reyting.toFixed(1), 'Reyting', bn.reyting >= 7]);
+  h += `<div class="ksb">Senin maçın</div><div class="kat">${kutu.map(k => `<div class="${k[2] ? 'iyi' : ''}"><b data-noi18n>${k[0]}</b><small>${k[1]}</small></div>`).join('')}`
+    + (d.motm ? `<div class="yz"><b>★</b><small>Maçın adamı</small></div>` : '') + '</div></div>';
+  return h;
+}
+
+// inboxRenderDetail'den çağrılır: fiş / maç kartı / düz sistem kartı. true → işlendi.
+function _gkOzelGovde(m, bas, body) {
+  const f = _gkFis(m), d = f ? null : _gkMac(m);
+  const sistem = m.type === 'system' && !m.trnData;
+  if (!f && !d && !sistem) return false;
+  let h = bas;
+  if (f) h += _gkKagit(f, m);
+  else if (d) h += _gkMacKart(d);
+  else h += _gkSistemKart(m);
+  h += _gkEylemHtml(m);
+  body.innerHTML = h;
+  _gkYanitGizle(true);
+  requestAnimationFrame(() => { body.scrollTop = 0; });
+  return true;
 }
 
 </script>
