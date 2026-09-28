@@ -5920,3 +5920,10 @@ Object.assign(window.I18N.fr, {
   "uygula": "appliquer",
   "çıktı · giremez": "sorti · ne peut revenir"
 });
+
+/* ─── 576 · Takımım › Diziliş (tasarım A) ─── */
+Object.assign(window.I18N.fr, {
+  "Aktif strateji": "Stratégie active",
+  "Çubuk: kondisyon": "Barre : forme",
+  "🔒 Diziliş ve stratejiyi sadece kaptan ve yardımcı kaptan değiştirebilir. Sen sadece görüntülüyorsun.": "🔒 Seuls le capitaine et le vice-capitaine peuvent modifier la composition et la stratégie. Tu ne fais que consulter."
+});
