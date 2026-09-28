@@ -5794,3 +5794,14 @@ Object.assign(window.I18N.ru, {
     [/^• Final: (.+)$/, "• Финал: $1"]
   );
 })();
+
+/* ─── 573 · Canlı maç değişiklikleri: tekrar giremez uyarısı, olay satırı ─── */
+Object.assign(window.I18N.ru, {
+  "⛔ Oyundan çıkanlar tekrar giremez:": "⛔ Заменённые игроки не могут вернуться:",
+  "⛔ Bu oyuncu oyundan çıktı — tekrar oyuna giremez": "⛔ Этот игрок уже заменён — вернуться на поле нельзя",
+  "Oyuncu Değişikliği · sakatlık": "Замена · травма",
+  "Yedeği sahadaki oyuncunun üstüne sürükle ya da önce sahadaki oyuncuya, sonra yedeğe dokun.": "Перетащи запасного на игрока на поле или коснись сначала игрока, затем запасного."
+});
+window.I18N_PATTERNS.ru.unshift(
+  [/^⛔ (.+?) oyundan çıktı — tekrar oyuna giremez$/, "⛔ $1 заменён — вернуться на поле нельзя"]
+);

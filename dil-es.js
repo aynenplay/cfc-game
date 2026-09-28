@@ -5764,3 +5764,14 @@ Object.assign(window.I18N.es, {
     [/^• Final: (.+)$/, "• Final: $1"]
   );
 })();
+
+/* ─── 573 · Canlı maç değişiklikleri: tekrar giremez uyarısı, olay satırı ─── */
+Object.assign(window.I18N.es, {
+  "⛔ Oyundan çıkanlar tekrar giremez:": "⛔ Los sustituidos no pueden volver a entrar:",
+  "⛔ Bu oyuncu oyundan çıktı — tekrar oyuna giremez": "⛔ Este jugador ya fue sustituido: no puede volver a entrar",
+  "Oyuncu Değişikliği · sakatlık": "Cambio · lesión",
+  "Yedeği sahadaki oyuncunun üstüne sürükle ya da önce sahadaki oyuncuya, sonra yedeğe dokun.": "Arrastra un suplente sobre un jugador del campo o toca primero al jugador y luego al suplente."
+});
+window.I18N_PATTERNS.es.unshift(
+  [/^⛔ (.+?) oyundan çıktı — tekrar oyuna giremez$/, "⛔ $1 fue sustituido: no puede volver a entrar"]
+);
