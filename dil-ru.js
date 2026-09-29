@@ -6291,3 +6291,40 @@ Object.assign(window.I18N.ru, {
     [/^• Sözleşme: (\d+) sezon$/, "• Контракт: сезонов — $1"]
   );
 })();
+
+/* ─── 591 · Maç sonu ekranı · serbest oyuncular listesi ─── */
+Object.assign(window.I18N.ru, {
+  "Maç İstatistikleri": "Статистика матча",
+  "Kasaya Giren": "Поступило в кассу",
+  "Kadrolar ve Reytingler": "Составы и оценки",
+  "Sahaya çıkan herkes": "Все, кто играл",
+  "Oyuna Girenler": "Вышли на замену",
+  "Ort.": "Сред.",
+  "Şutlar": "Удары",
+  "Ana Menüye Dön": "В главное меню",
+  "Kadro bilgisi yok": "Нет данных о составе",
+  "çıktı": "ушёл",
+  "girdi": "вышел",
+  "kafa golü": "гол головой",
+  "korner golü": "гол после углового",
+  "frikik golü": "гол со штрафного",
+  "uzaktan gol": "гол издали",
+  "kendi kalesine": "автогол",
+  "gol attı": "гол",
+  "kırmızı kart": "красная карточка",
+  "kafa": "головой",
+  "korner": "угловой",
+  "frikik": "штрафной",
+  "penaltı": "пенальти",
+  "uzaktan": "издали",
+  "k.k.": "а/г",
+  "gündür serbest": "дн. без клуба",
+  "kaptan doğrudan alır": "капитан подписывает сразу"
+});
+(function () {
+  var P = window.I18N_PATTERNS.ru;
+  P.push(
+    [/^(.+) kazandı$/, "Победа: $1"],
+    [/^(.+) Stadyumu$/, "Стадион $1"]
+  );
+})();

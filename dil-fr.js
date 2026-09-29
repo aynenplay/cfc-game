@@ -6321,3 +6321,40 @@ Object.assign(window.I18N.fr, {
     [/^• Sözleşme: (\d+) sezon$/, "• Contrat : $1 saison(s)"]
   );
 })();
+
+/* ─── 591 · Maç sonu ekranı · serbest oyuncular listesi ─── */
+Object.assign(window.I18N.fr, {
+  "Maç İstatistikleri": "Statistiques du match",
+  "Kasaya Giren": "Versé en caisse",
+  "Kadrolar ve Reytingler": "Compositions et notes",
+  "Sahaya çıkan herkes": "Tous les joueurs alignés",
+  "Oyuna Girenler": "Entrés en jeu",
+  "Ort.": "Moy.",
+  "Şutlar": "Tirs",
+  "Ana Menüye Dön": "Retour au menu principal",
+  "Kadro bilgisi yok": "Pas de données de composition",
+  "çıktı": "sorti",
+  "girdi": "entré",
+  "kafa golü": "but de la tête",
+  "korner golü": "but sur corner",
+  "frikik golü": "but sur coup franc",
+  "uzaktan gol": "but de loin",
+  "kendi kalesine": "contre son camp",
+  "gol attı": "but",
+  "kırmızı kart": "carton rouge",
+  "kafa": "tête",
+  "korner": "corner",
+  "frikik": "coup franc",
+  "penaltı": "penalty",
+  "uzaktan": "de loin",
+  "k.k.": "c.s.c.",
+  "gündür serbest": "jours libre",
+  "kaptan doğrudan alır": "le capitaine recrute directement"
+});
+(function () {
+  var P = window.I18N_PATTERNS.fr;
+  P.push(
+    [/^(.+) kazandı$/, "$1 a gagné"],
+    [/^(.+) Stadyumu$/, "Stade de $1"]
+  );
+})();
