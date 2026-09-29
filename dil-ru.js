@@ -6238,3 +6238,8 @@ Object.assign(window.I18N.ru, {
     [/^(.+?) uyruklu · (\d+) oyuncu havuzu · Her mevkiden en iyi (\d+)$/, m => (typeof window.T === 'function' ? window.T(m[1]) : m[1]) + ' гражданство · ' + m[2] + ' игроков · лучшие ' + m[3] + ' на каждой позиции']
   );
 })();
+
+/* ─── 587 · Canlı maç ─── */
+Object.assign(window.I18N.ru, {
+  "Özel plan": "Свой план"
+});

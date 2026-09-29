@@ -4470,3 +4470,8 @@ Object.assign(window.I18N.de, {
     [/^(.+?) uyruklu · (\d+) oyuncu havuzu · Her mevkiden en iyi (\d+)$/, m => (typeof window.T === 'function' ? window.T(m[1]) : m[1]) + ' Staatsangehörigkeit · ' + m[2] + ' Spieler im Pool · Top ' + m[3] + ' je Position']
   );
 })();
+
+/* ─── 587 · Canlı maç ─── */
+Object.assign(window.I18N.de, {
+  "Özel plan": "Eigener Plan"
+});

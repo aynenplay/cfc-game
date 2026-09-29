@@ -6200,3 +6200,8 @@ Object.assign(window.I18N.pt, {
     [/^(.+?) uyruklu · (\d+) oyuncu havuzu · Her mevkiden en iyi (\d+)$/, m => (typeof window.T === 'function' ? window.T(m[1]) : m[1]) + ' nacionalidade · ' + m[2] + ' jogadores · os ' + m[3] + ' melhores por posição']
   );
 })();
+
+/* ─── 587 · Canlı maç ─── */
+Object.assign(window.I18N.pt, {
+  "Özel plan": "Plano personalizado"
+});
