@@ -6704,3 +6704,55 @@ Object.assign(window.I18N.en, {
     [/^(.+) Stadyumu$/, "$1 Stadium"]
   );
 })();
+
+/* ─── 592 · Sözleşme süresi (sezon bazlı) · teklif/katılma/ayrılma kuralları ─── */
+Object.assign(window.I18N.en, {
+  "süresi doldu": "expired",
+  "Bu sezon yenileme kararı zaten verildi.": "The renewal decision for this season has already been made.",
+  "Bu teklif eski sürümde gönderildi. Kulüpten yeniden teklif göndermesini iste.": "This offer was sent with an older version. Ask the club to send a new offer.",
+  "Oyuncu artık serbest değil, başka bir takıma katılmış.": "The player is no longer a free agent; he has joined another team.",
+  "Oyuncunun başka bir takımla sözleşmesi sürüyor": "The player is under contract with another team",
+  "Oyuncunun bu takıma bekleyen bir isteği yok (geri çekilmiş, onaylanmış ya da 14 günü geçmiş olabilir)": "The player has no pending request for this team (it may have been withdrawn, approved or be older than 14 days)",
+  "Şartlar Değişmiş": "Terms Changed",
+  "İsteğin şartları değişmiş. Oyuncudan yeni istek göndermesini iste.": "The request terms have changed. Ask the player to send a new request.",
+  "Oyuncunun bu sezon gönderdiği bir yenileme talebi yok.": "The player has not sent a renewal request this season.",
+  "Oyuncunun sözleşmesi henüz yenileme döneminde değil.": "The player's contract is not in its renewal period yet.",
+  "Yenilenecek bir sözleşmen yok.": "You have no contract to renew.",
+  "Yenileme talebi yalnız kendi takımının kaptanına gönderilebilir.": "A renewal request can only be sent to your own team's captain.",
+  "Sözleşme süresi 1-4 sezon arasında olmalı.": "Contract length must be 1–4 seasons.",
+  "Sözleşmen henüz yenileme döneminde değil.": "Your contract is not in its renewal period yet.",
+  "Sözleşmen sürüyor, süresi bitmeden ayrılamazsın.": "Your contract is running; you cannot leave before it ends.",
+  "⛔ Sözleşmen sürüyor, süresi bitmeden ayrılamazsın.": "⛔ Your contract is running; you cannot leave before it ends.",
+  "Sözleşmen sürüyor; transfer için kulübünün onayı gerekir.": "Your contract is running; a transfer needs your club's approval.",
+  "Sözleşmesi Sürüyor": "Under Contract",
+  "Teklif artık geçerli değil (teklifi yapan kulüpten ayrılmış ya da oyuncu takım değiştirmiş).": "The offer is no longer valid (the sender has left the club or the player has changed teams).",
+  "Teklif okunamadı, biraz sonra tekrar dene.": "Could not read the offer, try again shortly.",
+  "Transfer teklifini yalnız takım kaptanı ya da yardımcısı yapabilir.": "Only the team captain or vice-captain can make a transfer offer.",
+  "Yenileme talebi işlenemedi.": "The renewal request could not be processed.",
+  "İstek Bulunamadı": "Request Not Found",
+  "• Artık istediğin an takımdan ayrılabilirsin.": "• You can now leave the team whenever you like.",
+  "• Kalmak istiyorsan Sözleşmem ekranından yenileme talebi gönder.": "• If you want to stay, send a renewal request from the My contract screen.",
+  "• Takımda kalmaya devam ediyorsun, maaşın ödenmeye devam eder.": "• You stay in the team and your wage keeps being paid.",
+  "• Yenileme talebini Sözleşmem ekranından gönderebilirsin.": "• You can send a renewal request from the My contract screen.",
+  "• Yenilemezsen takımda kalırsın ama istediğin an ayrılabilirsin.": "• If you don't renew, you stay in the team but can leave whenever you like.",
+  "• Yeniden ilk 11'de oynayabilir.": "• Can play in the starting XI again.",
+  "• Takımda kalabilirsin; artık istediğin an ayrılabilirsin": "• You can stay in the team; you can now leave whenever you like",
+  "✅ Sözleşmen yenilendi": "✅ Your contract has been renewed",
+  "❌ Yenileme reddedildi": "❌ Renewal declined",
+  "Sözleşme Süresi (1-4 sezon)": "Contract Length (1–4 seasons)",
+  "Sözleşmesiz: oyuncu istediği zaman ayrılır. Sözleşmeli: süre (1-4 sezon) bitene dek ayrılamaz. İkisinde de oyuncu sistem maaşını alır.": "Without a contract the player may leave at any time. Under contract they cannot leave until the term (1–4 seasons) ends. In both cases the player receives the system wage."
+});
+(function () {
+  var P = window.I18N_PATTERNS.en;
+  P.push(
+    [/^(\d+)\. sezon sonu · (\d{2}\/\d{2}\/\d{4})$/, "end of season $1 · $2"],
+    [/^• Bitiş: (\d+)\. sezon sonu$/, "• Ends: end of season $1"],
+    [/^• Sözleşme uzatılmadı, bitiş: (\d+)\. sezon sonu$/, "• Contract not extended; ends: end of season $1"],
+    [/^(.+) Cezasını Tamamladı$/, "$1 Has Served the Ban"],
+    [/^(.+) kart cezasını tamamladı ve yeniden maçlarda oynayabilir\.$/, "$1 has served the card ban and can play in matches again."],
+    [/^(.+) Sakatlığı Atlattı$/, "$1 Has Recovered from Injury"],
+    [/^⚠️ Sözleşmen (\d+)\. sezon sonunda sona erdi$/, "⚠️ Your contract expired at the end of season $1"],
+    [/^• Pozisyon: (.+)$/, "• Position: $1"],
+    [/^• Reyting: (\d+)$/, "• Rating: $1"]
+  );
+})();

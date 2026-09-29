@@ -6328,3 +6328,55 @@ Object.assign(window.I18N.ru, {
     [/^(.+) Stadyumu$/, "Стадион $1"]
   );
 })();
+
+/* ─── 592 · Sözleşme süresi (sezon bazlı) · teklif/katılma/ayrılma kuralları ─── */
+Object.assign(window.I18N.ru, {
+  "süresi doldu": "истёк",
+  "Bu sezon yenileme kararı zaten verildi.": "Решение о продлении в этом сезоне уже принято.",
+  "Bu teklif eski sürümde gönderildi. Kulüpten yeniden teklif göndermesini iste.": "Это предложение отправлено в старой версии. Попроси клуб прислать новое.",
+  "Oyuncu artık serbest değil, başka bir takıma katılmış.": "Игрок больше не свободен — он перешёл в другую команду.",
+  "Oyuncunun başka bir takımla sözleşmesi sürüyor": "У игрока действующий контракт с другой командой",
+  "Oyuncunun bu takıma bekleyen bir isteği yok (geri çekilmiş, onaylanmış ya da 14 günü geçmiş olabilir)": "У игрока нет ожидающей заявки в эту команду (отозвана, одобрена или старше 14 дней)",
+  "Şartlar Değişmiş": "Условия изменены",
+  "İsteğin şartları değişmiş. Oyuncudan yeni istek göndermesini iste.": "Условия заявки изменились. Попроси игрока отправить новую.",
+  "Oyuncunun bu sezon gönderdiği bir yenileme talebi yok.": "Игрок не отправлял запрос на продление в этом сезоне.",
+  "Oyuncunun sözleşmesi henüz yenileme döneminde değil.": "Контракт игрока ещё не в периоде продления.",
+  "Yenilenecek bir sözleşmen yok.": "У тебя нет контракта для продления.",
+  "Yenileme talebi yalnız kendi takımının kaptanına gönderilebilir.": "Запрос на продление можно отправить только капитану своей команды.",
+  "Sözleşme süresi 1-4 sezon arasında olmalı.": "Срок контракта — от 1 до 4 сезонов.",
+  "Sözleşmen henüz yenileme döneminde değil.": "Твой контракт ещё не в периоде продления.",
+  "Sözleşmen sürüyor, süresi bitmeden ayrılamazsın.": "Твой контракт действует — уйти до его окончания нельзя.",
+  "⛔ Sözleşmen sürüyor, süresi bitmeden ayrılamazsın.": "⛔ Твой контракт действует — уйти до его окончания нельзя.",
+  "Sözleşmen sürüyor; transfer için kulübünün onayı gerekir.": "Твой контракт действует — для трансфера нужно согласие клуба.",
+  "Sözleşmesi Sürüyor": "Действующий контракт",
+  "Teklif artık geçerli değil (teklifi yapan kulüpten ayrılmış ya da oyuncu takım değiştirmiş).": "Предложение больше не действует (отправитель ушёл из клуба или игрок сменил команду).",
+  "Teklif okunamadı, biraz sonra tekrar dene.": "Не удалось прочитать предложение, попробуй чуть позже.",
+  "Transfer teklifini yalnız takım kaptanı ya da yardımcısı yapabilir.": "Предложение о трансфере может сделать только капитан или его заместитель.",
+  "Yenileme talebi işlenemedi.": "Не удалось обработать запрос на продление.",
+  "İstek Bulunamadı": "Заявка не найдена",
+  "• Artık istediğin an takımdan ayrılabilirsin.": "• Теперь ты можешь уйти из команды в любой момент.",
+  "• Kalmak istiyorsan Sözleşmem ekranından yenileme talebi gönder.": "• Если хочешь остаться, отправь запрос на продление в разделе «Мой контракт».",
+  "• Takımda kalmaya devam ediyorsun, maaşın ödenmeye devam eder.": "• Ты остаёшься в команде, зарплата продолжает выплачиваться.",
+  "• Yenileme talebini Sözleşmem ekranından gönderebilirsin.": "• Запрос на продление можно отправить в разделе «Мой контракт».",
+  "• Yenilemezsen takımda kalırsın ama istediğin an ayrılabilirsin.": "• Если не продлишь, останешься в команде, но сможешь уйти в любой момент.",
+  "• Yeniden ilk 11'de oynayabilir.": "• Снова может играть в стартовом составе.",
+  "• Takımda kalabilirsin; artık istediğin an ayrılabilirsin": "• Можешь остаться в команде; теперь уйти можно в любой момент",
+  "✅ Sözleşmen yenilendi": "✅ Твой контракт продлён",
+  "❌ Yenileme reddedildi": "❌ В продлении отказано",
+  "Sözleşme Süresi (1-4 sezon)": "Срок контракта (1–4 сезона)",
+  "Sözleşmesiz: oyuncu istediği zaman ayrılır. Sözleşmeli: süre (1-4 sezon) bitene dek ayrılamaz. İkisinde de oyuncu sistem maaşını alır.": "Без контракта игрок может уйти в любой момент. С контрактом — не может уйти до окончания срока (1–4 сезонов). В обоих случаях игрок получает системную зарплату."
+});
+(function () {
+  var P = window.I18N_PATTERNS.ru;
+  P.push(
+    [/^(\d+)\. sezon sonu · (\d{2}\/\d{2}\/\d{4})$/, "конец сезона $1 · $2"],
+    [/^• Bitiş: (\d+)\. sezon sonu$/, "• Окончание: конец сезона $1"],
+    [/^• Sözleşme uzatılmadı, bitiş: (\d+)\. sezon sonu$/, "• Контракт не продлён; окончание: конец сезона $1"],
+    [/^(.+) Cezasını Tamamladı$/, "$1 отбыл дисквалификацию"],
+    [/^(.+) kart cezasını tamamladı ve yeniden maçlarda oynayabilir\.$/, "$1 отбыл дисквалификацию за карточки и снова может играть."],
+    [/^(.+) Sakatlığı Atlattı$/, "$1 восстановился после травмы"],
+    [/^⚠️ Sözleşmen (\d+)\. sezon sonunda sona erdi$/, "⚠️ Твой контракт истёк в конце сезона $1"],
+    [/^• Pozisyon: (.+)$/, "• Позиция: $1"],
+    [/^• Reyting: (\d+)$/, "• Рейтинг: $1"]
+  );
+})();

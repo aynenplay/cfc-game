@@ -6296,3 +6296,55 @@ Object.assign(window.I18N.it, {
     [/^(.+) Stadyumu$/, "Stadio $1"]
   );
 })();
+
+/* ─── 592 · Sözleşme süresi (sezon bazlı) · teklif/katılma/ayrılma kuralları ─── */
+Object.assign(window.I18N.it, {
+  "süresi doldu": "scaduto",
+  "Bu sezon yenileme kararı zaten verildi.": "La decisione sul rinnovo di questa stagione è già stata presa.",
+  "Bu teklif eski sürümde gönderildi. Kulüpten yeniden teklif göndermesini iste.": "Questa offerta è stata inviata con una versione precedente. Chiedi al club di inviarne una nuova.",
+  "Oyuncu artık serbest değil, başka bir takıma katılmış.": "Il giocatore non è più svincolato: è entrato in un'altra squadra.",
+  "Oyuncunun başka bir takımla sözleşmesi sürüyor": "Il giocatore è sotto contratto con un'altra squadra",
+  "Oyuncunun bu takıma bekleyen bir isteği yok (geri çekilmiş, onaylanmış ya da 14 günü geçmiş olabilir)": "Il giocatore non ha richieste in sospeso per questa squadra (ritirata, approvata o più vecchia di 14 giorni)",
+  "Şartlar Değişmiş": "Condizioni modificate",
+  "İsteğin şartları değişmiş. Oyuncudan yeni istek göndermesini iste.": "Le condizioni della richiesta sono cambiate. Chiedi al giocatore di inviarne una nuova.",
+  "Oyuncunun bu sezon gönderdiği bir yenileme talebi yok.": "Il giocatore non ha inviato richieste di rinnovo in questa stagione.",
+  "Oyuncunun sözleşmesi henüz yenileme döneminde değil.": "Il contratto del giocatore non è ancora nel periodo di rinnovo.",
+  "Yenilenecek bir sözleşmen yok.": "Non hai un contratto da rinnovare.",
+  "Yenileme talebi yalnız kendi takımının kaptanına gönderilebilir.": "La richiesta di rinnovo può essere inviata solo al capitano della tua squadra.",
+  "Sözleşme süresi 1-4 sezon arasında olmalı.": "La durata del contratto deve essere di 1-4 stagioni.",
+  "Sözleşmen henüz yenileme döneminde değil.": "Il tuo contratto non è ancora nel periodo di rinnovo.",
+  "Sözleşmen sürüyor, süresi bitmeden ayrılamazsın.": "Il tuo contratto è in corso: non puoi andartene prima della scadenza.",
+  "⛔ Sözleşmen sürüyor, süresi bitmeden ayrılamazsın.": "⛔ Il tuo contratto è in corso: non puoi andartene prima della scadenza.",
+  "Sözleşmen sürüyor; transfer için kulübünün onayı gerekir.": "Il tuo contratto è in corso: per il trasferimento serve l'ok del tuo club.",
+  "Sözleşmesi Sürüyor": "Sotto contratto",
+  "Teklif artık geçerli değil (teklifi yapan kulüpten ayrılmış ya da oyuncu takım değiştirmiş).": "L'offerta non è più valida (chi l'ha inviata ha lasciato il club o il giocatore ha cambiato squadra).",
+  "Teklif okunamadı, biraz sonra tekrar dene.": "Impossibile leggere l'offerta, riprova tra poco.",
+  "Transfer teklifini yalnız takım kaptanı ya da yardımcısı yapabilir.": "Solo il capitano o il vice possono fare un'offerta di trasferimento.",
+  "Yenileme talebi işlenemedi.": "Impossibile elaborare la richiesta di rinnovo.",
+  "İstek Bulunamadı": "Richiesta non trovata",
+  "• Artık istediğin an takımdan ayrılabilirsin.": "• Ora puoi lasciare la squadra quando vuoi.",
+  "• Kalmak istiyorsan Sözleşmem ekranından yenileme talebi gönder.": "• Se vuoi restare, invia una richiesta di rinnovo da Il mio contratto.",
+  "• Takımda kalmaya devam ediyorsun, maaşın ödenmeye devam eder.": "• Resti in squadra e il tuo stipendio continua a essere pagato.",
+  "• Yenileme talebini Sözleşmem ekranından gönderebilirsin.": "• Puoi inviare la richiesta di rinnovo da Il mio contratto.",
+  "• Yenilemezsen takımda kalırsın ama istediğin an ayrılabilirsin.": "• Se non rinnovi, resti in squadra ma puoi andartene quando vuoi.",
+  "• Yeniden ilk 11'de oynayabilir.": "• Può tornare a giocare titolare.",
+  "• Takımda kalabilirsin; artık istediğin an ayrılabilirsin": "• Puoi restare in squadra; ora puoi andartene quando vuoi",
+  "✅ Sözleşmen yenilendi": "✅ Il tuo contratto è stato rinnovato",
+  "❌ Yenileme reddedildi": "❌ Rinnovo rifiutato",
+  "Sözleşme Süresi (1-4 sezon)": "Durata del contratto (1-4 stagioni)",
+  "Sözleşmesiz: oyuncu istediği zaman ayrılır. Sözleşmeli: süre (1-4 sezon) bitene dek ayrılamaz. İkisinde de oyuncu sistem maaşını alır.": "Senza contratto il giocatore può andarsene quando vuole. Con contratto non può andarsene fino alla scadenza (1-4 stagioni). In entrambi i casi riceve lo stipendio di sistema."
+});
+(function () {
+  var P = window.I18N_PATTERNS.it;
+  P.push(
+    [/^(\d+)\. sezon sonu · (\d{2}\/\d{2}\/\d{4})$/, "fine stagione $1 · $2"],
+    [/^• Bitiş: (\d+)\. sezon sonu$/, "• Scadenza: fine stagione $1"],
+    [/^• Sözleşme uzatılmadı, bitiş: (\d+)\. sezon sonu$/, "• Contratto non prolungato; scadenza: fine stagione $1"],
+    [/^(.+) Cezasını Tamamladı$/, "$1 ha scontato la squalifica"],
+    [/^(.+) kart cezasını tamamladı ve yeniden maçlarda oynayabilir\.$/, "$1 ha scontato la squalifica per cartellini e può tornare a giocare."],
+    [/^(.+) Sakatlığı Atlattı$/, "$1 è guarito dall'infortunio"],
+    [/^⚠️ Sözleşmen (\d+)\. sezon sonunda sona erdi$/, "⚠️ Il tuo contratto è scaduto a fine stagione $1"],
+    [/^• Pozisyon: (.+)$/, "• Ruolo: $1"],
+    [/^• Reyting: (\d+)$/, "• Valutazione: $1"]
+  );
+})();
