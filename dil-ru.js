@@ -6243,3 +6243,12 @@ Object.assign(window.I18N.ru, {
 Object.assign(window.I18N.ru, {
   "Özel plan": "Свой план"
 });
+
+/* ─── 588 · Serbest oyuncu · toto istatistik · milli ceza ─── */
+Object.assign(window.I18N.ru, {
+  "Eski takımı": "Прежний клуб",
+  "Tüm zamanlar": "За всё время",
+  "kuponlar 3 gün sonra silinse de istatistiklerin saklanır": "статистика сохраняется, даже когда купоны удаляются через 3 дня",
+  "Milli ceza": "Дисквалификация в сборной",
+  "Sakat": "Травмирован"
+});

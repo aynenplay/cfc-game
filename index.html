@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '587';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '588';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -29773,7 +29773,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-29-canli-587';
+const APP_BUILD = '2026-09-29-kadro-588';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -54004,6 +54004,14 @@ function initFormation() {
         .sort((a, b) => (b.overall || b.rating || 0) - (a.overall || a.rating || 0))
         .slice(0, 7);
     }
+    // 588 — sakat / cezalı ilk 11'den yedeğe; yerine yuvaya en yakın mevkiden uygun oyuncu
+    try {
+      const _dg = (typeof dzKulupUygunsuzDuzelt === 'function') ? dzKulupUygunsuzDuzelt() : [];
+      if (_dg.length) {
+        if (typeof _dzDegisBildir === 'function') _dzDegisBildir(_dg, false);
+        if (typeof _canManageSquad === 'function' && _canManageSquad()) { try { saveTeamStrategy(); } catch(e) {} }
+      }
+    } catch(e) { console.warn('[dz] uygunsuz düzeltme hata:', e); }
     renderPitch();
     renderBench();
     return;
@@ -54571,6 +54579,8 @@ function renderPitch() {
       pitchStatus = `<span class="fpn-status fpn-susp" title="Cezalı (${_susp} maç)">${icon}</span>`;
     }
 
+    // 588 — sahada kalan sakat/cezalı (yerine uygun oyuncu yoksa) soluk
+    if (typeof _dzUygunsuz === 'function' && _dzUygunsuz(p)) node.classList.add('dz-uygunsuz');
     // User/captain class'ları
     const circleClasses = ['fpn-circle', posClass];
     if (typeof getOvrTier === 'function') circleClasses.push(getOvrTier(ovr));
@@ -54705,7 +54715,7 @@ function renderBench() {
       // Durum işaretleri — sade çerçevesiz emoji
       let statusHtml = '';
       const _susp = p.suspendMatches || 0;
-      const _inj = (p.injuryUntil || 0) > _now;
+      const _inj = (typeof isPlayerInjured === 'function') ? isPlayerInjured(p) : ((p.injuryUntil || 0) > _now);   // 588 — tarih metni de olabilir
       if (_inj) statusHtml = `<span class="bench-card-status" title="Sakat">🚑</span>`;
       else if (_susp > 0) statusHtml = `<span class="bench-card-status" title="Cezalı (${_susp} maç)">${p.suspendReason === 'red' ? '🟥' : '🟨'}</span>`;
 
@@ -54718,6 +54728,7 @@ function renderBench() {
       if (tier) classes.push(tier);
       if (_dzBen) classes.push('dz-ben');
       if (typeof _dzKaptanMi === 'function' && _dzKaptanMi(p, _dzBen)) classes.push('dz-kap');
+      if (_inj || _susp > 0) classes.push('dz-uygunsuz');   // 588
 
       html += `<div class="${classes.join(' ')}" id="bench_${i}" data-posgroup="${pgrp}"
         draggable="true" ondragstart="benchDragStart(event,${i})" ondragend="benchDragEnd(event)">
@@ -58670,6 +58681,15 @@ function ntRenderFormation() {
   _ntPruneInvalidLineup();
   const slotCount = (NT_FORMATIONS[_ntCurrentFormation] || []).length;
   if(_ntActivePitchPlayers.length < slotCount) _ntCompleteLineup();
+  // 588 — sakat / milli cezalı ilk 11'den yedeğe; yerine yuvaya en yakın mevkiden uygun oyuncu
+  try {
+    const _dgN = (typeof dzMilliUygunsuzDuzelt === 'function') ? dzMilliUygunsuzDuzelt() : [];
+    if (_dgN.length) {
+      if (typeof _dzDegisBildir === 'function') _dzDegisBildir(_dgN, true);
+      const _ccN = (typeof ntActiveCountry === 'function') ? ntActiveCountry() : null;
+      if (ntCanEditFormation() && !(typeof ntTaktikKilitli === 'function' && ntTaktikKilitli(_ccN))) { try { ntSaveStrategy(true); } catch(e) {} }
+    }
+  } catch(e) { console.warn('[dz] milli uygunsuz düzeltme hata:', e); }
 
   // T.D. yetki kontrolü
   const canEdit = ntCanEditFormation();
@@ -59046,17 +59066,16 @@ function ntRenderPitch() {
 
     const flagHtml = p.nation ? `<span class="fpn-flag">${p.nation}</span>` : '';
 
-    // Cezalı/sakat badge
+    // Cezalı/sakat badge — 588: milli maçta kulüp kart cezası geçmez; sakatlık + MİLLİ ceza
     let pitchStatus = '';
-    const _susp = p.suspendMatches || 0;
     const _inj = isPlayerInjured(p);
     if (_inj) {
       const _kt = (typeof _sakatlikKalanMetin === 'function') ? (_sakatlikKalanMetin(_tsMsC(p.injuryUntil)) || '') : '';
       pitchStatus = `<span class="fpn-status fpn-inj" title="🚑 ${_kt}">🚑</span>`;
-    } else if (_susp > 0) {
-      const icon = p.suspendReason === 'red' ? '🟥' : '🟨';
-      pitchStatus = `<span class="fpn-status fpn-susp" title="Cezalı (${_susp} maç)">${icon}</span>`;
+    } else if ((p.ntBan || 0) > 0) {
+      pitchStatus = `<span class="fpn-status fpn-susp" title="Milli ceza">🟥</span>`;
     }
+    if (_inj || (p.ntBan || 0) > 0 || p.ntMusait === false) node.classList.add('dz-uygunsuz');
 
     const circleClasses = ['fpn-circle', posClass];
     if (typeof getOvrTier === 'function') circleClasses.push(getOvrTier(ovr));
@@ -59138,11 +59157,12 @@ function ntRenderPitch() {
       } catch(e) { avatarHTML = null; }
       const avatarInner = (typeof _dzYuzHtml === 'function') ? _dzYuzHtml(p, !!p.isUser) : (avatarHTML || (p.avatar || '⚽'));   // 577
 
+      // 588 — milli maçta kulüp kart cezası geçmez: sakatlık ve MİLLİ ceza
       let statusHtml = '';
-      const _susp = p.suspendMatches || 0;
-      const _inj = (p.injuryUntil || 0) > _now;
+      const _inj = (typeof isPlayerInjured === 'function') ? isPlayerInjured(p) : ((p.injuryUntil || 0) > _now);
+      const _ntCz = (p.ntBan || 0) > 0;
       if (_inj) statusHtml = `<span class="bench-card-status" title="Sakat">🚑</span>`;
-      else if (_susp > 0) statusHtml = `<span class="bench-card-status" title="Cezalı (${_susp} maç)">${p.suspendReason === 'red' ? '🟥' : '🟨'}</span>`;
+      else if (_ntCz) statusHtml = `<span class="bench-card-status" title="Milli ceza">🟥</span>`;
 
       const removeBtn = (_ntCanRemoveBench && !p.isUser)
         ? `<div class="bench-card-remove" title="Maç kadrosundan çıkar" onclick="confirmNtMatchSquadRemove(${p.num}, event)">✕</div>` : '';
@@ -59153,6 +59173,7 @@ function ntRenderPitch() {
       if (tier) classes.push(tier);
       if (p.isUser) classes.push('dz-ben');
       if (typeof _ntKaptanMi === 'function' && _ntKaptanMi(p)) classes.push('dz-kap');
+      if (_inj || _ntCz || p.ntMusait === false) classes.push('dz-uygunsuz');   // 588
 
       benchHtml += `<div class="${classes.join(' ')}" id="nt-bench_${i}" data-posgroup="${pgrp}"
         draggable="true" ondragstart="ntBenchDragStart(event,${i})" ondragend="ntBenchDragEnd(event)">
@@ -82408,6 +82429,7 @@ async function betPlay() {
     try { if (typeof wlLoadFromServer === 'function') await wlLoadFromServer(); } catch(e) {}
     _betSlip = [];
     _betMySlips = null;
+    try { betIstatSifirla(); } catch(e) {}          // 588 — istatistik yeni kuponla tazelensin
     _betOpenSlip = null;                            // 🆕 yeni kupon açık gelsin
     const _st = document.getElementById('betStake');
     if (_st) _st.value = BET_STAKE_DEFAULT;
@@ -82423,6 +82445,7 @@ async function betPlay() {
 
 // ── Kuponlarım ──
 async function betLoadMySlips(force) {
+  if (force) { try { betIstatSifirla(); } catch(e) {} }   // 588
   const el = document.getElementById('betSlipList');
   if (!el) return;
   if (_betMySlips && !force) { betRenderMySlips(); return; }
@@ -82754,6 +82777,7 @@ async function betClaimPrize(slipId, btn) {
       if (Array.isArray(_betMySlips)) {
         const it = _betMySlips.find(x => String(x.id) === String(slipId));
         if (it) it.claimed_at = new Date().toISOString();
+        try { betIstatSifirla(); } catch(e) {}   // 588
       }
       try { betRenderWallet(); } catch(e) {}
     });
@@ -83152,48 +83176,74 @@ async function scClaimPrize(cardId, btn) {
 function scOpenInfo()  { const e = document.getElementById('scInfoOv'); if (e) e.classList.add('on'); }
 function scCloseInfo() { const e = document.getElementById('scInfoOv'); if (e) e.classList.remove('on'); }
 
+// 588 — İSTATİSTİK TÜM ZAMANLAR: kuponlar 3 gün sonra silinse de özetleri sunucuda (bet_istatistik) saklanır.
+//   Tek hafif çağrı (toto_istatistik RPC · tek satır döner), 60 sn önbellek. SQL 588 yoksa eski (son 3 gün) hesap.
+let _betIstat = null, _betIstatAt = 0, _betIstatYok = false, _betIstatYukleniyor = false, _betIstatDeneme = 0;
+function betIstatSifirla() { _betIstat = null; _betIstatAt = 0; _betIstatDeneme = 0; }
+async function _betIstatYukle() {
+  if (_betIstatYok || _betIstatYukleniyor || !window.sb) return;
+  _betIstatYukleniyor = true; _betIstatDeneme = Date.now();
+  try {
+    const { data, error } = await window.sb.rpc('toto_istatistik');
+    if (!error && data && typeof data === 'object' && !Array.isArray(data)) { _betIstat = data; _betIstatAt = Date.now(); }
+    else if (!error || /toto_istatistik|function|404|PGRST202|not find|does not exist/i.test(String((error && (error.message || error.code)) || ''))) _betIstatYok = true;
+  } catch (e) {}
+  _betIstatYukleniyor = false;
+  if (_betTab === 'stats') betRenderStats();
+}
 function betRenderStats() {
   const el = document.getElementById('betStatsBox');
   if (!el) return;
-  if (!_betMySlips) {
-    el.innerHTML = '<div class="bet-empty">⏳ Yükleniyor…</div>';
-    // 🆕 Tek denemeyle sınırla — eskiden veri gelmeyince sonsuz döngüye giriyordu
-    if (!window._betStatsTried) {
-      window._betStatsTried = true;
-      betLoadMySlips(true).then(() => { window._betStatsTried = false; if (_betTab === 'stats') betRenderStats(); })
-        .catch(() => { window._betStatsTried = false; });
+  const taze = _betIstat && (Date.now() - _betIstatAt < 60000);
+  // en fazla dakikada bir istek; istek sürerken (ilk kez) bekleme, hata olursa son 3 günün hesabı
+  if (!taze && !_betIstatYok && !_betIstatYukleniyor && (!_betIstatDeneme || Date.now() - _betIstatDeneme > 60000)) _betIstatYukle();
+  if (!_betIstat && _betIstatYukleniyor) { el.innerHTML = '<div class="bet-empty">⏳ Yükleniyor…</div>'; return; }
+  let S;
+  if (_betIstat) {
+    const n = (k) => Number(_betIstat[k]) || 0;
+    S = { kupon: n('kupon'), devam: n('devam'), kazanan: n('kazanan'), kaybeden: n('kaybeden'), yatirilan: n('yatirilan'),
+          kazanilan: n('kazanilan'), oran: n('en_yuksek_oran'), tum: true };
+  } else {
+    // Eski yol (SQL 588 çalıştırılmadıysa): yalnız son 3 günün kuponları
+    if (!_betMySlips) {
+      el.innerHTML = '<div class="bet-empty">⏳ Yükleniyor…</div>';
+      if (!window._betStatsTried) {
+        window._betStatsTried = true;
+        betLoadMySlips(true).then(() => { window._betStatsTried = false; if (_betTab === 'stats') betRenderStats(); })
+          .catch(() => { window._betStatsTried = false; });
+      }
+      return;
     }
-    return;
+    const arr = _betMySlips;
+    const won = arr.filter(s => s.status === 'won'), lost = arr.filter(s => s.status === 'lost');
+    S = { kupon: arr.length, devam: arr.filter(s => s.status === 'pending').length, kazanan: won.length, kaybeden: lost.length,
+          yatirilan: arr.reduce((a, s) => a + (Number(s.stake) || 0), 0), kazanilan: won.reduce((a, s) => a + (Number(s.payout) || 0), 0),
+          oran: arr.reduce((a, s) => Math.max(a, Number(s.total_odds) || 0), 0), tum: false };
   }
-  const arr = _betMySlips;
-  const won = arr.filter(s => s.status === 'won');
-  const lost = arr.filter(s => s.status === 'lost');
-  const totIn = arr.reduce((a,s) => a + (Number(s.stake)||0), 0);
-  const totOut = won.reduce((a,s) => a + (Number(s.payout)||0), 0);
-  const maxOdds = arr.reduce((a,s) => Math.max(a, Number(s.total_odds)||0), 0);
-  const settled = won.length + lost.length;
-  // 569 — İ2 "kutucuklar" görünümü (aynı veriler)
-  const pend = arr.filter(s => s.status === 'pending').length;
-  const net = totOut - totIn;
-  const oran = settled ? Math.round(won.length / settled * 100) : null;
+  const settled = S.kazanan + S.kaybeden;
+  const net = S.kazanilan - S.yatirilan;
+  const oran = settled ? Math.round(S.kazanan / settled * 100) : null;
   const dil = (typeof i18nLang === 'function') ? i18nLang() : 'tr';
   const oranTxt = oran === null ? '—' : (dil === 'tr' ? '%' + oran : oran + '%');
   const netRenk = net > 0 ? 'var(--accent,#00e676)' : (net < 0 ? '#ff5c7a' : 'transparent');
   const pill = net > 0 ? '<span class="bst-pill ok">▲ KÂRDA</span>' : (net < 0 ? '<span class="bst-pill no">▼ ZARARDA</span>' : '');
   const kutu = (lbl, val, renk, alt) => `<div class="bst-t" style="--c:${renk || 'transparent'}"><span class="bst-lbl">${lbl}</span>
       <div class="bst-big">${val}</div>${alt || ''}</div>`;
-  el.innerHTML = `<div class="bst-kapsam">📅 <span><b>Son 3 gün</b> · <span>kuponlar 3 gün sonra silindiği için istatistik bu dönemi kapsar</span></span></div>
+  const kapsam = S.tum
+    ? `<div class="bst-kapsam">📅 <span><b>Tüm zamanlar</b> · <span>kuponlar 3 gün sonra silinse de istatistiklerin saklanır</span></span></div>`
+    : `<div class="bst-kapsam">📅 <span><b>Son 3 gün</b> · <span>kuponlar 3 gün sonra silindiği için istatistik bu dönemi kapsar</span></span></div>`;
+  el.innerHTML = `${kapsam}
     <div class="bst-grid">
       <div class="bst-t gen" style="--c:${netRenk}"><div class="bst-row"><span class="bst-lbl">Net sonuç</span>${pill}</div>
         <div class="bst-big">${net > 0 ? '+' : ''}${net.toLocaleString('tr')} €</div></div>
-      ${kutu('Toplam kupon', arr.length, '', `<div class="bst-sub"><b>${pend}</b> <span>devam ediyor</span></div>`)}
+      ${kutu('Toplam kupon', S.kupon, '', `<div class="bst-sub"><b>${S.devam}</b> <span>devam ediyor</span></div>`)}
       ${kutu('Kazanma oranı', oranTxt, '', `<div class="bst-mtr"><i style="width:${oran || 0}%"></i></div>`)}
-      ${kutu('Kazanan kupon', won.length, 'var(--accent,#00e676)')}
-      ${kutu('Kaybeden kupon', lost.length, '#ff5c7a')}
-      ${kutu('Toplam yatırılan', totIn.toLocaleString('tr') + ' €')}
-      ${kutu('Toplam kazanılan', totOut.toLocaleString('tr') + ' €', 'var(--gold,#ffd600)')}
+      ${kutu('Kazanan kupon', S.kazanan, 'var(--accent,#00e676)')}
+      ${kutu('Kaybeden kupon', S.kaybeden, '#ff5c7a')}
+      ${kutu('Toplam yatırılan', S.yatirilan.toLocaleString('tr') + ' €')}
+      ${kutu('Toplam kazanılan', S.kazanilan.toLocaleString('tr') + ' €', 'var(--gold,#ffd600)')}
       <div class="bst-t gen"><div class="bst-row"><span class="bst-lbl">En yüksek kupon oranı</span>
-        <span class="bst-big">${maxOdds ? maxOdds.toFixed(2) : '—'}</span></div></div>
+        <span class="bst-big">${S.oran ? S.oran.toFixed(2) : '—'}</span></div></div>
     </div>`;
 }
 
@@ -83471,16 +83521,21 @@ async function renderFreeAgentList(){
   if(!el) return;
   const sub = document.getElementById('tfSubtitle');
 
-  // Supabase'ten serbest oyuncuları çek (team_name IS NULL olan botlar)
+  // Supabase'ten serbest oyuncuları çek: takımsız GERÇEK kullanıcılar + takımdan çıkmış botlar
+  //   (bot üretilmez; liste players tablosundaki takımı olmayan satırlardır)
   let agents = [];
   if (window.sb) {
     try {
-      const { data, error } = await window.sb.from('players')
-        .select('id, name, pos, pos_group, sub_pos, overall, level, nation, nationality, avatar, avatar_id, is_bot, user_id')
+      const _faQ = (kol) => window.sb.from('players').select(kol)
         .is('team_name', null)
         .order('is_bot', { ascending: true })   // 🆕 takımsız GERÇEK kullanıcılar listenin başında
         .order('overall', { ascending: false })
         .limit(200);
+      // 588 — botların players.overall kolonu güncel değil (hepsi 10 görünüyordu): OVR, kadrodaki gibi yeteneklerden
+      const _faKol = 'id, name, pos, pos_group, sub_pos, overall, level, nation, nationality, avatar, avatar_id, is_bot, user_id, abilities';
+      // 588 — nereden geldiği (son takım) SQL 588 ile tutuluyor; kolon yoksa eski sorgu
+      let { data, error } = await _faQ(_faKol + ', son_takim, serbest_at');
+      if (error && /son_takim|serbest_at/i.test(String(error.message || ''))) ({ data, error } = await _faQ(_faKol));
       if (!error && Array.isArray(data)) {
         for (const p of data) {
           agents.push({
@@ -83492,13 +83547,15 @@ async function renderFreeAgentList(){
             pos: p.pos || 'MID',
             posGroup: p.pos_group || null,
             subPos: p.sub_pos || null,
-            overall: p.overall || 10,
+            overall: (p.is_bot && p.abilities && typeof getPlayerMainOverall === 'function')
+              ? getPlayerMainOverall({ isBot: true, role: '', abilities: p.abilities, overall: p.overall, pos: p.pos, posGroup: p.pos_group })
+              : (p.overall || 10),
             level: p.level || 0,
             nation: p.nation || '🏳️',
             nationality: p.nationality || '',
             isBot: !!p.is_bot,
             userId: p.user_id || null,
-            kickedFrom: null,
+            kickedFrom: p.son_takim || null,          // 588 — son takımı (serbest kalınca yazılır)
           });
         }
       }
@@ -83512,6 +83569,8 @@ async function renderFreeAgentList(){
     return true;
   });
 
+  // 588 — gerçek kullanıcılar önce, sonra güce göre (sunucudaki overall botlarda bayat olduğu için burada sıralanır)
+  agents.sort((a, b) => ((a.isBot ? 1 : 0) - (b.isBot ? 1 : 0)) || ((b.overall || 0) - (a.overall || 0)));
   if(sub) sub.textContent = `${agents.length} sözleşmesiz oyuncu`;
 
   if(!agents.length) {
@@ -83532,14 +83591,18 @@ async function renderFreeAgentList(){
   el.innerHTML = agents.map(a => {
     const ovColor = a.overall>=80?'#ffd600':a.overall>=70?'var(--accent)':a.overall>=60?'var(--accent2)':'#7a8099';
     const _faAv = (typeof getAvatarEmoji==='function') ? getAvatarEmoji(a.avatar_id, a.pos) : (a.avatar||(a.isBot?'🤖':'👤'));
-    const kickedFromTxt = a.kickedFrom ? `<span class="tf-fa-tag">Eski: ${a.kickedFrom}</span>` : '';
+    const kickedFromTxt = a.kickedFrom ? `<span class="tf-fa-tag"><span>Eski takımı</span>: <span data-noi18n>${a.kickedFrom}</span></span>` : '';   // 588
     // 🆕 Gerçek kullanıcı işareti (badge)
     const userTag = '';  // 🆕 'Gerçek Kullanıcı' etiketi kaldırıldı — avatar zaten belli ediyor
 
     let actionBtn = '';
+    // 588 — serbest botu kadroya yalnız KAPTAN alır (sunucu kuralı); yardımcıya buton gösterilmez
+    const _kaptan = !!(typeof _userTeam !== 'undefined' && _userTeam && _userTeam.role === 'captain');
     if (!a.isBot) {
       // 🆕 Gerçek kullanıcı → mevcut TEKLİF SUN modalına yönlendir (direkt alma yok; oyuncu kabul eder)
       if (canHire) actionBtn = `<button class="tf-fa-action" onclick="tfOfferFreeAgent('${a.id}')">💬 Teklif Sun</button>`;
+    } else if (!_kaptan) {
+      actionBtn = '';
     } else if (canHire && !rosterFull) {
       actionBtn = `<button class="tf-fa-action" onclick="tfHireFreeAgent('${a.id}')">🤝 Takıma Al</button>`;
     } else if (canHire && rosterFull) {
@@ -83656,6 +83719,8 @@ async function tfHireFreeAgent(agentId){
   if(typeof renderFreeAgentList === 'function') renderFreeAgentList();
   if(typeof renderRoster === 'function') renderRoster('all');
   if(typeof applyUserTeamUI === 'function') applyUserTeamUI();
+  // 588 — yerel kayıt eksikti (kimlik / yetenek / alt mevki yok → OVR 10, dizilişte kimlik boş): kadroyu sunucudan tazele
+  try { if (typeof rosterBuildTeam === 'function' && _userTeam && _userTeam.countryCode) rosterBuildTeam(_userTeam.countryCode); } catch(e) {}
 
   if(typeof rosterToast === 'function'){
     if(pRow.is_bot){
@@ -105671,6 +105736,12 @@ function _gmYedekAltinda(x, y) {
 /* 585 — bot: yüz yok, 🤖 */
 :is(#team-formation,#nt-formation).dz .dz-bot{font-size:28px;line-height:1;filter:grayscale(.15) drop-shadow(0 2px 3px rgba(0,0,0,.5));opacity:.9}
 
+/* 588 — sakat / cezalı: soluk (durum işareti canlı kalır) */
+:is(#benchList,#nt-benchList,#msubBenchList) .bench-card.dz-uygunsuz > :not(.bench-card-status){opacity:.4;filter:grayscale(.9)}
+:is(#benchList,#nt-benchList,#msubBenchList) .bench-card.dz-uygunsuz{border-style:dashed}
+:is(#pitchPlayers,#nt-pitchPlayers) .fpn.dz-uygunsuz > :not(.fpn-status){opacity:.45;filter:grayscale(.9)}
+:is(#benchList,#nt-benchList,#msubBenchList) .bench-card.dz-uygunsuz .bench-card-status{opacity:1;filter:none;z-index:3}
+
 </style>
 <script id="dz-js">
 /* ═══════════════════════════════════════════════════════════════════
@@ -105933,6 +106004,103 @@ function _dzYedekBitir(e, birak) {
     }
   } catch (err) {}
   try { K.secYedek(null); } catch (_) {}
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 588 · SAKAT / CEZALI OYUNCU İLK 11'DE KALMAZ
+//   Sakat ya da cezalı (kulüpte kart cezası, milli takımda milli ceza) oyuncu sahadan alınıp yedeğe
+//   konur, soluk görünür; yuvasına EN YAKIN mevkiden uygun oyuncu girer (sunucunun maç başında
+//   uyguladığı kuralla aynı). Yedeğe öncelik: kulübedeki uygun oyuncu, sonra kadrodaki diğerleri.
+// ═══════════════════════════════════════════════════════════════════
+function _dzUygunsuz(p) {
+  try { return !!p && ((typeof isPlayerInjured === 'function' && isPlayerInjured(p)) || (typeof isPlayerSuspended === 'function' && isPlayerSuspended(p))); }
+  catch (e) { return false; }
+}
+function _dzNtUygunsuz(p) { return !!p && p.ntMusait === false; }
+// Yuvaya yakınlık: aynı alt mevki 1 · aynı bölge .85 · komşu bölge .80 … · kaleci ↔ saha son çare
+function _dzYakinlik(own, slot) {
+  if (!own || !slot) return 0.5;
+  if ((own === 'GK') !== (slot === 'GK')) return 0.1;
+  return (typeof posPenaltyFactor === 'function') ? posPenaltyFactor(own, slot) : (own === slot ? 1 : 0.8);
+}
+function _dzEnYakin(adaylar, yuva, yedekMi, guc) {
+  let en = null, puan = -Infinity;
+  for (const c of adaylar) {
+    const s = _dzYakinlik((typeof subPosOf === 'function') ? subPosOf(c) : 'CM', yuva) * 1000 + (yedekMi(c) ? 60 : 0) + (Number(guc(c)) || 0);
+    if (s > puan) { puan = s; en = c; }
+  }
+  return en;
+}
+// Kulüp dizilişi — değişiklik listesi döner [{cikan, giren, yuva}]
+function dzKulupUygunsuzDuzelt() {
+  if (!Array.isArray(activePitchPlayers) || typeof ROSTER_DATA === 'undefined' || !Array.isArray(ROSTER_DATA)) return [];
+  const slots = (typeof FORMATIONS !== 'undefined' && FORMATIONS[currentFormation]) || [];
+  const tam = (p) => ROSTER_DATA.find(r => r && p && (r.num === p.num || (p.id != null && r.id === p.id))) || p;
+  const guc = (p) => (typeof getPlayerMainOverall === 'function') ? getPlayerMainOverall(p) : (p.overall || 0);
+  if (!Array.isArray(benchPlayers)) benchPlayers = [];
+  const degis = [];
+  for (const e of activePitchPlayers) {
+    const p = e && e.player && tam(e.player);
+    if (!p || !_dzUygunsuz(p)) continue;
+    const yuva = (slots[e.slotIdx] && slots[e.slotIdx].s) || e.s || subPosOf(p);
+    const saha = new Set(activePitchPlayers.map(x => x && x.player && x.player.num));
+    const yedekNo = new Set(benchPlayers.map(b => b && b.num));
+    const uygunYedek = ROSTER_DATA.filter(c => c && yedekNo.has(c.num) && !saha.has(c.num) && !_dzUygunsuz(c));
+    // Kulübe doluysa (7) yalnız kulübeden (sayı değişmesin); boşluk varsa tüm kadrodan
+    const dolu = benchPlayers.filter(Boolean).length >= 7;
+    const havuz = (dolu && uygunYedek.length) ? uygunYedek : ROSTER_DATA.filter(c => c && !saha.has(c.num) && !_dzUygunsuz(c));
+    const en = _dzEnYakin(havuz, yuva, (c) => yedekNo.has(c.num), guc);
+    if (!en) continue;                                     // uygun oyuncu yok: sahada soluk kalır
+    e.player = en; e.rosterIdx = ROSTER_DATA.indexOf(en);
+    const bi = benchPlayers.findIndex(b => b && b.num === en.num);
+    if (bi !== -1) benchPlayers[bi] = p;
+    else if (benchPlayers.filter(Boolean).length < 7) benchPlayers.push(p);
+    degis.push({ cikan: p, giren: en, yuva });
+  }
+  if (degis.length) {                                        // kulübede uygunlar önce, soluklar sonda
+    benchPlayers = benchPlayers.filter(Boolean).sort((a, b) => (_dzUygunsuz(a) ? 1 : 0) - (_dzUygunsuz(b) ? 1 : 0));
+  }
+  return degis;
+}
+// Milli takım dizilişi (sakat / milli cezalı)
+function dzMilliUygunsuzDuzelt() {
+  if (typeof _ntActivePitchPlayers === 'undefined' || !Array.isArray(_ntActivePitchPlayers) || typeof ntEnsureRoster !== 'function') return [];
+  const roster = ntEnsureRoster();
+  const slots = (typeof NT_FORMATIONS !== 'undefined' && NT_FORMATIONS[_ntCurrentFormation]) || [];
+  const tam = (p) => roster.find(r => r && p && ((p.ntId && r.ntId === p.ntId) || (r.num === p.num && r.name === p.name))) || p;
+  const guc = (p) => (typeof _ntG2 === 'function') ? _ntG2(p) : (p.overall || 0);
+  if (!Array.isArray(_ntMatchSquadBench)) _ntMatchSquadBench = [];
+  const degis = [];
+  for (const e of _ntActivePitchPlayers) {
+    const p = e && e.player && tam(e.player);
+    if (!p || !_dzNtUygunsuz(p)) continue;
+    const yuva = (slots[e.slotIdx] && slots[e.slotIdx].s) || e.s || subPosOf(p);
+    const saha = new Set(_ntActivePitchPlayers.map(x => x && x.player && x.player.num));
+    const yedekNo = new Set(_ntMatchSquadBench);
+    const uygunYedek = roster.filter(c => c && yedekNo.has(c.num) && !saha.has(c.num) && !_dzNtUygunsuz(c));
+    const dolu = _ntMatchSquadBench.length >= 7;
+    const havuz = (dolu && uygunYedek.length) ? uygunYedek : roster.filter(c => c && !saha.has(c.num) && !_dzNtUygunsuz(c));
+    const en = _dzEnYakin(havuz, yuva, (c) => yedekNo.has(c.num), guc);
+    if (!en) continue;
+    e.player = en; e.rosterIdx = roster.indexOf(en);
+    const bi = _ntMatchSquadBench.indexOf(en.num);
+    if (bi !== -1) _ntMatchSquadBench[bi] = p.num;
+    else if (_ntMatchSquadBench.length < 7) _ntMatchSquadBench.push(p.num);
+    degis.push({ cikan: p, giren: en, yuva });
+  }
+  if (degis.length) {
+    const byNo = (n) => roster.find(r => r && r.num === n);
+    _ntMatchSquadBench = _ntMatchSquadBench.slice().sort((a, b) => (_dzNtUygunsuz(byNo(a)) ? 1 : 0) - (_dzNtUygunsuz(byNo(b)) ? 1 : 0));
+  }
+  return degis;
+}
+// Kısa bildirim (dil bağımsız: ad → ad (mevki))
+function _dzDegisBildir(degis, milli) {
+  if (!degis || !degis.length) return;
+  const ik = (p) => (typeof isPlayerInjured === 'function' && isPlayerInjured(p)) ? '🚑' : ((milli || p.suspendReason === 'red') ? '🟥' : '🟨');
+  const ad = (p) => String((p && p.name) || '').trim();
+  const m = degis.map(d => ik(d.cikan) + ' ' + ad(d.cikan) + ' → ' + ad(d.giren) + ' (' + d.yuva + ')').join(' · ');
+  try { if (typeof showToast === 'function') showToast(m); } catch (e) {}
 }
 
 </script>

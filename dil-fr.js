@@ -6273,3 +6273,12 @@ Object.assign(window.I18N.fr, {
 Object.assign(window.I18N.fr, {
   "Özel plan": "Plan personnalisé"
 });
+
+/* ─── 588 · Serbest oyuncu · toto istatistik · milli ceza ─── */
+Object.assign(window.I18N.fr, {
+  "Eski takımı": "Ancien club",
+  "Tüm zamanlar": "Depuis le début",
+  "kuponlar 3 gün sonra silinse de istatistiklerin saklanır": "tes statistiques sont conservées même si les coupons sont supprimés après 3 jours",
+  "Milli ceza": "Suspension en sélection",
+  "Sakat": "Blessé"
+});
