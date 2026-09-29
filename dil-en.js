@@ -6463,3 +6463,35 @@ Object.assign(window.I18N.en, {
     [/^(.+?) kadrodan çıkarıldı · kadro (\d+)\/(\d+)$/, "$1 was removed from the squad · squad $2/$3"]
   );
 })();
+
+/* ─── 584 · Canlı maç taktiği + Diziliş kilidi ─── */
+Object.assign(window.I18N.en, {
+  "Maç oynanıyor": "Match in progress",
+  "Milli maç oynanıyor": "National team match in progress",
+  "Diziliş ve taktik maç bitene kadar kilitli. Maç içi değişiklikleri Maç Merkezi'nden yap, yalnız bu maçı etkiler.": "Line-up and tactics are locked until the match ends. Make in-match changes from the Match Center; they only affect this match.",
+  "Kadro ve diziliş maç bitene kadar kilitli. Maç içi değişiklikleri Maç Merkezi'nden yap, yalnız bu maçı etkiler.": "Squad and line-up are locked until the match ends. Make in-match changes from the Match Center; they only affect this match.",
+  "Maça git ›": "Go to match ›",
+  "🔴 Maç oynanıyor — diziliş ve taktik maç bitince değiştirilebilir. Maç içi değişiklik için Maç Merkezi'ne git.": "🔴 Match in progress — line-up and tactics can be changed after the match. Go to the Match Center for in-match changes.",
+  "🔴 Milli maç oynanıyor — kadro ve taktik maç bitince değiştirilebilir": "🔴 National team match in progress — squad and tactics can be changed after the match",
+  "Maç bitti — Diziliş yeniden düzenlenebilir": "Match over — you can edit the line-up again",
+  "Milli maç bitti — kadro ve diziliş yeniden düzenlenebilir": "National team match over — you can edit the squad and line-up again",
+  "Maç taktiği · yalnız bu maç": "Match tactics · this match only",
+  "Buradaki değişiklikler yalnız bu maçı etkiler ve bir sonraki dakikadan geçerli olur. Maç bitince Takımım'daki maç öncesi taktiğe dönülür.": "Changes here only affect this match and apply from the next minute. When the match ends, your pre-match tactics in My Team are restored.",
+  "Oyun stili": "Playing style",
+  "Hücum yönü": "Attack direction",
+  "Savunma hattı": "Defensive line",
+  "Pres": "Pressing",
+  "Şut tercihi": "Shooting",
+  "Maç bitti — taktik değiştirilemez": "Match over — tactics can't be changed",
+  "Maç henüz başlamadı — taktiği Takımım sayfasından kur": "The match hasn't started yet — set your tactics on the My Team page",
+  "Bu maçta taktik yetkin yok": "You don't have tactical control in this match",
+  "Değişiklik yok": "No changes",
+  "Taktik gönderilemedi — tekrar dene": "Couldn't send tactics — try again",
+  "Taktik gönderilemedi — bağlantını kontrol et": "Couldn't send tactics — check your connection"
+});
+(function () {
+  var P = window.I18N_PATTERNS.en;
+  P.unshift(
+    [/^✓ Taktik (\d+)\. dakikadan itibaren geçerli$/, "✓ Tactics apply from minute $1"]
+  );
+})();

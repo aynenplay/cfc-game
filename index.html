@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '583';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '584';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -29973,7 +29973,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-29-kadro-583';
+const APP_BUILD = '2026-09-29-taktik-584';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -39021,8 +39021,9 @@ function setMatchStrategy(group, value) {
 
   activeStrategy[group] = value;
 
-  // localStorage'a kaydet (kalıcı)
-  if (typeof saveTeamStrategy === 'function') saveTeamStrategy();
+  // 584 — Maç içi değişiklik YALNIZ BU MAÇ: kayıtlı (maç öncesi) taktiğe yazılmaz,
+  //   sunucuya maç taktiği olarak gider (bir sonraki dakikadan geçerli).
+  if (typeof macTaktikGonder === 'function') macTaktikGonder('plan');
 
   // UI vurguları
   refreshQuickStratUI();
@@ -39100,8 +39101,8 @@ function setMatchFormation(name) {
     });
   }
 
-  // localStorage'a kaydet
-  if (typeof saveTeamStrategy === 'function') saveTeamStrategy();
+  // 584 — kalıcı kayıt yok; yeni diziliş maça gider (yalnız bu maç)
+  if (typeof macTaktikGonder === 'function') macTaktikGonder('dizilis');
 
   // UI güncelle
   refreshQuickStratUI();
@@ -39257,6 +39258,8 @@ function initTacticControls() {
   if (subsEl) subsEl.textContent = MS.subsLeft;
 
   MS._tacticControlsActive = canControl;
+  // 584 — maç taktiği modu: bu maçta yapılan değişiklikler yalnız bu maç (kayıtlı taktik korunur)
+  try { if (typeof macTaktikModuAc === 'function') macTaktikModuAc(canControl); } catch(e) {}
 }
 
 const MENTALITY_INFO = {
@@ -40338,8 +40341,9 @@ function msubMakeDraggable(node, idx) {
           const tmpPlayer = activePitchPlayers[idx].player;
           activePitchPlayers[idx].player = activePitchPlayers[targetIdx].player;
           activePitchPlayers[targetIdx].player = tmpPlayer;
-          try { if (typeof saveTeamStrategy === 'function') saveTeamStrategy(); } catch(e) {}
         }
+        // 584 — kalıcı kayıt yok; yer değişikliği maça gider (yalnız bu maç)
+        try { if (typeof macTaktikGonder === 'function') macTaktikGonder('dizilis'); } catch(e) {}
 
         if (typeof showSwapToast === 'function') {
           showSwapToast(`${a.name} ↔ ${b.name}`);
@@ -54201,6 +54205,8 @@ function loadTeamStrategy() {
 }
 
 function saveTeamStrategy() {
+  // 584 — maç sürerken kalıcı taktik yazılmaz (maç içi değişiklik yalnız o maç; Takımım kilitli)
+  if (typeof takimTaktikYazilamaz === 'function' && takimTaktikYazilamaz()) return;
   try {
     // 🆕 Lineup snapshot — her slot için oyuncu numarası + slot indexi
     let lineupSnapshot = (Array.isArray(activePitchPlayers) ? activePitchPlayers : [])
@@ -55557,6 +55563,7 @@ function applyFormation(name) {
 }
 
 async function flushTeamStrategySave() {
+  if (typeof takimTaktikYazilamaz === 'function' && takimTaktikYazilamaz()) return;   // 584
   // Bekleyen debounce yazmayı iptal edip son cache'i ANINDA Supabase'e yaz.
   // Böylece sayfadan çıkış/maç başlangıcında en son kayıt garanti geçerli olur.
   if (_teamStrategySaveTimer) {
@@ -55575,6 +55582,7 @@ async function flushTeamStrategySave() {
 }
 
 async function saveFormation() {
+  if (typeof takimTaktikKilitUyari === 'function' && takimTaktikKilitUyari()) return;   // 584 — canlı maç kilidi
   // 🆕 Sadece kaptan/yardımcı kaydedebilir
   if (typeof _canManageSquad === 'function' && !_canManageSquad()) {
     if (typeof showToast === 'function') showToast('Sadece kaptan veya yardımcı diziliş kaydedebilir');
@@ -55618,6 +55626,14 @@ function closeStrategyPanel() {
 }
 
 function selectStrategy(group, value, el) {
+  // 584 — maç içinden açılan panel: değişiklik yalnız bu maç
+  if (typeof MS !== 'undefined' && MS && MS._macTaktikModu && typeof setMatchStrategy === 'function') {
+    const _pp = el && el.closest('.strategy-pills');
+    if (_pp) _pp.querySelectorAll('.sp').forEach(s => s.classList.remove('active'));
+    if (el) el.classList.add('active');
+    setMatchStrategy(group, value); return;
+  }
+  if (typeof takimTaktikKilitUyari === 'function' && takimTaktikKilitUyari()) return;   // 584 — canlı maç kilidi
   const parent = el.closest('.strategy-pills');
   if(parent) parent.querySelectorAll('.sp').forEach(s=>s.classList.remove('active'));
   el.classList.add('active');
@@ -57947,6 +57963,7 @@ function _ntKadroDegisti(cc, sadeceEkran) {
 // Kadroya çağır (Analiz listesi / profil / diziliş)
 function ntKadroCagir(ntId, cc) {
   cc = cc || ntActiveCountry();
+  if (typeof ntTaktikKilitUyari === 'function' && ntTaktikKilitUyari(cc)) return false;   // 584
   if (!ntRol(cc)) { if (typeof _ntNoPermToast === 'function') _ntNoPermToast(); return false; }
   const pool = ntPlayerPool(cc);
   const player = pool.find(p => p && p.ntId === ntId);
@@ -58002,6 +58019,7 @@ function _ntCikarOnizle(ntId, cc) {
 // Kadrodan çıkar
 function ntKadroCikar(ntId, cc) {
   cc = cc || ntActiveCountry();
+  if (typeof ntTaktikKilitUyari === 'function' && ntTaktikKilitUyari(cc)) return false;   // 584
   if (!ntRol(cc)) { if (typeof _ntNoPermToast === 'function') _ntNoPermToast(); return false; }
   const r = _ntCikarOnizle(ntId, cc);
   if (r.hata === 'yok') { if (typeof showToast === 'function') showToast('Kadroda değil'); return false; }
@@ -58048,6 +58066,18 @@ function _ntKaptanNtId() {
 }
 function _ntKaptanMi(p) { const k = _ntKaptanNtId(); return !!(p && k && p.ntId === k); }
 
+// 584 — oyuncu kendi kulübündeyse (kadro yüklü) güncel kulüp kaydından: milli takım ayrı oyuncu üretmez
+function _ntKulupCanli(p) {
+  try {
+    if (typeof ROSTER_DATA === 'undefined' || !Array.isArray(ROSTER_DATA)) return {};
+    const k = p.isUser ? ROSTER_DATA.find(x => x && x.role === 'user') : (p.id != null ? ROSTER_DATA.find(x => x && x.id === p.id) : null);
+    if (!k) return {};
+    const o = { level: k.level, xp: k.xp };
+    if (!p.isUser && k.abilities) o.abilities = k.abilities;
+    if (k._kd) { o._kd = k._kd; o.stamina = k.stamina; }
+    return o;
+  } catch(e) { return {}; }
+}
 function ntBuildRoster(cc) {
   const pool = ntPlayerPool(cc);
   if (!pool.length) return [];
@@ -58069,6 +58099,7 @@ function ntBuildRoster(cc) {
     const sakat = (typeof _tsMsC === 'function' ? _tsMsC(player.injuryUntil) : Number(player.injuryUntil) || 0) > simdi;
     return {
       ...player,
+      ..._ntKulupCanli(player),
       num: finalNum,
       slotIdx,
       ntSlotRole: slot.role,
@@ -58228,6 +58259,7 @@ function getNtPlayerSquadStatus(p) {
 
 // Kadrodaki oyuncuyu maç kadrosu YEDEKLERINE ekle (ilk 11'den ayrı)
 function ntMatchSquadAdd(num) {
+  if (typeof ntTaktikKilitUyari === 'function' && ntTaktikKilitUyari()) return;   // 584
   if (typeof fedUserIsOfficial !== 'function' || !fedUserIsOfficial()) {
     if (typeof showToast === 'function') showToast('Sadece başkan/yardımcı maç kadrosu değiştirebilir');
     return;
@@ -58264,6 +58296,7 @@ function ntMatchSquadAdd(num) {
 
 // Kadrodaki oyuncuyu maç kadrosundan çıkar (yedekten kaldır → reserve)
 function ntMatchSquadRemove(num) {
+  if (typeof ntTaktikKilitUyari === 'function' && ntTaktikKilitUyari()) return;   // 584
   if (typeof fedUserIsOfficial !== 'function' || !fedUserIsOfficial()) {
     if (typeof showToast === 'function') showToast('Sadece başkan/yardımcı maç kadrosu değiştirebilir');
     return;
@@ -58356,7 +58389,7 @@ function ntRenderRoster() {
 
   // Sıralama: mevki (KL → DF → OS → FV), mevki içinde güç
   const _MS = { GK:0, DEF:1, MID:2, FWD:3 };
-  const _gg = (p) => (typeof p._ntG === 'number') ? p._ntG : ((typeof getPlayerMainOverall === 'function') ? getPlayerMainOverall(p) : (p.overall || 0));
+  const _gg = (p) => _ntPlayerSkill(p);
   squad.sort((a, b) => ((_MS[_ntGrp(a)] || 0) - (_MS[_ntGrp(b)] || 0)) || (_gg(b) - _gg(a)));
 
   const POSGRP = (typeof POS_GROUP !== 'undefined') ? POS_GROUP : { KL:'GK', STB:'DEF', SB:'DEF', DOS:'MID', OS:'MID', SAK:'MID', FWD:'FWD' };
@@ -58364,7 +58397,7 @@ function ntRenderRoster() {
   const isFedOfficial = !!ntRol(cc);
 
   const _row = (p) => {
-    const _ovr = (typeof getPlayerMainOverall === 'function') ? getPlayerMainOverall(p) : (p.overall || 10);
+    const _ovr = _ntPlayerSkill(p);
     const ovrColor = (typeof overallColor === 'function') ? overallColor(_ovr) : '#ffd600';
     const subPos = (typeof subPosOf === 'function') ? subPosOf(p) : p.pos;
     const subPosCls = (typeof subPosClass === 'function') ? subPosClass(p) : '';
@@ -58770,6 +58803,7 @@ let _ntDizilisDurum = 'yok';
 function _ntStratYazabilir() {
   try {
     if (!window.sb) return false;
+    if (typeof ntTaktikKilitli === 'function' && ntTaktikKilitli()) return false;   // 584 — milli maç sürüyor
     return !!ntRol(ntActiveCountry());
   } catch (e) { return false; }
 }
@@ -58785,6 +58819,11 @@ async function _ntTaktikYaz(cc, blob) {
   return true;
 }
 
+function _ntSlotAlt(e) {
+  if (e.s) return e.s;
+  const sl = (typeof NT_FORMATIONS !== 'undefined' && NT_FORMATIONS[_ntCurrentFormation]) ? NT_FORMATIONS[_ntCurrentFormation][e.slotIdx] : null;
+  return (sl && sl.s) || null;
+}
 function ntSaveStrategy(kullaniciEylemi) {
   try {
     // 🆕 Kayıtlı diziliş eşleşmediyse (kadro/roster bayat) otomatik üretilmiş
@@ -58797,7 +58836,7 @@ function ntSaveStrategy(kullaniciEylemi) {
           lineup: (_ntActivePitchPlayers || []).map(e => ({
             num: e.player && e.player.num, slotIdx: e.slotIdx,
             id: e.player && e.player.id, ntId: (e.player && e.player.ntId) || null,
-            ad: (e.player && e.player.name) || null, x: e.x, y: e.y, pos: e.pos })),
+            ad: (e.player && e.player.name) || null, x: e.x, y: e.y, pos: e.pos, s: _ntSlotAlt(e) })),
           matchBench: Array.isArray(_ntMatchSquadBench) ? _ntMatchSquadBench.slice() : [],
           benchUserManaged: !!_ntBenchUserManaged
         };
@@ -58810,7 +58849,7 @@ function ntSaveStrategy(kullaniciEylemi) {
       .filter(e => e && e.player)
       .map(e => ({ num: e.player.num, slotIdx: e.slotIdx, id: e.player.id,
                    ntId: e.player.ntId || null, ad: e.player.name || null,
-                   x: e.x, y: e.y, pos: e.pos }));
+                   x: e.x, y: e.y, pos: e.pos, s: _ntSlotAlt(e) }));
     // 🆕 Yedekleri KALICI KİMLİKLE de yaz — maç motoru forma numarasıyla değil
     //    uuid ile eşleştirsin (numaralar kadro değişince kayıyor).
     let matchBenchIds = [];
@@ -59345,7 +59384,7 @@ function ntRenderPitch() {
 
     // Mevki-dışı OVR cezası: slotun alt mevkisine (s) göre
     const _slotSub = entry.s || ((typeof subPosOf === 'function') ? subPosOf(p) : 'CM');
-    const ovr = (typeof pitchSlotOvr === 'function') ? pitchSlotOvr(p, _slotSub) : (p.overall || p.rating || 10);
+    const ovr = pitchSlotOvr({ ...p, overall: _ntPlayerSkill(p) }, _slotSub);
 
     // Kart etiketi/rengi oyuncunun KENDİ alt mevkisine göre (slot'a değil)
     const posGroup = (typeof POS_GROUP !== 'undefined' && POS_GROUP[entry.pos]) || 'MID';
@@ -59614,7 +59653,7 @@ function ntShowTooltip(idx, scope, event) {
   _ntTooltipScope = scope;
   document.getElementById('nt-ptName').textContent = p.name;
   document.getElementById('nt-ptRole').textContent = p.nation + ' · #' + p.num;
-  document.getElementById('nt-ptOvr').textContent = p.overall;
+  document.getElementById('nt-ptOvr').textContent = _ntPlayerSkill(p);
   document.getElementById('nt-ptPos').textContent = p.pos;
   tt.style.display = 'block';
 }
@@ -59787,6 +59826,7 @@ async function flushNtStrategySave() {
 }
 
 function ntSaveFormation() {
+  if (typeof ntTaktikKilitUyari === 'function' && ntTaktikKilitUyari()) return;   // 584
   if(!ntCanEditFormation()) { _ntNoPermToast(); return; }
   const _cnt = Array.isArray(_ntActivePitchPlayers) ? _ntActivePitchPlayers.filter(e=>e&&e.player).length : 0;
   if (_cnt < 11) { if (typeof showToast === 'function') showToast('İlk 11 tamamlanmadan kaydedilemez (' + _cnt + '/11)'); return; }
@@ -60277,7 +60317,7 @@ function ntKadroMenu(ntId) {
           <span style="color:var(--text2,#90caf9);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.sourceClub || ''}</span>
         </div>
       </div>
-      <div class="ovr">${p.overall || '—'}</div>
+      <div class="ovr">${_ntPlayerSkill(p)}</div>
     </div>
     <div class="nt-cf-menu-actions">${actions}</div>
     <div class="nt-cf-actions"><button class="nt-cf-btn cancel" onclick="ntCloseConfirm()">Kapat</button></div>
@@ -60403,11 +60443,19 @@ function _ntPlayerEnergy(p, teamName) {
 
 // Oyuncunun yetenek toplamı (DİNAMİK — abilities ortalaması, kullanıcı için level/skill bazlı).
 // 🆕 Statik p.overall artık ÖNCELİK DEĞİL — gerçek dinamik hesap kullanılır.
+// 584 — Milli takımdaki oyuncu kulübündeki oyuncunun aynısı: OVR kulüpteki kuralla hesaplanır
+//   (sen → kendi yeteneklerin, kulüp arkadaşın → kulüp kadrosundaki kaydı, diğerleri → aynı formül)
+function _ntKulupOvr(p) {
+  let k = null;
+  try { if (typeof ROSTER_DATA !== 'undefined' && Array.isArray(ROSTER_DATA)) k = p.isUser ? ROSTER_DATA.find(x => x && x.role === 'user') : (p.id != null ? ROSTER_DATA.find(x => x && x.id === p.id) : null); } catch(e) {}
+  if (k) return getPlayerMainOverall(k);
+  return getPlayerMainOverall(p.isUser ? { ...p, role: 'user' } : p);
+}
 function _ntPlayerSkill(p) {
   if (!p) return 10;
   // 1) Yeni dinamik fonksiyon (kullanıcı için skill levels, bot için abilities ortalaması)
   if (typeof getPlayerMainOverall === 'function') {
-    const v = getPlayerMainOverall(p);
+    const v = _ntKulupOvr(p);
     if (typeof v === 'number' && v > 0) return v;
   }
   // 2) Geriye dönük: pozisyon ortalaması
@@ -107828,6 +107876,306 @@ function konOyuncumCiz() {
   };
   ['applyUserTeamUI', 'guestRenderHeader', 'exitGuestMode', 'ntRender', 'ntRenderRoster', 'renderRoster'].forEach(sar);
   try { thKunyeTazele(); } catch (e) {}
+})();
+</script>
+<style id="cm-css">
+/* ═══════════════════════════════════════════════════════════════════
+   584 · CANLI MAÇ — Takımım / Milli Diziliş kilidi + maç taktiği bandı
+   ═══════════════════════════════════════════════════════════════════ */
+.cm-canli{display:flex;align-items:center;gap:12px;margin:12px 12px 4px;padding:12px 12px 12px 14px;border-radius:14px;
+  border:1px solid rgba(239,83,80,.45);background:linear-gradient(135deg,rgba(239,83,80,.16),rgba(239,83,80,.04))}
+.cm-canli .cm-nok{flex:0 0 10px;width:10px;height:10px;border-radius:50%;background:#ef5350;box-shadow:0 0 0 4px rgba(239,83,80,.2);animation:cmNabiz 1.6s ease-in-out infinite}
+@keyframes cmNabiz{0%,100%{box-shadow:0 0 0 3px rgba(239,83,80,.25)}50%{box-shadow:0 0 0 7px rgba(239,83,80,.08)}}
+.cm-canli .cm-tx{flex:1;min-width:0}
+.cm-canli .cm-tx > b{display:block;font:900 15px/1.1 'Barlow Condensed',sans-serif;letter-spacing:.6px;text-transform:uppercase;color:#fff}
+.cm-canli .cm-skor{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:5px;font:800 12.5px/1 'Barlow Condensed',sans-serif;letter-spacing:.3px;color:#fff}
+.cm-canli .cm-skor b{color:#ffd54f}
+.cm-canli .cm-skor em{font-style:normal;color:#ef5350}
+.cm-canli .cm-tx > span{display:block;margin-top:5px;font:500 11.5px/1.4 'Barlow',sans-serif;color:#dcbcbc}
+.cm-canli .cm-git{flex:0 0 auto;padding:9px 11px;border:0;border-radius:10px;background:#ef5350;color:#fff;cursor:pointer;
+  font:900 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.6px;text-transform:uppercase;-webkit-tap-highlight-color:transparent}
+.cm-canli .cm-git:active{transform:scale(.96)}
+
+/* Kilit: kontroller soluk ve dokunulmaz (kaptan/yardımcı dahil) */
+body.tk-canli #page-team #team-formation .form-toolbar,
+body.tk-canli #page-team #team-formation #strategyPanel .sp,
+body.tk-canli #page-team #team-formation .fpn,
+body.tk-canli #page-team #team-formation .bench-card,
+body.nt-canli #page-national #nt-formation .form-toolbar,
+body.nt-canli #page-national #nt-formation .fpn,
+body.nt-canli #page-national #nt-formation .bench-card{pointer-events:none !important;opacity:.45;filter:grayscale(.5)}
+body.tk-canli #page-team #team-formation #formationLockNote{display:none !important}
+
+/* Maç ekranı · Taktik: yalnız bu maç bandı */
+.cm-bant{margin:10px 10px 8px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,213,79,.35);background:rgba(255,213,79,.06)}
+.cm-bant > b{display:block;font:900 12px/1 'Barlow Condensed',sans-serif;letter-spacing:1px;text-transform:uppercase;color:#ffd54f}
+.cm-bant > p{margin:5px 0 0;font:500 11.5px/1.4 'Barlow',sans-serif;color:#cfc6a6}
+.cm-bant .cm-fark{margin-top:8px;border-top:1px solid rgba(255,213,79,.18);padding-top:6px;display:flex;flex-direction:column;gap:5px}
+.cm-bant .cm-fark > div{display:flex;align-items:center;gap:6px;font:600 11.5px/1.2 'Barlow',sans-serif;color:#aab2c0}
+.cm-bant .cm-fark span{flex:1;min-width:0}
+.cm-bant .cm-fark s{color:#6f7888;font:700 12px/1 'Barlow Condensed',sans-serif}
+.cm-bant .cm-fark i{font-style:normal;color:#ffd54f}
+.cm-bant .cm-fark em{font-style:normal;color:#ffd54f;font:800 12.5px/1 'Barlow Condensed',sans-serif}
+#tacCaptainPanel.tac-readonly .cm-bant{display:none}
+</style>
+<script id="cm-js">
+// ═══════════════════════════════════════════════════════════════════
+// 584 · CANLI MAÇ — maç içi taktik (yalnız bu maç) + Takımım / Milli Diziliş kilidi
+//   • Maç ekranında yapılan oyun planı ve diziliş değişiklikleri kayıtlı (maç öncesi)
+//     taktiğe YAZILMAZ; sunucuya match_taktik olarak gider, bir sonraki dakikadan
+//     itibaren yalnız o maçta geçerli olur. Maç bitince Takımım'daki plan geri gelir.
+//   • Takımın (ya da yönettiğin milli takımın) maçı sürerken Diziliş kilitlenir,
+//     üstte "Maç oynanıyor" şeridi çıkar; maç bitince kilit kendiliğinden kalkar.
+// ═══════════════════════════════════════════════════════════════════
+(function () {
+  const esc = (x) => String(x == null ? '' : x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const toast = (m) => { try { if (typeof showToast === 'function') showToast(m); } catch (e) {} };
+  const flash = (m) => { try { if (typeof showTacticFlash === 'function') showTacticFlash(m); else toast(m); } catch (e) {} };
+  const aktifFormasyon = () => { try { return (typeof _gmAktifFormasyon === 'function') ? _gmAktifFormasyon() : currentFormation; } catch (e) { return null; } };
+
+  // ═══ 1) MAÇ TAKTİĞİ MODU ═══════════════════════════════════════════
+  function macTaktikModuAc(canControl) {
+    if (typeof MS === 'undefined' || !MS) return;
+    if (!canControl || MS._spectatorMode || MS.finished) { if (!MS._kayitliPlan) MS._macTaktikModu = false; return; }
+    if (MS._macTaktikModu) { bantCiz(); return; }
+    MS._macTaktikModu = true;
+    // Takımım'daki kayıtlı planın yedeği — maç bitince geri konur
+    try { MS._kayitliPlan = { s: { ...activeStrategy }, f: currentFormation }; } catch (e) { MS._kayitliPlan = null; }
+    // Milli maç: ekrandaki plan milli takımın maç öncesi planıyla başlasın
+    if (MS._isNational) {
+      try {
+        const cc = (typeof ntActiveCountry === 'function') ? ntActiveCountry() : null;
+        const nt = (typeof _ntStrategyCache !== 'undefined' && _ntStrategyCache && _ntStrategyCC === cc) ? _ntStrategyCache : null;
+        if (nt && nt.strategy) Object.assign(activeStrategy, nt.strategy);
+        if (nt && nt.formation && typeof FORMATIONS !== 'undefined' && FORMATIONS[nt.formation]) currentFormation = nt.formation;
+        if (typeof refreshQuickStratUI === 'function') refreshQuickStratUI();
+        if (typeof updateMatchTacticSummary === 'function') updateMatchTacticSummary();
+      } catch (e) {}
+    }
+    try { MS._macOncesiPlan = { s: { ...activeStrategy }, f: aktifFormasyon() }; } catch (e) {}
+    bantCiz();
+  }
+  function macTaktikModuKapat() {
+    if (typeof MS === 'undefined' || !MS || (!MS._macTaktikModu && !MS._kayitliPlan)) return;
+    const k = MS._kayitliPlan;
+    MS._macTaktikModu = false; MS._kayitliPlan = null; MS._macOncesiPlan = null;
+    if (gTimer) { clearTimeout(gTimer); gTimer = null; } gBekleyen = null;
+    if (k) { try { Object.assign(activeStrategy, k.s); currentFormation = k.f; } catch (e) {} }
+    kulupPlaniYenile();
+    bantCiz();
+  }
+  // Takımım dizilişini sunucudaki kayıtlı hâline döndür (maçta yapılan değişiklik bellekte kalmasın)
+  function kulupPlaniYenile() {
+    if (typeof _teamStrategyLoadFromServer !== 'function' || typeof _userTeam === 'undefined' || !_userTeam) return;
+    _teamStrategyLoadFromServer().then(() => {
+      try { activePitchPlayers = []; benchPlayers = []; } catch (e) {}
+      try { if (typeof loadTeamStrategy === 'function') loadTeamStrategy(); } catch (e) {}
+      try {
+        const tf = document.getElementById('team-formation');
+        if (tf && tf.style.display !== 'none' && typeof initFormation === 'function') initFormation();
+      } catch (e) {}
+      try { if (typeof applyStrategyToUI === 'function') applyStrategyToUI(); } catch (e) {}
+    }).catch(() => {});
+  }
+
+  // ═══ 2) SUNUCUYA GÖNDERİM (yalnız bu maç) ═══════════════════════════
+  let gTimer = null, gBekleyen = null;
+  const HATA = {
+    mac_bitti: 'Maç bitti — taktik değiştirilemez',
+    mac_baslamadi: 'Maç henüz başlamadı — taktiği Takımım sayfasından kur',
+    yetki_yok: 'Bu maçta taktik yetkin yok',
+    bu_mac_senin_degil: 'Bu maçta taktik yetkin yok',
+    degisiklik_yok: 'Değişiklik yok',
+  };
+  function macTaktikGonder(tur) {
+    if (typeof MS === 'undefined' || !MS || !MS._tacticControlsActive) return;
+    if (!gBekleyen) gBekleyen = { dizilis: false };
+    if (tur === 'dizilis') gBekleyen.dizilis = true;
+    if (gTimer) clearTimeout(gTimer);
+    gTimer = setTimeout(gonder, 450);
+    bantCiz();
+  }
+  function dizilisPaketi() {
+    const f = aktifFormasyon();
+    const slots = (typeof FORMATIONS !== 'undefined' && f) ? FORMATIONS[f] : null;
+    const w = (typeof _whichSideIsUser === 'function') ? _whichSideIsUser() : null;
+    const t = w && w.myTeam;
+    if (!slots || !t || !Array.isArray(t.players)) return null;
+    const PG = (typeof POS_GROUP !== 'undefined') ? POS_GROUP : {};
+    const l = t.players.slice(0, 11).map((p, i) => {
+      const s = slots[i];
+      if (!p || !s || typeof p.num !== 'number') return null;
+      return { num: p.num, playedGroup: PG[s.s] || PG[s.pos] || 'MID', x: s.x, y: s.y, slotPos: s.s || null };
+    }).filter(Boolean);
+    return l.length ? { f, l } : null;
+  }
+  async function gonder() {
+    const b = gBekleyen; gBekleyen = null; gTimer = null;
+    if (!b || typeof MS === 'undefined' || !MS || !MS.match_key || MS.finished) return;
+    if (typeof edgeCall !== 'function') return;
+    const body = { strategy: { ...activeStrategy } };
+    if (b.dizilis) { const d = dizilisPaketi(); if (d) { body.formation = d.f; body.lineup = d.l; } }
+    try {
+      const r = await edgeCall('match_taktik', { match_key: MS.match_key }, { body });
+      if (r && r.ok && r.data && r.data.ok) flash('✓ Taktik ' + r.data.gecerli + '. dakikadan itibaren geçerli');
+      else flash(HATA[r && r.data && r.data.error] || 'Taktik gönderilemedi — tekrar dene');
+    } catch (e) { flash('Taktik gönderilemedi — bağlantını kontrol et'); }
+  }
+
+  // Maç ekranı · Taktik sekmesinde "yalnız bu maç" bandı + maç öncesine göre fark
+  const ADLAR = { style: 'Oyun stili', tempo: 'Tempo', attack: 'Hücum yönü', defense: 'Savunma hattı', press: 'Pres', shoot: 'Şut tercihi' };
+  function bantCiz() {
+    const cap = document.getElementById('tacCaptainPanel');
+    let b = document.getElementById('cmMacBant');
+    if (!cap || typeof MS === 'undefined' || !MS || !MS._macTaktikModu) { if (b) b.remove(); return; }
+    if (!b) { b = document.createElement('div'); b.id = 'cmMacBant'; b.className = 'cm-bant'; cap.insertBefore(b, cap.firstChild); }
+    const o = MS._macOncesiPlan || { s: {}, f: null };
+    const fark = [];
+    const fNow = aktifFormasyon();
+    if (o.f && fNow && o.f !== fNow) fark.push(['Formasyon', o.f, fNow]);
+    for (const k of Object.keys(ADLAR)) {
+      const a = o.s && o.s[k], n = activeStrategy && activeStrategy[k];
+      if (a && n && a !== n) fark.push([ADLAR[k], a, n]);
+    }
+    const h = '<b>Maç taktiği · yalnız bu maç</b><p>Buradaki değişiklikler yalnız bu maçı etkiler ve bir sonraki dakikadan geçerli olur. Maç bitince Takımım\'daki maç öncesi taktiğe dönülür.</p>'
+      + (fark.length ? '<div class="cm-fark">' + fark.map(d => '<div><span>' + esc(d[0]) + '</span><s>' + esc(d[1]) + '</s><i>→</i><em>' + esc(d[2]) + '</em></div>').join('') + '</div>' : '');
+    if (b.innerHTML !== h) b.innerHTML = h;
+  }
+
+  // ═══ 3) CANLI MAÇ KİLİDİ ═══════════════════════════════════════════
+  const K = window._canliKilit = { kulup: null, milli: null };
+  let ertelenen = false, kontrolde = false;
+  function takimTaktikYazilamaz() {
+    try { if (typeof MS !== 'undefined' && MS && MS._macTaktikModu) return true; } catch (e) {}
+    if (K.kulup) { ertelenen = true; return true; }   // kilit kalkınca yazılır
+    return false;
+  }
+  function takimTaktikKilitUyari() {
+    const macta = (typeof MS !== 'undefined' && MS && MS._macTaktikModu);
+    if (!K.kulup && !macta) return false;
+    toast('🔴 Maç oynanıyor — diziliş ve taktik maç bitince değiştirilebilir. Maç içi değişiklik için Maç Merkezi\'ne git.');
+    return true;
+  }
+  function ntTaktikKilitli(cc) {
+    const m = K.milli;
+    if (!m) return false;
+    return !(cc && m.cc && cc !== m.cc);
+  }
+  function ntTaktikKilitUyari(cc) {
+    if (!ntTaktikKilitli(cc)) return false;
+    toast('🔴 Milli maç oynanıyor — kadro ve taktik maç bitince değiştirilebilir');
+    return true;
+  }
+  const bitti = (r) => {
+    if (!r) return true;
+    if (r.status === 'finished') return true;
+    const st = r.started_at ? Date.parse(r.started_at) : 0;
+    return !!(st && Date.now() - st > 14 * 60000);          // sunucu bitirmeyi kaçırsa bile (maç ~12 dk)
+  };
+  function sec(rows, milli) {
+    const simdi = Date.now();
+    return (rows || []).find(r => r && ((milli ? r.tournament_key === 'enc' : r.tournament_key !== 'enc'))
+      && (r.status === 'running' || (r.status === 'scheduled' && Date.parse(r.kickoff_at) <= simdi))
+      && !bitti(r)) || null;
+  }
+  async function kontrol() {
+    if (!window.sb || kontrolde) return;
+    kontrolde = true;
+    const simdi = Date.now();
+    const bas = new Date(simdi - 60 * 60000).toISOString(), son = new Date(simdi + 30000).toISOString();
+    const COL = 'match_key,home_team,away_team,status,sim_minute,home_score,away_score,kickoff_at,started_at,tournament_key';
+    const q = (ad) => window.sb.from('match_state').select(COL)
+      .or('home_team.eq."' + String(ad).replace(/"/g, '') + '",away_team.eq."' + String(ad).replace(/"/g, '') + '"')
+      .in('status', ['running', 'scheduled']).gte('kickoff_at', bas).lte('kickoff_at', son)
+      .order('kickoff_at', { ascending: false }).limit(4);
+    let kulup = K.kulup, milli = K.milli;
+    try {
+      const ut = (typeof _userTeam !== 'undefined') ? _userTeam : null;
+      if (ut && ut.teamName) { const { data, error } = await q(ut.teamName); if (!error) kulup = sec(data, false); }
+      else kulup = null;
+    } catch (e) {}
+    try {
+      const cc = (typeof ntActiveCountry === 'function') ? ntActiveCountry() : null;
+      if (cc && typeof ntRol === 'function' && ntRol(cc) && typeof _ntUlkeAdi === 'function') {
+        const { data, error } = await q(_ntUlkeAdi(cc));
+        if (!error) { milli = sec(data, true); if (milli) milli.cc = cc; }
+      } else milli = null;
+    } catch (e) {}
+    kontrolde = false;
+    uygula(kulup, milli);
+  }
+  function uygula(kulup, milli) {
+    const eskiK = K.kulup, eskiM = K.milli;
+    K.kulup = kulup; K.milli = milli;
+    document.body.classList.toggle('tk-canli', !!kulup);
+    document.body.classList.toggle('nt-canli', !!milli);
+    seritCiz('team-formation', 'cmSeritK', kulup, false);
+    seritCiz('nt-formation', 'cmSeritN', milli, true);
+    if (eskiK && !kulup) {
+      const macta = (typeof MS !== 'undefined' && MS && MS._macTaktikModu);
+      if (ertelenen && !macta) { ertelenen = false; try { if (typeof saveTeamStrategy === 'function') saveTeamStrategy(); } catch (e) {} }
+      else { ertelenen = false; if (!macta) kulupPlaniYenile(); }
+      if (sayfaAcik('page-team')) toast('Maç bitti — Diziliş yeniden düzenlenebilir');
+    }
+    if (eskiM && !milli && sayfaAcik('page-national')) toast('Milli maç bitti — kadro ve diziliş yeniden düzenlenebilir');
+  }
+  function sayfaAcik(id) { const a = document.querySelector('.page.active'); return !!(a && a.id === id); }
+  function dakika(r) {
+    try { if (typeof _computeLiveSimMinute === 'function') { const m = _computeLiveSimMinute(r); if (m > 0) return Math.min(90, Math.floor(m)); } } catch (e) {}
+    return Math.max(0, Math.min(90, Number(r.sim_minute) || 0));
+  }
+  function seritCiz(kapId, id, r, milli) {
+    const kap = document.getElementById(kapId);
+    let el = document.getElementById(id);
+    if (!kap || !r) { if (el) el.remove(); return; }
+    if (!el) { el = document.createElement('div'); el.id = id; el.className = 'cm-canli'; kap.insertBefore(el, kap.firstChild); }
+    const dk = r.status === 'running' ? dakika(r) : 0;
+    const h = '<div class="cm-nok"></div><div class="cm-tx"><b>' + (milli ? 'Milli maç oynanıyor' : 'Maç oynanıyor') + '</b>'
+      + '<div class="cm-skor" data-noi18n><span>' + esc(r.home_team) + '</span><b>' + (Number(r.home_score) || 0) + ' – ' + (Number(r.away_score) || 0) + '</b><span>' + esc(r.away_team) + '</span>'
+      + (dk ? '<em>· ' + dk + '\'</em>' : '') + '</div>'
+      + '<span>' + (milli ? 'Kadro ve diziliş maç bitene kadar kilitli. Maç içi değişiklikleri Maç Merkezi\'nden yap, yalnız bu maçı etkiler.'
+        : 'Diziliş ve taktik maç bitene kadar kilitli. Maç içi değişiklikleri Maç Merkezi\'nden yap, yalnız bu maçı etkiler.') + '</span></div>'
+      + '<button type="button" class="cm-git" onclick="canliMacaGit()">Maça git ›</button>';
+    if (el.innerHTML !== h) el.innerHTML = h;
+  }
+  function canliMacaGit() {
+    try { if (typeof showPage === 'function') showPage('home', (typeof findNavBtn === 'function') ? findNavBtn('home') : null); } catch (e) {}
+    setTimeout(() => { try { if (typeof hmOpenNextMatch === 'function') hmOpenNextMatch(); } catch (e) {} }, 450);
+  }
+
+  // Tetikleyiciler: sayfa/sekme açılınca hemen, açıkken ve kilitliyken 15 sn'de bir
+  const sar = (ad, once, sonra) => {
+    const eski = window[ad];
+    if (typeof eski !== 'function' || eski.__cm) return;
+    const yeni = function () {
+      if (once) { try { once.apply(this, arguments); } catch (e) {} }
+      const r = eski.apply(this, arguments);
+      if (sonra) { try { sonra.apply(this, arguments); } catch (e) {} }
+      return r;
+    };
+    yeni.__cm = true;
+    window[ad] = yeni;
+  };
+  sar('showPage', null, (ad) => { if (ad === 'team' || ad === 'national') setTimeout(kontrol, 300); });
+  sar('teamTab', null, (ad) => { if (ad === 'formation') setTimeout(kontrol, 200); });
+  sar('ntTab', null, (ad) => { if (ad === 'formation' || ad === 'roster') setTimeout(kontrol, 200); });
+  sar('closeMatchScreen', () => macTaktikModuKapat());
+  sar('_finalizeMatch', null, () => macTaktikModuKapat());
+  setInterval(() => {
+    if (document.hidden) return;
+    if (K.kulup || K.milli || sayfaAcik('page-team') || sayfaAcik('page-national')) kontrol();
+  }, 15000);
+
+  window.macTaktikModuAc = macTaktikModuAc;
+  window.macTaktikModuKapat = macTaktikModuKapat;
+  window.macTaktikGonder = macTaktikGonder;
+  window.takimTaktikYazilamaz = takimTaktikYazilamaz;
+  window.takimTaktikKilitUyari = takimTaktikKilitUyari;
+  window.ntTaktikKilitli = ntTaktikKilitli;
+  window.ntTaktikKilitUyari = ntTaktikKilitUyari;
+  window.canliMacaGit = canliMacaGit;
+  window.canliKilitKontrol = kontrol;
+  window.__cmUygula = uygula;   // test yardımcısı
 })();
 </script>
 </body>

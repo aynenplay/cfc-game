@@ -6117,3 +6117,35 @@ Object.assign(window.I18N.fr, {
     [/^(.+?) kadrodan çıkarıldı · kadro (\d+)\/(\d+)$/, "$1 a été retiré de l'effectif · effectif $2/$3"]
   );
 })();
+
+/* ─── 584 · Canlı maç taktiği + Diziliş kilidi ─── */
+Object.assign(window.I18N.fr, {
+  "Maç oynanıyor": "Match en cours",
+  "Milli maç oynanıyor": "Match de la sélection en cours",
+  "Diziliş ve taktik maç bitene kadar kilitli. Maç içi değişiklikleri Maç Merkezi'nden yap, yalnız bu maçı etkiler.": "Composition et tactique sont verrouillées jusqu'à la fin du match. Fais les changements en cours de match depuis le Centre du match ; ils ne concernent que ce match.",
+  "Kadro ve diziliş maç bitene kadar kilitli. Maç içi değişiklikleri Maç Merkezi'nden yap, yalnız bu maçı etkiler.": "Liste et composition sont verrouillées jusqu'à la fin du match. Fais les changements en cours de match depuis le Centre du match ; ils ne concernent que ce match.",
+  "Maça git ›": "Aller au match ›",
+  "🔴 Maç oynanıyor — diziliş ve taktik maç bitince değiştirilebilir. Maç içi değişiklik için Maç Merkezi'ne git.": "🔴 Match en cours — composition et tactique modifiables après le match. Pour les changements en cours de match, va au Centre du match.",
+  "🔴 Milli maç oynanıyor — kadro ve taktik maç bitince değiştirilebilir": "🔴 Match de la sélection en cours — liste et tactique modifiables après le match",
+  "Maç bitti — Diziliş yeniden düzenlenebilir": "Match terminé — la composition est de nouveau modifiable",
+  "Milli maç bitti — kadro ve diziliş yeniden düzenlenebilir": "Match de la sélection terminé — liste et composition de nouveau modifiables",
+  "Maç taktiği · yalnız bu maç": "Tactique du match · ce match uniquement",
+  "Buradaki değişiklikler yalnız bu maçı etkiler ve bir sonraki dakikadan geçerli olur. Maç bitince Takımım'daki maç öncesi taktiğe dönülür.": "Les changements ici ne concernent que ce match et s'appliquent dès la minute suivante. À la fin du match, la tactique d'avant-match de Mon équipe est rétablie.",
+  "Oyun stili": "Style de jeu",
+  "Hücum yönü": "Axe d'attaque",
+  "Savunma hattı": "Ligne défensive",
+  "Pres": "Pressing",
+  "Şut tercihi": "Tirs",
+  "Maç bitti — taktik değiştirilemez": "Match terminé — la tactique ne peut plus être modifiée",
+  "Maç henüz başlamadı — taktiği Takımım sayfasından kur": "Le match n'a pas encore commencé — règle la tactique dans Mon équipe",
+  "Bu maçta taktik yetkin yok": "Tu n'as pas la main sur la tactique dans ce match",
+  "Değişiklik yok": "Aucun changement",
+  "Taktik gönderilemedi — tekrar dene": "Impossible d'envoyer la tactique — réessaie",
+  "Taktik gönderilemedi — bağlantını kontrol et": "Impossible d'envoyer la tactique — vérifie ta connexion"
+});
+(function () {
+  var P = window.I18N_PATTERNS.fr;
+  P.unshift(
+    [/^✓ Taktik (\d+)\. dakikadan itibaren geçerli$/, "✓ Tactique appliquée dès la $1e minute"]
+  );
+})();

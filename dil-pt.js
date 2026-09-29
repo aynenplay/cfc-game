@@ -6049,3 +6049,35 @@ Object.assign(window.I18N.pt, {
     [/^(.+?) kadrodan çıkarıldı · kadro (\d+)\/(\d+)$/, "$1 foi dispensado do elenco · elenco $2/$3"]
   );
 })();
+
+/* ─── 584 · Canlı maç taktiği + Diziliş kilidi ─── */
+Object.assign(window.I18N.pt, {
+  "Maç oynanıyor": "Jogo em andamento",
+  "Milli maç oynanıyor": "Jogo da seleção em andamento",
+  "Diziliş ve taktik maç bitene kadar kilitli. Maç içi değişiklikleri Maç Merkezi'nden yap, yalnız bu maçı etkiler.": "Escalação e tática ficam bloqueadas até o fim do jogo. Faça as mudanças durante o jogo pela Central da partida; elas afetam só este jogo.",
+  "Kadro ve diziliş maç bitene kadar kilitli. Maç içi değişiklikleri Maç Merkezi'nden yap, yalnız bu maçı etkiler.": "Convocação e escalação ficam bloqueadas até o fim do jogo. Faça as mudanças durante o jogo pela Central da partida; elas afetam só este jogo.",
+  "Maça git ›": "Ir ao jogo ›",
+  "🔴 Maç oynanıyor — diziliş ve taktik maç bitince değiştirilebilir. Maç içi değişiklik için Maç Merkezi'ne git.": "🔴 Jogo em andamento — escalação e tática podem ser alteradas depois do jogo. Para mudanças durante o jogo, vá à Central da partida.",
+  "🔴 Milli maç oynanıyor — kadro ve taktik maç bitince değiştirilebilir": "🔴 Jogo da seleção em andamento — convocação e tática podem ser alteradas depois do jogo",
+  "Maç bitti — Diziliş yeniden düzenlenebilir": "Jogo encerrado — a escalação pode ser editada de novo",
+  "Milli maç bitti — kadro ve diziliş yeniden düzenlenebilir": "Jogo da seleção encerrado — convocação e escalação podem ser editadas de novo",
+  "Maç taktiği · yalnız bu maç": "Tática da partida · só este jogo",
+  "Buradaki değişiklikler yalnız bu maçı etkiler ve bir sonraki dakikadan geçerli olur. Maç bitince Takımım'daki maç öncesi taktiğe dönülür.": "As mudanças aqui afetam só este jogo e valem a partir do minuto seguinte. No fim do jogo, volta a tática pré-jogo de Meu time.",
+  "Oyun stili": "Estilo de jogo",
+  "Hücum yönü": "Direção do ataque",
+  "Savunma hattı": "Linha defensiva",
+  "Pres": "Pressão",
+  "Şut tercihi": "Finalização",
+  "Maç bitti — taktik değiştirilemez": "Jogo encerrado — a tática não pode ser alterada",
+  "Maç henüz başlamadı — taktiği Takımım sayfasından kur": "O jogo ainda não começou — monte a tática em Meu time",
+  "Bu maçta taktik yetkin yok": "Você não tem permissão tática neste jogo",
+  "Değişiklik yok": "Sem alterações",
+  "Taktik gönderilemedi — tekrar dene": "Não foi possível enviar a tática — tente de novo",
+  "Taktik gönderilemedi — bağlantını kontrol et": "Não foi possível enviar a tática — verifique sua conexão"
+});
+(function () {
+  var P = window.I18N_PATTERNS.pt;
+  P.unshift(
+    [/^✓ Taktik (\d+)\. dakikadan itibaren geçerli$/, "✓ Tática vale a partir do minuto $1"]
+  );
+})();

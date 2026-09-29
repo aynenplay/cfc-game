@@ -6087,3 +6087,35 @@ Object.assign(window.I18N.ru, {
     [/^(.+?) kadrodan çıkarıldı · kadro (\d+)\/(\d+)$/, "$1 исключён из состава · состав $2/$3"]
   );
 })();
+
+/* ─── 584 · Canlı maç taktiği + Diziliş kilidi ─── */
+Object.assign(window.I18N.ru, {
+  "Maç oynanıyor": "Идёт матч",
+  "Milli maç oynanıyor": "Идёт матч сборной",
+  "Diziliş ve taktik maç bitene kadar kilitli. Maç içi değişiklikleri Maç Merkezi'nden yap, yalnız bu maçı etkiler.": "Состав и тактика заблокированы до конца матча. Изменения по ходу матча вноси в Матч-центре — они действуют только в этом матче.",
+  "Kadro ve diziliş maç bitene kadar kilitli. Maç içi değişiklikleri Maç Merkezi'nden yap, yalnız bu maçı etkiler.": "Состав и расстановка заблокированы до конца матча. Изменения по ходу матча вноси в Матч-центре — они действуют только в этом матче.",
+  "Maça git ›": "К матчу ›",
+  "🔴 Maç oynanıyor — diziliş ve taktik maç bitince değiştirilebilir. Maç içi değişiklik için Maç Merkezi'ne git.": "🔴 Идёт матч — состав и тактику можно изменить после матча. Для изменений по ходу матча перейди в Матч-центр.",
+  "🔴 Milli maç oynanıyor — kadro ve taktik maç bitince değiştirilebilir": "🔴 Идёт матч сборной — состав и тактику можно изменить после матча",
+  "Maç bitti — Diziliş yeniden düzenlenebilir": "Матч окончен — состав снова можно менять",
+  "Milli maç bitti — kadro ve diziliş yeniden düzenlenebilir": "Матч сборной окончен — состав и расстановку снова можно менять",
+  "Maç taktiği · yalnız bu maç": "Тактика на матч · только этот матч",
+  "Buradaki değişiklikler yalnız bu maçı etkiler ve bir sonraki dakikadan geçerli olur. Maç bitince Takımım'daki maç öncesi taktiğe dönülür.": "Изменения здесь действуют только в этом матче, начиная со следующей минуты. После матча вернётся предматчевая тактика из раздела «Моя команда».",
+  "Oyun stili": "Стиль игры",
+  "Hücum yönü": "Направление атаки",
+  "Savunma hattı": "Линия обороны",
+  "Pres": "Прессинг",
+  "Şut tercihi": "Удары",
+  "Maç bitti — taktik değiştirilemez": "Матч окончен — тактику изменить нельзя",
+  "Maç henüz başlamadı — taktiği Takımım sayfasından kur": "Матч ещё не начался — настрой тактику в разделе «Моя команда»",
+  "Bu maçta taktik yetkin yok": "У тебя нет прав на тактику в этом матче",
+  "Değişiklik yok": "Изменений нет",
+  "Taktik gönderilemedi — tekrar dene": "Не удалось отправить тактику — попробуй ещё раз",
+  "Taktik gönderilemedi — bağlantını kontrol et": "Не удалось отправить тактику — проверь подключение"
+});
+(function () {
+  var P = window.I18N_PATTERNS.ru;
+  P.unshift(
+    [/^✓ Taktik (\d+)\. dakikadan itibaren geçerli$/, "✓ Тактика действует с $1-й минуты"]
+  );
+})();

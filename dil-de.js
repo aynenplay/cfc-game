@@ -4319,3 +4319,35 @@ Object.assign(window.I18N.de, {
     [/^(.+?) kadrodan çıkarıldı · kadro (\d+)\/(\d+)$/, "$1 wurde aus dem Kader gestrichen · Kader $2/$3"]
   );
 })();
+
+/* ─── 584 · Canlı maç taktiği + Diziliş kilidi ─── */
+Object.assign(window.I18N.de, {
+  "Maç oynanıyor": "Spiel läuft",
+  "Milli maç oynanıyor": "Länderspiel läuft",
+  "Diziliş ve taktik maç bitene kadar kilitli. Maç içi değişiklikleri Maç Merkezi'nden yap, yalnız bu maçı etkiler.": "Aufstellung und Taktik sind bis Spielende gesperrt. Änderungen während des Spiels machst du im Match-Center; sie gelten nur für dieses Spiel.",
+  "Kadro ve diziliş maç bitene kadar kilitli. Maç içi değişiklikleri Maç Merkezi'nden yap, yalnız bu maçı etkiler.": "Kader und Aufstellung sind bis Spielende gesperrt. Änderungen während des Spiels machst du im Match-Center; sie gelten nur für dieses Spiel.",
+  "Maça git ›": "Zum Spiel ›",
+  "🔴 Maç oynanıyor — diziliş ve taktik maç bitince değiştirilebilir. Maç içi değişiklik için Maç Merkezi'ne git.": "🔴 Spiel läuft — Aufstellung und Taktik kannst du nach dem Spiel ändern. Für Änderungen im Spiel geh ins Match-Center.",
+  "🔴 Milli maç oynanıyor — kadro ve taktik maç bitince değiştirilebilir": "🔴 Länderspiel läuft — Kader und Taktik kannst du nach dem Spiel ändern",
+  "Maç bitti — Diziliş yeniden düzenlenebilir": "Spiel vorbei — die Aufstellung ist wieder änderbar",
+  "Milli maç bitti — kadro ve diziliş yeniden düzenlenebilir": "Länderspiel vorbei — Kader und Aufstellung sind wieder änderbar",
+  "Maç taktiği · yalnız bu maç": "Spieltaktik · nur dieses Spiel",
+  "Buradaki değişiklikler yalnız bu maçı etkiler ve bir sonraki dakikadan geçerli olur. Maç bitince Takımım'daki maç öncesi taktiğe dönülür.": "Änderungen hier gelten nur für dieses Spiel und ab der nächsten Minute. Nach dem Spiel gilt wieder deine Taktik aus Mein Team.",
+  "Oyun stili": "Spielstil",
+  "Hücum yönü": "Angriffsrichtung",
+  "Savunma hattı": "Abwehrlinie",
+  "Pres": "Pressing",
+  "Şut tercihi": "Schussverhalten",
+  "Maç bitti — taktik değiştirilemez": "Spiel vorbei — Taktik kann nicht mehr geändert werden",
+  "Maç henüz başlamadı — taktiği Takımım sayfasından kur": "Das Spiel hat noch nicht begonnen — stelle die Taktik unter Mein Team ein",
+  "Bu maçta taktik yetkin yok": "Du hast in diesem Spiel keine Taktikrechte",
+  "Değişiklik yok": "Keine Änderungen",
+  "Taktik gönderilemedi — tekrar dene": "Taktik konnte nicht gesendet werden — versuch es erneut",
+  "Taktik gönderilemedi — bağlantını kontrol et": "Taktik konnte nicht gesendet werden — prüfe deine Verbindung"
+});
+(function () {
+  var P = window.I18N_PATTERNS.de;
+  P.unshift(
+    [/^✓ Taktik (\d+)\. dakikadan itibaren geçerli$/, "✓ Taktik gilt ab Minute $1"]
+  );
+})();
