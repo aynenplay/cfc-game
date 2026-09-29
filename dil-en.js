@@ -6641,3 +6641,29 @@ Object.assign(window.I18N.en, {
   "teklifi oyuncu kabul eder": "the player accepts the offer",
   "takımdan çıkan botlar · kaptan doğrudan alır": "bots released by clubs · the captain signs directly"
 });
+
+/* ─── 590 · Takıma katılım: forma töreni · sohbet CSC satırları ─── */
+Object.assign(window.I18N.en, {
+  "İmza atıldı": "Contract signed",
+  "İmzalandı": "Signed",
+  "Artık bu takımdasın!": "You're in the team now!",
+  "Rol": "Role",
+  "Takımıma Git": "Go to my team",
+  "Sohbette Merhaba De": "Say hello in chat",
+  "Takım sohbetinde ona merhaba demeyi unutma!": "Don't forget to say hello in the team chat!"
+});
+(function () {
+  var P = window.I18N_PATTERNS.en;
+  P.unshift(
+    [/^(.+?) takıma katıldı\. Merhaba de!$/, "$1 joined the team. Say hello!"],
+    [/^(.+?) takımın yeni kaptanı oldu\. Merhaba de!$/, "$1 is the team's new captain. Say hello!"],
+    [/^(.+?) takımdan kovuldu\.$/, "$1 was kicked from the team."],
+    [/^(.+?) sözleşmesi bitti, takımdan ayrıldı\.$/, "$1's contract ended and they left the team."],
+    [/^(.+?) takımdan ayrıldı\. Yeni kaptan: (.+)$/, "$1 left the team. New captain: $2"],
+    [/^(.+?) takımdan ayrıldı\.$/, "$1 left the team."],
+    [/^(.+?) transfer oldu, yeni takımı: (.+)$/, "$1 transferred to $2."],
+    [/^(.+?) transfer teklifini kabul etti ve (.+?) kadrosuna katıldı\.$/, "$1 accepted the transfer offer and joined the $2 squad."],
+    [/^• Forma numarası: #(\d+)$/, "• Shirt number: #$1"],
+    [/^• Sözleşme: (\d+) sezon$/, "• Contract: $1 season(s)"]
+  );
+})();

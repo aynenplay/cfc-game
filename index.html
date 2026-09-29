@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '589';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '590';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -29791,7 +29791,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-29-serbest-589';
+const APP_BUILD = '2026-09-29-katilim-590';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -51036,12 +51036,6 @@ function leaveTeamPrompt(satisOnayli) {
       //   (konsoldan şişirilebiliyordu) ve kaptan ayrılınca takım
       //   KAPTANSIZ kalıyordu. Artık sunucu hem iadeyi kendi kaydından
       //   hesaplıyor hem de kaptanlığı zorunlu olarak devrediyor.
-      const _lvCc = _userTeam && _userTeam.countryCode;
-      const _lvTn = _userTeam && _userTeam.teamName;
-      const _lvName = (typeof authUser!=='undefined' && authUser && (authUser.name||authUser.username))
-                      || ((typeof ROSTER_DATA!=='undefined' && Array.isArray(ROSTER_DATA)) ? (ROSTER_DATA.find(p=>p&&p.role==='user')||{}).name : null)
-                      || 'Bir oyuncu';
-
       let _r = null;
       try {
         _r = await edgeCall('leave_team', {});
@@ -51060,12 +51054,6 @@ function leaveTeamPrompt(satisOnayli) {
         showJoinToast('❌ ' + _msg);
         return;
       }
-
-      // Takım sohbetine bildirim — sunucu onayladıktan sonra
-      try{
-        if(_lvCc && _lvTn && typeof _teamChatPostSystem==='function')
-          _teamChatPostSystem(_lvCc, _lvTn, '⛔ ' + _lvName + (isCaptain ? ' takımı sattı/ayrıldı' : ' takımdan ayrıldı'));
-      }catch(e){}
 
       // Career history'de mevcut takımı kapat
       if (typeof _carCloseCurrentHistory === 'function') {
@@ -53608,18 +53596,6 @@ function playerViewTeam(countryCode, teamName) {
   }
 }
 
-// 🆕 Takım sohbetine SİSTEM mesajı (katılma/ayrılma) — '[[SYS]]' ön ekiyle, herkese realtime düşer
-function _teamChatPostSystem(cc, tn, text){
-  if(!window.sb || !cc || !tn) return;
-  try{
-    window.sb.from('team_chat').insert({
-      country_code: cc, team_name: tn,
-      user_id: null, username: null, display_name: 'Sistem', avatar_id: null,
-      message: '[[SYS]]' + text
-    });
-  }catch(e){ console.warn('[team_chat] sistem mesajı hata:', e); }
-}
-
 async function sendTeamChat() {
   const inp = document.getElementById('teamChatInput');
   if(!inp || !inp.value.trim()) return;
@@ -53661,12 +53637,9 @@ async function sendTeamChat() {
 // 🆕 Tek bir mesajı sohbet alanına ekle
 function _teamChatAppendMsg(area, m, isMe) {
   if (!area) return;
-  // 🆕 Sistem mesajı (katılma/ayrılma) — ortalı kırmızı satır
+  // 590 — Sistem mesajı (katıldı / kovuldu / ayrıldı / transfer): CSC satırı
   if (m && typeof m.message === 'string' && m.message.indexOf('[[SYS]]') === 0) {
-    const sys = document.createElement('div');
-    sys.style.cssText = 'text-align:center;color:#ef5350;font-size:11px;font-weight:700;margin:7px 0;font-family:Twemoji Country Flags,\'Barlow Condensed\',sans-serif;letter-spacing:.3px';
-    sys.textContent = m.message.slice(7);
-    area.appendChild(sys);
+    area.appendChild(_teamChatCscSatir(m));
     return;
   }
   const msg = document.createElement('div');
@@ -61435,13 +61408,11 @@ async function joinTeamDirect(countryCode, teamName, opts) {
     }
   } catch(e){}
 
-  const flag = (_cftGetCountry(countryCode)||{}).flag || '';
-  let _toastMsg = `🚀 ${flag} ${teamName} takımına katıldın!`;
-  if(_energyDelta > 0) _toastMsg += ` ⚡+${_energyDelta} bonus enerji!`;
-  if(typeof showJoinToast === 'function') showJoinToast(_toastMsg);
+  if(_energyDelta > 0 && typeof showJoinToast === 'function') showJoinToast(`⚡ +${_energyDelta} bonus enerji!`);
 
-  // Takım sayfasına yönlendir
+  // Takım sayfasına yönlendir + 590 tebrik (forma töreni)
   if(typeof showPage === 'function') showPage('team', null);
+  ktTebrikAc({ takim: teamName, cc: countryCode, num: _assignedNum, rol: 'member' });
 }
 
 // Kaptan: katılım şartları modalını aç
@@ -84634,6 +84605,8 @@ let _inboxSearch = '';
 
 // 🆕 RAM cache - bootstrap'ta server'dan doldurulur
 let _inboxCache = null;
+const _inboxBilinen = new Set();   // 590 — bu istemcinin gördüğü mesaj kimlikleri
+let _inboxNesil = 0;               // 590 — her yeni önbellek dizisinin kuşağı
 let _inboxSaveTimer = null;
 let _inboxSeenIds = null; // yeni mesaj sesi için görülen mesaj id'leri
 
@@ -84718,6 +84691,7 @@ async function _inboxLoadFromServer(hafif) {
     } catch(e) {}
   }
   if (!uid) { _inboxCache = null; return; }
+  const _kayitSira = window._inboxSaveSeq || 0;
   try {
     // 🆕 563 — HAFİF KONTROL: kutu açıkken 2 sn'de bir 200 mesajlık blob yerine yalnız
     //   updated_at okunur; değişmediyse hiçbir şey indirilmez. (Tam okuma 30 sn'de bir sürer.)
@@ -84743,8 +84717,11 @@ async function _inboxLoadFromServer(hafif) {
     window._inboxSig = _sig;
     // 🆕 Yerel yazma beklemedeyse sunucu kopyasını uygulama — okundu bilgisi
     //   geri alınıyordu. Bir sonraki poll'de zaten güncel veri gelecek.
-    if (window._inboxSavePending) { window._inboxChanged = false; return; }
+    //   590 — okuma sürerken yerel bir kayıt yapıldıysa (sıra değiştiyse) bu kopya da eskidir.
+    if (window._inboxSavePending || (window._inboxSaveSeq || 0) !== _kayitSira) { window._inboxChanged = false; return; }
     _inboxCache = _newArr;
+    _inboxCache._nesil = ++_inboxNesil;
+    _inboxBilinenEkle(_inboxCache);
 
     // 🆕 TEKRAR EDEN SİSTEM MESAJI TEMİZLİĞİ — oturum başına bir kez.
     //    Eski sürümler aynı hatırlatmayı her gün yeniden ekliyordu.
@@ -84795,10 +84772,10 @@ async function _inboxLoadFromServer(hafif) {
 
     // 🆕 Edge Function tarafından gelen onay mesajı varsa _userTeam'i Supabase'ten taze çek
     // (DB'de zaten güncel, RAM cache eski olabilir)
-    const hasFreshApproval = _inboxCache.some(m =>
-      m.type === 'join_request_approved_done' && !m.read
-    );
-    if (hasFreshApproval) {
+    // 590 — yeni onay BİR KEZ işlenir (eskiden okunana kadar her yüklemede bütün tazeleme
+    //   tekrarlanıyordu) ve oyuncuya tebrik (forma töreni) açılır.
+    const _onay = _inboxCache.find(m => m && m.type === 'join_request_approved_done' && !m.read && !m.tebrik);
+    if (_onay) {
       console.info('[inbox] yeni onay tespit edildi → _userTeam tazeleniyor');
       try {
         if (typeof userTeamLoadFromServer === 'function') await userTeamLoadFromServer();
@@ -84824,6 +84801,13 @@ async function _inboxLoadFromServer(hafif) {
         // 🆕 Ana sayfa maç önizleme panelini yenile
         if (typeof renderHomeNextMatch === 'function') renderHomeNextMatch();
       } catch(e) { console.warn('[inbox] post-approve refresh hata:', e); }
+      _onay.tebrik = true;
+      saveInboxMsgs(_inboxCache);
+      if (_userTeam && _userTeam.teamName && Date.now() - (Number(_onay.ts) || 0) < 2 * 86400000) {
+        const _c = _userTeam.contract || {};
+        ktTebrikAc({ takim: _userTeam.teamName, cc: _userTeam.countryCode, num: _userTeam.num,
+                     sure: _c.durationSeasons, maas: _c.yearlySalary || _c.seasonSalary, rol: _userTeam.role });
+      }
     }
 
     // 🆕 Onaylanan katılma istekleri otomatik takıma yerleştir (eski format için)
@@ -85097,9 +85081,40 @@ function getInboxMsgs() {
   return [];
 }
 
+// 590 — Bu istemcinin gördüğü mesaj kimlikleri. Kayıtta sunucuda olup burada hiç görülmemiş
+//   mesaj = sunucunun sonradan eklediği mesaj (kaptana katılım bildirimi, onay, sistem mesajı)
+//   → korunur. Görülüp silinmiş mesaj geri gelmez.
+function _inboxBilinenEkle(arr) { (arr || []).forEach(m => { if (m && m.id) _inboxBilinen.add(m.id); }); }
+async function _inboxSunucuIleBirlestir() {
+  const { data, error } = await window.sb.from('user_inbox').select('messages').eq('user_id', authUser.id).maybeSingle();
+  if (error || !data || !Array.isArray(data.messages)) return;
+  const yerel = new Map(_inboxCache.map(m => [m && m.id, m]));
+  const yeni = [];
+  for (const x of data.messages) {
+    if (!x || !x.id) continue;
+    const m = yerel.get(x.id);
+    if (!m) { if (!_inboxBilinen.has(x.id)) yeni.push(x); continue; }
+    // Karşı tarafın bu arada yazdığı sohbet satırı ve sunucunun işaretlediği teklif durumu kaybolmasın
+    if (Array.isArray(x.thread) && x.thread.length > (Array.isArray(m.thread) ? m.thread.length : 0)) { m.thread = x.thread; m.read = x.read; m.ts = x.ts; }
+    if (x.offerStatus && !m.offerStatus) m.offerStatus = x.offerStatus;
+  }
+  if (yeni.length) { _inboxCache = yeni.concat(_inboxCache); _inboxCache._nesil = ++_inboxNesil; _inboxBilinenEkle(yeni); }
+}
+
 // Sync setter — RAM cache anında, server debounced
 function saveInboxMsgs(msgs) {
-  _inboxCache = Array.isArray(msgs) ? msgs : [];
+  let _dizi = Array.isArray(msgs) ? msgs : [];
+  // 590 — Çağıran eski bir kopyayı kaydediyorsa (await sırasında kutu sunucudan yenilendi),
+  //   arada gelen mesajlar silinmiş sayılmaz, korunur.
+  if (_dizi !== _inboxCache && _dizi._nesil && Array.isArray(_inboxCache) && _inboxCache._nesil && _dizi._nesil !== _inboxCache._nesil) {
+    const _var = new Set(_dizi.map(m => m && m.id));
+    const _arada = _inboxCache.filter(m => m && m.id && !_var.has(m.id));
+    if (_arada.length) _dizi = _arada.concat(_dizi);
+  }
+  _inboxCache = _dizi;
+  _inboxCache._nesil = ++_inboxNesil;
+  _inboxBilinenEkle(_inboxCache);
+  window._inboxSaveSeq = (window._inboxSaveSeq || 0) + 1;
   // 🆕 Her mesajda ts garanti et (sıralama + tarih/saat için)
   _inboxCache.forEach(m => { if (m && typeof m.ts !== 'number') m.ts = _inboxParseTs(m.time); });
   if (!window.sb || !authUser || !authUser.id) return;
@@ -85109,6 +85124,7 @@ function saveInboxMsgs(msgs) {
   clearTimeout(_inboxSaveTimer);
   _inboxSaveTimer = setTimeout(async () => {
     try {
+      await _inboxSunucuIleBirlestir();
       await window.sb.from('user_inbox').upsert({
         user_id: authUser.id,
         messages: _inboxCache,
@@ -85871,6 +85887,9 @@ function inboxRenderDetail(msg) {
     const tfBayrak = (oyT && oyT.nation) || '';
 
     const kdT = satiyorum ? _jrKadroDurumu() : null;
+    // 590 — kabul edildiği halde işareti kaybolmuş teklif: oyuncu zaten o takımdaysa buton gösterilmez
+    const tfDurum = msg.offerStatus || ((!msg.sent && td.isFree && typeof _userTeam !== 'undefined' && _userTeam
+      && _userTeam.teamName === td.buyerTeam && _userTeam.countryCode === td.buyerCountryCode) ? 'accepted' : null);
 
     html += `<div class="inbox-detail-text">${String(msg.body||'').replace(/\n/g,'<br>')}</div>
       <div class="inbox-transfer-card">
@@ -85909,8 +85928,8 @@ function inboxRenderDetail(msg) {
           <div class="inbox-tc-row" style="border-bottom:none"><span class="inbox-tc-label">Sözleşme Süresi</span><span class="inbox-tc-val">${durationSeasons} sezon</span></div>
         `}
 
-        ${msg.offerStatus ? `<div style="margin-top:8px;padding:8px;border-radius:8px;font-size:11px;font-weight:700;text-align:center;background:${msg.offerStatus==='accepted'?'rgba(0,230,118,.15)':'rgba(239,83,80,.12)'};color:${msg.offerStatus==='accepted'?'var(--accent)':'#ef5350'}">
-          ${msg.offerStatus==='accepted'?'✅ Kabul Edildi':'❌ Reddedildi'}
+        ${tfDurum ? `<div style="margin-top:8px;padding:8px;border-radius:8px;font-size:11px;font-weight:700;text-align:center;background:${tfDurum==='accepted'?'rgba(0,230,118,.15)':'rgba(239,83,80,.12)'};color:${tfDurum==='accepted'?'var(--accent)':'#ef5350'}">
+          ${tfDurum==='accepted'?'✅ Kabul Edildi':'❌ Reddedildi'}
         </div>` :
         (msg.sent ? '' : `<div class="inbox-tc-actions">
           <button class="inbox-tc-accept" onclick="inboxAcceptTransfer('${msg.id}')">${satiyorum ? '✓ Kabul Et, Sat' : '✓ Kabul Et'}</button>
@@ -86117,9 +86136,11 @@ async function inboxAcceptTransfer(msgId) {
   //   Artık tek çağrı: tutar doğrulanır, para alıcı kasasından çıkar,
   //   satıcı kasasına girer, oyuncu taşınır. Taşınamazsa para iade edilir.
   tfShowToast('⏳ Transfer işleniyor…', 'var(--text2)');
+  let _sonuc = null;
   try {
     const _res = await edgeCall('accept_transfer_offer', { msg: msgId });
     const d = _res && _res.data;
+    _sonuc = d;
     if (!_res.ok || !d || d.error) {
       const msg = {
         kasa_yetersiz: 'Kasada yeterli bakiye yok.',
@@ -86145,6 +86166,17 @@ async function inboxAcceptTransfer(msgId) {
     return;
   }
 
+  // 590 — Mesaj HEMEN "kabul edildi" olur (sunucu da işaretledi). Eskiden işaret en sonda,
+  //   uzun tazelemelerden sonra eski mesaj dizisine yazılıyordu; arada gelen kutusu sunucudan
+  //   yeniden yüklenince kayboluyor, "Kabul Et" butonu mesajda kalıyordu.
+  const _kabulIsaretle = () => {
+    const _m = getInboxMsgs().find(m => m && m.id === msgId);
+    if (_m && _m.offerStatus !== 'accepted') { _m.offerStatus = 'accepted'; saveInboxMsgs(getInboxMsgs()); }
+    if (_m && _inboxCurrentMsg && _inboxCurrentMsg.id === msgId) inboxRenderDetail(_m);
+  };
+  _kabulIsaretle();
+  const _amIThePlayer = !!(td.playerUserId && authUser && td.playerUserId === authUser.id) || !!td.isFree;
+
   // Sözleşme bilgisini kullanıcının _userTeam'ine yaz (kullanıcı transfer olduysa)
   // Not: bu noktada kullanıcının takımı değişiyor olabilir; basit versiyonda sadece kontrat bilgisini saklarız
   try {
@@ -86168,7 +86200,6 @@ async function inboxAcceptTransfer(msgId) {
   //   service_role ile zaten taşıdı. Buradaki istemci yazımı tetikleyici
   //   tarafından sessizce geri alınıyordu. Burada sadece ekranı tazeliyoruz.
   try {
-    const _amIThePlayer = !!(td.playerUserId && authUser && td.playerUserId === authUser.id) || !!td.isFree;
     if (_amIThePlayer) {
       if (typeof userTeamLoadFromServer === 'function') await userTeamLoadFromServer();
       if (_userTeam && _userTeam.countryCode) {
@@ -86188,8 +86219,7 @@ async function inboxAcceptTransfer(msgId) {
     }
   } catch(e) { console.warn('[transfer] UI tazeleme hata:', e); }
 
-  msgs[idx].offerStatus = 'accepted';
-  saveInboxMsgs(msgs);
+  _kabulIsaretle();   // tazelemeler sırasında kutu sunucudan yeniden yüklendiyse işaret korunur
 
   // Transfer listesinden oyuncuyu çıkar
   if(td.listingId) {
@@ -86197,9 +86227,15 @@ async function inboxAcceptTransfer(msgId) {
     saveTfList(tfList);
   }
 
-  inboxRenderDetail(msgs[idx]);
   inboxUpdateBadge();
   if(typeof trsSyncHeader === 'function') trsSyncHeader();
+
+  // 590 — Oyuncu kendisi kabul ettiyse tebrik: forma töreni
+  if (_amIThePlayer && _userTeam && _userTeam.teamName) {
+    ktTebrikAc({ takim: _userTeam.teamName, cc: _userTeam.countryCode, num: (_sonuc && _sonuc.num) || _userTeam.num,
+                 sure: durationSeasons, maas: yearlySalary, rol: _userTeam.role || 'member' });
+    return;
+  }
 
   let toastMsg = `✅ Transfer kabul edildi! ${td.playerName||'Oyuncu'} → sözleşme imzalandı.`;
   if(transferFee > 0)  toastMsg += ` Bonservis: ${fmt(transferFee)}`;
@@ -108671,6 +108707,196 @@ function planYaz(hedef, kaynak) {
   window.mkYuvaAta = mkYuvaAta;
   window.mkAltMevki = altOf;
 })();
+</script>
+<style id="kt-css">
+/* 590 — Takıma katılım tebriği (Forma töreni) · takım sohbeti CSC satırları */
+.kt-ov{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:18px;overflow:hidden;
+  background:radial-gradient(120% 75% at 50% 28%,color-mix(in srgb,var(--kt-renk) 30%,rgba(6,8,12,.95)) 0%,rgba(4,6,9,.97) 64%);
+  animation:ktFade .35s ease-out both;-webkit-tap-highlight-color:transparent}
+.kt-ov.kapan{animation:ktFadeOut .28s ease-in forwards}
+@keyframes ktFade{from{opacity:0}to{opacity:1}}
+@keyframes ktFadeOut{to{opacity:0}}
+.kt-kon{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.kt-kon i{position:absolute;top:-16px;width:7px;height:12px;border-radius:2px;opacity:0;animation:ktDus linear infinite;will-change:transform}
+.kt-kon i:nth-child(3n){width:8px;height:8px;border-radius:50%}
+.kt-kon i:nth-child(4n){width:4px;height:14px}
+.kt-kon i:nth-child(odd){background:var(--kt-renk)}
+.kt-kon i:nth-child(3n+2){background:#ffd54f}
+.kt-kon i:nth-child(5n){background:#fff}
+.kt-kon i:nth-child(7n){background:var(--kt-renk2)}
+@keyframes ktDus{0%{transform:translate3d(0,0,0) rotate(0);opacity:0}6%{opacity:1}100%{transform:translate3d(var(--dx,0),108vh,0) rotate(720deg);opacity:.85}}
+
+.kt-kart{position:relative;width:100%;max-width:340px;border-radius:22px;padding:22px 18px 16px;text-align:center;
+  background:radial-gradient(120% 55% at 50% 0%,color-mix(in srgb,var(--kt-renk) 24%,transparent),transparent 62%),repeating-linear-gradient(45deg,#15171c 0 2px,#101216 2px 4px);
+  border:1px solid color-mix(in srgb,var(--kt-renk) 55%,rgba(255,255,255,.12));
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.03),0 24px 60px rgba(0,0,0,.6),0 0 70px -12px var(--kt-renk);
+  animation:ktPop .6s cubic-bezier(.34,1.56,.64,1) .08s both}
+@keyframes ktPop{from{opacity:0;transform:scale(.72) translateY(28px)}to{opacity:1;transform:none}}
+.kt-kapat{position:absolute;right:10px;top:10px;width:30px;height:30px;border-radius:50%;border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.kt-kapat svg{width:13px;height:13px;stroke:#aeb6c4;stroke-width:2.4;fill:none;stroke-linecap:round}
+.kt-ust{font:800 11px/1 'Barlow Condensed',sans-serif;letter-spacing:2.6px;color:var(--kt-vurgu);text-transform:uppercase}
+.kt-baslik{font:900 27px/1.02 'Barlow Condensed',sans-serif;color:#fff;letter-spacing:.3px;text-transform:uppercase}
+.kt-takim{margin-top:7px;display:flex;align-items:center;justify-content:center;gap:7px;font:900 22px/1.1 Twemoji Country Flags,'Barlow Condensed',sans-serif;color:var(--kt-vurgu)}
+.kt-lig{margin-top:4px;font:700 12px/1 'Barlow',sans-serif;color:#8b93a4;letter-spacing:.3px}
+.kt-bilgi{display:flex;gap:7px;margin:16px 0 14px}
+.kt-bilgi div{flex:1 1 0;min-width:0;padding:9px 4px 8px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07)}
+.kt-bilgi b{display:block;font:900 18px/1.05 'Barlow Condensed',sans-serif;color:#fff}
+.kt-bilgi .kt-birim{font-size:12px;font-weight:800;letter-spacing:.2px;color:#cfd6e2}
+.kt-bilgi em{display:block;margin-top:5px;font:800 9px/1.15 'Barlow Condensed',sans-serif;font-style:normal;letter-spacing:.8px;color:#7d8596;text-transform:uppercase}
+.kt-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:46px;border-radius:14px;border:0;cursor:pointer;
+  font:900 15px/1 'Barlow Condensed',sans-serif;letter-spacing:1px;text-transform:uppercase}
+.kt-btn svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.kt-btn.ana{background:linear-gradient(180deg,#1ef08a,#00c853);color:#04210f;box-shadow:0 6px 18px rgba(0,230,118,.28)}
+.kt-btn.ikincil{margin-top:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#e8edf5}
+.kt-sira{animation:ktYukari .45s ease-out both}
+@keyframes ktYukari{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+/* Forma töreni: sırtında adın ve numaran olan forma döner, arma gelir, "İMZALANDI" damgası vurulur */
+.kt-ov .kt-forma{position:relative;width:190px;height:198px;margin:14px auto 10px;perspective:800px}
+.kt-ov .kt-forma svg{width:100%;height:100%;display:block;animation:ktForma 1s cubic-bezier(.2,.9,.3,1.15) .25s both;filter:drop-shadow(0 16px 24px rgba(0,0,0,.55))}
+@keyframes ktForma{0%{transform:rotateY(-100deg) scale(.6);opacity:0}55%{opacity:1}100%{transform:none}}
+.kt-ov .kt-rozet{position:absolute;left:-8px;bottom:0;width:60px;height:60px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font:900 16px 'Barlow Condensed',sans-serif;animation:ktLogo .6s cubic-bezier(.34,1.56,.64,1) .95s both}
+.kt-ov .kt-rozet.crest-has-logo{background:none !important}
+@keyframes ktLogo{from{transform:scale(0) rotate(-25deg);opacity:0}to{transform:none;opacity:1}}
+.kt-rozet img{width:100%;height:100%;object-fit:contain;display:block;filter:drop-shadow(0 8px 16px rgba(0,0,0,.6))}
+.kt-damga{position:absolute;right:-14px;top:18px;padding:5px 9px 4px;border:3px solid #ffd54f;border-radius:8px;color:#ffd54f;background:rgba(10,8,0,.45);
+  font:900 14px/1 'Barlow Condensed',sans-serif;letter-spacing:2px;text-transform:uppercase;transform:rotate(12deg);animation:ktDamga .42s cubic-bezier(.2,1.6,.4,1) 1.2s both}
+@keyframes ktDamga{from{transform:rotate(12deg) scale(2.6);opacity:0}to{transform:rotate(12deg) scale(1);opacity:1}}
+
+@media (prefers-reduced-motion: reduce){.kt-kon{display:none}}
+
+/* Takım sohbeti — CSC sistem satırı (katıldı / kovuldu / ayrıldı / transfer) */
+.chat-msg.csc{border-left-color:#ffd54f;margin:3px 0;padding:5px 8px 5px 9px;border-radius:0 8px 8px 0;font-size:12.5px;color:#dfe5ee;
+  background:linear-gradient(90deg,rgba(255,213,79,.09),transparent 75%)}
+.chat-msg.csc .csc-lbl{display:inline-block;margin-right:6px;padding:0 6px;border-radius:5px;background:#ffd54f;color:#1c1400;
+  font:900 10px/16px 'Barlow Condensed',sans-serif;letter-spacing:.8px;vertical-align:1px}
+.chat-msg.csc .csc-t{margin-left:6px;font-size:10.5px;color:var(--text3)}
+.chat-msg.csc.katil{border-left-color:var(--accent);background:linear-gradient(90deg,rgba(0,230,118,.1),transparent 75%)}
+.chat-msg.csc.katil .csc-lbl{background:var(--accent);color:#04210f}
+.chat-msg.csc.kov{border-left-color:#ef5350;background:linear-gradient(90deg,rgba(239,83,80,.1),transparent 75%)}
+.chat-msg.csc.kov .csc-lbl{background:#ef5350;color:#fff}
+.chat-msg.csc.transfer{border-left-color:var(--accent2);background:linear-gradient(90deg,rgba(0,176,255,.1),transparent 75%)}
+.chat-msg.csc.transfer .csc-lbl{background:var(--accent2);color:#001826}
+</style>
+<script id="kt-js">
+// 590 — Takıma katılım tebriği: "Forma töreni" (adın ve numaran yazan forma döner, İMZALANDI damgası)
+function _ktHex(h) {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(h || '').trim());
+  if (!m) return null;
+  const x = m[1].length === 3 ? m[1].split('').map(c => c + c).join('') : m[1];
+  return [parseInt(x.slice(0, 2), 16), parseInt(x.slice(2, 4), 16), parseInt(x.slice(4, 6), 16)];
+}
+function _ktKaris(a, b, t) {
+  const x = _ktHex(a), y = _ktHex(b);
+  if (!x || !y) return a;
+  return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join('');
+}
+function _ktIsik(h) { const x = _ktHex(h); return x ? (x[0] * 299 + x[1] * 587 + x[2] * 114) / 255000 : 0.5; }
+function _ktE(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+function _ktKonfeti() {
+  let t = 11, h = '';
+  const r = () => { t = (t * 9301 + 49297) % 233280; return t / 233280; };
+  for (let i = 0; i < 34; i++) {
+    h += `<i style="left:${(r() * 100).toFixed(1)}%;--dx:${Math.round(r() * 80 - 40)}px;animation-delay:${(r() * 2.6).toFixed(2)}s;animation-duration:${(2.8 + r() * 2).toFixed(2)}s"></i>`;
+  }
+  return h;
+}
+
+function _ktFormaSvg(renk, serit, ad, no) {
+  const yazi = _ktIsik(renk) > 0.6 ? '#101418' : '#ffffff';
+  const soyad = String(ad || '').trim().split(/\s+/).pop().toLocaleUpperCase('tr');
+  const sigdir = soyad.length > 8 ? ' textLength="118" lengthAdjust="spacingAndGlyphs"' : '';
+  const govde = 'M62 12 L84 5 Q100 13 116 5 L138 12 L190 38 L172 84 L151 74 L151 196 L49 196 L49 74 L28 84 L10 38 Z';
+  return `<svg viewBox="0 0 200 204" aria-hidden="true" data-noi18n>
+    <defs><linearGradient id="ktParlak" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".28"/></linearGradient></defs>
+    <path d="${govde}" fill="${renk}" stroke="rgba(0,0,0,.35)" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="M84 5 Q100 13 116 5 L112 12 Q100 19 88 12 Z" fill="${serit}"/>
+    <path d="M10 38 L28 84 L34 81 L16 35 Z" fill="${serit}"/><path d="M190 38 L172 84 L166 81 L184 35 Z" fill="${serit}"/>
+    <path d="${govde}" fill="url(#ktParlak)"/>
+    <text x="100" y="60" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-weight="900" font-size="21" letter-spacing="2" fill="${yazi}"${sigdir}>${_ktE(soyad)}</text>
+    <text x="100" y="150" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-weight="900" font-size="86" fill="${yazi}">${_ktE(no == null ? '' : no)}</text>
+  </svg>`;
+}
+
+// o: { takim, cc, num, sure, maas, rol }
+function ktTebrikAc(o) {
+  if (!o || !o.takim) return;
+  ktTebrikKapat(true);
+  const takim = o.takim;
+  let lig = '', bayrak = '';
+  try {
+    const ulke = _cftGetCountry(o.cc) || {};
+    bayrak = ulke.flag || '';
+    (ulke.leagues || []).some(l => (l.teams || []).some(t => t.name === takim) && (lig = l.name));
+  } catch (e) {}
+  let renk = '#00a86b', renk2 = '#ffffff';
+  try { const k = getTeamJerseys(takim).setA; if (_ktHex(k.shirt)) renk = k.shirt; if (_ktHex(k.short)) renk2 = k.short; } catch (e) {}
+  const serit = Math.abs(_ktIsik(renk2) - _ktIsik(renk)) > 0.12 ? renk2 : _ktKaris(renk, _ktIsik(renk) > 0.5 ? '#000000' : '#ffffff', 0.45);
+  const vurgu = _ktIsik(renk) < 0.3 ? _ktKaris(renk, '#ffffff', 0.55) : renk;
+  const rozet = inlineBadge({ name: takim, cc: o.cc, tag: 'div', cls: 'kt-rozet' });
+  const maas = Number(o.maas) || 0;
+  const kutular = [];
+  if (Number(o.sure) > 0) kutular.push(`<div><b><span data-noi18n>${Number(o.sure)}</span> <span class="kt-birim">sezon</span></b><em>Sözleşme</em></div>`);
+  else if (o.num != null) kutular.push(`<div><b data-noi18n>#${_ktE(o.num)}</b><em>Forma</em></div>`);
+  if (maas > 0) kutular.push(`<div><b data-noi18n>${maas >= 1e6 ? (maas / 1e6).toFixed(1) + 'M €' : Math.round(maas / 1000) + 'K €'}</b><em>Sezon maaşı</em></div>`);
+  kutular.push(`<div><b>${o.rol === 'captain' ? 'Kaptan' : o.rol === 'vice' ? 'Yardımcı' : 'Üye'}</b><em>Rol</em></div>`);
+  const ad = (typeof authUser !== 'undefined' && authUser && (authUser.name || authUser.username)) || '';
+  document.body.insertAdjacentHTML('beforeend',
+    `<div class="kt-ov" id="ktTebrik" style="--kt-renk:${renk};--kt-renk2:${serit};--kt-vurgu:${vurgu}" onclick="if(event.target===this)ktTebrikKapat()">
+      <div class="kt-kon">${_ktKonfeti()}</div>
+      <div class="kt-kart">
+        <button class="kt-kapat" onclick="ktTebrikKapat()" aria-label="Kapat"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        <div class="kt-ust kt-sira" style="animation-delay:.15s">İmza atıldı</div>
+        <div class="kt-forma">${_ktFormaSvg(renk, serit, ad, o.num)}${rozet}<div class="kt-damga">İmzalandı</div></div>
+        <div class="kt-baslik kt-sira" style="animation-delay:.55s">Artık bu takımdasın!</div>
+        <div class="kt-takim kt-sira" style="animation-delay:.65s">${bayrak}<span data-noi18n>${_ktE(takim)}</span></div>
+        ${lig ? `<div class="kt-lig kt-sira" style="animation-delay:.72s">${_ktE(lig)}</div>` : ''}
+        <div class="kt-bilgi kt-sira" style="animation-delay:.82s">${kutular.join('')}</div>
+        <div class="kt-sira" style="animation-delay:.95s">
+          <button class="kt-btn ana" onclick="ktTebrikGit('team')"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6z"/></svg><span>Takımıma Git</span></button>
+          <button class="kt-btn ikincil" onclick="ktTebrikGit('chat')"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg><span>Sohbette Merhaba De</span></button>
+        </div>
+      </div>
+    </div>`);
+}
+
+function ktTebrikKapat(hemen) {
+  const el = document.getElementById('ktTebrik');
+  if (!el) return;
+  if (hemen) { el.remove(); return; }
+  el.classList.add('kapan');
+  setTimeout(() => el.remove(), 280);
+}
+
+function ktTebrikGit(hedef) {
+  ktTebrikKapat();
+  showPage('team', findNavBtn('team'));
+  if (hedef === 'chat') teamTab('chat', document.querySelector('#page-team .team-tab[onclick*="teamTab(\'chat\'"]'));
+}
+window.ktTebrikAc = ktTebrikAc;
+window.ktTebrikKapat = ktTebrikKapat;
+window.ktTebrikGit = ktTebrikGit;
+
+// ── Takım sohbeti · CSC satırı ('[[SYS]]CSC: …' — sunucudaki players tetikleyicisi yazar) ──
+const _CSC_TUR = [
+  [/ (takıma katıldı|takımın yeni kaptanı oldu)\. Merhaba de!$/, 'katil'],
+  [/ takımdan kovuldu\.$/, 'kov'],
+  [/ transfer oldu, yeni takımı: /, 'transfer'],
+];
+function _teamChatCscSatir(m) {
+  const metin = String(m.message || '').slice(7).replace(/^CSC:\s*/, '').replace(/^⛔\s*/, '');
+  const tur = (_CSC_TUR.find(([re]) => re.test(metin)) || [null, 'ayril'])[1];
+  const d = document.createElement('div');
+  d.className = 'chat-msg csc ' + tur;
+  const saat = m.created_at ? new Date(m.created_at).toLocaleTimeString('tr', { hour: '2-digit', minute: '2-digit' }) : '';
+  d.innerHTML = '<span class="csc-lbl" data-noi18n>CSC</span><span></span>' + (saat ? '<span class="csc-t" data-noi18n>' + saat + '</span>' : '');
+  d.children[1].textContent = metin;
+  return d;
+}
 </script>
 </body>
 </html>

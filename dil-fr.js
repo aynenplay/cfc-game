@@ -6295,3 +6295,29 @@ Object.assign(window.I18N.fr, {
   "teklifi oyuncu kabul eder": "le joueur accepte l'offre",
   "takımdan çıkan botlar · kaptan doğrudan alır": "bots libérés · le capitaine recrute directement"
 });
+
+/* ─── 590 · Takıma katılım: forma töreni · sohbet CSC satırları ─── */
+Object.assign(window.I18N.fr, {
+  "İmza atıldı": "Contrat signé",
+  "İmzalandı": "Signé",
+  "Artık bu takımdasın!": "Tu fais partie de l'équipe !",
+  "Rol": "Rôle",
+  "Takımıma Git": "Aller à mon équipe",
+  "Sohbette Merhaba De": "Dire bonjour dans le chat",
+  "Takım sohbetinde ona merhaba demeyi unutma!": "N'oublie pas de lui dire bonjour dans le chat de l'équipe !"
+});
+(function () {
+  var P = window.I18N_PATTERNS.fr;
+  P.unshift(
+    [/^(.+?) takıma katıldı\. Merhaba de!$/, "$1 a rejoint l'équipe. Dis bonjour !"],
+    [/^(.+?) takımın yeni kaptanı oldu\. Merhaba de!$/, "$1 est le nouveau capitaine de l'équipe. Dis bonjour !"],
+    [/^(.+?) takımdan kovuldu\.$/, "$1 a été renvoyé de l'équipe."],
+    [/^(.+?) sözleşmesi bitti, takımdan ayrıldı\.$/, "Le contrat de $1 a pris fin, il a quitté l'équipe."],
+    [/^(.+?) takımdan ayrıldı\. Yeni kaptan: (.+)$/, "$1 a quitté l'équipe. Nouveau capitaine : $2"],
+    [/^(.+?) takımdan ayrıldı\.$/, "$1 a quitté l'équipe."],
+    [/^(.+?) transfer oldu, yeni takımı: (.+)$/, "$1 a été transféré à $2."],
+    [/^(.+?) transfer teklifini kabul etti ve (.+?) kadrosuna katıldı\.$/, "$1 a accepté l'offre de transfert et a rejoint l'effectif de $2."],
+    [/^• Forma numarası: #(\d+)$/, "• Numéro de maillot : #$1"],
+    [/^• Sözleşme: (\d+) sezon$/, "• Contrat : $1 saison(s)"]
+  );
+})();
