@@ -6214,3 +6214,16 @@ Object.assign(window.I18N.pt, {
   "Milli ceza": "Suspensão na seleção",
   "Sakat": "Lesionado"
 });
+
+/* ─── 589 · Serbest oyuncular kartı ─── */
+Object.assign(window.I18N.pt, {
+  "Takıma Al": "Contratar",
+  "Gerçek oyuncu": "Jogador real",
+  "Gerçek oyuncular": "Jogadores reais",
+  "Botlar": "Bots",
+  "Kadro dolu": "Elenco cheio",
+  "Kadroya yalnız kaptan alabilir": "Só o capitão pode contratar",
+  "Boşta oyuncu yok.": "Nenhum jogador livre.",
+  "teklifi oyuncu kabul eder": "o jogador aceita a oferta",
+  "takımdan çıkan botlar · kaptan doğrudan alır": "bots dispensados · o capitão contrata direto"
+});

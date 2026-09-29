@@ -6252,3 +6252,16 @@ Object.assign(window.I18N.ru, {
   "Milli ceza": "Дисквалификация в сборной",
   "Sakat": "Травмирован"
 });
+
+/* ─── 589 · Serbest oyuncular kartı ─── */
+Object.assign(window.I18N.ru, {
+  "Takıma Al": "Подписать",
+  "Gerçek oyuncu": "Живой игрок",
+  "Gerçek oyuncular": "Живые игроки",
+  "Botlar": "Боты",
+  "Kadro dolu": "Состав заполнен",
+  "Kadroya yalnız kaptan alabilir": "Подписывать может только капитан",
+  "Boşta oyuncu yok.": "Свободных игроков нет.",
+  "teklifi oyuncu kabul eder": "игрок сам принимает предложение",
+  "takımdan çıkan botlar · kaptan doğrudan alır": "боты, покинувшие клубы · капитан подписывает сразу"
+});
