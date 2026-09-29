@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '592';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '593';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -29143,7 +29143,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-29-sozlesme-592';
+const APP_BUILD = '2026-09-29-tekdunya-593';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -31334,21 +31334,14 @@ function _ovrEkipmanli(player) {
       }
     }
   } catch(e) {}
-  const grpAvg = (sub) => {
-    if (!sub || typeof sub !== 'object') return null;
-    let t = 0, n = 0;
-    for (const id in sub) {
-      const v = Number(sub[id]);
-      if (!isFinite(v)) continue;
-      const b = bon ? (Number(bon[id]) || 0) : 0;
-      t += Math.min(100, v * (1 + b / 100));
-      n++;
-    }
-    return n > 0 ? t / n : null;
-  };
-  const gk = grpAvg(ab.GK), df = grpAvg(ab.DEF), md = grpAvg(ab.MID), fw = grpAvg(ab.FWD);
-  if (gk == null || df == null || md == null || fw == null) return null;
-  return Math.max(1, Math.min(99, Math.round((gk + df + md + fw) / 4)));
+  // 593 — oyuncunun kendi ekranı ve veritabanıyla aynı hesap: yetenek başına yuvarlanmış bonus,
+  //   hat = katalogdaki tüm yeteneklerin ortalaması (eksik 10)
+  if (typeof SKILL_DEFS === 'undefined' || !SKILL_DEFS.ALL) return null;
+  const lv = {};
+  ['GK', 'DEF', 'MID', 'FWD'].forEach(g => Object.keys(ab[g] || {}).forEach(id => { lv[id] = Number(ab[g][id]) || 10; }));
+  if (bon) Object.keys(bon).forEach(id => { if (lv[id] !== undefined) lv[id] = Math.min(100, Math.round(lv[id] * (1 + bon[id] / 100))); });
+  const c = SKILL_DEFS.ALL.map(cat => cat.skills.reduce((a, sk) => a + (lv[sk.id] || 10), 0) / cat.skills.length);
+  return Math.max(1, Math.min(99, Math.round((c[0] + c[1] + c[2] + c[3]) / 4)));
 }
 
 function getPlayerMainOverall(player) {
@@ -31460,6 +31453,27 @@ function getPlayerMainOverall(player) {
   return 10;
 }
 
+// 593 — Başka gerçek oyuncunun seviyeleri (eşya bonuslu) — kendi ekranındakiyle aynı hesap.
+//   Kaynak: players kopyası (yetenekler + kuşandığı eşyalar); veritabanı user_player'dan eşitler.
+function _digerOyuncuSeviyeleri(player) {
+  const ab = player && player.abilities;
+  if (!ab || typeof ab !== 'object' || !ab.GK || !ab.DEF || !ab.MID || !ab.FWD) return null;
+  const lv = {};
+  ['GK', 'DEF', 'MID', 'FWD'].forEach(g => {
+    const sub = ab[g] || {};
+    Object.keys(sub).forEach(id => { const v = Number(sub[id]); lv[id] = v || 10; });
+  });
+  const eq = player.equipment;
+  if (eq && typeof eq === 'object' && typeof getEquippedBonuses === 'function') {
+    const bon = getEquippedBonuses(eq);
+    Object.keys(bon).forEach(id => {
+      if (lv[id] === undefined) return;
+      lv[id] = Math.min(100, Math.round(lv[id] * (1 + bon[id] / 100)));
+    });
+  }
+  return lv;
+}
+
 // Maçta kullanılan effective rating: oyuncu hangi mevkide OYNATILIYORSA
 // onun yetenek ortalaması. Ana mevki dışındaysa "out of position" doğal düşük olur.
 // 🆕 Kullanıcı için: gerçek SKILL_DEFS verisinden, yerleştirildiği mevkinin ortalaması.
@@ -31472,6 +31486,12 @@ function getPlayerEffectiveRating(player, playedPosGroup) {
   if ((player.role === 'user' || player.isUser) && typeof getSkillLevels === 'function' && typeof calcOverallForGroup === 'function') {
     const lvls = getSkillLevels(player.pos || 'MID');
     return Math.max(1, Math.min(99, Math.round(calcOverallForGroup(group, lvls))));
+  }
+
+  // 593 — Başka gerçek oyuncu: yetenek + eşya (kendi ekranındaki değerle aynı)
+  if (!player.isBot && (player.userId || player.user_id) && typeof calcOverallForGroup === 'function') {
+    const _lv = _digerOyuncuSeviyeleri(player);
+    if (_lv) return Math.max(1, Math.min(99, Math.round(calcOverallForGroup(group, _lv))));
   }
 
   // 🆕 HERKES (bot/diğer): oynadığı mevkinin yetenek ortalaması (forvet ≠ orta saha).
@@ -47025,6 +47045,7 @@ function _buildRosterFromPlayers(playersList, countryCode) {
       age: 18 + ((num || 0) % 17),
       starter: !!sl.starter,
       abilities: p.abilities,
+      equipment: p.equipment || null,   // 593 — gerçek oyuncunun kuşandığı eşyalar (herkes aynı görür)
       nation: p.nation || '🏳️',
       nationality: p.nationality || countryCode,
       avatar: p.avatar || (p.is_bot ? '🤖' : '👤'),
@@ -47067,7 +47088,7 @@ async function _rosterRefreshFromServer(countryCode) {
   if (!(window.authUser || {}).id) return;
   try {
     const { data, error } = await window.sb.from('players')
-      .select('id, user_id, num, name, pos, pos_group, sub_pos, nationality, nation, level, xp, overall, rating, abilities, role, avatar, avatar_id, is_bot, last_seen, goals_total, assists_total, matches_played, match_ratings, stats_by_comp, season_yellow, suspend_matches, suspend_reason, injury_until, kondisyon, kondisyon_at, kondisyon_hiz')
+      .select('id, user_id, num, name, pos, pos_group, sub_pos, nationality, nation, level, xp, overall, rating, abilities, equipment, role, avatar, avatar_id, is_bot, last_seen, goals_total, assists_total, matches_played, match_ratings, stats_by_comp, season_yellow, suspend_matches, suspend_reason, injury_until, kondisyon, kondisyon_at, kondisyon_hiz')
       .eq('country_code', countryCode)
       .eq('team_name', _userTeam.teamName)
       .order('num');
@@ -66778,15 +66799,10 @@ function _carEstimateMarketValue(player, ctx) {
 
   // 4) Sözleşme süresi çarpanı
   let contractYearsLeft = (ctx && typeof ctx.contractYearsLeft === 'number') ? ctx.contractYearsLeft : null;
-  if (contractYearsLeft === null) {
-    if (player.role === 'user' && typeof _userTeam !== 'undefined' && _userTeam && _userTeam.contract) {
-      const c = _userTeam.contract;
-      const info = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : { season: 1 };
-      contractYearsLeft = Math.max(0, (c.endsSeason || 1) - (info.season || 1));
-    } else {
-      contractYearsLeft = 3; // bot için makul varsayılan
-    }
-  }
+  // 593 — TEK DÜNYA: eskiden oyuncu KENDİ değerini kendi sözleşmesine göre, başkaları ise
+  //   varsayılanla görüyordu (aynı kişi iki farklı değer). Sunucudaki takım değeri de varsayılanı
+  //   kullanıyor; herkes için aynı kural.
+  if (contractYearsLeft === null) contractYearsLeft = 3;
   const contractMult = contractYearsLeft >= 4 ? 1.00
                      : contractYearsLeft === 3 ? 0.95
                      : contractYearsLeft === 2 ? 0.85
@@ -70367,6 +70383,10 @@ function parseItemBonuses(stats) {
 // 🆕 `veri` verilirse O ekipman setinin bonusları hesaplanır.
 //    Boş bırakılırsa eskisi gibi giriş yapan kullanıcının kendi seti.
 //    Başkasının profilinde onun ekipmanını uygulamak için gerekli.
+// 593 — TEK DÜNYA: bonus eşya KATALOĞUNDAN (SHOP_ITEMS) okunur — veritabanı (players kopyası)
+//   ve maç motoru da aynısını yapar. İlk 5 yuva, dolapta olan eşya, yetenek başına en fazla %40.
+//   Dolaptaki kopyanın "stats" alanına güvenilmez (oyuncu kendi kaydını yazabiliyor).
+const EQ_BONUS_TAVAN = 40;
 function getEquippedBonuses(veri) {
   const totals = {};
   let data = veri || null;
@@ -70378,27 +70398,17 @@ function getEquippedBonuses(veri) {
   }
   if (!data || !Array.isArray(data.activeSlots) || !Array.isArray(data.wardrobe)) return totals;
 
-  data.activeSlots.forEach(itemId => {
-    if (!itemId) return;
-    const ward = data.wardrobe.find(w => w.id === itemId);
-    if (!ward) return;
-    // Önce wardrobe'da kaydedilmiş stats, yoksa SHOP_ITEMS'tan al (geriye dönük)
-    let stats = ward.stats;
-    if (!stats && typeof SHOP_ITEMS !== 'undefined') {
-      const shopItem = SHOP_ITEMS.find(i => i.id === itemId);
-      if (shopItem) stats = shopItem.stats;
-    }
-    // Geriye dönük: stats yok ama eski format varsa (bonus + stat + pct) parse et
-    if (!stats && ward.bonus && ward.stat && ward.pct) {
-      // Eski sample item formatı: stat='hiz' gibi ID değil de SKILL_DEFS yetenek isimleri yok — atla
-      // Bu itemler artık etkisiz (eski demo verisi)
-    }
-    if (!stats || !Array.isArray(stats)) return;
-    const itemBonuses = parseItemBonuses(stats);
+  data.activeSlots.slice(0, 5).forEach(itemId => {
+    if (!itemId || typeof itemId !== 'string') return;
+    if (!data.wardrobe.some(w => w && w.id === itemId)) return;           // sahip olunmayan eşya sayılmaz
+    const shopItem = (typeof SHOP_ITEMS !== 'undefined') ? SHOP_ITEMS.find(i => i.id === itemId) : null;
+    if (!shopItem || !Array.isArray(shopItem.stats)) return;              // katalogda olmayan eşya etkisiz
+    const itemBonuses = parseItemBonuses(shopItem.stats);
     Object.keys(itemBonuses).forEach(id => {
       totals[id] = (totals[id] || 0) + itemBonuses[id];
     });
   });
+  Object.keys(totals).forEach(id => { if (!(totals[id] > 0)) delete totals[id]; else if (totals[id] > EQ_BONUS_TAVAN) totals[id] = EQ_BONUS_TAVAN; });
   return totals;
 }
 
