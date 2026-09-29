@@ -4612,3 +4612,37 @@ Object.assign(window.I18N.de, {
     [/^• Reyting: (\d+)$/, "• Wertung: $1"]
   );
 })();
+
+/* ─── 595 · Kariyer sekmesi (yeniden tasarım) ─── */
+Object.assign(window.I18N.de, {
+  "M. Adamı": "Spieler d. Spiels",
+  "reyting": "Note",
+  "Hazırlık maçı": "Testspiel",
+  "En yüksek": "Höchstwert",
+  "Henüz resmi maç yok": "Noch keine Pflichtspiele",
+  "Sezon Sezon": "Saison für Saison",
+  "satıra dokun → turnuvalar": "Zeile antippen → Wettbewerbe",
+  "Kulübe ayrılamadı": "Nicht nach Verein aufteilbar",
+  "Reyting ortalaması yalnız bütün maçlarının reytingi kayıtlı olan satırlarda gösterilir.": "Die Durchschnittsnote wird nur in Zeilen gezeigt, in denen für jedes Spiel eine Note gespeichert ist.",
+  "Değer geçmişi bu güncellemeyle kaydedilmeye başladı. Değer değiştikçe grafik oluşur.": "Der Wertverlauf wird seit diesem Update gespeichert. Die Grafik entsteht, sobald sich der Wert ändert.",
+  "Kulüp Kariyeri": "Vereinskarriere",
+  "Henüz kulüp kaydı yok": "Noch keine Vereinsdaten",
+  "Transfer Geçmişi": "Transferhistorie",
+  "Kayıtlı kulüp değişikliği yok": "Keine gespeicherten Vereinswechsel",
+  "tarih kaydı yok": "Datum nicht gespeichert",
+  "Serbest oyuncu olarak katıldı": "Als vereinsloser Spieler gekommen",
+  "Katıldı": "Beigetreten",
+  "Kariyer yükleniyor…": "Karriere wird geladen…",
+  "Kariyer verisi yüklenemedi": "Karrieredaten konnten nicht geladen werden"
+});
+(function () {
+  var P = window.I18N_PATTERNS.de;
+  P.push(
+    [/^son (\d+) maç$/, "letzte $1 Spiele"],
+    [/^(\d+) sezon · (\d+) kulüp$/, "$1 Saisons · $2 Vereine"],
+    [/^(\d+)\. gün$/, "Tag $1"],
+    [/^Değer (.+) tarihinden beri değişmedi\.$/, "Der Wert hat sich seit $1 nicht geändert."],
+    [/^Tabloda resmi maçlar var\. Kariyer toplamındaki diğer (\d+) maç \(hazırlık maçları ve sezon kaydı tutulmadan önceki maçlar\) tabloda yer almıyor\.$/, "Die Tabelle zeigt Pflichtspiele. Nicht enthalten aus der Karrieresumme: $1 (Testspiele und Spiele aus der Zeit vor den Saisonaufzeichnungen)."],
+    [/^Kulübü kayıtlı olmayan (\d+) maç kulüp toplamlarına eklenmedi \((.+)\)\.$/, "$1 Spiele ohne gespeicherten Verein sind in den Vereinssummen nicht enthalten ($2)."]
+  );
+})();

@@ -6380,3 +6380,37 @@ Object.assign(window.I18N.ru, {
     [/^• Reyting: (\d+)$/, "• Рейтинг: $1"]
   );
 })();
+
+/* ─── 595 · Kariyer sekmesi (yeniden tasarım) ─── */
+Object.assign(window.I18N.ru, {
+  "M. Adamı": "Лучший",
+  "reyting": "рейтинг",
+  "Hazırlık maçı": "Товарищеский",
+  "En yüksek": "Максимум",
+  "Henüz resmi maç yok": "Официальных матчей пока нет",
+  "Sezon Sezon": "По сезонам",
+  "satıra dokun → turnuvalar": "нажми на строку → турниры",
+  "Kulübe ayrılamadı": "Без разбивки по клубам",
+  "Reyting ortalaması yalnız bütün maçlarının reytingi kayıtlı olan satırlarda gösterilir.": "Средний рейтинг показан только в строках, где у всех матчей записан рейтинг.",
+  "Değer geçmişi bu güncellemeyle kaydedilmeye başladı. Değer değiştikçe grafik oluşur.": "История стоимости записывается с этого обновления. График появится, когда стоимость изменится.",
+  "Kulüp Kariyeri": "Карьера в клубах",
+  "Henüz kulüp kaydı yok": "Записей о клубах пока нет",
+  "Transfer Geçmişi": "История трансферов",
+  "Kayıtlı kulüp değişikliği yok": "Смен клуба не записано",
+  "tarih kaydı yok": "дата не записана",
+  "Serbest oyuncu olarak katıldı": "Пришёл свободным агентом",
+  "Katıldı": "Пришёл",
+  "Kariyer yükleniyor…": "Загрузка карьеры…",
+  "Kariyer verisi yüklenemedi": "Не удалось загрузить данные карьеры"
+});
+(function () {
+  var P = window.I18N_PATTERNS.ru;
+  P.push(
+    [/^son (\d+) maç$/, "последние $1 матчей"],
+    [/^(\d+) sezon · (\d+) kulüp$/, "сезонов: $1 · клубов: $2"],
+    [/^(\d+)\. gün$/, "день $1"],
+    [/^Değer (.+) tarihinden beri değişmedi\.$/, "Стоимость не менялась с $1."],
+    [/^Tabloda resmi maçlar var\. Kariyer toplamındaki diğer (\d+) maç \(hazırlık maçları ve sezon kaydı tutulmadan önceki maçlar\) tabloda yer almıyor\.$/, "В таблице — официальные матчи. Остальные матчи из общего числа ($1: товарищеские и сыгранные до ведения посезонной статистики) в неё не входят."],
+    [/^Kulübü kayıtlı olmayan (\d+) maç kulüp toplamlarına eklenmedi \((.+)\)\.$/, "Матчи без записанного клуба ($1) не вошли в клубные итоги ($2)."]
+  );
+})();

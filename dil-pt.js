@@ -6342,3 +6342,37 @@ Object.assign(window.I18N.pt, {
     [/^• Reyting: (\d+)$/, "• Avaliação: $1"]
   );
 })();
+
+/* ─── 595 · Kariyer sekmesi (yeniden tasarım) ─── */
+Object.assign(window.I18N.pt, {
+  "M. Adamı": "Craque",
+  "reyting": "nota",
+  "Hazırlık maçı": "Amistoso",
+  "En yüksek": "Máximo",
+  "Henüz resmi maç yok": "Ainda sem jogos oficiais",
+  "Sezon Sezon": "Temporada a temporada",
+  "satıra dokun → turnuvalar": "toque numa linha → competições",
+  "Kulübe ayrılamadı": "Sem divisão por clube",
+  "Reyting ortalaması yalnız bütün maçlarının reytingi kayıtlı olan satırlarda gösterilir.": "A nota média só aparece nas linhas em que todos os jogos têm nota registrada.",
+  "Değer geçmişi bu güncellemeyle kaydedilmeye başladı. Değer değiştikçe grafik oluşur.": "O histórico de valor começou a ser registrado com esta atualização. O gráfico se forma conforme o valor muda.",
+  "Kulüp Kariyeri": "Carreira por clubes",
+  "Henüz kulüp kaydı yok": "Ainda sem registro de clubes",
+  "Transfer Geçmişi": "Histórico de transferências",
+  "Kayıtlı kulüp değişikliği yok": "Nenhuma mudança de clube registrada",
+  "tarih kaydı yok": "data não registrada",
+  "Serbest oyuncu olarak katıldı": "Chegou como jogador livre",
+  "Katıldı": "Entrou",
+  "Kariyer yükleniyor…": "Carregando carreira…",
+  "Kariyer verisi yüklenemedi": "Não foi possível carregar os dados da carreira"
+});
+(function () {
+  var P = window.I18N_PATTERNS.pt;
+  P.push(
+    [/^son (\d+) maç$/, "últimos $1 jogos"],
+    [/^(\d+) sezon · (\d+) kulüp$/, "$1 temporadas · $2 clubes"],
+    [/^(\d+)\. gün$/, "dia $1"],
+    [/^Değer (.+) tarihinden beri değişmedi\.$/, "O valor não muda desde $1."],
+    [/^Tabloda resmi maçlar var\. Kariyer toplamındaki diğer (\d+) maç \(hazırlık maçları ve sezon kaydı tutulmadan önceki maçlar\) tabloda yer almıyor\.$/, "A tabela mostra jogos oficiais. Fora da tabela, do total da carreira: $1 (amistosos e jogos anteriores ao registro por temporada)."],
+    [/^Kulübü kayıtlı olmayan (\d+) maç kulüp toplamlarına eklenmedi \((.+)\)\.$/, "$1 jogos sem clube registrado não entram nos totais por clube ($2)."]
+  );
+})();

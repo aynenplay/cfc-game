@@ -6350,3 +6350,37 @@ Object.assign(window.I18N.es, {
     [/^• Reyting: (\d+)$/, "• Valoración: $1"]
   );
 })();
+
+/* ─── 595 · Kariyer sekmesi (yeniden tasarım) ─── */
+Object.assign(window.I18N.es, {
+  "M. Adamı": "MVP",
+  "reyting": "valoración",
+  "Hazırlık maçı": "Amistoso",
+  "En yüksek": "Máximo",
+  "Henüz resmi maç yok": "Aún no hay partidos oficiales",
+  "Sezon Sezon": "Temporada a temporada",
+  "satıra dokun → turnuvalar": "toca una fila → competiciones",
+  "Kulübe ayrılamadı": "Sin desglose por club",
+  "Reyting ortalaması yalnız bütün maçlarının reytingi kayıtlı olan satırlarda gösterilir.": "La valoración media solo se muestra en las filas en las que todos los partidos tienen valoración registrada.",
+  "Değer geçmişi bu güncellemeyle kaydedilmeye başladı. Değer değiştikçe grafik oluşur.": "El historial de valor empezó a registrarse con esta actualización. El gráfico se irá formando a medida que cambie el valor.",
+  "Kulüp Kariyeri": "Trayectoria por clubes",
+  "Henüz kulüp kaydı yok": "Aún no hay registro de clubes",
+  "Transfer Geçmişi": "Historial de traspasos",
+  "Kayıtlı kulüp değişikliği yok": "No hay cambios de club registrados",
+  "tarih kaydı yok": "fecha no registrada",
+  "Serbest oyuncu olarak katıldı": "Llegó como agente libre",
+  "Katıldı": "Se unió",
+  "Kariyer yükleniyor…": "Cargando trayectoria…",
+  "Kariyer verisi yüklenemedi": "No se pudieron cargar los datos de la trayectoria"
+});
+(function () {
+  var P = window.I18N_PATTERNS.es;
+  P.push(
+    [/^son (\d+) maç$/, "últimos $1 partidos"],
+    [/^(\d+) sezon · (\d+) kulüp$/, "$1 temporadas · $2 clubes"],
+    [/^(\d+)\. gün$/, "día $1"],
+    [/^Değer (.+) tarihinden beri değişmedi\.$/, "El valor no ha cambiado desde el $1."],
+    [/^Tabloda resmi maçlar var\. Kariyer toplamındaki diğer (\d+) maç \(hazırlık maçları ve sezon kaydı tutulmadan önceki maçlar\) tabloda yer almıyor\.$/, "La tabla muestra partidos oficiales. No incluidos del total de la trayectoria: $1 (amistosos y partidos anteriores al registro por temporadas)."],
+    [/^Kulübü kayıtlı olmayan (\d+) maç kulüp toplamlarına eklenmedi \((.+)\)\.$/, "$1 partidos sin club registrado no se suman a los totales por club ($2)."]
+  );
+})();

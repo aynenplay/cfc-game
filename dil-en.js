@@ -6756,3 +6756,37 @@ Object.assign(window.I18N.en, {
     [/^• Reyting: (\d+)$/, "• Rating: $1"]
   );
 })();
+
+/* ─── 595 · Kariyer sekmesi (yeniden tasarım) ─── */
+Object.assign(window.I18N.en, {
+  "M. Adamı": "MotM",
+  "reyting": "rating",
+  "Hazırlık maçı": "Friendly",
+  "En yüksek": "Highest",
+  "Henüz resmi maç yok": "No official matches yet",
+  "Sezon Sezon": "Season by Season",
+  "satıra dokun → turnuvalar": "tap a row → competitions",
+  "Kulübe ayrılamadı": "Not split by club",
+  "Reyting ortalaması yalnız bütün maçlarının reytingi kayıtlı olan satırlarda gösterilir.": "The average rating is shown only on rows where every match has a recorded rating.",
+  "Değer geçmişi bu güncellemeyle kaydedilmeye başladı. Değer değiştikçe grafik oluşur.": "Value history started being recorded with this update. The chart builds up as the value changes.",
+  "Kulüp Kariyeri": "Club Career",
+  "Henüz kulüp kaydı yok": "No club record yet",
+  "Transfer Geçmişi": "Transfer History",
+  "Kayıtlı kulüp değişikliği yok": "No recorded club changes",
+  "tarih kaydı yok": "date not recorded",
+  "Serbest oyuncu olarak katıldı": "Joined as a free agent",
+  "Katıldı": "Joined",
+  "Kariyer yükleniyor…": "Loading career…",
+  "Kariyer verisi yüklenemedi": "Could not load career data"
+});
+(function () {
+  var P = window.I18N_PATTERNS.en;
+  P.push(
+    [/^son (\d+) maç$/, "last $1 matches"],
+    [/^(\d+) sezon · (\d+) kulüp$/, "$1 seasons · $2 clubs"],
+    [/^(\d+)\. gün$/, "day $1"],
+    [/^Değer (.+) tarihinden beri değişmedi\.$/, "The value has not changed since $1."],
+    [/^Tabloda resmi maçlar var\. Kariyer toplamındaki diğer (\d+) maç \(hazırlık maçları ve sezon kaydı tutulmadan önceki maçlar\) tabloda yer almıyor\.$/, "The table lists official matches. Not included from the career total: $1 (friendlies and matches from before season records were kept)."],
+    [/^Kulübü kayıtlı olmayan (\d+) maç kulüp toplamlarına eklenmedi \((.+)\)\.$/, "$1 matches with no recorded club are not included in the club totals ($2)."]
+  );
+})();
