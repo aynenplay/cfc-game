@@ -6416,3 +6416,21 @@ Object.assign(window.I18N.en, {
   "Kasa bakiyesi": "Treasury balance",
   "Kitler takım deposunda. Diziliş ekranında Dinlendir ile kullanılır.": "The kits are in the team's storage. Use them with Rest on the Line-up screen."
 });
+
+/* ─── 582 · Milli takım kuralları (i) ─── */
+Object.assign(window.I18N.en, {
+  "Milli takım kuralları": "National team rules",
+  "Kimler oynar?": "Who can play?",
+  "Uyruğu bu ülke olan tüm oyuncular çağrılabilir; oynadıkları kulübün ülkesi fark etmez.": "Every player with this country's nationality can be called up; the country of their club doesn't matter.",
+  "Federasyon başkanı milli takımın teknik direktörüdür: kadroyu ve dizilişi belirler, en fazla 3 yardımcı seçer. Oyuna 20 gün girmeyen başkan görevden alınır.": "The federation president is the national team's head coach: sets the squad and the formation and picks up to 3 assistants. A president who doesn't log in for 20 days is removed.",
+  "18 oyuncu: 2 kaleci, 6 defans, 6 orta saha, 4 forvet. Kaptan (pazubandı) ilk 11’in en güçlü oyuncusudur.": "18 players: 2 goalkeepers, 6 defenders, 6 midfielders, 4 forwards. The captain (armband) is the strongest player in the starting XI.",
+  "Boş yerlere maç günü sunucu aynı mevkiden en güçlü uygun oyuncuyu koyar. Kadro hiç kurulmadıysa maçlarda en güçlü 18 oyuncu oynar.": "On match day the server fills empty spots with the strongest available player in the same position. If no squad has been set, the strongest 18 players play the matches.",
+  "Sakat ve cezalı": "Injured and suspended",
+  "Sakat ya da milli maç cezalı oyuncunun yerine maçta aynı mevkiden oyuncu oynar.": "An injured player, or one suspended for national team matches, is replaced in the match by a player in the same position.",
+  "Kulüpteki kart cezaları milli maçı etkilemez. Milli maçta kırmızı kart gören oyuncu bir sonraki milli maçta oynayamaz; milli maç kartları kulübe yansımaz.": "Club card suspensions don't affect national team matches. A player sent off in a national team match misses the next national team match; national team cards don't carry over to the club.",
+  "EURO Nations Cup": "EURO Nations Cup",
+  "32 ülke, 4’erli 8 grup. Kura sezonun 17. günü çekilir; grup maçları 34–36. günlerde oynanır ve her gruptan ilk iki Son 16’ya çıkar. Son 16, çeyrek final, yarı final ve final (37–40. gün) tek maçtır; beraberlikte uzatma ve penaltılar oynanır.": "32 countries in 8 groups of 4. The draw takes place on day 17 of the season; group matches are played on days 34–36 and the top two in each group reach the Round of 16. The Round of 16, quarter-finals, semi-finals and the final (days 37–40) are single matches; a draw goes to extra time and penalties.",
+  "Tarafsız saha": "Neutral venue",
+  "Milli maçlarda ev sahibi avantajı yoktur.": "There is no home advantage in national team matches.",
+  "Oyuncunun kondisyonu kulübüyle ortaktır; milli maçlar da yorar. Sağlık kitini yalnız oyuncunun kulüp kaptanı ve yardımcıları kullanabilir.": "A player's fitness is shared with their club, so national team matches tire them too. Med kits can only be used by the player's club captain and vice-captains."
+});

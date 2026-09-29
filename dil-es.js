@@ -6010,3 +6010,21 @@ Object.assign(window.I18N.es, {
   "Kasa bakiyesi": "Saldo de tesorería",
   "Kitler takım deposunda. Diziliş ekranında Dinlendir ile kullanılır.": "Los botiquines están en el almacén del equipo. Úsalos con Descansar en la alineación."
 });
+
+/* ─── 582 · Milli takım kuralları (i) ─── */
+Object.assign(window.I18N.es, {
+  "Milli takım kuralları": "Reglas de la selección",
+  "Kimler oynar?": "¿Quién puede jugar?",
+  "Uyruğu bu ülke olan tüm oyuncular çağrılabilir; oynadıkları kulübün ülkesi fark etmez.": "Se puede convocar a cualquier jugador con la nacionalidad de este país; el país de su club no importa.",
+  "Federasyon başkanı milli takımın teknik direktörüdür: kadroyu ve dizilişi belirler, en fazla 3 yardımcı seçer. Oyuna 20 gün girmeyen başkan görevden alınır.": "El presidente de la federación es el seleccionador: decide la convocatoria y la formación y elige hasta 3 ayudantes. El presidente que no entra al juego en 20 días es destituido.",
+  "18 oyuncu: 2 kaleci, 6 defans, 6 orta saha, 4 forvet. Kaptan (pazubandı) ilk 11’in en güçlü oyuncusudur.": "18 jugadores: 2 porteros, 6 defensas, 6 centrocampistas, 4 delanteros. El capitán (brazalete) es el jugador más fuerte del once inicial.",
+  "Boş yerlere maç günü sunucu aynı mevkiden en güçlü uygun oyuncuyu koyar. Kadro hiç kurulmadıysa maçlarda en güçlü 18 oyuncu oynar.": "El día del partido, el servidor cubre los huecos con el jugador disponible más fuerte de la misma posición. Si no se ha formado una convocatoria, juegan los 18 jugadores más fuertes.",
+  "Sakat ve cezalı": "Lesionados y sancionados",
+  "Sakat ya da milli maç cezalı oyuncunun yerine maçta aynı mevkiden oyuncu oynar.": "Un jugador lesionado o sancionado para partidos de selección es sustituido en el partido por uno de la misma posición.",
+  "Kulüpteki kart cezaları milli maçı etkilemez. Milli maçta kırmızı kart gören oyuncu bir sonraki milli maçta oynayamaz; milli maç kartları kulübe yansımaz.": "Las sanciones por tarjetas del club no afectan a los partidos de selección. Un jugador expulsado en un partido de selección se pierde el siguiente; las tarjetas de la selección no pasan al club.",
+  "EURO Nations Cup": "EURO Nations Cup",
+  "32 ülke, 4’erli 8 grup. Kura sezonun 17. günü çekilir; grup maçları 34–36. günlerde oynanır ve her gruptan ilk iki Son 16’ya çıkar. Son 16, çeyrek final, yarı final ve final (37–40. gün) tek maçtır; beraberlikte uzatma ve penaltılar oynanır.": "32 países en 8 grupos de 4. El sorteo se celebra el día 17 de la temporada; los partidos de grupo se juegan los días 34–36 y los dos primeros de cada grupo pasan a octavos de final. Octavos, cuartos, semifinales y final (días 37–40) son a partido único; en caso de empate hay prórroga y penaltis.",
+  "Tarafsız saha": "Campo neutral",
+  "Milli maçlarda ev sahibi avantajı yoktur.": "En los partidos de selección no hay ventaja de local.",
+  "Oyuncunun kondisyonu kulübüyle ortaktır; milli maçlar da yorar. Sağlık kitini yalnız oyuncunun kulüp kaptanı ve yardımcıları kullanabilir.": "La forma física del jugador es la misma que en su club, así que los partidos de selección también cansan. Solo el capitán y los vicecapitanes de su club pueden usar botiquines."
+});

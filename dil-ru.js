@@ -6040,3 +6040,21 @@ Object.assign(window.I18N.ru, {
   "Kasa bakiyesi": "Баланс казны",
   "Kitler takım deposunda. Diziliş ekranında Dinlendir ile kullanılır.": "Аптечки на складе команды. Используй их кнопкой «Отдых» на экране расстановки."
 });
+
+/* ─── 582 · Milli takım kuralları (i) ─── */
+Object.assign(window.I18N.ru, {
+  "Milli takım kuralları": "Правила сборной",
+  "Kimler oynar?": "Кто может играть?",
+  "Uyruğu bu ülke olan tüm oyuncular çağrılabilir; oynadıkları kulübün ülkesi fark etmez.": "Вызвать можно любого игрока с гражданством этой страны; страна его клуба значения не имеет.",
+  "Federasyon başkanı milli takımın teknik direktörüdür: kadroyu ve dizilişi belirler, en fazla 3 yardımcı seçer. Oyuna 20 gün girmeyen başkan görevden alınır.": "Президент федерации — главный тренер сборной: определяет состав и расстановку и выбирает до 3 помощников. Президент, не заходивший в игру 20 дней, снимается с должности.",
+  "18 oyuncu: 2 kaleci, 6 defans, 6 orta saha, 4 forvet. Kaptan (pazubandı) ilk 11’in en güçlü oyuncusudur.": "18 игроков: 2 вратаря, 6 защитников, 6 полузащитников, 4 нападающих. Капитан (повязка) — самый сильный игрок стартового состава.",
+  "Boş yerlere maç günü sunucu aynı mevkiden en güçlü uygun oyuncuyu koyar. Kadro hiç kurulmadıysa maçlarda en güçlü 18 oyuncu oynar.": "В день матча сервер заполняет свободные места самым сильным доступным игроком той же позиции. Если состав не собран, играют 18 самых сильных игроков.",
+  "Sakat ve cezalı": "Травмы и дисквалификации",
+  "Sakat ya da milli maç cezalı oyuncunun yerine maçta aynı mevkiden oyuncu oynar.": "Вместо травмированного или дисквалифицированного на матчи сборной игрока в матче играет игрок той же позиции.",
+  "Kulüpteki kart cezaları milli maçı etkilemez. Milli maçta kırmızı kart gören oyuncu bir sonraki milli maçta oynayamaz; milli maç kartları kulübe yansımaz.": "Дисквалификации за карточки в клубе не действуют в матчах сборной. Игрок, удалённый в матче сборной, пропускает следующий матч сборной; карточки сборной на клуб не переносятся.",
+  "EURO Nations Cup": "EURO Nations Cup",
+  "32 ülke, 4’erli 8 grup. Kura sezonun 17. günü çekilir; grup maçları 34–36. günlerde oynanır ve her gruptan ilk iki Son 16’ya çıkar. Son 16, çeyrek final, yarı final ve final (37–40. gün) tek maçtır; beraberlikte uzatma ve penaltılar oynanır.": "32 страны в 8 группах по 4. Жеребьёвка проходит на 17-й день сезона; групповые матчи играются в дни 34–36, по две лучшие команды из каждой группы выходят в 1/8 финала. 1/8, 1/4, полуфинал и финал (дни 37–40) — один матч; при ничьей назначаются дополнительное время и серия пенальти.",
+  "Tarafsız saha": "Нейтральное поле",
+  "Milli maçlarda ev sahibi avantajı yoktur.": "В матчах сборных нет преимущества своего поля.",
+  "Oyuncunun kondisyonu kulübüyle ortaktır; milli maçlar da yorar. Sağlık kitini yalnız oyuncunun kulüp kaptanı ve yardımcıları kullanabilir.": "Форма игрока общая с клубом, поэтому матчи сборной тоже утомляют. Аптечки могут использовать только капитан и заместители его клуба."
+});

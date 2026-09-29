@@ -4272,3 +4272,21 @@ Object.assign(window.I18N.de, {
   "Kasa bakiyesi": "Kassenstand",
   "Kitler takım deposunda. Diziliş ekranında Dinlendir ile kullanılır.": "Die Kits liegen im Teamlager. Einsatz über „Erholen“ im Aufstellungs-Bildschirm."
 });
+
+/* ─── 582 · Milli takım kuralları (i) ─── */
+Object.assign(window.I18N.de, {
+  "Milli takım kuralları": "Regeln der Nationalmannschaft",
+  "Kimler oynar?": "Wer darf spielen?",
+  "Uyruğu bu ülke olan tüm oyuncular çağrılabilir; oynadıkları kulübün ülkesi fark etmez.": "Jeder Spieler mit der Staatsangehörigkeit dieses Landes kann berufen werden; das Land seines Vereins spielt keine Rolle.",
+  "Federasyon başkanı milli takımın teknik direktörüdür: kadroyu ve dizilişi belirler, en fazla 3 yardımcı seçer. Oyuna 20 gün girmeyen başkan görevden alınır.": "Der Verbandspräsident ist Nationaltrainer: Er bestimmt Kader und Aufstellung und wählt bis zu 3 Co-Trainer. Ein Präsident, der sich 20 Tage nicht einloggt, wird abgesetzt.",
+  "18 oyuncu: 2 kaleci, 6 defans, 6 orta saha, 4 forvet. Kaptan (pazubandı) ilk 11’in en güçlü oyuncusudur.": "18 Spieler: 2 Torhüter, 6 Verteidiger, 6 Mittelfeldspieler, 4 Stürmer. Kapitän (Binde) ist der stärkste Spieler der Startelf.",
+  "Boş yerlere maç günü sunucu aynı mevkiden en güçlü uygun oyuncuyu koyar. Kadro hiç kurulmadıysa maçlarda en güçlü 18 oyuncu oynar.": "Am Spieltag besetzt der Server freie Plätze mit dem stärksten verfügbaren Spieler derselben Position. Wurde kein Kader aufgestellt, spielen die 18 stärksten Spieler.",
+  "Sakat ve cezalı": "Verletzt und gesperrt",
+  "Sakat ya da milli maç cezalı oyuncunun yerine maçta aynı mevkiden oyuncu oynar.": "Für einen verletzten oder für Länderspiele gesperrten Spieler spielt im Spiel ein Spieler derselben Position.",
+  "Kulüpteki kart cezaları milli maçı etkilemez. Milli maçta kırmızı kart gören oyuncu bir sonraki milli maçta oynayamaz; milli maç kartları kulübe yansımaz.": "Kartensperren im Verein gelten nicht für Länderspiele. Wer in einem Länderspiel Rot sieht, fehlt im nächsten Länderspiel; Karten aus Länderspielen zählen nicht im Verein.",
+  "EURO Nations Cup": "EURO Nations Cup",
+  "32 ülke, 4’erli 8 grup. Kura sezonun 17. günü çekilir; grup maçları 34–36. günlerde oynanır ve her gruptan ilk iki Son 16’ya çıkar. Son 16, çeyrek final, yarı final ve final (37–40. gün) tek maçtır; beraberlikte uzatma ve penaltılar oynanır.": "32 Länder in 8 Vierergruppen. Die Auslosung findet am 17. Tag der Saison statt; die Gruppenspiele laufen an den Tagen 34–36, die zwei Besten jeder Gruppe erreichen das Achtelfinale. Achtelfinale, Viertelfinale, Halbfinale und Finale (Tage 37–40) sind Einzelspiele; bei Unentschieden gibt es Verlängerung und Elfmeterschießen.",
+  "Tarafsız saha": "Neutraler Platz",
+  "Milli maçlarda ev sahibi avantajı yoktur.": "In Länderspielen gibt es keinen Heimvorteil.",
+  "Oyuncunun kondisyonu kulübüyle ortaktır; milli maçlar da yorar. Sağlık kitini yalnız oyuncunun kulüp kaptanı ve yardımcıları kullanabilir.": "Die Kondition eines Spielers gilt auch für seinen Verein, daher ermüden auch Länderspiele. Medi-Kits können nur der Vereinskapitän und die Vize-Kapitäne des Spielers einsetzen."
+});
