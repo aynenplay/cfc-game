@@ -6495,3 +6495,45 @@ Object.assign(window.I18N.en, {
     [/^✓ Taktik (\d+)\. dakikadan itibaren geçerli$/, "✓ Tactics apply from minute $1"]
   );
 })();
+
+/* ─── 585 · Formasyon seçici ─── */
+Object.assign(window.I18N.en, {
+  "Takımım · Diziliş": "My Team · Formation",
+  "Milli takım · Diziliş": "National team · Formation",
+  "Seçili": "Selected",
+  "Genişlik": "Width",
+  "Merkez": "Centre",
+  "Kadrona uygunluk": "Fit for your squad",
+  "Çift ön libero savunmayı korur, pres için ideal": "Double pivot shields the defence, ideal for pressing",
+  "Tek forvet yalnız kalabilir": "The lone striker can get isolated",
+  "Kanat genişliği, yüksek pres": "Width on the wings, high press",
+  "Bek arkası boşluk, tek ön libero": "Space behind the full-backs, single holding midfielder",
+  "Tüm genişliği korur, 2 forvetle kontra": "Covers the full width, counters with 2 strikers",
+  "Merkezde 3 orta sahaya sayıca az": "Outnumbered by a 3-man midfield",
+  "4-4-2 sağlamlığı ve forvet arkasında 10 numara": "4-4-2 solidity plus a number 10 behind the striker",
+  "Forvet çoğu zaman yalnız": "The striker is often isolated",
+  "Orta blok, merkez kalabalık": "Mid block, crowded centre",
+  "Gol üretmek zor, forvet yalnız": "Hard to create goals, striker isolated",
+  "Merkezde üstünlük, 2 forvet": "Control of the centre, 2 strikers",
+  "Kanatlar açık kalır": "The flanks are left open",
+  "Kontra-pres, merkezde 4 hücumcu": "Counter-press, 4 attackers in the middle",
+  "Genişlik yalnız beklerden gelir": "Width comes only from the full-backs",
+  "Hücumda 5 kişi, iç koridorlarda 2 on numara": "5 players in attack, two 10s in the half-spaces",
+  "Kanat bekinin arkası, 2 kişilik orta saha": "Space behind the wing-backs, 2-man midfield",
+  "En geniş ve en kalabalık hücum": "The widest and most crowded attack",
+  "Orta saha 2 kişi, kontraya açık": "Only 2 in midfield, exposed to counters",
+  "Orta saha kontrolü, 2 forvetle kontra": "Midfield control, counters with 2 strikers",
+  "3 forvetli prese karşı zorlanır, kanat bekleri yorulur": "Struggles against a 3-man press, wing-backs tire",
+  "Sağlam blok, hızlı kontra": "Solid block, fast counters",
+  "Pasif, topu rakibe bırakır": "Passive, gives the ball to the opponent",
+  "Otobüsü park et: en kapalı blok": "Park the bus: the tightest block",
+  "Gol üretmek çok zor": "Very hard to create goals"
+});
+(function () {
+  var P = window.I18N_PATTERNS.en;
+  P.unshift(
+    [/^Şu an ([0-9-]{3,12})$/, "Now $1"],
+    [/^Tümü (\d+)$/, "All $1"],
+    [/^✓ ([0-9-]{3,12}) ile devam$/, "✓ Continue with $1"]
+  );
+})();

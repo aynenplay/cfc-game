@@ -6087,3 +6087,45 @@ Object.assign(window.I18N.it, {
     [/^✓ Taktik (\d+)\. dakikadan itibaren geçerli$/, "✓ Tattica valida dal minuto $1"]
   );
 })();
+
+/* ─── 585 · Formasyon seçici ─── */
+Object.assign(window.I18N.it, {
+  "Takımım · Diziliş": "La mia squadra · Formazione",
+  "Milli takım · Diziliş": "Nazionale · Formazione",
+  "Seçili": "Scelto",
+  "Genişlik": "Ampiezza",
+  "Merkez": "Centro",
+  "Kadrona uygunluk": "Adatto alla tua rosa",
+  "Çift ön libero savunmayı korur, pres için ideal": "Il doppio mediano protegge la difesa, ideale per il pressing",
+  "Tek forvet yalnız kalabilir": "L'unica punta può restare isolata",
+  "Kanat genişliği, yüksek pres": "Ampiezza sulle fasce, pressing alto",
+  "Bek arkası boşluk, tek ön libero": "Spazio alle spalle dei terzini, un solo mediano",
+  "Tüm genişliği korur, 2 forvetle kontra": "Copre tutta l'ampiezza, riparte con 2 punte",
+  "Merkezde 3 orta sahaya sayıca az": "In inferiorità contro un centrocampo a 3",
+  "4-4-2 sağlamlığı ve forvet arkasında 10 numara": "La solidità del 4-4-2 e un trequartista dietro la punta",
+  "Forvet çoğu zaman yalnız": "La punta è spesso isolata",
+  "Orta blok, merkez kalabalık": "Blocco medio, centro affollato",
+  "Gol üretmek zor, forvet yalnız": "Difficile creare gol, punta isolata",
+  "Merkezde üstünlük, 2 forvet": "Superiorità al centro, 2 punte",
+  "Kanatlar açık kalır": "Le fasce restano scoperte",
+  "Kontra-pres, merkezde 4 hücumcu": "Contropressing, 4 attaccanti al centro",
+  "Genişlik yalnız beklerden gelir": "L'ampiezza arriva solo dai terzini",
+  "Hücumda 5 kişi, iç koridorlarda 2 on numara": "5 uomini in attacco, due trequartisti nei mezzi spazi",
+  "Kanat bekinin arkası, 2 kişilik orta saha": "Spazio dietro gli esterni, centrocampo a 2",
+  "En geniş ve en kalabalık hücum": "L'attacco più ampio e numeroso",
+  "Orta saha 2 kişi, kontraya açık": "Solo 2 a centrocampo, esposto alle ripartenze",
+  "Orta saha kontrolü, 2 forvetle kontra": "Controllo del centrocampo, ripartenze con 2 punte",
+  "3 forvetli prese karşı zorlanır, kanat bekleri yorulur": "Soffre il pressing a 3 punte, gli esterni si stancano",
+  "Sağlam blok, hızlı kontra": "Blocco solido, ripartenze rapide",
+  "Pasif, topu rakibe bırakır": "Passivo, lascia il pallone all'avversario",
+  "Otobüsü park et: en kapalı blok": "Parcheggiare il pullman: il blocco più chiuso",
+  "Gol üretmek çok zor": "Molto difficile creare gol"
+});
+(function () {
+  var P = window.I18N_PATTERNS.it;
+  P.unshift(
+    [/^Şu an ([0-9-]{3,12})$/, "Ora $1"],
+    [/^Tümü (\d+)$/, "Tutti $1"],
+    [/^✓ ([0-9-]{3,12}) ile devam$/, "✓ Continua con $1"]
+  );
+})();

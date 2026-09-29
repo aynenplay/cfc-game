@@ -6119,3 +6119,45 @@ Object.assign(window.I18N.ru, {
     [/^✓ Taktik (\d+)\. dakikadan itibaren geçerli$/, "✓ Тактика действует с $1-й минуты"]
   );
 })();
+
+/* ─── 585 · Formasyon seçici ─── */
+Object.assign(window.I18N.ru, {
+  "Takımım · Diziliş": "Моя команда · Расстановка",
+  "Milli takım · Diziliş": "Сборная · Расстановка",
+  "Seçili": "Выбрано",
+  "Genişlik": "Ширина",
+  "Merkez": "Центр",
+  "Kadrona uygunluk": "Подходит составу",
+  "Çift ön libero savunmayı korur, pres için ideal": "Два опорных прикрывают оборону, идеально для прессинга",
+  "Tek forvet yalnız kalabilir": "Единственный форвард может остаться один",
+  "Kanat genişliği, yüksek pres": "Ширина на флангах, высокий прессинг",
+  "Bek arkası boşluk, tek ön libero": "Зона за крайними защитниками, один опорный",
+  "Tüm genişliği korur, 2 forvetle kontra": "Закрывает всю ширину, контратака двумя форвардами",
+  "Merkezde 3 orta sahaya sayıca az": "В меньшинстве против трёх в центре",
+  "4-4-2 sağlamlığı ve forvet arkasında 10 numara": "Надёжность 4-4-2 и «десятка» под форвардом",
+  "Forvet çoğu zaman yalnız": "Форвард часто один",
+  "Orta blok, merkez kalabalık": "Средний блок, плотный центр",
+  "Gol üretmek zor, forvet yalnız": "Трудно создавать голы, форвард один",
+  "Merkezde üstünlük, 2 forvet": "Перевес в центре, два форварда",
+  "Kanatlar açık kalır": "Фланги остаются открытыми",
+  "Kontra-pres, merkezde 4 hücumcu": "Контрпрессинг, четыре атакующих в центре",
+  "Genişlik yalnız beklerden gelir": "Ширину дают только крайние защитники",
+  "Hücumda 5 kişi, iç koridorlarda 2 on numara": "Пятеро в атаке, две «десятки» в полуфлангах",
+  "Kanat bekinin arkası, 2 kişilik orta saha": "Зона за латералями, в центре только двое",
+  "En geniş ve en kalabalık hücum": "Самая широкая и многочисленная атака",
+  "Orta saha 2 kişi, kontraya açık": "В центре двое, уязвимость к контратакам",
+  "Orta saha kontrolü, 2 forvetle kontra": "Контроль центра, контратака двумя форвардами",
+  "3 forvetli prese karşı zorlanır, kanat bekleri yorulur": "Трудно против прессинга тремя, латерали устают",
+  "Sağlam blok, hızlı kontra": "Надёжный блок, быстрые контратаки",
+  "Pasif, topu rakibe bırakır": "Пассивно, мяч остаётся у соперника",
+  "Otobüsü park et: en kapalı blok": "Автобус у ворот: самый закрытый блок",
+  "Gol üretmek çok zor": "Создавать голы очень трудно"
+});
+(function () {
+  var P = window.I18N_PATTERNS.ru;
+  P.unshift(
+    [/^Şu an ([0-9-]{3,12})$/, "Сейчас $1"],
+    [/^Tümü (\d+)$/, "Все $1"],
+    [/^✓ ([0-9-]{3,12}) ile devam$/, "✓ Продолжить: $1"]
+  );
+})();
