@@ -6058,3 +6058,32 @@ Object.assign(window.I18N.ru, {
   "Milli maçlarda ev sahibi avantajı yoktur.": "В матчах сборных нет преимущества своего поля.",
   "Oyuncunun kondisyonu kulübüyle ortaktır; milli maçlar da yorar. Sağlık kitini yalnız oyuncunun kulüp kaptanı ve yardımcıları kullanabilir.": "Форма игрока общая с клубом, поэтому матчи сборной тоже утомляют. Аптечки могут использовать только капитан и заместители его клуба."
 });
+
+/* ─── 583 · Milli takım 20 kişilik esnek kadro ─── */
+Object.assign(window.I18N.ru, {
+  "En fazla 20 oyuncu: 2 kaleci, 6 defans, 6 orta saha, 6 forvet; en az 12. Maç günü sahaya 18 kişi çıkar: ilk 11 ve 7 yedek. Kaptan (pazubandı) ilk 11’in en güçlü oyuncusudur.": "До 20 игроков: 2 вратаря, 6 защитников, 6 полузащитников, 6 нападающих; минимум 12. В день матча в заявке 18 игроков: стартовый состав и 7 запасных. Капитан (повязка) — самый сильный игрок стартового состава.",
+  "Kadrodan çıkardığın oyuncunun yeri boş kalır. Kadro 12’nin altına inecekse ya da son kaleci çıkarsa, yerine aynı mevkiden en güçlü uygun oyuncu otomatik gelir. Kadro hiç kurulmadıysa en güçlü 20 oyuncu otomatik seçilir.": "Место исключённого игрока остаётся пустым. Если в составе станет меньше 12 или уходит последний вратарь, автоматически добавляется самый сильный доступный игрок той же позиции. Если состав не собран, автоматически выбираются 20 сильнейших.",
+  "Milli takım kadrosu en fazla 20 kişi olabilir": "В составе сборной может быть не более 20 игроков",
+  "Maçlarda bu otomatik kadro (en güçlü 20 oyuncu) kullanılır. Analiz sekmesinden oyuncu çağırarak ya da buradan çıkararak kendi kadronu kurabilirsin.": "В матчах используется этот автоматический состав (20 сильнейших). Собери свой: вызывай игроков во вкладке «Анализ» или исключай их здесь.",
+  "Milli takıma 20 kişilik kadro seçimi (başkan ve yardımcıları)": "Выбор состава сборной из 20 игроков (президент и помощники)",
+  "✓ Milli takım kadrosunu seçer (12–20 kişi)": "✓ Выбирает состав сборной (12–20 игроков)",
+  "✗ Kadroyu kurmazsa en güçlü 20 oyuncu otomatik seçilir": "✗ Если состав не выбран, автоматически выбираются 20 сильнейших",
+  "Bu oyuncu kadroyu 12’ye tamamlamak için otomatik geldi.": "Этот игрок добавлен автоматически, чтобы довести состав до 12.",
+  "Yerine Analiz sekmesinden başka birini çağırabilirsin.": "Вместо него можно вызвать другого во вкладке «Анализ».",
+  "Kadro en az 12 kişi olmalı.": "В составе должно быть не менее 12 игроков.",
+  "Yerine gelecek uygun oyuncu yok — önce başka birini çağır.": "Нет доступной замены — сначала вызови другого игрока.",
+  "Bu oyuncu çıkarılırsa yerine aynı mevkiden en güçlü uygun oyuncu otomatik gelir:": "Если исключить этого игрока, автоматически придёт самый сильный доступный игрок той же позиции:",
+  "Yerine gelecek": "Замена",
+  "milli takımdan çıkarılacak.": "будет исключён из сборной.",
+  "Yeri boş kalır; istersen Analiz sekmesinden başka birini çağırabilirsin.": "Его место остаётся пустым; при желании вызови другого во вкладке «Анализ».",
+  "· en az 12": "· минимум 12",
+  "Bu oyuncu kadroyu 12’ye tamamlamak için otomatik geldi — yerine başka birini çağırabilirsin": "Этот игрок добавлен автоматически, чтобы довести состав до 12, — вместо него можно вызвать другого",
+  "Kadro en az 12 kişi olmalı ve yerine gelecek uygun oyuncu yok — önce başka birini çağır": "В составе должно быть минимум 12 игроков, а замены нет — сначала вызови другого"
+});
+(function () {
+  var P = window.I18N_PATTERNS.ru;
+  P.unshift(
+    [/^🔁 (.+?) çıkarıldı · yerine (.+?) otomatik geldi \(kadro en az (\d+)\)$/, "🔁 $1 исключён · автоматически добавлен $2 (минимум $3 в составе)"],
+    [/^(.+?) kadrodan çıkarıldı · kadro (\d+)\/(\d+)$/, "$1 исключён из состава · состав $2/$3"]
+  );
+})();

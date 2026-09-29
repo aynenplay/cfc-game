@@ -6028,3 +6028,32 @@ Object.assign(window.I18N.es, {
   "Milli maçlarda ev sahibi avantajı yoktur.": "En los partidos de selección no hay ventaja de local.",
   "Oyuncunun kondisyonu kulübüyle ortaktır; milli maçlar da yorar. Sağlık kitini yalnız oyuncunun kulüp kaptanı ve yardımcıları kullanabilir.": "La forma física del jugador es la misma que en su club, así que los partidos de selección también cansan. Solo el capitán y los vicecapitanes de su club pueden usar botiquines."
 });
+
+/* ─── 583 · Milli takım 20 kişilik esnek kadro ─── */
+Object.assign(window.I18N.es, {
+  "En fazla 20 oyuncu: 2 kaleci, 6 defans, 6 orta saha, 6 forvet; en az 12. Maç günü sahaya 18 kişi çıkar: ilk 11 ve 7 yedek. Kaptan (pazubandı) ilk 11’in en güçlü oyuncusudur.": "Hasta 20 jugadores: 2 porteros, 6 defensas, 6 centrocampistas, 6 delanteros; como mínimo 12. El día del partido van convocados 18: el once inicial y 7 suplentes. El capitán (brazalete) es el jugador más fuerte del once inicial.",
+  "Kadrodan çıkardığın oyuncunun yeri boş kalır. Kadro 12’nin altına inecekse ya da son kaleci çıkarsa, yerine aynı mevkiden en güçlü uygun oyuncu otomatik gelir. Kadro hiç kurulmadıysa en güçlü 20 oyuncu otomatik seçilir.": "El hueco del jugador que descartas queda vacío. Si la convocatoria bajara de 12 o sale el último portero, entra automáticamente el jugador disponible más fuerte de la misma posición. Si no se ha formado una convocatoria, se eligen automáticamente los 20 más fuertes.",
+  "Milli takım kadrosu en fazla 20 kişi olabilir": "La convocatoria puede tener como máximo 20 jugadores",
+  "Maçlarda bu otomatik kadro (en güçlü 20 oyuncu) kullanılır. Analiz sekmesinden oyuncu çağırarak ya da buradan çıkararak kendi kadronu kurabilirsin.": "En los partidos se usa esta convocatoria automática (los 20 más fuertes). Forma la tuya convocando jugadores desde la pestaña Análisis o descartándolos aquí.",
+  "Milli takıma 20 kişilik kadro seçimi (başkan ve yardımcıları)": "Elección de la convocatoria de 20 jugadores (presidente y asistentes)",
+  "✓ Milli takım kadrosunu seçer (12–20 kişi)": "✓ Elige la convocatoria (12–20 jugadores)",
+  "✗ Kadroyu kurmazsa en güçlü 20 oyuncu otomatik seçilir": "✗ Si no fija la convocatoria, se eligen automáticamente los 20 más fuertes",
+  "Bu oyuncu kadroyu 12’ye tamamlamak için otomatik geldi.": "Este jugador entró automáticamente para completar la convocatoria hasta 12.",
+  "Yerine Analiz sekmesinden başka birini çağırabilirsin.": "Puedes convocar a otro desde la pestaña Análisis en su lugar.",
+  "Kadro en az 12 kişi olmalı.": "La convocatoria debe tener al menos 12 jugadores.",
+  "Yerine gelecek uygun oyuncu yok — önce başka birini çağır.": "No hay un jugador disponible para sustituirlo: convoca antes a otro.",
+  "Bu oyuncu çıkarılırsa yerine aynı mevkiden en güçlü uygun oyuncu otomatik gelir:": "Si descartas a este jugador, entra automáticamente el jugador disponible más fuerte de la misma posición:",
+  "Yerine gelecek": "Sustituto",
+  "milli takımdan çıkarılacak.": "será descartado de la selección.",
+  "Yeri boş kalır; istersen Analiz sekmesinden başka birini çağırabilirsin.": "Su hueco queda vacío; si quieres, puedes convocar a otro desde la pestaña Análisis.",
+  "· en az 12": "· mínimo 12",
+  "Bu oyuncu kadroyu 12’ye tamamlamak için otomatik geldi — yerine başka birini çağırabilirsin": "Este jugador entró automáticamente para completar la convocatoria hasta 12; puedes convocar a otro en su lugar",
+  "Kadro en az 12 kişi olmalı ve yerine gelecek uygun oyuncu yok — önce başka birini çağır": "La convocatoria necesita al menos 12 jugadores y no hay sustituto disponible: convoca antes a otro"
+});
+(function () {
+  var P = window.I18N_PATTERNS.es;
+  P.unshift(
+    [/^🔁 (.+?) çıkarıldı · yerine (.+?) otomatik geldi \(kadro en az (\d+)\)$/, "🔁 $1 descartado · $2 entra automáticamente (mínimo $3 en la convocatoria)"],
+    [/^(.+?) kadrodan çıkarıldı · kadro (\d+)\/(\d+)$/, "$1 fue descartado de la convocatoria · convocatoria $2/$3"]
+  );
+})();

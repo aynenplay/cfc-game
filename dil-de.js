@@ -4290,3 +4290,32 @@ Object.assign(window.I18N.de, {
   "Milli maçlarda ev sahibi avantajı yoktur.": "In Länderspielen gibt es keinen Heimvorteil.",
   "Oyuncunun kondisyonu kulübüyle ortaktır; milli maçlar da yorar. Sağlık kitini yalnız oyuncunun kulüp kaptanı ve yardımcıları kullanabilir.": "Die Kondition eines Spielers gilt auch für seinen Verein, daher ermüden auch Länderspiele. Medi-Kits können nur der Vereinskapitän und die Vize-Kapitäne des Spielers einsetzen."
 });
+
+/* ─── 583 · Milli takım 20 kişilik esnek kadro ─── */
+Object.assign(window.I18N.de, {
+  "En fazla 20 oyuncu: 2 kaleci, 6 defans, 6 orta saha, 6 forvet; en az 12. Maç günü sahaya 18 kişi çıkar: ilk 11 ve 7 yedek. Kaptan (pazubandı) ilk 11’in en güçlü oyuncusudur.": "Bis zu 20 Spieler: 2 Torhüter, 6 Verteidiger, 6 Mittelfeldspieler, 6 Stürmer; mindestens 12. Am Spieltag stehen 18 Spieler im Aufgebot: die Startelf und 7 Ersatzspieler. Kapitän (Binde) ist der stärkste Spieler der Startelf.",
+  "Kadrodan çıkardığın oyuncunun yeri boş kalır. Kadro 12’nin altına inecekse ya da son kaleci çıkarsa, yerine aynı mevkiden en güçlü uygun oyuncu otomatik gelir. Kadro hiç kurulmadıysa en güçlü 20 oyuncu otomatik seçilir.": "Der Platz eines gestrichenen Spielers bleibt frei. Würde der Kader unter 12 fallen oder der letzte Torhüter gestrichen, rückt automatisch der stärkste verfügbare Spieler derselben Position nach. Wurde kein Kader aufgestellt, werden automatisch die 20 stärksten Spieler gewählt.",
+  "Milli takım kadrosu en fazla 20 kişi olabilir": "Der Nationalkader darf höchstens 20 Spieler haben",
+  "Maçlarda bu otomatik kadro (en güçlü 20 oyuncu) kullanılır. Analiz sekmesinden oyuncu çağırarak ya da buradan çıkararak kendi kadronu kurabilirsin.": "In den Spielen wird dieser automatische Kader (die 20 stärksten Spieler) eingesetzt. Stelle deinen eigenen zusammen, indem du im Analyse-Tab Spieler berufst oder sie hier streichst.",
+  "Milli takıma 20 kişilik kadro seçimi (başkan ve yardımcıları)": "Auswahl des 20-köpfigen Nationalkaders (Präsident und Co-Trainer)",
+  "✓ Milli takım kadrosunu seçer (12–20 kişi)": "✓ Wählt den Nationalkader (12–20 Spieler)",
+  "✗ Kadroyu kurmazsa en güçlü 20 oyuncu otomatik seçilir": "✗ Ohne eigenen Kader werden automatisch die 20 stärksten Spieler gewählt",
+  "Bu oyuncu kadroyu 12’ye tamamlamak için otomatik geldi.": "Dieser Spieler kam automatisch, um den Kader auf 12 aufzufüllen.",
+  "Yerine Analiz sekmesinden başka birini çağırabilirsin.": "Du kannst stattdessen im Analyse-Tab einen anderen berufen.",
+  "Kadro en az 12 kişi olmalı.": "Der Kader muss mindestens 12 Spieler haben.",
+  "Yerine gelecek uygun oyuncu yok — önce başka birini çağır.": "Kein verfügbarer Ersatz — berufe zuerst einen anderen Spieler.",
+  "Bu oyuncu çıkarılırsa yerine aynı mevkiden en güçlü uygun oyuncu otomatik gelir:": "Wird dieser Spieler gestrichen, rückt automatisch der stärkste verfügbare Spieler derselben Position nach:",
+  "Yerine gelecek": "Nachrücker",
+  "milli takımdan çıkarılacak.": "wird aus der Nationalmannschaft gestrichen.",
+  "Yeri boş kalır; istersen Analiz sekmesinden başka birini çağırabilirsin.": "Sein Platz bleibt frei; wenn du willst, kannst du im Analyse-Tab einen anderen berufen.",
+  "· en az 12": "· mindestens 12",
+  "Bu oyuncu kadroyu 12’ye tamamlamak için otomatik geldi — yerine başka birini çağırabilirsin": "Dieser Spieler kam automatisch, um den Kader auf 12 aufzufüllen — du kannst stattdessen einen anderen berufen",
+  "Kadro en az 12 kişi olmalı ve yerine gelecek uygun oyuncu yok — önce başka birini çağır": "Der Kader braucht mindestens 12 Spieler und es gibt keinen Ersatz — berufe zuerst einen anderen"
+});
+(function () {
+  var P = window.I18N_PATTERNS.de;
+  P.unshift(
+    [/^🔁 (.+?) çıkarıldı · yerine (.+?) otomatik geldi \(kadro en az (\d+)\)$/, "🔁 $1 gestrichen · $2 automatisch nachgerückt (Kader mind. $3)"],
+    [/^(.+?) kadrodan çıkarıldı · kadro (\d+)\/(\d+)$/, "$1 wurde aus dem Kader gestrichen · Kader $2/$3"]
+  );
+})();

@@ -6434,3 +6434,32 @@ Object.assign(window.I18N.en, {
   "Milli maçlarda ev sahibi avantajı yoktur.": "There is no home advantage in national team matches.",
   "Oyuncunun kondisyonu kulübüyle ortaktır; milli maçlar da yorar. Sağlık kitini yalnız oyuncunun kulüp kaptanı ve yardımcıları kullanabilir.": "A player's fitness is shared with their club, so national team matches tire them too. Med kits can only be used by the player's club captain and vice-captains."
 });
+
+/* ─── 583 · Milli takım 20 kişilik esnek kadro ─── */
+Object.assign(window.I18N.en, {
+  "En fazla 20 oyuncu: 2 kaleci, 6 defans, 6 orta saha, 6 forvet; en az 12. Maç günü sahaya 18 kişi çıkar: ilk 11 ve 7 yedek. Kaptan (pazubandı) ilk 11’in en güçlü oyuncusudur.": "Up to 20 players: 2 goalkeepers, 6 defenders, 6 midfielders, 6 forwards; at least 12. On match day 18 players are in the squad: the starting XI and 7 substitutes. The captain (armband) is the strongest player in the starting XI.",
+  "Kadrodan çıkardığın oyuncunun yeri boş kalır. Kadro 12’nin altına inecekse ya da son kaleci çıkarsa, yerine aynı mevkiden en güçlü uygun oyuncu otomatik gelir. Kadro hiç kurulmadıysa en güçlü 20 oyuncu otomatik seçilir.": "The spot of a player you drop stays empty. If the squad would fall below 12, or the last goalkeeper is dropped, the strongest available player in the same position is added automatically. If no squad has been set, the 20 strongest players are picked automatically.",
+  "Milli takım kadrosu en fazla 20 kişi olabilir": "The national squad can have at most 20 players",
+  "Maçlarda bu otomatik kadro (en güçlü 20 oyuncu) kullanılır. Analiz sekmesinden oyuncu çağırarak ya da buradan çıkararak kendi kadronu kurabilirsin.": "This automatic squad (the 20 strongest players) is used in matches. Build your own by calling up players from the Analysis tab or dropping them here.",
+  "Milli takıma 20 kişilik kadro seçimi (başkan ve yardımcıları)": "Picking the 20-player national squad (president and assistants)",
+  "✓ Milli takım kadrosunu seçer (12–20 kişi)": "✓ Picks the national squad (12–20 players)",
+  "✗ Kadroyu kurmazsa en güçlü 20 oyuncu otomatik seçilir": "✗ If no squad is set, the 20 strongest players are picked automatically",
+  "Bu oyuncu kadroyu 12’ye tamamlamak için otomatik geldi.": "This player was added automatically to bring the squad up to 12.",
+  "Yerine Analiz sekmesinden başka birini çağırabilirsin.": "You can call up someone else from the Analysis tab instead.",
+  "Kadro en az 12 kişi olmalı.": "The squad must have at least 12 players.",
+  "Yerine gelecek uygun oyuncu yok — önce başka birini çağır.": "No available player to replace him — call up someone else first.",
+  "Bu oyuncu çıkarılırsa yerine aynı mevkiden en güçlü uygun oyuncu otomatik gelir:": "If this player is dropped, the strongest available player in the same position comes in automatically:",
+  "Yerine gelecek": "Replacement",
+  "milli takımdan çıkarılacak.": "will be dropped from the national team.",
+  "Yeri boş kalır; istersen Analiz sekmesinden başka birini çağırabilirsin.": "His spot stays empty; you can call up someone else from the Analysis tab if you like.",
+  "· en az 12": "· minimum 12",
+  "Bu oyuncu kadroyu 12’ye tamamlamak için otomatik geldi — yerine başka birini çağırabilirsin": "This player was added automatically to bring the squad up to 12 — you can call up someone else instead",
+  "Kadro en az 12 kişi olmalı ve yerine gelecek uygun oyuncu yok — önce başka birini çağır": "The squad needs at least 12 players and no replacement is available — call up someone else first"
+});
+(function () {
+  var P = window.I18N_PATTERNS.en;
+  P.unshift(
+    [/^🔁 (.+?) çıkarıldı · yerine (.+?) otomatik geldi \(kadro en az (\d+)\)$/, "🔁 $1 dropped · $2 added automatically (squad minimum $3)"],
+    [/^(.+?) kadrodan çıkarıldı · kadro (\d+)\/(\d+)$/, "$1 was removed from the squad · squad $2/$3"]
+  );
+})();
