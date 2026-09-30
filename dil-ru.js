@@ -6488,3 +6488,18 @@ Object.assign(window.I18N.ru, {
     [/^Taban (\d+) · Itemden \+(\d+)$/, "База $1 · Предмет +$2"]
   );
 })();
+
+/* ─── 600 · Ekipman (Kart Koleksiyonu) ─── */
+Object.assign(window.I18N.ru, {
+  "Aktif Slotlar": "Активные слоты",
+  "Dolap": "Гардероб",
+  "Mağaza İtemler": "Предметы магазина",
+  "Aktif bonuslar": "Активные бонусы",
+  "Dolaptan item sürükleyip slota bırak · slottan dolaba sürükleyince çıkar": "Перетащи предмет из гардероба в слот · перетащи обратно в гардероб, чтобы снять"
+});
+(function () {
+  var P = window.I18N_PATTERNS.ru;
+  P.push(
+    [/^maçlarda geçerli · yetenek başına en fazla %(\d+)$/, "действует в матчах · не более $1% на навык"]
+  );
+})();

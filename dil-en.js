@@ -6864,3 +6864,18 @@ Object.assign(window.I18N.en, {
     [/^Taban (\d+) · Itemden \+(\d+)$/, "Base $1 · Item +$2"]
   );
 })();
+
+/* ─── 600 · Ekipman (Kart Koleksiyonu) ─── */
+Object.assign(window.I18N.en, {
+  "Aktif Slotlar": "Active Slots",
+  "Dolap": "Wardrobe",
+  "Mağaza İtemler": "Shop Items",
+  "Aktif bonuslar": "Active bonuses",
+  "Dolaptan item sürükleyip slota bırak · slottan dolaba sürükleyince çıkar": "Drag an item from the wardrobe onto a slot · drag it back to the wardrobe to unequip"
+});
+(function () {
+  var P = window.I18N_PATTERNS.en;
+  P.push(
+    [/^maçlarda geçerli · yetenek başına en fazla %(\d+)$/, "applies in matches · max $1% per skill"]
+  );
+})();

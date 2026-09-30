@@ -6518,3 +6518,18 @@ Object.assign(window.I18N.fr, {
     [/^Taban (\d+) · Itemden \+(\d+)$/, "Base $1 · Objet +$2"]
   );
 })();
+
+/* ─── 600 · Ekipman (Kart Koleksiyonu) ─── */
+Object.assign(window.I18N.fr, {
+  "Aktif Slotlar": "Emplacements actifs",
+  "Dolap": "Vestiaire",
+  "Mağaza İtemler": "Objets de la boutique",
+  "Aktif bonuslar": "Bonus actifs",
+  "Dolaptan item sürükleyip slota bırak · slottan dolaba sürükleyince çıkar": "Fais glisser un objet du vestiaire vers un emplacement · remets-le dans le vestiaire pour le retirer"
+});
+(function () {
+  var P = window.I18N_PATTERNS.fr;
+  P.push(
+    [/^maçlarda geçerli · yetenek başına en fazla %(\d+)$/, "actif en match · max $1 % par compétence"]
+  );
+})();

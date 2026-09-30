@@ -4720,3 +4720,18 @@ Object.assign(window.I18N.de, {
     [/^Taban (\d+) · Itemden \+(\d+)$/, "Basis $1 · Gegenstand +$2"]
   );
 })();
+
+/* ─── 600 · Ekipman (Kart Koleksiyonu) ─── */
+Object.assign(window.I18N.de, {
+  "Aktif Slotlar": "Aktive Slots",
+  "Dolap": "Spind",
+  "Mağaza İtemler": "Shop-Gegenstände",
+  "Aktif bonuslar": "Aktive Boni",
+  "Dolaptan item sürükleyip slota bırak · slottan dolaba sürükleyince çıkar": "Ziehe einen Gegenstand aus dem Spind auf einen Slot · zurück in den Spind ziehen, um ihn abzulegen"
+});
+(function () {
+  var P = window.I18N_PATTERNS.de;
+  P.push(
+    [/^maçlarda geçerli · yetenek başına en fazla %(\d+)$/, "gilt in Spielen · max. $1% pro Fähigkeit"]
+  );
+})();
