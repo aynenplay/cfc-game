@@ -28419,7 +28419,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-30-lig-605';
+const APP_BUILD = '2026-09-30-agac-606';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -76258,7 +76258,7 @@ function trn2BuildPlayoff(teams, season, trnKey) {
     }
     const hs = srv.hs ?? 0;
     const as = srv.as ?? 0;
-    const winner = hs > as ? home : hs < as ? away : (idx % 2 === 0 ? home : away);
+    const winner = hs >= as ? home : away;   // beraberlikte ev sahibi (sunucu _getPlayoffResults ile aynı)
     return { home, away, hs, as, winner, fromServer: true };
   }).filter(x => x);
 
@@ -76307,7 +76307,7 @@ function trn2BuildPlayoff2(trnKey, season) {
     if (!srv) return { home, away, hs: null, as: null, winner: null, pending: true, fromServer: true };
     const hs = srv.hs ?? 0;
     const as = srv.as ?? 0;
-    const winner = hs > as ? home : hs < as ? away : (idx % 2 === 0 ? home : away);
+    const winner = hs >= as ? home : away;   // beraberlikte ev sahibi (sunucu _getPlayoffResults ile aynı)
     return { home, away, hs, as, winner, fromServer: true };
   }).filter(x => x);
 
@@ -76598,14 +76598,31 @@ function trn2BuildGroups(teams48, season, trnKey) {
       else                    { hStat.dp += 1; hStat.pts += 1; aStat.dp += 1; aStat.pts += 1; }
     }
 
-    // Tiebreaker: pts → averaj → gf → countryKey
+    // Sıralama sunucudakiyle (calcGroupStandings) aynı: puan → ikili puan → ikili averaj → averaj → atılan gol → ad
+    const _ikili = (x, y) => {
+      let px = 0, py = 0, gx = 0, gy = 0, oyn = false;
+      for (const mc of matches) {
+        if (!mc.played) continue;
+        let sx, sy;
+        if (mc.home.name === x && mc.away.name === y) { sx = mc.hs; sy = mc.as; }
+        else if (mc.home.name === y && mc.away.name === x) { sx = mc.as; sy = mc.hs; }
+        else continue;
+        oyn = true; gx += sx; gy += sy;
+        if (sx > sy) px += 3; else if (sy > sx) py += 3; else { px++; py++; }
+      }
+      return { px, py, gx, gy, oyn };
+    };
     stats.sort((a, b) => {
       if (b.pts !== a.pts) return b.pts - a.pts;
-      const avA = (a.gf||0) - (a.ga||0);
-      const avB = (b.gf||0) - (b.ga||0);
+      const h = _ikili(a.name, b.name);
+      if (h.oyn) {
+        if (h.py !== h.px) return h.py - h.px;
+        if ((h.gy - h.gx) !== 0) return h.gy - h.gx;
+      }
+      const avA = (a.gf||0) - (a.ga||0), avB = (b.gf||0) - (b.ga||0);
       if (avB !== avA) return avB - avA;
       if ((b.gf||0) !== (a.gf||0)) return (b.gf||0) - (a.gf||0);
-      return (a.countryKey || '').localeCompare(b.countryKey || '');
+      return String(a.name).localeCompare(String(b.name));
     });
 
     return { letter: grp.letter, teams: stats, matches };
@@ -77077,6 +77094,29 @@ document.addEventListener('keydown', ev => {
 
 // Ağaç kabuğu — tur sekmeleri + yatay kaydırmalı simetrik sütunlar
 //  o = { acc, g1, g2, not, aktif, turlar:[{ad, kartlar:[html], bitti}] }
+// Ağaç sırası: sonraki turdaki her eşleşme, kendisini besleyen iki eşleşmenin tam ortasına düşer.
+//   Sonraki tur kurulmuşsa sıra gerçek eşleşmelerden çıkarılır; kurulmamışsa çapraz eşleşmeli
+//   ilk tur (CHM / EURO Cup Son 16: A1-B2, B1-A2 …) sunucunun ağacına göre dizilir (0-2, 4-6, 1-3, 5-7).
+const _AGC_CAPRAZ = [0, 2, 4, 6, 1, 3, 5, 7];
+function _agcAgacSirasi(turlar, capraz) {
+  const ad = t => t && t.name;
+  const kurulu = tur => !!(tur && (tur.matches || []).some(m => m && m.home && m.away));
+  if (capraz && turlar[0] && (turlar[0].matches || []).length === 8 && !kurulu(turlar[1])) {
+    turlar[0].matches = _AGC_CAPRAZ.map(i => turlar[0].matches[i]);
+  }
+  for (let r = turlar.length - 1; r >= 1; r--) {
+    if (!kurulu(turlar[r])) continue;
+    const kalan = (turlar[r - 1].matches || []).slice(), yeni = [];
+    for (const m of turlar[r].matches) {
+      for (const t of [m && m.home, m && m.away]) {
+        const i = t ? kalan.findIndex(x => x && (ad(x.home) === ad(t) || ad(x.away) === ad(t))) : -1;
+        if (i >= 0) yeni.push(kalan.splice(i, 1)[0]);
+      }
+    }
+    turlar[r - 1].matches = yeni.concat(kalan);
+  }
+  return turlar;
+}
 function _agcAgac(o) {
   const turlar = o.turlar || [];
   const ak = Math.max(0, Math.min(turlar.length - 1, o.aktif || 0));
@@ -77457,7 +77497,7 @@ function trn2BuildBracket(groups, season, trnKey) {
       _bracket.push({ name: info.name, matches, twoLeg: info.twoLeg });
     }
 
-    return _bracket;
+    return _agcAgacSirasi(_bracket, trnKey === 'champ');
   }
 
   // 🆕 Server'da knockout fixture yoksa BOŞ döndür (lokal simülasyon yapma)
@@ -78362,7 +78402,7 @@ function trn2BuildBracketHtml(bracket, trnKey, season, groups) {
         let _pairs = [];
         const _grpDone = Array.isArray(groups) && groups.length === 8 && groups.every(g => g && g.teams && g.teams.length >= 2 && g.teams.every(x => (((x.gp||0)+(x.dp||0)+(x.mp||0)) >= 5)));
         if (trnKey === 'champ' && _grpDone) {
-          const _cr = [[0,1],[1,0],[2,3],[3,2],[4,5],[5,4],[6,7],[7,6]];
+          const _cr = [[0,1],[2,3],[4,5],[6,7],[1,0],[3,2],[5,4],[7,6]];   // ağaç sırası (A1-B2, C1-D2 … üst yarı)
           _pairs = _cr.map(([g1,g2]) => [
             Object.assign({}, groups[g1].teams[0], { group: groups[g1].letter, groupRank: 1 }),
             Object.assign({}, groups[g2].teams[1], { group: groups[g2].letter, groupRank: 2 })
@@ -79341,6 +79381,8 @@ function encRenderKnockout(state) {
       { name: '🏆 Final',      matches: [_conv(ko.final)] },
     ];
   }
+
+  _agcAgacSirasi(rounds, true);
 
   // 2) Maç detayı (penaltı / uzatma rozeti)
   function _matchDetailBadge(m) {
