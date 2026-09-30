@@ -4735,3 +4735,29 @@ Object.assign(window.I18N.de, {
     [/^maçlarda geçerli · yetenek başına en fazla %(\d+)$/, "gilt in Spielen · max. $1% pro Fähigkeit"]
   );
 })();
+
+/* ─── 604 · Lig sayfası (Karbon Kupa) ─── */
+Object.assign(window.I18N.de, {
+  "Takımın": "Dein Team",
+  "Sezon başlamadı": "Saison nicht gestartet",
+  "Ara transfer": "Wintertransfers",
+  "Sezon sonu": "Saisonende",
+  "1. Devre": "Hinrunde",
+  "2. Devre": "Rückrunde",
+  "CHM Play-off": "CHM Play-off",
+  "ELI Play-off": "ELI Play-off",
+  "CON Play-off": "CON Play-off",
+  "Küme Düşme": "Abstieg",
+  "Alt Lige Düşme": "Abstieg",
+  "Üst Lige Yükselme": "Aufstieg",
+  "Gol Kralı": "Torschützenkönig",
+  "Asist Kralı": "Vorlagenkönig",
+  "Sezon Reytingi": "Saisonnote",
+  "Senin sıralaman": "Dein Rang"
+});
+(function () {
+  var P = window.I18N_PATTERNS.de;
+  P.push(
+    [/^H(\d+) · M(\d+)$/, "ST$1 · S$2"]
+  );
+})();

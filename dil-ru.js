@@ -6503,3 +6503,29 @@ Object.assign(window.I18N.ru, {
     [/^maçlarda geçerli · yetenek başına en fazla %(\d+)$/, "действует в матчах · не более $1% на навык"]
   );
 })();
+
+/* ─── 604 · Lig sayfası (Karbon Kupa) ─── */
+Object.assign(window.I18N.ru, {
+  "Takımın": "Твоя команда",
+  "Sezon başlamadı": "Сезон не начался",
+  "Ara transfer": "Промежуточные трансферы",
+  "Sezon sonu": "Конец сезона",
+  "1. Devre": "1-й круг",
+  "2. Devre": "2-й круг",
+  "CHM Play-off": "CHM Плей-офф",
+  "ELI Play-off": "ELI Плей-офф",
+  "CON Play-off": "CON Плей-офф",
+  "Küme Düşme": "Вылет",
+  "Alt Lige Düşme": "Вылет",
+  "Üst Lige Yükselme": "Повышение",
+  "Gol Kralı": "Лучший бомбардир",
+  "Asist Kralı": "Лучший ассистент",
+  "Sezon Reytingi": "Оценка за сезон",
+  "Senin sıralaman": "Твоё место"
+});
+(function () {
+  var P = window.I18N_PATTERNS.ru;
+  P.push(
+    [/^H(\d+) · M(\d+)$/, "Т$1 · М$2"]
+  );
+})();
