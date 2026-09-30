@@ -6480,3 +6480,11 @@ Object.assign(window.I18N.ru, {
     [/^✅ (.+) Seviye (\d+)! \(-(\S+) 💎 kasadan\) ⚡\+(\d+) bonus enerji takıma eklendi!$/, "✅ $1: уровень $2! (-$3 💎 из казны) ⚡+$4 бонусной энергии команде!"]
   );
 })();
+
+/* ─── 599 · Oyuncum hero (item bonusu ipucu) ─── */
+(function () {
+  var P = window.I18N_PATTERNS.ru;
+  P.push(
+    [/^Taban (\d+) · Itemden \+(\d+)$/, "База $1 · Предмет +$2"]
+  );
+})();

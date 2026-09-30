@@ -4712,3 +4712,11 @@ Object.assign(window.I18N.de, {
     [/^✅ (.+) Seviye (\d+)! \(-(\S+) 💎 kasadan\) ⚡\+(\d+) bonus enerji takıma eklendi!$/, "✅ $1 Stufe $2! (-$3 💎 aus der Kasse) ⚡+$4 Bonusenergie für das Team!"]
   );
 })();
+
+/* ─── 599 · Oyuncum hero (item bonusu ipucu) ─── */
+(function () {
+  var P = window.I18N_PATTERNS.de;
+  P.push(
+    [/^Taban (\d+) · Itemden \+(\d+)$/, "Basis $1 · Gegenstand +$2"]
+  );
+})();
