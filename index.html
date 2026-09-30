@@ -28266,7 +28266,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-30-turnuva-609';
+const APP_BUILD = '2026-09-30-turnuva-610';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -77520,8 +77520,8 @@ function _trkAktifTur(T) {
   if (son < 0) return 0;
   return (son === T.length - 1 && T[son].bitti) ? Math.max(0, son - 1) : son;
 }
-function _trkAgacHtml(k, not, T) {
-  return `<div class="trk-not">${not}</div>` + _agcAgac({ sinif: 'trk-ag', acc: _agcTema(k).acc, aktif: _trkAktifTur(T), turlar: T.map((t, ti) => {
+function _trkAgacHtml(k, T) {
+  return _agcAgac({ sinif: 'trk-ag', acc: _agcTema(k).acc, aktif: _trkAktifTur(T), turlar: T.map((t, ti) => {
     const n = t.kartlar.length, son = ti === T.length - 1;
     let gov = '';
     if (n === 1) gov = _trkKart(t.kartlar[0], t.faz === 'final');
@@ -77537,12 +77537,6 @@ function _trkEt(bitti, pen, uzt, canli, basladi) {
   if (basladi) return { k: 'd', t: 'Devam ediyor' };
   return { k: 'p', t: 'Planlı' };
 }
-const _TRK_AGAC_NOT = {
-  champ: "8 grubun 1. ve 2.'leri Son 16'da çapraz eşleşir (A1–B2, B1–A2 …). Aynı gruptan iki takım ancak finalde karşılaşabilir. Final hariç turlar çift maç.",
-  elite: "Elite gruplarının 1-2.'leri ile Championship gruplarının 3-4.'leri Son 32'de eşleşir. Yan yana iki eşleşmenin galipleri bir sonraki turda karşılaşır. Final hariç turlar çift maç.",
-  conv: "Convergence gruplarının 1-2.'leri ile Elite gruplarının 3-4.'leri Son 32'de eşleşir. Yan yana iki eşleşmenin galipleri bir sonraki turda karşılaşır. Final hariç turlar çift maç.",
-  enc: "8 grubun ilk 2'si Son 16'ya yükselir. Tüm turlar tek maç; beraberlikte uzatma ve penaltı.",
-};
 function _trkKulupAgac(groups, trnKey, season) {
   const br = trn2BuildBracket(groups, season, trnKey);
   const idx = _trkMsIndeks(trnKey, season);
@@ -77592,7 +77586,7 @@ function _trkKulupAgac(groups, trnKey, season) {
     }) }));
   }
   _trkPenIste(eksik);
-  return _trkAgacHtml(trnKey, _TRK_AGAC_NOT[trnKey], T);
+  return _trkAgacHtml(trnKey, T);
 }
 function _trkEncAgac(state, season) {
   const turlar = _encTurlar(state);
@@ -77622,7 +77616,7 @@ function _trkEncAgac(state, season) {
     return { ad: String(r.name).replace(/\s*🏆\s*/, ''), faz, kartlar, bitti: kartlar.every(c => c.galip) };
   });
   _trkPenIste(eksik);
-  return _trkAgacHtml('enc', _TRK_AGAC_NOT.enc, T);
+  return _trkAgacHtml('enc', T);
 }
 
 // ── Gol / Asist / Reyting ──
@@ -77815,26 +77809,13 @@ function _trnGuncelAsamaAyarla() {
     _trn2ActiveSubTab = {};                       // her kupa kendi güncel fazıyla açılsın
     for (const k in _trkSecim) delete _trkSecim[k];   // grup / ağaç turu da güncel yerden
     const gun = info.dayInSeason || 1;
-    let encVar = false;
     try {
       const st = (typeof encLoad === 'function') ? encLoad(info.season) : null;
-      encVar = !!st;
       let hedef = gun >= 37 ? 'knockout' : 'groups';
       if (st && ['final','sf','qf','r16'].find(ph => Array.isArray(st[ph]) && st[ph].length > 0)) hedef = 'knockout';
       if (typeof _encSubTab !== 'undefined') _encSubTab = hedef;
     } catch(e) {}
-    let anahtar = null;
-    if (!info.preSeason && gun >= 34 && encVar) anahtar = 'euroNation';
-    else {
-      // 🆕 532 — 39. günden itibaren yeni sezon turnuvaları
-      for (const k of ['champ', 'elite', 'conv']) {
-        const _ts = (typeof _trnGosterSezon === 'function') ? _trnGosterSezon(k) : info.season;
-        try { if (typeof trn2GetUserStatus === 'function' && trn2GetUserStatus(k, _ts)) { anahtar = k; break; } } catch(e) {}
-      }
-    }
-    if (!anahtar) return false;
-    const btn = document.querySelector(`.trn2-tab[onclick*="'${anahtar}'"]`);
-    trn2Tab(anahtar, btn);
+    trn2Tab('champ', document.querySelector(`.trn2-tab[onclick*="'champ'"]`));   // 610 — açılış: Championship, güncel aşama
     return true;
   } catch(e) { return false; }
 }
