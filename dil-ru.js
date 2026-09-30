@@ -6529,3 +6529,51 @@ Object.assign(window.I18N.ru, {
     [/^H(\d+) · M(\d+)$/, "Т$1 · М$2"]
   );
 })();
+
+/* ─── 607 · Turnuvalar (Karbon Ağaç) ─── */
+Object.assign(window.I18N.ru, {
+  "Play-Off": "Плей-офф",
+  "Play-Off 2": "Плей-офф 2",
+  "Gruplar": "Группы",
+  "Belirleniyor": "Определяется",
+  "Elenir": "Выбывает",
+  "Tamamlandı": "Завершено",
+  "Rakip bekleniyor": "Соперник определяется",
+  "PEN": "ПЕН",
+  "1.M": "1-й",
+  "2.M": "2-й",
+  "tur atladı ·": "прошёл дальше ·",
+  "Turnuva Reytingi": "Оценка за турнир",
+  "Turnuvada atılan toplam gol": "Голы, забитые в турнире",
+  "Turnuvada yapılan toplam asist": "Голевые передачи в турнире",
+  "Turnuva ortalama maç reytingi": "Средняя оценка за матч в турнире",
+  "Ortalama maç reytingi (en az 2 maç)": "Средняя оценка (мин. 2 матча)",
+  "Elite Son 32'ye düşer": "Переходит в 1/16 финала Elite",
+  "Convergence Son 32'ye düşer": "Переходит в 1/16 финала Convergence",
+  "Gruplar Play-Off maçları bitince kurulur.": "Группы определяются после матчей плей-офф.",
+  "Kura sezonun 17. gününde çekilir.": "Жеребьёвка проходит на 17-й день сезона.",
+  "Play-Off eşleşmeleri sezon başında çekilir.": "Пары плей-офф определяются в начале сезона.",
+  "Play-Off 2 eşleşmeleri Play-Off maçları bitince belirlenir.": "Пары плей-офф 2 определяются после матчей плей-офф.",
+  "Turnuvada henüz gol atılmadı.": "В турнире ещё не забито голов.",
+  "Turnuvada henüz asist yapılmadı.": "В турнире ещё нет голевых передач.",
+  "Turnuvada henüz maç oynanmadı.": "В турнире ещё не сыграно матчей.",
+  "16 maç · Liglerin 2.'leri kendi aralarında eşleşir. Kazanan gruplara yükselir, kaybeden Elite Play-Off 2'ye düşer. Beraberlikte uzatma ve penaltı.": "16 матчей · Серебряные призёры лиг играют между собой. Победитель выходит в группы, проигравший переходит в плей-офф 2 Elite. При ничьей — дополнительное время и пенальти.",
+  "16 maç · Liglerin 4.'leri kendi aralarında eşleşir. Kazanan Play-Off 2'ye yükselir, kaybeden Convergence Play-Off 2'ye düşer. Beraberlikte uzatma ve penaltı.": "16 матчей · Команды, занявшие 4-е место в лигах, играют между собой. Победитель выходит в плей-офф 2, проигравший переходит в плей-офф 2 Convergence. При ничьей — дополнительное время и пенальти.",
+  "16 maç · Liglerin 6.'ları kendi aralarında eşleşir. Kazanan Play-Off 2'ye yükselir, kaybeden elenir. Beraberlikte uzatma ve penaltı.": "16 матчей · Команды, занявшие 6-е место в лигах, играют между собой. Победитель выходит в плей-офф 2, проигравший выбывает. При ничьей — дополнительное время и пенальти.",
+  "16 maç · Elite Play-Off galipleri ile Championship Play-Off'tan düşenler eşleşir. Kazanan gruplara yükselir, kaybeden elenir. Beraberlikte uzatma ve penaltı.": "16 матчей · Победители плей-офф Elite играют с проигравшими в плей-офф Championship. Победитель выходит в группы, проигравший выбывает. При ничьей — дополнительное время и пенальти.",
+  "16 maç · Convergence Play-Off galipleri ile Elite Play-Off'tan düşenler eşleşir. Kazanan gruplara yükselir, kaybeden elenir. Beraberlikte uzatma ve penaltı.": "16 матчей · Победители плей-офф Convergence играют с проигравшими в плей-офф Elite. Победитель выходит в группы, проигравший выбывает. При ничьей — дополнительное время и пенальти.",
+  "8 grubun 1. ve 2.'leri Son 16'da çapraz eşleşir (A1–B2, B1–A2 …). Aynı gruptan iki takım ancak finalde karşılaşabilir. Final hariç turlar çift maç.": "Две лучшие команды 8 групп встречаются в 1/8 финала крест-накрест (A1–B2, B1–A2 …). Команды из одной группы могут встретиться только в финале. Все раунды, кроме финала, — из двух матчей.",
+  "Elite gruplarının 1-2.'leri ile Championship gruplarının 3-4.'leri Son 32'de eşleşir. Yan yana iki eşleşmenin galipleri bir sonraki turda karşılaşır. Final hariç turlar çift maç.": "Две лучшие команды групп Elite встречаются в 1/16 финала с командами, занявшими 3–4-е места в группах Championship. Победители двух соседних пар встречаются в следующем раунде. Все раунды, кроме финала, — из двух матчей.",
+  "Convergence gruplarının 1-2.'leri ile Elite gruplarının 3-4.'leri Son 32'de eşleşir. Yan yana iki eşleşmenin galipleri bir sonraki turda karşılaşır. Final hariç turlar çift maç.": "Две лучшие команды групп Convergence встречаются в 1/16 финала с командами, занявшими 3–4-е места в группах Elite. Победители двух соседних пар встречаются в следующем раунде. Все раунды, кроме финала, — из двух матчей.",
+  "8 grubun ilk 2'si Son 16'ya yükselir. Tüm turlar tek maç; beraberlikte uzatma ve penaltı.": "Две лучшие команды 8 групп выходят в 1/8 финала. Все раунды — один матч; при ничьей — дополнительное время и пенальти."
+});
+(function () {
+  var P = window.I18N_PATTERNS.ru;
+  P.unshift(
+    [/^(\d+) takım · (\d+) maç günü$/, "Команд: $1 · туров: $2"],
+    [/^\/(\d+) oynandı$/, "/$1 сыграно"],
+    [/^Grup (\d+)\. Maç Günü$/, "Групповой этап, тур $1"],
+    [/^(Championship|Elite|Convergence|EURO Nations Cup) · Play-Off( 2)?$/, "$1 · Плей-офф$2"],
+    [/^Toplam (\d+)-(\d+) ·$/, "По сумме $1-$2 ·"]
+  );
+})();

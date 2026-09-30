@@ -6559,3 +6559,51 @@ Object.assign(window.I18N.fr, {
     [/^H(\d+) · M(\d+)$/, "J$1 · M$2"]
   );
 })();
+
+/* ─── 607 · Turnuvalar (Karbon Ağaç) ─── */
+Object.assign(window.I18N.fr, {
+  "Play-Off": "Barrages",
+  "Play-Off 2": "Barrages 2",
+  "Gruplar": "Groupes",
+  "Belirleniyor": "À déterminer",
+  "Elenir": "Éliminé",
+  "Tamamlandı": "Terminé",
+  "Rakip bekleniyor": "Adversaire à venir",
+  "PEN": "TAB",
+  "1.M": "Aller",
+  "2.M": "Retour",
+  "tur atladı ·": "s'est qualifié ·",
+  "Turnuva Reytingi": "Note du tournoi",
+  "Turnuvada atılan toplam gol": "Buts marqués dans le tournoi",
+  "Turnuvada yapılan toplam asist": "Passes décisives dans le tournoi",
+  "Turnuva ortalama maç reytingi": "Note moyenne dans le tournoi",
+  "Ortalama maç reytingi (en az 2 maç)": "Note moyenne (min. 2 matchs)",
+  "Elite Son 32'ye düşer": "Reversé en seizièmes de l'Elite",
+  "Convergence Son 32'ye düşer": "Reversé en seizièmes de la Convergence",
+  "Gruplar Play-Off maçları bitince kurulur.": "Les groupes sont tirés après les barrages.",
+  "Kura sezonun 17. gününde çekilir.": "Le tirage a lieu le 17e jour de la saison.",
+  "Play-Off eşleşmeleri sezon başında çekilir.": "Les affiches des barrages sont tirées en début de saison.",
+  "Play-Off 2 eşleşmeleri Play-Off maçları bitince belirlenir.": "Les affiches des barrages 2 sont fixées après les barrages.",
+  "Turnuvada henüz gol atılmadı.": "Aucun but marqué dans le tournoi pour l'instant.",
+  "Turnuvada henüz asist yapılmadı.": "Aucune passe décisive dans le tournoi pour l'instant.",
+  "Turnuvada henüz maç oynanmadı.": "Aucun match joué dans le tournoi pour l'instant.",
+  "16 maç · Liglerin 2.'leri kendi aralarında eşleşir. Kazanan gruplara yükselir, kaybeden Elite Play-Off 2'ye düşer. Beraberlikte uzatma ve penaltı.": "16 matchs · Les deuxièmes des championnats s'affrontent. Le vainqueur accède aux groupes, le perdant est reversé en barrages 2 de l'Elite. En cas d'égalité, prolongation et tirs au but.",
+  "16 maç · Liglerin 4.'leri kendi aralarında eşleşir. Kazanan Play-Off 2'ye yükselir, kaybeden Convergence Play-Off 2'ye düşer. Beraberlikte uzatma ve penaltı.": "16 matchs · Les quatrièmes des championnats s'affrontent. Le vainqueur accède aux barrages 2, le perdant est reversé en barrages 2 de la Convergence. En cas d'égalité, prolongation et tirs au but.",
+  "16 maç · Liglerin 6.'ları kendi aralarında eşleşir. Kazanan Play-Off 2'ye yükselir, kaybeden elenir. Beraberlikte uzatma ve penaltı.": "16 matchs · Les sixièmes des championnats s'affrontent. Le vainqueur accède aux barrages 2, le perdant est éliminé. En cas d'égalité, prolongation et tirs au but.",
+  "16 maç · Elite Play-Off galipleri ile Championship Play-Off'tan düşenler eşleşir. Kazanan gruplara yükselir, kaybeden elenir. Beraberlikte uzatma ve penaltı.": "16 matchs · Les vainqueurs des barrages de l'Elite affrontent les reversés des barrages de la Championship. Le vainqueur accède aux groupes, le perdant est éliminé. En cas d'égalité, prolongation et tirs au but.",
+  "16 maç · Convergence Play-Off galipleri ile Elite Play-Off'tan düşenler eşleşir. Kazanan gruplara yükselir, kaybeden elenir. Beraberlikte uzatma ve penaltı.": "16 matchs · Les vainqueurs des barrages de la Convergence affrontent les reversés des barrages de l'Elite. Le vainqueur accède aux groupes, le perdant est éliminé. En cas d'égalité, prolongation et tirs au but.",
+  "8 grubun 1. ve 2.'leri Son 16'da çapraz eşleşir (A1–B2, B1–A2 …). Aynı gruptan iki takım ancak finalde karşılaşabilir. Final hariç turlar çift maç.": "Les deux premiers des 8 groupes se croisent en huitièmes (A1–B2, B1–A2 …). Deux équipes du même groupe ne peuvent se retrouver qu'en finale. Tous les tours sauf la finale se jouent en aller-retour.",
+  "Elite gruplarının 1-2.'leri ile Championship gruplarının 3-4.'leri Son 32'de eşleşir. Yan yana iki eşleşmenin galipleri bir sonraki turda karşılaşır. Final hariç turlar çift maç.": "Les deux premiers des groupes de l'Elite affrontent les troisièmes et quatrièmes des groupes de la Championship en seizièmes. Les vainqueurs de deux duels voisins se retrouvent au tour suivant. Tous les tours sauf la finale se jouent en aller-retour.",
+  "Convergence gruplarının 1-2.'leri ile Elite gruplarının 3-4.'leri Son 32'de eşleşir. Yan yana iki eşleşmenin galipleri bir sonraki turda karşılaşır. Final hariç turlar çift maç.": "Les deux premiers des groupes de la Convergence affrontent les troisièmes et quatrièmes des groupes de l'Elite en seizièmes. Les vainqueurs de deux duels voisins se retrouvent au tour suivant. Tous les tours sauf la finale se jouent en aller-retour.",
+  "8 grubun ilk 2'si Son 16'ya yükselir. Tüm turlar tek maç; beraberlikte uzatma ve penaltı.": "Les deux premiers des 8 groupes accèdent aux huitièmes. Chaque tour se joue sur un match ; en cas d'égalité, prolongation et tirs au but."
+});
+(function () {
+  var P = window.I18N_PATTERNS.fr;
+  P.unshift(
+    [/^(\d+) takım · (\d+) maç günü$/, "$1 équipes · $2 journées"],
+    [/^\/(\d+) oynandı$/, "/$1 joués"],
+    [/^Grup (\d+)\. Maç Günü$/, "Journée $1 des groupes"],
+    [/^(Championship|Elite|Convergence|EURO Nations Cup) · Play-Off( 2)?$/, "$1 · Barrages$2"],
+    [/^Toplam (\d+)-(\d+) ·$/, "Cumul $1-$2 ·"]
+  );
+})();

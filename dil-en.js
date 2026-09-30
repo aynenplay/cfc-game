@@ -6905,3 +6905,51 @@ Object.assign(window.I18N.en, {
     [/^H(\d+) · M(\d+)$/, "W$1 · M$2"]
   );
 })();
+
+/* ─── 607 · Turnuvalar (Karbon Ağaç) ─── */
+Object.assign(window.I18N.en, {
+  "Play-Off": "Play-Off",
+  "Play-Off 2": "Play-Off 2",
+  "Gruplar": "Groups",
+  "Belirleniyor": "To be decided",
+  "Elenir": "Eliminated",
+  "Tamamlandı": "Completed",
+  "Rakip bekleniyor": "Awaiting opponent",
+  "PEN": "PEN",
+  "1.M": "Leg 1",
+  "2.M": "Leg 2",
+  "tur atladı ·": "advanced ·",
+  "Turnuva Reytingi": "Tournament Rating",
+  "Turnuvada atılan toplam gol": "Total goals scored in the tournament",
+  "Turnuvada yapılan toplam asist": "Total assists in the tournament",
+  "Turnuva ortalama maç reytingi": "Average match rating in the tournament",
+  "Ortalama maç reytingi (en az 2 maç)": "Average match rating (min. 2 matches)",
+  "Elite Son 32'ye düşer": "Drops to Elite Round of 32",
+  "Convergence Son 32'ye düşer": "Drops to Convergence Round of 32",
+  "Gruplar Play-Off maçları bitince kurulur.": "Groups are drawn once the Play-Off matches are over.",
+  "Kura sezonun 17. gününde çekilir.": "The draw takes place on day 17 of the season.",
+  "Play-Off eşleşmeleri sezon başında çekilir.": "Play-Off pairings are drawn at the start of the season.",
+  "Play-Off 2 eşleşmeleri Play-Off maçları bitince belirlenir.": "Play-Off 2 pairings are set once the Play-Off matches are over.",
+  "Turnuvada henüz gol atılmadı.": "No goals scored in the tournament yet.",
+  "Turnuvada henüz asist yapılmadı.": "No assists in the tournament yet.",
+  "Turnuvada henüz maç oynanmadı.": "No matches played in the tournament yet.",
+  "16 maç · Liglerin 2.'leri kendi aralarında eşleşir. Kazanan gruplara yükselir, kaybeden Elite Play-Off 2'ye düşer. Beraberlikte uzatma ve penaltı.": "16 matches · League runners-up are drawn against each other. The winner goes to the groups, the loser drops to the Elite Play-Off 2. A draw goes to extra time and penalties.",
+  "16 maç · Liglerin 4.'leri kendi aralarında eşleşir. Kazanan Play-Off 2'ye yükselir, kaybeden Convergence Play-Off 2'ye düşer. Beraberlikte uzatma ve penaltı.": "16 matches · Fourth-placed league teams are drawn against each other. The winner goes to Play-Off 2, the loser drops to the Convergence Play-Off 2. A draw goes to extra time and penalties.",
+  "16 maç · Liglerin 6.'ları kendi aralarında eşleşir. Kazanan Play-Off 2'ye yükselir, kaybeden elenir. Beraberlikte uzatma ve penaltı.": "16 matches · Sixth-placed league teams are drawn against each other. The winner goes to Play-Off 2, the loser is eliminated. A draw goes to extra time and penalties.",
+  "16 maç · Elite Play-Off galipleri ile Championship Play-Off'tan düşenler eşleşir. Kazanan gruplara yükselir, kaybeden elenir. Beraberlikte uzatma ve penaltı.": "16 matches · Elite Play-Off winners face the teams that dropped from the Championship Play-Off. The winner goes to the groups, the loser is eliminated. A draw goes to extra time and penalties.",
+  "16 maç · Convergence Play-Off galipleri ile Elite Play-Off'tan düşenler eşleşir. Kazanan gruplara yükselir, kaybeden elenir. Beraberlikte uzatma ve penaltı.": "16 matches · Convergence Play-Off winners face the teams that dropped from the Elite Play-Off. The winner goes to the groups, the loser is eliminated. A draw goes to extra time and penalties.",
+  "8 grubun 1. ve 2.'leri Son 16'da çapraz eşleşir (A1–B2, B1–A2 …). Aynı gruptan iki takım ancak finalde karşılaşabilir. Final hariç turlar çift maç.": "The top two of the 8 groups meet crosswise in the Round of 16 (A1–B2, B1–A2 …). Two teams from the same group can only meet in the final. All rounds except the final are two-legged.",
+  "Elite gruplarının 1-2.'leri ile Championship gruplarının 3-4.'leri Son 32'de eşleşir. Yan yana iki eşleşmenin galipleri bir sonraki turda karşılaşır. Final hariç turlar çift maç.": "The top two of the Elite groups meet the third- and fourth-placed teams of the Championship groups in the Round of 32. Winners of two neighbouring ties meet in the next round. All rounds except the final are two-legged.",
+  "Convergence gruplarının 1-2.'leri ile Elite gruplarının 3-4.'leri Son 32'de eşleşir. Yan yana iki eşleşmenin galipleri bir sonraki turda karşılaşır. Final hariç turlar çift maç.": "The top two of the Convergence groups meet the third- and fourth-placed teams of the Elite groups in the Round of 32. Winners of two neighbouring ties meet in the next round. All rounds except the final are two-legged.",
+  "8 grubun ilk 2'si Son 16'ya yükselir. Tüm turlar tek maç; beraberlikte uzatma ve penaltı.": "The top two of the 8 groups reach the Round of 16. Every round is a single match; a draw goes to extra time and penalties."
+});
+(function () {
+  var P = window.I18N_PATTERNS.en;
+  P.unshift(
+    [/^(\d+) takım · (\d+) maç günü$/, "$1 teams · $2 matchdays"],
+    [/^\/(\d+) oynandı$/, "/$1 played"],
+    [/^Grup (\d+)\. Maç Günü$/, "Group matchday $1"],
+    [/^(Championship|Elite|Convergence|EURO Nations Cup) · Play-Off( 2)?$/, "$1 · Play-Off$2"],
+    [/^Toplam (\d+)-(\d+) ·$/, "Aggregate $1-$2 ·"]
+  );
+})();
