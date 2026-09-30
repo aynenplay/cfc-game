@@ -4691,3 +4691,24 @@ Object.assign(window.I18N.de, {
     [/^Bağış: (.+)$/, "Spende: $1"]
   );
 })();
+
+/* ─── 598 · Güvenlik (katılma, antrenman, tesis, slot, ilan) ─── */
+Object.assign(window.I18N.de, {
+  "⛔ Bu takıma katılmak için kaptan onayı gerekiyor.": "⛔ Für den Beitritt zu diesem Team ist die Zustimmung des Kapitäns nötig.",
+  "⛔ Takımın katılım şartlarını karşılamıyorsun.": "⛔ Du erfüllst die Beitrittsbedingungen dieses Teams nicht.",
+  "⛔ Takım kadrosu dolu.": "⛔ Der Kader des Teams ist voll.",
+  "⛔ Önce mevcut takımından ayrılmalısın.": "⛔ Du musst zuerst dein aktuelles Team verlassen.",
+  "Bu antrenmanın enerjisi sunucuya ulaşmamış; antrenman iptal edildi.": "Die Energie für dieses Training ist nie beim Server angekommen; das Training wurde abgebrochen.",
+  "Antrenman toplanamadı.": "Das Training konnte nicht abgeholt werden.",
+  "🏁 Bu tesis en üst seviyede.": "🏁 Diese Einrichtung ist bereits auf der höchsten Stufe.",
+  "❌ İlan verilemedi, tekrar dene.": "❌ Das Angebot konnte nicht erstellt werden, bitte versuche es erneut.",
+  "❌ En fazla 20 açık ilanın olabilir.": "❌ Du kannst höchstens 20 offene Angebote haben."
+});
+(function () {
+  var P = window.I18N_PATTERNS.de;
+  P.push(
+    [/^Slot (\d+) kilidi açıldı!$/, "Slot $1 freigeschaltet!"],
+    [/^Yetersiz Diamond! Gerekli: (.+) 💎 · Mevcut: (.+) 💎$/, "Nicht genug Diamanten! Benötigt: $1 💎 · Aktuell: $2 💎"],
+    [/^✅ (.+) Seviye (\d+)! \(-(\S+) 💎 kasadan\) ⚡\+(\d+) bonus enerji takıma eklendi!$/, "✅ $1 Stufe $2! (-$3 💎 aus der Kasse) ⚡+$4 Bonusenergie für das Team!"]
+  );
+})();

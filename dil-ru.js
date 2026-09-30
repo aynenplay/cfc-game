@@ -6459,3 +6459,24 @@ Object.assign(window.I18N.ru, {
     [/^Bağış: (.+)$/, "Пожертвование: $1"]
   );
 })();
+
+/* ─── 598 · Güvenlik (katılma, antrenman, tesis, slot, ilan) ─── */
+Object.assign(window.I18N.ru, {
+  "⛔ Bu takıma katılmak için kaptan onayı gerekiyor.": "⛔ Чтобы вступить в эту команду, нужно одобрение капитана.",
+  "⛔ Takımın katılım şartlarını karşılamıyorsun.": "⛔ Ты не соответствуешь требованиям для вступления в команду.",
+  "⛔ Takım kadrosu dolu.": "⛔ Состав команды заполнен.",
+  "⛔ Önce mevcut takımından ayrılmalısın.": "⛔ Сначала нужно покинуть текущую команду.",
+  "Bu antrenmanın enerjisi sunucuya ulaşmamış; antrenman iptal edildi.": "Энергия для этой тренировки не дошла до сервера; тренировка отменена.",
+  "Antrenman toplanamadı.": "Не удалось завершить тренировку.",
+  "🏁 Bu tesis en üst seviyede.": "🏁 Это сооружение уже на максимальном уровне.",
+  "❌ İlan verilemedi, tekrar dene.": "❌ Не удалось выставить лот, попробуй ещё раз.",
+  "❌ En fazla 20 açık ilanın olabilir.": "❌ Можно иметь не более 20 открытых лотов."
+});
+(function () {
+  var P = window.I18N_PATTERNS.ru;
+  P.push(
+    [/^Slot (\d+) kilidi açıldı!$/, "Слот $1 открыт!"],
+    [/^Yetersiz Diamond! Gerekli: (.+) 💎 · Mevcut: (.+) 💎$/, "Недостаточно алмазов! Нужно: $1 💎 · Сейчас: $2 💎"],
+    [/^✅ (.+) Seviye (\d+)! \(-(\S+) 💎 kasadan\) ⚡\+(\d+) bonus enerji takıma eklendi!$/, "✅ $1: уровень $2! (-$3 💎 из казны) ⚡+$4 бонусной энергии команде!"]
+  );
+})();

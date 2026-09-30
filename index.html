@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '597';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '598';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -29243,7 +29243,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-30-kasa-597';
+const APP_BUILD = '2026-09-30-guvenlik-598';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -59831,8 +59831,15 @@ async function joinTeamDirect(countryCode, teamName, opts) {
   if (_joinErr || _assignedNum == null) {
     console.warn('[joinTeamDirect] slot RPC hata:', _joinErr && _joinErr.message);
     _userTeam = _prevTeam;   // başarısızsa eski duruma dön
-    const _sozHata = !!(_joinErr && /sozlesme_aktif/.test(String(_joinErr.message || '')));
-    if (typeof showJoinToast === 'function') showJoinToast(_sozHata ? '⛔ Sözleşmen sürüyor, süresi bitmeden ayrılamazsın.' : '⚠️ Takıma katılınamadı, tekrar dene.');
+    const _jm = String((_joinErr && _joinErr.message) || '');
+    // 598 — katılma kuralları artık sunucuda (onay, şart, kadro sınırı)
+    const _jMsg = /sozlesme_aktif/.test(_jm) ? '⛔ Sözleşmen sürüyor, süresi bitmeden ayrılamazsın.'
+      : /onay_gerekli/.test(_jm) ? '⛔ Bu takıma katılmak için kaptan onayı gerekiyor.'
+      : /sart_karsilanmiyor/.test(_jm) ? '⛔ Takımın katılım şartlarını karşılamıyorsun.'
+      : /kadro_dolu/.test(_jm) ? '⛔ Takım kadrosu dolu.'
+      : /zaten_takimda/.test(_jm) ? '⛔ Önce mevcut takımından ayrılmalısın.'
+      : '⚠️ Takıma katılınamadı, tekrar dene.';
+    if (typeof showJoinToast === 'function') showJoinToast(_jMsg);
     return false;
   }
   _userTeam.num = _assignedNum;
@@ -64406,36 +64413,49 @@ function jrsSave() {
     return;
   }
 
-  // 🆕 Elması takım kasasından düş (log'a da yazılır)
-  let deductOk = false;
-  try {
-    if (typeof trsTreasuryDiaDeduct === 'function') {
-      deductOk = trsTreasuryDiaDeduct(cost, 'Forma rengi değişimi');
+  // 🔒 598 — ücret kasadan düşülür ve renkler SUNUCUDA tek işlemde kaydedilir (forma_kaydet)
+  if (!window.sb) { if (typeof showJoinToast === 'function') showJoinToast('❌ Kaydetme başarısız oldu.'); return; }
+  if (window._formaKaydediliyor) return;
+  window._formaKaydediliyor = true;
+  const _setA = { shirt: _jrsDraft.setA.shirt, short: _jrsDraft.setA.short, socks: _jrsDraft.setA.socks };
+  const _setB = { shirt: _jrsDraft.setB.shirt, short: _jrsDraft.setB.short, socks: _jrsDraft.setB.socks };
+  window.sb.rpc('forma_kaydet', { p_set_a: _setA, p_set_b: _setB }).then(({ data, error }) => {
+    window._formaKaydediliyor = false;
+    if (data && data.treasury) {
+      _trsCache = data.treasury;
+      if (typeof trsRender === 'function') try { trsRender(); } catch(e) {}
+      if (typeof trsSyncHeader === 'function') try { trsSyncHeader(); } catch(e) {}
     }
-  } catch(e) {}
-
-  if (!deductOk) {
-    if (typeof showJoinToast === 'function') showJoinToast('❌ Kasadan elmas düşülemedi.');
-    return;
-  }
-
-  // Forma renklerini kaydet
-  const ok = (typeof setTeamJerseys === 'function')
-    ? setTeamJerseys(teamName, _jrsDraft.setA, _jrsDraft.setB)
-    : false;
-
-  if (ok) {
-    if (typeof showJoinToast === 'function') showJoinToast(`✅ Forma renkleri güncellendi (-${cost} 💎 kasadan)`);
-    // HUD ve kasa göstergelerini güncelle
+    if (error || !data || !data.ok) {
+      console.warn('[forma] kaydedilemedi:', error || data);
+      const kod = (data && data.error) || '';
+      if (typeof showJoinToast === 'function') {
+        if (kod === 'kasa_yetersiz') {
+          const _kasa = (data.treasury && Number(data.treasury.dia)) || 0;
+          showJoinToast(`⚠️ Takım kasasında yetersiz elmas. Gerekli: ${Number(data.ucret) || cost} 💎, kasada: ${_kasa} 💎.`);
+        } else if (kod === 'yetki_yok') {
+          showJoinToast('⚠️ Sadece kaptan forma rengini değiştirebilir.');
+        } else {
+          showJoinToast('❌ Kaydetme başarısız oldu.');
+        }
+      }
+      return;
+    }
+    try {
+      const state = loadWorldState();
+      if (!state.team_jerseys) state.team_jerseys = {};
+      state.team_jerseys[teamName] = data.forma;
+    } catch(e) {}
+    const _ucret = Number(data.ucret) || cost;
+    if (typeof showJoinToast === 'function') showJoinToast(`✅ Forma renkleri güncellendi (-${_ucret} 💎 kasadan)`);
     if (typeof updateHud === 'function') try { updateHud(); } catch(e) {}
     if (typeof refreshHud === 'function') try { refreshHud(); } catch(e) {}
-    if (typeof trsRender === 'function') try { trsRender(); } catch(e) {}
     jrsRender();
-  } else {
-    // Kaydetme başarısızsa elması iade etmek için: log'a tersine kayıt yapmamız
-    // gerekirdi; ama trsTreasuryDiaDeduct zaten başarılı olduysa daima geçecek.
+  }).catch(e => {
+    window._formaKaydediliyor = false;
+    console.warn('[forma] rpc hata:', e);
     if (typeof showJoinToast === 'function') showJoinToast('❌ Kaydetme başarısız oldu.');
-  }
+  });
 }
 
 
@@ -70053,6 +70073,8 @@ if (typeof FAC_DATA !== 'undefined') {
 
 let _facLevelsSaveTimer = null;
 function saveFacLevels() {
+  // 🔒 598 — tesis seviyeleri yalnız sunucuda (tesis_yukselt) yazılır
+  if (true) return;
   if (!window.sb || !_userTeam || !_userTeam.countryCode || !_userTeam.teamName) return;
   // 🆕 Sunucudan yüklenmeden yazma — varsayılan seviye-1 değerleri gerçek
   //    (elmasla alınmış) seviyelerin üstüne yazılmasın.
@@ -70226,77 +70248,97 @@ function closeFacModal() {
   _facUpgradeTarget = null;
 }
 
+function _facToast(msg, bg, fg, sure) {
+  const t = document.createElement('div');
+  t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:' + bg + ';color:' + (fg || '#fff') + ';padding:8px 18px;border-radius:20px;font-size:12px;font-weight:700;z-index:9999;font-family:Twemoji Country Flags,Barlow,sans-serif;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.4)';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), sure || 2200);
+}
+
+// 🔒 598 — Tesis yükseltme SUNUCUDA tek işlem: ücret kasadan düşülür ve seviye yazılır.
+//   Eskiden ödeme ile seviye ayrı yazılıyordu; takımın herhangi bir üyesi seviyeleri
+//   ücretsiz ve sınırsız yazabiliyordu (stadyum → sınırsız bilet geliri).
 function confirmUpgrade() {
   if(!_facUpgradeTarget) return;
 
-  // Yetki kontrolü: tesis yükseltme kararı kaptan/yardımcı kaptana ait
+  // Yetki kontrolü: tesis yükseltme kararı kaptan/yardımcı kaptana ait (sunucu da denetler)
   if(typeof userCanMakeOffer === 'function' && !userCanMakeOffer()){
     closeFacModal();
-    const t = document.createElement('div');
-    t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#ef5350;color:#fff;padding:8px 18px;border-radius:20px;font-size:12px;font-weight:700;z-index:9999;font-family:Twemoji Country Flags,"Barlow Condensed",sans-serif';
-    t.textContent = '🔒 Sadece kaptan ve yardımcı kaptan tesis geliştirebilir.';
-    document.body.appendChild(t);
-    setTimeout(() => t.remove(), 2500);
+    _facToast('🔒 Sadece kaptan ve yardımcı kaptan tesis geliştirebilir.', '#ef5350', '#fff', 2500);
     return;
   }
 
-  const fac    = FAC_DATA.find(f => f.id === _facUpgradeTarget);
-  const lvl    = FAC_LEVELS[_facUpgradeTarget] || 1;
+  const hedef  = _facUpgradeTarget;
+  const fac    = FAC_DATA.find(f => f.id === hedef);
+  const lvl    = FAC_LEVELS[hedef] || 1;
   const cost   = fac.cost(lvl);
 
-  // 🆕 Tesis ödemesi TAKIM KASASI'nın elmasından (💎) yapılır
-  if(typeof trsTreasuryDiaDeduct !== 'function'){
+  if(typeof trsTreasuryDiaBalance === 'function' && trsTreasuryDiaBalance() < cost){
     closeFacModal();
-    const t = document.createElement('div');
-    t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#ef5350;color:#fff;padding:8px 18px;border-radius:20px;font-size:12px;font-weight:700;z-index:9999;font-family:Twemoji Country Flags,"Barlow Condensed",sans-serif';
-    t.textContent = '⚠️ Kasa modülü yüklenemedi.';
-    document.body.appendChild(t);
-    setTimeout(() => t.remove(), 2000);
+    _facToast(`❌ Kasada yeterli elmas yok! Mevcut: ${trsTreasuryDiaBalance().toLocaleString('tr')} 💎`, '#ef5350');
     return;
   }
+  if(!window.sb){ closeFacModal(); _facToast('❌ Kaydetme başarısız oldu.', '#ef5350'); return; }
+  if(window._facYukseltiliyor) return;
+  window._facYukseltiliyor = true;
 
-  const ok = trsTreasuryDiaDeduct(cost, `Tesis: ${fac.name} Sv.${lvl}→${lvl+1}`);
-  if(!ok){
-    closeFacModal();
-    const bal = trsTreasuryDiaBalance().toLocaleString('tr');
-    const t = document.createElement('div');
-    t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#ef5350;color:#fff;padding:8px 18px;border-radius:20px;font-size:12px;font-weight:700;z-index:9999;font-family:Twemoji Country Flags,"Barlow Condensed",sans-serif';
-    t.textContent = `❌ Kasada yeterli elmas yok! Mevcut: ${bal} 💎`;
-    document.body.appendChild(t);
-    setTimeout(() => t.remove(), 2200);
-    return;
-  }
-
-  // Yükselt
-  FAC_LEVELS[_facUpgradeTarget] = lvl + 1;
-  saveFacLevels();
-
-  // 🆕 Performans Merkezi yükseltildiyse → tüm takım üyelerine (bu cihazda kullanıcıya)
-  // anında +5 bonus enerji uygula. Topbardaki enerji yerine eklenir.
-  let _perfDelta = 0;
-  if(_facUpgradeTarget === 'performance') {
-    try {
-      if(typeof recomputeUserEnergyBonus === 'function') {
-        const r = recomputeUserEnergyBonus();
-        _perfDelta = r ? r.delta : 0;
+  window.sb.rpc('tesis_yukselt', { p_tesis: hedef }).then(({ data, error }) => {
+    window._facYukseltiliyor = false;
+    if (data && data.treasury) {
+      _trsCache = data.treasury;
+      if (typeof trsRender === 'function') try { trsRender(); } catch(e) {}
+      if (typeof trsSyncHeader === 'function') try { trsSyncHeader(); } catch(e) {}
+    }
+    if (error || !data || !data.ok) {
+      console.warn('[tesis] yükseltilemedi:', error || data);
+      closeFacModal();
+      const kod = (data && data.error) || '';
+      if (kod === 'kasa_yetersiz') {
+        const bal = (data.treasury && Number(data.treasury.dia)) || (typeof trsTreasuryDiaBalance === 'function' ? trsTreasuryDiaBalance() : 0);
+        _facToast(`❌ Kasada yeterli elmas yok! Mevcut: ${Number(bal).toLocaleString('tr')} 💎`, '#ef5350');
+      } else if (kod === 'yetki_yok') {
+        _facToast('🔒 Sadece kaptan ve yardımcı kaptan tesis geliştirebilir.', '#ef5350', '#fff', 2500);
+      } else if (kod === 'max_seviye') {
+        _facToast('🏁 Bu tesis en üst seviyede.', '#ef5350');
+      } else {
+        _facToast('❌ Kaydetme başarısız oldu.', '#ef5350');
       }
-    } catch(e){}
-  }
+      if (typeof _facLevelsLoadFromServer === 'function') _facLevelsLoadFromServer().then(() => { try { renderFacilities(); } catch(e) {} });
+      return;
+    }
 
-  closeFacModal();
-  renderFacilities();
+    // Sunucunun yazdığı seviyeler
+    if (data.facilities && typeof data.facilities === 'object') FAC_LEVELS = Object.assign({}, FAC_LEVELS, data.facilities);
+    FAC_LEVELS[hedef] = Number(data.seviye) || (lvl + 1);
+    window._facLevelsLoadedOk = true;
 
-  // Başarı toast
-  updateDevBadges();
-  const t = document.createElement('div');
-  t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--accent);color:var(--bg);padding:8px 18px;border-radius:20px;font-size:12px;font-weight:700;z-index:9999;font-family:Twemoji Country Flags,"Barlow Condensed",sans-serif';
-  let _facMsg = `✅ ${fac.name} Seviye ${lvl+1}! (-${cost} 💎 kasadan)`;
-  if(_perfDelta > 0) _facMsg += ` ⚡+${_perfDelta} bonus enerji takıma eklendi!`;
-  t.textContent = _facMsg;
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 2400);
+    // 🆕 Performans Merkezi yükseltildiyse → bonus enerji göstergesini tazele
+    let _perfDelta = 0;
+    if(hedef === 'performance') {
+      try {
+        if(typeof recomputeUserEnergyBonus === 'function') {
+          const r = recomputeUserEnergyBonus();
+          _perfDelta = r ? r.delta : 0;
+        }
+      } catch(e){}
+    }
+
+    closeFacModal();
+    renderFacilities();
+    updateDevBadges();
+    const yeniLvl = FAC_LEVELS[hedef];
+    const ucret = Number(data.ucret) || cost;
+    let _facMsg = `✅ ${fac.name} Seviye ${yeniLvl}! (-${ucret} 💎 kasadan)`;
+    if(_perfDelta > 0) _facMsg += ` ⚡+${_perfDelta} bonus enerji takıma eklendi!`;
+    _facToast(_facMsg, 'var(--accent)', 'var(--bg)', 2400);
+  }).catch(e => {
+    window._facYukseltiliyor = false;
+    console.warn('[tesis] rpc hata:', e);
+    closeFacModal();
+    _facToast('❌ Kaydetme başarısız oldu.', '#ef5350');
+  });
 }
-
 
 // ══ GELİŞİM HESAPLAMA ══
 function calcDevLevel() {
@@ -72698,6 +72740,8 @@ function openSlotModal(slotIdx) {
   }
 }
 
+// 🔒 598 — slot kilidi SUNUCUDA açılır: ücret cüzdandan düşülür ve slot tek işlemde açılır.
+//   Eskiden ödeme ve kilit ayrı yazılıyordu; slotlar konsoldan ücretsiz açılabiliyordu.
 function _doUnlockSlot(slotIdx) {
   const cost = SLOT_COSTS[slotIdx];
   const bal = (typeof wlGetData === 'function') ? (wlGetData().dia || 0) : 0;
@@ -72705,17 +72749,31 @@ function _doUnlockSlot(slotIdx) {
     showEqToast(`Yetersiz Diamond! Gerekli: ${cost} 💎 · Mevcut: ${bal.toLocaleString('tr')} 💎`, '#ef5350');
     return;
   }
-  const deducted = (typeof wlDeduct === 'function')
-    ? wlDeduct('dia', cost, `Slot ${slotIdx + 1} açma`)
-    : false;
-  if (!deducted) {
+  if (!window.sb) { showEqToast('❌ Bakiye düşülemedi.', '#ef5350'); return; }
+  if (window._slotAciliyor) return;
+  window._slotAciliyor = true;
+  window.sb.rpc('slot_ac', { p_i: slotIdx }).then(({ data, error }) => {
+    window._slotAciliyor = false;
+    if (error || !data || !data.ok) {
+      console.warn('[slot] açılamadı:', error || data);
+      const kod = (data && data.error) || '';
+      if (kod === 'insufficient') showEqToast(`Yetersiz Diamond! Gerekli: ${cost} 💎 · Mevcut: ${bal.toLocaleString('tr')} 💎`, '#ef5350');
+      else if (kod === 'onceki_slot_kapali') showEqToast(`Önce Slot ${slotIdx}'i açmalısın!`, '#ef5350');
+      else showEqToast('❌ Bakiye düşülemedi.', '#ef5350');
+      return;
+    }
+    if (data.equipment && typeof data.equipment === 'object') {
+      _eqDataCache = data.equipment;
+      _eqData = getEqData();
+    }
+    if (typeof wlLoadFromServer === 'function') wlLoadFromServer().then(() => { if (typeof wlSyncHeader === 'function') wlSyncHeader(); });
+    showEqToast('Slot ' + (slotIdx + 1) + ' kilidi açıldı!', 'var(--accent)');
+    renderSlots();
+  }).catch(e => {
+    window._slotAciliyor = false;
+    console.warn('[slot] rpc hata:', e);
     showEqToast('❌ Bakiye düşülemedi.', '#ef5350');
-    return;
-  }
-  _eqData.unlockedSlots[slotIdx] = true;
-  saveEqData(_eqData, true);
-  showEqToast('Slot ' + (slotIdx + 1) + ' kilidi açıldı!', 'var(--accent)');
-  renderSlots();
+  });
 }
 
 // 🛟 Eski API uyumluluğu (HTML içinden başka yerde çağrılıyor olabilir)
@@ -75515,11 +75573,21 @@ async function saveMarket(l) {
     data: dataExtra,
     updated_at: new Date().toISOString()
   });
+  // 598 — ilan verilince eşya satıcının dolabından SUNUCUDA düşer; dolap sunucudan tazelenir
+  const _dolapTazele = () => {
+    if (typeof _eqDataLoadFromServer !== 'function') return;
+    _eqDataLoadFromServer().then(() => {
+      try { if (typeof _eqData !== 'undefined') _eqData = getEqData(); } catch(e) {}
+      try { if (typeof renderWardrobe === 'function' && document.getElementById('eqWardrobe')) renderWardrobe(); } catch(e) {}
+      try { if (typeof renderSlots === 'function' && document.getElementById('eqWardrobe')) renderSlots(); } catch(e) {}
+    });
+  };
+  _dolapTazele();
   if (error) {
     console.warn('[market] ilan eklenemedi:', error.message || error);
     const i = _marketListings.indexOf(l);
     if (i !== -1) _marketListings.splice(i, 1);
-    showShopToast('❌ İlan verilemedi, tekrar dene.', '#ef5350');
+    showShopToast(/ilan_sinir/.test(String(error.message || '')) ? '❌ En fazla 20 açık ilanın olabilir.' : '❌ İlan verilemedi, tekrar dene.', '#ef5350');
     try { if (typeof renderWardrobe === 'function' && document.getElementById('eqWardrobe')) renderWardrobe(); } catch(e) {}
     try { if (typeof renderMarket === 'function' && document.getElementById('marketList')) renderMarket(); } catch(e) {}
     return false;
@@ -86576,6 +86644,11 @@ async function trCollect(id) {
   for (let _den = 0; _den < 2; _den++) {
     try {
       r = await window.sb.rpc('train_collect', { p_id: id });
+      // 598 — "Hemen Bitir" ödemesi sunucuya yeni ulaştıysa bir kez daha dene
+      if (r && !r.error && r.data && r.data.ok === false && r.data.error === 'not_done' && _den === 0) {
+        await new Promise(res => setTimeout(res, 2500));
+        continue;
+      }
       if (r && !r.error) break;
       console.warn('[trCollect] rpc hata:', r && r.error);
     } catch(e) { r = null; console.warn('[trCollect] rpc hata:', e); }
@@ -86587,7 +86660,24 @@ async function trCollect(id) {
     if (typeof trRenderSkills === 'function') { try { trRenderSkills(); } catch(e){} }
     else if (typeof trRender === 'function') { try { trRender(); } catch(e){} }
   } else if (r && !r.error) {
-    console.warn('[trCollect] sunucu reddetti (optimistic kaldi):', r && r.data);
+    // 598 — sunucu reddetti: ekrandaki iyimser değişikliği geri al (süre/enerji sunucuda doğrulanıyor)
+    console.warn('[trCollect] sunucu reddetti:', r && r.data);
+    const _hk = (r.data && r.data.error) || '';
+    try {
+      if (_skillsCache && _skillsCache[pos]) _skillsCache[pos][skillId] = cur;
+      if (_hk === 'bilet_yok' && Array.isArray(r.data.active)) {
+        _activeCache = r.data.active;   // sunucu bu antrenmanı kaldırdı
+      } else {
+        const _ac = Array.isArray(_activeCache) ? _activeCache : [];
+        if (!_ac.some(a => a && a.id === id)) _activeCache = _ac.concat([entry]);
+      }
+      document.getElementById('trDoneModal')?.classList.remove('open');
+      trRender();
+    } catch(e) {}
+    trToast(T(_hk === 'not_done' ? 'Antrenman henüz bitmedi!'
+      : _hk === 'bilet_yok' ? 'Bu antrenmanın enerjisi sunucuya ulaşmamış; antrenman iptal edildi.'
+      : 'Antrenman toplanamadı.'), '#e53935');
+    return;
   } else {
     // Sunucuya yazılamadı → geri al: yetenek eski haline, antrenman tekrar "toplanabilir"
     try {
