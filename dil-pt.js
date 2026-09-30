@@ -6408,3 +6408,16 @@ Object.assign(window.I18N.pt, {
     [/^Maaş \((\d+)\. taksit\)$/, "Salário (parcela $1)"]
   );
 })();
+
+/* ─── 597 · Takım kasası (bağış tek işlem) ─── */
+Object.assign(window.I18N.pt, {
+  "Bağış yapılamadı.": "Não foi possível fazer a doação.",
+  "Cüzdanında yeterli elmas yok.": "Você não tem diamantes suficientes na carteira.",
+  "Cüzdanında yeterli euro yok.": "Você não tem euros suficientes na carteira."
+});
+(function () {
+  var P = window.I18N_PATTERNS.pt;
+  P.push(
+    [/^Bağış: (.+)$/, "Doação: $1"]
+  );
+})();

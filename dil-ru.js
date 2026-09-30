@@ -6446,3 +6446,16 @@ Object.assign(window.I18N.ru, {
     [/^Maaş \((\d+)\. taksit\)$/, "Зарплата (выплата $1)"]
   );
 })();
+
+/* ─── 597 · Takım kasası (bağış tek işlem) ─── */
+Object.assign(window.I18N.ru, {
+  "Bağış yapılamadı.": "Не удалось сделать пожертвование.",
+  "Cüzdanında yeterli elmas yok.": "В кошельке недостаточно алмазов.",
+  "Cüzdanında yeterli euro yok.": "В кошельке недостаточно евро."
+});
+(function () {
+  var P = window.I18N_PATTERNS.ru;
+  P.push(
+    [/^Bağış: (.+)$/, "Пожертвование: $1"]
+  );
+})();

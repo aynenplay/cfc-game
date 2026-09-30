@@ -6822,3 +6822,16 @@ Object.assign(window.I18N.en, {
     [/^Maaş \((\d+)\. taksit\)$/, "Wage (instalment $1)"]
   );
 })();
+
+/* ─── 597 · Takım kasası (bağış tek işlem) ─── */
+Object.assign(window.I18N.en, {
+  "Bağış yapılamadı.": "The donation could not be made.",
+  "Cüzdanında yeterli elmas yok.": "You don't have enough diamonds in your wallet.",
+  "Cüzdanında yeterli euro yok.": "You don't have enough euros in your wallet."
+});
+(function () {
+  var P = window.I18N_PATTERNS.en;
+  P.push(
+    [/^Bağış: (.+)$/, "Donation: $1"]
+  );
+})();

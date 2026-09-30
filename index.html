@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '596';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '597';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -29243,7 +29243,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-30-cuzdan-596';
+const APP_BUILD = '2026-09-30-kasa-597';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -48272,7 +48272,7 @@ function confirmTeamBuy() {
     if(typeof trsSaveData === 'function') {
       trsSaveData({eur: startTreasury, dia: 0, totalIn: startTreasury, totalOut: 0, donCount: 0});
     }
-    if(typeof trsAddLog === 'function') trsAddLog({type:'in', cur:'eur', amount: startTreasury, source: 'Takım Devralma Sermayesi'});
+    // 597 — devralma sermayesini ve kaydını sunucu yazar (buyTeamListing); gerçek bakiye oradan yüklenir
     if(typeof trsSyncHeader === 'function') trsSyncHeader();
   }catch(e){ console.warn('Kasa başlatma hatası:', e); }
 
@@ -82734,34 +82734,25 @@ function tfDoSearch(q) {
 // ── Pazar yeri DOĞRUDAN SATIN ALMA modal'ı ──
 // 🆕 Yeni kural: Pazar yerindeki listelere sözleşme şartları teklifi GİTMEZ.
 // Satıcı şartları zaten belirlemiş. Buyer sadece "Onayla + Satın Al".
+// 597 — Eskiden bu ekran kasadan parayı düşüp ilanı kaldırıyor, "transfer tamamlandı" diyordu;
+//   oyuncu hiç taşınmıyor, satıcıya da para gitmiyordu. Artık ilandan GERÇEK teklif gider
+//   (bonservis = ilan fiyatı, sistem sınırını aşamaz); satıcı onaylayınca sunucu transferi yapar.
+function _tfBonservisTavani(overall, level) {
+  // Sunucudaki _transferTavani ile aynı formül
+  const ovr = Math.max(10, Math.min(99, Number(overall) || 10));
+  const lvl = Math.max(0, Number(level) || 0);
+  return Math.round(2000 * Math.pow(ovr, 1.6) * (1 + Math.min(1.5, lvl * 0.04)));
+}
 function tfOpenOffer(id) {
   const list = getTfList();
-  _tfTarget = list.find(l=>l.id===id);
-  if(!_tfTarget) return;
-
-  function fmtFee(v) { return v>=1000000?(v/1000000).toFixed(1)+'M €':v>0?Math.round(v/1000)+'K €':'Ücretsiz'; }
-  const POS_LABEL = {GK:'Kaleci',DEF:'Defans',MID:'Orta Saha',FWD:'Forvet'};
-  const overallColor = _tfTarget.overall>=80?'#ffd600':_tfTarget.overall>=70?'var(--accent)':'var(--accent2)';
-  const fee = _tfTarget.fee || 0;
-
-  const playerEl = document.getElementById('tfPurchasePlayer');
-  if(playerEl){
-    playerEl.innerHTML = `
-      <div class="tf-avatar" style="font-size:22px">${_tfTarget.avatar||'🤖'}</div>
-      <div>
-        <div style="font-size:13px;font-weight:700">${_tfTarget.playerId}</div>
-        <div style="font-size:10px;color:var(--text3)">${POS_LABEL[_tfTarget.pos]||_tfTarget.pos} · <span style="color:${overallColor};font-weight:800">${_tfTarget.overall}</span></div>
-        <div style="font-size:9px;color:var(--text3)">${_tfTarget.nation||''} · Satıcı: ${_tfTarget.seller}</div>
-      </div>`;
-  }
-  const labelEl = document.getElementById('tfPurchaseLabel');
-  if(labelEl) labelEl.textContent = `${_tfTarget.seller||'Satıcı'} kasasına`;
-  const amtEl = document.getElementById('tfPurchaseAmount');
-  if(amtEl){ amtEl.value = fee; amtEl.min = fee; amtEl.step = 50000; }
-  const minEl = document.getElementById('tfPurchaseMin'); if(minEl) minEl.textContent = fmtFee(fee);
-  const feeEl = document.getElementById('tfPurchaseFee'); if(feeEl) feeEl.textContent = 'Teklif: ' + fmtFee(fee);
-
-  document.getElementById('tfPurchaseModal').classList.add('open');
+  const it = list.find(l=>l.id===id);
+  if(!it) return;
+  const grp = (typeof _tfPosGroup==='function') ? _tfPosGroup(it.pos) : (it.pos||'MID');
+  const player = { name:it.playerId, pos:it.pos, posGroup:grp, subPos:it.subPos||it.sub_pos||null, overall:it.overall, level:it.level,
+                   avatar:it.avatar, nation:it.nation, id:(it._playerDbId||it.playerDbId||it.dbId||null) };
+  const ctx = { teamName:it.seller||'', teamLookupName:it.seller||'', countryCode:(it._countryCode||''),
+                listingId: it.id, listingFee: Number(it.fee) || 0 };
+  if (typeof tfOpenOfferDirect === 'function') tfOpenOfferDirect(player, ctx);
 }
 
 function tfPurchaseAmtChanged(){
@@ -82780,81 +82771,10 @@ function tfClosePurchase() {
 }
 
 function tfConfirmPurchase() {
-  if(!_tfTarget) return;
-
-  // 🆕 TRANSFER DÖNEMİ KONTROLÜ
-  // Pazar yerindeki oyuncular sözleşmeli (başka takımdan satılığa çıkmış).
-  // Sadece transfer döneminde alınabilir. Serbest oyuncular tfHireFreeAgent ile alınır.
-  if (typeof _enforceTransferWindow === 'function') {
-    const r = _enforceTransferWindow('Pazar yerinden satın alma');
-    if (r.blocked) {
-      if (typeof tfShowToast === 'function') tfShowToast('⛔ Transfer dönemi kapalı', 'var(--red)');
-      return;
-    }
-  }
-
-  const minFee = _tfTarget.fee || 0;
-  const fmtFee = v => v>=1000000?(v/1000000).toFixed(1)+'M €':v>0?Math.round(v/1000)+'K €':'Ücretsiz';
-  // 🆕 Kullanıcının girdiği teklif (kaptan fiyatının altında olamaz)
-  const _amtEl = document.getElementById('tfPurchaseAmount');
-  let fee = _amtEl ? Math.round(Number(_amtEl.value)||0) : minFee;
-  if(fee < minFee){
-    if(typeof tfShowToast === 'function') tfShowToast(`❌ Teklif satıcı fiyatının altında olamaz (min ${fmtFee(minFee)}).`, 'var(--red)');
-    return;
-  }
-
-  // Kasa kontrolü
-  const balance = (typeof trsGetBalance === 'function') ? trsGetBalance('eur') : 0;
-  if(fee > 0 && balance < fee){
-    if(typeof tfShowToast === 'function'){
-      tfShowToast(`❌ Yetersiz Bakiye! Kasa: ${fmtFee(balance)} · Gereken: ${fmtFee(fee)}`, 'var(--red)');
-    } else {
-      alert(`❌ Yetersiz Bakiye!\nKasa: ${fmtFee(balance)}\nGereken: ${fmtFee(fee)}`);
-    }
-    return;
-  }
-
-  // Bonservisi kasadan düş
-  if(fee > 0 && typeof trsDeduct === 'function'){
-    const ok = trsDeduct('eur', fee, `Pazar Yeri Transferi: ${_tfTarget.playerId}`);
-    if(!ok){
-      if(typeof tfShowToast === 'function') tfShowToast('❌ Ödeme yapılamadı.', 'var(--red)');
-      return;
-    }
-  }
-
-  // Listing'den kaldır
-  const list = getTfList();
-  const newList = list.filter(l => l.id !== _tfTarget.id);
-  saveTfList(newList);
-
-  // Inbox bilgi mesajı
-  try {
-    if(typeof getInboxMsgs === 'function'){
-      const msgs = getInboxMsgs();
-      msgs.unshift({
-        id: 'tf_buy_' + Date.now(),
-        from: '💎 Pazar Yeri',
-        fromAvatar: '💎',
-        type: 'system',
-        subject: `Transfer Tamamlandı — ${_tfTarget.playerId}`,
-        body: `${_tfTarget.avatar||'🤖'} ${_tfTarget.playerId} (${_tfTarget.overall} OVR) takıma katıldı.\n\n${fmtFee(fee)} bonservis ${_tfTarget.seller||'satıcı'} kasasına aktarıldı.\n\nNot: Bot oyuncuların maaşı 0 €'dur, sezonluk ödeme listesine eklenmez.`,
-        time: new Date().toLocaleDateString('tr'),
-        read: false,
-        thread: [],
-      });
-      if(typeof saveInboxMsgs === 'function') saveInboxMsgs(msgs);
-      if(typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
-    }
-  } catch(e){}
-
-  // UI güncelle
-  if(typeof tfRender === 'function') tfRender();
-  if(typeof tfShowToast === 'function'){
-    tfShowToast(`✅ ${_tfTarget.playerId} satın alındı (${fmtFee(fee)})`, 'var(--accent)');
-  }
-
-  tfClosePurchase();
+  // 597 — Bu onay eskiden kasadan parayı düşüp oyuncuyu HİÇ taşımıyordu. Artık gerçek teklif formu açılır.
+  const id = _tfTarget && _tfTarget.id;
+  if (typeof tfClosePurchase === 'function') tfClosePurchase();
+  if (id) tfOpenOffer(id);
 }
 
 // ── Profil modal'ından doğrudan teklif sun (eski tfOpenOffer'ın yerini aldı) ──
@@ -82886,17 +82806,20 @@ function tfOpenOfferDirect(player, ctx) {
   }
   const isFree = (ctx && ctx.forceFree) ? true : (contract.type === 'free');
 
-  // 🆕 Sistem belirlemiş bonservis (serbest oyuncuda 0)
+  // 🆕 Sistem belirlemiş bonservis (serbest oyuncuda 0). 597 — pazar yeri ilanından gelindiyse
+  //   ilan fiyatı (satıcının istediği), sunucunun kabul edeceği sınırı aşmadan.
   const fee = isFree
     ? 0
-    : ((typeof getSystemTransferFee === 'function') ? getSystemTransferFee(player) : 0);
+    : ((ctx && ctx.listingFee > 0)
+        ? Math.min(ctx.listingFee, _tfBonservisTavani(player.overall, player.level))
+        : ((typeof getSystemTransferFee === 'function') ? getSystemTransferFee(player) : 0));
 
   // 🆕 Sistem belirlemiş sezonluk maaş
   const seasonSalary = (typeof getSystemPlayerSalary === 'function')
     ? getSystemPlayerSalary(player) : 0;
 
   _tfTarget = {
-    id: 'ext_' + _hashStr((player.name||'') + '|' + (ctx.teamName||'')),
+    id: (ctx && ctx.listingId) ? ctx.listingId : ('ext_' + _hashStr((player.name||'') + '|' + (ctx.teamName||''))),
     playerId: player.name,
     pos: player.pos,
     overall: player.overall,
@@ -90896,20 +90819,26 @@ function _trsApplyLocal(d_eur, d_dia, kind, source){
 
 function _trsRpcApply(d_eur, d_dia, kind, source, extra){
   if(!window.sb || !_userTeam || !_userTeam.countryCode || !_userTeam.teamName) return;
-  const args = { p_cc:_userTeam.countryCode, p_team:_userTeam.teamName,
-    p_eur:d_eur||0, p_dia:d_dia||0, p_kind:kind||'adj', p_source:source||'' };
-  if(extra && extra.p_don) args.p_don = extra.p_don;
-  if(extra && extra.p_key) args.p_key = extra.p_key;
-  window.sb.rpc('team_treasury_apply', args).then(({data,error})=>{
-    if(error){ console.warn('[treasury] rpc hata:', error); return; }
-    if(data && data.ok && data.treasury){
-      _trsCache = data.treasury;
-      if(typeof trsRender==='function') trsRender();
-      if(typeof trsSyncHeader==='function') trsSyncHeader();
-    } else if(data && data.ok===false){
-      if(typeof _trsLoadFromServer==='function'){ _trsLoadFromServer().then(()=>{ if(typeof trsRender==='function') trsRender(); }); }
-    }
-  }).catch(e=>console.warn('[treasury] rpc hata:', e));
+  // 🔒 597 — Takım kasası tarayıcıdan artık yalnız HARCANABİLİR (kasa_harca).
+  //   team_treasury_apply sunucuya kapatıldı: eskiden herkes konsoldan HERHANGİ bir takımın
+  //   kasasına para ekleyebiliyor ya da başka takımın kasasını boşaltabiliyordu.
+  //   Takım ve yetki (kaptan/yardımcı) sunucuda bulunur; istemciden takım adı gitmez.
+  //   Gelirler (maç, ödül, transfer, devralma sermayesi) zaten sunucuda yazılıyor.
+  if ((Number(d_eur)||0) >= 0 && (Number(d_dia)||0) >= 0) {
+    if (typeof _trsLoadFromServer === 'function') _trsLoadFromServer().then(()=>{ if(typeof trsRender==='function') trsRender(); if(typeof trsSyncHeader==='function') trsSyncHeader(); });
+    return;
+  }
+  window.sb.rpc('kasa_harca', { p_eur:d_eur||0, p_dia:d_dia||0, p_kaynak: source ? String(source).slice(0, 80) : null })
+    .then(({data,error})=>{
+      if(error){ console.warn('[treasury] rpc hata:', error); }
+      if(data && data.ok && data.treasury){
+        _trsCache = data.treasury;
+        if(typeof trsRender==='function') trsRender();
+        if(typeof trsSyncHeader==='function') trsSyncHeader();
+      } else if(typeof _trsLoadFromServer==='function'){
+        _trsLoadFromServer().then(()=>{ if(typeof trsRender==='function') trsRender(); if(typeof trsSyncHeader==='function') trsSyncHeader(); });
+      }
+    }).catch(e=>console.warn('[treasury] rpc hata:', e));
 }
 
 function trsGetData(){
@@ -91080,8 +91009,8 @@ function trsSaveLog(log){
   // Sadece son 100 işlemi tut
   const trimmed = log.slice(0, 100);
   _trsLogCache = trimmed;
-  // Debounced Supabase write (500ms)
-  if (window.sb && _userTeam && _userTeam.countryCode && _userTeam.teamName) {
+  // 597 — Kasa günlüğünü yalnız sunucu yazar (team_treasury_apply); burada ekran önbelleği.
+  if (false && window.sb && _userTeam && _userTeam.countryCode && _userTeam.teamName) {
     clearTimeout(_trsLogSaveTimer);
     _trsLogSaveTimer = setTimeout(async () => {
       try {
@@ -91114,10 +91043,9 @@ function trsAddIncome(currency, amount, source){
     wlAddDia(amount, source);
     return;
   }
-  // Euro → takım kasası (ATOMİK RPC delta)
-  _trsApplyLocal(amount, 0, 'in', source||'Gelir');
-  _trsRpcApply(amount, 0, 'in', source||'Gelir');
-  trsRender();
+  // Euro → takım kasası: 597 — gelirleri sunucu yazar (maç geliri, ödüller);
+  //   burada yalnız gerçek bakiye sunucudan tazelenir (eskiden aynı ödül bir de tarayıcıdan yazılıyordu).
+  setTimeout(() => { try { _trsRpcApply(0, 0, 'in', source||'Gelir'); } catch(e) {} }, 1500);
 }
 
 // Gider düş (transfer, tesis, mağaza vs.). Yeterli bakiye yoksa false döner.
@@ -91263,22 +91191,37 @@ function trsDonate(){
     return;
   }
 
-  // Cüzdandan düş
-  if(!wlDeduct(cur, amount, 'Kasaya bağış')){
-    trsToast('Cüzdan işlemi başarısız.', 'var(--red)');
-    return;
-  }
-
-  // Kasaya ekle — ATOMİK RPC delta (donate sayacı p_don ile sunucuda artar)
-  _trsApplyLocal(cur==='eur'?amount:0, cur==='dia'?amount:0, 'in', 'Bağış');
-  _trsRpcApply(cur==='eur'?amount:0, cur==='dia'?amount:0, 'in', 'Bağış', { p_don: 1 });
-
-  // Görsel feedback
-  if(cur==='eur'){
-    trsToast(`🤝 ${amount.toLocaleString('tr')} € kasaya bağışlandı!`, 'var(--accent)');
-  } else {
-    trsToast(`🤝 ${amount.toLocaleString('tr')} 💎 kasaya bağışlandı!`, 'var(--accent2)');
-  }
+  // 597 — Bağış TEK sunucu işlemi: cüzdandan düşme + kasaya ekleme birlikte (biri olmazsa hiçbiri).
+  //   Takım ve yetki sunucuda bulunur (kasa_bagis).
+  if (!window.sb) { trsToast('Bağış yapılamadı.', 'var(--red)'); return; }
+  const _eur = cur==='eur'?amount:0, _dia = cur==='dia'?amount:0;
+  _wlApplyLocal(-_eur, -_dia, 'out');
+  _trsApplyLocal(_eur, _dia, 'in', 'Bağış');
+  window.sb.rpc('kasa_bagis', { p_eur:_eur, p_dia:_dia }).then(({data,error})=>{
+    if (!error && data && data.ok) {
+      const w = data.cuzdan || {};
+      _wlCache = { eur:Number(w.eur)||0, dia:Number(w.dia)||0, total_in:Number(w.total_in)||0, total_out:Number(w.total_out)||0,
+                   totalIn:Number(w.total_in)||0, totalOut:Number(w.total_out)||0 };
+      if (data.treasury) _trsCache = data.treasury;
+      try { _wlGunlukOnbellek = null; } catch(e) {}
+      if(typeof wlSyncHeader==='function') wlSyncHeader();
+      trsRender();
+      if(cur==='eur'){
+        trsToast(`🤝 ${amount.toLocaleString('tr')} € kasaya bağışlandı!`, 'var(--accent)');
+      } else {
+        trsToast(`🤝 ${amount.toLocaleString('tr')} 💎 kasaya bağışlandı!`, 'var(--accent2)');
+      }
+      return;
+    }
+    const kod = (data && data.error) || (error && error.message) || '';
+    const mesaj = kod === 'yetki_yok' ? '🔒 Sadece kaptan ve yardımcı kaptan bağış yapabilir.'
+                : kod === 'insufficient' ? (cur==='dia' ? 'Cüzdanında yeterli elmas yok.' : 'Cüzdanında yeterli euro yok.')
+                : kod === 'takim_yok' ? 'Önce bir takıma sahip olmalısın.'
+                : 'Bağış yapılamadı.';
+    trsToast(mesaj, 'var(--red)');
+    try { if (typeof wlLoadFromServer === 'function') wlLoadFromServer().then(()=>{ if(typeof wlSyncHeader==='function') wlSyncHeader(); }); } catch(e) {}
+    try { if (typeof _trsLoadFromServer === 'function') _trsLoadFromServer().then(()=>{ trsRender(); if(typeof trsSyncHeader==='function') trsSyncHeader(); }); } catch(e) {}
+  }).catch(e => { console.warn('[bağış]', e); trsToast('Bağış yapılamadı.', 'var(--red)'); });
 
   // Etkinlik: bağış sayacı
   try{
