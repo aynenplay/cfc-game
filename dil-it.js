@@ -6382,3 +6382,35 @@ Object.assign(window.I18N.it, {
     [/^Kulübü kayıtlı olmayan (\d+) maç kulüp toplamlarına eklenmedi \((.+)\)\.$/, "$1 partite senza club registrato non sono incluse nei totali per club ($2)."]
   );
 })();
+
+/* ─── 596 · Cüzdan hareketleri (sunucu kayıtları) ─── */
+Object.assign(window.I18N.it, {
+  "Harcama": "Spesa",
+  "İmza parası": "Bonus alla firma",
+  "Toto ödülü": "Vincita toto",
+  "Başlangıç bakiyesi": "Saldo iniziale",
+  "Mağaza alımı": "Acquisto nel negozio",
+  "Mağaza iadesi": "Rimborso del negozio",
+  "Pazar yeri alımı": "Acquisto al mercato",
+  "Pazar yeri iadesi": "Rimborso del mercato",
+  "Pazar yeri satışı": "Vendita al mercato",
+  "Toto kuponu iadesi": "Rimborso della schedina",
+  "Mevki değişimi": "Cambio di ruolo",
+  "Mevki değişimi iadesi": "Rimborso cambio di ruolo",
+  "Takım satın alma": "Acquisto squadra",
+  "Takım satışı": "Vendita squadra",
+  "Takım satın alma iadesi": "Rimborso acquisto squadra",
+  "Takım iadesi": "Rimborso squadra",
+  "Haftalık yarış ödülü": "Premio della gara settimanale",
+  "Kazı kazan ödülü": "Premio del gratta e vinci",
+  "Kazı kazan bileti": "Gratta e vinci",
+  "Kazı kazan iadesi": "Rimborso gratta e vinci",
+  "Hareketler yükleniyor…": "Caricamento movimenti…",
+  "Hareketler yüklenemedi": "Impossibile caricare i movimenti"
+});
+(function () {
+  var P = window.I18N_PATTERNS.it;
+  P.push(
+    [/^Maaş \((\d+)\. taksit\)$/, "Stipendio (rata $1)"]
+  );
+})();

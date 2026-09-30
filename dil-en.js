@@ -6790,3 +6790,35 @@ Object.assign(window.I18N.en, {
     [/^Kulübü kayıtlı olmayan (\d+) maç kulüp toplamlarına eklenmedi \((.+)\)\.$/, "$1 matches with no recorded club are not included in the club totals ($2)."]
   );
 })();
+
+/* ─── 596 · Cüzdan hareketleri (sunucu kayıtları) ─── */
+Object.assign(window.I18N.en, {
+  "Harcama": "Spending",
+  "İmza parası": "Signing bonus",
+  "Toto ödülü": "Toto winnings",
+  "Başlangıç bakiyesi": "Starting balance",
+  "Mağaza alımı": "Shop purchase",
+  "Mağaza iadesi": "Shop refund",
+  "Pazar yeri alımı": "Marketplace purchase",
+  "Pazar yeri iadesi": "Marketplace refund",
+  "Pazar yeri satışı": "Marketplace sale",
+  "Toto kuponu iadesi": "Toto coupon refund",
+  "Mevki değişimi": "Position change",
+  "Mevki değişimi iadesi": "Position change refund",
+  "Takım satın alma": "Team purchase",
+  "Takım satışı": "Team sale",
+  "Takım satın alma iadesi": "Team purchase refund",
+  "Takım iadesi": "Team refund",
+  "Haftalık yarış ödülü": "Weekly race prize",
+  "Kazı kazan ödülü": "Scratch card prize",
+  "Kazı kazan bileti": "Scratch card",
+  "Kazı kazan iadesi": "Scratch card refund",
+  "Hareketler yükleniyor…": "Loading transactions…",
+  "Hareketler yüklenemedi": "Could not load transactions"
+});
+(function () {
+  var P = window.I18N_PATTERNS.en;
+  P.push(
+    [/^Maaş \((\d+)\. taksit\)$/, "Wage (instalment $1)"]
+  );
+})();

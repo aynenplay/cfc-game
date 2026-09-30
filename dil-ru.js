@@ -6414,3 +6414,35 @@ Object.assign(window.I18N.ru, {
     [/^Kulübü kayıtlı olmayan (\d+) maç kulüp toplamlarına eklenmedi \((.+)\)\.$/, "Матчи без записанного клуба ($1) не вошли в клубные итоги ($2)."]
   );
 })();
+
+/* ─── 596 · Cüzdan hareketleri (sunucu kayıtları) ─── */
+Object.assign(window.I18N.ru, {
+  "Harcama": "Расход",
+  "İmza parası": "Подъёмные",
+  "Toto ödülü": "Выигрыш тотализатора",
+  "Başlangıç bakiyesi": "Стартовый баланс",
+  "Mağaza alımı": "Покупка в магазине",
+  "Mağaza iadesi": "Возврат из магазина",
+  "Pazar yeri alımı": "Покупка на рынке",
+  "Pazar yeri iadesi": "Возврат с рынка",
+  "Pazar yeri satışı": "Продажа на рынке",
+  "Toto kuponu iadesi": "Возврат купона",
+  "Mevki değişimi": "Смена позиции",
+  "Mevki değişimi iadesi": "Возврат за смену позиции",
+  "Takım satın alma": "Покупка команды",
+  "Takım satışı": "Продажа команды",
+  "Takım satın alma iadesi": "Возврат за покупку команды",
+  "Takım iadesi": "Возврат за команду",
+  "Haftalık yarış ödülü": "Приз недельной гонки",
+  "Kazı kazan ödülü": "Выигрыш лотереи",
+  "Kazı kazan bileti": "Лотерейный билет",
+  "Kazı kazan iadesi": "Возврат за билет",
+  "Hareketler yükleniyor…": "Загрузка операций…",
+  "Hareketler yüklenemedi": "Не удалось загрузить операции"
+});
+(function () {
+  var P = window.I18N_PATTERNS.ru;
+  P.push(
+    [/^Maaş \((\d+)\. taksit\)$/, "Зарплата (выплата $1)"]
+  );
+})();

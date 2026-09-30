@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '595';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '596';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -29243,7 +29243,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-29-kariyer-595';
+const APP_BUILD = '2026-09-30-cuzdan-596';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -29537,7 +29537,8 @@ function _cftSafeSetLS(key, value) {
 //   cft_sys_sent burada silinmez: gelen kutusu ilk yüklendiğinde sunucuya taşınıp öyle silinir.
 (function _cftEskiOyunVerisiTemizle(){
   try {
-    ['cft_injury_check', 'cft_suspension_check', 'cft_bet_shared', 'cft_lifetime_stats', 'cft_sys_lv']
+    ['cft_injury_check', 'cft_suspension_check', 'cft_bet_shared', 'cft_lifetime_stats', 'cft_sys_lv',
+     'cft_wallet_log']   // 596 — cüzdan hareketleri artık sunucuda (user_wallet_log)
       .forEach(k => { try { localStorage.removeItem(k); } catch(e){} });
     const sil = [];
     for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.indexOf('cft_sys_race_') === 0) sil.push(k); }
@@ -90302,7 +90303,6 @@ async function evRefreshTabBadges() {
 // Hem euro (€) hem elmas (💎) tutar. Header'da gösterilen değerler buradan gelir.
 // 🆕 ARTIK SUPABASE'DEN GELİR — localStorage YOK, sadece RAM cache.
 const WL_KEY     = 'cft_wallet';     // Sadece backward-compat için, kullanılmıyor
-const WL_LOG_KEY = 'cft_wallet_log';
 const WL_DEFAULT = { eur: 50000, dia: 50, total_in: 50050, total_out: 0 };
 
 // 🆕 RAM CACHE
@@ -90605,28 +90605,9 @@ function _wlTakeSrc() {
   return el;
 }
 
-function wlGetLog(){
-  try{
-    const raw = localStorage.getItem(WL_LOG_KEY);
-    if(raw) return JSON.parse(raw);
-  }catch(e){}
-  return [];
-}
-
-function wlSaveLog(log){
-  // 🆕 Güvenli yazma — quota dolarsa otomatik cleanup yapar ve tekrar dener
-  if (typeof _cftSafeSetLS === 'function') {
-    _cftSafeSetLS(WL_LOG_KEY, JSON.stringify(log.slice(0, 100)));
-  } else {
-    try{ localStorage.setItem(WL_LOG_KEY, JSON.stringify(log.slice(0, 100))); }catch(e){}
-  }
-}
-
-function wlAddLog(entry){
-  const log = wlGetLog();
-  log.unshift(Object.assign({ts: Date.now()}, entry));
-  wlSaveLog(log);
-}
+// 596 — Cüzdan hareket günlüğü tarayıcıda DEĞİL, sunucuda (user_wallet_log).
+//   Her bakiye değişikliğini veritabanı tetikleyicisi kaydeder; hangi cihazdan
+//   bakılırsa bakılsın aynı liste görünür, sunucudan gelen gelirler de içindedir.
 
 // ── Public API: currency = 'eur' | 'dia' ──
 // 🆕 ATOMİK CÜZDAN — optimistic (anlık UI) + sunucu RPC (delta, satır kilidi).
@@ -90642,38 +90623,37 @@ function _wlApplyLocal(d_eur, d_dia, kind){
   _wlCache = c;
   if(typeof wlSyncHeader==='function') wlSyncHeader();
 }
-function _wlRpcApply(d_eur, d_dia, kind){
+function _wlRpcApply(d_eur, d_dia, kind, kaynak){
   if(!window.sb || !authUser || !authUser.id) return;
-  // 🔒 GÜVENLİK — artık `user_wallet_apply` DEĞİL, `wallet_spend` çağrılıyor.
-  //
-  //   Neden: `user_wallet_apply` içindeki "istemci para ekleyemez" koruması
-  //   ÇALIŞMIYORDU. Kontrol `current_user in ('authenticated','anon')` ile
-  //   yapılıyordu, ama o fonksiyon SECURITY DEFINER; böyle fonksiyonların
-  //   İÇİNDE `current_user` çağıranı değil FONKSİYON SAHİBİNİ (postgres)
-  //   döndürür. Yani koşul hiç doğru olmuyor, koruma hiç devreye girmiyordu.
-  //   Sonuç: konsoldan sınırsız para/elmas basılabiliyordu.
-  //
-  //   Kalıcı çözüm veritabanında: `user_wallet_apply` tarayıcıya tamamen
-  //   kapatıldı (revoke). Yerine yalnızca HARCAMAYA izin veren
-  //   `wallet_spend` açıldı — pozitif değer verilirse 'kredi_yasak' döner
-  //   ve cüzdanı her zaman çağıranın KENDİ kimliğinden alır.
+  // 🔒 GÜVENLİK — tarayıcı yalnız HARCAYABİLİR.
+  //   `user_wallet_apply` tarayıcıya kapalı (yalnız sunucu). Tarayıcının harcama
+  //   fonksiyonu `cuzdan_harca`: pozitif değer verilirse 'kredi_yasak' döner,
+  //   cüzdanı her zaman çağıranın KENDİ kimliğinden alır ve hareketi açıklamasıyla
+  //   sunucudaki günlüğe (user_wallet_log) yazar.
   if ((Number(d_eur)||0) > 0 || (Number(d_dia)||0) > 0) {
-    // Bu yol artık gelir eklemek için kullanılmıyor; yanlışlıkla çağrılırsa
-    // sunucudan gerçek bakiyeyi tazelemekle yetin.
+    // Bu yol gelir eklemek için kullanılmaz; yanlışlıkla çağrılırsa gerçek bakiyeyi tazele.
     if(typeof wlLoadFromServer==='function') wlLoadFromServer().then(()=>{ if(typeof wlSyncHeader==='function') wlSyncHeader(); });
     return;
   }
-  window.sb.rpc('wallet_spend', { p_eur:d_eur||0, p_dia:d_dia||0, p_kind:kind||'out' })
-    .then(({data,error})=>{
-      if(error){ console.warn('[Wallet] rpc hata:', error); return; }
-      if(data && data.ok){
-        _wlCache = { eur:Number(data.eur)||0, dia:Number(data.dia)||0,
-          total_in:Number(data.total_in)||0, total_out:Number(data.total_out)||0,
-          totalIn:Number(data.total_in)||0, totalOut:Number(data.total_out)||0 };
-        if(typeof wlSyncHeader==='function') wlSyncHeader();
-      } else if(data && data.ok===false){
-        if(typeof wlLoadFromServer==='function') wlLoadFromServer().then(()=>{ if(typeof wlSyncHeader==='function') wlSyncHeader(); });
+  const sonuc = ({data,error})=>{
+    if(error){ console.warn('[Wallet] rpc hata:', error); return; }
+    _wlGunlukOnbellek = null;
+    if(data && data.ok){
+      _wlCache = { eur:Number(data.eur)||0, dia:Number(data.dia)||0,
+        total_in:Number(data.total_in)||0, total_out:Number(data.total_out)||0,
+        totalIn:Number(data.total_in)||0, totalOut:Number(data.total_out)||0 };
+      if(typeof wlSyncHeader==='function') wlSyncHeader();
+    } else if(data && data.ok===false){
+      if(typeof wlLoadFromServer==='function') wlLoadFromServer().then(()=>{ if(typeof wlSyncHeader==='function') wlSyncHeader(); });
+    }
+  };
+  window.sb.rpc('cuzdan_harca', { p_eur:d_eur||0, p_dia:d_dia||0, p_kaynak: kaynak ? String(kaynak).slice(0, 80) : null })
+    .then(r=>{
+      // Sunucu fonksiyonu henüz kurulmadıysa (SQL çalıştırılmadı) eski yol
+      if(r && r.error && (r.error.code==='PGRST202' || r.error.code==='42883')){
+        return window.sb.rpc('wallet_spend', { p_eur:d_eur||0, p_dia:d_dia||0, p_kind:kind||'out' }).then(sonuc);
       }
+      sonuc(r);
     }).catch(e=>console.warn('[Wallet] rpc hata:', e));
 }
 
@@ -90692,7 +90672,7 @@ function wlAddIncome(currency, amount, source, opts){
   //   `_wlRpcApply(..., 'in')` çağrısı KALDIRILDI: açık kalsaydı
   //   konsoldan `wlAddIncome('dia', 999999)` sınırsız elmas demekti.
   _wlApplyLocal(d_eur, d_dia, 'in');
-  wlAddLog({type:'in', cur:currency, amount, source: source||'Gelir'});
+  _wlGunlukOnbellek = null;   // hareket listesi sunucudan yeniden okunsun
   // Ekran gerçeği sunucudan tazelensin (yanlış bir yerden çağrıldıysa geri döner)
   try { if (typeof wlLoadFromServer === 'function') setTimeout(() => wlLoadFromServer().catch(()=>{}), 1200); } catch(e) {}
   if (src) { try { _WL_HOLD[currency] = false; wlFlyReward(src, currency, amount); } catch(e) { try { wlSyncHeader(); } catch(_) {} } }
@@ -90706,8 +90686,7 @@ function wlDeduct(currency, amount, reason){
   else { return false; }
   const d_eur = currency==='eur'?-amount:0, d_dia = currency==='dia'?-amount:0;
   _wlApplyLocal(d_eur, d_dia, 'out');
-  _wlRpcApply(d_eur, d_dia, 'out');
-  wlAddLog({type:'out', cur:currency, amount, source: reason||'Gider'});
+  _wlRpcApply(d_eur, d_dia, 'out', reason || null);
   return true;
 }
 
@@ -90737,32 +90716,63 @@ function wlMigrateFromTreasury(){ /* no-op */ }
 try{ wlMigrateFromTreasury(); }catch(e){}
 
 
-// Cüzdan log modal'ını aç — hem € hem 💎 göster
+// Cüzdan hareketleri penceresi — 596: liste SUNUCUDAN (user_wallet_log, son 50 hareket)
+var _wlGunlukOnbellek = null;   // { t, rows }
+function _wlKacis(x){ return String(x == null ? '' : x).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function _wlGunlukSatirlari(kayitlar){
+  const yerel = (typeof window._tarihYerel === 'function') ? window._tarihYerel() : 'tr';
+  const satirlar = [];
+  (kayitlar || []).forEach(k => {
+    const t = new Date(k.created_at);
+    const tarih = isNaN(t.getTime()) ? '' : (t.toLocaleDateString(yerel, {day:'numeric',month:'short'}) + ' ' + t.toLocaleTimeString(yerel, {hour:'2-digit',minute:'2-digit'}));
+    // Bir harekette hem € hem 💎 değişmişse iki satır
+    [['eur', Number(k.eur) || 0, '€'], ['dia', Number(k.dia) || 0, '💎']].forEach(([cur, v, sym]) => {
+      if (!v) return;
+      const gelir = v > 0;
+      const ad = (k.kaynak && String(k.kaynak).trim()) ? String(k.kaynak) : (gelir ? 'Gelir' : 'Gider');
+      satirlar.push(`<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-bottom:1px solid var(--border);gap:10px">
+      <div style="flex:1;min-width:0;text-align:left">
+        <div style="font-size:13px;color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_wlKacis(ad)}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px" data-noi18n>${tarih}</div>
+      </div>
+      <div style="font-family:Twemoji Country Flags,'Barlow Condensed',sans-serif;font-size:16px;font-weight:900;color:${gelir ? '#00e676' : '#ff5252'}" data-noi18n>${gelir ? '+' : '−'}${Math.abs(v).toLocaleString(yerel)} ${sym}</div>
+    </div>`);
+    });
+  });
+  return satirlar.length ? satirlar.join('') : '<div style="padding:24px;text-align:center;color:var(--text3);font-size:13px">Henüz işlem yok</div>';
+}
+async function _wlGunlukYukle(){
+  if (_wlGunlukOnbellek && Date.now() - _wlGunlukOnbellek.t < 15000) return _wlGunlukOnbellek.rows;
+  if (!window.sb || !authUser || !authUser.id) throw new Error('oturum_yok');
+  const { data, error } = await window.sb.from('user_wallet_log')
+    .select('eur,dia,kaynak,created_at')
+    .eq('user_id', authUser.id)
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if (error) throw error;
+  _wlGunlukOnbellek = { t: Date.now(), rows: Array.isArray(data) ? data : [] };
+  return _wlGunlukOnbellek.rows;
+}
+// 596 — .fac-modal-overlay görünürlüğü .open sınıfına bağlı (opacity); eskiden yalnız
+//   display ayarlandığı için pencere saydam kalıyor, tıklamalar içinden geçiyordu.
+function _wlLogKapat(){
+  const m = document.getElementById('walletLogModal');
+  if (!m) return;
+  m.classList.remove('open');
+  setTimeout(() => { if (!m.classList.contains('open')) m.style.display = 'none'; }, 220);
+}
 function wlOpenLog(){
-  const log = wlGetLog();
   const d = wlGetData();
   let modal = document.getElementById('walletLogModal');
   if(!modal){
     modal = document.createElement('div');
     modal.id = 'walletLogModal';
     modal.className = 'fac-modal-overlay';
-    modal.onclick = function(e){ if(e.target===this) this.style.display='none'; };
+    modal.onclick = function(e){ if(e.target===this) _wlLogKapat(); };
     document.body.appendChild(modal);
   }
-  const rows = log.length ? log.slice(0, 30).map(e => {
-    const date = new Date(e.ts);
-    const dateStr = date.toLocaleDateString('tr', {day:'numeric',month:'short'}) + ' ' + date.toLocaleTimeString('tr', {hour:'2-digit',minute:'2-digit'});
-    const sign = e.type==='in' ? '+' : '−';
-    const color = e.type==='in' ? '#00e676' : '#ff5252';
-    const sym = e.cur==='dia' ? '💎' : '€';
-    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-bottom:1px solid var(--border);gap:10px">
-      <div style="flex:1;min-width:0">
-        <div style="font-size:13px;color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.source||'—'}</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:2px">${dateStr}</div>
-      </div>
-      <div style="font-family:Twemoji Country Flags,'Barlow Condensed',sans-serif;font-size:16px;font-weight:900;color:${color}">${sign}${e.amount.toLocaleString('tr')} ${sym}</div>
-    </div>`;
-  }).join('') : '<div style="padding:24px;text-align:center;color:var(--text3);font-size:13px">Henüz işlem yok</div>';
+  const rows = (_wlGunlukOnbellek ? _wlGunlukSatirlari(_wlGunlukOnbellek.rows)
+    : '<div style="padding:24px;text-align:center;color:var(--text3);font-size:13px">Hareketler yükleniyor…</div>');
 
   modal.innerHTML = `
     <div class="fac-modal" style="max-width:440px;max-height:80vh;display:flex;flex-direction:column;padding:0;overflow:hidden">
@@ -90786,13 +90796,22 @@ function wlOpenLog(){
           <span>Toplam Gider: <span style="color:#ff5252;font-weight:700">−${(d.totalOut||0).toLocaleString('tr')}</span></span>
         </div>
       </div>
-      <div style="flex:1;overflow-y:auto;max-height:50vh">${rows}</div>
+      <div style="flex:1;overflow-y:auto;max-height:50vh" id="walletLogRows">${rows}</div>
       <div style="padding:12px;border-top:1px solid var(--border);display:flex;gap:8px">
-        <button class="fac-modal-cancel" style="flex:1" onclick="document.getElementById('walletLogModal').style.display='none'">Kapat</button>
-        <button class="fac-modal-confirm" style="flex:1" onclick="document.getElementById('walletLogModal').style.display='none';showPage('shop',document.querySelectorAll('.nav-btn')[8])">💎 Elmas Al</button>
+        <button class="fac-modal-cancel" style="flex:1" onclick="_wlLogKapat()">Kapat</button>
+        <button class="fac-modal-confirm" style="flex:1" onclick="_wlLogKapat();showPage('shop',document.querySelectorAll('.nav-btn')[8])">💎 Elmas Al</button>
       </div>
     </div>`;
   modal.style.display = 'flex';
+  requestAnimationFrame(() => modal.classList.add('open'));
+  _wlGunlukYukle().then(k => {
+    const el = document.getElementById('walletLogRows');
+    if (el) el.innerHTML = _wlGunlukSatirlari(k);
+  }).catch(e => {
+    console.warn('[Wallet] hareketler okunamadı:', e);
+    const el = document.getElementById('walletLogRows');
+    if (el && !_wlGunlukOnbellek) el.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3);font-size:13px">Hareketler yüklenemedi</div>';
+  });
 }
 
 // Header'daki kasa pill'inden çağrılır: takım sayfasındaki kasa sekmesini aç
