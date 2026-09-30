@@ -28266,7 +28266,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-09-30-turnuva-608';
+const APP_BUILD = '2026-09-30-turnuva-609';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -77626,27 +77626,33 @@ function _trkEncAgac(state, season) {
 }
 
 // ── Gol / Asist / Reyting ──
-//   Sezon: oyunun içinde bulunduğu sezon (39. günden sonra kupa sekmeleri yeni kurayı gösterse de
-//   istatistik bitmekte olan sezonun). Oyuncular: bu kupada gol/asist/reytingi olan herkes (sonradan
-//   takım değiştirmiş olsa da) — kova (stats_by_comp) zaten yalnız bu kupanın maçlarını içerir.
-function _trkIstatHtml(trnKey, statType) {
-  const opt = { season: getSeasonInfo().season, buckets: [_bucketOfTrn(trnKey)] };
-  const oyuncular = [];
-  _cftGetCountryCodes().forEach(cc => (_cftGetCountry(cc).leagues || []).forEach((_, ti) => {
-    computePlayerStats(cc, ti, opt).forEach(p => { if ((statType === 'rating' ? p.rating : p[statType]) > 0) oyuncular.push(p); });
-  }));
-  if (!oyuncular.length) return `<div class="trk-bos">Turnuvada henüz ${statType === 'goals' ? 'gol atılmadı' : statType === 'assists' ? 'asist yapılmadı' : 'maç oynanmadı'}.</div>`;
-  return _istatListeHtml(oyuncular, statType, { goals: 'Turnuvada atılan toplam gol', assists: 'Turnuvada yapılan toplam asist', rating: 'Turnuva ortalama maç reytingi' }[statType], 'Turnuva Reytingi');
+//   Sunucudan (turnuva_istatistik): bu sezon bu kupada oynayan her oyuncunun maç/gol/asist kaydı
+//   (players.stats_by_comp) ve o kupadaki maç reytinglerinin ortalaması. Oyunun içinde bulunduğu
+//   sezon — 39. günden sonra kupa sekmeleri yeni kurayı gösterse de istatistik biten sezonun.
+//   Kulüp kupasında oyuncunun takımı, EURO Cup'ta milli takımı (uyruk) gösterilir.
+const _trkIstatOnb = {};
+function _trkIstatCek(anahtar, k, sezon) {
+  _trkIstatOnb[anahtar] = Object.assign(_trkIstatOnb[anahtar] || {}, { at: Date.now() });
+  window.sb.rpc('turnuva_istatistik', { p_kupa: k, p_sezon: sezon }).then(({ data, error }) => {
+    if (error) { console.warn('[turnuva istatistik]', error.message); return; }
+    _trkIstatOnb[anahtar].v = data || [];
+    _trnCanliCiz();
+  });
 }
-function _trkEncIstat(state, statType) {
-  const sz = (state && state.season) || getSeasonInfo().season;
-  const onb = window._encStatCache['enc_' + sz];
-  if (!onb) { _encStatYukle(sz); return `<div class="trk-bos">İstatistikler hesaplanıyor…</div>`; }
-  const liste = { goals: onb.v.scorers, assists: onb.v.assisters, rating: onb.v.ratings }[statType] || [];
-  if (!liste.length) return `<div class="trk-bos">Turnuvada henüz ${statType === 'goals' ? 'gol atılmadı' : statType === 'assists' ? 'asist yapılmadı' : 'maç oynanmadı'}.</div>`;
-  const oyuncular = liste.map(x => ({ name: x.name, teamName: x.country, flag: x.flag, milli: true, tiksiz: true, matches: x.mac,
-    goals: statType === 'goals' ? x.value : 0, assists: statType === 'assists' ? x.value : 0, rating: statType === 'rating' ? x.value : 0 }));
-  return _istatListeHtml(oyuncular, statType, { goals: 'Turnuvada atılan toplam gol', assists: 'Turnuvada yapılan toplam asist', rating: 'Ortalama maç reytingi (en az 2 maç)' }[statType], 'Turnuva Reytingi');
+function _trkIstatHtml(k, statType) {
+  const sezon = getSeasonInfo().season, anahtar = k + '_' + sezon, o = _trkIstatOnb[anahtar];
+  if (!o || Date.now() - o.at > 300000) _trkIstatCek(anahtar, k, sezon);
+  if (!o || !o.v) return `<div class="trk-bos">İstatistikler hesaplanıyor…</div>`;
+  const milli = k === 'enc', benId = (window.authUser || {}).id;
+  const oyuncular = o.v.map(r => {
+    const c = _cftGetCountry(milli ? r.uyruk : r.ulke) || {};
+    return { name: r.ad, pos: r.mevki, subPos: r.alt_mevki, teamName: milli ? (c.name || r.uyruk) : r.takim, countryCode: r.ulke,
+      flag: c.flag || '🏳️', milli, tiksiz: milli, matches: r.mac, goals: r.gol, assists: r.asist,
+      rating: (!milli || r.reyting_mac >= 2) ? (Number(r.reyting) || 0) : 0, userId: r.kullanici, isUser: !!benId && r.kullanici === benId };
+  }).filter(p => (statType === 'rating' ? p.rating : p[statType]) > 0);
+  if (!oyuncular.length) return `<div class="trk-bos">Turnuvada henüz ${statType === 'goals' ? 'gol atılmadı' : statType === 'assists' ? 'asist yapılmadı' : 'maç oynanmadı'}.</div>`;
+  return _istatListeHtml(oyuncular, statType, { goals: 'Turnuvada atılan toplam gol', assists: 'Turnuvada yapılan toplam asist',
+    rating: milli ? 'Ortalama maç reytingi (en az 2 maç)' : 'Turnuva ortalama maç reytingi' }[statType], 'Turnuva Reytingi');
 }
 
 // ── Turnuva detay ──
@@ -78122,7 +78128,7 @@ function trn2RenderEuroNation(season) {
   if (subtab === 'groups')        ic = _trkEncGruplar(state, season);
   else if (subtab === 'knockout') ic = _trkEncAgac(state, season);
   else if (subtab === 'schedule') ic = _trkTakvimHtml('enc', season);
-  else                            ic = _trkEncIstat(state, subtab);
+  else                            ic = _trkIstatHtml('enc', subtab);
   el.innerHTML = `<div class="trn2-detail"><div class="trn2-banner is-natcup"><img src="${_CUP_BANNERS.natcup || ''}" alt=""></div>`
     + `<div class="trk gece" style="${_trkStil('enc')}">${_trkSekmeBar(['groups', 'knockout', 'schedule', 'goals', 'assists', 'rating'], subtab, s => `encSetSubTab('${s}')`)}<div class="trk-ic">${ic}</div></div></div>`;
   _trn2ScrollActiveStab(el);
@@ -78431,126 +78437,6 @@ function encRenderKnockout(state) {
     not: "8 grubun ilk 2'si Son 16'ya yükselir. Her tur tek maç eleme (berabere durumunda penaltı).",
     aktif: _encAktifTur, turlar: _turlar
   });
-}
-
-// ═══════════════════════════════════════════════════════════════
-// 🆕 EURO CUP İSTATİSTİKLERİ — gol / asist / reyting
-//   match_state'teki bitmiş 'enc' maçlarının olay ve kadro kayıtlarından
-//   hesaplanır. SEZONA GÖRE anahtarlanır → yeni turnuvada kendiliğinden
-//   sıfırlanır, eski sezonun verisi taşınmaz.
-// ═══════════════════════════════════════════════════════════════
-window._encStatCache = window._encStatCache || {};
-
-async function _encStatHesapla(sezon) {
-  const anahtar = 'enc_' + sezon;
-  const onb = window._encStatCache[anahtar];
-  if (onb && (Date.now() - onb.at) < 300000) return onb.v;
-
-  const v = { scorers: [], assisters: [], ratings: [], mac: 0 };
-  try {
-    if (!window.sb) return v;
-    // 🆕 563 — bitmiş maç değişmez: her 5 dk'da tüm maçları (olay + iki kadro) yeniden
-    //   indirmek yerine yalnız YENİ bitenler çekilir. Gece temizliğinde olayları silinmiş
-    //   eski maçlar için olaylar match_results'tan tamamlanır (istatistik boş kalıyordu).
-    const _mo = window._encMacOnb || (window._encMacOnb = {});
-    const { data: _anah } = await window.sb.from('match_state')
-      .select('match_key,home_team,away_team,day_in_season')
-      .eq('tournament_key', 'enc').eq('season', sezon).eq('status', 'finished');
-    const _liste = _anah || [];
-    const _eksik = _liste.filter(r => r && r.match_key && !_mo[r.match_key]).map(r => r.match_key);
-    for (let i = 0; i < _eksik.length; i += 40) {
-      const { data: _rows } = await window.sb.from('match_state')
-        .select('match_key,home_team,away_team,day_in_season,events,home_lineup,away_lineup')
-        .in('match_key', _eksik.slice(i, i + 40));
-      for (const r of (_rows || [])) if (r && r.match_key) _mo[r.match_key] = r;
-    }
-    const _olaysiz = _eksik.map(k => _mo[k]).filter(r => r && !(Array.isArray(r.events) && r.events.length));
-    if (_olaysiz.length) {
-      try {
-        const { data: _mr } = await window.sb.from('match_results')
-          .select('home_team,away_team,day_in_season,ev:data->events')
-          .eq('season', sezon).eq('tournament_key', 'enc');
-        const _mrMap = {};
-        for (const m of (_mr || [])) _mrMap[m.home_team + '|' + m.away_team + '|' + m.day_in_season] = m.ev;
-        for (const r of _olaysiz) {
-          const ev = _mrMap[r.home_team + '|' + r.away_team + '|' + r.day_in_season];
-          if (Array.isArray(ev)) r.events = ev;
-        }
-      } catch(e) {}
-    }
-    const maclar = _liste.map(r => _mo[r.match_key]).filter(Boolean);
-    v.mac = maclar.length;
-
-    const gol = {}, asist = {}, reyt = {};
-    const bayrak = (ulke) => {
-      try { return (typeof _hmUlkeBayrak === 'function') ? (_hmUlkeBayrak(ulke) || '🏳️') : '🏳️'; }
-      catch(e) { return '🏳️'; }
-    };
-    const ekle = (kap, ad, ulke, n) => {
-      if (!ad) return;
-      const k = ad + '|' + (ulke || '');
-      const o = kap[k] = kap[k] || { name: ad, country: ulke || '', value: 0, n: 0 };
-      o.value += n; o.n++;
-    };
-
-    maclar.forEach(m => {
-      const evT = m.home_team, depT = m.away_team;
-      // Olaylar → gol ve asist
-      const evs = Array.isArray(m.events) ? m.events : [];
-      evs.forEach(e => {
-        if (!e) return;
-        const tip = String(e.type || e.t || '').toLowerCase();
-        if (tip !== 'goal' && tip !== 'gol') return;
-        const evMi = (e.side === 'home' || e.team === 'home' || e.takim === 'ev');
-        const ulke = evMi ? evT : depT;
-        const skor = e.player || e.scorer || e.oyuncu;
-        const pas  = e.assist || e.asist;
-        if (skor) ekle(gol, skor, ulke, 1);
-        if (pas)  ekle(asist, pas, ulke, 1);
-      });
-      // Kadrolar → reyting
-      [[m.home_lineup, evT], [m.away_lineup, depT]].forEach(([lu, ulke]) => {
-        const arr = Array.isArray(lu) ? lu : (lu && Array.isArray(lu.players) ? lu.players : []);
-        arr.forEach(p => {
-          if (!p) return;
-          const r = Number(p.matchRating ?? p.rating ?? p.reyting);
-          if (!isFinite(r) || r <= 0) return;
-          ekle(reyt, p.name || p.ad, ulke, r);
-        });
-      });
-    });
-
-    const diz = (kap, ort) => Object.values(kap)
-      .map(o => ({ name: o.name, country: o.country, flag: bayrak(o.country),
-                   value: ort ? Math.round((o.value / Math.max(1,o.n)) * 10) / 10 : o.value,
-                   mac: o.n }))
-      .filter(o => o.value > 0)
-      .sort((a,b) => b.value - a.value)
-      .slice(0, 20);
-
-    v.scorers   = diz(gol, false);
-    v.assisters = diz(asist, false);
-    // Reyting: en az 2 maç oynamış olsun (tek maçlık uçuk değer sıralamayı bozmasın)
-    v.ratings   = Object.values(reyt)
-      .filter(o => o.n >= 2)
-      .map(o => ({ name:o.name, country:o.country, flag:bayrak(o.country),
-                   value: Math.round((o.value / o.n) * 10) / 10, mac:o.n }))
-      .sort((a,b) => b.value - a.value).slice(0, 20);
-  } catch(e) { console.warn('[encStat]', e); }
-
-  window._encStatCache[anahtar] = { at: Date.now(), v };
-  return v;
-}
-window._encStatHesapla = _encStatHesapla;
-
-// İstatistik sekmesi açıldığında hesapla ve yeniden çiz
-function _encStatYukle(sezon) {
-  if (window._encStatYukleniyor) return;
-  window._encStatYukleniyor = true;
-  _encStatHesapla(sezon).then(() => {
-    window._encStatYukleniyor = false;
-    try { if (typeof trn2Render === 'function') trn2Render(); } catch(e) {}
-  }).catch(() => { window._encStatYukleniyor = false; });
 }
 
 function trn2SubTab(trnKey, sub, btn) {
