@@ -6607,3 +6607,20 @@ Object.assign(window.I18N.ru, {
   "BU KUPONU OYNA": "СЫГРАТЬ ЭТОТ КУПОН",
   "Takiptesin": "Вы подписаны"
 });
+
+// 623 — Ekonomi: elmasla takım satışı, antrenman sunucuda, mevki değişimi, stadyum bileti
+Object.assign(window.I18N.ru, {
+  "Antrenman başlatılamadı.": "Не удалось начать тренировку.",
+  "Takımlar yalnız elmasla satılır.": "Команды продаются только за алмазы.",
+  "İlan fiyatı en düşük fiyatın altında.": "Цена объявления ниже минимальной.",
+  "Önce kendi takımının kaptanlığını devretmelisin.": "Сначала передай капитанство в своей команде.",
+  "Takım satılınca elmaslar cüzdanına geçer ve takımdan ayrılırsın.": "Когда команда продана, алмазы поступают в твой кошелёк, а ты покидаешь команду.",
+  "Fiyatı sen belirlersin; satılınca elmaslar cüzdanına geçer.": "Цену назначаешь ты; после продажи алмазы поступают в твой кошелёк.",
+  "Alternatif: Takımı Sat — fiyatı sen belirlersin, satılınca elmaslar cüzdanına geçer.": "Альтернатива: продать команду — цену назначаешь ты, после продажи алмазы поступают в твой кошелёк.",
+  "Ev sahibi maçlarda bilet geliri sağlayan taraftar kapasitesi. Süper Lig'de €14/bilet, alt liglerde daha az.": "Вместимость трибун, приносящая доход от билетов в домашних матчах. В Суперлиге — €14/билет, в низших лигах — меньше."
+});
+(function () {
+  window.I18N_PATTERNS.ru.unshift(
+    [/^✅ Mevki (.+?)'e değiştirildi!\s+Tüm yeteneklerin olduğu gibi korundu\.$/, "✅ Позиция изменена на $1!\nВсе твои навыки сохранены без изменений."]
+  );
+})();

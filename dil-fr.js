@@ -6637,3 +6637,20 @@ Object.assign(window.I18N.fr, {
   "BU KUPONU OYNA": "JOUER CE TICKET",
   "Takiptesin": "Abonné"
 });
+
+// 623 — Ekonomi: elmasla takım satışı, antrenman sunucuda, mevki değişimi, stadyum bileti
+Object.assign(window.I18N.fr, {
+  "Antrenman başlatılamadı.": "Impossible de lancer l'entraînement.",
+  "Takımlar yalnız elmasla satılır.": "Les équipes ne se vendent qu'en diamants.",
+  "İlan fiyatı en düşük fiyatın altında.": "Le prix de l'annonce est inférieur au prix minimum.",
+  "Önce kendi takımının kaptanlığını devretmelisin.": "Tu dois d'abord céder le capitanat de ta propre équipe.",
+  "Takım satılınca elmaslar cüzdanına geçer ve takımdan ayrılırsın.": "Une fois l'équipe vendue, les diamants arrivent dans ton portefeuille et tu quittes l'équipe.",
+  "Fiyatı sen belirlersin; satılınca elmaslar cüzdanına geçer.": "Tu fixes le prix ; une fois vendue, les diamants arrivent dans ton portefeuille.",
+  "Alternatif: Takımı Sat — fiyatı sen belirlersin, satılınca elmaslar cüzdanına geçer.": "Alternative : Vendre l'équipe — tu fixes le prix, et une fois vendue les diamants arrivent dans ton portefeuille.",
+  "Ev sahibi maçlarda bilet geliri sağlayan taraftar kapasitesi. Süper Lig'de €14/bilet, alt liglerde daha az.": "La capacité d'accueil qui génère la billetterie lors des matchs à domicile. 14 €/billet en Super Ligue, moins dans les divisions inférieures."
+});
+(function () {
+  window.I18N_PATTERNS.fr.unshift(
+    [/^✅ Mevki (.+?)'e değiştirildi!\s+Tüm yeteneklerin olduğu gibi korundu\.$/, "✅ Poste changé en $1 !\nToutes tes compétences sont conservées telles quelles."]
+  );
+})();

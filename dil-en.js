@@ -6983,3 +6983,20 @@ Object.assign(window.I18N.en, {
   "BU KUPONU OYNA": "PLAY THIS COUPON",
   "Takiptesin": "Following"
 });
+
+// 623 — Ekonomi: elmasla takım satışı, antrenman sunucuda, mevki değişimi, stadyum bileti
+Object.assign(window.I18N.en, {
+  "Antrenman başlatılamadı.": "Could not start training.",
+  "Takımlar yalnız elmasla satılır.": "Teams can only be sold for diamonds.",
+  "İlan fiyatı en düşük fiyatın altında.": "The listing price is below the minimum price.",
+  "Önce kendi takımının kaptanlığını devretmelisin.": "You must hand over the captaincy of your own team first.",
+  "Takım satılınca elmaslar cüzdanına geçer ve takımdan ayrılırsın.": "When the team is sold, the diamonds go to your wallet and you leave the team.",
+  "Fiyatı sen belirlersin; satılınca elmaslar cüzdanına geçer.": "You set the price; once sold, the diamonds go to your wallet.",
+  "Alternatif: Takımı Sat — fiyatı sen belirlersin, satılınca elmaslar cüzdanına geçer.": "Alternative: Sell Team — you set the price, and once sold the diamonds go to your wallet.",
+  "Ev sahibi maçlarda bilet geliri sağlayan taraftar kapasitesi. Süper Lig'de €14/bilet, alt liglerde daha az.": "The crowd capacity that generates ticket income in home matches. €14 per ticket in the Super League, less in the lower divisions."
+});
+(function () {
+  window.I18N_PATTERNS.en.unshift(
+    [/^✅ Mevki (.+?)'e değiştirildi!\s+Tüm yeteneklerin olduğu gibi korundu\.$/, "✅ Position changed to $1!\nAll your skills were kept as they are."]
+  );
+})();
