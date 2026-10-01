@@ -6589,3 +6589,9 @@ Object.assign(window.I18N.ru, {
   "Takım bul": "Найти команду",
   "Turnuva Maçı": "Турнирный матч"
 });
+
+/* ─── 617 · Avatar seçimi Erkek / Kadın sekmeleri ─── */
+Object.assign(window.I18N.ru, {
+  "Erkek": "Мужчины",
+  "Kadın": "Женщины"
+});
