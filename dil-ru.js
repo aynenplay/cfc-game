@@ -6577,3 +6577,15 @@ Object.assign(window.I18N.ru, {
     [/^Toplam (\d+)-(\d+) ·$/, "По сумме $1-$2 ·"]
   );
 })();
+
+/* ─── 611 · Ana sayfa maç önizleme (Gece Bileti) ─── */
+Object.assign(window.I18N.ru, {
+  "Başlama saati": "Время начала",
+  "Sıradaki maç": "Следующий матч",
+  "Başlamaya": "До начала",
+  "Takım bekleniyor": "Команда не выбрана",
+  "Henüz bir takımın yok": "У тебя пока нет команды",
+  "Bir takıma katıldığında sıradaki maçın, rakip karşılaştırması ve geri sayım burada görünecek.": "Когда ты вступишь в команду, здесь появятся твой следующий матч, сравнение с соперником и обратный отсчёт.",
+  "Takım bul": "Найти команду",
+  "Turnuva Maçı": "Турнирный матч"
+});

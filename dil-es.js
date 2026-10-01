@@ -6547,3 +6547,15 @@ Object.assign(window.I18N.es, {
     [/^Toplam (\d+)-(\d+) ·$/, "Global $1-$2 ·"]
   );
 })();
+
+/* ─── 611 · Ana sayfa maç önizleme (Gece Bileti) ─── */
+Object.assign(window.I18N.es, {
+  "Başlama saati": "Hora de inicio",
+  "Sıradaki maç": "Próximo partido",
+  "Başlamaya": "Empieza en",
+  "Takım bekleniyor": "Esperando equipo",
+  "Henüz bir takımın yok": "Aún no tienes equipo",
+  "Bir takıma katıldığında sıradaki maçın, rakip karşılaştırması ve geri sayım burada görünecek.": "Cuando te unas a un equipo, aquí verás tu próximo partido, la comparación con el rival y la cuenta atrás.",
+  "Takım bul": "Buscar equipo",
+  "Turnuva Maçı": "Partido de torneo"
+});

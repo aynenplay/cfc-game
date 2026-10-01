@@ -6539,3 +6539,15 @@ Object.assign(window.I18N.pt, {
     [/^Toplam (\d+)-(\d+) ·$/, "Agregado $1-$2 ·"]
   );
 })();
+
+/* ─── 611 · Ana sayfa maç önizleme (Gece Bileti) ─── */
+Object.assign(window.I18N.pt, {
+  "Başlama saati": "Horário de início",
+  "Sıradaki maç": "Próxima partida",
+  "Başlamaya": "Começa em",
+  "Takım bekleniyor": "Aguardando equipe",
+  "Henüz bir takımın yok": "Você ainda não tem equipe",
+  "Bir takıma katıldığında sıradaki maçın, rakip karşılaştırması ve geri sayım burada görünecek.": "Quando você entrar em uma equipe, sua próxima partida, a comparação com o adversário e a contagem regressiva aparecerão aqui.",
+  "Takım bul": "Encontrar equipe",
+  "Turnuva Maçı": "Partida de torneio"
+});
