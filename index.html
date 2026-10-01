@@ -27525,7 +27525,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-01-dink-613';
+const APP_BUILD = '2026-10-01-ses-614';
 
 // 🆕 APK ACILIS EKRANI — siyah bosluk giderme
 //    capacitor.config.json'da launchAutoHide:false yapildi, yani Capacitor
@@ -27989,115 +27989,89 @@ document.addEventListener('click', function(e){
 }, true);
 
 // ═══════════════════════════════════════════
-// 🆕 ARKA PLAN MÜZİĞİ — Lo-fi Sport
-// (yumuşak chord progression Am-F-C-G · triangle + sine bass + lowpass)
-// localStorage: cft_music_enabled (true/false), default false
+// 🆕 614 — OYUN SESLERİ: ana müzik + maç ambiyansı (tribün, devre arası müziği)
+//   Dosyalar index.html'in yanında. Her biri başına/sonuna 1 sn sarmal pay eklenmiş dikişsiz döngü.
+//   Müzik: cft_music_enabled (varsayılan kapalı) · Tribün + devre arası: Maç Sesi anahtarı
 // ═══════════════════════════════════════════
+const _SES_DONGU = {
+  muzik:  { url: 'muzik.mp3?v=614',       uz: 12.8,      seviye: 0.20, katman: 1 },
+  tribun: { url: 'tribun.mp3?v=614',      uz: 34.288005, seviye: 0.30, katman: 2 },
+  devre:  { url: 'devre-arasi.mp3?v=614', uz: 7.5,       seviye: 0.22, katman: 1 }
+};
+const _sesBuf = {};
+const _muzikKanal = { ad: null, g: null, kaynak: [] }, _macKanal = { ad: null, g: null, kaynak: [] };
 let _cftMusicEnabled = (localStorage.getItem('cft_music_enabled') === 'true');
 let _cftMusicPlaying = false;
-let _cftMusicNodes = [];
-let _cftMusicIntervals = [];
-let _cftMusicMasterGain = null;
+let _macDurum = null;
+
+function _sesYukle(ad) {
+  if (!_sesBuf[ad]) _sesBuf[ad] = fetch(_SES_DONGU[ad].url).then(r => r.arrayBuffer())
+    .then(b => _cftGetAudioCtx().decodeAudioData(b))
+    .catch(e => { _sesBuf[ad] = null; throw e; });
+  return _sesBuf[ad];
+}
+function _sesCal(k, ad) {
+  _sesDurdur(k, 2);
+  const c = _cftGetAudioCtx(), d = _SES_DONGU[ad], g = c.createGain();
+  g.gain.value = 0; g.connect(c.destination);
+  k.ad = ad; k.g = g;
+  _sesYukle(ad).then(buf => {
+    if (k.g !== g) return;
+    const bas = ad === 'tribun' ? Math.random() * d.uz : 0;
+    [[1, bas], [0.955, (bas * 0.955 + d.uz / 2) % d.uz]].slice(0, d.katman).forEach(([oran, ofs]) => {
+      const src = c.createBufferSource(), kg = c.createGain();
+      src.buffer = buf; src.loop = true; src.loopStart = 1; src.loopEnd = 1 + d.uz; src.playbackRate.value = oran;
+      kg.gain.value = d.katman === 2 ? 0.72 : 1;
+      src.connect(kg); kg.connect(g); src.start(0, 1 + ofs);
+      k.kaynak.push(src);
+    });
+    g.gain.setValueAtTime(0, c.currentTime);
+    g.gain.linearRampToValueAtTime(d.seviye, c.currentTime + 1.5);
+  }).catch(() => {});
+}
+function _sesDurdur(k, sure) {
+  if (!k.g) return;
+  const c = _cftAudioCtx, g = k.g, kaynak = k.kaynak;
+  k.ad = null; k.g = null; k.kaynak = [];
+  g.gain.cancelScheduledValues(c.currentTime);
+  g.gain.setValueAtTime(g.gain.value, c.currentTime);
+  g.gain.linearRampToValueAtTime(0, c.currentTime + sure);
+  setTimeout(() => { kaynak.forEach(src => src.stop()); g.disconnect(); }, sure * 1000 + 100);
+}
+// Maç ekranı durumu: 'tribun' (oyun sürerken) · 'devre' (devre arası) · null (maç yok/bitti/ekran kapalı)
+function _macSesDurum(durum) {
+  if (durum !== _macDurum) {
+    _macDurum = durum;
+    if (durum) _cftMusicStop(); else if (_cftMusicEnabled) _cftMusicStart();
+  }
+  const ses = window._resGoalSoundOff ? null : durum;
+  if (_macKanal.ad === ses) return;
+  if (ses) _sesCal(_macKanal, ses); else _sesDurdur(_macKanal, 2);
+}
+// Golde tribün kısa süre coşar, sonra eski seviyesine iner
+function _macSesCos() {
+  const g = _macKanal.ad === 'tribun' && _macKanal.g;
+  if (!g) return;
+  const t = _cftAudioCtx.currentTime, sv = _SES_DONGU.tribun.seviye;
+  g.gain.cancelScheduledValues(t);
+  g.gain.setValueAtTime(g.gain.value, t);
+  g.gain.linearRampToValueAtTime(sv * 1.9, t + 0.35);
+  g.gain.setTargetAtTime(sv, t + 2.2, 1.1);
+}
+document.addEventListener('visibilitychange', () => {
+  if (!_cftAudioCtx) return;
+  if (document.hidden) _cftAudioCtx.suspend(); else _cftAudioCtx.resume();
+});
 
 function _cftMusicStart() {
-  if (_cftMusicPlaying) return;
-  // 🆕 Maç sırasında müzik çalmasın
-  if (window._cftMatchInProgress) return;
-  try {
-    const c = _cftGetAudioCtx();
-    if (!c) return;
-    if (c.state === 'suspended') {
-      c.resume().catch(()=>{});
-    }
-    _cftMusicPlaying = true;
-
-    // Master gain — ayarlanabilir
-    _cftMusicMasterGain = c.createGain();
-    _cftMusicMasterGain.gain.value = 0.22; // hafif arka plan tonu (lo-fi biraz daha sessiz olduğu için biraz yukarı)
-    _cftMusicMasterGain.connect(c.destination);
-
-    // Lo-fi yumuşaklık için lowpass filter (chord'lar buna gider, bass direkt master'a)
-    const lowpass = c.createBiquadFilter();
-    lowpass.type = 'lowpass';
-    lowpass.frequency.value = 1800;
-    lowpass.Q.value = 0.5;
-    lowpass.connect(_cftMusicMasterGain);
-
-    // Akor progression: Am - F - C - G (klasik dingin)
-    const chords = [
-      [220.00, 261.63, 329.63], // Am: A3-C4-E4
-      [174.61, 220.00, 261.63], // F:  F3-A3-C4
-      [261.63, 329.63, 392.00], // C:  C4-E4-G4
-      [196.00, 246.94, 293.66]  // G:  G3-B3-D4
-    ];
-    const chordDur = 2.5; // her chord 2.5 saniye
-
-    function playChord(notes, startTime) {
-      // Triangle wave akor (yumuşak)
-      notes.forEach(freq => {
-        const o = c.createOscillator();
-        const g = c.createGain();
-        o.type = 'triangle';
-        o.frequency.value = freq;
-        // Yumuşak attack + sustain + release
-        g.gain.setValueAtTime(0, startTime);
-        g.gain.linearRampToValueAtTime(0.06, startTime + 0.3);
-        g.gain.linearRampToValueAtTime(0.05, startTime + chordDur - 0.5);
-        g.gain.linearRampToValueAtTime(0, startTime + chordDur);
-        o.connect(g); g.connect(lowpass);
-        o.start(startTime); o.stop(startTime + chordDur + 0.1);
-        _cftMusicNodes.push(o);
-      });
-
-      // Hafif sine bass (chord kökü, 1 oktav alt)
-      const bass = c.createOscillator();
-      const bg = c.createGain();
-      bass.type = 'sine';
-      bass.frequency.value = notes[0] / 2;
-      bg.gain.setValueAtTime(0, startTime);
-      bg.gain.linearRampToValueAtTime(0.08, startTime + 0.2);
-      bg.gain.linearRampToValueAtTime(0, startTime + chordDur);
-      bass.connect(bg); bg.connect(_cftMusicMasterGain);
-      bass.start(startTime); bass.stop(startTime + chordDur + 0.1);
-      _cftMusicNodes.push(bass);
-    }
-
-    let chordIdx = 0;
-    function playNext() {
-      if (!_cftMusicPlaying) return;
-      playChord(chords[chordIdx % chords.length], c.currentTime);
-      chordIdx++;
-      // Eski node'ları temizle (memory)
-      if (_cftMusicNodes.length > 60) _cftMusicNodes.splice(0, _cftMusicNodes.length - 30);
-    }
-    playNext();
-    const id = setInterval(playNext, chordDur * 1000);
-    _cftMusicIntervals.push(id);
-  } catch(e) {
-    console.warn('[Music] start error:', e);
-    _cftMusicPlaying = false;
-  }
+  if (_cftMusicPlaying || window._cftMatchInProgress || _macDurum) return;
+  _cftMusicPlaying = true;
+  _sesCal(_muzikKanal, 'muzik');
 }
 
 function _cftMusicStop() {
   _cftMusicPlaying = false;
-  _cftMusicIntervals.forEach(id => clearInterval(id));
-  _cftMusicIntervals = [];
-  _cftMusicNodes.forEach(n => { try { n.stop(); n.disconnect(); } catch(e){} });
-  _cftMusicNodes = [];
-  if (_cftMusicMasterGain) {
-    try {
-      // Smooth fade out (200ms)
-      const c = _cftAudioCtx;
-      if (c) {
-        _cftMusicMasterGain.gain.cancelScheduledValues(c.currentTime);
-        _cftMusicMasterGain.gain.setValueAtTime(_cftMusicMasterGain.gain.value, c.currentTime);
-        _cftMusicMasterGain.gain.linearRampToValueAtTime(0, c.currentTime + 0.2);
-        setTimeout(() => { try { _cftMusicMasterGain.disconnect(); } catch(e){} }, 250);
-      }
-    } catch(e){}
-    _cftMusicMasterGain = null;
-  }
+  _sesDurdur(_muzikKanal, 1);
 }
 
 function cftToggleMusic(el) {
@@ -39236,15 +39210,16 @@ async function startMatch(){
   if (window._matchScreenSmoothTimer) clearInterval(window._matchScreenSmoothTimer);
   window._matchScreenSmoothTimer = setInterval(() => {
     if (!ms || !ms.classList.contains('open')) {
+      _macSesDurum(null);
       clearInterval(window._matchScreenSmoothTimer);
       window._matchScreenSmoothTimer = null;
       return;
     }
-    if (MS.finished) return;
+    if (MS.finished) { _macSesDurum(null); return; }
     // started_at gelene kadar bekle — eğer biz kickoffMs ile başlatırsak,
     // sonradan server'dan gerçek started_at gelince MS._matchStartedAt değişir ve görsel geriye düşer.
     // tick_match çağrısı her saniye çalışıyor — started_at en geç 1 saniye içinde gelir.
-    if (!MS._matchStartedAt) return;
+    if (!MS._matchStartedAt) { _macSesDurum(null); return; }
     
     const elapsed = Date.now() - MS._matchStartedAt;
     const clkS = document.getElementById('matchClock');
@@ -39356,6 +39331,7 @@ async function startMatch(){
       if (_sbEl && _msEl) _msEl.classList.toggle('is-live', _sbEl.className.indexOf('sb-live') !== -1);
     } catch(e) {}
     MS._displayMin = displayMin;
+    _macSesDurum(isHalftime ? 'devre' : 'tribun');
     // 574 — skor + gol sesi saat o dakikaya geldiği AN (eskiden skor bir sonraki 7 sn'lik poll'u bekliyordu)
     try { _msSkorSenkron(); } catch(e) {}
     try { _gmSaatGuncelle(); _gmAtakAdim(); } catch(e) {}   // 574 — saat çipi + atak şeridi
@@ -39542,7 +39518,9 @@ async function startMatch(){
               ? (_sm - 1) * _MSPM
               : (45 * _MSPM + _HTMS + (_sm - 46) * _MSPM);
             const _anchor = Date.now() - _elapsedForMin;
-            if (!MS._matchStartedAt || Math.abs(MS._matchStartedAt - _anchor) > 3000) {
+            const _fark = MS._matchStartedAt ? _anchor - MS._matchStartedAt : 0;
+            const _pay = _sm === 45 ? _MSPM + _HTMS : 0;
+            if (!MS._matchStartedAt || _fark < -3000 || _fark > 3000 + _pay) {
               MS._matchStartedAt = _anchor;
             }
           }
@@ -64848,6 +64826,7 @@ function _matchGoalSound(){
     if (!_resGoalAudio) { _resGoalAudio = new Audio(_GOAL_SND_URI); _resGoalAudio.preload = 'auto'; _resGoalAudio.volume = 0.9; }
     try { _resGoalAudio.currentTime = 0; } catch(e){}
     const _p = _resGoalAudio.play(); if (_p && _p.catch) _p.catch(()=>{});
+    _macSesCos();
   }catch(e){}
 }
 // 🆕 LİSTE (canlı sonuçlar) gol sesi — TEK hafif bip (çok sesli değil)
@@ -64877,6 +64856,7 @@ function _resGoalSound(){
       if (ac.state === 'suspended') { try { ac.resume(); } catch(e){} }
       // iOS kilidi: gesture icinde kisa SESSIZ buffer cal (AudioContext'i tam acar)
       try { const b = ac.createBuffer(1, 1, 22050); const sb = ac.createBufferSource(); sb.buffer = b; sb.connect(ac.destination); sb.start(0); } catch(e){}
+      if (_cftAudioCtx && _cftAudioCtx.state === 'suspended') _cftAudioCtx.resume();
     } catch(e){}
     // listener'lari KALDIRMIYORUZ: iOS arka plana alinca AudioContext yeniden suspend olur,
     //   her dokunusta tekrar acmak icin acik kalsinlar (passive, zararsiz).
