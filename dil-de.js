@@ -4827,3 +4827,10 @@ Object.assign(window.I18N.de, {
   "Erkek": "Männlich",
   "Kadın": "Weiblich"
 });
+
+/* ─── 618 · Mevki / Avatar Değiştir modalları ─── */
+Object.assign(window.I18N.de, {
+  "Aynı grupta alt mevki değişimi": "Wechsel der Unterposition innerhalb derselben Gruppe",
+  "500 Diamond": "500 Diamanten",
+  "Mevcut": "Aktuell"
+});

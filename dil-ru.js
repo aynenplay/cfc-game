@@ -6595,3 +6595,10 @@ Object.assign(window.I18N.ru, {
   "Erkek": "Мужчины",
   "Kadın": "Женщины"
 });
+
+/* ─── 618 · Mevki / Avatar Değiştir modalları ─── */
+Object.assign(window.I18N.ru, {
+  "Aynı grupta alt mevki değişimi": "Смена подпозиции внутри группы",
+  "500 Diamond": "500 алмазов",
+  "Mevcut": "Текущий"
+});

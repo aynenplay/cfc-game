@@ -6971,3 +6971,10 @@ Object.assign(window.I18N.en, {
   "Erkek": "Male",
   "Kadın": "Female"
 });
+
+/* ─── 618 · Mevki / Avatar Değiştir modalları ─── */
+Object.assign(window.I18N.en, {
+  "Aynı grupta alt mevki değişimi": "Changing sub-position within the same group",
+  "500 Diamond": "500 Diamonds",
+  "Mevcut": "Current"
+});
