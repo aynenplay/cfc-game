@@ -4834,3 +4834,8 @@ Object.assign(window.I18N.de, {
   "500 Diamond": "500 Diamanten",
   "Mevcut": "Aktuell"
 });
+// 622 — CSC Media (Gece Akışı)
+Object.assign(window.I18N.de, {
+  "BU KUPONU OYNA": "DIESEN SCHEIN SPIELEN",
+  "Takiptesin": "Du folgst"
+});

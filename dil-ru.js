@@ -6602,3 +6602,8 @@ Object.assign(window.I18N.ru, {
   "500 Diamond": "500 алмазов",
   "Mevcut": "Текущий"
 });
+// 622 — CSC Media (Gece Akışı)
+Object.assign(window.I18N.ru, {
+  "BU KUPONU OYNA": "СЫГРАТЬ ЭТОТ КУПОН",
+  "Takiptesin": "Вы подписаны"
+});
