@@ -7072,3 +7072,27 @@ window.I18N_PATTERNS.en.unshift(
   [/^(.+?) takımı sistemden satın aldı ve yeni kaptan oldu\.$/, "$1 bought the team from the system and became the new captain."],
   [/^(.+?) takımında kalmaya devam ediyorsun\. Kadro, taktik ve kasa yetkileri artık yeni kaptanda\.$/, "You remain in $1. Squad, tactics and treasury permissions now belong to the new captain."]
 );
+
+/* ── 630 · Arşiv yeni görünüm, vekil federasyon başkanı ── */
+Object.assign(window.I18N.en, {
+  "FİNAL": "FINAL",
+  "Final henüz oynanmadı.": "The final has not been played yet.",
+  "TÜM TURNUVA DETAYLARI": "ALL TOURNAMENT DETAILS",
+  "Turnuva Şampiyonları": "Tournament Champions",
+  "tüm sezonlar · tüm turnuvalar": "all seasons · all tournaments",
+  "Vekil başkan": "Acting president",
+  "Federasyon başkanlığı sana devredildi": "The federation presidency has passed to you"
+});
+window.I18N_PATTERNS.en.push(
+  [/^(.+?)'[ae] yükseldi$/, m => "Promoted to " + _ic(m[1])],
+  [/^(.+?)'[ae] düştü$/, m => "Relegated to " + _ic(m[1])],
+  [/^(.+?)'[dt][ae] kaldı$/, m => "Stayed in " + _ic(m[1])],
+  [/^(.+?)'[ae] yükselenler$/, m => "Promoted to " + _ic(m[1])],
+  [/^(.+?)'[ae] düşenler$/, m => "Relegated to " + _ic(m[1])],
+  [/^Avrupa kupası katılım hakkı · Sezon (\d+)$/, "European qualification · Season $1"],
+  [/^Ligde (\d+)\.$/, m => { var n = Number(m[1]), sf = ['th','st','nd','rd'][(n % 100 - n % 10 != 10) * (n % 10 < 4) * (n % 10)] || 'th'; return n + sf + ' in the league'; }]
+);
+window.I18N_PATTERNS.en.unshift(
+  [/^Kulüp kaptanlığın sona erdiği için (.+?) federasyon başkanlığı ve milli takım teknik direktörlüğü görevin de sona erdi\.$/, m => "Because your club captaincy ended, your " + _ic(m[1]) + " federation presidency and national team head coach role have also ended."],
+  [/^(.+?) federasyon başkanlığı ve milli takım teknik direktörlüğü bir sonraki başkanlık seçimine kadar sana devredildi\.$/, m => "The " + _ic(m[1]) + " federation presidency and national team head coach role have passed to you until the next presidential election."]
+);

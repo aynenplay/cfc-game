@@ -6664,3 +6664,27 @@ window.I18N_PATTERNS.it.unshift(
   [/^(.+?) takımı sistemden satın aldı ve yeni kaptan oldu\.$/, "$1 ha comprato la squadra dal sistema ed è il nuovo capitano."],
   [/^(.+?) takımında kalmaya devam ediyorsun\. Kadro, taktik ve kasa yetkileri artık yeni kaptanda\.$/, "Resti nella squadra $1. I permessi su rosa, tattica e cassa ora sono del nuovo capitano."]
 );
+
+/* ── 630 · Arşiv yeni görünüm, vekil federasyon başkanı ── */
+Object.assign(window.I18N.it, {
+  "FİNAL": "FINALE",
+  "Final henüz oynanmadı.": "La finale non è ancora stata giocata.",
+  "TÜM TURNUVA DETAYLARI": "TUTTI I DETTAGLI DEL TORNEO",
+  "Turnuva Şampiyonları": "Campioni dei tornei",
+  "tüm sezonlar · tüm turnuvalar": "tutte le stagioni · tutti i tornei",
+  "Vekil başkan": "Presidente ad interim",
+  "Federasyon başkanlığı sana devredildi": "La presidenza della federazione è passata a te"
+});
+window.I18N_PATTERNS.it.push(
+  [/^(.+?)'[ae] yükseldi$/, m => "Promozione in " + _icI(m[1])],
+  [/^(.+?)'[ae] düştü$/, m => "Retrocessione in " + _icI(m[1])],
+  [/^(.+?)'[dt][ae] kaldı$/, m => "Permanenza in " + _icI(m[1])],
+  [/^(.+?)'[ae] yükselenler$/, m => "Promosse in " + _icI(m[1])],
+  [/^(.+?)'[ae] düşenler$/, m => "Retrocesse in " + _icI(m[1])],
+  [/^Avrupa kupası katılım hakkı · Sezon (\d+)$/, "Qualificazione europea · Stagione $1"],
+  [/^Ligde (\d+)\.$/, m => Number(m[1]) + 'º in campionato']
+);
+window.I18N_PATTERNS.it.unshift(
+  [/^Kulüp kaptanlığın sona erdiği için (.+?) federasyon başkanlığı ve milli takım teknik direktörlüğü görevin de sona erdi\.$/, m => "Poiché il tuo ruolo di capitano del club è terminato, sono terminati anche la tua presidenza della federazione (" + _icI(m[1]) + ") e l’incarico di commissario tecnico."],
+  [/^(.+?) federasyon başkanlığı ve milli takım teknik direktörlüğü bir sonraki başkanlık seçimine kadar sana devredildi\.$/, m => "La presidenza della federazione (" + _icI(m[1]) + ") e l’incarico di commissario tecnico sono passati a te fino alla prossima elezione presidenziale."]
+);

@@ -6696,3 +6696,27 @@ window.I18N_PATTERNS.ru.unshift(
   [/^(.+?) takımı sistemden satın aldı ve yeni kaptan oldu\.$/, "$1 купил(а) команду у системы и стал(а) новым капитаном."],
   [/^(.+?) takımında kalmaya devam ediyorsun\. Kadro, taktik ve kasa yetkileri artık yeni kaptanda\.$/, "Ты остаёшься в команде $1. Права на состав, тактику и казну теперь у нового капитана."]
 );
+
+/* ── 630 · Arşiv yeni görünüm, vekil federasyon başkanı ── */
+Object.assign(window.I18N.ru, {
+  "FİNAL": "ФИНАЛ",
+  "Final henüz oynanmadı.": "Финал ещё не сыгран.",
+  "TÜM TURNUVA DETAYLARI": "ВСЕ ДЕТАЛИ ТУРНИРА",
+  "Turnuva Şampiyonları": "Чемпионы турниров",
+  "tüm sezonlar · tüm turnuvalar": "все сезоны · все турниры",
+  "Vekil başkan": "И. о. президента",
+  "Federasyon başkanlığı sana devredildi": "Пост президента федерации передан тебе"
+});
+window.I18N_PATTERNS.ru.push(
+  [/^(.+?)'[ae] yükseldi$/, m => "Повышение → " + _icR(m[1])],
+  [/^(.+?)'[ae] düştü$/, m => "Вылет → " + _icR(m[1])],
+  [/^(.+?)'[dt][ae] kaldı$/, m => "Без изменений: " + _icR(m[1])],
+  [/^(.+?)'[ae] yükselenler$/, m => "Повышение → " + _icR(m[1])],
+  [/^(.+?)'[ae] düşenler$/, m => "Вылет → " + _icR(m[1])],
+  [/^Avrupa kupası katılım hakkı · Sezon (\d+)$/, "Путёвка в еврокубки · Сезон $1"],
+  [/^Ligde (\d+)\.$/, m => Number(m[1]) + '-е место в лиге']
+);
+window.I18N_PATTERNS.ru.unshift(
+  [/^Kulüp kaptanlığın sona erdiği için (.+?) federasyon başkanlığı ve milli takım teknik direktörlüğü görevin de sona erdi\.$/, m => "Так как твоё капитанство в клубе завершилось, завершились и твои полномочия президента федерации (" + _icR(m[1]) + ") и главного тренера сборной."],
+  [/^(.+?) federasyon başkanlığı ve milli takım teknik direktörlüğü bir sonraki başkanlık seçimine kadar sana devredildi\.$/, m => "Пост президента федерации (" + _icR(m[1]) + ") и главного тренера сборной передан тебе до следующих президентских выборов."]
+);

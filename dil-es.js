@@ -6666,3 +6666,27 @@ window.I18N_PATTERNS.es.unshift(
   [/^(.+?) takımı sistemden satın aldı ve yeni kaptan oldu\.$/, "$1 compró el equipo al sistema y es el nuevo capitán."],
   [/^(.+?) takımında kalmaya devam ediyorsun\. Kadro, taktik ve kasa yetkileri artık yeni kaptanda\.$/, "Sigues en el equipo $1. Los permisos de plantilla, táctica y tesorería ahora son del nuevo capitán."]
 );
+
+/* ── 630 · Arşiv yeni görünüm, vekil federasyon başkanı ── */
+Object.assign(window.I18N.es, {
+  "FİNAL": "FINAL",
+  "Final henüz oynanmadı.": "La final aún no se ha jugado.",
+  "TÜM TURNUVA DETAYLARI": "TODOS LOS DETALLES DEL TORNEO",
+  "Turnuva Şampiyonları": "Campeones de torneos",
+  "tüm sezonlar · tüm turnuvalar": "todas las temporadas · todos los torneos",
+  "Vekil başkan": "Presidente interino",
+  "Federasyon başkanlığı sana devredildi": "La presidencia de la federación ha pasado a ti"
+});
+window.I18N_PATTERNS.es.push(
+  [/^(.+?)'[ae] yükseldi$/, m => "Ascendió a " + _icE(m[1])],
+  [/^(.+?)'[ae] düştü$/, m => "Descendió a " + _icE(m[1])],
+  [/^(.+?)'[dt][ae] kaldı$/, m => "Se mantuvo en " + _icE(m[1])],
+  [/^(.+?)'[ae] yükselenler$/, m => "Ascienden a " + _icE(m[1])],
+  [/^(.+?)'[ae] düşenler$/, m => "Descienden a " + _icE(m[1])],
+  [/^Avrupa kupası katılım hakkı · Sezon (\d+)$/, "Plaza europea · Temporada $1"],
+  [/^Ligde (\d+)\.$/, m => Number(m[1]) + 'º en la liga']
+);
+window.I18N_PATTERNS.es.unshift(
+  [/^Kulüp kaptanlığın sona erdiği için (.+?) federasyon başkanlığı ve milli takım teknik direktörlüğü görevin de sona erdi\.$/, m => "Como terminó tu capitanía del club, también terminaron tu presidencia de la federación de " + _icE(m[1]) + " y tu cargo de seleccionador nacional."],
+  [/^(.+?) federasyon başkanlığı ve milli takım teknik direktörlüğü bir sonraki başkanlık seçimine kadar sana devredildi\.$/, m => "La presidencia de la federación de " + _icE(m[1]) + " y el cargo de seleccionador nacional han pasado a ti hasta la próxima elección presidencial."]
+);

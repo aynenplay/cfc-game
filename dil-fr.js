@@ -6726,3 +6726,27 @@ window.I18N_PATTERNS.fr.unshift(
   [/^(.+?) takımı sistemden satın aldı ve yeni kaptan oldu\.$/, "$1 a acheté l'équipe au système et en est le nouveau capitaine."],
   [/^(.+?) takımında kalmaya devam ediyorsun\. Kadro, taktik ve kasa yetkileri artık yeni kaptanda\.$/, "Tu restes dans l'équipe $1. Les droits sur l'effectif, la tactique et la trésorerie appartiennent désormais au nouveau capitaine."]
 );
+
+/* ── 630 · Arşiv yeni görünüm, vekil federasyon başkanı ── */
+Object.assign(window.I18N.fr, {
+  "FİNAL": "FINALE",
+  "Final henüz oynanmadı.": "La finale n'a pas encore été jouée.",
+  "TÜM TURNUVA DETAYLARI": "TOUS LES DÉTAILS DU TOURNOI",
+  "Turnuva Şampiyonları": "Champions des tournois",
+  "tüm sezonlar · tüm turnuvalar": "toutes les saisons · tous les tournois",
+  "Vekil başkan": "Président par intérim",
+  "Federasyon başkanlığı sana devredildi": "La présidence de la fédération t’a été confiée"
+});
+window.I18N_PATTERNS.fr.push(
+  [/^(.+?)'[ae] yükseldi$/, m => "Promu en " + _icF(m[1])],
+  [/^(.+?)'[ae] düştü$/, m => "Relégué en " + _icF(m[1])],
+  [/^(.+?)'[dt][ae] kaldı$/, m => "Maintenu en " + _icF(m[1])],
+  [/^(.+?)'[ae] yükselenler$/, m => "Promus en " + _icF(m[1])],
+  [/^(.+?)'[ae] düşenler$/, m => "Relégués en " + _icF(m[1])],
+  [/^Avrupa kupası katılım hakkı · Sezon (\d+)$/, "Qualification européenne · Saison $1"],
+  [/^Ligde (\d+)\.$/, m => (m[1] === '1' ? '1er' : m[1] + 'e') + ' du championnat']
+);
+window.I18N_PATTERNS.fr.unshift(
+  [/^Kulüp kaptanlığın sona erdiği için (.+?) federasyon başkanlığı ve milli takım teknik direktörlüğü görevin de sona erdi\.$/, m => "Ton rôle de capitaine du club ayant pris fin, ta présidence de la fédération (" + _icF(m[1]) + ") et ton poste de sélectionneur ont également pris fin."],
+  [/^(.+?) federasyon başkanlığı ve milli takım teknik direktörlüğü bir sonraki başkanlık seçimine kadar sana devredildi\.$/, m => "La présidence de la fédération (" + _icF(m[1]) + ") et le poste de sélectionneur t’ont été confiés jusqu’à la prochaine élection présidentielle."]
+);
