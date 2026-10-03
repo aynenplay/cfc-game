@@ -6592,3 +6592,13 @@ Object.assign(window.I18N.it, {
     [/^✅ Mevki (.+?)'e değiştirildi!\s+Tüm yeteneklerin olduğu gibi korundu\.$/, "✅ Ruolo cambiato in $1!\nTutte le tue abilità restano invariate."]
   );
 })();
+
+// 625 — Canlı maç: kırmızı kartın boş yuvası, sakat oyuncu, değişiklik bağlantısı
+Object.assign(window.I18N.it, {
+  "❌ Bu oyuncu için bekleyen bir değişiklik var": "❌ Per questo giocatore c'è già una sostituzione in sospeso",
+  "❌ Bağlantı yavaş — değişiklik iletilemedi, tekrar dene": "❌ Connessione lenta — la sostituzione non è stata inviata, riprova"
+});
+window.I18N_PATTERNS.it.unshift(
+  [/^🚑 (.+?) sakatlandı — yerine yedekten oyuncu al$/, "🚑 $1 si è infortunato — fai entrare un giocatore dalla panchina"],
+  [/^🟥 (.+?) oyundan atıldı — sahadan bir oyuncuyu bu boşluğa kaydırabilirsin$/, "🟥 $1 è stato espulso — puoi spostare un giocatore del campo in questo spazio"]
+);

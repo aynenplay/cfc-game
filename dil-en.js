@@ -7000,3 +7000,13 @@ Object.assign(window.I18N.en, {
     [/^✅ Mevki (.+?)'e değiştirildi!\s+Tüm yeteneklerin olduğu gibi korundu\.$/, "✅ Position changed to $1!\nAll your skills were kept as they are."]
   );
 })();
+
+// 625 — Canlı maç: kırmızı kartın boş yuvası, sakat oyuncu, değişiklik bağlantısı
+Object.assign(window.I18N.en, {
+  "❌ Bu oyuncu için bekleyen bir değişiklik var": "❌ This player already has a substitution pending",
+  "❌ Bağlantı yavaş — değişiklik iletilemedi, tekrar dene": "❌ Slow connection — the substitution could not be sent, try again"
+});
+window.I18N_PATTERNS.en.unshift(
+  [/^🚑 (.+?) sakatlandı — yerine yedekten oyuncu al$/, "🚑 $1 is injured — bring on a substitute from the bench"],
+  [/^🟥 (.+?) oyundan atıldı — sahadan bir oyuncuyu bu boşluğa kaydırabilirsin$/, "🟥 $1 was sent off — you can move a player from the pitch into this gap"]
+);

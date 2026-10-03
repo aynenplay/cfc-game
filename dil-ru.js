@@ -6624,3 +6624,13 @@ Object.assign(window.I18N.ru, {
     [/^✅ Mevki (.+?)'e değiştirildi!\s+Tüm yeteneklerin olduğu gibi korundu\.$/, "✅ Позиция изменена на $1!\nВсе твои навыки сохранены без изменений."]
   );
 })();
+
+// 625 — Canlı maç: kırmızı kartın boş yuvası, sakat oyuncu, değişiklik bağlantısı
+Object.assign(window.I18N.ru, {
+  "❌ Bu oyuncu için bekleyen bir değişiklik var": "❌ Для этого игрока уже ожидается замена",
+  "❌ Bağlantı yavaş — değişiklik iletilemedi, tekrar dene": "❌ Медленное соединение — замена не отправлена, попробуй ещё раз"
+});
+window.I18N_PATTERNS.ru.unshift(
+  [/^🚑 (.+?) sakatlandı — yerine yedekten oyuncu al$/, "🚑 $1 травмирован — выпусти игрока со скамейки"],
+  [/^🟥 (.+?) oyundan atıldı — sahadan bir oyuncuyu bu boşluğa kaydırabilirsin$/, "🟥 $1 удалён — можешь передвинуть игрока с поля на это место"]
+);
