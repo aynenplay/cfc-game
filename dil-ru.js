@@ -6634,3 +6634,12 @@ window.I18N_PATTERNS.ru.unshift(
   [/^🚑 (.+?) sakatlandı — yerine yedekten oyuncu al$/, "🚑 $1 травмирован — выпусти игрока со скамейки"],
   [/^🟥 (.+?) oyundan atıldı — sahadan bir oyuncuyu bu boşluğa kaydırabilirsin$/, "🟥 $1 удалён — можешь передвинуть игрока с поля на это место"]
 );
+
+// 625 — Takım finansı: bot oyuncuların maaşı (sunucu 623'ten beri öder)
+Object.assign(window.I18N.ru, {
+  ". Bot oyuncular da aynı hesapla takım kasasından maaş alır.": ". Боты получают зарплату из казны команды по той же формуле.",
+  "Bot": "Бот"
+});
+window.I18N_PATTERNS.ru.unshift(
+  [/^Maaş Ödemesi: (.+?) · bot \(Sezon (\d+) Gün (\d+)\)$/, "Выплата зарплаты: $1 · бот (Сезон $2, День $3)"]
+);

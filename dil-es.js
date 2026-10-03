@@ -6604,3 +6604,12 @@ window.I18N_PATTERNS.es.unshift(
   [/^🚑 (.+?) sakatlandı — yerine yedekten oyuncu al$/, "🚑 $1 se ha lesionado — saca a un suplente del banquillo"],
   [/^🟥 (.+?) oyundan atıldı — sahadan bir oyuncuyu bu boşluğa kaydırabilirsin$/, "🟥 $1 ha sido expulsado — puedes mover a un jugador del campo a este hueco"]
 );
+
+// 625 — Takım finansı: bot oyuncuların maaşı (sunucu 623'ten beri öder)
+Object.assign(window.I18N.es, {
+  ". Bot oyuncular da aynı hesapla takım kasasından maaş alır.": ". Los jugadores bot cobran de la caja del equipo con la misma fórmula.",
+  "Bot": "Bot"
+});
+window.I18N_PATTERNS.es.unshift(
+  [/^Maaş Ödemesi: (.+?) · bot \(Sezon (\d+) Gün (\d+)\)$/, "Pago de salario: $1 · bot (Temporada $2 Día $3)"]
+);

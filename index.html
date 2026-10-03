@@ -5888,6 +5888,7 @@ body:not(.team-captain):not(.team-vice) #page-team:not(.guest-mode) #team-treasu
 .salary-row-info{flex:1;min-width:0}
 .salary-row-name{font-size:12.5px;font-weight:800;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2}
 .salary-you{font-size:8.5px;font-weight:800;color:#46d17a;background:rgba(70,209,122,.12);padding:1px 5px;border-radius:4px;margin-left:3px}
+.salary-bot{font-size:8.5px;font-weight:800;color:#9fb1d6;background:rgba(159,177,214,.13);padding:1px 5px;border-radius:4px;margin-left:3px;letter-spacing:.3px}
 .salary-row-meta{font-size:9.5px;color:#7a8095;margin-top:2px;line-height:1;display:flex;align-items:center}
 .salary-row-pos{display:inline-block;padding:1px 5px;border-radius:3px;font-size:8.5px;font-weight:800;margin-right:4px}
 .salary-row-amount{text-align:right;flex-shrink:0;min-width:90px}
@@ -25059,7 +25060,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
       <!-- 🆕 OYUNCU MAAŞLARI -->
       <div class="trs-section">
         <div class="trs-section-title"><span class="trs-st-ic gold"><svg viewBox="0 0 24 24"><use href="#ic-fin-briefcase"/></svg></span>Oyuncu Maaşları</div>
-        <div class="trs-section-sub">Maaşlar <b>sistem tarafından dinamik</b> belirlenir: oyuncunun güncel yetenek seviyesine göre hesaplanır, oyuncu geliştikçe maaşı artar. Her maaş gününde <b>güncel sezon maaşı ÷ 4</b> ödenir. Ödeme günleri: sezonun <b>10., 20., 30. ve 40. günleri</b>. Bot oyuncularının maaşı yoktur.</div>
+        <div class="trs-section-sub">Maaşlar <b>sistem tarafından dinamik</b> belirlenir: oyuncunun güncel yetenek seviyesine göre hesaplanır, oyuncu geliştikçe maaşı artar. Her maaş gününde <b>güncel sezon maaşı ÷ 4</b> ödenir. Ödeme günleri: sezonun <b>10., 20., 30. ve 40. günleri</b>. Bot oyuncular da aynı hesapla takım kasasından maaş alır.</div>
 
         <div class="salary-summary">
           <div class="salary-sum-card">
@@ -87325,14 +87326,13 @@ function trsToast(msg, color){
   setTimeout(()=>t.remove(),2500);
 }
 
-// 🆕 Oyuncu sezonluk maaşı — sistemce hesaplanır (bot'lara 0, kullanıcılara seviye bazlı).
+// 🆕 Oyuncu sezonluk maaşı — sistemce hesaplanır (gerçek ve bot oyunculara seviye bazlı).
 //   Sözleşmede kayıtlı seasonSalary varsa onu kullanır (kontrat aktiftir),
 //   yoksa anlık hesap yapar (UI önizleme için).
 function getPlayerSeasonWage(p){
   if(!p) return 0;
-  // Bot oyuncular: maaş yok
-  if (p.isBot) return 0;
-  if (!p.userId && !p.user_id) return 0;
+  // 625 — bot oyuncular da aynı formülle maaş alır (sunucu: takim_bot_maaslari, takım kasasından)
+  if (!p.isBot && !p.userId && !p.user_id) return 0;
   // 🆕 TÜM kullanıcı oyuncuları: sistemce dinamik hesaplanır (Edge ödemesiyle birebir).
   //   Sabit sözleşme maaşı kaldırıldı — güncel yetenek seviyesine göre.
   if (typeof getSystemPlayerSalary === 'function') {
@@ -87384,7 +87384,7 @@ function renderSalaryPanel(){
     return;
   }
 
-  // Sezonluk toplam (sadece kullanıcı oyuncular)
+  // Sezonluk toplam (gerçek + bot oyuncular)
   const totalSeason = getTeamSeasonWageBill();
   const taksit = Math.round(totalSeason / 4);
   if(totalEl) totalEl.textContent = totalSeason.toLocaleString('tr') + ' €';
@@ -87443,7 +87443,7 @@ function renderSalaryPanel(){
     return {bg:'#37474f', tc:'#b0bec5'};
   };
 
-  // Oyuncu listesi — sadece maaş alanlar (kullanıcılar) önce, sonra bot'lar (0€)
+  // Oyuncu listesi — maaşı yüksek olan önce
   const sorted = [...ROSTER_DATA].sort((a,b) => {
     const wa = getPlayerSeasonWage(a);
     const wb = getPlayerSeasonWage(b);
@@ -87463,12 +87463,14 @@ function renderSalaryPanel(){
       ? `<div class="salary-row-season">${seasonWage.toLocaleString('tr')} €</div>
          <div class="salary-row-tax">4× ${installment.toLocaleString('tr')} €</div>`
       : `<div class="salary-row-season" style="color:var(--text3)">Ücretsiz</div>
-         <div class="salary-row-tax" style="color:var(--text3)">${isBot?'(bot)':'(maaşsız)'}</div>`;
+         <div class="salary-row-tax" style="color:var(--text3)">(maaşsız)</div>`;
+    // Yetenek = maaşın hesaplandığı seviye (bot: dört hattın ortalaması, sunucuyla aynı)
+    const seviye = (typeof getPlayerMainOverall === 'function') ? getPlayerMainOverall(p) : (p.overall || 10);
     return `<div class="salary-row ${isUser?'is-user':''}">
       <div class="salary-row-num">#${p.num||'-'}</div>
       <div class="salary-row-info">
-        <div class="salary-row-name">${displayName}${isUser?' <span class="salary-you">Sen</span>':''}</div>
-        <div class="salary-row-meta"><span class="salary-row-pos" style="background:${c.bg};color:${c.tc}">${pos}</span>Yetenek ${p.overall||50}</div>
+        <div class="salary-row-name">${displayName}${isUser?' <span class="salary-you">Sen</span>':''}${isBot?' <span class="salary-bot">Bot</span>':''}</div>
+        <div class="salary-row-meta"><span class="salary-row-pos" style="background:${c.bg};color:${c.tc}">${pos}</span>Yetenek ${seviye}</div>
       </div>
       <div class="salary-row-amount">${wageStr}</div>
     </div>`;
