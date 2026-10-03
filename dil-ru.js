@@ -6643,3 +6643,46 @@ Object.assign(window.I18N.ru, {
 window.I18N_PATTERNS.ru.unshift(
   [/^Maaş Ödemesi: (.+?) · bot \(Sezon (\d+) Gün (\d+)\)$/, "Выплата зарплаты: $1 · бот (Сезон $2, День $3)"]
 );
+
+// 626 — Mağaza: Ekipman / Takımlar alt sekmeleri, sistem takımları; Transfer: Serbest / Satış Listesinde
+Object.assign(window.I18N.ru, {
+  "Satış Listesinde": "На продаже",
+  "Mağazanın kendi stoğu — fiyat ve stok sistemden.": "Собственный запас магазина — цену и количество задаёт система.",
+  "Oyuncuların satışa çıkardığı itemler — dolabından item satmak için + Sat.": "Предметы, выставленные игроками на продажу, — чтобы продать предмет из шкафчика, нажми «+ Продать».",
+  "Kaptanı olmayan takımlar — sistemden 💎 ile alınır, kaptan olarak katılırsın.": "Команды без капитана — покупаются у системы за 💎, ты вступаешь капитаном.",
+  "Oyuncuların satışa koyduğu takımlar — yalnız 💎 ile satılır.": "Команды, выставленные игроками на продажу, — только за 💎.",
+  "Takımı olmayan oyuncular — oyuncuya teklif sunulur, botu kaptan doğrudan alır.": "Игроки без команды — игроку делается предложение, ботов капитан берёт напрямую.",
+  "Takımların transfer listesine koyduğu oyuncular — bonservis teklifiyle alınır.": "Игроки, выставленные командами на трансфер, — покупаются через предложение трансферной суммы.",
+  "Takım ara": "Поиск команды",
+  "Bütçen": "Твой бюджет",
+  "Sırala": "Сортировка",
+  "Bütçeme uygun": "По моему бюджету",
+  "Güç": "Сила",
+  "Durum": "Статус",
+  "Satıcı takım": "Команда-продавец",
+  "İlan": "Объявление",
+  "Senin": "Твоя",
+  "Senin ilanın": "Твоё объявление",
+  "Takımının ilanı": "Объявление твоей команды",
+  "Liste yüklenemedi.": "Не удалось загрузить список.",
+  "Şu anda satışta takım yok.": "Сейчас нет команд на продаже.",
+  "Şu anda kaptansız takım yok.": "Сейчас нет команд без капитана.",
+  "Daha fazla": "Показать ещё",
+  "Takım gücü": "Сила команды",
+  "Tesis ortalaması": "Средний уровень инфраструктуры",
+  "Şehir nüfusu": "Население города",
+  "Stadyum kapasitesi": "Вместимость стадиона",
+  "Tesisler": "Инфраструктура",
+  "İlan fiyatı": "Цена объявления",
+  "Fiyat · kaptan olarak katılırsın": "Цена · ты вступаешь капитаном",
+  "🔒 Satın alınamaz": "🔒 Нельзя купить",
+  "Bütçe yetersiz": "Недостаточно средств",
+  "🔒 Teklif sunabilmek için takıma katıl veya takım satın al.": "🔒 Чтобы делать предложения, вступи в команду или купи её."
+});
+window.I18N_PATTERNS.ru.unshift(
+  [/^([\d.,]+) 💎 daha gerekli\.$/, "Нужно ещё $1 💎."],
+  [/^(\d+) \/ (\d+) takım gösteriliyor$/, "Показано команд: $1 из $2"],
+  [/^Zaten bir takımdasın \((.+?)\)\. Sistemden takım satın almak için önce takımından ayrılmalısın — listeyi inceleyebilirsin\.$/, "Ты уже в команде ($1). Чтобы купить команду у системы, сначала покинь свою команду — список можно просматривать."],
+  [/^🔒 Zaten bir takımdasın \((.+?)\)\. Sistemden takım satın almak için önce takımından ayrılmalısın\.$/, "🔒 Ты уже в команде ($1). Чтобы купить команду у системы, сначала покинь свою команду."],
+  [/^(\d+) bot$/, "ботов: $1"]
+);

@@ -7019,3 +7019,46 @@ Object.assign(window.I18N.en, {
 window.I18N_PATTERNS.en.unshift(
   [/^Maaş Ödemesi: (.+?) · bot \(Sezon (\d+) Gün (\d+)\)$/, "Wage Payment: $1 · bot (Season $2 Day $3)"]
 );
+
+// 626 — Mağaza: Ekipman / Takımlar alt sekmeleri, sistem takımları; Transfer: Serbest / Satış Listesinde
+Object.assign(window.I18N.en, {
+  "Satış Listesinde": "Listed for Sale",
+  "Mağazanın kendi stoğu — fiyat ve stok sistemden.": "The shop's own stock — price and stock are set by the system.",
+  "Oyuncuların satışa çıkardığı itemler — dolabından item satmak için + Sat.": "Items put up for sale by players — to sell an item from your locker, tap + Sell.",
+  "Kaptanı olmayan takımlar — sistemden 💎 ile alınır, kaptan olarak katılırsın.": "Teams without a captain — bought from the system with 💎, and you join as captain.",
+  "Oyuncuların satışa koyduğu takımlar — yalnız 💎 ile satılır.": "Teams put up for sale by players — sold for 💎 only.",
+  "Takımı olmayan oyuncular — oyuncuya teklif sunulur, botu kaptan doğrudan alır.": "Players without a team — make an offer to the player; the captain signs bots directly.",
+  "Takımların transfer listesine koyduğu oyuncular — bonservis teklifiyle alınır.": "Players put on the transfer list by their teams — signed with a transfer fee offer.",
+  "Takım ara": "Search team",
+  "Bütçen": "Your budget",
+  "Sırala": "Sort",
+  "Bütçeme uygun": "Within my budget",
+  "Güç": "Strength",
+  "Durum": "Status",
+  "Satıcı takım": "Selling team",
+  "İlan": "Listing",
+  "Senin": "Yours",
+  "Senin ilanın": "Your listing",
+  "Takımının ilanı": "Your team's listing",
+  "Liste yüklenemedi.": "The list could not be loaded.",
+  "Şu anda satışta takım yok.": "No teams are for sale right now.",
+  "Şu anda kaptansız takım yok.": "There are no teams without a captain right now.",
+  "Daha fazla": "Show more",
+  "Takım gücü": "Team Strength",
+  "Tesis ortalaması": "Facility average",
+  "Şehir nüfusu": "City population",
+  "Stadyum kapasitesi": "Stadium Capacity",
+  "Tesisler": "Facilities",
+  "İlan fiyatı": "Listing price",
+  "Fiyat · kaptan olarak katılırsın": "Price · you join as captain",
+  "🔒 Satın alınamaz": "🔒 Cannot be bought",
+  "Bütçe yetersiz": "Not enough budget",
+  "🔒 Teklif sunabilmek için takıma katıl veya takım satın al.": "🔒 To make offers, join a team or buy one."
+});
+window.I18N_PATTERNS.en.unshift(
+  [/^([\d.,]+) 💎 daha gerekli\.$/, "$1 💎 more needed."],
+  [/^(\d+) \/ (\d+) takım gösteriliyor$/, "Showing $1 of $2 teams"],
+  [/^Zaten bir takımdasın \((.+?)\)\. Sistemden takım satın almak için önce takımından ayrılmalısın — listeyi inceleyebilirsin\.$/, "You're already in a team ($1). To buy a team from the system, you must leave your team first — you can still browse the list."],
+  [/^🔒 Zaten bir takımdasın \((.+?)\)\. Sistemden takım satın almak için önce takımından ayrılmalısın\.$/, "🔒 You're already in a team ($1). To buy a team from the system, you must leave your team first."],
+  [/^(\d+) bot$/, m => m[1] + (m[1] === '1' ? ' bot' : ' bots')]
+);

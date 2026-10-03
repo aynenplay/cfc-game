@@ -6673,3 +6673,46 @@ Object.assign(window.I18N.fr, {
 window.I18N_PATTERNS.fr.unshift(
   [/^Maaş Ödemesi: (.+?) · bot \(Sezon (\d+) Gün (\d+)\)$/, "Versement du salaire : $1 · bot (Saison $2 Jour $3)"]
 );
+
+// 626 — Mağaza: Ekipman / Takımlar alt sekmeleri, sistem takımları; Transfer: Serbest / Satış Listesinde
+Object.assign(window.I18N.fr, {
+  "Satış Listesinde": "En vente",
+  "Mağazanın kendi stoğu — fiyat ve stok sistemden.": "Stock propre de la boutique — prix et stock fixés par le système.",
+  "Oyuncuların satışa çıkardığı itemler — dolabından item satmak için + Sat.": "Objets mis en vente par des joueurs — pour vendre un objet de ton casier, touche + Vendre.",
+  "Kaptanı olmayan takımlar — sistemden 💎 ile alınır, kaptan olarak katılırsın.": "Équipes sans capitaine — achetées au système avec des 💎, tu les rejoins comme capitaine.",
+  "Oyuncuların satışa koyduğu takımlar — yalnız 💎 ile satılır.": "Équipes mises en vente par des joueurs — vendues uniquement contre des 💎.",
+  "Takımı olmayan oyuncular — oyuncuya teklif sunulur, botu kaptan doğrudan alır.": "Joueurs sans équipe — on fait une offre au joueur ; le capitaine recrute directement les bots.",
+  "Takımların transfer listesine koyduğu oyuncular — bonservis teklifiyle alınır.": "Joueurs placés sur la liste des transferts par leurs équipes — recrutés via une offre d'indemnité.",
+  "Takım ara": "Rechercher une équipe",
+  "Bütçen": "Ton budget",
+  "Sırala": "Trier",
+  "Bütçeme uygun": "Dans mon budget",
+  "Güç": "Force",
+  "Durum": "Statut",
+  "Satıcı takım": "Équipe vendeuse",
+  "İlan": "Annonce",
+  "Senin": "À toi",
+  "Senin ilanın": "Ton annonce",
+  "Takımının ilanı": "Annonce de ton équipe",
+  "Liste yüklenemedi.": "Impossible de charger la liste.",
+  "Şu anda satışta takım yok.": "Aucune équipe en vente pour le moment.",
+  "Şu anda kaptansız takım yok.": "Aucune équipe sans capitaine pour le moment.",
+  "Daha fazla": "Voir plus",
+  "Takım gücü": "Force de l'équipe",
+  "Tesis ortalaması": "Moyenne des installations",
+  "Şehir nüfusu": "Population de la ville",
+  "Stadyum kapasitesi": "Capacité du stade",
+  "Tesisler": "Installations",
+  "İlan fiyatı": "Prix de l'annonce",
+  "Fiyat · kaptan olarak katılırsın": "Prix · tu la rejoins comme capitaine",
+  "🔒 Satın alınamaz": "🔒 Achat impossible",
+  "Bütçe yetersiz": "Budget insuffisant",
+  "🔒 Teklif sunabilmek için takıma katıl veya takım satın al.": "🔒 Pour faire des offres, rejoins une équipe ou achètes-en une."
+});
+window.I18N_PATTERNS.fr.unshift(
+  [/^([\d.,]+) 💎 daha gerekli\.$/, "Il manque $1 💎."],
+  [/^(\d+) \/ (\d+) takım gösteriliyor$/, "$1 équipes affichées sur $2"],
+  [/^Zaten bir takımdasın \((.+?)\)\. Sistemden takım satın almak için önce takımından ayrılmalısın — listeyi inceleyebilirsin\.$/, "Tu es déjà dans une équipe ($1). Pour acheter une équipe au système, tu dois d'abord quitter ton équipe — tu peux quand même consulter la liste."],
+  [/^🔒 Zaten bir takımdasın \((.+?)\)\. Sistemden takım satın almak için önce takımından ayrılmalısın\.$/, "🔒 Tu es déjà dans une équipe ($1). Pour acheter une équipe au système, tu dois d'abord quitter ton équipe."],
+  [/^(\d+) bot$/, m => m[1] + (m[1] === '1' ? ' bot' : ' bots')]
+);
