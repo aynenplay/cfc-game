@@ -6617,7 +6617,6 @@ Object.assign(window.I18N.it, {
   "Satış Listesinde": "In vendita",
   "Mağazanın kendi stoğu — fiyat ve stok sistemden.": "Scorte del negozio — prezzo e disponibilità li decide il sistema.",
   "Oyuncuların satışa çıkardığı itemler — dolabından item satmak için + Sat.": "Oggetti messi in vendita dai giocatori — per vendere un oggetto dal tuo armadietto, tocca + Vendi.",
-  "Kaptanı olmayan takımlar — sistemden 💎 ile alınır, kaptan olarak katılırsın.": "Squadre senza capitano — si comprano dal sistema con 💎 e ti unisci come capitano.",
   "Oyuncuların satışa koyduğu takımlar — yalnız 💎 ile satılır.": "Squadre messe in vendita dai giocatori — si vendono solo per 💎.",
   "Takımı olmayan oyuncular — oyuncuya teklif sunulur, botu kaptan doğrudan alır.": "Giocatori senza squadra — si fa un'offerta al giocatore; i bot li ingaggia direttamente il capitano.",
   "Takımların transfer listesine koyduğu oyuncular — bonservis teklifiyle alınır.": "Giocatori messi nella lista trasferimenti dalle squadre — si acquistano con un'offerta per il cartellino.",
@@ -6634,7 +6633,6 @@ Object.assign(window.I18N.it, {
   "Takımının ilanı": "Annuncio della tua squadra",
   "Liste yüklenemedi.": "Impossibile caricare la lista.",
   "Şu anda satışta takım yok.": "Al momento non ci sono squadre in vendita.",
-  "Şu anda kaptansız takım yok.": "Al momento non ci sono squadre senza capitano.",
   "Daha fazla": "Mostra altro",
   "Takım gücü": "Forza squadra",
   "Tesis ortalaması": "Media strutture",
@@ -6653,4 +6651,16 @@ window.I18N_PATTERNS.it.unshift(
   [/^Zaten bir takımdasın \((.+?)\)\. Sistemden takım satın almak için önce takımından ayrılmalısın — listeyi inceleyebilirsin\.$/, "Sei già in una squadra ($1). Per comprare una squadra dal sistema devi prima lasciare la tua squadra — puoi comunque consultare la lista."],
   [/^🔒 Zaten bir takımdasın \((.+?)\)\. Sistemden takım satın almak için önce takımından ayrılmalısın\.$/, "🔒 Sei già in una squadra ($1). Per comprare una squadra dal sistema devi prima lasciare la tua squadra."],
   [/^(\d+) bot$/, "$1 bot"]
+);
+
+// 627 — Mağaza: kaptanı bot olan takımlar satılır; Ülke / Lig / Sırala seçim penceresi
+Object.assign(window.I18N.it, {
+  "Kaptanı bot olan takımlar — sistemden 💎 ile alınır, kaptan olursun; takımdaki gerçek oyuncular kadroda kalır.": "Squadre con capitano bot — si comprano dal sistema con 💎; diventi capitano e i giocatori reali della squadra restano in rosa.",
+  "Şu anda kaptanı bot olan takım yok.": "Al momento non ci sono squadre con capitano bot.",
+  "Ülke ara": "Cerca paese"
+});
+window.I18N_PATTERNS.it.unshift(
+  [/^Yeni Kaptan — (.+)$/, "Nuovo capitano — $1"],
+  [/^(.+?) takımı sistemden satın aldı ve yeni kaptan oldu\.$/, "$1 ha comprato la squadra dal sistema ed è il nuovo capitano."],
+  [/^(.+?) takımında kalmaya devam ediyorsun\. Kadro, taktik ve kasa yetkileri artık yeni kaptanda\.$/, "Resti nella squadra $1. I permessi su rosa, tattica e cassa ora sono del nuovo capitano."]
 );

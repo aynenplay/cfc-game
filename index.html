@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '626';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '627';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -25325,7 +25325,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
           <button class="mg-cip duz tf-pill" data-pos="DEF" onclick="tfFilter('DEF',this)">DEF</button>
           <button class="mg-cip duz tf-pill" data-pos="MID" onclick="tfFilter('MID',this)">MID</button>
           <button class="mg-cip duz tf-pill" data-pos="FWD" onclick="tfFilter('FWD',this)">FW</button>
-          <label class="mg-cip"><small>Sırala</small><select id="tfSira" onchange="tfSiraSec(this.value)"></select></label>
+          <button class="mg-cip" onclick="tfSiraAc()"><small>Sırala</small><span id="tfSiraAd"></span></button>
         </div>
       </div>
       <!-- 🆕 Satışa Çıkar butonu kaldırıldı — sadece oyuncu profilinden açılır -->
@@ -27047,7 +27047,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-03-magaza-transfer-626';
+const APP_BUILD = '2026-10-03-takim-kaptan-627';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -31173,7 +31173,7 @@ async function _loadRealCaptainsFromServer(cc) {
     try {
       // 🆕 Kapsamlı kullanıcı bilgisi çek: avatar, level, overall, pos, last_seen
       let _q = window.sb.from('players')
-        .select('user_id, user_team_data, name, avatar, level, overall, rating, pos, pos_group, sub_pos, nationality, nation, last_seen, xp')
+        .select('user_id, user_team_data, role, name, avatar, level, overall, rating, pos, pos_group, sub_pos, nationality, nation, last_seen, xp')
         .not('user_id', 'is', null)
         .not('user_team_data', 'is', null);
       if (_cc) _q = _q.eq('country_code', _cc);
@@ -31197,9 +31197,11 @@ async function _loadRealCaptainsFromServer(cc) {
         // Online?
         const lastSeenMs = row.last_seen ? new Date(row.last_seen).getTime() : 0;
         const isOnline = lastSeenMs && (nowMs - lastSeenMs < ONLINE_THRESHOLD_MS);
+        // 627 — rol players.role sütunundan: sunucu kaptanlığı devrederken yalnız onu yazar
+        const rol = row.role || t.role || 'member';
         cache[key].members.push({
           userId: row.user_id,
-          role: t.role || 'member',
+          role: rol,
           name: row.name || 'Oyuncu',
           avatar: row.avatar || '👤',
           level: Number(row.level || 0),
@@ -31213,7 +31215,7 @@ async function _loadRealCaptainsFromServer(cc) {
           isOnline,
           lastSeen: row.last_seen || null,
         });
-        if (t.role === 'captain') {
+        if (rol === 'captain') {
           cache[key].captainUserId = row.user_id;
           cache[key].captainName = row.name || 'Kaptan';
         }
@@ -45355,8 +45357,8 @@ function openTeamCreate() {
 // ══════ TAKIM SATIN AL ══════
 // 623 — sistemden satın alma fiyatı (sunucudaki _sistemTakimFiyati ile birebir; ödemeyi sunucu alır).
 //   150 💎 × kademe (Süper Lig 11 … 5. Lig 1) × şehir (nüfus: 1–2) × güç ((rating/50)^1,5: 0,8–2,2),
-//   50'lik yuvarlanır, en az 150 💎. Sahibi olan takım sistemden satılmaz (oyuncular arası pazar);
-//   sahibi bırakıp giden (gerçek oyuncusu kalmayan) takım yeniden sistemde satışa çıkar.
+//   50'lik yuvarlanır, en az 150 💎. Gerçek kaptanı olan takım sistemden satılmaz (oyuncular arası pazar);
+//   627 — kaptanı bot olan takım, kadrosunda gerçek oyuncu olsa da sistemde satılır.
 function calcTeamPrice(pop, rating, tierIdx) {
   const kademe = [11, 6.8, 4.2, 2.6, 1.6, 1][Math.max(0, Math.min(5, Math.floor(Number(tierIdx) || 0)))];
   const p = Number(pop) || 0;
@@ -45584,7 +45586,7 @@ function tbmRenderList() {
     if(_tbmSelectedTier !== 'all' && _tbmSelectedTier !== tierIdx) return;
     lg.teams.forEach(t => {
       const _sahip = _realCaptainsCache[_tbmSelectedCountry + ':' + t.name];
-      if (_sahip && _sahip.members.length) return;
+      if (_sahip && _sahip.captainUserId) return;
       const price = calcTeamPrice(t.pop, t.rating, tierIdx);
       teams.push({
         countryCode: _tbmSelectedCountry,
@@ -92883,6 +92885,7 @@ document.addEventListener('keydown', function(e){
 
 <!-- 626 — Mağaza › Takımlar: takım detayı -->
 <div class="mg-det-ov" id="mgDetOv" onclick="if(event.target===this)mgDetKapat()"><div class="mg-det" id="mgDet"></div></div>
+<div class="mg-det-ov" id="mgSecOv" onclick="if(event.target===this)mgSecimKapat()"><div class="mg-det mg-sec" id="mgSec"></div></div>
 
 <!-- ══ TAKIM SATIN AL ONAY MODAL ══ -->
 <div class="join-confirm-overlay" id="teamBuyConfirmOverlay" onclick="if(event.target===this)closeTeamBuyConfirm()">
@@ -103334,18 +103337,18 @@ function planYaz(hedef, kaynak) {
 #page-shop .shop-tabs.kon-5 .kon-tic .mg-ic{width:21px;height:21px;display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.45))}
 .mg-alt{display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:3px;margin:2px 10px 6px;border-radius:11px;background:#10151d;border:1px solid #20242c}
 .mg-alt button{display:flex;align-items:center;justify-content:center;gap:7px;min-width:0;border:0;background:transparent;color:var(--text3);cursor:pointer;
-  font:800 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.5px;text-transform:uppercase;padding:9px 8px;border-radius:8px;white-space:nowrap}
+  font:800 13px/1 Twemoji Country Flags,'Barlow Condensed',sans-serif;letter-spacing:.5px;text-transform:uppercase;padding:9px 8px;border-radius:8px;white-space:nowrap}
 .mg-alt button i{width:7px;height:7px;border-radius:50%;flex:none}
 .mg-alt button.a-ser i{background:var(--mg-sis)}
 .mg-alt button.a-sat i{background:var(--mg-ilan)}
-.mg-alt button b{font:700 11px/1 'Barlow',sans-serif;letter-spacing:0;padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.07);color:#cfd6e2}
+.mg-alt button b{font:700 11px/1 Twemoji Country Flags,'Barlow',sans-serif;letter-spacing:0;padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.07);color:#cfd6e2}
 .mg-alt button b:empty{display:none}
 .mg-alt button.a-ser.on,.mg-alt button.a-ser.active{background:rgba(41,182,246,.12);color:var(--mg-sis);box-shadow:inset 0 0 0 1px rgba(41,182,246,.3)}
 .mg-alt button.a-sat.on,.mg-alt button.a-sat.active{background:rgba(255,201,40,.12);color:var(--mg-ilan);box-shadow:inset 0 0 0 1px rgba(255,201,40,.3)}
-.mg-not{margin:0 12px 9px;font:600 11.5px/1.4 'Barlow',sans-serif;color:var(--text3)}
+.mg-not{margin:0 12px 9px;font:600 11.5px/1.4 Twemoji Country Flags,'Barlow',sans-serif;color:var(--text3)}
 
 .mg-kutu{padding:0 10px 80px}
-.mg-uyari{display:flex;gap:9px;align-items:flex-start;padding:9px 11px;border-radius:10px;margin-bottom:9px;font:600 12px/1.4 'Barlow',sans-serif}
+.mg-uyari{display:flex;gap:9px;align-items:flex-start;padding:9px 11px;border-radius:10px;margin-bottom:9px;font:600 12px/1.4 Twemoji Country Flags,'Barlow',sans-serif}
 .mg-uyari.tur{background:rgba(255,167,38,.08);border:1px solid rgba(255,167,38,.28);color:#ffcc80}
 .mg-uyari.mav{background:rgba(0,176,255,.07);border:1px solid rgba(0,176,255,.25);color:#9fdcff}
 .mg-uyari b{color:#fff}
@@ -103353,27 +103356,28 @@ function planYaz(hedef, kaynak) {
 .mg-kont{display:flex;flex-direction:column;gap:7px;margin-bottom:9px}
 .mg-ara{display:flex;align-items:center;gap:7px;height:36px;padding:0 11px;border-radius:10px;background:#0f141b;border:1px solid #232a35}
 .mg-ara svg{width:15px;height:15px;flex:none;fill:none;stroke:#7d8596;stroke-width:2.2;stroke-linecap:round}
-.mg-ara input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:#e8edf5;font:600 13px 'Barlow',sans-serif}
+.mg-ara input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:#e8edf5;font:600 13px Twemoji Country Flags,'Barlow',sans-serif}
 .mg-cipler{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:1px}
 .mg-cipler::-webkit-scrollbar{display:none}
 .mg-cip{flex:none;position:relative;display:flex;align-items:center;gap:5px;height:30px;padding:0 10px;border-radius:15px;cursor:pointer;background:#121821;border:1px solid #252d39;
-  color:#b8c2d3;font:700 12px/1 'Barlow',sans-serif;white-space:nowrap}
-.mg-cip small{font:800 10px/1 'Barlow Condensed',sans-serif;letter-spacing:.6px;color:#7d8596;text-transform:uppercase}
-.mg-cip select{appearance:none;-webkit-appearance:none;border:0;outline:0;background:transparent;color:#e8edf5;font:700 12px 'Barlow',sans-serif;padding:0 13px 0 0;cursor:pointer;max-width:150px}
-.mg-cip select option{background:#121821;color:#e8edf5}
+  color:#b8c2d3;font:700 12px/1 Twemoji Country Flags,'Barlow',sans-serif;white-space:nowrap}
+.mg-cip small{font:800 10px/1 Twemoji Country Flags,'Barlow Condensed',sans-serif;letter-spacing:.6px;color:#7d8596;text-transform:uppercase}
+.mg-cip>span{display:flex;align-items:center;gap:5px;max-width:170px;padding-right:13px;font:700 12px Twemoji Country Flags,'Barlow',sans-serif;color:#e8edf5;white-space:nowrap}
+.mg-cip>span b{font-weight:700;overflow:hidden;text-overflow:ellipsis}
+.mg-cip>span .ban-sh{flex:none}
 .mg-cip::after{content:'';position:absolute;right:10px;top:12px;width:5px;height:5px;border-right:1.6px solid #7d8596;border-bottom:1.6px solid #7d8596;transform:rotate(45deg);pointer-events:none}
 .mg-cip.duz::after{display:none}
 .mg-cip.on,.mg-cip.active{background:rgba(0,230,118,.1);border-color:rgba(0,230,118,.4);color:#7dffb5}
 .mg-butce{flex:none;display:flex;align-items:center;gap:6px;height:30px;padding:0 10px;border-radius:15px;background:rgba(255,255,255,.035);border:1px dashed #2c3442;
-  font:800 12.5px/1 'Barlow Condensed',sans-serif;color:#e8edf5;white-space:nowrap}
-.mg-butce small{font:800 9.5px/1 'Barlow Condensed',sans-serif;letter-spacing:.7px;color:#7d8596;text-transform:uppercase}
+  font:800 12.5px/1 Twemoji Country Flags,'Barlow Condensed',sans-serif;color:#e8edf5;white-space:nowrap}
+.mg-butce small{font:800 9.5px/1 Twemoji Country Flags,'Barlow Condensed',sans-serif;letter-spacing:.7px;color:#7d8596;text-transform:uppercase}
 
 .mg-tablo{border-radius:13px;overflow:hidden;background:repeating-linear-gradient(45deg,#13161b 0 2px,#0f1115 2px 4px);border:1px solid #1f242d}
 .mg-bas,.mg-sat{display:grid;align-items:center;column-gap:6px;padding:0 8px 0 11px}
 .mg-tablo.takim .mg-bas,.mg-tablo.takim .mg-sat{grid-template-columns:minmax(0,1fr) 26px 40px 30px 38px 64px}
 .mg-tablo.osat .mg-bas,.mg-tablo.osat .mg-sat{grid-template-columns:minmax(0,1fr) 28px 62px 76px}
 .mg-tablo.oser .mg-bas,.mg-tablo.oser .mg-sat{grid-template-columns:minmax(0,1fr) 28px 84px}
-.mg-bas{height:28px;background:#0c0f14;border-bottom:1px solid var(--mg-cizgi);font:800 9.5px/1 'Barlow Condensed',sans-serif;letter-spacing:.9px;color:#6f7889;text-transform:uppercase}
+.mg-bas{height:28px;background:#0c0f14;border-bottom:1px solid var(--mg-cizgi);font:800 9.5px/1 Twemoji Country Flags,'Barlow Condensed',sans-serif;letter-spacing:.9px;color:#6f7889;text-transform:uppercase}
 .mg-bas span{text-align:center}
 .mg-bas span:first-child,.mg-bas span.sol{text-align:left}
 .mg-bas span:last-child{text-align:right}
@@ -103387,29 +103391,29 @@ html:not([lang="tr"]) .mg-bas span{min-width:0;overflow:hidden;text-overflow:ell
 .mg-sat.benim{background:rgba(255,201,40,.05)}
 .mg-ilk{display:flex;align-items:center;gap:8px;min-width:0}
 .mg-logo{position:relative;flex:none;width:32px;height:32px}
-.mg-rozet{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;font:900 11px/1 'Barlow Condensed',sans-serif;box-shadow:0 0 0 1.5px rgba(255,255,255,.1)}
+.mg-rozet{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;font:900 11px/1 Twemoji Country Flags,'Barlow Condensed',sans-serif;box-shadow:0 0 0 1.5px rgba(255,255,255,.1)}
 .mg-rozet.crest-has-logo{background:none !important;box-shadow:none}
 .mg-rozet img{width:100%;height:100%;object-fit:contain}
 .mg-logo .ban-sh{position:absolute;right:-5px;bottom:-4px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.7))}
 .mg-ad{min-width:0;display:flex;flex-direction:column;gap:3px}
-.mg-ad b{font:800 14px/1.05 'Barlow',sans-serif;color:#f3f6fb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mg-ad small{display:flex;align-items:center;gap:4px;min-width:0;font:600 10.5px/1 'Barlow',sans-serif;color:#7d8596;white-space:nowrap;overflow:hidden}
+.mg-ad b{font:800 14px/1.05 Twemoji Country Flags,'Barlow',sans-serif;color:#f3f6fb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mg-ad small{display:flex;align-items:center;gap:4px;min-width:0;font:600 10.5px/1 Twemoji Country Flags,'Barlow',sans-serif;color:#7d8596;white-space:nowrap;overflow:hidden}
 .mg-ad small em{flex:none;font-style:normal}
 .mg-ad small em.kis{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .mg-ad small .gen-ic{display:none}
-.mg-kay{flex:none;font:800 8.5px/1 'Barlow Condensed',sans-serif;letter-spacing:.7px;padding:2px 4px 1px;border-radius:4px;text-transform:uppercase}
+.mg-kay{flex:none;font:800 8.5px/1 Twemoji Country Flags,'Barlow Condensed',sans-serif;letter-spacing:.7px;padding:2px 4px 1px;border-radius:4px;text-transform:uppercase}
 .mg-kay.ilan{color:#1c1400;background:var(--mg-ilan)}
 .mg-kay.sis{color:#00141f;background:var(--mg-sis)}
 .mg-kay.sen{color:#04210f;background:#00e676}
 .mg-kay.bot{color:#d7dde8;background:#3a4252}
-.mg-say{text-align:center;font:800 14px/1 'Barlow Condensed',sans-serif;color:#e8edf5}
-.mg-say small{display:block;margin-top:3px;font:700 9px/1 'Barlow',sans-serif;color:#6f7889;white-space:nowrap}
+.mg-say{text-align:center;font:800 14px/1 Twemoji Country Flags,'Barlow Condensed',sans-serif;color:#e8edf5}
+.mg-say small{display:block;margin-top:3px;font:700 9px/1 Twemoji Country Flags,'Barlow',sans-serif;color:#6f7889;white-space:nowrap}
 .mg-say i{display:block;height:3px;margin:4px auto 0;width:24px;border-radius:2px;background:linear-gradient(90deg,#00e676 calc(var(--d)*100%),rgba(255,255,255,.1) 0)}
 .mg-say.kasa{color:#9be7b4}
 .mg-say.bekle{color:#4b5363}
-.mg-ovr{text-align:center;font:900 16px/1 'Barlow Condensed',sans-serif}
+.mg-ovr{text-align:center;font:900 16px/1 Twemoji Country Flags,'Barlow Condensed',sans-serif}
 .mg-fiyat{justify-self:end;display:flex;align-items:center;justify-content:center;gap:3px;min-width:62px;height:28px;padding:0 6px;border-radius:8px;border:0;cursor:pointer;
-  font:900 12.5px/1 'Barlow Condensed',sans-serif;letter-spacing:.2px;white-space:nowrap}
+  font:900 12.5px/1 Twemoji Country Flags,'Barlow Condensed',sans-serif;letter-spacing:.2px;white-space:nowrap}
 .mg-fiyat.dia{color:#e3f6ff;background:linear-gradient(180deg,#1aa3e8,#0d7fc2);box-shadow:inset 0 1px 0 rgba(255,255,255,.25)}
 .mg-fiyat.yesil{color:#04210f;background:linear-gradient(180deg,#1ef08a,#00c853)}
 .mg-fiyat.sari{color:#1c1400;background:linear-gradient(180deg,#ffd54f,#f5b800)}
@@ -103417,47 +103421,69 @@ html:not([lang="tr"]) .mg-bas span{min-width:0;overflow:hidden;text-overflow:ell
 .mg-fiyat.kilit{color:#8a93a3;background:#1a1f27;box-shadow:inset 0 0 0 1px #2a313c}
 .mg-fiyat:disabled{color:#8a93a3;background:#1a1f27;box-shadow:inset 0 0 0 1px #2a313c;cursor:default}
 .mg-fiyat svg{width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
-.mg-mv{flex:none;width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;font:900 11.5px/1 'Barlow Condensed',sans-serif;letter-spacing:.3px}
+.mg-av{flex:none;width:34px;height:34px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#18202b;font-size:17px;line-height:1;box-shadow:0 0 0 1.5px var(--av,#3a4252)}
+.mg-av.gk{--av:rgba(255,193,7,.6)}
+.mg-av.def{--av:rgba(33,150,243,.6)}
+.mg-av.mid{--av:rgba(76,175,80,.6)}
+.mg-av.fwd{--av:rgba(244,67,54,.6)}
+.mg-av .avatar-img{border-radius:50%}
+.mg-mv{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:15px;padding:0 4px;border-radius:4px;font:900 10px/1 Twemoji Country Flags,'Barlow Condensed',sans-serif;letter-spacing:.3px}
 .mg-mv.gk{background:rgba(255,193,7,.15);color:#ffd54f;box-shadow:inset 0 0 0 1px rgba(255,193,7,.35)}
 .mg-mv.def{background:rgba(33,150,243,.15);color:#64b5f6;box-shadow:inset 0 0 0 1px rgba(33,150,243,.35)}
 .mg-mv.mid{background:rgba(76,175,80,.15);color:#81c784;box-shadow:inset 0 0 0 1px rgba(76,175,80,.35)}
 .mg-mv.fwd{background:rgba(244,67,54,.15);color:#e57373;box-shadow:inset 0 0 0 1px rgba(244,67,54,.35)}
-.mg-tk{display:flex;align-items:center;gap:6px;min-width:0;font:700 12.5px/1.15 'Barlow',sans-serif;color:#b8c2d3;white-space:nowrap;overflow:hidden}
+.mg-tk{display:flex;align-items:center;gap:6px;min-width:0;font:700 12.5px/1.15 Twemoji Country Flags,'Barlow',sans-serif;color:#b8c2d3;white-space:nowrap;overflow:hidden}
 .mg-tk .mg-rozet{width:20px;height:20px;font-size:7.5px;flex:none}
 .mg-tk span{overflow:hidden;text-overflow:ellipsis}
-.mg-bos{padding:28px 16px;text-align:center;font:600 12.5px/1.5 'Barlow',sans-serif;color:var(--text3)}
-.mg-dip{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:9px;font:600 11.5px 'Barlow',sans-serif;color:#7d8596}
-.mg-dip button{border:1px solid #252d39;background:#121821;color:#cfd6e2;font:800 12px 'Barlow Condensed',sans-serif;letter-spacing:.5px;padding:7px 12px;border-radius:9px;cursor:pointer;text-transform:uppercase}
+.mg-bos{padding:28px 16px;text-align:center;font:600 12.5px/1.5 Twemoji Country Flags,'Barlow',sans-serif;color:var(--text3)}
+.mg-dip{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:9px;font:600 11.5px Twemoji Country Flags,'Barlow',sans-serif;color:#7d8596}
+.mg-dip button{border:1px solid #252d39;background:#121821;color:#cfd6e2;font:800 12px Twemoji Country Flags,'Barlow Condensed',sans-serif;letter-spacing:.5px;padding:7px 12px;border-radius:9px;cursor:pointer;text-transform:uppercase}
 
 /* Takım detayı */
 .mg-det-ov{position:fixed;inset:0;z-index:9000;display:none;align-items:flex-end;justify-content:center;background:rgba(3,5,8,.72)}
 .mg-det-ov.acik{display:flex}
 .mg-det{width:100%;max-width:460px;max-height:92vh;overflow-y:auto;border-radius:20px 20px 0 0;padding:16px 16px calc(18px + env(safe-area-inset-bottom));
   background:repeating-linear-gradient(45deg,#15181e 0 2px,#111318 2px 4px);border:1px solid #262c36;border-bottom:0;box-shadow:0 -14px 40px rgba(0,0,0,.6)}
+.mg-sec-bas{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.mg-sec-bas h4{margin:0;font:900 17px/1 Twemoji Country Flags,'Barlow Condensed',sans-serif;letter-spacing:.8px;color:#fff;text-transform:uppercase}
+.mg-sec-x{flex:none;width:32px;height:32px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.mg-sec-x svg{width:13px;height:13px;stroke:#cfd6e2;stroke-width:2.6;fill:none;stroke-linecap:round}
+.mg-sec .mg-ara{margin-bottom:8px}
+.mg-sec-liste{position:relative;display:flex;flex-direction:column;gap:5px;max-height:min(60vh,470px);overflow-y:auto;overscroll-behavior:contain}
+.mg-sec-sat{flex:none;display:flex;align-items:center;gap:10px;min-height:46px;padding:0 12px;border-radius:12px;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.03);cursor:pointer;text-align:left;color:#e8edf5;font:700 14px Twemoji Country Flags,'Barlow',sans-serif}
+.mg-sec-sat .ic{flex:none;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:19px;line-height:1}
+.mg-sec-sat .ic svg{width:20px;height:20px}
+.mg-sec-sat .ad{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mg-sec-sat em{flex:none;font:800 12px/1 Twemoji Country Flags,'Barlow Condensed',sans-serif;font-style:normal;color:#9aa3b2;padding:4px 7px;border-radius:8px;background:rgba(255,255,255,.05)}
+.mg-sec-sat .tik{flex:none;width:20px;height:20px;border-radius:50%;border:1.5px solid #3a4252;display:flex;align-items:center;justify-content:center}
+.mg-sec-sat .tik svg{width:11px;height:11px;stroke:#04210f;stroke-width:3.4;fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:0}
+.mg-sec-sat.on{background:rgba(0,230,118,.08);border-color:rgba(0,230,118,.45)}
+.mg-sec-sat.on .tik{border-color:#00e676;background:#00e676}
+.mg-sec-sat.on .tik svg{opacity:1}
 .mg-det-tut{width:42px;height:4px;border-radius:2px;background:#2e3541;margin:-6px auto 12px}
 .mg-det-ust{display:flex;align-items:center;gap:12px}
 .mg-det-ust .mg-rozet{width:56px;height:56px;font-size:17px;flex:none}
-.mg-det-ust h3{margin:0;font:900 22px/1 'Barlow Condensed',sans-serif;letter-spacing:.4px;color:#fff;text-transform:uppercase}
-.mg-det-ust p{margin:5px 0 0;display:flex;align-items:center;flex-wrap:wrap;gap:5px;font:600 12px 'Barlow',sans-serif;color:#9aa3b2}
+.mg-det-ust h3{margin:0;font:900 22px/1 Twemoji Country Flags,'Barlow Condensed',sans-serif;letter-spacing:.4px;color:#fff;text-transform:uppercase}
+.mg-det-ust p{margin:5px 0 0;display:flex;align-items:center;flex-wrap:wrap;gap:5px;font:600 12px Twemoji Country Flags,'Barlow',sans-serif;color:#9aa3b2}
 .mg-det-izg{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:14px}
 .mg-det-izg div{padding:9px 6px 8px;border-radius:11px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07);text-align:center}
-.mg-det-izg b{display:block;font:900 19px/1 'Barlow Condensed',sans-serif;color:#fff}
-.mg-det-izg em{display:block;margin-top:5px;font:800 9px/1.1 'Barlow Condensed',sans-serif;font-style:normal;letter-spacing:.8px;color:#7d8596;text-transform:uppercase}
-.mg-det-izg span{display:block;margin-top:3px;font:600 10px/1.2 'Barlow',sans-serif;color:#9aa3b2}
+.mg-det-izg b{display:block;font:900 19px/1 Twemoji Country Flags,'Barlow Condensed',sans-serif;color:#fff}
+.mg-det-izg em{display:block;margin-top:5px;font:800 9px/1.1 Twemoji Country Flags,'Barlow Condensed',sans-serif;font-style:normal;letter-spacing:.8px;color:#7d8596;text-transform:uppercase}
+.mg-det-izg span{display:block;margin-top:3px;font:600 10px/1.2 Twemoji Country Flags,'Barlow',sans-serif;color:#9aa3b2}
 .mg-det-tes{margin-top:10px;padding:10px 11px;border-radius:11px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07)}
-.mg-det-tes h4{margin:0 0 8px;font:800 10px/1 'Barlow Condensed',sans-serif;letter-spacing:1px;color:#7d8596;text-transform:uppercase}
+.mg-det-tes h4{margin:0 0 8px;font:800 10px/1 Twemoji Country Flags,'Barlow Condensed',sans-serif;letter-spacing:1px;color:#7d8596;text-transform:uppercase}
 .mg-det-tes ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:6px 14px}
-.mg-det-tes li{display:grid;grid-template-columns:1fr auto;align-items:center;gap:2px 8px;font:600 11.5px 'Barlow',sans-serif;color:#cfd6e2}
+.mg-det-tes li{display:grid;grid-template-columns:1fr auto;align-items:center;gap:2px 8px;font:600 11.5px Twemoji Country Flags,'Barlow',sans-serif;color:#cfd6e2}
 .mg-det-tes li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mg-det-tes li b{font:800 12px 'Barlow Condensed',sans-serif;color:#fff}
+.mg-det-tes li b{font:800 12px Twemoji Country Flags,'Barlow Condensed',sans-serif;color:#fff}
 .mg-det-tes li i{grid-column:1/-1;height:3px;border-radius:2px;background:linear-gradient(90deg,#00e676 calc(var(--d)*100%),rgba(255,255,255,.09) 0)}
 .mg-det-fiyat{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding:11px 12px;border-radius:12px;background:rgba(41,182,246,.07);border:1px solid rgba(41,182,246,.25)}
-.mg-det-fiyat span{font:800 10.5px 'Barlow Condensed',sans-serif;letter-spacing:1px;color:#7fcff5;text-transform:uppercase}
-.mg-det-fiyat b{flex:none;font:900 22px/1 'Barlow Condensed',sans-serif;color:#fff}
-.mg-det-not{margin-top:10px;padding:10px 12px;border-radius:11px;font:600 12px/1.4 'Barlow',sans-serif;background:rgba(239,83,80,.09);border:1px solid rgba(239,83,80,.32);color:#ff8a80}
+.mg-det-fiyat span{font:800 10.5px Twemoji Country Flags,'Barlow Condensed',sans-serif;letter-spacing:1px;color:#7fcff5;text-transform:uppercase}
+.mg-det-fiyat b{flex:none;font:900 22px/1 Twemoji Country Flags,'Barlow Condensed',sans-serif;color:#fff}
+.mg-det-not{margin-top:10px;padding:10px 12px;border-radius:11px;font:600 12px/1.4 Twemoji Country Flags,'Barlow',sans-serif;background:rgba(239,83,80,.09);border:1px solid rgba(239,83,80,.32);color:#ff8a80}
 .mg-det-not.sari{background:rgba(255,167,38,.08);border-color:rgba(255,167,38,.3);color:#ffcc80}
 .mg-det-btn{display:grid;grid-template-columns:1fr 1.4fr;gap:8px;margin-top:12px}
-.mg-det-btn button{height:46px;border-radius:13px;border:0;cursor:pointer;font:900 15px/1 'Barlow Condensed',sans-serif;letter-spacing:1px;text-transform:uppercase}
+.mg-det-btn button{height:46px;border-radius:13px;border:0;cursor:pointer;font:900 15px/1 Twemoji Country Flags,'Barlow Condensed',sans-serif;letter-spacing:1px;text-transform:uppercase}
 .mg-det-btn .vaz{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#e8edf5}
 .mg-det-btn .al{background:linear-gradient(180deg,#1ef08a,#00c853);color:#04210f}
 .mg-det-btn .al:disabled{background:#1d222a;color:#6f7889;cursor:not-allowed;box-shadow:inset 0 0 0 1px #2a313c}
@@ -103469,12 +103495,12 @@ html:not([lang="tr"]) .mg-bas span{min-width:0;overflow:hidden;text-overflow:ell
 .mg-gen-i{display:none}
 .mg-say.bedel{font-size:13px}
 .mg-durum{display:inline-flex;align-items:center;gap:4px}
-.mg-ilan-not{padding:0 12px 9px 52px;margin-top:-4px;font:italic 500 11px/1.35 'Barlow',sans-serif;color:var(--text2);border-bottom:1px solid var(--mg-cizgi)}
+.mg-ilan-not{padding:0 12px 9px 53px;margin-top:-4px;font:italic 500 11px/1.35 Twemoji Country Flags,'Barlow',sans-serif;color:var(--text2);border-bottom:1px solid var(--mg-cizgi)}
 .mg-tablo .sc-offers{border-top:0;border-bottom:1px solid var(--mg-cizgi)}
 #page-transfers .tf-list{padding:0}
 #page-transfers .tf-no-team-banner{margin:0 0 9px;padding:9px 11px;border-radius:10px;background:rgba(0,176,255,.07);border:1px solid rgba(0,176,255,.25);gap:9px}
 #page-transfers .tf-ntb-icon{font-size:15px}
-#page-transfers .tf-ntb-text{font:600 12px/1.4 'Barlow',sans-serif;color:#9fdcff}
+#page-transfers .tf-ntb-text{font:600 12px/1.4 Twemoji Country Flags,'Barlow',sans-serif;color:#9fdcff}
 #page-transfers .tf-ntb-text b{color:#fff}
 
 @media (min-width:700px){
@@ -103482,7 +103508,10 @@ html:not([lang="tr"]) .mg-bas span{min-width:0;overflow:hidden;text-overflow:ell
   .mg-tk.mg-gen{display:flex !important}
   .mg-dar{display:none !important}
   .mg-ad small .gen-ic,.mg-gen-i{display:inline}
-  .mg-ilan-not{padding-left:64px}
+  .mg-ilan-not{padding-left:58px}
+  #mgSecOv{align-items:center}
+  #mgSecOv .mg-sec{max-width:420px;border-radius:20px}
+  #mgSecOv .mg-det-tut{display:none}
   .mg-tablo.takim .mg-bas,.mg-tablo.takim .mg-sat{grid-template-columns:minmax(0,1.3fr) minmax(0,.9fr) minmax(0,.9fr) 46px 54px 56px 74px 96px;column-gap:10px;padding:0 14px 0 16px}
   .mg-tablo.osat .mg-bas,.mg-tablo.osat .mg-sat{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,1.1fr) 46px 100px 140px;column-gap:10px;padding:0 14px 0 16px}
   .mg-tablo.oser .mg-bas,.mg-tablo.oser .mg-sat{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) 46px 110px;column-gap:10px;padding:0 14px 0 16px}
@@ -103494,7 +103523,7 @@ html:not([lang="tr"]) .mg-bas span{min-width:0;overflow:hidden;text-overflow:ell
 // ═══════════════════════════════════════════════════════════════════
 // 626 · MAĞAZA — Ekipman ve Takımlar, her biri "Serbest" ve "Satış Listesinde" alt sekmeli
 //   • Ekipman: bugünkü İtemler (Serbest) ve Pazar Yeri (Satış Listesinde) olduğu gibi.
-//   • Takımlar: kaptansız takımlar (sistemden 💎) ve oyuncu ilanları — tek satırlık liste,
+//   • Takımlar: kaptanı bot olan takımlar (sistemden 💎) ve oyuncu ilanları — tek satırlık liste,
 //     takımın gücü, kadrosu (bot sayısı), tesis ortalaması, kasası. Takımı olan sistemden alamaz.
 //   • Transfer sayfası (Serbest / Satış Listesinde) aynı tek satırlık listeyi kullanır.
 // ═══════════════════════════════════════════════════════════════════
@@ -103503,6 +103532,38 @@ const _mgKisa = (n) => n >= 1e6 ? (Math.round(n / 1e5) / 10).toLocaleString('tr'
 const _mgKilitSvg = '<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
 const _mgAraSvg = '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>';
 const _MG_TIER = ['Süper Lig', '1. Lig', '2. Lig', '3. Lig', '4. Lig', '5. Lig'];
+const _MG_IKON = {
+  dunya: '<svg viewBox="0 0 24 24" fill="none" stroke="#4fc3f7" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.8 3 2.8 15 0 18M12 3c-2.8 3-2.8 15 0 18"/></svg>',
+  kalkan: '<svg viewBox="0 0 24 24" fill="none" stroke="#ffca28" stroke-width="1.9" stroke-linejoin="round"><path d="M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6z"/></svg>',
+  guc: '<svg viewBox="0 0 24 24"><path d="M13.5 2 4.5 13.5H11L10 22l9-11.5h-6.5z" fill="#ffca28"/></svg>',
+  ucuz: '<svg viewBox="0 0 24 24" fill="none" stroke="#00e676" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v15M6 13l6 6 6-6"/></svg>',
+  pahali: '<svg viewBox="0 0 24 24" fill="none" stroke="#ff7043" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V5M6 11l6-6 6 6"/></svg>',
+  yeni: '<svg viewBox="0 0 24 24" fill="none" stroke="#29b6f6" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
+  x: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  tik: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'
+};
+const _MG_SIRA = [{ v: 'guc', ad: 'En güçlü', ikon: _MG_IKON.guc }, { v: 'ucuz', ad: 'En ucuz', ikon: _MG_IKON.ucuz },
+  { v: 'pahali', ad: 'En pahalı', ikon: _MG_IKON.pahali }, { v: 'yeni', ad: 'En yeni', ikon: _MG_IKON.yeni }];
+
+// ── Seçim penceresi: Ülke / Lig / Sırala (tarayıcının açılır listesi yerine) ──
+let _mgSecIs = null;
+function mgSecimAc(baslik, secenekler, secili, sec) {
+  _mgSecIs = { v: secenekler.map(o => o.v), sec };
+  document.getElementById('mgSec').innerHTML = `<div class="mg-det-tut"></div>
+    <div class="mg-sec-bas"><h4>${baslik}</h4><button class="mg-sec-x" onclick="mgSecimKapat()">${_MG_IKON.x}</button></div>
+    ${secenekler.length > 10 ? `<label class="mg-ara">${_mgAraSvg}<input placeholder="Ülke ara" oninput="_mgSecSuz(this.value)"></label>` : ''}
+    <div class="mg-sec-liste">${secenekler.map((o, i) => `<button class="mg-sec-sat${String(o.v) === String(secili) ? ' on' : ''}" onclick="mgSecimSec(${i})"><span class="ic">${o.ikon || ''}</span><span class="ad">${_mgE(o.ad)}</span>${o.sayi != null ? `<em>${o.sayi}</em>` : ''}<i class="tik">${_MG_IKON.tik}</i></button>`).join('')}</div>`;
+  document.getElementById('mgSecOv').classList.add('acik');
+  const liste = document.querySelector('#mgSec .mg-sec-liste'), on = liste.querySelector('.on');
+  if (on) liste.scrollTop = on.offsetTop - liste.clientHeight / 2 + on.offsetHeight / 2;
+}
+const _mgKucuk = (x) => x.replace(/[İIı]/g, 'i').toLowerCase();   // Türkçe ve diğer dillerde aynı arama
+function _mgSecSuz(q) {
+  const t = _mgKucuk(q.trim());
+  document.querySelectorAll('#mgSec .mg-sec-sat').forEach(b => { b.style.display = !t || _mgKucuk(b.querySelector('.ad').textContent).includes(t) ? '' : 'none'; });
+}
+function mgSecimSec(i) { const is = _mgSecIs; mgSecimKapat(); if (is) is.sec(is.v[i]); }
+function mgSecimKapat() { document.getElementById('mgSecOv').classList.remove('acik'); _mgSecIs = null; }
 const _mgSay = (alt, n) => { const b = document.getElementById('mgSay-' + alt); if (b) b.textContent = (n == null ? '' : n); };
 const _mgElmas = () => (typeof wlGetData === 'function') ? (wlGetData().dia || 0) : 0;
 
@@ -103519,7 +103580,7 @@ function _mgSahipliYukle() {
     const s = new Set();
     for (let from = 0; from < 50000; from += 1000) {
       const { data, error } = await window.sb.from('players').select('country_code,team_name')
-        .not('user_id', 'is', null).eq('is_bot', false).not('team_name', 'is', null)
+        .eq('role', 'captain').eq('is_bot', false).not('user_id', 'is', null).not('team_name', 'is', null)
         .order('id', { ascending: true }).range(from, from + 999);
       if (error) { _mgSahipliYuk = null; throw error; }
       (data || []).forEach(r => s.add(r.country_code + ':' + r.team_name));
@@ -103584,14 +103645,13 @@ function _mgTakimKabuk(alt) {
   const kutu = document.getElementById('shop-' + alt);
   if (!kutu || kutu.dataset.kuruldu) return kutu;
   const ilan = alt === 'teams';
-  const ulkeler = _cftGetCountryCodes().map(cc => ({ cc, c: _cftGetCountry(cc) })).filter(x => x.c).sort((a, b) => a.c.name.localeCompare(b.c.name, 'tr'));
-  kutu.innerHTML = `<div class="mg-not">${ilan ? 'Oyuncuların satışa koyduğu takımlar — yalnız 💎 ile satılır.' : 'Kaptanı olmayan takımlar — sistemden 💎 ile alınır, kaptan olarak katılırsın.'}</div>
+  kutu.innerHTML = `<div class="mg-not">${ilan ? 'Oyuncuların satışa koyduğu takımlar — yalnız 💎 ile satılır.' : 'Kaptanı bot olan takımlar — sistemden 💎 ile alınır, kaptan olursun; takımdaki gerçek oyuncular kadroda kalır.'}</div>
     <div class="mg-kutu"><div class="mg-uyari tur" data-mg="uyari" style="display:none"><span class="ic">🔒</span><div data-mg="uyariMetin"></div></div>
     <div class="mg-kont"><label class="mg-ara">${_mgAraSvg}<input placeholder="Takım ara" oninput="mgTakimFiltre('ara',this.value)"></label>
       <div class="mg-cipler"><span class="mg-butce"><small>Bütçen</small><span data-mg="butce" data-noi18n></span></span>
-        <label class="mg-cip"><small>Ülke</small><select data-mg="cc" onchange="mgTakimFiltre('cc',this.value)"><option value="all">Tümü</option>${ulkeler.map(x => `<option value="${_mgE(x.cc)}">${_mgE(x.c.flag)} ${_mgE(x.c.name)}</option>`).join('')}</select></label>
-        <label class="mg-cip"><small>Lig</small><select data-mg="tier" onchange="mgTakimFiltre('tier',this.value)"><option value="all">Tümü</option>${_MG_TIER.map((n, i) => `<option value="${i}">${n}</option>`).join('')}</select></label>
-        <label class="mg-cip"><small>Sırala</small><select data-mg="sira" onchange="mgTakimFiltre('sira',this.value)"><option value="guc">En güçlü</option><option value="ucuz">En ucuz</option><option value="pahali">En pahalı</option>${ilan ? '<option value="yeni">En yeni</option>' : ''}</select></label>
+        <button class="mg-cip" data-mg="cc" onclick="mgTakimSecim('cc')"><small>Ülke</small><span></span></button>
+        <button class="mg-cip" data-mg="tier" onclick="mgTakimSecim('tier')"><small>Lig</small><span></span></button>
+        <button class="mg-cip" data-mg="sira" onclick="mgTakimSecim('sira')"><small>Sırala</small><span></span></button>
         <button class="mg-cip duz" data-mg="butceBtn" onclick="mgTakimFiltre('butce')">Bütçeme uygun</button></div></div>
     <div data-mg="govde"></div></div>`;
   kutu.dataset.kuruldu = '1';
@@ -103603,8 +103663,36 @@ function mgTakimFiltre(k, v) {
   ['takim-sistem', 'teams'].forEach(a => { const kutu = document.getElementById('shop-' + a); if (kutu && kutu.dataset.kuruldu) _mgTakimFiltreYansit(kutu); });
   _mgTakimGovde(_mgSonAlt.takimlar);
 }
+const _mgLigAd = (i) => { const c = _mgT.cc !== 'all' && _cftGetCountry(_mgT.cc); return (c && c.leagues[i] && c.leagues[i].name) || _MG_TIER[i]; };
+function _mgCipEtiket(k) {
+  if (k === 'cc') { const c = _mgT.cc !== 'all' && _cftGetCountry(_mgT.cc); return c ? `<span class="bay">${c.flag}</span><b>${_mgE(c.name)}</b>` : '<b>Tümü</b>'; }
+  if (k === 'tier') return _mgT.tier === 'all' ? '<b>Tümü</b>' : `${_banKalkanImg(Number(_mgT.tier), 16)}<b>${_mgE(_mgLigAd(Number(_mgT.tier)))}</b>`;
+  return `<b>${(_MG_SIRA.find(o => o.v === _mgT.sira) || _MG_SIRA[0]).ad}</b>`;
+}
+function mgTakimSecim(k) {
+  const ilan = _mgSonAlt.takimlar === 'teams';
+  const tum = ilan ? _mgIlanListe() : (_mgSahipli ? _mgSistemListe() : []);
+  let sec, baslik;
+  if (k === 'cc') {
+    baslik = 'Ülke';
+    const say = {}; tum.forEach(x => { say[x.cc] = (say[x.cc] || 0) + 1; });
+    const ulkeler = _cftGetCountryCodes().map(cc => ({ cc, c: _cftGetCountry(cc) })).filter(x => x.c && (say[x.cc] || x.cc === _mgT.cc)).sort((a, b) => a.c.name.localeCompare(b.c.name, 'tr'));
+    sec = [{ v: 'all', ad: 'Tümü', ikon: _MG_IKON.dunya, sayi: tum.length }].concat(ulkeler.map(x => ({ v: x.cc, ad: x.c.name, ikon: `<span class="bay">${x.c.flag}</span>`, sayi: say[x.cc] || 0 })));
+  } else if (k === 'tier') {
+    baslik = 'Lig';
+    const c = _mgT.cc !== 'all' && _cftGetCountry(_mgT.cc);
+    const kume = c ? tum.filter(x => x.cc === _mgT.cc) : tum;
+    const say = {}; kume.forEach(x => { say[x.tier] = (say[x.tier] || 0) + 1; });
+    const kademe = c ? c.leagues.map((_, i) => i) : _MG_TIER.map((_, i) => i);
+    sec = [{ v: 'all', ad: 'Tümü', ikon: _MG_IKON.kalkan, sayi: kume.length }].concat(kademe.map(i => ({ v: String(i), ad: _mgLigAd(i), ikon: _banKalkanImg(i, 24), sayi: say[i] || 0 })));
+  } else {
+    baslik = 'Sırala';
+    sec = ilan ? _MG_SIRA : _MG_SIRA.filter(o => o.v !== 'yeni');
+  }
+  mgSecimAc(baslik, sec, String(_mgT[k]), v => mgTakimFiltre(k, v));
+}
 function _mgTakimFiltreYansit(kutu) {
-  ['cc', 'tier', 'sira'].forEach(k => { const s = kutu.querySelector(`[data-mg="${k}"]`); if (s && [...s.options].some(o => o.value === String(_mgT[k]))) s.value = String(_mgT[k]); });
+  ['cc', 'tier', 'sira'].forEach(k => { kutu.querySelector(`[data-mg="${k}"] > span`).innerHTML = _mgCipEtiket(k); });
   const inp = kutu.querySelector('.mg-ara input'); if (inp && inp.value !== _mgT.ara) inp.value = _mgT.ara;
   kutu.querySelector('[data-mg="butceBtn"]').classList.toggle('on', _mgT.butce);
   kutu.querySelector('[data-mg="butce"]').textContent = '💎 ' + _mgElmas().toLocaleString('tr');
@@ -103647,7 +103735,7 @@ async function _mgTakimGovde(alt) {
   const liste = _mgTakimSuz(tum, ilan);
   const gor = liste.slice(0, _mgT.sayi);
   _mgListe[alt] = gor;
-  if (!tum.length) { g.innerHTML = `<div class="mg-bos">${ilan ? 'Şu anda satışta takım yok.' : 'Şu anda kaptansız takım yok.'}</div>`; return; }
+  if (!tum.length) { g.innerHTML = `<div class="mg-bos">${ilan ? 'Şu anda satışta takım yok.' : 'Şu anda kaptanı bot olan takım yok.'}</div>`; return; }
   if (!gor.length) { g.innerHTML = '<div class="mg-bos">Bu filtrede takım yok.</div>'; return; }
   g.innerHTML = `<div class="mg-tablo takim"><div class="mg-bas"><span>Takım</span><span class="mg-gen sol">Lig</span><span class="mg-gen sol">Ülke</span><span>Güç</span><span>Kadro</span><span>Tesis</span><span>Kasa</span><span>Fiyat</span></div>
     ${gor.map((x, i) => _mgTakimSatir(x, i, alt)).join('')}</div>
@@ -103658,6 +103746,7 @@ function mgTakimDaha() { _mgT.sayi += 30; _mgTakimGovde(_mgSonAlt.takimlar); }
 
 function mgSistemTakimlar() {
   const kutu = _mgTakimKabuk('takim-sistem'); if (!kutu) return;
+  if (_mgT.sira === 'yeni') _mgT.sira = 'guc';
   _mgTakimFiltreYansit(kutu);
   _mgTakimGovde('takim-sistem');
 }
@@ -103708,17 +103797,16 @@ function mgTakimAl(alt, i) {
 
 // ── Transfer › Serbest / Satış Listesinde (tek satırlık liste) ─────────
 const _tfSira = { sale: 'yeni', free: 'guc' };
+const _TF_SIRA = _MG_SIRA.filter(o => o.v === 'guc' || o.v === 'yeni');
 function tfSiraSec(v) { _tfSira[_tfTab] = v; tfRender(); }
+function tfSiraAc() { mgSecimAc('Sırala', _TF_SIRA, _tfSira[_tfTab], tfSiraSec); }
 const _tfSay = (tab, n) => { const b = document.getElementById('tfSay-' + tab); if (b) b.textContent = (n == null ? '' : n); };
 function _tfKontrolYansit() {
   document.querySelectorAll('#page-transfers .tf-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === _tfTab));
   const not = document.getElementById('tfNot');
   if (not) not.textContent = _tfTab === 'free' ? 'Takımı olmayan oyuncular — oyuncuya teklif sunulur, botu kaptan doğrudan alır.' : 'Takımların transfer listesine koyduğu oyuncular — bonservis teklifiyle alınır.';
-  const s = document.getElementById('tfSira');
-  if (s) {
-    s.innerHTML = '<option value="guc">En güçlü</option><option value="yeni">En yeni</option>';
-    s.value = _tfSira[_tfTab];
-  }
+  const s = document.getElementById('tfSiraAd');
+  if (s) s.innerHTML = `<b>${_TF_SIRA.find(o => o.v === _tfSira[_tfTab]).ad}</b>`;
 }
 const _tfOvrRenk = (v) => v >= 80 ? '#ffd600' : v >= 70 ? 'var(--accent)' : 'var(--accent2)';
 const _tfAltSinif = (alt) => ({ GK: 'gk', DEF: 'def', MID: 'mid', FWD: 'fwd' })[SUBPOS_GROUP[alt] || 'MID'];
@@ -103730,7 +103818,7 @@ function _tfSatisSatir(item) {
   const canApprove = userCanMakeOffer();
   const offersAll = (item.offers || []).map((o, oi) => ({ o, oi })).filter(x => x.o && !x.o.rejected);
   const teamName = item.sellerTeam || item.seller || '—';
-  const alt = item.subPos || item.sub_pos || _tfPosLabel(item.pos), altAd = SUBPOS_LABEL[alt] || alt;
+  const alt = item.subPos || item.sub_pos || _tfPosLabel(item.pos), altAd = SUBPOS_LABEL[alt] || alt, grp = _tfPosClass(item.pos);
   const fEur = (typeof item.feeEur === 'number') ? item.feeEur : (item.fee || 0), fDia = (typeof item.feeDia === 'number') ? item.feeDia : 0;
   const fmtFee = (v) => v >= 1000000 ? (v / 1000000).toFixed(v % 1000000 === 0 ? 0 : 1) + 'M €' : Math.round(v / 1000) + 'K €';
   const bedel = fEur && fDia ? `${fmtFee(fEur)}<small>+${fDia} 💎</small>` : fEur ? fmtFee(fEur) : fDia ? fDia + ' 💎' : 'Ücretsiz';
@@ -103749,9 +103837,9 @@ function _tfSatisSatir(item) {
     panel = `<div class="sc-offers" id="scOff-${item.id}" style="display:none"><div class="sc-offers-h">📨 Gelen Teklifler · en yükseği yeşil</div>${rows}</div>`;
   }
   return `<div class="mg-sat ilan${isMine ? ' benim' : ''}" onclick="tfOpenSaleCard('${item.id}')">
-    <div class="mg-ilk"><span class="mg-mv ${_tfPosClass(item.pos)}" data-noi18n>${_mgE(alt)}</span><div class="mg-ad"><b><span class="bay">${item.nation || ''}</span> <span data-noi18n>${_mgE(item.playerId)}</span></b>
-      <small>${isMine ? `<span class="mg-kay sen">${canApprove ? 'Senin ilanın' : 'Takımının ilanı'}</span><em class="mg-dar kis">${_mgE(altAd)}</em>` : `<em class="mg-dar">${_mgE(altAd)}</em><em class="mg-dar">·</em><em class="mg-dar kis" data-noi18n>${_mgE(teamName)}</em>`}</small></div></div>
-    <div class="mg-tk mg-gen"><span>${_mgE(altAd)}</span></div>
+    <div class="mg-ilk"><span class="mg-av ${grp}">${getAvatarEmoji(item.avatarId || item.avatar_id, item.pos)}</span><div class="mg-ad"><b><span class="bay">${item.nation || ''}</span> <span data-noi18n>${_mgE(item.playerId)}</span></b>
+      <small>${isMine ? `<span class="mg-kay sen">${canApprove ? 'Senin ilanın' : 'Takımının ilanı'}</span>` : ''}<span class="mg-mv ${grp} mg-dar" data-noi18n>${_mgE(alt)}</span><em class="mg-dar kis">${_mgE(altAd)}</em>${isMine ? '' : `<em class="mg-dar">·</em><em class="mg-dar kis" data-noi18n>${_mgE(teamName)}</em>`}</small></div></div>
+    <div class="mg-tk mg-gen"><span class="mg-mv ${grp}" data-noi18n>${_mgE(alt)}</span><span>${_mgE(altAd)}</span></div>
     <div class="mg-tk mg-gen">${inlineBadge({ name: teamName, cc: item.sellerCC || '', tag: 'div', cls: 'mg-rozet' })}<span data-noi18n>${_mgE(teamName)}</span></div>
     <div class="mg-ovr" style="color:${_tfOvrRenk(item.overall)}" data-noi18n>${item.overall}</div>
     <div class="mg-say bedel">${bedel}</div>${act}</div>${item.note ? `<div class="mg-ilan-not" data-noi18n>💬 "${_mgE(item.note)}"</div>` : ''}${panel}`;
@@ -103759,7 +103847,7 @@ function _tfSatisSatir(item) {
 
 function _tfSerbestSatir(a, canHire, kaptan, dolu) {
   const alt = a.subPos || ((typeof subPosOf === 'function') ? subPosOf({ pos: a.pos, posGroup: a.posGroup }) : '') || _tfPosLabel(a.pos);
-  const altAd = SUBPOS_LABEL[alt] || alt;
+  const altAd = SUBPOS_LABEL[alt] || alt, grp = _tfAltSinif(alt);
   let gun = null;
   if (a.serbestAt) { const t = Date.parse(a.serbestAt); if (isFinite(t)) gun = Math.max(0, Math.floor((Date.now() - t) / 86400000)); }
   const durum = (a.isBot ? '<span class="mg-kay bot">Bot</span>' : '') + (gun != null ? `<span data-noi18n>${gun}</span> <span>gündür serbest</span>` : '');
@@ -103770,9 +103858,9 @@ function _tfSerbestSatir(a, canHire, kaptan, dolu) {
   else if (dolu) act = '<button class="mg-fiyat" disabled>Kadro dolu</button>';
   else act = `<button class="mg-fiyat yesil" onclick="event.stopPropagation();tfHireFreeAgent('${a.id}')">Takıma Al</button>`;
   return `<div class="mg-sat" onclick="tfOpenFaCard('${a.id}')">
-    <div class="mg-ilk"><span class="mg-mv ${_tfAltSinif(alt)}" data-noi18n>${_mgE(alt)}</span><div class="mg-ad"><b><span class="bay">${a.nation || ''}</span> <span data-noi18n>${_mgE(a.playerId)}</span></b>
-      <small><em class="mg-dar">${_mgE(altAd)}</em>${durum ? `<em class="mg-dar">·</em><span class="mg-dar mg-durum">${durum}</span>` : ''}</small></div></div>
-    <div class="mg-tk mg-gen"><span>${_mgE(altAd)}</span></div>
+    <div class="mg-ilk"><span class="mg-av ${grp}">${getAvatarEmoji(a.avatar_id, a.pos)}</span><div class="mg-ad"><b><span class="bay">${a.nation || ''}</span> <span data-noi18n>${_mgE(a.playerId)}</span></b>
+      <small><span class="mg-mv ${grp} mg-dar" data-noi18n>${_mgE(alt)}</span><em class="mg-dar">${_mgE(altAd)}</em>${durum ? `<em class="mg-dar">·</em><span class="mg-dar mg-durum">${durum}</span>` : ''}</small></div></div>
+    <div class="mg-tk mg-gen"><span class="mg-mv ${grp}" data-noi18n>${_mgE(alt)}</span><span>${_mgE(altAd)}</span></div>
     <div class="mg-tk mg-gen mg-durum">${durum}</div>
     <div class="mg-ovr" style="color:${_tfOvrRenk(a.overall)}" data-noi18n>${a.overall}</div>${act}</div>`;
 }

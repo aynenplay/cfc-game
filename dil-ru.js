@@ -6649,7 +6649,6 @@ Object.assign(window.I18N.ru, {
   "Satış Listesinde": "На продаже",
   "Mağazanın kendi stoğu — fiyat ve stok sistemden.": "Собственный запас магазина — цену и количество задаёт система.",
   "Oyuncuların satışa çıkardığı itemler — dolabından item satmak için + Sat.": "Предметы, выставленные игроками на продажу, — чтобы продать предмет из шкафчика, нажми «+ Продать».",
-  "Kaptanı olmayan takımlar — sistemden 💎 ile alınır, kaptan olarak katılırsın.": "Команды без капитана — покупаются у системы за 💎, ты вступаешь капитаном.",
   "Oyuncuların satışa koyduğu takımlar — yalnız 💎 ile satılır.": "Команды, выставленные игроками на продажу, — только за 💎.",
   "Takımı olmayan oyuncular — oyuncuya teklif sunulur, botu kaptan doğrudan alır.": "Игроки без команды — игроку делается предложение, ботов капитан берёт напрямую.",
   "Takımların transfer listesine koyduğu oyuncular — bonservis teklifiyle alınır.": "Игроки, выставленные командами на трансфер, — покупаются через предложение трансферной суммы.",
@@ -6666,7 +6665,6 @@ Object.assign(window.I18N.ru, {
   "Takımının ilanı": "Объявление твоей команды",
   "Liste yüklenemedi.": "Не удалось загрузить список.",
   "Şu anda satışta takım yok.": "Сейчас нет команд на продаже.",
-  "Şu anda kaptansız takım yok.": "Сейчас нет команд без капитана.",
   "Daha fazla": "Показать ещё",
   "Takım gücü": "Сила команды",
   "Tesis ortalaması": "Средний уровень инфраструктуры",
@@ -6685,4 +6683,16 @@ window.I18N_PATTERNS.ru.unshift(
   [/^Zaten bir takımdasın \((.+?)\)\. Sistemden takım satın almak için önce takımından ayrılmalısın — listeyi inceleyebilirsin\.$/, "Ты уже в команде ($1). Чтобы купить команду у системы, сначала покинь свою команду — список можно просматривать."],
   [/^🔒 Zaten bir takımdasın \((.+?)\)\. Sistemden takım satın almak için önce takımından ayrılmalısın\.$/, "🔒 Ты уже в команде ($1). Чтобы купить команду у системы, сначала покинь свою команду."],
   [/^(\d+) bot$/, "ботов: $1"]
+);
+
+// 627 — Mağaza: kaptanı bot olan takımlar satılır; Ülke / Lig / Sırala seçim penceresi
+Object.assign(window.I18N.ru, {
+  "Kaptanı bot olan takımlar — sistemden 💎 ile alınır, kaptan olursun; takımdaki gerçek oyuncular kadroda kalır.": "Команды с капитаном-ботом — покупаются у системы за 💎; ты становишься капитаном, а живые игроки команды остаются в составе.",
+  "Şu anda kaptanı bot olan takım yok.": "Сейчас нет команд с капитаном-ботом.",
+  "Ülke ara": "Поиск страны"
+});
+window.I18N_PATTERNS.ru.unshift(
+  [/^Yeni Kaptan — (.+)$/, "Новый капитан — $1"],
+  [/^(.+?) takımı sistemden satın aldı ve yeni kaptan oldu\.$/, "$1 купил(а) команду у системы и стал(а) новым капитаном."],
+  [/^(.+?) takımında kalmaya devam ediyorsun\. Kadro, taktik ve kasa yetkileri artık yeni kaptanda\.$/, "Ты остаёшься в команде $1. Права на состав, тактику и казну теперь у нового капитана."]
 );

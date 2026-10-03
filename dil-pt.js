@@ -6611,7 +6611,6 @@ Object.assign(window.I18N.pt, {
   "Satış Listesinde": "À venda",
   "Mağazanın kendi stoğu — fiyat ve stok sistemden.": "Estoque próprio da loja — preço e estoque definidos pelo sistema.",
   "Oyuncuların satışa çıkardığı itemler — dolabından item satmak için + Sat.": "Itens colocados à venda por jogadores — para vender um item do seu armário, toque em + Vender.",
-  "Kaptanı olmayan takımlar — sistemden 💎 ile alınır, kaptan olarak katılırsın.": "Times sem capitão — comprados do sistema com 💎, e você entra como capitão.",
   "Oyuncuların satışa koyduğu takımlar — yalnız 💎 ile satılır.": "Times colocados à venda por jogadores — vendidos apenas por 💎.",
   "Takımı olmayan oyuncular — oyuncuya teklif sunulur, botu kaptan doğrudan alır.": "Jogadores sem time — faça uma proposta ao jogador; o capitão contrata os bots diretamente.",
   "Takımların transfer listesine koyduğu oyuncular — bonservis teklifiyle alınır.": "Jogadores colocados na lista de transferências pelos times — contratados com uma proposta de transferência.",
@@ -6628,7 +6627,6 @@ Object.assign(window.I18N.pt, {
   "Takımının ilanı": "Anúncio do seu time",
   "Liste yüklenemedi.": "Não foi possível carregar a lista.",
   "Şu anda satışta takım yok.": "No momento não há times à venda.",
-  "Şu anda kaptansız takım yok.": "No momento não há times sem capitão.",
   "Daha fazla": "Ver mais",
   "Takım gücü": "Força do time",
   "Tesis ortalaması": "Média das instalações",
@@ -6647,4 +6645,16 @@ window.I18N_PATTERNS.pt.unshift(
   [/^Zaten bir takımdasın \((.+?)\)\. Sistemden takım satın almak için önce takımından ayrılmalısın — listeyi inceleyebilirsin\.$/, "Você já está em um time ($1). Para comprar um time do sistema, primeiro saia do seu time — você ainda pode ver a lista."],
   [/^🔒 Zaten bir takımdasın \((.+?)\)\. Sistemden takım satın almak için önce takımından ayrılmalısın\.$/, "🔒 Você já está em um time ($1). Para comprar um time do sistema, primeiro saia do seu time."],
   [/^(\d+) bot$/, m => m[1] + (m[1] === '1' ? ' bot' : ' bots')]
+);
+
+// 627 — Mağaza: kaptanı bot olan takımlar satılır; Ülke / Lig / Sırala seçim penceresi
+Object.assign(window.I18N.pt, {
+  "Kaptanı bot olan takımlar — sistemden 💎 ile alınır, kaptan olursun; takımdaki gerçek oyuncular kadroda kalır.": "Times com capitão bot — comprados do sistema com 💎; você vira capitão e os jogadores reais do time continuam no elenco.",
+  "Şu anda kaptanı bot olan takım yok.": "No momento não há times com capitão bot.",
+  "Ülke ara": "Buscar país"
+});
+window.I18N_PATTERNS.pt.unshift(
+  [/^Yeni Kaptan — (.+)$/, "Novo capitão — $1"],
+  [/^(.+?) takımı sistemden satın aldı ve yeni kaptan oldu\.$/, "$1 comprou o time do sistema e é o novo capitão."],
+  [/^(.+?) takımında kalmaya devam ediyorsun\. Kadro, taktik ve kasa yetkileri artık yeni kaptanda\.$/, "Você continua no time $1. As permissões de elenco, tática e tesouraria agora são do novo capitão."]
 );
