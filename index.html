@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '633';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '634';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -27214,7 +27214,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-09-elmas-fis-633';
+const APP_BUILD = '2026-10-09-fis-sesi-634';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -27722,6 +27722,16 @@ function _macSesCos() {
   g.gain.setValueAtTime(g.gain.value, t);
   g.gain.linearRampToValueAtTime(sv * 1.9, t + 0.35);
   g.gain.setTargetAtTime(sv, t + 2.2, 1.1);
+}
+// 634 · Elmas fişi yazdırılırken müzik ve ortam sesi iyice kısılır (kapanmaz), ödeme sesiyle eski seviyesine döner
+function _sesKis(oran, sure) {
+  [_muzikKanal, _macKanal].forEach(k => {
+    if (!k.g) return;
+    const t = _cftAudioCtx.currentTime;
+    k.g.gain.cancelScheduledValues(t);
+    k.g.gain.setValueAtTime(k.g.gain.value, t);
+    k.g.gain.linearRampToValueAtTime(_SES_DONGU[k.ad].seviye * oran, t + sure);
+  });
 }
 document.addEventListener('visibilitychange', () => {
   if (!_cftAudioCtx) return;
@@ -71448,6 +71458,34 @@ async function _xsElmasBekle(oncekiDia, beklenenDia, tur) {
   return null;
 }
 
+// 634 · Fiş sesleri: yazıcı (fiş bu sesin bastığı anlarda ilerler) + ödeme anında yazar kasa. Buton Sesi anahtarına bağlı.
+const _FIS_SES = { yazici: 'fis-yazici.mp3?v=634', kasa: 'fis-kasa.mp3?v=634' };
+const _fisBuf = {};
+function _fisSesYukle(ad) {
+  if (!_fisBuf[ad]) _fisBuf[ad] = fetch(_FIS_SES[ad]).then(r => r.arrayBuffer())
+    .then(b => _cftGetAudioCtx().decodeAudioData(b))
+    .catch(e => { _fisBuf[ad] = null; throw e; });
+  return _fisBuf[ad];
+}
+function _fisSesCal(buf) {
+  const c = _cftGetAudioCtx(), k = c.createBufferSource();
+  k.buffer = buf; k.connect(c.destination); k.start();
+}
+// Yazıcı sesinin 50 ms'lik enerji dilimlerinden fişin çıkış kareleri
+function _fisKareler(buf) {
+  const d = buf.getChannelData(0), adim = Math.round(buf.sampleRate * 0.05), e = [];
+  for (let i = 0; i < d.length; i += adim) {
+    let t = 0; const son = Math.min(i + adim, d.length);
+    for (let j = i; j < son; j++) t += d[j] * d[j];
+    e.push(Math.max(0, Math.sqrt(t / (son - i)) - 0.02));
+  }
+  const top = e.reduce((a, b) => a + b, 0); let kum = 0;
+  return [{ transform: 'translateY(-100%)', offset: 0 }].concat(e.map((v, i) => {
+    kum += v;
+    return { transform: 'translateY(' + (kum / top * 100 - 100).toFixed(1) + '%)', offset: Math.min(1, (i + 1) * adim / d.length) };
+  }));
+}
+
 // 🎉 KUTLAMA — 633 · kâğıt fiş: yazdırılır, "HESABA GEÇTİ" mührü basılır, elmaslar cüzdana uçar
 async function _xsKutlama(miktar, bitti) {
   miktar = Math.round(Number(miktar) || 0);
@@ -71463,6 +71501,7 @@ async function _xsKutlama(miktar, bitti) {
   const tr = n => n.toLocaleString('tr');
   const bekle = ms => new Promise(r => setTimeout(r, ms));
   const paket = DIAMOND_PACKS.find(p => p.amount + (p.bonus || 0) === miktar);
+  const sesler = Promise.all([_fisSesYukle('yazici'), _fisSesYukle('kasa')]).catch(() => []);
   const ov = document.createElement('div');
   ov.className = 'xsf-ov';
   ov.style.top = Math.max(0, document.getElementById('topbar').getBoundingClientRect().bottom) + 'px';
@@ -71479,14 +71518,19 @@ async function _xsKutlama(miktar, bitti) {
   requestAnimationFrame(() => ov.classList.add('acik'));
 
   const fis = ov.querySelector('.xsf-fis');
+  const [yazici, kasa] = await sesler;
+  const sesli = _cftButtonSoundEnabled && yazici;
   await bekle(250);
-  await fis.animate([{ transform: 'translateY(-100%)' }, { transform: 'translateY(-55%)', offset: .45 },
-    { transform: 'translateY(-52%)', offset: .55 }, { transform: 'translateY(0)' }], { duration: 1100, easing: 'linear', fill: 'forwards' }).finished;
-  await bekle(250);
+  if (sesli) { _sesKis(0.12, 0.3); _fisSesCal(yazici); }
+  await fis.animate(yazici ? _fisKareler(yazici) : [{ transform: 'translateY(-100%)' }, { transform: 'translateY(0)' }],
+    { duration: yazici ? yazici.duration * 1000 : 1100, easing: 'linear', fill: 'forwards' }).finished;
+  await bekle(150);
+  if (sesli) { if (kasa) _fisSesCal(kasa); _sesKis(1, 1.2); }
+  await bekle(90);
   ov.querySelector('.xsf-muhur').classList.add('bas');
   await bekle(170);
   fis.classList.add('titre');
-  await bekle(900);
+  await bekle(2400);
 
   const r = ov.querySelector('.xsf-top svg').getBoundingClientRect();
   fis.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-105%)' }], { duration: 420, easing: 'ease-in', fill: 'forwards' });
