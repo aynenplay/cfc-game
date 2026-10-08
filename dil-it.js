@@ -6696,3 +6696,12 @@ Object.assign(window.I18N.it, {
   "Bonus": "Bonus",
   "HESABA GEÇTİ": "ACCREDITATO"
 });
+
+/* ── 635 · Oyuncu kartı ── */
+Object.assign(window.I18N.it, {
+  "Ort. puan": "Media voto",
+  "Kaptan · Sen": "Capitano · Tu"
+});
+window.I18N_PATTERNS.it.push(
+  [/^(\d+) kupa$/, m => m[1] + (m[1] === '1' ? ' trofeo' : ' trofei')]
+);

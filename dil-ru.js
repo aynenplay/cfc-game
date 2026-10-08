@@ -6728,3 +6728,12 @@ Object.assign(window.I18N.ru, {
   "Bonus": "Бонус",
   "HESABA GEÇTİ": "ЗАЧИСЛЕНО"
 });
+
+/* ── 635 · Oyuncu kartı ── */
+Object.assign(window.I18N.ru, {
+  "Ort. puan": "Ср. оценка",
+  "Kaptan · Sen": "Капитан · Ты"
+});
+window.I18N_PATTERNS.ru.push(
+  [/^(\d+) kupa$/, m => { const n = Number(m[1]), d = n % 10, y = n % 100; return m[1] + (d === 1 && y !== 11 ? ' трофей' : d >= 2 && d <= 4 && (y < 12 || y > 14) ? ' трофея' : ' трофеев'); }]
+);
