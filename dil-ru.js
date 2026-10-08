@@ -6720,3 +6720,11 @@ window.I18N_PATTERNS.ru.unshift(
   [/^Kulüp kaptanlığın sona erdiği için (.+?) federasyon başkanlığı ve milli takım teknik direktörlüğü görevin de sona erdi\.$/, m => "Так как твоё капитанство в клубе завершилось, завершились и твои полномочия президента федерации (" + _icR(m[1]) + ") и главного тренера сборной."],
   [/^(.+?) federasyon başkanlığı ve milli takım teknik direktörlüğü bir sonraki başkanlık seçimine kadar sana devredildi\.$/, m => "Пост президента федерации (" + _icR(m[1]) + ") и главного тренера сборной передан тебе до следующих президентских выборов."]
 );
+
+/* ── 633 · Elmas satın alma fişi ── */
+Object.assign(window.I18N.ru, {
+  "ELMAS SATIN ALMA": "ПОКУПКА АЛМАЗОВ",
+  "Paket": "Пакет",
+  "Bonus": "Бонус",
+  "HESABA GEÇTİ": "ЗАЧИСЛЕНО"
+});

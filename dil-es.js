@@ -6690,3 +6690,11 @@ window.I18N_PATTERNS.es.unshift(
   [/^Kulüp kaptanlığın sona erdiği için (.+?) federasyon başkanlığı ve milli takım teknik direktörlüğü görevin de sona erdi\.$/, m => "Como terminó tu capitanía del club, también terminaron tu presidencia de la federación de " + _icE(m[1]) + " y tu cargo de seleccionador nacional."],
   [/^(.+?) federasyon başkanlığı ve milli takım teknik direktörlüğü bir sonraki başkanlık seçimine kadar sana devredildi\.$/, m => "La presidencia de la federación de " + _icE(m[1]) + " y el cargo de seleccionador nacional han pasado a ti hasta la próxima elección presidencial."]
 );
+
+/* ── 633 · Elmas satın alma fişi ── */
+Object.assign(window.I18N.es, {
+  "ELMAS SATIN ALMA": "COMPRA DE DIAMANTES",
+  "Paket": "Paquete",
+  "Bonus": "Bonus",
+  "HESABA GEÇTİ": "ABONADO"
+});
