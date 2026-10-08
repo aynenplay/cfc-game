@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '635';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '637';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -17394,6 +17394,8 @@ body.drawer-open .hb-btn span:nth-child(3){transform:translateY(-6px) rotate(-45
   color:#ef5350;
   border:1px solid rgba(239,83,80,.4);
   font-size:14px;border-radius:50%}
+.nt-an-btn.add.kilit{opacity:.35;filter:grayscale(.6);box-shadow:none;cursor:not-allowed}
+.nt-an-btn.add.kilit:hover,.nt-an-btn.add.kilit:active{background:linear-gradient(135deg,#1976d2,#42a5f5);box-shadow:none;transform:none}
 .nt-an-btn.rmv:hover,.nt-an-btn.rmv:active{
   background:rgba(239,83,80,.25);transform:scale(1.05)}
 
@@ -26889,7 +26891,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-09-oyuncu-karti-635';
+const APP_BUILD = '2026-10-09-milli-kadro-637';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -53180,6 +53182,7 @@ function ntHataMetni(error, varsayilan) {
     ['nt_yalniz_baskan', 'Yardımcıları yalnız federasyon başkanı seçer'],
     ['nt_yardimci_3', 'En fazla 3 yardımcı seçilebilir'],
     ['nt_kadro_20', 'Milli takım kadrosu en fazla 20 kişi olabilir'],
+    ['nt_turnuva_kilit', _NT_TURNUVA_KILIT],
     ['nt_kadro_18', 'Milli takım kadrosu en fazla 18 kişi olabilir'],
     ['nt_sohbet_yetkisiz', 'Milli takım sohbetine yalnızca kadrodakiler ve teknik ekip yazabilir.'],
     ['nt_yetkisiz', 'Bu milli takımda yetkin yok (yalnız başkan ve yardımcıları)'],
@@ -53426,6 +53429,13 @@ function _ntKadroDegisti(cc, sadeceEkran) {
   try { if (typeof _ntRefreshActivePane === 'function') _ntRefreshActivePane(); } catch(e) {}
 }
 
+// 637 — EURO Cup sürerken (34.–40. gün) milli kadroya yeni oyuncu alınamaz (sunucu da engeller)
+const _NT_TURNUVA_KILIT = '🔒 EURO Cup sürüyor — turnuva bitene kadar milli kadroya yeni oyuncu alınamaz';
+function ntTurnuvaKilitli() {
+  const si = getSeasonInfo();
+  return !si.preSeason && si.dayInSeason >= 34;
+}
+
 // Kadroya çağır (Analiz listesi / profil / diziliş)
 function ntKadroCagir(ntId, cc) {
   cc = cc || ntActiveCountry();
@@ -53437,6 +53447,7 @@ function ntKadroCagir(ntId, cc) {
   const etkin = _ntEtkinKadroYer(cc, pool);
   const mevcut = etkin.ids.indexOf(ntId);
   if (mevcut !== -1 && !etkin.oto[mevcut]) { if (typeof showToast === 'function') showToast('Zaten milli takımda'); return false; }
+  if (mevcut === -1 && ntTurnuvaKilitli()) { showToast(_NT_TURNUVA_KILIT); return false; }
   const base = _ntDuzenlemeTabani(cc);
   let hedef = -1;
   if (mevcut !== -1) hedef = mevcut;              // otomatik gelen oyuncu artık seçilmiş sayılır
@@ -53553,7 +53564,7 @@ function ntBuildRoster(cc) {
   const { ids, oto, secili } = _ntEtkinKadroYer(cc, pool);
   // 585 — kadro sabit kalsın: T.D. (ya da yardımcısı) kadro kurmamışsa gösterilen otomatik kadro bir kez
   //   kaydedilir. Böylece girişten girişe botlar değişmez; seçilen (otomatik gelen) bot da kadroda kalır.
-  if (!secili && window.sb && ntRol(cc) && !_ntOtoKayit[cc] && !(typeof ntTaktikKilitli === 'function' && ntTaktikKilitli(cc)) && ids.filter(Boolean).length >= NT_MIN_KADRO) {
+  if (!secili && window.sb && ntRol(cc) && !_ntOtoKayit[cc] && !ntTurnuvaKilitli() && !(typeof ntTaktikKilitli === 'function' && ntTaktikKilitli(cc)) && ids.filter(Boolean).length >= NT_MIN_KADRO) {
     _ntOtoKayit[cc] = true;
     ntSaveSquadIds(cc, ids);
   }
@@ -56267,6 +56278,8 @@ function ntRenderCallup() {
       if (isOfficial) {
         if (isCallup && !isOto) {
           actionEl = `<button class="nt-an-btn rmv" onclick="event.stopPropagation();ntConfirmRemove(${i})" title="Milli takımdan çıkar">✕</button>`;
+        } else if (!isCallup && ntTurnuvaKilitli()) {
+          actionEl = `<button class="nt-an-btn add kilit" onclick="event.stopPropagation();showToast(_NT_TURNUVA_KILIT)">Davet</button>`;
         } else {
           actionEl = `<button class="nt-an-btn add" onclick="event.stopPropagation();ntConfirmCallup(${i})">Davet</button>`;
         }
@@ -67784,7 +67797,7 @@ async function _loadVisitorSkills(userId) {
   return null;
 }
 
-function _carBuildSkillsForVisitor(vp, ham) {
+function _carBuildSkillsForVisitor(vp) {
   // 🆕 Üç durum:
   // 1) Gerçek kullanıcı (isBot=false ve user_id var) → Supabase'ten user_player.skills
   // 2) Bot oyuncu → vp.abilities mevcutsa ana mevki ortalaması, yoksa 10
@@ -67832,7 +67845,6 @@ function _carBuildSkillsForVisitor(vp, ham) {
   //    ziyaretçi görünümünde hiç yapılmıyordu, o yüzden başkasının
   //    profilinde sadece ham yetenekler görünüyordu.
   const _ekipmanUygula = (seviyeler) => {
-    if (ham) return seviyeler;
     try {
       if (typeof _eqIsVisitor !== 'function' || !_eqIsVisitor()) return seviyeler;
       if (typeof _getVisitorEqData !== 'function' || typeof getEquippedBonuses !== 'function') return seviyeler;
@@ -67856,7 +67868,7 @@ function _carBuildSkillsForVisitor(vp, ham) {
     }
     if (_abBulundu) return _ekipmanUygula(lvls);   // abilities yeterli, istek atma
     // Hiç veri yoksa son çare: kendi satırın için user_player'ı dene
-    if (!ham) _loadVisitorSkills(vpUid).then(skills => {
+    _loadVisitorSkills(vpUid).then(skills => {
       if (skills && typeof renderPlayerPage === 'function') {
         try { renderPlayerPage(); } catch(e) {}
       }
@@ -68020,9 +68032,9 @@ function renderPlayerPage() {
   const cfg  = POS_CONFIG[pos] || POS_CONFIG.MID;
   const lvls = isVisitor ? _carBuildSkillsForVisitor(vp) : getSkillLevels(pos);
   // 🆕 ITEM BONUSU GÖSTERİMİ — taban (itemsiz) değerler. Hesap DEĞİŞMEZ;
-  //   yalnızca "efektif − taban" farkı ekranda ayrıca gösterilir.
-  const _lvlsRaw = isVisitor ? _carBuildSkillsForVisitor(vp, true) : (typeof getSkillLevels === 'function'
-    ? getSkillLevels(pos, { raw: true }) : lvls);
+  //   yalnızca "efektif − taban" farkı ekranda ayrıca gösterilir. 637 — bu fark yalnız oyuncunun
+  //   kendisine görünür; ziyaretçi ekipman dahil toplamı görür.
+  const _lvlsRaw = isVisitor ? null : getSkillLevels(pos, { raw: true });
   // 🆕 Overall: ziyaretçide HER ZAMAN 45 skill ortalaması kullan (vp.overall'a güvenme)
   // Eskiden vp.overall'a fallback varsa eski/yüksek değer geliyordu.
   // Botlar artık SABİT 10 yetenekli → calcOverall(pos, lvls) → 10
@@ -68251,7 +68263,7 @@ function renderPlayerPage() {
     if (barEl) barEl.style.height = Math.max(0, Math.min(100, avg || 0)) + '%';
   });
 
-  // Yetenekler — 4 bölüm × 3 sütun. Itemden gelen artı hem kendi profilinde hem ziyarette görünür.
+  // Yetenekler — 4 bölüm × 3 sütun. Itemden gelen artı yalnız kendi profilinde görünür.
   const catsEl = document.getElementById('plSkillCategories');
   function skillRow(s) {
     const val = lvls[s.id] || 10;

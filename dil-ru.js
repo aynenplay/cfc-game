@@ -6737,3 +6737,8 @@ Object.assign(window.I18N.ru, {
 window.I18N_PATTERNS.ru.push(
   [/^(\d+) kupa$/, m => { const n = Number(m[1]), d = n % 10, y = n % 100; return m[1] + (d === 1 && y !== 11 ? ' трофей' : d >= 2 && d <= 4 && (y < 12 || y > 14) ? ' трофея' : ' трофеев'); }]
 );
+
+/* ── 637 · EURO Cup kadro kilidi ── */
+Object.assign(window.I18N.ru, {
+  "🔒 EURO Cup sürüyor — turnuva bitene kadar milli kadroya yeni oyuncu alınamaz": "🔒 Идёт EURO Cup — до конца турнира новых игроков в сборную вызвать нельзя"
+});

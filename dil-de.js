@@ -4969,3 +4969,8 @@ Object.assign(window.I18N.de, {
 window.I18N_PATTERNS.de.push(
   [/^(\d+) kupa$/, m => m[1] + (m[1] === '1' ? ' Trophäe' : ' Trophäen')]
 );
+
+/* ── 637 · EURO Cup kadro kilidi ── */
+Object.assign(window.I18N.de, {
+  "🔒 EURO Cup sürüyor — turnuva bitene kadar milli kadroya yeni oyuncu alınamaz": "🔒 Der EURO Cup läuft — bis zum Turnierende können keine neuen Spieler in den Nationalkader berufen werden"
+});
