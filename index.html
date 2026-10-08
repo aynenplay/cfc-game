@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '631';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '632';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -27213,7 +27213,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-08-ios-bildirim-631';
+const APP_BUILD = '2026-10-08-ios-odeme-632';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -27236,7 +27236,7 @@ const APP_BUILD = '2026-10-08-ios-bildirim-631';
           plat,
           'Cap:'  + (window.Capacitor ? '✓' : '✗'),
           'Cdv:'  + (window.cordova ? '✓' : '✗'),
-          'PB:' + ((window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.PlayBilling) ? '✓' : '✗'),
+          'PB:' + (_pb() ? '✓' : '✗'),
           // 🔔 541 — bildirim eklentisi yüklü mü + izin durumu
           'LN:' + ((window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) ? '✓' : '✗')
             + (window._bldIzinSon ? '(' + window._bldIzinSon + ')' : ''),
@@ -71958,13 +71958,14 @@ try {
 //  APK icinde ise Play Billing devreye girer — Play politikasi
 //  uygulama icinde harici odeme sayfasi acilmasini yasakliyor.
 //
-//  Native taraf: PlayBilling.java (Capacitor eklentisi).
+//  Native taraf: PlayBilling.java (Android), AppleOdeme.swift (iOS, StoreKit 2).
+//  iOS'ta Xsolla hic acilmaz; Apple de yalnizca kendi odemesine izin veriyor.
 //  Cordova tabanli eklentiler burada CALISMIYOR: oyun sunucudan
 //  yuklendigi icin Capacitor kendi koprusunu enjekte ediyor ama
 //  Cordova uyumluluk katmani gelmiyor.
 // ═══════════════════════════════════════════════════════════════════
 
-const PLAY_FN = SUPABASE_URL + '/functions/v1/play-verify';
+const PLAY_FN = SUPABASE_URL + '/functions/v1/' + ((window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform() === 'ios') ? 'apple-verify' : 'play-verify');
 
 // Play'den gelen yerel fiyatlar: { dia_3: '₺129,99', ... }
 window._playFiyat = {};
@@ -71973,17 +71974,15 @@ let _playKuruluyor = false;
 
 // Native eklentiye kisayol
 function _pb() {
-  try { return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.PlayBilling; }
+  try { return window.Capacitor && window.Capacitor.Plugins && (window.Capacitor.Plugins.PlayBilling || window.Capacitor.Plugins.AppleOdeme); }
   catch (e) { return null; }
 }
 
-// Play surumunde miyiz?
+// Magaza odemesi mi? iOS'ta eklenti olmasa bile Xsolla'ya dusulmez
 function _playAktifMi() {
   try {
-    return !!(window.Capacitor
-           && typeof window.Capacitor.getPlatform === 'function'
-           && window.Capacitor.getPlatform() === 'android'
-           && _pb());
+    const plat = window.Capacitor && typeof window.Capacitor.getPlatform === 'function' && window.Capacitor.getPlatform();
+    return plat === 'ios' || (plat === 'android' && !!_pb());
   } catch (e) { return false; }
 }
 
@@ -72005,6 +72004,7 @@ async function _playKur() {
     window._playUrunler = gelen.length;
 
     _playHazir = true;
+    PB.addListener('bekleyenVar', _playBekleyenleriIsle);
 
     // Fiyatlar geldi — magaza aciksa kartlari tazele
     try {
@@ -72089,7 +72089,7 @@ async function _playSatinAl(idx) {
   if (!p) return;
   const urunId = 'dia_' + p.priceEur;
 
-  try { showShopToast('💳 Google Play aciliyor…', '#3b82f6'); } catch (e) {}
+  try { showShopToast(window.Capacitor.getPlatform() === 'ios' ? '💳 Ödeme hazırlanıyor…' : '💳 Google Play aciliyor…', '#3b82f6'); } catch (e) {}
 
   if (!_playHazir) {
     const ok = await _playKur();
@@ -72103,7 +72103,8 @@ async function _playSatinAl(idx) {
   try { window._WL_HOLD.dia = true; } catch (e) {}
 
   try {
-    const satin = await _pb().satinAl({ productId: urunId });
+    const { data: oturum } = await window.sb.auth.getSession();
+    const satin = await _pb().satinAl({ productId: urunId, hesap: oturum && oturum.session && oturum.session.user.id });
 
     const dogrulama = await _playDogrula(urunId, satin.purchaseToken);
 
