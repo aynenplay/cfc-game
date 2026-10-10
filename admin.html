@@ -199,6 +199,10 @@
   .bctext{ min-height:110px; resize:vertical; width:100%; }
   .bcalt{ display:flex; align-items:center; gap:12px; margin-top:6px; }
   .bcsay{ font-size:12.5px; color:var(--accent); font-weight:700; margin-right:auto; }
+  .bgsat{ display:grid; grid-template-columns:88px 1fr 84px; gap:10px; align-items:center; margin-bottom:11px; }
+  .bgsat .bcinp{ min-width:0; }
+  .bgsat .oproz{ display:block; text-align:center; }
+  @media (max-width:560px){ .bgsat{ grid-template-columns:1fr 84px; gap:6px 10px; } .bgsat .bclbl{ grid-column:1/-1; } }
   .opdet{ border:1px solid var(--line); border-radius:12px; background:var(--panel2);
     padding:10px 13px; margin-bottom:9px; }
   .opdet>summary{ cursor:pointer; font-weight:700; font-size:13.5px; list-style:none; }
@@ -1713,6 +1717,7 @@ const NAV = [
   { cat:'EKONOMİ',        tables:['__economy__','bet_slips','scratch_cards'] },
   { cat:'ÖDEMELER',       tables:['__odeme__'] },
   { cat:'REKLAM',         tables:['__reklam__'] },
+  { cat:'BAĞLANTILAR',    tables:['__baglanti__'] },
   { cat:'AYARLAR',        tables:['__ops__','match_writes'] }
 ];
 const VIRT = { '__users__':'Kullanıcılar', '__players__':'Oyuncular', '__clubs__':'Takımlar', '__nts__':'Milli Takımlar', '__feds__':'Federasyonlar',
@@ -1720,13 +1725,14 @@ const VIRT = { '__users__':'Kullanıcılar', '__players__':'Oyuncular', '__clubs
   '__duyuru__':'Toplu Duyuru', '__ligler__':'Lig Tabloları', '__turnuva__':'Turnuva Durumu',
   '__fikstur__':'Günlük Fikstür', '__antrenman__':'Antrenman Yarışı', '__medya__':'Gönderi Denetimi',
   '__reklam__':'Reklam Yönetimi',
+  '__baglanti__':'Mağaza Bağlantıları',
   '__odeme__':'Elmas Satışları' };
 const CHEV = '<svg class="chev" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg>';
 
 function buildNav() {
   const mapped = new Set();
   NAV.forEach(c => c.tables.forEach(t => mapped.add(t)));
-  ['profiles','user_player','user_wallet','teams','team_data','team_chat','players','federation_state'].forEach(t => mapped.add(t)); // konsolide sayfalar
+  ['profiles','user_player','user_wallet','teams','team_data','team_chat','players','federation_state','site_ayar'].forEach(t => mapped.add(t)); // konsolide sayfalar
   const cats = NAV.slice();
   const others = Object.keys(META).filter(t => !mapped.has(t)).sort();
   if (others.length) cats.push({ cat:'DİĞER', tables:others });
@@ -1757,7 +1763,50 @@ function buildNav() {
     else if(t==='__medya__') openMedia();
     else if(t==='__reklam__') openAds();
     else if(t==='__odeme__') openPayments();
+    else if(t==='__baglanti__') openLinks();
     else openTable(t); });
+}
+
+// 645 — Mağaza bağlantıları: citysoccer.club karşılama sayfasındaki Google Play / App Store butonları.
+//   Boş bırakılan butona tıklayan ziyaretçi "Yakında" görür.
+const BG_MAGAZA = [
+  ['google_play', 'Google Play', 'https://play.google.com/store/apps/details?id=club.citysoccer.app'],
+  ['app_store',   'App Store',   'https://apps.apple.com/app/id6757431982']
+];
+const _bgDurum = (v) => v ? '<span class="oproz ok">Aktif</span>' : '<span class="oproz oto">Yakında</span>';
+async function openLinks() {
+  _opTemizle();
+  $('nav').querySelectorAll('.sub').forEach(b => b.classList.toggle('active', b.dataset.t === '__baglanti__'));
+  const act = $('nav').querySelector('.sub.active'); if (act) act.closest('.cat').classList.add('open');
+  $('main').innerHTML = _opBaslik('Mağaza Bağlantıları', 'yükleniyor…') + '<div class="msg">Yükleniyor…</div>';
+  const r = await api('list', { table:'site_ayar', limit:50 });
+  const V = {}; (r.rows || []).forEach(x => V[x.anahtar] = x.deger || '');
+  $('main').innerHTML = _opBaslik('Mağaza Bağlantıları', 'citysoccer.club')
+    + `<div class="bcbox fadein">
+        ${BG_MAGAZA.map(([k, ad, ornek]) => `<div class="bgsat"><span class="bclbl">${ad}</span>
+          <input id="bg_${k}" class="bcinp" inputmode="url" autocomplete="off" spellcheck="false" placeholder="${ornek}" value="${_rkEsc(V[k] || '')}">
+          <span id="bgd_${k}">${_bgDurum(V[k])}</span></div>`).join('')}
+        <div id="bgHata" class="opnot" style="display:none;border-color:rgba(226,59,90,.35);color:#ff8ea3"></div>
+        <div class="bcalt"><span class="bcsay" id="bgSonuc"></span><button class="btn green" id="bgKaydet">Kaydet</button></div>
+      </div>`;
+  $('bgKaydet').onclick = async () => {
+    const hata = $('bgHata'), btn = $('bgKaydet');
+    hata.style.display = 'none'; $('bgSonuc').textContent = '';
+    const D = BG_MAGAZA.map(([k, ad]) => [k, ad, $('bg_' + k).value.trim()]);
+    const yanlis = D.find(([, , v]) => v && !/^https:\/\/\S+$/.test(v));
+    if (yanlis) { hata.textContent = yanlis[1] + ' bağlantısı https:// ile başlamalı.'; hata.style.display = ''; return; }
+    btn.disabled = true;
+    try {
+      for (const [k, , v] of D) {
+        await api('update', { table:'site_ayar', pk:{ anahtar:k }, values:{ deger:v, guncelleme:new Date().toISOString() } });
+        $('bgd_' + k).innerHTML = _bgDurum(v);
+      }
+      $('bgSonuc').textContent = 'Kaydedildi';
+    } catch (e) {
+      hata.textContent = e.message; hata.style.display = '';
+    }
+    btn.disabled = false;
+  };
 }
 
 async function openTable(t) {
