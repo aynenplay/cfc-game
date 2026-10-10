@@ -86,7 +86,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '639';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '640';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -26904,7 +26904,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-10-sozlesme-639';
+const APP_BUILD = '2026-10-10-sozlesme-640';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -43056,8 +43056,9 @@ async function userTeamLoadFromServer() {
         }).catch(()=>{});
       }
     } catch(e) {}
-    _osMevcutKontrol();
-    if (_userTeam && _userTeam.role === 'captain') _szMevcutKontrol();
+    // Oturum açılışında authUser henüz dolmamış olabilir; kimlik oturumdan
+    _osMevcutKontrol(user.id);
+    if (_userTeam && _userTeam.role === 'captain') _szMevcutKontrol(user.id);
   } catch(e) { console.warn('[userTeam] load hata:', e); _userTeam = null; }
 }
 
@@ -45631,8 +45632,11 @@ function tbmShowBuyConfirm(countryCode, tierIdx, teamName) {
     .eq('country_code', countryCode).eq('team_name', teamName).eq('data_key', 'treasury').maybeSingle()
     .then(({ data }) => {
       const eur = (data && data.data && Number(data.data.eur)) || 0;
+      const kasa = eur >= 1e6 ? (eur / 1e6).toFixed(2).replace(/\.?0+$/, '') + 'M €' : eur >= 1e3 ? Math.round(eur / 1e3) + 'K €' : Math.round(eur).toLocaleString('tr') + ' €';
+      if (!_sz || _sz.takim !== teamName) return;
+      _sz.satirlar.find(r => r[3] === 'szKasa')[1] = kasa;   // imzadan sonra yeniden çizilince de kalsın
       const el = document.getElementById('szKasa');
-      if (el) el.textContent = eur >= 1e6 ? (eur / 1e6).toFixed(2).replace(/\.?0+$/, '') + 'M €' : eur >= 1e3 ? Math.round(eur / 1e3) + 'K €' : Math.round(eur).toLocaleString('tr') + ' €';
+      if (el) el.textContent = kasa;
     });
 }
 
@@ -45719,12 +45723,12 @@ function _szSirada(fn, deneme) {
 }
 // Kural öncesi takım almış kaptan: sözleşmeyi bir kez görür ve imzalar (oturum başına bir kez sorulur)
 let _szMevcutBakildi = '';
-async function _szMevcutKontrol() {
+async function _szMevcutKontrol(uid) {
   const a = _userTeam.countryCode + '|' + _userTeam.teamName;
   if (_szMevcutBakildi === a) return;
   _szMevcutBakildi = a;
   const { data, error } = await window.sb.from('takim_sozlesme').select('id')
-    .eq('user_id', authUser.id).eq('cc', _userTeam.countryCode).eq('takim', _userTeam.teamName).limit(1);
+    .eq('user_id', uid).eq('cc', _userTeam.countryCode).eq('takim', _userTeam.teamName).limit(1);
   if (error || (data && data.length)) return;
   setTimeout(() => _szSirada(() => {
     if (!_userTeam || _userTeam.role !== 'captain') return;
@@ -45817,10 +45821,10 @@ function osBasla() {
   }, 450);
 }
 let _osBakildi = false;
-async function _osMevcutKontrol() {
-  if (_osBakildi || _os || !authUser || !authUser.id) return;
+async function _osMevcutKontrol(uid) {
+  if (_osBakildi || _os) return;
   _osBakildi = true;
-  const { data, error } = await window.sb.from('oyuncu_sozlesme').select('user_id').eq('user_id', authUser.id).limit(1);
+  const { data, error } = await window.sb.from('oyuncu_sozlesme').select('user_id').eq('user_id', uid).limit(1);
   if (error || (data && data.length)) return;
   setTimeout(() => _szSirada(() => { if (!_osKabul && !_os) osAc('mevcut'); }), 2500);
 }
