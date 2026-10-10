@@ -6651,8 +6651,8 @@ Object.assign(window.I18N.es, {
 window.I18N_PATTERNS.es.unshift(
   [/^([\d.,]+) 💎 daha gerekli\.$/, "Faltan $1 💎."],
   [/^(\d+) \/ (\d+) takım gösteriliyor$/, "Mostrando $1 de $2 equipos"],
-  [/^Zaten bir takımdasın \((.+?)\)\. Sistemden takım satın almak için önce takımından ayrılmalısın — listeyi inceleyebilirsin\.$/, "Ya estás en un equipo ($1). Para comprar un equipo al sistema, primero debes dejar tu equipo — puedes seguir viendo la lista."],
-  [/^🔒 Zaten bir takımdasın \((.+?)\)\. Sistemden takım satın almak için önce takımından ayrılmalısın\.$/, "🔒 Ya estás en un equipo ($1). Para comprar un equipo al sistema, primero debes dejar tu equipo."],
+  [/^Zaten bir takımdasın \((.+?)\)\. Takım satın almak için önce takımından ayrılmalısın — listeyi inceleyebilirsin\.$/, "Ya estás en un equipo ($1). Para comprar un equipo, primero debes dejar tu equipo — puedes seguir viendo la lista."],
+  [/^🔒 Zaten bir takımdasın \((.+?)\)\. Takım satın almak için önce takımından ayrılmalısın\.$/, "🔒 Ya estás en un equipo ($1). Para comprar un equipo, primero debes dejar tu equipo."],
   [/^(\d+) bot$/, m => m[1] + (m[1] === '1' ? ' bot' : ' bots')]
 );
 
@@ -6713,3 +6713,41 @@ window.I18N_PATTERNS.es.push(
 Object.assign(window.I18N.es, {
   "🔒 EURO Cup sürüyor — turnuva bitene kadar milli kadroya yeni oyuncu alınamaz": "🔒 La EURO Cup está en curso: no se pueden convocar nuevos jugadores hasta que termine el torneo"
 });
+
+/* ── 639 · Takım ve oyuncu sözleşmesi, pasif kaptan bildirimleri ── */
+Object.assign(window.I18N.es, {
+  "Takım Satın Alma Sözleşmesi": "Contrato de compra del equipo",
+  "Kaptanlık Sözleşmesi": "Contrato de capitanía",
+  "Oyuncu Sözleşmesi": "Contrato de jugador",
+  "Maddeler": "Cláusulas",
+  "Toplam Bedel": "Precio total",
+  "İmza": "Firma",
+  "İmzala ve Satın Al": "Firmar y comprar",
+  "İmzala": "Firmar",
+  "İmzalanıyor…": "Firmando…",
+  "Takıma Git": "Ir al equipo",
+  "Kabul Et": "Aceptar",
+  "Kabul Edildi": "Aceptado",
+  "Hadi Başlayalım": "¡Empecemos!",
+  "Sözleşme imzalanamadı.": "No se pudo firmar el contrato.",
+  "Önce mevcut takımından ayrılmalısın.": "Primero debes dejar tu equipo actual.",
+  "Takımda üye olarak kalmaya devam ediyorsun.": "Sigues en el equipo como miembro.",
+  "Takımın **kaptanı** olursun; kadro, taktik, transfer ve kasa yetkisi sende.": "Te conviertes en el **capitán** del equipo; la plantilla, la táctica, los fichajes y la caja quedan en tus manos.",
+  "**21 gün** üst üste oyuna girmezsen kaptanlığın düşer, takımda **üye** olarak kalırsın. 14. ve 20. günde uyarılırsın.": "Si no entras al juego durante **21 días** seguidos, pierdes la capitanía y sigues en el equipo como **miembro**. Recibirás avisos el día 14 y el día 20.",
+  "Kaptanlık **aktif yardımcılarından** birine geçer. Aktif yardımcı yoksa kadroyu otomatik kuran **bot kaptan** olur ve takım yeniden satışa çıkar.": "La capitanía pasa a uno de tus **vicecapitanes activos**. Si no hay ninguno activo, toma el mando un **capitán bot** que alinea automáticamente y el equipo vuelve a ponerse a la venta.",
+  "Ödenen elmas iade edilmez.": "Los diamantes pagados no se reembolsan.",
+  "**21 gün** üst üste oyuna girmezsen **pasif oyuncu** olursun.": "Si no entras al juego durante **21 días** seguidos, pasas a ser un **jugador inactivo**.",
+  "Pasif kaldığın her gün yeteneklerin, antrenmanla yükselme hızının **yarısı** kadar yavaş düşer. Hiçbir yetenek **10**'un altına inmez.": "Cada día inactivo tus habilidades bajan despacio, a la **mitad** de la velocidad a la que suben entrenando. Ninguna habilidad baja de **10**.",
+  "Takımdaysan maçlara çıkmaya devam edersin ama **maaş alamazsın**; maaşın takım kasasından düşer ve yanar.": "Si estás en un equipo sigues jugando los partidos, pero **no cobras salario**; tu salario se descuenta de la caja del equipo y se pierde.",
+  "Oyuna döndüğün an pasifliğin biter.": "Tu inactividad termina en cuanto vuelves al juego."
+});
+window.I18N_PATTERNS.es.push(
+  [/^([\d.,]+) daha gerek$/, "Faltan $1"],
+  [/^Kaptanlığın Tehlikede — (.+)$/, "Tu capitanía está en peligro — $1"],
+  [/^Kaptanlığın Düştü — (.+)$/, "Has perdido la capitanía — $1"],
+  [/^(\d+) gündür oyuna girmedin\.$/, "Llevas $1 días sin entrar al juego."],
+  [/^(\d+) gün içinde girmezsen (.+?) takımının kaptanlığı düşer ve takımda üye olarak kalırsın\.$/, "Si no entras en $1 días, perderás la capitanía de $2 y seguirás en el equipo como miembro."],
+  [/^(\d+) gün üst üste oyuna girmediğin için (.+?) takımının kaptanlığı düştü\.$/, "Has perdido la capitanía de $2 por no entrar al juego durante $1 días seguidos."],
+  [/^(.+?) (\d+) gün üst üste oyuna girmediği için kaptanlığı düştü\.$/, "$1 perdió la capitanía por no entrar al juego durante $2 días seguidos."],
+  [/^Yeni kaptan: (.+)$/, "Nuevo capitán: $1"]
+);

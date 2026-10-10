@@ -6711,8 +6711,8 @@ Object.assign(window.I18N.fr, {
 window.I18N_PATTERNS.fr.unshift(
   [/^([\d.,]+) 💎 daha gerekli\.$/, "Il manque $1 💎."],
   [/^(\d+) \/ (\d+) takım gösteriliyor$/, "$1 équipes affichées sur $2"],
-  [/^Zaten bir takımdasın \((.+?)\)\. Sistemden takım satın almak için önce takımından ayrılmalısın — listeyi inceleyebilirsin\.$/, "Tu es déjà dans une équipe ($1). Pour acheter une équipe au système, tu dois d'abord quitter ton équipe — tu peux quand même consulter la liste."],
-  [/^🔒 Zaten bir takımdasın \((.+?)\)\. Sistemden takım satın almak için önce takımından ayrılmalısın\.$/, "🔒 Tu es déjà dans une équipe ($1). Pour acheter une équipe au système, tu dois d'abord quitter ton équipe."],
+  [/^Zaten bir takımdasın \((.+?)\)\. Takım satın almak için önce takımından ayrılmalısın — listeyi inceleyebilirsin\.$/, "Tu es déjà dans une équipe ($1). Pour acheter une équipe, tu dois d'abord quitter ton équipe — tu peux quand même consulter la liste."],
+  [/^🔒 Zaten bir takımdasın \((.+?)\)\. Takım satın almak için önce takımından ayrılmalısın\.$/, "🔒 Tu es déjà dans une équipe ($1). Pour acheter une équipe, tu dois d'abord quitter ton équipe."],
   [/^(\d+) bot$/, m => m[1] + (m[1] === '1' ? ' bot' : ' bots')]
 );
 
@@ -6773,3 +6773,41 @@ window.I18N_PATTERNS.fr.push(
 Object.assign(window.I18N.fr, {
   "🔒 EURO Cup sürüyor — turnuva bitene kadar milli kadroya yeni oyuncu alınamaz": "🔒 L’EURO Cup est en cours : aucun nouveau joueur ne peut être appelé avant la fin du tournoi"
 });
+
+/* ── 639 · Takım ve oyuncu sözleşmesi, pasif kaptan bildirimleri ── */
+Object.assign(window.I18N.fr, {
+  "Takım Satın Alma Sözleşmesi": "Contrat d’achat d’équipe",
+  "Kaptanlık Sözleşmesi": "Contrat de capitaine",
+  "Oyuncu Sözleşmesi": "Contrat de joueur",
+  "Maddeler": "Clauses",
+  "Toplam Bedel": "Prix total",
+  "İmza": "Signature",
+  "İmzala ve Satın Al": "Signer et acheter",
+  "İmzala": "Signer",
+  "İmzalanıyor…": "Signature en cours…",
+  "Takıma Git": "Aller à l’équipe",
+  "Kabul Et": "Accepter",
+  "Kabul Edildi": "Accepté",
+  "Hadi Başlayalım": "C’est parti !",
+  "Sözleşme imzalanamadı.": "Le contrat n’a pas pu être signé.",
+  "Önce mevcut takımından ayrılmalısın.": "Tu dois d’abord quitter ton équipe actuelle.",
+  "Takımda üye olarak kalmaya devam ediyorsun.": "Tu restes dans l’équipe en tant que membre.",
+  "Takımın **kaptanı** olursun; kadro, taktik, transfer ve kasa yetkisi sende.": "Tu deviens le **capitaine** de l’équipe ; effectif, tactique, transferts et trésorerie sont entre tes mains.",
+  "**21 gün** üst üste oyuna girmezsen kaptanlığın düşer, takımda **üye** olarak kalırsın. 14. ve 20. günde uyarılırsın.": "Si tu ne te connectes pas pendant **21 jours** d’affilée, tu perds le brassard et restes dans l’équipe en tant que **membre**. Tu es averti aux 14e et 20e jours.",
+  "Kaptanlık **aktif yardımcılarından** birine geçer. Aktif yardımcı yoksa kadroyu otomatik kuran **bot kaptan** olur ve takım yeniden satışa çıkar.": "Le brassard passe à l’un de tes **vice-capitaines actifs**. S’il n’y en a aucun, un **capitaine bot** qui compose l’équipe automatiquement prend le relais et l’équipe est remise en vente.",
+  "Ödenen elmas iade edilmez.": "Les diamants payés ne sont pas remboursés.",
+  "**21 gün** üst üste oyuna girmezsen **pasif oyuncu** olursun.": "Si tu ne te connectes pas pendant **21 jours** d’affilée, tu deviens un **joueur inactif**.",
+  "Pasif kaldığın her gün yeteneklerin, antrenmanla yükselme hızının **yarısı** kadar yavaş düşer. Hiçbir yetenek **10**'un altına inmez.": "Chaque jour d’inactivité, tes compétences baissent lentement, à la **moitié** de la vitesse à laquelle elles montent à l’entraînement. Aucune compétence ne descend sous **10**.",
+  "Takımdaysan maçlara çıkmaya devam edersin ama **maaş alamazsın**; maaşın takım kasasından düşer ve yanar.": "Si tu es dans une équipe, tu continues à jouer les matchs mais tu **ne touches pas de salaire** ; ton salaire est prélevé sur la trésorerie de l’équipe et perdu.",
+  "Oyuna döndüğün an pasifliğin biter.": "Ton inactivité prend fin dès que tu reviens dans le jeu."
+});
+window.I18N_PATTERNS.fr.push(
+  [/^([\d.,]+) daha gerek$/, "Encore $1 nécessaires"],
+  [/^Kaptanlığın Tehlikede — (.+)$/, "Ton brassard est en danger — $1"],
+  [/^Kaptanlığın Düştü — (.+)$/, "Tu as perdu le brassard — $1"],
+  [/^(\d+) gündür oyuna girmedin\.$/, "Tu ne t’es pas connecté depuis $1 jours."],
+  [/^(\d+) gün içinde girmezsen (.+?) takımının kaptanlığı düşer ve takımda üye olarak kalırsın\.$/, "Si tu ne te connectes pas d’ici $1 jours, tu perdras le brassard de $2 et resteras dans l’équipe en tant que membre."],
+  [/^(\d+) gün üst üste oyuna girmediğin için (.+?) takımının kaptanlığı düştü\.$/, "Tu as perdu le brassard de $2 car tu ne t’es pas connecté pendant $1 jours d’affilée."],
+  [/^(.+?) (\d+) gün üst üste oyuna girmediği için kaptanlığı düştü\.$/, "$1 a perdu le brassard après $2 jours d’affilée sans connexion."],
+  [/^Yeni kaptan: (.+)$/, "Nouveau capitaine : $1"]
+);

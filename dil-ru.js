@@ -6681,8 +6681,8 @@ Object.assign(window.I18N.ru, {
 window.I18N_PATTERNS.ru.unshift(
   [/^([\d.,]+) 💎 daha gerekli\.$/, "Нужно ещё $1 💎."],
   [/^(\d+) \/ (\d+) takım gösteriliyor$/, "Показано команд: $1 из $2"],
-  [/^Zaten bir takımdasın \((.+?)\)\. Sistemden takım satın almak için önce takımından ayrılmalısın — listeyi inceleyebilirsin\.$/, "Ты уже в команде ($1). Чтобы купить команду у системы, сначала покинь свою команду — список можно просматривать."],
-  [/^🔒 Zaten bir takımdasın \((.+?)\)\. Sistemden takım satın almak için önce takımından ayrılmalısın\.$/, "🔒 Ты уже в команде ($1). Чтобы купить команду у системы, сначала покинь свою команду."],
+  [/^Zaten bir takımdasın \((.+?)\)\. Takım satın almak için önce takımından ayrılmalısın — listeyi inceleyebilirsin\.$/, "Ты уже в команде ($1). Чтобы купить команду, сначала покинь свою команду — список можно просматривать."],
+  [/^🔒 Zaten bir takımdasın \((.+?)\)\. Takım satın almak için önce takımından ayrılmalısın\.$/, "🔒 Ты уже в команде ($1). Чтобы купить команду, сначала покинь свою команду."],
   [/^(\d+) bot$/, "ботов: $1"]
 );
 
@@ -6743,3 +6743,41 @@ window.I18N_PATTERNS.ru.push(
 Object.assign(window.I18N.ru, {
   "🔒 EURO Cup sürüyor — turnuva bitene kadar milli kadroya yeni oyuncu alınamaz": "🔒 Идёт EURO Cup — до конца турнира новых игроков в сборную вызвать нельзя"
 });
+
+/* ── 639 · Takım ve oyuncu sözleşmesi, pasif kaptan bildirimleri ── */
+Object.assign(window.I18N.ru, {
+  "Takım Satın Alma Sözleşmesi": "Договор о покупке команды",
+  "Kaptanlık Sözleşmesi": "Договор капитана",
+  "Oyuncu Sözleşmesi": "Договор игрока",
+  "Maddeler": "Условия",
+  "Toplam Bedel": "Итоговая цена",
+  "İmza": "Подпись",
+  "İmzala ve Satın Al": "Подписать и купить",
+  "İmzala": "Подписать",
+  "İmzalanıyor…": "Подписание…",
+  "Takıma Git": "К команде",
+  "Kabul Et": "Принять",
+  "Kabul Edildi": "Принято",
+  "Hadi Başlayalım": "Поехали!",
+  "Sözleşme imzalanamadı.": "Не удалось подписать договор.",
+  "Önce mevcut takımından ayrılmalısın.": "Сначала покинь свою текущую команду.",
+  "Takımda üye olarak kalmaya devam ediyorsun.": "Ты остаёшься в команде как участник.",
+  "Takımın **kaptanı** olursun; kadro, taktik, transfer ve kasa yetkisi sende.": "Ты становишься **капитаном** команды: состав, тактика, трансферы и казна — в твоих руках.",
+  "**21 gün** üst üste oyuna girmezsen kaptanlığın düşer, takımda **üye** olarak kalırsın. 14. ve 20. günde uyarılırsın.": "Если ты не заходишь в игру **21 день** подряд, ты теряешь капитанство и остаёшься в команде как **участник**. Предупреждения приходят на 14-й и 20-й день.",
+  "Kaptanlık **aktif yardımcılarından** birine geçer. Aktif yardımcı yoksa kadroyu otomatik kuran **bot kaptan** olur ve takım yeniden satışa çıkar.": "Капитанство переходит к одному из твоих **активных вице-капитанов**. Если активных нет, командой управляет **бот-капитан**, который сам собирает состав, и команда снова выставляется на продажу.",
+  "Ödenen elmas iade edilmez.": "Уплаченные алмазы не возвращаются.",
+  "**21 gün** üst üste oyuna girmezsen **pasif oyuncu** olursun.": "Если ты не заходишь в игру **21 день** подряд, ты становишься **неактивным игроком**.",
+  "Pasif kaldığın her gün yeteneklerin, antrenmanla yükselme hızının **yarısı** kadar yavaş düşer. Hiçbir yetenek **10**'un altına inmez.": "Каждый неактивный день твои навыки медленно снижаются — **вдвое** медленнее, чем растут на тренировках. Ни один навык не опускается ниже **10**.",
+  "Takımdaysan maçlara çıkmaya devam edersin ama **maaş alamazsın**; maaşın takım kasasından düşer ve yanar.": "Если ты в команде, ты продолжаешь играть матчи, но **не получаешь зарплату**: она списывается из казны команды и сгорает.",
+  "Oyuna döndüğün an pasifliğin biter.": "Неактивность заканчивается, как только ты возвращаешься в игру."
+});
+window.I18N_PATTERNS.ru.push(
+  [/^([\d.,]+) daha gerek$/, "Нужно ещё $1"],
+  [/^Kaptanlığın Tehlikede — (.+)$/, "Капитанство под угрозой — $1"],
+  [/^Kaptanlığın Düştü — (.+)$/, "Ты потерял капитанство — $1"],
+  [/^(\d+) gündür oyuna girmedin\.$/, "Ты не заходишь в игру уже $1 дн."],
+  [/^(\d+) gün içinde girmezsen (.+?) takımının kaptanlığı düşer ve takımda üye olarak kalırsın\.$/, "Если не зайдёшь в течение $1 дн., ты потеряешь капитанство в $2 и останешься в команде как участник."],
+  [/^(\d+) gün üst üste oyuna girmediğin için (.+?) takımının kaptanlığı düştü\.$/, "Ты потерял капитанство в $2, потому что не заходил в игру $1 дн. подряд."],
+  [/^(.+?) (\d+) gün üst üste oyuna girmediği için kaptanlığı düştü\.$/, "$1 потерял капитанство, не заходя в игру $2 дн. подряд."],
+  [/^Yeni kaptan: (.+)$/, "Новый капитан: $1"]
+);
