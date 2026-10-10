@@ -7222,3 +7222,17 @@ window.I18N_PATTERNS.en.push(
   [/^Sezon (\d+) Sonucu$/, "Season $1 Result"],
   [/^Sezon (\d+) Adayları$/, "Season $1 Candidates"]
 );
+
+/* ── 642 · Haftalık yarış saatleri oyuncunun kendi saatiyle ── */
+(function () {
+  const TR = ['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi'];
+  const G = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const N = ["Next Sunday", "Next Monday", "Next Tuesday", "Next Wednesday", "Next Thursday", "Next Friday", "Next Saturday"];
+  const g = x => G[TR.indexOf(x)];
+  window.I18N_PATTERNS.en.push(
+    [/^(Pazar|Pazartesi|Salı|Çarşamba|Perşembe|Cuma|Cumartesi) (\d{2}:\d{2})$/, m => g(m[1]) + ' ' + m[2]],
+    [/^Bir sonraki (Pazar|Pazartesi|Salı|Çarşamba|Perşembe|Cuma|Cumartesi) (\d{2}:\d{2})$/, m => N[TR.indexOf(m[1])] + " " + m[2]],
+    [/^(Pazar|Pazartesi|Salı|Çarşamba|Perşembe|Cuma|Cumartesi) (\d{2}:\d{2}) — (?:(Pazar|Pazartesi|Salı|Çarşamba|Perşembe|Cuma|Cumartesi) )?(\d{2}:\d{2}) \(10 saat\)$/,
+      m => g(m[1]) + ' ' + m[2] + ' — ' + (m[3] ? g(m[3]) + ' ' : '') + m[4] + ' (10 hours)']
+  );
+})();

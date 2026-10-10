@@ -6808,3 +6808,17 @@ window.I18N_PATTERNS.pt.push(
   [/^Sezon (\d+) Sonucu$/, "Resultado da temporada $1"],
   [/^Sezon (\d+) Adayları$/, "Candidatos da temporada $1"]
 );
+
+/* ── 642 · Haftalık yarış saatleri oyuncunun kendi saatiyle ── */
+(function () {
+  const TR = ['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi'];
+  const G = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
+  const N = ["Próximo domingo", "Próxima segunda", "Próxima terça", "Próxima quarta", "Próxima quinta", "Próxima sexta", "Próximo sábado"];
+  const g = x => G[TR.indexOf(x)];
+  window.I18N_PATTERNS.pt.push(
+    [/^(Pazar|Pazartesi|Salı|Çarşamba|Perşembe|Cuma|Cumartesi) (\d{2}:\d{2})$/, m => g(m[1]) + ' ' + m[2]],
+    [/^Bir sonraki (Pazar|Pazartesi|Salı|Çarşamba|Perşembe|Cuma|Cumartesi) (\d{2}:\d{2})$/, m => N[TR.indexOf(m[1])] + " " + m[2]],
+    [/^(Pazar|Pazartesi|Salı|Çarşamba|Perşembe|Cuma|Cumartesi) (\d{2}:\d{2}) — (?:(Pazar|Pazartesi|Salı|Çarşamba|Perşembe|Cuma|Cumartesi) )?(\d{2}:\d{2}) \(10 saat\)$/,
+      m => g(m[1]) + ' ' + m[2] + ' — ' + (m[3] ? g(m[3]) + ' ' : '') + m[4] + ' (10 horas)']
+  );
+})();
