@@ -5713,6 +5713,7 @@ Object.assign(window.I18N.pt, {
   "EURO Nations Cup'ı kazanınca kupa burada görünür. Turnuvaya her ülke katılır: 8 grup, ardından Son 16, Çeyrek Final, Yarı Final ve Final.": "O troféu aparece aqui ao vencer a EURO Nations Cup. Todos os países participam: 8 grupos e depois oitavas, quartas, semifinais e final.",
   "🥈 Final": "🥈 Finais",
   "📜 EURO Nations Cup Şampiyonları": "📜 Campeões da EURO Nations Cup",
+  "EURO Nations Cup Şampiyonları": "Campeões da EURO Nations Cup",
   "Başkan seçimle belirlenir.": "O presidente é escolhido por eleição.",
   "Milli takıma 18 kişilik kadro seçimi (başkan ve yardımcıları)": "Escolha da convocação de 18 jogadores (presidente e assistentes)",
   "Diziliş ve maç taktiği (başkan ve yardımcıları)": "Escalação e tática de jogo (presidente e assistentes)",

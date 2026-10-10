@@ -3983,6 +3983,7 @@ Object.assign(window.I18N.de, {
   "EURO Nations Cup'ı kazanınca kupa burada görünür. Turnuvaya her ülke katılır: 8 grup, ardından Son 16, Çeyrek Final, Yarı Final ve Final.": "Der Pokal erscheint hier, sobald ihr den EURO Nations Cup gewinnt. Jedes Land nimmt teil: 8 Gruppen, dann Achtelfinale, Viertelfinale, Halbfinale und Finale.",
   "🥈 Final": "🥈 Finale",
   "📜 EURO Nations Cup Şampiyonları": "📜 Sieger des EURO Nations Cup",
+  "EURO Nations Cup Şampiyonları": "Sieger des EURO Nations Cup",
   "Başkan seçimle belirlenir.": "Der Präsident wird gewählt.",
   "Milli takıma 18 kişilik kadro seçimi (başkan ve yardımcıları)": "Auswahl des 18-köpfigen Nationalkaders (Präsident und Co-Trainer)",
   "Diziliş ve maç taktiği (başkan ve yardımcıları)": "Aufstellung und Spieltaktik (Präsident und Co-Trainer)",
