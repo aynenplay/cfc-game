@@ -7236,3 +7236,33 @@ window.I18N_PATTERNS.en.push(
       m => g(m[1]) + ' ' + m[2] + ' — ' + (m[3] ? g(m[3]) + ' ' : '') + m[4] + ' (10 hours)']
   );
 })();
+
+/* ── 643 · Şikayet · Engelleme ── */
+Object.assign(window.I18N.en, {
+  "Gönderiyi şikayet et": "Report post",
+  "Mesajı şikayet et": "Report message",
+  "Profili şikayet et": "Report profile",
+  "Engeli kaldır": "Unblock",
+  "Neden şikayet ediyorsun?": "Why are you reporting this?",
+  "Küfür veya hakaret": "Swearing or insults",
+  "Taciz veya zorbalık": "Harassment or bullying",
+  "Spam veya reklam": "Spam or advertising",
+  "Uygunsuz içerik": "Inappropriate content",
+  "Şikayetin alındı.": "Your report has been received.",
+  "Şikayet gönderilemedi.": "Report could not be sent.",
+  "Engellensin mi?": "Block this user?",
+  "Engelle": "Block",
+  "Engellendi.": "Blocked.",
+  "Engellenemedi.": "Could not block.",
+  "Engel kaldırıldı.": "Unblocked.",
+  "Engel kaldırılamadı.": "Could not unblock.",
+  "Engellenen Kullanıcılar": "Blocked Users",
+  "Engellediğin kimse yok.": "You haven't blocked anyone.",
+  "Bu oyuncuya mesaj gönderemezsin.": "You can't send messages to this player.",
+  "Küfür, hakaret, taciz ve uygunsuz içeriğe **izin verilmez**. Şikayet edilen içerik kaldırılır, hesabın kapatılabilir.": "Swearing, insults, harassment and inappropriate content are **not allowed**. Reported content is removed and your account may be closed.",
+  "Uygunsuz içeriğe ve taciz eden kullanıcılara hiçbir şekilde izin verilmez. Gönderileri ve mesajları şikayet edebilir, kullanıcıları engelleyebilirsin. Şikayetler 24 saat içinde incelenir; kurala aykırı içerik kaldırılır ve hesap kapatılabilir.": "Inappropriate content and abusive users are not tolerated in any way. You can report posts and messages and block users. Reports are reviewed within 24 hours; content that breaks the rules is removed and the account may be closed."
+});
+window.I18N_PATTERNS.en.push(
+  [/^(.+)'y?[ıiuü] engelle$/, "Block $1"],
+  [/^(.+)'n?[ıiuü]n gönderilerini ve mesajlarını artık görmezsin, sana mesaj gönderemez\.$/, "You won't see $1's posts and messages anymore, and they can't message you."]
+);

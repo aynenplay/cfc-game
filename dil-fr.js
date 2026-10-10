@@ -6890,3 +6890,33 @@ window.I18N_PATTERNS.fr.push(
       m => g(m[1]) + ' ' + m[2] + ' — ' + (m[3] ? g(m[3]) + ' ' : '') + m[4] + ' (10 heures)']
   );
 })();
+
+/* ── 643 · Şikayet · Engelleme ── */
+Object.assign(window.I18N.fr, {
+  "Gönderiyi şikayet et": "Signaler la publication",
+  "Mesajı şikayet et": "Signaler le message",
+  "Profili şikayet et": "Signaler le profil",
+  "Engeli kaldır": "Débloquer",
+  "Neden şikayet ediyorsun?": "Pourquoi signales-tu ce contenu ?",
+  "Küfür veya hakaret": "Grossièretés ou insultes",
+  "Taciz veya zorbalık": "Harcèlement ou intimidation",
+  "Spam veya reklam": "Spam ou publicité",
+  "Uygunsuz içerik": "Contenu inapproprié",
+  "Şikayetin alındı.": "Ton signalement a bien été reçu.",
+  "Şikayet gönderilemedi.": "Le signalement n'a pas pu être envoyé.",
+  "Engellensin mi?": "Bloquer ?",
+  "Engelle": "Bloquer",
+  "Engellendi.": "Bloqué.",
+  "Engellenemedi.": "Impossible de bloquer.",
+  "Engel kaldırıldı.": "Débloqué.",
+  "Engel kaldırılamadı.": "Impossible de débloquer.",
+  "Engellenen Kullanıcılar": "Utilisateurs bloqués",
+  "Engellediğin kimse yok.": "Tu n'as bloqué personne.",
+  "Bu oyuncuya mesaj gönderemezsin.": "Tu ne peux pas envoyer de messages à ce joueur.",
+  "Küfür, hakaret, taciz ve uygunsuz içeriğe **izin verilmez**. Şikayet edilen içerik kaldırılır, hesabın kapatılabilir.": "Les grossièretés, les insultes, le harcèlement et les contenus inappropriés sont **interdits**. Le contenu signalé est supprimé et ton compte peut être fermé.",
+  "Uygunsuz içeriğe ve taciz eden kullanıcılara hiçbir şekilde izin verilmez. Gönderileri ve mesajları şikayet edebilir, kullanıcıları engelleyebilirsin. Şikayetler 24 saat içinde incelenir; kurala aykırı içerik kaldırılır ve hesap kapatılabilir.": "Aucun contenu inapproprié ni aucun utilisateur abusif n'est toléré. Tu peux signaler des publications et des messages et bloquer des utilisateurs. Les signalements sont examinés sous 24 heures ; le contenu contraire aux règles est supprimé et le compte peut être fermé."
+});
+window.I18N_PATTERNS.fr.push(
+  [/^(.+)'y?[ıiuü] engelle$/, "Bloquer $1"],
+  [/^(.+)'n?[ıiuü]n gönderilerini ve mesajlarını artık görmezsin, sana mesaj gönderemez\.$/, "Tu ne verras plus les publications ni les messages de $1, et cette personne ne pourra plus t'écrire."]
+);

@@ -6860,3 +6860,33 @@ window.I18N_PATTERNS.ru.push(
       m => g(m[1]) + ' ' + m[2] + ' — ' + (m[3] ? g(m[3]) + ' ' : '') + m[4] + ' (10 часов)']
   );
 })();
+
+/* ── 643 · Şikayet · Engelleme ── */
+Object.assign(window.I18N.ru, {
+  "Gönderiyi şikayet et": "Пожаловаться на публикацию",
+  "Mesajı şikayet et": "Пожаловаться на сообщение",
+  "Profili şikayet et": "Пожаловаться на профиль",
+  "Engeli kaldır": "Разблокировать",
+  "Neden şikayet ediyorsun?": "Почему ты жалуешься?",
+  "Küfür veya hakaret": "Мат или оскорбления",
+  "Taciz veya zorbalık": "Преследование или травля",
+  "Spam veya reklam": "Спам или реклама",
+  "Uygunsuz içerik": "Неприемлемый контент",
+  "Şikayetin alındı.": "Жалоба принята.",
+  "Şikayet gönderilemedi.": "Не удалось отправить жалобу.",
+  "Engellensin mi?": "Заблокировать?",
+  "Engelle": "Заблокировать",
+  "Engellendi.": "Заблокирован.",
+  "Engellenemedi.": "Не удалось заблокировать.",
+  "Engel kaldırıldı.": "Разблокирован.",
+  "Engel kaldırılamadı.": "Не удалось разблокировать.",
+  "Engellenen Kullanıcılar": "Заблокированные пользователи",
+  "Engellediğin kimse yok.": "Ты никого не заблокировал.",
+  "Bu oyuncuya mesaj gönderemezsin.": "Ты не можешь отправлять сообщения этому игроку.",
+  "Küfür, hakaret, taciz ve uygunsuz içeriğe **izin verilmez**. Şikayet edilen içerik kaldırılır, hesabın kapatılabilir.": "Мат, оскорбления, преследование и неприемлемый контент **запрещены**. Контент, на который пожаловались, удаляется, а твой аккаунт может быть закрыт.",
+  "Uygunsuz içeriğe ve taciz eden kullanıcılara hiçbir şekilde izin verilmez. Gönderileri ve mesajları şikayet edebilir, kullanıcıları engelleyebilirsin. Şikayetler 24 saat içinde incelenir; kurala aykırı içerik kaldırılır ve hesap kapatılabilir.": "Неприемлемый контент и оскорбительное поведение пользователей недопустимы. Ты можешь жаловаться на публикации и сообщения и блокировать пользователей. Жалобы рассматриваются в течение 24 часов; контент, нарушающий правила, удаляется, а аккаунт может быть закрыт."
+});
+window.I18N_PATTERNS.ru.push(
+  [/^(.+)'y?[ıiuü] engelle$/, "Заблокировать $1"],
+  [/^(.+)'n?[ıiuü]n gönderilerini ve mesajlarını artık görmezsin, sana mesaj gönderemez\.$/, "Ты больше не увидишь публикации и сообщения $1, и этот пользователь не сможет тебе писать."]
+);

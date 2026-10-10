@@ -6830,3 +6830,33 @@ window.I18N_PATTERNS.es.push(
       m => g(m[1]) + ' ' + m[2] + ' — ' + (m[3] ? g(m[3]) + ' ' : '') + m[4] + ' (10 horas)']
   );
 })();
+
+/* ── 643 · Şikayet · Engelleme ── */
+Object.assign(window.I18N.es, {
+  "Gönderiyi şikayet et": "Denunciar publicación",
+  "Mesajı şikayet et": "Denunciar mensaje",
+  "Profili şikayet et": "Denunciar perfil",
+  "Engeli kaldır": "Desbloquear",
+  "Neden şikayet ediyorsun?": "¿Por qué lo denuncias?",
+  "Küfür veya hakaret": "Palabrotas o insultos",
+  "Taciz veya zorbalık": "Acoso o intimidación",
+  "Spam veya reklam": "Spam o publicidad",
+  "Uygunsuz içerik": "Contenido inapropiado",
+  "Şikayetin alındı.": "Hemos recibido tu denuncia.",
+  "Şikayet gönderilemedi.": "No se pudo enviar la denuncia.",
+  "Engellensin mi?": "¿Bloquear?",
+  "Engelle": "Bloquear",
+  "Engellendi.": "Bloqueado.",
+  "Engellenemedi.": "No se pudo bloquear.",
+  "Engel kaldırıldı.": "Desbloqueado.",
+  "Engel kaldırılamadı.": "No se pudo desbloquear.",
+  "Engellenen Kullanıcılar": "Usuarios bloqueados",
+  "Engellediğin kimse yok.": "No has bloqueado a nadie.",
+  "Bu oyuncuya mesaj gönderemezsin.": "No puedes enviar mensajes a este jugador.",
+  "Küfür, hakaret, taciz ve uygunsuz içeriğe **izin verilmez**. Şikayet edilen içerik kaldırılır, hesabın kapatılabilir.": "Las palabrotas, los insultos, el acoso y el contenido inapropiado **no están permitidos**. El contenido denunciado se elimina y tu cuenta puede cerrarse.",
+  "Uygunsuz içeriğe ve taciz eden kullanıcılara hiçbir şekilde izin verilmez. Gönderileri ve mesajları şikayet edebilir, kullanıcıları engelleyebilirsin. Şikayetler 24 saat içinde incelenir; kurala aykırı içerik kaldırılır ve hesap kapatılabilir.": "No se tolera en absoluto el contenido inapropiado ni a los usuarios abusivos. Puedes denunciar publicaciones y mensajes y bloquear usuarios. Las denuncias se revisan en 24 horas; el contenido que incumpla las normas se elimina y la cuenta puede cerrarse."
+});
+window.I18N_PATTERNS.es.push(
+  [/^(.+)'y?[ıiuü] engelle$/, "Bloquear a $1"],
+  [/^(.+)'n?[ıiuü]n gönderilerini ve mesajlarını artık görmezsin, sana mesaj gönderemez\.$/, "Ya no verás las publicaciones ni los mensajes de $1, y no podrá enviarte mensajes."]
+);

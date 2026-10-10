@@ -6828,3 +6828,33 @@ window.I18N_PATTERNS.it.push(
       m => g(m[1]) + ' ' + m[2] + ' — ' + (m[3] ? g(m[3]) + ' ' : '') + m[4] + ' (10 ore)']
   );
 })();
+
+/* ── 643 · Şikayet · Engelleme ── */
+Object.assign(window.I18N.it, {
+  "Gönderiyi şikayet et": "Segnala post",
+  "Mesajı şikayet et": "Segnala messaggio",
+  "Profili şikayet et": "Segnala profilo",
+  "Engeli kaldır": "Sblocca",
+  "Neden şikayet ediyorsun?": "Perché lo segnali?",
+  "Küfür veya hakaret": "Parolacce o insulti",
+  "Taciz veya zorbalık": "Molestie o bullismo",
+  "Spam veya reklam": "Spam o pubblicità",
+  "Uygunsuz içerik": "Contenuto inappropriato",
+  "Şikayetin alındı.": "Abbiamo ricevuto la tua segnalazione.",
+  "Şikayet gönderilemedi.": "Impossibile inviare la segnalazione.",
+  "Engellensin mi?": "Bloccare?",
+  "Engelle": "Blocca",
+  "Engellendi.": "Bloccato.",
+  "Engellenemedi.": "Impossibile bloccare.",
+  "Engel kaldırıldı.": "Sbloccato.",
+  "Engel kaldırılamadı.": "Impossibile sbloccare.",
+  "Engellenen Kullanıcılar": "Utenti bloccati",
+  "Engellediğin kimse yok.": "Non hai bloccato nessuno.",
+  "Bu oyuncuya mesaj gönderemezsin.": "Non puoi inviare messaggi a questo giocatore.",
+  "Küfür, hakaret, taciz ve uygunsuz içeriğe **izin verilmez**. Şikayet edilen içerik kaldırılır, hesabın kapatılabilir.": "Parolacce, insulti, molestie e contenuti inappropriati **non sono ammessi**. I contenuti segnalati vengono rimossi e il tuo account può essere chiuso.",
+  "Uygunsuz içeriğe ve taciz eden kullanıcılara hiçbir şekilde izin verilmez. Gönderileri ve mesajları şikayet edebilir, kullanıcıları engelleyebilirsin. Şikayetler 24 saat içinde incelenir; kurala aykırı içerik kaldırılır ve hesap kapatılabilir.": "Contenuti inappropriati e utenti molesti non sono tollerati in alcun modo. Puoi segnalare post e messaggi e bloccare utenti. Le segnalazioni vengono esaminate entro 24 ore; i contenuti contrari alle regole vengono rimossi e l’account può essere chiuso."
+});
+window.I18N_PATTERNS.it.push(
+  [/^(.+)'y?[ıiuü] engelle$/, "Blocca $1"],
+  [/^(.+)'n?[ıiuü]n gönderilerini ve mesajlarını artık görmezsin, sana mesaj gönderemez\.$/, "Non vedrai più i post e i messaggi di $1, che non potrà più scriverti."]
+);

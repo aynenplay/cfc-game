@@ -5092,3 +5092,33 @@ window.I18N_PATTERNS.de.push(
       m => g(m[1]) + ' ' + m[2] + ' — ' + (m[3] ? g(m[3]) + ' ' : '') + m[4] + ' (10 Stunden)']
   );
 })();
+
+/* ── 643 · Şikayet · Engelleme ── */
+Object.assign(window.I18N.de, {
+  "Gönderiyi şikayet et": "Beitrag melden",
+  "Mesajı şikayet et": "Nachricht melden",
+  "Profili şikayet et": "Profil melden",
+  "Engeli kaldır": "Blockierung aufheben",
+  "Neden şikayet ediyorsun?": "Warum meldest du das?",
+  "Küfür veya hakaret": "Schimpfwörter oder Beleidigungen",
+  "Taciz veya zorbalık": "Belästigung oder Mobbing",
+  "Spam veya reklam": "Spam oder Werbung",
+  "Uygunsuz içerik": "Unangemessene Inhalte",
+  "Şikayetin alındı.": "Deine Meldung ist eingegangen.",
+  "Şikayet gönderilemedi.": "Meldung konnte nicht gesendet werden.",
+  "Engellensin mi?": "Blockieren?",
+  "Engelle": "Blockieren",
+  "Engellendi.": "Blockiert.",
+  "Engellenemedi.": "Blockieren fehlgeschlagen.",
+  "Engel kaldırıldı.": "Blockierung aufgehoben.",
+  "Engel kaldırılamadı.": "Blockierung konnte nicht aufgehoben werden.",
+  "Engellenen Kullanıcılar": "Blockierte Nutzer",
+  "Engellediğin kimse yok.": "Du hast niemanden blockiert.",
+  "Bu oyuncuya mesaj gönderemezsin.": "Du kannst diesem Spieler keine Nachrichten senden.",
+  "Küfür, hakaret, taciz ve uygunsuz içeriğe **izin verilmez**. Şikayet edilen içerik kaldırılır, hesabın kapatılabilir.": "Schimpfwörter, Beleidigungen, Belästigung und unangemessene Inhalte sind **nicht erlaubt**. Gemeldete Inhalte werden entfernt, dein Konto kann gesperrt werden.",
+  "Uygunsuz içeriğe ve taciz eden kullanıcılara hiçbir şekilde izin verilmez. Gönderileri ve mesajları şikayet edebilir, kullanıcıları engelleyebilirsin. Şikayetler 24 saat içinde incelenir; kurala aykırı içerik kaldırılır ve hesap kapatılabilir.": "Unangemessene Inhalte und belästigende Nutzer werden in keiner Weise geduldet. Du kannst Beiträge und Nachrichten melden und Nutzer blockieren. Meldungen werden innerhalb von 24 Stunden geprüft; regelwidrige Inhalte werden entfernt und das Konto kann gesperrt werden."
+});
+window.I18N_PATTERNS.de.push(
+  [/^(.+)'y?[ıiuü] engelle$/, "$1 blockieren"],
+  [/^(.+)'n?[ıiuü]n gönderilerini ve mesajlarını artık görmezsin, sana mesaj gönderemez\.$/, "Du siehst die Beiträge und Nachrichten von $1 nicht mehr, und $1 kann dir keine Nachrichten senden."]
+);
