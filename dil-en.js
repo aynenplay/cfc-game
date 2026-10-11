@@ -7146,7 +7146,8 @@ Object.assign(window.I18N.en, {
   "Kaptanlık **aktif yardımcılarından** birine geçer. Aktif yardımcı yoksa kadroyu otomatik kuran **bot kaptan** olur ve takım yeniden satışa çıkar.": "The captaincy passes to one of your **active vice-captains**. If there is no active vice-captain, a **bot captain** that picks the line-up automatically takes over and the team goes back on sale.",
   "Ödenen elmas iade edilmez.": "Diamonds paid are non-refundable.",
   "**21 gün** üst üste oyuna girmezsen **pasif oyuncu** olursun.": "If you don't log in for **21 days** in a row, you become an **inactive player**.",
-  "Pasif kaldığın her gün yeteneklerin, antrenmanla yükselme hızının **yarısı** kadar yavaş düşer. Hiçbir yetenek **10**'un altına inmez.": "For every inactive day your skills slowly drop at **half** the speed they rise with training. No skill drops below **10**.",
+  "Pasif kaldığın her gün yeteneklerin, antrenmanla yükselme hızının **dörtte biri** kadar yavaş düşer. Hiçbir yetenek **10**'un altına inmez.": "For every inactive day your skills slowly drop at **a quarter** of the speed they rise with training. No skill drops below **10**.",
+  "Oyuna girmediğin **22. günde** ve sonra her **10 günde** bir eşyalarından biri geri alınır ve mağazaya döner. Önce dolabındaki en değersiz eşyan, en son da takılı en değerli eşyan alınır.": "On your **22nd day** away and every **10 days** after that, one of your items is taken back and returned to the shop. Your least valuable item in the wardrobe goes first, your most valuable equipped item goes last.",
   "Takımdaysan maçlara çıkmaya devam edersin ama **maaş alamazsın**; maaşın takım kasasından düşer ve yanar.": "If you are in a team you keep playing in matches but you **receive no salary**; your salary is deducted from the team treasury and is lost.",
   "Oyuna döndüğün an pasifliğin biter.": "Your inactivity ends the moment you return to the game."
 });

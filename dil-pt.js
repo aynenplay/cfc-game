@@ -6732,7 +6732,8 @@ Object.assign(window.I18N.pt, {
   "Kaptanlık **aktif yardımcılarından** birine geçer. Aktif yardımcı yoksa kadroyu otomatik kuran **bot kaptan** olur ve takım yeniden satışa çıkar.": "A braçadeira passa para um dos seus **vice-capitães ativos**. Se não houver nenhum, assume um **capitão bot** que escala o time automaticamente e o time volta à venda.",
   "Ödenen elmas iade edilmez.": "Os diamantes pagos não são reembolsados.",
   "**21 gün** üst üste oyuna girmezsen **pasif oyuncu** olursun.": "Se você não entrar no jogo por **21 dias** seguidos, vira um **jogador inativo**.",
-  "Pasif kaldığın her gün yeteneklerin, antrenmanla yükselme hızının **yarısı** kadar yavaş düşer. Hiçbir yetenek **10**'un altına inmez.": "A cada dia inativo suas habilidades caem devagar, na **metade** da velocidade com que sobem treinando. Nenhuma habilidade cai abaixo de **10**.",
+  "Pasif kaldığın her gün yeteneklerin, antrenmanla yükselme hızının **dörtte biri** kadar yavaş düşer. Hiçbir yetenek **10**'un altına inmez.": "A cada dia inativo suas habilidades caem devagar, a um **quarto** da velocidade com que sobem treinando. Nenhuma habilidade cai abaixo de **10**.",
+  "Oyuna girmediğin **22. günde** ve sonra her **10 günde** bir eşyalarından biri geri alınır ve mağazaya döner. Önce dolabındaki en değersiz eşyan, en son da takılı en değerli eşyan alınır.": "No **22º dia** sem entrar e depois a cada **10 dias**, um dos seus itens é retirado e volta para a loja. Primeiro o item de menor valor do seu armário e, por último, seu item equipado mais valioso.",
   "Takımdaysan maçlara çıkmaya devam edersin ama **maaş alamazsın**; maaşın takım kasasından düşer ve yanar.": "Se estiver em um time, você continua jogando as partidas, mas **não recebe salário**; seu salário é descontado do caixa do time e se perde.",
   "Oyuna döndüğün an pasifliğin biter.": "Sua inatividade termina assim que você volta ao jogo."
 });

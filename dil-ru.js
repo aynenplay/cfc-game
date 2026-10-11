@@ -6770,7 +6770,8 @@ Object.assign(window.I18N.ru, {
   "Kaptanlık **aktif yardımcılarından** birine geçer. Aktif yardımcı yoksa kadroyu otomatik kuran **bot kaptan** olur ve takım yeniden satışa çıkar.": "Капитанство переходит к одному из твоих **активных вице-капитанов**. Если активных нет, командой управляет **бот-капитан**, который сам собирает состав, и команда снова выставляется на продажу.",
   "Ödenen elmas iade edilmez.": "Уплаченные алмазы не возвращаются.",
   "**21 gün** üst üste oyuna girmezsen **pasif oyuncu** olursun.": "Если ты не заходишь в игру **21 день** подряд, ты становишься **неактивным игроком**.",
-  "Pasif kaldığın her gün yeteneklerin, antrenmanla yükselme hızının **yarısı** kadar yavaş düşer. Hiçbir yetenek **10**'un altına inmez.": "Каждый неактивный день твои навыки медленно снижаются — **вдвое** медленнее, чем растут на тренировках. Ни один навык не опускается ниже **10**.",
+  "Pasif kaldığın her gün yeteneklerin, antrenmanla yükselme hızının **dörtte biri** kadar yavaş düşer. Hiçbir yetenek **10**'un altına inmez.": "Каждый неактивный день твои навыки медленно снижаются — **в четыре раза** медленнее, чем растут на тренировках. Ни один навык не опускается ниже **10**.",
+  "Oyuna girmediğin **22. günde** ve sonra her **10 günde** bir eşyalarından biri geri alınır ve mağazaya döner. Önce dolabındaki en değersiz eşyan, en son da takılı en değerli eşyan alınır.": "На **22-й день** без входа и затем каждые **10 дней** у тебя забирают один предмет, и он возвращается в магазин. Сначала самый дешёвый предмет из гардероба, последним — самый ценный надетый предмет.",
   "Takımdaysan maçlara çıkmaya devam edersin ama **maaş alamazsın**; maaşın takım kasasından düşer ve yanar.": "Если ты в команде, ты продолжаешь играть матчи, но **не получаешь зарплату**: она списывается из казны команды и сгорает.",
   "Oyuna döndüğün an pasifliğin biter.": "Неактивность заканчивается, как только ты возвращаешься в игру."
 });
