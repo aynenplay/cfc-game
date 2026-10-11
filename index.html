@@ -98,7 +98,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '651';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '652';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -26384,7 +26384,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-11-tanitim-651';
+const APP_BUILD = '2026-10-11-yabanci-652';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -27895,6 +27895,16 @@ function ccToFlag(cc){
   // Standart 2-harfli ISO kodlar
   if(!/^[A-Z]{2}$/.test(cc)) return '🏳️';
   return cc.replace(/./g, c => String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65));
+}
+
+// 652 — uyruk (ligi olmayan ülkeler dahil): ad + bayrak
+function _uyrukUlke(cc) {
+  const c = (typeof _cftGetCountry === 'function') ? _cftGetCountry(cc) : null;
+  if (c) return c;
+  const k = CFT_ALL_COUNTRIES.find(x => x.code === String(cc || '').toUpperCase());
+  if (!k) return {};
+  const ad = (i18nAktif() && typeof Intl.DisplayNames === 'function') ? new Intl.DisplayNames([_i18nLang], { type: 'region' }).of(k.code) : k.name;
+  return { name: ad, flag: ccToFlag(k.code) };
 }
 
 // Global lookup mapleri (eski FLAG_BY_CC ve NAT_LABELS yerine kullanılır)
@@ -31353,7 +31363,8 @@ window.inboxApproveJoinRequest = async function(msgId){
       terms_mismatch: { t:'Şartlar Değişmiş', s:'İsteğin şartları değişmiş. Oyuncudan yeni istek göndermesini iste.' },
       requestor_contract_active: { t:'Sözleşmesi Sürüyor', s:'Oyuncunun başka bir takımla sözleşmesi sürüyor' },
     };
-    const e = errMap[resData.error] || { t:'Hata', s:resData.error || 'Bilinmeyen hata' };
+    const e = /yabanci_dolu/.test(String(resData.detail || resData.error || '')) ? { t:'Yabancı Kontenjanı Dolu', s:'Takımının yabancı oyuncu kontenjanı dolu (5/5).' }
+      : errMap[resData.error] || { t:'Hata', s:resData.error || 'Bilinmeyen hata' };
     showInfoModal({icon:'❌',iconColor:'#ef4444',title:e.t,subtitle:e.s,body:''});
     return;
   }
@@ -42538,6 +42549,7 @@ async function userTeamLoadFromServer() {
     } catch(e) {}
     // Oturum açılışında authUser henüz dolmamış olabilir; kimlik oturumdan
     _osMevcutKontrol(user.id);
+    setTimeout(() => _szSirada(tntBaslat), 4000);
     modEngelYukle();
     if (_userTeam && _userTeam.role === 'captain') _szMevcutKontrol(user.id);
   } catch(e) { console.warn('[userTeam] load hata:', e); _userTeam = null; }
@@ -43184,17 +43196,7 @@ function updateTopbarFromUser(){
   }
   // nationality flag
   const metaTags = document.querySelectorAll('.topbar-meta-tag');
-  const flags = {
-    TR:'🇹🇷 Türkiye',DE:'🇩🇪 Almanya',FR:'🇫🇷 Fransa',ES:'🇪🇸 İspanya',
-    IT:'🇮🇹 İtalya',EN:'🏴󠁧󠁢󠁥󠁮󠁧󠁿 İngiltere',NL:'🇳🇱 Hollanda',PT:'🇵🇹 Portekiz',
-    RU:'🇷🇺 Rusya',PL:'🇵🇱 Polonya',BE:'🇧🇪 Belçika',UA:'🇺🇦 Ukrayna',
-    GR:'🇬🇷 Yunanistan',SE:'🇸🇪 İsveç',NO:'🇳🇴 Norveç',DK:'🇩🇰 Danimarka',
-    FI:'🇫🇮 Finlandiya',AT:'🇦🇹 Avusturya',CH:'🇨🇭 İsviçre',CZ:'🇨🇿 Çekya',
-    SK:'🇸🇰 Slovakya',HU:'🇭🇺 Macaristan',RO:'🇷🇴 Romanya',BG:'🇧🇬 Bulgaristan',
-    HR:'🇭🇷 Hırvatistan',RS:'🇷🇸 Sırbistan',AL:'🇦🇱 Arnavutluk',IE:'🇮🇪 İrlanda',
-    AZ:'🇦🇿 Azerbaycan',KZ:'🇰🇿 Kazakistan',IL:'🇮🇱 İsrail',SC:'🏴󠁧󠁢󠁳󠁣󠁴󠁿 İskoçya'
-  };
-  const flag = (flags[authUser.nationality]||authUser.nationality||'').split(' ')[0];
+  const flag = ccToFlag(authUser.nationality);
   const nationEl = document.getElementById('topbarNation');
   if(nationEl && authUser.nationality) nationEl.textContent = flag;
   // 🆕 club — mevcut takımdan (yoksa "Serbest")
@@ -45201,7 +45203,7 @@ function szTakimaGit() {
 }
 // Açık başka bir pencere varsa sıradaki sözleşme onun kapanmasını bekler
 function _szSirada(fn, deneme) {
-  if (!document.querySelector('.join-confirm-overlay.open')) { fn(); return; }
+  if (!document.querySelector('.join-confirm-overlay.open, .tnt-ov.open')) { fn(); return; }
   if ((deneme || 0) < 40) setTimeout(() => _szSirada(fn, (deneme || 0) + 1), 4000);
 }
 // Kural öncesi takım almış kaptan: sözleşmeyi bir kez görür ve imzalar (oturum başına bir kez sorulur)
@@ -45251,7 +45253,7 @@ function osAc(tur, bitince) {
 }
 function _osCiz() {
   const ad = _escapeHtml((authUser && authUser.name) || '');
-  const ulke = _cftGetCountry(authUser && authUser.nationality) || {};
+  const ulke = _uyrukUlke(authUser && authUser.nationality);
   const mevki = SUBPOS_LABEL[authUser && authUser.subPos] || '';
   const yerel = (typeof window._tarihYerel === 'function') ? window._tarihYerel() : 'tr-TR';
   const logo = document.querySelector('.auth-logo-img');
@@ -45314,10 +45316,11 @@ async function _osMevcutKontrol(uid) {
   setTimeout(() => _szSirada(() => { if (!_osKabul && !_os) osAc('mevcut'); }), 2500);
 }
 
-// ═══ 651 — Tanıtım: yalnız yeni kayıtta, oyuncu sözleşmesinden sonra bir kez ═══
-//   Örnek takımlar ve isimler oyuncunun uyruğundaki ülkeden gelir: o ülkenin lig takımları
-//   ve o ülkenin oyuncuları. Oyuncu kartı, yetenekler, enerji ve cüzdan oyuncunun kendi verisi.
-const _TNT_SAYFA = 9;
+// ═══ 651 — Tanıtım: her oyuncuya hesap başına bir kez (yeni kayıtta sözleşmeden sonra,
+//   eski oyuncularda ilk girişte). Örnek takımlar ve isimler oyuncunun uyruğundaki ülkeden gelir:
+//   o ülkenin lig takımları ve o ülkenin oyuncuları. Ligi olmayan uyrukta İngiltere örneği
+//   gösterilir, milli takım sayfası atlanır (milli takım yalnız ligi olan 32 ülkede var).
+//   Oyuncu kartı, yetenekler, enerji ve cüzdan oyuncunun kendi verisi.
 const _TNT_IK = {
   ok: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
   sag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>',
@@ -45337,7 +45340,8 @@ async function _tntVeri() {
   for (let i = 0; i < 20 && !_cftGetCountryCodes().length; i++) await new Promise(r => setTimeout(r, 300));
   const u = window.authUser || {};
   const kodlar = _cftGetCountryCodes();
-  const cc = kodlar.includes(u.nationality) ? u.nationality : kodlar[0];
+  const milli = kodlar.includes(u.nationality);
+  const cc = milli ? u.nationality : (kodlar.includes('EN') ? 'EN' : kodlar[0]);
   const ulke = _cftGetCountry(cc) || { name: '', flag: '', leagues: [] };
   const ligler = ulke.leagues || [];
   const ustLig = ligler[0] || { teams: [] };
@@ -45357,7 +45361,7 @@ async function _tntVeri() {
   const bd = trGetData(pos);
   const beceri = TR_SKILLS[pos].slice(0, 3).map(sk => ({ ad: sk.name, level: (bd[sk.id] || {}).level || 10, points: (bd[sk.id] || {}).points || 0 }));
   return {
-    cc, dis, ulke, ustLig, ust, altLig, yerli, yabanci, beceri, hat,
+    cc, dis, milli, ulke, ustLig, ust, altLig, yerli, yabanci, beceri, hat,
     ovr: Math.round(hat.reduce((a, b) => a + b, 0) / 4),
     ad: u.name || '', mevki: SUBPOS_LABEL[u.subPos] || '',
     en: trCheckEnergyReset(), eur: wlGetBalance('eur'),
@@ -45434,29 +45438,31 @@ function _tntCiz(v) {
     <p>${e(T('Her gün aktifim. Kadrosu eksik takım var mı?'))}</p>
     <div class="tnt-gn-alt"><span class="bg">${_TNT_IK.begen}24</span><span>${_TNT_IK.begenme}2</span><span>${_TNT_IK.yorum}6</span></div></div></div>`;
 
+  const sayfalar = [sayfa(s1, _tntU('ic-home'), 'Hoş Geldin', 'Şehrini Temsil Et', 'Burada her kulüp bir **şehir**. Şehrinin formasını giy; onu ligde, Avrupa\'da ve dünyada temsil et.'),
+    sayfa(s2, _tntU('ic-player'), 'Oyuncu', 'Oyuncun', 'Gücün (**OVR**), mevkin ve **45 yeteneğin** burada. Geliştikçe **dünyanın en iyi 50** oyuncusu sıralamasına girersin.'),
+    sayfa(s3, _tntU('ic-training'), 'Antrenman', 'Antrenman', 'Günlük **enerjini** antrenmana harca, yeteneklerini yükselt. Enerjin her gece yenilenir, kullanmadığın enerji ertesi güne kalmaz.'),
+    sayfa(s4, _tntU('ic-team'), 'Takım', 'Takımını Bul', '**Şehrinin** ya da istediğin bir takıma katıl, maçlara çık ve maaş al. Lideri olmayan bir takımı satın alıp **kaptan** da olabilirsin.'),
+    sayfa(s5, _tntU('ic-leagues'), 'Ligler', 'Lig', 'Her ülkede kademeli ligler var; ilk 4 üst lige çıkar, son 4 düşer. Gol, asist ve reyting listelerinde **ülkenin en iyisi** ol.'),
+    sayfa(s6, _tntU('ic-tournaments'), 'Turnuvalar', 'Avrupa Kupaları', 'Süper Lig\'in ilk 6\'sı Championship, Elite ve Convergence\'ta yarışır. Gol ve asist listelerinde **Avrupa\'nın en iyisi** ol.'),
+    sayfa(s7, _tntU('ic-national'), 'Milli Takım', 'Ülkeni Temsil Et', 'Uyruğunun en iyileri arasına gir, **milli takıma** seçil ve EURO Cup\'ta 32 ülke arasında **ülkeni** temsil et.'),
+    sayfa(s8, _tntU('ic-entertainment'), 'Eğlence', 'Toto ve Kazı Kazan', 'Oyundaki maçlara tahmin yap, Kazı Kazan\'da şansını dene. İkisi de yalnızca oyunda kazandığın **euro** ile oynanır.'),
+    sayfa(s9, _TNT_IK.kus, 'CSC Media', 'CSC Media', 'Oyunun sosyal ağı. Paylaşım yap, oyuncuları takip et; takım ya da futbolcu ararken buradan **duyur**.')];
+  if (!v.milli) sayfalar.splice(6, 1);
+  v.toplam = sayfalar.length;
+  v.kkSira = sayfalar.length - 2;
   return `<div class="tnt">
-    <div class="tnt-cubuk" id="tntCubuk">${'<i></i>'.repeat(_TNT_SAYFA)}</div>
-    <div class="tnt-sahne" id="tntSahne"><div class="tnt-ray" id="tntRay">`
-    + sayfa(s1, _tntU('ic-home'), 'Hoş Geldin', 'Şehrini Temsil Et', 'Burada her kulüp bir **şehir**. Şehrinin formasını giy; onu ligde, Avrupa\'da ve dünyada temsil et.')
-    + sayfa(s2, _tntU('ic-player'), 'Oyuncu', 'Oyuncun', 'Gücün (**OVR**), mevkin ve **45 yeteneğin** burada. Geliştikçe **dünyanın en iyi 50** oyuncusu sıralamasına girersin.')
-    + sayfa(s3, _tntU('ic-training'), 'Antrenman', 'Antrenman', 'Günlük **enerjini** antrenmana harca, yeteneklerini yükselt. Enerjin her gece yenilenir, kullanmadığın enerji ertesi güne kalmaz.')
-    + sayfa(s4, _tntU('ic-team'), 'Takım', 'Takımını Bul', '**Şehrinin** ya da istediğin bir takıma katıl, maçlara çık ve maaş al. Lideri olmayan bir takımı satın alıp **kaptan** da olabilirsin.')
-    + sayfa(s5, _tntU('ic-leagues'), 'Ligler', 'Lig', 'Her ülkede kademeli ligler var; ilk 4 üst lige çıkar, son 4 düşer. Gol, asist ve reyting listelerinde **ülkenin en iyisi** ol.')
-    + sayfa(s6, _tntU('ic-tournaments'), 'Turnuvalar', 'Avrupa Kupaları', 'Süper Lig\'in ilk 6\'sı Championship, Elite ve Convergence\'ta yarışır. Gol ve asist listelerinde **Avrupa\'nın en iyisi** ol.')
-    + sayfa(s7, _tntU('ic-national'), 'Milli Takım', 'Ülkeni Temsil Et', 'Uyruğunun en iyileri arasına gir, **milli takıma** seçil ve EURO Cup\'ta 32 ülke arasında **ülkeni** temsil et.')
-    + sayfa(s8, _tntU('ic-entertainment'), 'Eğlence', 'Toto ve Kazı Kazan', 'Oyundaki maçlara tahmin yap, Kazı Kazan\'da şansını dene. İkisi de yalnızca oyunda kazandığın **euro** ile oynanır.')
-    + sayfa(s9, _TNT_IK.kus, 'CSC Media', 'CSC Media', 'Oyunun sosyal ağı. Paylaşım yap, oyuncuları takip et; takım ya da futbolcu ararken buradan **duyur**.')
-    + `</div></div>
+    <div class="tnt-cubuk" id="tntCubuk" style="grid-template-columns:repeat(${v.toplam},1fr)">${'<i></i>'.repeat(v.toplam)}</div>
+    <div class="tnt-sahne" id="tntSahne"><div class="tnt-ray" id="tntRay">` + sayfalar.join('') + `</div></div>
     <div class="tnt-alt"><button class="tnt-atla" onclick="tntKapat()">${e(T('Atla'))}</button><button class="tnt-ileri" onclick="tntIleri()"><span id="tntIleriYazi">${e(_tntIleri())}</span>${_TNT_IK.ok}</button></div>
   </div>`;
 }
 
 function _tntGit(n) {
   if (!_tnt) return;
-  _tnt.sira = Math.max(0, Math.min(_TNT_SAYFA - 1, n));
+  _tnt.sira = Math.max(0, Math.min(_tnt.v.toplam - 1, n));
   document.getElementById('tntRay').style.transform = `translateX(${-100 * _tnt.sira}%)`;
   [...document.getElementById('tntCubuk').children].forEach((c, i) => c.classList.toggle('dolu', i <= _tnt.sira));
-  document.getElementById('tntIleriYazi').textContent = _tnt.sira === _TNT_SAYFA - 1 ? T('Başla') : _tntIleri();
+  document.getElementById('tntIleriYazi').textContent = _tnt.sira === _tnt.v.toplam - 1 ? T('Başla') : _tntIleri();
   _tntCanlandir();
 }
 // Antrenman sayfasında 9 dakikalık bir çalışmanın etkisi (9 enerji → 300 puan); Kazı Kazan'da sırayla açılan semboller
@@ -45478,13 +45484,13 @@ function _tntCanlandir() {
     t(900, () => ciz(Math.max(0, en.current - 9), b.level, lv > b.level ? trPointsNeeded(b.level) : pu));
     if (lv > b.level) t(1600, () => { sv.textContent = lv; sv.classList.remove('art'); void sv.offsetWidth; sv.classList.add('art'); ciz(Math.max(0, en.current - 9), lv, pu); });
   }
-  if (_tnt.sira === 7) {
+  if (_tnt.sira === _tnt.v.kkSira) {
     const h = [...document.getElementById('tntKk').children];
     h.forEach(s => s.classList.remove('acik'));
     h.forEach((s, i) => t(700 + i * 450, () => s.classList.add('acik')));
   }
 }
-function tntIleri() { if (_tnt && _tnt.sira === _TNT_SAYFA - 1) tntKapat(); else if (_tnt) _tntGit(_tnt.sira + 1); }
+function tntIleri() { if (_tnt && _tnt.sira === _tnt.v.toplam - 1) tntKapat(); else if (_tnt) _tntGit(_tnt.sira + 1); }
 function tntKapat() {
   if (!_tnt) return;
   _tnt.zaman.forEach(clearTimeout);
@@ -45493,8 +45499,13 @@ function tntKapat() {
   ov.classList.remove('gor');
   setTimeout(() => { ov.classList.remove('open'); ov.innerHTML = ''; }, 350);
 }
+// Sunucu hesap başına yalnız ilk çağrıda true döner: tanıtım başka cihazda/oturumda tekrar açılmaz
+let _tntBakildi = false;
 async function tntBaslat() {
-  try { if (localStorage.getItem('csc_tanitim')) return; localStorage.setItem('csc_tanitim', '1'); } catch (e) {}
+  if (_tntBakildi) return;
+  _tntBakildi = true;
+  const { data: ilk, error } = await window.sb.rpc('oyuncu_tanitim_al');
+  if (error || ilk !== true) return;
   const v = await _tntVeri();
   const ov = document.getElementById('tntOv');
   ov.innerHTML = _tntCiz(v);
@@ -45534,6 +45545,7 @@ async function confirmTeamBuy() {
       takim_satildi: 'Bu takımın artık bir sahibi var.',
       sistemden_satildi: 'Bu takım az önce başkası tarafından alındı.',
       zaten_takimda: 'Önce mevcut takımından ayrılmalısın.',
+      yabanci_dolu: 'Bu takımın yabancı oyuncu kontenjanı dolu (5/5).',
       takim_devredilemedi_para_iade: 'Takım devredilemedi, ödemen iade edildi.'
     }[d.error] || 'Satın alınamadı.');
     closeTeamBuyConfirm();
@@ -52874,13 +52886,12 @@ function _ntHavuzSatiri(r, cc, myUid) {
       if (t) { bg = t.bg || bg; tc = t.tc || tc; short = t.short || short; break; }
     }
   }
-  const nc = (typeof _cftGetCountry === 'function') ? _cftGetCountry(r.nationality || cc) : null;
   const benim = !!(myUid && r.user_id === myUid);
   return {
     id: r.id, num: r.num, name: r.name, pos: r.pos, posGroup: r.pos_group, subPos: r.sub_pos,
     overall: r.overall || 10, rating: r.rating || 10, level: r.level || 0, xp: r.xp || 0,
     abilities: r.abilities, role: r.role || 'member',
-    nation: r.nation || (nc ? nc.flag : '🏳️'), nationality: r.nationality || cc,
+    nation: r.nation || ccToFlag(r.nationality || cc), nationality: r.nationality || cc,
     avatar: r.avatar || (r.is_bot ? '🤖' : '👤'),
     avatar_id: r.avatar_id || null, user_id: r.user_id || null, userId: r.user_id || null,
     lastSeen: r.last_seen || null,
@@ -57034,6 +57045,7 @@ async function joinTeamDirect(countryCode, teamName, opts) {
       : /onay_gerekli/.test(_jm) ? '⛔ Bu takıma katılmak için kaptan onayı gerekiyor.'
       : /sart_karsilanmiyor/.test(_jm) ? '⛔ Takımın katılım şartlarını karşılamıyorsun.'
       : /kadro_dolu/.test(_jm) ? '⛔ Takım kadrosu dolu.'
+      : /yabanci_dolu/.test(_jm) ? '⛔ Bu takımın yabancı oyuncu kontenjanı dolu (5/5).'
       : /zaten_takimda/.test(_jm) ? '⛔ Önce mevcut takımından ayrılmalısın.'
       : '⚠️ Takıma katılınamadı, tekrar dene.';
     if (typeof showJoinToast === 'function') showJoinToast(_jMsg);
@@ -67879,14 +67891,7 @@ function renderPlayerPage() {
   }
 
   // Bayrak
-  const FLAG_BY_CC3 = {
-    TR:'🇹🇷',ES:'🇪🇸',DE:'🇩🇪',FR:'🇫🇷',IT:'🇮🇹',PT:'🇵🇹',NL:'🇳🇱',BE:'🇧🇪',
-    CH:'🇨🇭',SE:'🇸🇪',NO:'🇳🇴',DK:'🇩🇰',FI:'🇫🇮',IE:'🇮🇪',CZ:'🇨🇿',SK:'🇸🇰',
-    AT:'🇦🇹',PL:'🇵🇱',HU:'🇭🇺',RO:'🇷🇴',BG:'🇧🇬',RU:'🇷🇺',UA:'🇺🇦',RS:'🇷🇸',
-    HR:'🇭🇷',GR:'🇬🇷',IL:'🇮🇱',AZ:'🇦🇿',KZ:'🇰🇿',AL:'🇦🇱',
-    EN:'🏴󠁧󠁢󠁥󠁮󠁧󠁿',SC:'🏴󠁧󠁢󠁳󠁣󠁴󠁿'
-  };
-  const flag = isVisitor ? (vp.nation || '🏳️') : ((meRoster && meRoster.nation) || FLAG_BY_CC3[user.nationality] || '🏳️');
+  const flag = isVisitor ? (vp.nation || ccToFlag(vp.nationality)) : ((meRoster && meRoster.nation) || ccToFlag(user.nationality));
 
   const lvl = isVisitor ? (vp.level || 0) : ((meRoster && meRoster.level) || 0);
 
@@ -70694,7 +70699,8 @@ async function tmConfirmBuy(){
         takim_devredilemedi_para_iade: 'Takım devredilemedi, ödemen iade edildi.',
         sadece_elmas: 'Takımlar yalnız elmasla satılır.',
         fiyat_dusuk: 'İlan fiyatı en düşük fiyatın altında.',
-        zaten_takimda: 'Önce mevcut takımından ayrılmalısın.'
+        zaten_takimda: 'Önce mevcut takımından ayrılmalısın.',
+        yabanci_dolu: 'Bu takımın yabancı oyuncu kontenjanı dolu (5/5).'
       }[d && d.error] || 'Satın alınamadı.';
       if(typeof showJoinToast === 'function') showJoinToast('❌ ' + msg);
       try { _tmCache = null; if (typeof tmRender === 'function') tmRender(); } catch(e) {}
@@ -78257,6 +78263,7 @@ async function tfHireFreeAgent(agentId){
         takim_yok: 'Önce bir takıma katılmalısın.',
         yetki_yok: 'Sadece kaptan transfer yapabilir.',
         kadro_dolu: 'Kadro dolu.',
+        yabanci_dolu: 'Takımının yabancı oyuncu kontenjanı dolu (5/5).',
         serbest_degil: 'Oyuncu artık serbest değil.',
         oyuncu_bulunamadi: 'Oyuncu bulunamadı.'
       }[_d && _d.error] || 'Transfer hatası.';
@@ -78643,6 +78650,12 @@ function tfConfirmOffer() {
   if (fee > 0 && typeof trsCanAfford === 'function' && !trsCanAfford('eur', fee)) {
     const bal = (typeof trsGetBalance==='function' ? trsGetBalance('eur') : 0).toLocaleString('tr');
     tfShowToast(`❌ Bonservis için kasa yetersiz! Gereken: ${fee.toLocaleString('tr')} € · Mevcut: ${bal} €`, 'var(--red)');
+    return;
+  }
+  // 652 — yabancı kontenjanı dolu takım yabancı oyuncuya teklif gönderemez (kabulde sunucu da engeller)
+  if (_tfTarget._playerRef && _tfTarget._playerRef.nationality && _userTeam && _userTeam.countryCode
+      && !cftCanAddPlayer(_tfTarget._playerRef.nationality, ROSTER_DATA, _userTeam.countryCode).ok) {
+    tfShowToast('❌ Takımının yabancı oyuncu kontenjanı dolu (5/5).', 'var(--red)');
     return;
   }
   if (signingDia > 0 && typeof trsCanAfford === 'function' && !trsCanAfford('dia', signingDia)) {
@@ -80679,7 +80692,8 @@ async function inboxAcceptTransfer(msgId) {
         teklif_eski: 'Bu teklif eski sürümde gönderildi. Kulüpten yeniden teklif göndermesini iste.',
         teklif_gecersiz: 'Teklif artık geçerli değil (teklifi yapan kulüpten ayrılmış ya da oyuncu takım değiştirmiş).',
         teklif_okunamadi: 'Teklif okunamadı, biraz sonra tekrar dene.',
-        sozlesme_aktif: 'Sözleşmen sürüyor; transfer için kulübünün onayı gerekir.'
+        sozlesme_aktif: 'Sözleşmen sürüyor; transfer için kulübünün onayı gerekir.',
+        yabanci_dolu: 'Alıcı takımın yabancı oyuncu kontenjanı dolu (5/5).'
       }[d && d.error] || 'Transfer tamamlanamadı.';
       tfShowToast('❌ ' + msg, 'var(--red)');
       return;
