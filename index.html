@@ -98,7 +98,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '647';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '648';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -26189,7 +26189,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-11-duzeltme-647';
+const APP_BUILD = '2026-10-11-yaris-648';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -61854,8 +61854,8 @@ function renderHomeEventFeed(forceRefresh) {
   let ratingTop = [], trainTop = [];
   try {
     if (typeof _evRaceBuildLeaderboard === 'function') {
-      ratingTop = _evRaceBuildLeaderboard('rating').slice(0, 10);
-      trainTop  = _evRaceBuildLeaderboard('train').slice(0, 10);
+      ratingTop = _evRaceBuildLeaderboard('rating').slice(0, 5);
+      trainTop  = _evRaceBuildLeaderboard('train').slice(0, 5);
     }
   } catch(e) {}
 
@@ -84681,7 +84681,7 @@ function _evRaceBuildLeaderboard(metric) {
   } else {
     bots = _evRaceGenerateTrainPlayers(weekKey);
   }
-  bots = bots.filter(b => b.score > 0);   // 646 — yalnız yarışa katılanlar sıralanır
+  bots.forEach(b => { if (!(b.score > 0)) b.katilmadi = true; });   // 648 — puanı 0 olan listede görünür, ödül almaz
   // Bots içinde kullanıcı varsa onu işaretle — KİMLİK: user_id (isim/takım eşleşmesi kırılgan,
   //   uymazsa ikinci 'sen' satırı oluşuyordu). Sunucu zaten userId/isUser döndürüyor.
   const _myId = (window.authUser && window.authUser.id) || null;
@@ -84711,7 +84711,7 @@ function _evRaceBuildLeaderboard(metric) {
   }
   const all = bots;
   all.sort((a, b) => b.score - a.score);
-  all.forEach((e, i) => { e.rank = e.katilmadi ? null : i + 1; });
+  all.forEach((e, i) => { e.rank = i + 1; });
 
   return all;
 }
@@ -84803,14 +84803,13 @@ function evRaceRender() {
   const _metricStr = isRating ? 'rating' : 'train';
   let html = '';
   top25.forEach(e => {
-    if (e.katilmadi) return;
     const rank = e.rank;
     let medalClass = '';
     if (rank === 1) medalClass = ' is-emerald';
     else if (rank <= 3) medalClass = ' is-gold';
     else if (rank <= 5) medalClass = ' is-silver';
     const userClass = e.isUser ? ' is-user' : '';
-    const diamonds = _evRaceDiamondForRank(rank);
+    const diamonds = e.katilmadi ? 0 : _evRaceDiamondForRank(rank);
     const scoreStr = isRating ? e.score.toFixed(2) : e.score;
     const scoreUnit = '';
 
@@ -84821,7 +84820,7 @@ function evRaceRender() {
 
     // Ödülü Topla butonu — sadece kullanıcı + ödül penceresi + henüz toplanmamış
     let claimBtn = '';
-    if (e.isUser && isRewardPhase) {
+    if (e.isUser && isRewardPhase && !e.katilmadi) {
       if (claimed) {
         claimBtn = `<div class="ev-race-claim-done">✓ Toplandı</div>`;
       } else {
@@ -84838,12 +84837,12 @@ function evRaceRender() {
       </div>
       <div class="ev-race-prow-right">
         <div class="ev-race-prow-rating">${scoreStr}${scoreUnit}</div>
-        <div class="ev-race-prow-diamond">${diamonds} 💎</div>
+        ${diamonds ? `<div class="ev-race-prow-diamond">${diamonds} 💎</div>` : ''}
         ${claimBtn}
       </div>
     </div>`;
   });
-  if (me && (me.katilmadi || me.rank > 25)) {
+  if (me && me.rank > 25) {
     const diamonds = me.katilmadi ? 0 : _evRaceDiamondForRank(me.rank);
     const scoreStr = isRating ? me.score.toFixed(2) : me.score;
     const scoreUnit = '';
