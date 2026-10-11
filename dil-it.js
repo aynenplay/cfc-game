@@ -3551,6 +3551,8 @@ Object.assign(window.I18N.it, {
   "Transfer hakkında yanıtla...": "Rispondi sul trasferimento...",
   "Transfer tamamlanamadı.": "Impossibile completare il trasferimento.",
   "Teslim edilemedi, elmasların iade edildi.": "Consegna non riuscita, i tuoi diamanti sono stati rimborsati.",
+  "Bu eşyanın stoğu tükendi.": "Questo oggetto è esaurito.",
+  "Stok kontrol edilemedi, tekrar dene.": "Impossibile verificare le scorte, riprova.",
   "Ürün dolabına konamadı, ilan açık bırakıldı.": "Impossibile mettere l'oggetto nell'armadio, l'annuncio è rimasto aperto.",
   "Test maçı başlatılamadı:": "Impossibile avviare la partita di prova:",
   "Test maçı için takım bulunamadı.": "Nessuna squadra trovata per la partita di prova.",

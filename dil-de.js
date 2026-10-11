@@ -1965,6 +1965,8 @@ Object.assign(window.I18N.de, {
 'Toto kuponun sonuçlandı, tıkla görüntüle':'Dein Toto-Schein wurde abgerechnet — tippe zum Ansehen',
 'Transfer hakkında yanıtla...':'Zum Transfer antworten...','Transfer tamamlanamadı.':'Der Transfer konnte nicht abgeschlossen werden.',
 'Teslim edilemedi, elmasların iade edildi.':'Konnte nicht geliefert werden; deine Diamanten wurden erstattet.',
+'Bu eşyanın stoğu tükendi.':'Dieser Gegenstand ist ausverkauft.',
+'Stok kontrol edilemedi, tekrar dene.':'Der Bestand konnte nicht geprüft werden, versuch es erneut.',
 'Ürün dolabına konamadı, ilan açık bırakıldı.':'Der Gegenstand konnte nicht in deinen Spind gelegt werden; das Angebot blieb offen.',
 'Test maçı başlatılamadı:':'Das Testspiel konnte nicht gestartet werden:',
 'Test maçı için takım bulunamadı.':'Für das Testspiel wurde kein Team gefunden.',

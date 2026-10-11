@@ -3216,6 +3216,8 @@ Object.assign(window.I18N.en, {
   'Transfer hakkında yanıtla...':'Reply about the transfer...',
   'Transfer tamamlanamadı.':'The transfer could not be completed.',
   'Teslim edilemedi, elmasların iade edildi.':'Could not be delivered; your diamonds were refunded.',
+  'Bu eşyanın stoğu tükendi.':'This item is out of stock.',
+  'Stok kontrol edilemedi, tekrar dene.':'Could not check stock, try again.',
   'Ürün dolabına konamadı, ilan açık bırakıldı.':'The item could not be placed in your wardrobe; the listing was left open.',
   'Test maçı başlatılamadı:':'Could not start the test match:',
   'Test maçı için takım bulunamadı.':'No team found for the test match.',

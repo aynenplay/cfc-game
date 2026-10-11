@@ -3551,6 +3551,8 @@ Object.assign(window.I18N.ru, {
   "Transfer hakkında yanıtla...": "Ответить по трансферу...",
   "Transfer tamamlanamadı.": "Не удалось завершить трансфер.",
   "Teslim edilemedi, elmasların iade edildi.": "Не удалось доставить, алмазы возвращены.",
+  "Bu eşyanın stoğu tükendi.": "Этот предмет закончился.",
+  "Stok kontrol edilemedi, tekrar dene.": "Не удалось проверить наличие, попробуй ещё раз.",
   "Ürün dolabına konamadı, ilan açık bırakıldı.": "Не удалось поместить предмет в гардероб, объявление осталось открытым.",
   "Test maçı başlatılamadı:": "Не удалось запустить тестовый матч:",
   "Test maçı için takım bulunamadı.": "Не найдена команда для тестового матча.",
