@@ -98,7 +98,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '646';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '647';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -26189,7 +26189,7 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-11-hesapsil-646';
+const APP_BUILD = '2026-10-11-duzeltme-647';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -33008,7 +33008,7 @@ async function resOpenFinishedMatch(matchKey) {
           <div class="res-fm-motm-info">
             <div class="res-fm-motm-label">Maçın Adamı</div>
             <div class="res-fm-motm-name">${motm.name}</div>
-            <div class="res-fm-motm-meta">${teamShort} · ${motm.pos || 'MID'} · ${statStr}</div>
+            <div class="res-fm-motm-meta">${teamShort} · <span data-noi18n>${subPosOf(motm)}</span> · ${statStr}</div>
           </div>
           <div class="res-fm-motm-rating">${motmRating.toFixed(1)}</div>
         </div>
@@ -36796,7 +36796,7 @@ function renderLineup(){
         <div class="lu-n">${p.num || '—'}</div>
         <div class="lu-nm">${p.name||''}${p.isUser?' ⭐':''}</div>
         <div class="lu-status">${cardMark}${outMark}${inMark}${gaBadge}</div>
-        <div class="lu-pos">${p.pos || '—'}</div>
+        <div class="lu-pos" data-noi18n>${subPosOf(p)}</div>
         <div class="lu-rt" style="color:${ratColor(baseRating)}">${baseRating}</div>
         ${mrChip}
       </div>`;
@@ -43656,6 +43656,7 @@ function doRegister(){
         if(typeof syncEnergyDisplay === 'function') syncEnergyDisplay();
         if(typeof renderRoster === 'function') renderRoster('all');
         if(typeof updateHero === 'function') updateHero();
+        window._presenceYaz(true).then(fetchOnlineStats);
       }), 500);
     } catch(e){
       authShowMsg('error','Beklenmeyen hata: ' + (e.message || e));
@@ -46078,7 +46079,6 @@ window.accDeleteConfirm = accDeleteConfirm;
 
 function renderSettings() {
   const u = authUser || {};
-  const POS_LABELS = { GK:'⚽ Kaleci', DEF:'🛡️ Defans', MID:'⚙️ Orta Saha', FWD:'⚡ Forvet' };
   const NAT_LABELS = CFT_NAT_LABELS;
 
   const set = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
@@ -46087,7 +46087,7 @@ function renderSettings() {
   set('setUsername', u.username ? '@' + u.username : '—');
   set('setEmail', u.email || '—');
   set('setNationality', NAT_LABELS[u.nationality] || u.nationality || '—');
-  set('setPosition', POS_LABELS[u.position] || u.position || '—');
+  set('setPosition', u.position ? SUBPOS_LABEL[subPosOf({ pos: u.position, sub_pos: u.subPos })] : '—');
 
   // (Takım bölümü ayarlardan kaldırıldı — takım yönetimi Takım sayfasından yapılır)
 
@@ -55169,11 +55169,9 @@ function ntKadroMenu(ntId) {
   const isCapUser = !!p.isNtAuto;   // 572 — otomatik gelen oyuncu çıkarılamaz (yerine başkası çağrılır)
   const st = (typeof getNtPlayerSquadStatus === 'function') ? getNtPlayerSquadStatus(p) : 'reserve';
   const statusLbl = st === 'starter' ? '⚽ İlk 11' : (st === 'bench' ? '🪑 Yedek (maç kadrosu)' : '📋 Kadro Dışı');
-  const POS_LBL = { GK:'KL', DEF:'DF', MID:'OS', FWD:'FW' };
   const POS_CLS = { GK:'kl', DEF:'df', MID:'os', FWD:'fw' };
-  const posGrp = (typeof POS_GROUP !== 'undefined' && POS_GROUP[p.pos]) || 'MID';
-  const posShort = POS_LBL[posGrp] || posGrp;
-  const posClsKey = POS_CLS[posGrp] || 'os';
+  const posShort = subPosOf(p);
+  const posClsKey = POS_CLS[SUBPOS_GROUP[posShort]] || 'os';
   const tBg = p.clubBg || '#1976d2', tTc = p.clubTc || '#fff', tShort = p.clubShort || (p.sourceClub || 'TM').slice(0,3).toUpperCase();
   const safeId = String(ntId).replace(/'/g, "\\'");
 
@@ -55223,8 +55221,8 @@ function _ntCikarMesajHtml(ntId, cc, ad) {
   if (r && r.hata === 'yerine_yok') return `<div class="nt-cf-msg warn"><b>Kadro en az 12 kişi olmalı.</b> <span>Yerine gelecek uygun oyuncu yok — önce başka birini çağır.</span></div>`;
   if (r && r.yerine) {
     const y = r.yerine;
-    const PL = { GK:'KL', DEF:'DF', MID:'OS', FWD:'FW' }, PC = { GK:'kl', DEF:'df', MID:'os', FWD:'fw' };
-    const g = _ntGrp(y);
+    const PC = { GK:'kl', DEF:'df', MID:'os', FWD:'fw' };
+    const ya = subPosOf(y);
     const guc = (typeof _ntPlayerSkill === 'function') ? _ntPlayerSkill(y) : (y.overall || '—');
     return `<div class="nt-cf-msg warn"><b>Kadro en az 12 kişi olmalı.</b> <span>Bu oyuncu çıkarılırsa yerine aynı mevkiden en güçlü uygun oyuncu otomatik gelir:</span></div>
     <div class="nt-cf-yerine-lbl">↻ <span>Yerine gelecek</span></div>
@@ -55232,7 +55230,7 @@ function _ntCikarMesajHtml(ntId, cc, ad) {
       <div class="av">${_ntModalAvatarHTML(y)}</div>
       <div class="info">
         <div class="nm" data-noi18n>${esc(y.name || '—')}</div>
-        <div class="meta"><span class="pos pos-${PC[g] || 'os'}">${PL[g] || g}</span><span class="nt-cf-oto">OTO</span><span data-noi18n style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(y.sourceClub || '')}</span></div>
+        <div class="meta"><span class="pos pos-${PC[SUBPOS_GROUP[ya]] || 'os'}">${ya}</span><span class="nt-cf-oto">OTO</span><span data-noi18n style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(y.sourceClub || '')}</span></div>
       </div>
       <div class="ovr">${guc}</div>
     </div>`;
@@ -55255,11 +55253,9 @@ function ntKadroConfirmRemove(ntId) {
   const card = document.getElementById('ntConfirmCard');
   if (!ov || !card) return;
 
-  const POS_LBL = { GK:'KL', DEF:'DF', MID:'OS', FWD:'FW' };
   const POS_CLS = { GK:'kl', DEF:'df', MID:'os', FWD:'fw' };
-  const posGrp = (typeof _ntGrp === 'function') ? _ntGrp(p) : ((typeof POS_GROUP !== 'undefined' && POS_GROUP[p.pos]) || 'MID');   // 583 — kadro kuralıyla aynı mevki
-  const posShort = POS_LBL[posGrp] || posGrp;
-  const posClsKey = POS_CLS[posGrp] || 'os';
+  const posShort = subPosOf(p);
+  const posClsKey = POS_CLS[SUBPOS_GROUP[posShort]] || 'os';
 
   const tBg = p.clubBg || '#1976d2';
   const tTc = p.clubTc || '#ffffff';
@@ -58302,11 +58298,11 @@ function showOnlinePlayersModal() {
     return '🧑';
   }
 
-  function posBadge(pos) {
-    if (!pos) return '';
+  function posBadge(p) {
+    const sub = subPosOf(p);
     const colors = { GK:'#f59e0b', DEF:'#3b82f6', MID:'#22c55e', FWD:'#ef4444' };
-    const c = colors[pos] || '#888';
-    return `<span style="background:${c};color:#fff;font-size:9px;font-weight:800;padding:2px 5px;border-radius:3px;letter-spacing:.4px">${pos}</span>`;
+    const c = colors[SUBPOS_GROUP[sub]] || '#888';
+    return `<span data-noi18n style="background:${c};color:#fff;font-size:9px;font-weight:800;padding:2px 5px;border-radius:3px;letter-spacing:.4px">${sub}</span>`;
   }
 
   const rowsHtml = list.length === 0
@@ -58327,7 +58323,7 @@ function showOnlinePlayersModal() {
             <div class="opm-top">
               <span class="opm-flag">${p.nation || '🏳️'}</span>
               <span class="opm-name">${p.name || 'Oyuncu'}</span>
-              ${posBadge(p.position)}
+              ${posBadge(p)}
             </div>
             <div class="opm-bottom">
               <span class="opm-team" style="color:${teamColor}">${team}</span>
@@ -63961,8 +63957,7 @@ function renderCareerPage() {
       heroEl.innerHTML = '<div class="car-hero-loading">Henüz oyuncu profili yok</div>';
     } else {
       const playerName = authUser.name || 'İsimsiz Oyuncu';
-      const positionLabels = { GK:'⚽ Kaleci', DEF:'🛡️ Defans', MID:'⚙️ Orta Saha', FWD:'⚡ Forvet' };
-      const posLabel = positionLabels[(authUser.position || userPlayer?.pos)] || '—';
+      const posLabel = SUBPOS_LABEL[subPosOf({ pos: authUser.position || userPlayer?.pos, sub_pos: authUser.subPos })];
       const level = userPlayer?.level || 0;
       const overall = userPlayer?.overall || 10;
 
@@ -78363,7 +78358,6 @@ function tfListPlayerDirect(playerNum){
   // Modal'ı render et + aç (player modal kapanma transition'ı temiz olsun)
   setTimeout(() => {
     try {
-      const POS_LABEL = {GK:'Kaleci',DEF:'Defans',MID:'Orta Saha',FWD:'Forvet'};
       const ovColor = (r) => r>=80?'#ffd600':r>=70?'var(--accent)':'var(--accent2)';
 
       const card = document.getElementById('sellPlayerCard');
@@ -78373,7 +78367,7 @@ function tfListPlayerDirect(playerNum){
           <div class="sell-pc-info">
             <div class="sell-pc-name">${p.name||'—'}</div>
             <div class="sell-pc-meta">
-              <span>${POS_LABEL[p.pos]||p.pos||''}</span>
+              <span>${SUBPOS_LABEL[subPosOf(p)]}</span>
               <span>${p.nation||'🏳️'}</span>
               <span>Sv.${p.level||0}</span>
             </div>
@@ -81291,7 +81285,7 @@ function getUserEffectiveMaxEnergy() {
   return max;
 }
 
-// 🆕 ENERJİ artık SERVER tarafından (UTC 00:00) yenilenir — istemci hiçbir şeyi
+// 🆕 ENERJİ sunucuda yenilenir (ülke saatiyle 00:00, tesis bonusu dahil) — istemci hiçbir şeyi
 // sıfırlamaz veya yazmaz. Bu fonksiyon yalnızca cache'teki değeri okuyup max'ı
 // gösterim için günceller (geriye uyumluluk: aynı imza, aynı dönüş şekli).
 function trCheckEnergyReset() {
@@ -84687,6 +84681,7 @@ function _evRaceBuildLeaderboard(metric) {
   } else {
     bots = _evRaceGenerateTrainPlayers(weekKey);
   }
+  bots = bots.filter(b => b.score > 0);   // 646 — yalnız yarışa katılanlar sıralanır
   // Bots içinde kullanıcı varsa onu işaretle — KİMLİK: user_id (isim/takım eşleşmesi kırılgan,
   //   uymazsa ikinci 'sen' satırı oluşuyordu). Sunucu zaten userId/isUser döndürüyor.
   const _myId = (window.authUser && window.authUser.id) || null;
@@ -84711,11 +84706,12 @@ function _evRaceBuildLeaderboard(metric) {
       countryFlag: userFlag,
       score: 0,
       isUser: true,
+      katilmadi: true,
     });
   }
   const all = bots;
   all.sort((a, b) => b.score - a.score);
-  all.forEach((e, i) => { e.rank = i + 1; });
+  all.forEach((e, i) => { e.rank = e.katilmadi ? null : i + 1; });
 
   return all;
 }
@@ -84768,9 +84764,9 @@ function evRaceRender() {
     const sEl = document.getElementById('evRaceMyScore');
     const tEl2 = document.getElementById('evRaceMyTarget');
     const myLblEl = document.getElementById('evRaceMyScoreLabel');
-    if (_firstWeek) {
-      // İlk hafta — alfabetik sıra, sıfır skor, target yok
-      if (rEl) rEl.textContent = '#' + me.rank;
+    if (_firstWeek || me.katilmadi) {
+      // İlk hafta ya da yarışa katılmamış — sıra ve hedef yok
+      if (rEl) rEl.textContent = me.rank ? '#' + me.rank : '—';
       if (sEl) sEl.textContent = '0';
       if (myLblEl) myLblEl.textContent = isRating ? 'Ortalama Reyting' : 'Harcanan Enerji';
       if (tEl2) { tEl2.textContent = '—'; tEl2.style.color = 'var(--text3)'; }
@@ -84807,6 +84803,7 @@ function evRaceRender() {
   const _metricStr = isRating ? 'rating' : 'train';
   let html = '';
   top25.forEach(e => {
+    if (e.katilmadi) return;
     const rank = e.rank;
     let medalClass = '';
     if (rank === 1) medalClass = ' is-emerald';
@@ -84846,21 +84843,21 @@ function evRaceRender() {
       </div>
     </div>`;
   });
-  if (me && me.rank > 25) {
-    const diamonds = _evRaceDiamondForRank(me.rank);
+  if (me && (me.katilmadi || me.rank > 25)) {
+    const diamonds = me.katilmadi ? 0 : _evRaceDiamondForRank(me.rank);
     const scoreStr = isRating ? me.score.toFixed(2) : me.score;
     const scoreUnit = '';
     let claimBtn = '';
-    if (isRewardPhase) {
+    if (isRewardPhase && !me.katilmadi) {
       if (claimed) {
         claimBtn = `<div class="ev-race-claim-done">✓ Toplandı</div>`;
       } else {
         claimBtn = `<button class="ev-race-claim-btn" onclick="event.stopPropagation();evRaceClaimReward('${isRating ? 'rating' : 'train'}', ${diamonds}, ${me.rank})">Ödülü Topla</button>`;
       }
     }
-    html += `<div class="ev-race-row-divider">···</div>
+    html += `${html ? '<div class="ev-race-row-divider">···</div>' : ''}
       <div class="ev-race-prow is-user" onclick="openPlayerModalSelfFromRanking()" style="cursor:pointer">
-        <div class="ev-race-prow-rank">${me.rank}</div>
+        <div class="ev-race-prow-rank">${me.rank || '—'}</div>
         ${inlineBadge({tag:'div', cls:'ev-race-prow-logo', name:me.teamName, bg:me.teamBg, tc:me.teamTc, short:me.teamShort})}
         <div class="ev-race-prow-info">
           <div class="ev-race-prow-name">${me.playerName} <span class="ev-race-you">SEN</span></div>
@@ -84868,7 +84865,7 @@ function evRaceRender() {
         </div>
         <div class="ev-race-prow-right">
           <div class="ev-race-prow-rating">${scoreStr}${scoreUnit}</div>
-          <div class="ev-race-prow-diamond">${diamonds} 💎</div>
+          ${diamonds ? `<div class="ev-race-prow-diamond">${diamonds} 💎</div>` : ''}
           ${claimBtn}
         </div>
       </div>`;
@@ -84930,6 +84927,7 @@ async function evRaceClaimReward(metric, diamonds, rank) {
       odul_penceresi_kapali: 'Ödül toplama penceresi kapalı.',
       zaten_alindi: 'Bu ödülü zaten topladın.',
       siralama_okunamadi: 'Sıralama okunamadı, birazdan tekrar dene.',
+      katilmadin: 'Bu yarışa katılmadığın için ödülün yok.',
       odeme_yapilamadi: 'Ödeme yapılamadı, tekrar dene.'
     }[_d.error] || ('Ödül alınamadı: ' + (_d.error || 'bilinmeyen'));
     alert(_m);
@@ -89133,8 +89131,8 @@ async function cfcMdShareTemplate(kind, btn) {
     if (kind === 'player') {
       const pl = _cfcMdMyPlayer();
       if (!pl) { if (typeof tfShowToast === 'function') tfShowToast('❌ Oyuncu verisi bulunamadı', '#ef5350'); return; }
-      const grp = pl.posGroup || pl.pos_group || (typeof POS_GROUP !== 'undefined' && POS_GROUP[pl.pos]) || 'MID';
-      const posInfo = _CFCMD_POS[grp] || _CFCMD_POS.MID;
+      const altPos = subPosOf(pl);
+      const posInfo = _CFCMD_POS[SUBPOS_GROUP[altPos]];
       const ovr = Math.round((typeof getPlayerMainOverall === 'function') ? getPlayerMainOverall(pl) : (pl.overall || pl.rating || 10));
       // KL/DF/OS/FW = 4 mevki grubu ortalaması. OVR ile BİREBİR aynı kaynak:
       // getSkillLevels + SKILL_DEFS.ALL (OVR de bu yoldan hesaplanıyor, bkz getPlayerMainOverall).
@@ -89165,7 +89163,7 @@ async function cfcMdShareTemplate(kind, btn) {
       const mv = (typeof getPlayerMarketValue === 'function' && typeof formatMV === 'function') ? formatMV(getPlayerMarketValue(pl)) : null;
       const my = cfcMdGetMyProfile();
       extra = { kind: 'tpl-player', card: {
-        ovr, lvl: pl.level || 0, posShort: posInfo.short, posCls: posInfo.cls, posLabel: posInfo.label,
+        ovr, lvl: pl.level || 0, posShort: altPos, posCls: posInfo.cls, posLabel: SUBPOS_LABEL[altPos],
         name: my.name, avatar: my.avatar || '⚽', flag, cats,
         matches: pl.matchesPlayed || pl.matches_played || 0, goals: pl.goalsTotal || pl.goals_total || 0, assists: pl.assistsTotal || pl.assists_total || 0,
         team: (t && t.teamName) || null, mv,

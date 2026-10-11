@@ -2194,6 +2194,7 @@ Object.assign(window.I18N.de, {
 'Oturumun doğrulanamadı, tekrar giriş yap.':'Deine Sitzung konnte nicht verifiziert werden — melde dich erneut an.',
 'Oturumun düşmüş, tekrar giriş yap.':'Deine Sitzung ist abgelaufen — melde dich erneut an.',
 'Sıralama okunamadı, birazdan tekrar dene.':'Die Tabelle konnte nicht geladen werden — versuch es gleich noch einmal.',
+'Bu yarışa katılmadığın için ödülün yok.':'Du hast an diesem Wettbewerb nicht teilgenommen, daher gibt es keine Belohnung.',
 'Kullanıcı adı alanını doldurun.':'Bitte fülle das Feld für den Benutzernamen aus.',
 'Kullanıcı adı en az 3 karakter olmalı.':'Der Benutzername muss mindestens 3 Zeichen lang sein.',
 'Kullanıcı adı en fazla 30 karakter olmalı.':'Der Benutzername darf höchstens 30 Zeichen lang sein.',

@@ -3840,6 +3840,7 @@ Object.assign(window.I18N.ru, {
   "Oturumun doğrulanamadı, tekrar giriş yap.": "Не удалось подтвердить сессию, войди снова.",
   "Oturumun düşmüş, tekrar giriş yap.": "Сессия истекла, войди снова.",
   "Sıralama okunamadı, birazdan tekrar dene.": "Не удалось загрузить таблицу, попробуй чуть позже.",
+  "Bu yarışa katılmadığın için ödülün yok.": "Ты не участвовал в этой гонке, поэтому награды нет.",
   "Kullanıcı adı alanını doldurun.": "Заполни поле имени пользователя.",
   "Kullanıcı adı en az 3 karakter olmalı.": "Имя пользователя должно содержать не менее 3 символов.",
   "Kullanıcı adı en fazla 30 karakter olmalı.": "Имя пользователя должно содержать не более 30 символов.",

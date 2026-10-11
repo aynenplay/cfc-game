@@ -3659,6 +3659,7 @@ Object.assign(window.I18N.en, {
   'Oturumun doğrulanamadı, tekrar giriş yap.':'Your session could not be verified — please sign in again.',
   'Oturumun düşmüş, tekrar giriş yap.':'Your session has expired — please sign in again.',
   'Sıralama okunamadı, birazdan tekrar dene.':'Could not read the standings — try again shortly.',
+  'Bu yarışa katılmadığın için ödülün yok.':'You did not take part in this race, so there is no reward.',
   'Kullanıcı adı alanını doldurun.':'Please fill in the username field.',
   'Kullanıcı adı en az 3 karakter olmalı.':'The username must be at least 3 characters.',
   'Kullanıcı adı en fazla 30 karakter olmalı.':'The username must be at most 30 characters.',

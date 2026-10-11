@@ -3840,6 +3840,7 @@ Object.assign(window.I18N.it, {
   "Oturumun doğrulanamadı, tekrar giriş yap.": "Impossibile verificare la sessione, accedi di nuovo.",
   "Oturumun düşmüş, tekrar giriş yap.": "La sessione è scaduta, accedi di nuovo.",
   "Sıralama okunamadı, birazdan tekrar dene.": "Impossibile leggere la classifica, riprova tra poco.",
+  "Bu yarışa katılmadığın için ödülün yok.": "Non hai partecipato a questa gara, quindi non c'è nessuna ricompensa.",
   "Kullanıcı adı alanını doldurun.": "Compila il campo nome utente.",
   "Kullanıcı adı en az 3 karakter olmalı.": "Il nome utente deve avere almeno 3 caratteri.",
   "Kullanıcı adı en fazla 30 karakter olmalı.": "Il nome utente può avere al massimo 30 caratteri.",
