@@ -2323,6 +2323,8 @@ Object.assign(window.I18N.de, {
 'En fazla 3 kelime: 1-2 ad + 1 soyad.':'Höchstens 3 Wörter: 1–2 Vornamen + 1 Nachname.',
 'Kullanıcı adı 3-20 karakter olmalı; harf, rakam, nokta, alt çizgi ve tire içerebilir.':
   'Der Benutzername muss 3–20 Zeichen lang sein und darf Buchstaben, Ziffern, Punkte, Unterstriche und Bindestriche enthalten.',
+'Engellenme Sebebi':'Grund',
+'Tekrar Oyna':'Sperre endet',
 'Hesabın Engellendi':'Dein Konto ist gesperrt',
 'Bu hesap yönetici tarafından askıya alındı. Aşağıdaki süre boyunca oyuna giriş yapamazsın.':
   'Dieses Konto wurde von einem Administrator gesperrt. Für den unten genannten Zeitraum kannst du dich nicht anmelden.',
@@ -3459,8 +3461,8 @@ window.I18N_PATTERNS.de.push(
   [/^(.+?) adlı oyuncuyu takıma kattın( \(sözleşmesiz üye\))?\.$/,
     m => 'Du hast ' + m[1] + ' ins Team geholt' + (m[2] ? ' (Mitglied ohne Vertrag)' : '') + '.'],
   [/^(.+?) sahada$/,                             '$1 ist zurück auf dem Platz'],
-  [/^(Şikayet|İstek|Talep|Bildirim)ine Cevap Geldi$/,
-    m => 'Antwort auf deine ' + ({'Şikayet':'Beschwerde','İstek':'Anfrage','Talep':'Eingabe','Bildirim':'Meldung'}[m[1]] || m[1]) + ' ist da'],
+  [/^(Şikayet|İste[kğ]|Tale[pb]|Bildirim)ine Cevap Geldi$/,
+    m => 'Antwort auf deine ' + ({'Şikayet':'Beschwerde','İstek':'Anfrage','Talep':'Eingabe','Bildirim':'Meldung'}[m[1].replace('ğ', 'k').replace(/b$/, 'p')] || m[1]) + ' ist da'],
   [/^Resmi Teklif — (.+)$/,                      'Offizielles Angebot — $1'],
   [/^(.+?) Federasyonu$/,                        m => 'Verband ' + _icD(m[1])],
   [/^Federasyon (Başkanı|Yardımcısı) · (.+)$/,
