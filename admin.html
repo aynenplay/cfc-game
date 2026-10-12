@@ -693,6 +693,17 @@
   .ban-not{ font-size:12.5px; color:var(--dim); line-height:1.5; margin:-8px 0 2px; }
   .ban-not b{ color:var(--txt); font-weight:700; }
   .ban-not .k{ color:var(--red); font-weight:700; }
+  .w-sira{ display:flex; gap:8px; flex-wrap:wrap; margin:0 0 12px; }
+  .w-bak{ flex-shrink:0; text-align:right; display:flex; flex-direction:column; gap:3px; }
+  .w-bak .e{ font-family:var(--disp); font-size:16px; font-weight:900; line-height:1; color:var(--accent); }
+  .w-bak .d{ font-family:var(--disp); font-size:13px; font-weight:800; line-height:1; color:var(--blue); }
+  .u-wl4{ grid-template-columns:repeat(4,1fr); }
+  .u-wl-c.gir{ border-color:rgba(46,195,107,.18); } .u-wl-c.gir .v{ color:var(--txt); }
+  .u-wl-c.cik{ border-color:rgba(226,59,90,.22); } .u-wl-c.cik .v{ color:var(--txt); }
+  .u-wl-c .ic svg{ width:17px; height:17px; display:block; }
+  .u-wl-c.gir .ic{ color:var(--accent); } .u-wl-c.cik .ic{ color:var(--red); }
+  .u-acts.uc3{ grid-template-columns:repeat(3,1fr); }
+  @media (max-width:640px){ .u-wl4{ grid-template-columns:1fr 1fr; } .titlebox #wSval{ width:auto; flex:1 1 180px; min-width:0; } }
   @media (max-width:640px){
     .fbitem .foot{ flex-wrap:wrap; }
     .fbitem .acts{ margin-left:0; width:100%; flex-wrap:wrap; }
@@ -950,7 +961,7 @@ function openDash(){
     <div class="cardgrid fadein">${DASH.map(d=>`<div class="card" data-t="${d.t}"><div class="num" id="num-${d.t}">…</div><div class="lbl">${d.label}</div></div>`).join('')}</div>
     <div id="fbArea"></div>`;
   cvBasla();
-  $('main').querySelectorAll('.card').forEach(b=>b.onclick=()=>{ const t=b.dataset.t; if(t==='profiles') openUsers(); else if(t==='teams') openClubs(); else if(t==='players') openPlayers(); else if(t==='ads') openAds(); else if(t==='payments') openPayments(); else openTable(t); });
+  $('main').querySelectorAll('.card').forEach(b=>b.onclick=()=>{ const t=b.dataset.t; if(t==='profiles') openUsers(); else if(t==='teams') openClubs(); else if(t==='players') openPlayers(); else if(t==='ads') openAds(); else if(t==='payments') openPayments(); else if(t==='user_wallet') openWallets(); else openTable(t); });
   DASH.forEach(async d=>{
     // Reklam kartı toplam kayıt değil, O AN YAYINDA olan reklam sayısını gösterir
     // Ödeme kartı kayıt sayısı değil, seçili dönemin CİROSUNU gösterir
@@ -974,6 +985,12 @@ function openDash(){
         const lbl = el && el.parentElement && el.parentElement.querySelector('.lbl');
         if (lbl) lbl.textContent = 'Elmas Satışı · okunamadı';
       }
+      return;
+    }
+    if (d.t === 'user_wallet') {
+      const el = $('num-user_wallet');
+      try { const v = await walletVeri(false); if (el) el.textContent = v.rows.length.toLocaleString('tr'); }
+      catch(e){ if (el) el.textContent = '—'; }
       return;
     }
     if (d.t === 'ads') {
@@ -2485,6 +2502,126 @@ function uAction(act,i){
   if(act==='gizle'){ uGizle(p); return; }
 }
 
+// ===== CÜZDANLAR — yalnız hesabı olan kullanıcıların cüzdanları =====
+let WSTATE={ search:'', sira:'eur' };
+let WDATA={ rows:[], prof:{}, pl:{} };
+async function walletVeri(oyuncuDa){
+  const [w,pf,pl]=await Promise.all([
+    api('list',{ table:'user_wallet', limit:2000 }),
+    api('list',{ table:'profiles', limit:2000 }),
+    oyuncuDa?api('list',{ table:'players', limit:2000, orderBy:'user_id', orderDir:'asc' }).catch(()=>({ rows:[] })):null ]);
+  const prof={}; (pf.rows||[]).forEach(p=>{ prof[p.id]=p; });
+  const plm={}; ((pl&&pl.rows)||[]).forEach(x=>{ if(x.user_id) plm[x.user_id]=x; });
+  return { rows:(w.rows||[]).filter(x=>prof[x.user_id]), prof, pl:plm };
+}
+async function openWallets(){
+  CUR='__wallets__'; GRID_BACK=null; WSTATE={ search:'', sira:'eur' };
+  $('dashBtn').classList.remove('active');
+  $('nav').querySelectorAll('.sub').forEach(b=>b.classList.remove('active'));
+  document.body.classList.remove('navopen');
+  $('main').innerHTML='<div class="msg">Yükleniyor…</div>';
+  try{ WDATA=await walletVeri(true); wRender(); }
+  catch(e){ $('main').innerHTML='<div class="msg err">'+uEsc(e.message)+'</div>'; }
+}
+const W_SIRA=[['eur','Para'],['dia','Elmas'],['updated_at','Son Hareket']];
+const W_IK={ gir:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v14M6 12l6 6 6-6"/></svg>',
+  cik:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V6M6 12l6-6 6 6"/></svg>' };
+function wRender(){
+  $('main').innerHTML=`<div class="titlebox fadein">
+      <button class="backbtn" id="wBack">‹ Geri</button>
+      <h2>Cüzdanlar</h2>
+      <span class="cnt" id="wCnt"></span>
+      <div class="sp"></div>
+      <input id="wSval" placeholder="İsim / kullanıcı adı (en az 2 harf)…" autocomplete="off">
+      <button class="btn green" id="wEkle">+ Ekle</button>
+    </div>
+    <div class="w-sira fadein" id="wSira"></div>
+    <div class="u-list fadein" id="wList"></div>`;
+  $('wBack').onclick=openDash;
+  $('wEkle').onclick=()=>openEditor('add', {}, 'user_wallet', openWallets);
+  let t=null; $('wSval').addEventListener('input',()=>{ clearTimeout(t); t=setTimeout(()=>{ WSTATE.search=$('wSval').value.trim(); wPaint(); },110); });
+  wPaint();
+}
+function wSirali(){
+  const q=WSTATE.search.toLocaleLowerCase('tr');
+  const L=WDATA.rows.filter(w=>{ if(q.length<2) return true; const p=WDATA.prof[w.user_id]||{}; return ((p.name||'')+' '+(p.username||'')).toLocaleLowerCase('tr').includes(q); });
+  const k=WSTATE.sira;
+  return L.sort((a,b)=>k==='updated_at'?String(b.updated_at||'').localeCompare(String(a.updated_at||'')):(Number(b[k])||0)-(Number(a[k])||0));
+}
+function wPaint(){
+  const list=$('wList'); if(!list) return;
+  const acik=new Set([...list.querySelectorAll('.u-card.open')].map(c=>c.dataset.uid));
+  const L=wSirali(), sayi=v=>(v!=null?Number(v).toLocaleString('tr'):'—');
+  $('wCnt').textContent=WSTATE.search.length>=2?(L.length+' sonuç'):(WDATA.rows.length+' cüzdan');
+  $('wSira').innerHTML=W_SIRA.map(([k,a])=>`<button class="chip ${WSTATE.sira===k?'active':''}" data-s="${k}">${a}</button>`).join('');
+  list.innerHTML=L.length?L.map(w=>{
+    const p=WDATA.prof[w.user_id]||{}, pl=WDATA.pl[w.user_id]||{};
+    const ad=p.name||p.username||'(isimsiz)', c=uCountry(p), avS=pl.avatar_id?avSrc(pl.avatar_id):'';
+    const takim=pl.team_name||'', ban=uBanInfo(p);
+    const tarih=w.updated_at?new Date(w.updated_at).toLocaleString('tr',{ dateStyle:'short', timeStyle:'short' }):'';
+    const uid=uEsc(String(w.user_id));
+    return `<div class="u-card" data-uid="${uid}">
+      <div class="u-head">
+        <div class="u-av">${avS?`<img src="${avS}" alt="">`:uEsc((String(ad).trim()[0]||'?').toUpperCase())}${c.flag?`<span class="flag">${c.flag}</span>`:''}</div>
+        <div class="u-info">
+          <div class="u-name">${uEsc(ad)}${ban?' <span class="u-banbadge">⛔ ENGELLİ</span>':''}</div>
+          <div class="u-mail">${p.username?('@'+uEsc(p.username)):''}</div>
+          <div class="u-meta"><span>${takim?takimLogo(pl.country_code,takim):''}<b>${uEsc(takim||'Takımsız')}</b></span>${tarih?`<span>Son hareket: ${uEsc(tarih)}</span>`:''}</div>
+        </div>
+        <div class="w-bak"><div class="e">${sayi(w.eur)} €</div><div class="d">${sayi(w.dia)} 💎</div></div>
+        <div class="u-chev"><svg viewBox="0 0 24 24" width="15" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg></div>
+      </div>
+      <div class="u-body">
+        <div class="u-secl gold"><span class="dot"></span>Cüzdan <span class="u-hint">· değere dokun, düzenle</span></div>
+        <div class="u-wl u-wl4">
+          <div class="u-wl-c eur u-wedit" data-f="eur" data-uid="${uid}"><span class="ic">💶</span><div class="tx"><div class="v">${sayi(w.eur)}</div><div class="l">Para (€)</div></div></div>
+          <div class="u-wl-c dia u-wedit" data-f="dia" data-uid="${uid}"><span class="ic">💎</span><div class="tx"><div class="v">${sayi(w.dia)}</div><div class="l">Elmas</div></div></div>
+          <div class="u-wl-c gir"><span class="ic">${W_IK.gir}</span><div class="tx"><div class="v">${sayi(w.total_in)}</div><div class="l">Toplam Giriş</div></div></div>
+          <div class="u-wl-c cik"><span class="ic">${W_IK.cik}</span><div class="tx"><div class="v">${sayi(w.total_out)}</div><div class="l">Toplam Çıkış</div></div></div>
+        </div>
+        <div class="u-acts uc3">
+          <button class="u-act player" data-wa="ac" data-uid="${uid}">Kullanıcıyı Aç</button>
+          <button class="u-act wallet" data-wa="duz" data-uid="${uid}">Tüm Alanlar</button>
+          <button class="u-act del" data-wa="sil" data-uid="${uid}">Cüzdanı Sil</button>
+        </div>
+      </div>
+    </div>`; }).join(''):`<div class="msg">${WSTATE.search?'Eşleşen kullanıcı yok.':'Kayıt yok.'}</div>`;
+  list.querySelectorAll('.u-card').forEach(c=>{ if(acik.has(c.dataset.uid)) c.classList.add('open'); });
+  list.querySelectorAll('.u-head').forEach(h=>h.onclick=()=>h.parentElement.classList.toggle('open'));
+  list.querySelectorAll('.u-wedit').forEach(c=>c.onclick=ev=>{ ev.stopPropagation(); wDegerDuzenle(c); });
+  list.querySelectorAll('[data-wa]').forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); wIslem(b.dataset.wa, b.dataset.uid); });
+  $('wSira').querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{ WSTATE.sira=b.dataset.s; wPaint(); });
+}
+function wDegerDuzenle(cell){
+  if(cell.querySelector('input')) return;
+  const f=cell.dataset.f, w=WDATA.rows.find(x=>String(x.user_id)===cell.dataset.uid); if(!w) return;
+  const vEl=cell.querySelector('.v'), eski=vEl.textContent;
+  vEl.innerHTML='<input class="u-winput" type="number" step="1">';
+  const inp=vEl.querySelector('input'); inp.value=Number(w[f])||0; inp.focus(); inp.select();
+  let bitti=false;
+  const kaydet=async()=>{
+    if(bitti) return; bitti=true;
+    const nv=Math.round(Number(inp.value));
+    if(!isFinite(nv)){ vEl.textContent=eski; return; }
+    vEl.textContent='…';
+    try{ await api('update',{ table:'user_wallet', pk:pkObj(w,'user_wallet'), values:{ [f]:nv } }); w[f]=nv; wPaint(); }
+    catch(e){ vEl.textContent=eski; alert('Kaydedilemedi: '+e.message); }
+  };
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); inp.blur(); } else if(e.key==='Escape'){ bitti=true; vEl.textContent=eski; } });
+  inp.addEventListener('blur',kaydet);
+}
+async function wIslem(act, uid){
+  const w=WDATA.rows.find(x=>String(x.user_id)===uid); if(!w) return;
+  const p=WDATA.prof[w.user_id]||{};
+  if(act==='ac'){ await openUsers(); const i=$('uSval'); if(i){ i.value=p.name||p.username||''; uOnSearch(); } return; }
+  if(act==='duz'){ openEditor('edit', w, 'user_wallet', openWallets); return; }
+  if(act==='sil'){
+    if(!confirm('"'+(p.name||p.username||'')+'" kullanıcısının cüzdanı silinsin mi? Parası ve elmasları gider.')) return;
+    try{ await api('delete',{ table:'user_wallet', pk:pkObj(w,'user_wallet') }); WDATA.rows=WDATA.rows.filter(x=>x!==w); wPaint(); }
+    catch(e){ alert('Silinemedi: '+e.message); }
+  }
+}
+
 // ===== TAKIMLAR — kulüpler (teams + team_data + team_chat) =====
 const TIERC={ '1':'#00e676','2':'#42a5f5','3':'#ab47bc','4':'#ffa726','5':'#ef5350','6':'#8d6e63' };
 let CSTATE={ offset:0, limit:30, search:'', searchCol:'' };
@@ -3744,7 +3881,7 @@ async function openEconomy() {
 
   let cuzdan = [], kupon = [], kazi = [];
   const cek = async (t, ek) => { try { const r = await api('list', Object.assign({ table:t, limit:2000 }, ek||{})); return r.rows||[]; } catch(e) { return null; } };
-  cuzdan = await cek('user_wallet');
+  cuzdan = await walletVeri(false).then(v => v.rows).catch(() => null);
   kupon  = await cek('bet_slips');
   kazi   = await cek('scratch_cards');
 
