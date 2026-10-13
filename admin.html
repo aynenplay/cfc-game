@@ -859,7 +859,7 @@ const TABLE_TR = {
   match_state:'Canlı Maçlar', match_viewers:'Maç İzleyiciler', match_writes:'Maç Kilidi',
   player_transfer_listings:'Oyuncu Transfer İlanları', players:'Oyuncular', profiles:'Profiller',
   shop_stocks:'Mağaza Stok', social_follows:'Takipler', social_likes:'Beğeniler', social_posts:'Sosyal Gönderiler',
-  team_chat:'Takım Sohbeti', team_data:'Takım Verisi', teams:'Takımlar', toto_pools:'Toto Havuzları',
+  team_chat:'Takım Sohbeti', team_data:'Takım Verisi', teams:'Takımlar', duello:'Penaltı Düelloları', yaris_odul_kayit:'Yarış Ödül Kayıtları',
   tournament_state:'Turnuvalar', transfer_listings:'Transfer İlanları', user_inbox:'Gelen Kutusu (CSC)',
   user_player:'Kullanıcı Oyuncusu', user_wallet:'Cüzdanlar', world_state:'Dünya Durumu', feedback:'Geri Bildirimler'
 };
@@ -1908,11 +1908,11 @@ const NAV = [
   { cat:'SEZONLAR',       tables:['world_state'] },
   { cat:'TRANSFERLER',    tables:['transfer_listings','player_transfer_listings','item_listings'] },
   { cat:'MAĞAZA',         tables:['shop_stocks'] },
-  { cat:'ETKİNLİK',       tables:['achievement_defs','toto_pools'] },
+  { cat:'ETKİNLİK',       tables:['achievement_defs','duello','yaris_odul_kayit'] },
   { cat:'ANTRENMAN',      tables:['__antrenman__'] },
   { cat:'CSC MEDIA',      tables:['__medya__','social_posts','social_likes','social_follows'] },
   { cat:'İNBOX',          tables:['__duyuru__','user_inbox','broadcasts'] },
-  { cat:'EKONOMİ',        tables:['__economy__','bet_slips','scratch_cards'] },
+  { cat:'EKONOMİ',        tables:['__economy__'] },
   { cat:'ÖDEMELER',       tables:['__odeme__'] },
   { cat:'REKLAM',         tables:['__reklam__'] },
   { cat:'BAĞLANTILAR',    tables:['__baglanti__'] },
@@ -2139,17 +2139,15 @@ const STRIP = {
   shop_stocks:  { nokta:()=> 'y', saat:()=>'',
                   sol:r=>r.item_name||r.item_id, sag:r=>r.category||'',
                   skor:r=>String(r.stock??r.qty??'—'), not:()=>'stok' },
-  bet_slips:    { nokta:r=>r.status==='won'?'y':(r.status==='lost'?'k':'p'), saat:r=>_sTarih(r.created_at),
-                  sol:r=>_sKisa(r.user_id,10),
-                  sag:r=>((Array.isArray(r.legs)?r.legs.length:0)+' ayak · oran '+(Number(r.total_odds)||0).toFixed(2)),
-                  skor:r=>_sPara(r.payout||r.stake),
-                  not:r=>({won:'kazandı',lost:'yattı',pending:'bekliyor'}[r.status]||r.status||'') },
-  scratch_cards:{ nokta:r=>r.claimed_at?'p':'y', saat:r=>_sTarih(r.created_at),
-                  sol:r=>_sKisa(r.user_id,10), sag:r=>r.tier||r.type||'',
-                  skor:r=>_sPara(r.prize_eur), not:r=>r.claimed_at?'alındı':'bekliyor' },
-  toto_pools:   { nokta:()=> 'y', saat:()=>'',
-                  sol:r=>r.league_name||r.key||'', sag:r=>('S'+(r.season??'')+' G'+(r.day??'')),
-                  skor:r=>_sPara(r.pool), not:()=>'havuz' },
+  duello:       { nokta:r=>r.durum==='bitti'?'y':(['davet','hazirlik','oynaniyor'].includes(r.durum)?'p':'k'), saat:r=>_sTarih(r.created_at),
+                  sol:r=>(r.bilgi&&r.bilgi.a&&r.bilgi.a.ad)||_sKisa(r.a_uid,10),
+                  sag:r=>(r.bilgi&&r.bilgi.b&&r.bilgi.b.ad)||_sKisa(r.b_uid,10),
+                  skor:r=>r.durum==='bitti'?((r.a_gol??0)+'-'+(r.b_gol??0)):'VS',
+                  not:r=>({davet:'davet',hazirlik:'hazırlık',oynaniyor:'oynanıyor',bitti:'bitti',red:'reddedildi',iptal:'iptal',suresi_doldu:'süresi doldu',vazgecildi:'gelinmedi'}[r.durum]||r.durum||'')
+                         +' · '+_sPara((Number(r.a_ucret)||0)+(Number(r.b_ucret)||0))+' €' },
+  yaris_odul_kayit:{ nokta:()=>'y', saat:r=>_sTarih(r.created_at),
+                  sol:r=>_sKisa(r.user_id,10), sag:r=>r.anahtar||'',
+                  skor:r=>String(r.elmas??0), not:()=>'elmas' },
   achievement_defs:{ nokta:()=>'y', saat:()=>'',
                   sol:r=>r.title||r.id, sag:r=>_sKisa(r.description||r.desc,40),
                   skor:r=>String(r.tier??''), not:()=>'kademe' },
@@ -3174,7 +3172,7 @@ function edSilHedef(){ const p=ED.p; return p.username?('@'+String(p.username).r
 function edSilCiz(){
   $('edGovde').innerHTML=`<div class="ed-sil">
     <div class="ed-sil-b"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>Kalıcı olarak silinir</div>
-    <ul><li>Giriş hesabı ve profil</li><li>Oyuncu kaydı, yetenekler, kariyer</li><li>Cüzdan, gelen kutusu, kuponlar</li><li>Pazar ilanları ve CSC Media gönderileri</li></ul>
+    <ul><li>Giriş hesabı ve profil</li><li>Oyuncu kaydı, yetenekler, kariyer</li><li>Cüzdan, gelen kutusu, düello kayıtları</li><li>Pazar ilanları ve CSC Media gönderileri</li></ul>
     <div class="ed-sil-n">Kaptansa kaptanlık takımda devredilir. Dolabındaki mağaza itemleri stoğa döner.</div>
   </div>
   <label class="ed-l ed-sil-o"><span>Onay için <b>${uEsc(edSilHedef())}</b> yaz</span><input id="edSilOnay" autocomplete="off"></label>`;
@@ -3324,7 +3322,7 @@ const PM_ETIKET={ market_val:'Piyasa Değeri (€)', pasif_esya:'Son Pasif Item 
   ach_claimed:'Alınan başarım ödülleri', active_trainings:'Süren antrenmanlar', match_log:'Maç geçmişi', xp_log:'XP geçmişi',
   train_log:'Antrenman geçmişi', race_claimed:'Antrenman yarışı ödülleri', coach_profile:'Teknik direktör profili',
   nt_jersey_overrides:'Milli takım forma numaraları', career_history:'Kariyer geçmişi', market_val_history:'Piyasa değeri geçmişi',
-  join_requests:'Takıma katılma istekleri', toto_coupons:'Toto kuponları' };
+  join_requests:'Takıma katılma istekleri' };
 const _pmEt=n=>PM_ETIKET[n]||colLabel(n);
 const _pmKart=(ik,renk,ad,alt,govde)=>`<div class="dc"><div class="dc-h"><div class="dc-ic" style="background:${renk}1f;border-color:${renk}55;color:${renk}">${ik}</div><div class="dc-t"><div class="nm">${ad}</div>${alt!=null?`<div class="ty"${alt.id?` id="${alt.id}"`:''}>${alt.t||''}</div>`:''}</div></div><div class="dc-b">${govde}</div></div>`;
 function pmBuildOther(up){
@@ -3879,33 +3877,27 @@ async function openEconomy() {
   const act = $('nav').querySelector('.sub.active'); if (act) act.closest('.cat').classList.add('open');
   $('main').innerHTML = _opBaslik('Ekonomi','yükleniyor…') + '<div class="msg">Yükleniyor…</div>';
 
-  let cuzdan = [], kupon = [], kazi = [];
+  let cuzdan = [], duello = [];
   const cek = async (t, ek) => { try { const r = await api('list', Object.assign({ table:t, limit:2000 }, ek||{})); return r.rows||[]; } catch(e) { return null; } };
   cuzdan = await walletVeri(false).then(v => v.rows).catch(() => null);
-  kupon  = await cek('bet_slips');
-  kazi   = await cek('scratch_cards');
+  duello = await cek('duello', { orderBy:'created_at', orderDir:'desc' });
 
   const topEur = (cuzdan||[]).reduce((t,x)=>t+(Number(x.eur)||0),0);
   const topDia = (cuzdan||[]).reduce((t,x)=>t+(Number(x.dia)||0),0);
-  const bek = (kupon||[]).filter(x=>x.status==='pending').length;
-  const kaz = (kupon||[]).filter(x=>x.status==='won');
-  const odenen = kaz.reduce((t,x)=>t+(Number(x.payout)||0),0);
-  const yatan  = (kupon||[]).reduce((t,x)=>t+(Number(x.stake)||0),0);
+  // Ücret yalnız oynanan (hazırlık / oynanıyor / bitti) düellolarda oyunda kalır; diğerleri iade edilir
+  const sayilan = (duello||[]).filter(x=>['hazirlik','oynaniyor','bitti'].includes(x.durum));
+  const biten = sayilan.filter(x=>x.durum==='bitti').length;
+  const ucret = sayilan.reduce((t,x)=>t+(Number(x.a_ucret)||0)+(Number(x.b_ucret)||0),0);
 
   const kartlar = [
     _opKart('Dolaşımdaki €', _fmtPara(topEur), (cuzdan||[]).length + ' cüzdan', 'y'),
     _opKart('Dolaşımdaki 💎', _fmtSayi(topDia), '', 'y'),
-    kupon === null
-      ? _opKart('Kupon', '—', 'tablo okunamadı', 's')
-      : _opKart('Kupon', _fmtSayi(kupon.length), bek + ' bekliyor', 'y'),
-    kupon === null
-      ? _opKart('Kupon Dengesi', '—', '', 's')
-      : _opKart('Kupon Dengesi', _fmtPara(yatan - odenen),
-          'yatan ' + _fmtPara(yatan) + ' · ödenen ' + _fmtPara(odenen),
-          (yatan - odenen) < 0 ? 'k' : 'y'),
-    kazi === null
-      ? _opKart('Kazı Kazan', '—', 'tablo okunamadı', 's')
-      : _opKart('Kazı Kazan', _fmtSayi(kazi.length), 'bilet', 'y'),
+    duello === null
+      ? _opKart('Penaltı Düellosu', '—', 'tablo okunamadı', 's')
+      : _opKart('Penaltı Düellosu', _fmtSayi(biten), (sayilan.length - biten) + ' devam ediyor', 'y'),
+    duello === null
+      ? _opKart('Düello Ücretleri', '—', '', 's')
+      : _opKart('Düello Ücretleri', _fmtPara(ucret), 'oyundan çıkan €', 'y'),
   ].join('');
 
   // Şüpheli: en yüksek cüzdanlar
@@ -3922,8 +3914,7 @@ async function openEconomy() {
     + `<div class="tablewrap fadein"><div class="scroll"><table>
         <thead><tr><th>Kullanıcı</th><th>Euro</th><th>Elmas</th></tr></thead>
         <tbody>${satir || '<tr><td colspan="3">Kayıt yok</td></tr>'}</tbody></table></div></div>`
-    + `<div class="opnot">Kupon dengesi negatifse oyuncular kazandığından fazlasını almış demektir —
-       oran ayarlarını gözden geçir. Tablo "okunamadı" diyorsa o tablo henüz gateway'e tanıtılmamıştır.</div>`;
+    + `<div class="opnot">Düello ücretleri oyuna gider; ekonomideki € miktarını azaltır. Son 2000 düello sayılır.</div>`;
 }
 
 

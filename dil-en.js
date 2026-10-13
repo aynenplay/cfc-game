@@ -1,6 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════
    CITY SOCCER CLUB — İNGİLİZCE SÖZLÜK  (en)
-   
    Anahtar = oyunda geçen Türkçe metnin BİREBİR kendisi.
    Burada olmayan her şey (oyuncu adı, takım adı, sohbet) olduğu gibi kalır.
 
@@ -260,7 +259,7 @@ Object.assign(window.I18N.en, {
 'Henüz gönderi yok.':'No posts yet.','Eşleşen sonuç yok':'No matching results',
 'Sezon Henüz Başlamadı':'Season Has Not Started','Sezon henüz başlamadı':'Season has not started',
 'Sezon verisi bulunamadı.':'No season data found.','Sezon 1 başlangıcına':'Until Season 1 starts',
-'Henüz Aktif Havuz Yok':'No Active Pool Yet','Seri başlamadı':'Streak not started',
+'Seri başlamadı':'Streak not started',
 'İstek Gönderildi':'Request Sent','Katılım Şartları':'Entry Requirements',
 '0 = şart yok · max 99':'0 = no requirement · max 99','1 💎 (katılım)':'1 💎 (entry)',
 'Sadece Başkan:':'President only:','Seçim Günü 🗳️':'Election Day 🗳️',
@@ -398,10 +397,10 @@ Object.assign(window.I18N.en, {
 'Tam liste — Antrenman Yıldızı':'Full list — Training Star','Tam liste — Haftanın Yıldızı':'Full list — Player of the Week',
 '🏆 En İyi 50 Oyuncu — yetenek puanına göre':'🏆 Top 50 Players — by attribute rating',
 'Antrenman & enerji kuralları':'Training & energy rules','Antrenman ve enerji bilgileri':'Training and energy info',
-'Günlük 25 bilet sınırına ulaştın':'You have reached the daily limit of 25 tickets',
-'Önce mevcut bileti bitir':'Finish your current ticket first',
-'Bilet almak için aşağıdaki düğmeye bas':'Press the button below to buy a ticket',
-'1. BİLET AL':'1. BUY TICKET','❌ KAYBETTİ':'❌ LOST',
+
+
+
+'❌ KAYBETTİ':'❌ LOST',
 
 // ── Sosyal ──
 'Aklından ne geçiyor? (en fazla 280 karakter)':'What\'s on your mind? (max 280 characters)',
@@ -424,12 +423,12 @@ Object.assign(window.I18N.en, {
 '💡 İPUÇLARI':'💡 TIPS','📌 NASIL ÇALIŞIR':'📌 HOW IT WORKS','💎 ÖDÜLLER':'💎 REWARDS',
 '💰 KAZANILAN ÖDÜLLER':'💰 REWARDS EARNED','Toplam Kasaya:':'Total to treasury:',
 '📜 Önceki Seçim Sonuçları':'📜 Previous Election Results',
-'Kendi takımının maçına tahmin yapılamaz':'You cannot predict on your own team\'s match',
+
 'gönderildi':'sent','yükleniyor':'loading','tamamlandı':'completed','gün':'days',
 'güvenli':'safe','süper':'super','baş':'head','sırt':'back','aşil':'achilles',
 'Çorap':'Socks','Şort':'Shorts','Şu an':'Currently','🏆 Önce ülke seç':'🏆 Select a country first',
 '🏳️ — Sıra':'🏳️ — Rank','İsrail':'Israel',
-'Bu kuponu oyna':'Place this slip','Maçlar başladı':'Matches have started',
+'Maçlar başladı':'Matches have started',
 'Yaklaşan maç yok':'No upcoming match','Fikstürü Aç':'Open Fixtures','Bir takıma katıl':'Join a team',
 'Bugün lig maçı yok':'No league matches today',
 'Şikayet Gönder':'Send Complaint','İstek Gönder':'Send Request','Talep Gönder':'Send Enquiry',
@@ -450,9 +449,9 @@ Object.assign(window.I18N.en, {
 'MİLLİ TAKIM':'NATIONAL TEAM','MİLLİ TAKIMLAR':'NATIONAL TEAMS','HAZIRLIK MAÇLARI':'FRIENDLY MATCHES',
 'MAÇ SONA ERDİ':'FULL TIME','SEZON 1 SONA ERDİ':'SEASON 1 HAS ENDED','PENALTI ATIŞLARI':'PENALTY SHOOTOUT',
 'GÜNLÜK SINIRLAR':'DAILY LIMITS','YARIŞ BİLGİSİ':'RACE INFO','ÖDÜL TABLOSU':'REWARD TABLE',
-'SON BİLETLERİM':'MY RECENT TICKETS','SONRAKİ ÖDEME':'NEXT PAYMENT','SATIŞ LİSTESİ':'SALE LIST',
-'SERBEST LİSTESİ':'FREE AGENT LIST','BRONZ BİLET':'BRONZE TICKET','BİLET SEÇ':'CHOOSE TICKET',
-'BİLET AL · 50 €':'BUY TICKET · €50','Kazı Kazan':'Scratch Card','Şans':'Luck',
+'SONRAKİ ÖDEME':'NEXT PAYMENT','SATIŞ LİSTESİ':'SALE LIST',
+'SERBEST LİSTESİ':'FREE AGENT LIST',
+'Şans':'Luck',
 
 // ── Taktik / diziliş ──
 'Hücum Yönü':'Attacking Side','Defans Hattı':'Defensive Line','Şut Tercihi':'Shooting Preference',
@@ -503,8 +502,8 @@ Object.assign(window.I18N.en, {
 'Günlük adet':'Daily count','Günlük elmas':'Daily diamonds','Günlük harcama':'Daily spending',
 'Günlük kazanç':'Daily earnings','Sınır':'Limit','Cüzdanında:':'In your wallet:','cüzdana':'to wallet',
 'Satın aldıktan sonra bütçen:':'Your budget after purchase:','💎 Bu Fiyata Satın Al':'💎 Buy at This Price',
-'💎 satın almak':'to buy with diamonds','Olası Kazanç':'Potential Return','Oranlı tahmin':'Odds-based prediction',
-'🏆 Ödül Havuzları':'🏆 Prize Pools','Puanın':'Your Points','Sıralaman':'Your Rank','ücretsiz':'free',
+'💎 satın almak':'to buy with diamonds',
+'Puanın':'Your Points','Sıralaman':'Your Rank','ücretsiz':'free',
 
 // ── Transfer ──
 'Oyuncuyu Satışa Çıkar':'List Player for Sale','Satışa Çıkar ✓':'List for Sale ✓',
@@ -564,7 +563,7 @@ Object.assign(window.I18N.en, {
 'Lig Şampiyonluğu ›':'League Title ›','Son Şampiyonluk ›':'Last Title ›','Avrupa Kupası ›':'European Cup ›',
 '🏆 Başarılar':'🏆 Achievements','🏆 Sıralamaları takip et':'🏆 Follow the rankings',
 '🌍 Lig ve turnuvaları izle':'🌍 Watch leagues and tournaments',
-'🎲 Eğlence (Toto) oyunlarına katıl':'🎲 Join the entertainment (Toto) games',
+
 '⚡ Kendi yeteneklerini geliştir (Antrenman)':'⚡ Develop your own attributes (Training)',
 '💡 Takımsız oyuncu olarak neler yapabilirsin?':'💡 What can you do as a free agent?',
 
@@ -576,7 +575,7 @@ Object.assign(window.I18N.en, {
 '🗑️ Hesabını Sil':'🗑️ Delete Your Account','📄 Kullanım Koşulları':'📄 Terms of Use',
 '🚨 Şikayet Bildir':'🚨 Report a Problem','geri alınamaz':'cannot be undone','Bu işlem':'This action',
 'Oyuncu kartın ve tüm yeteneklerin silinir':'Your player card and all attributes will be deleted',
-'Cüzdanın (€ ve 💎), kuponların ve envanterin silinir':'Your wallet (€ and 💎), slips and inventory will be deleted',
+
 'Gelen kutun, paylaşımların ve başarımların silinir':'Your inbox, posts and achievements will be deleted',
 'Takımdaysan takımdan çıkarılırsın; kaptansan yetkin devredilir':'You will be removed from your team; if you are captain, your role will be transferred',
 'Aynı e-posta ile yeniden kayıt olabilirsin ama ilerlemen geri gelmez':'You can sign up again with the same email, but your progress will not return',
@@ -587,12 +586,12 @@ Object.assign(window.I18N.en, {
 'Bu anketi silmek istediğine emin misin? Tüm oylar silinecek.':'Are you sure you want to delete this poll? All votes will be lost.',
 'Seçenekler (virgülle ayır)':'Options (comma separated)','⭐ Özel':'⭐ Special',
 'Oyuncu listesi yükleniyor...':'Loading player list...','Son güncelleme:':'Last updated:',
-'Oyuncu sayısına göre sıralı · Bugünün havuzları':'Sorted by player count · Today\'s pools',
-'🎁 Günlük Giriş Ödülleri':'🎁 Daily Login Rewards','🎯 BÜLTEN':'🎯 COUPON','⚡ HEPSİNİ AÇ':'⚡ REVEAL ALL',
-'basılı tut':'hold down','9 kutucuğu parmakla aç':'Reveal the 9 squares with your finger',
-'3 aynı sembol':'3 matching symbols','Aynı sembol 3 kez = kazanç':'Same symbol 3 times = win',
+
+'🎁 Günlük Giriş Ödülleri':'🎁 Daily Login Rewards','⚡ HEPSİNİ AÇ':'⚡ REVEAL ALL',
+'basılı tut':'hold down',
+
 'Bronz, Gümüş veya Altın':'Bronze, Silver or Gold','Gümüş':'Silver','ⓘ nasıl oynanır':'ⓘ how to play',
-'en az 5 maç seç':'select at least 5 matches','Yabancı':'Foreign','altında':'below','süre':'duration',
+'Yabancı':'Foreign','altında':'below','süre':'duration',
 'Hazırlık Maçını İptal':'Cancel Friendly Match',
 'İptal edilen maç hem takviminden hem sunucudan kaldırılır.':'A cancelled match is removed from both your calendar and the server.',
 
@@ -661,10 +660,10 @@ Object.assign(window.I18N.en, {
 'ile başlarsın. Takım tesisin (Performans Merkezi) her seviye için':
   'you start with. Your team facility (Performance Centre) adds for each level',
 'harcama; hangisi önce dolarsa orada durur.':'spending; whichever fills first is the cap.',
-'işlenir, her bilet denetim için kaydedilir.':'is processed, and every ticket is logged for auditing.',
+
 'kazanır. Elmas ortalama her 200 bilette bir çıkar.':'wins. A diamond appears on average once every 200 tickets.',
 '\'de sıfırlanır. Kazanç tavanı Toto ile ortaktır.':'resets. The winnings cap is shared with Toto.',
-'Ücretsiz günlük bilet 25\'e sayılmaz. Tüm sayaçlar':'The free daily ticket does not count towards 25. All counters',
+
 'güncel sezon maaşı ÷ 4':'current season salary ÷ 4','ve talep ettiğin':'and the requested',
 '(final galibi) ayrıca':'(the final winner) also','de buluşur. Final hariç tüm turlar çift maçlıdır.':
   'meet. Every round except the final is played over two legs.',
@@ -740,10 +739,8 @@ Object.assign(window.I18N.en, {
 
   // ── eğlence / toto ──
   '\'de sıfırlanır.':' reset.',
-  'Elmas ortalama her 200 bilette bir çıkar.':'A diamond appears on average once every 200 tickets.',
-  'Kazanç tavanı Toto ile ortaktır.':'The payout cap is shared with Toto.',
-  'Kupon 5–15 maç · misli 5 – 5.000 € · kazanç tavanı 2.500.000 € · oran tavanı 500':'Coupon 5–15 matches · stake 5 – 5,000 € · payout cap 2,500,000 € · odds cap 500',
-  'belirlenir; kazıma yalnızca animasyondur. Sayfayı yenilesen sonuç değişmez.':'is decided in advance; scratching is only an animation. Refreshing the page does not change the result.',
+  
+  
   '⬛ Boş':'⬛ Blank',
   '💎 Elmas':'💎 Diamond',
 
@@ -793,7 +790,6 @@ Object.assign(window.I18N.en, {
   'Daha Sonra':'Later',
   'Hesabın için yeni bir şifre yaz.':'Choose a new password for your account.',
   'Hesabını silmek kalıcıdır. Takımın, oyuncun, cüzdanın ve tüm ilerlemen geri alınamaz şekilde kaldırılır.':'Deleting your account is permanent. Your team, player, wallet and all progress are removed irreversibly.',
-  'Kupondan çıkar':'Remove from coupon',
   'Opsiyonel. Onay verildiği an oyuncunun elmas cüzdanına aktarılır. Kasa elması (€ değil) kullanılır.':'Optional. Transferred to the player’s diamond wallet the moment it is approved. Treasury diamonds are used (not €).',
   'Oyuncu Transfer › Boştaki Oyuncular kısmına eklenecek. Yerine yeni bir oyuncu gelecek.':'The player will be added to Transfers › Free Agents. A new player will take their place.',
   'Oyuncu seviyesine göre hesaplandı (40 günlük antrenman maliyeti × 1,045).':'Calculated from the player’s level (40 days of training cost × 1.045).',
@@ -903,7 +899,6 @@ Object.assign(window.I18N.en, {
   'korner kazandı':'won a corner',
   'Kale vuruşu —':'Goal kick —',
   'kurtardı':'saved it',
-  'tuttu ·':'saved ·',
   'Tuttu':'Saved',
   'vurdu —':'shot —',
   'şutunu çevirdi':'turned the shot away',
@@ -946,12 +941,10 @@ Object.assign(window.I18N.en, {
   'Stadyum':'Stadium',
   'Stadyumu':'Stadium',
   'seyirci · €':'spectators · €',
-  'Ort. Bilet':'Avg. Ticket',
   'BİLET':'TICKET',
   'Bilet':'Ticket',
   'Bilet Geliri (':'Ticket Income (',
   'bilet geliri':'ticket income',
-  '€ bilet':'€ ticket',
   'kapasite)':'capacity)'
 });
 
@@ -1172,7 +1165,6 @@ Object.assign(window.I18N.en, {
   '· Gereken:':'· Required:',
   'Kalan yatırım:':'Remaining investment:',
   'iade edildi.':'was refunded.',
-  'ile yattı.':'was credited.',
   'Yeni değer:':'New value:',
   'Eski:':'Old:',
 
@@ -1206,8 +1198,7 @@ Object.assign(window.I18N.en, {
   'Kime:':'To:',
   'Soru':'Question',
   'Havuz':'Pool',
-  '🔥 Aktif Havuz':'🔥 Active Pool',
-  '💰 Toplam Havuz':'💰 Total Pool'
+  
 });
 
 /* ── 6. dalga · turnuva, toto, istatistik, genel ── */
@@ -1256,42 +1247,26 @@ Object.assign(window.I18N.en, {
   'lig ·':'league ·',
   'Lig Verisi Yok':'No League Data',
 
-  'TOTO KUPONU':'TOTO COUPON',
-  'TOTO KUPONUM':'MY TOTO COUPON',
-  'KUPONUM':'MY COUPON',
-  'Kupon':'Coupon',
-  '🎟️ Kupon':'🎟️ Coupon',
-  '🎫 KUPONLARIM':'🎫 MY COUPONS',
-  'Kuponda':'On coupon',
-  'Kupondan çıkar':'Remove from coupon',
-  'Kuponu temizle':'Clear coupon',
-  'KUPONU OYNA':'PLAY COUPON',
-  'KUPONU OYNA (':'PLAY COUPON (',
-  'KUPONU OYNA ·':'PLAY COUPON ·',
-  'kupon dolu ·':'coupon full ·',
-  '10 kupon':'10 coupons',
-  'maçlık kuponum':'-match coupon',
-  'Misli':'Stake',
-  '€ misli':'€ stake',
-  'Maksimum misli':'Maximum stake',
-  'Minimum misli':'Minimum stake',
-  'TOPLAM ORAN':'TOTAL ODDS',
-  'Toplam Oran':'Total Odds',
-  'Toplam oran':'Total odds',
-  'toplam oran':'total odds',
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
   'oran,':'odds,',
-  'oran.':'odds.',
   'KURALLAR':'RULES',
   'Kurallar':'Rules',
-  'KAZI KAZAN':'SCRATCH & WIN',
-  '2. KAZI':'2ND SCRATCH',
-  '25 bilet':'25 tickets',
+  
   '5+ Doğru':'5+ Correct',
   'doğru':'correct',
   '🏆 ÖDÜLÜ AL ·':'🏆 CLAIM REWARD ·',
   '🏆 ÖDÜLÜ AL:':'🏆 CLAIM REWARD:',
   'ÖDÜLÜ AL ·':'CLAIM REWARD ·',
-  '× bilet bedeli':'× ticket price',
   'kazanan · ⏳':'winner · ⏳',
   'kazananı':'winner of',
   'kazandı':'won',
@@ -1355,7 +1330,6 @@ Object.assign(window.I18N.en, {
   'TAKİPÇİLERİM ·':'MY FOLLOWERS ·',
   'Davet':'Invite',
   'Davet Gönder':'Send Invite',
-  'Bülteni':'Bulletin',
   'Selam!':'Hi!',
   'Bu sezon':'This season',
   'Bu sezon: +':'This season: +'
@@ -1600,7 +1574,6 @@ Object.assign(window.I18N.en, {
   'Bu gün maç yok.':'No match today.',
   '— bu tarihte lig maçı yok.':'— no league match on this date.',
   'için oynanabilir maç yok.':'has no playable match.',
-  'başlamış maç kupondan çıkarıldı':'started matches removed from the coupon',
   'maç başladı — çıkar':'match has started — remove',
   '⚽ Maç tamamlandı ·':'⚽ Match completed ·',
   'maç tamamlandı ·':'match completed ·',
@@ -1866,25 +1839,16 @@ Object.assign(window.I18N.en, {
 
 /* ── 7. dalga (4/4) · toto, sosyal, ayarlar, durum, hukuki başlıklar ── */
 Object.assign(window.I18N.en, {
-  'KAZI KAZAN · NASIL OYNANIR':'SCRATCH & WIN · HOW TO PLAY',
-  'GÜNLÜK ÜCRETSİZ BİLET':'DAILY FREE TICKET',
-  'Her gün 1 Bronz bilet hediye':'1 free Bronze ticket every day',
-  'Günlük kupon sınırı:':'Daily coupon limit:',
-  'kupon (00:00\'da sıfırlanır)':'coupons (resets at 00:00)',
+  
+  
   'Olası max kazanç':'Max possible win',
-  '💰 Güncel Havuza Göre Olası Kazançlar':'💰 Possible Winnings At Current Pool',
-  'doğru tahmin · havuz oranı %':'correct predictions · pool share ',
+  
   'doğru — minimum 5 gerekiyordu':'correct — a minimum of 5 was required',
-  'Toto kuponun kazandı:':'Your Toto coupon won:',
-  '🏆 Toto kuponum tuttu!':'🏆 My Toto coupon came in!',
-  '🎯 Toto kuponum oynanıyor —':'🎯 My Toto coupon is live —',
-  '🎲 Kuponu Oyna ·':'🎲 Play Coupon ·',
-  '📭 Henüz kupon oynamadın.':'📭 You have not played a coupon yet.',
-  'maç kuponuna aktarıldı':'matches added to the coupon',
+  
+  
+  
   'maç aktarıldı (':'matches transferred (',
-  'maç seçebilirsin':'you can choose matches',
-  'maç · toplam oran':'matches · total odds',
-  'oran hazırlanıyor':'odds being prepared',
+  
   'maçlar listelenir.':'matches are listed.',
   'yok. Tümü\'ne dönüp listeye bak.':'none. Go back to All and check the list.',
   'BU SEFER OLMADI':'NOT THIS TIME',
@@ -1931,10 +1895,8 @@ Object.assign(window.I18N.en, {
   'TAKİP ETTİKLERİM ·':'FOLLOWING ·',
   'İlk paylaşımı sen yap!':'Be the first to post!',
   'ülkesinden henüz gönderi yok.':'no posts from this country yet.',
-  'Bültende yalnızca':'The bulletin only shows',
-  'Bültenin sonu ·':'End of bulletin ·',
-  'bültenindeki kuponun':'the coupon in the bulletin of',
-  '⚠️ Bu bültende sadece':'⚠️ This bulletin only contains',
+  
+  
   'Bir sonraki Cuma 07:00':'Next Friday 07:00',
   'Cuma 07:00 — 17:00 (10 saat)':'Friday 07:00 — 17:00 (10 hours)',
 
@@ -1985,7 +1947,6 @@ Object.assign(window.I18N.en, {
   '8. Hesap kapatma':'8. Closing your account',
   '1. Oyunun niteliği':'1. Nature of the game',
   '2. Oyun içi para birimi':'2. In-game currency',
-  '3. Toto ve Kazı Kazan':'3. Toto and Scratch & Win',
   '4. Kullanıcı davranışı':'4. User conduct',
   '5. İçerik':'5. Content',
   '6. Hizmetin sürekliliği':'6. Continuity of service',
@@ -2004,7 +1965,6 @@ Object.assign(window.I18N.en, {
   'futbol menajerlik simülasyonudur':'football management simulation',
   'gerçek para ile oynanmaz':'is not played with real money',
   'gerçek para karşılığı yoktur':'has no real-money value',
-  'Toto kuponu ve Kazı Kazan':'Toto coupons and Scratch & Win',
   'Son güncelleme: bu sürümle birlikte.':'Last updated: with this version.'
 });
 
@@ -2125,7 +2085,6 @@ Object.assign(window.I18N.en, {
   'Milli takım fikstürü sezon başında oluşturulur.':'The national team fixture list is created at the start of the season.',
   'Sadece milli takım prestiji ve oyuncu istatistikleri.':'National team prestige and player statistics only.',
   'Lig fikstürü sezon başında oluşturulacak.':'The league fixture list will be created at the start of the season.',
-  'Fikstürler oluştuğunda Toto bültenleri otomatik açılacak.':'Toto bulletins will open automatically once the fixtures are created.',
   'Turnuva fikstürü "Turnuvalar" menüsünde görüntülenebilir.':'The tournament fixtures can be viewed in the "Tournaments" menu.',
   'Turnuvaya hak kazanan takımlar lig sonunda belirlenir.':'The teams that qualify for the tournament are decided at the end of the league.',
   'Takımlar belirlendiğinde burada listelenecek':'Teams will be listed here once they are decided',
@@ -2148,10 +2107,8 @@ Object.assign(window.I18N.en, {
   'Pre-season devam ediyor. Sezon başladıktan sonra Gün':'Pre-season is under way. After the season starts, on day',
   'dakika sonra başlayacak — şimdi izlenemez':'starts in a few minutes — cannot be watched yet',
   'bugün maç yapmıyor. Yarın yeni maçlar var.':'is not playing today. There are new matches tomorrow.',
-  'maç var. Kupon için 8 maç gerekiyor — başka lig deneyebilirsin.':'matches. A coupon needs 8 matches — try another league.',
-  'Diğer tarihleri kontrol edebilir veya Kupon Yap sekmesinden yeni kupon oynayabilirsin.':'You can check other dates, or play a new coupon from the Build Coupon tab.',
-  'tahmin ve şans oyunu temalı eğlence özellikleridir':'are entertainment features themed on prediction and chance',
-  '3 aynı sembol denk gelmedi — yeni bilet dene':'No three matching symbols — try a new ticket',
+  
+  
   '💡 Hazırlık maçları lig fikstürüne dahil değildir. Sadece bilgi amaçlı listelenir.':'💡 Friendlies are not part of the league fixture list. They are listed for information only.',
   '💡 Senin ve rakip takımın gerçek lig maçlarına en az':'💡 At least this far from your and the opponent’s competitive matches:',
   '💡 Serbest oyuncular bu kuraldan etkilenmez — her zaman katılabilir.':'💡 Free agents are not affected by this rule — they can always join.',
@@ -2179,7 +2136,6 @@ Object.assign(window.I18N.en, {
   'e-posta adresin, cüzdan hareketlerin, gelen kutun, ekipmandan gelen bonus ayrıntıların.':'your e-mail address, wallet activity, inbox and equipment bonus details.',
   'oyuncu adın, takımın, yetenek toplamların, maç istatistiklerin, paylaşımların.':'your player name, team, skill totals, match statistics and posts.',
   'takım sohbeti, CSC Media paylaşımları, gelen kutusu mesajları, federasyon oyları.':'team chat, CSC Media posts, inbox messages and federation votes.',
-  'takım, kadro, yetenek seviyeleri, maç istatistikleri, kupalar, cüzdan bakiyesi (oyun içi € ve 💎), kuponlar, envanter.':'team, squad, skill levels, match statistics, trophies, wallet balance (in-game € and 💎), coupons and inventory.',
   'Veriler Supabase (PostgreSQL) altyapısında, şifreli bağlantı üzerinden saklanır. Şifreler tek yönlü olarak saklanır; hiç kimse ham şifreni göremez.':'Data is stored on Supabase (PostgreSQL) over an encrypted connection. Passwords are stored one-way; nobody can see your raw password.',
   'Hesabın aktif olduğu sürece. Hesabını sildiğinde kişisel verilerin kalıcı olarak kaldırılır (bkz. madde 7).':'For as long as your account is active. When you delete your account your personal data is permanently removed (see clause 7).',
   'hangi verilerin tutulduğunu talep edebilirsin.':'you may request which data is held.',
@@ -2207,9 +2163,7 @@ Object.assign(window.I18N.en, {
   ', Gün':', Day',
   ', oyuncumuz':', our player',
   '/4 TAKSİT (GÜN':'/4 INSTALMENTS (DAY',
-  '/8 (oran %':'/8 (odds ',
-  '/8 seçim tamam':'/8 selections complete',
-  '/8 seçim yapıldı':'/8 selections made',
+  
   '1. günü 00:00':'day 1 at 00:00',
   '3. günü 19:00':'day 3 at 19:00',
   '16-18. günler':'days 16–18',
@@ -2236,18 +2190,15 @@ Object.assign(window.I18N.en, {
   'gün içinde bitiyor — Tıkla, yenile':'days until it expires — tap to renew',
   'gün içinde sona eriyor':'days until it expires',
   'kullanılabilir.':'is available.',
-  'kupon · 🏆':'coupons · 🏆',
   'lig · En yüksek ★':'leagues · Highest ★',
   'lig · 💎':'leagues · 💎',
   'maç':'matches',
   'maç daha':'more matches',
-  'maç daha seç':'choose more matches',
-  'maç daha)':'more matches)',
+  
   'maç düştü)':'matches dropped)',
   'maç dışında':'apart from the match',
   'maç olmalı':'matches required',
-  'maç seçildi':'matches selected',
-  'maç seçmelisin':'you must choose matches',
+  
   'maç)':'matches)',
   'maç,':'matches,',
   'maçta':'in the match',
@@ -2260,7 +2211,6 @@ Object.assign(window.I18N.en, {
   'sakatlığı (':'injury (',
   'sakatlığı · ~':'injury · ~',
   'seviye!)':'levels!)',
-  'seçim daha yap':'make more selections',
   'sona erdi!':'has ended!',
   'sonra (Sezon':'later (Season',
   'sonu ·':'end ·',
@@ -2279,7 +2229,6 @@ Object.assign(window.I18N.en, {
   '🏷️ Transferde':'🏷️ On the transfer list',
   '💎 500 Diamond':'💎 500 Diamonds',
   '💎 Diamond':'💎 Diamonds',
-  '🏆 50× JACKPOT':'🏆 50× JACKPOT',
   '(Top 30)':'(Top 30)',
   '00:00 TR':'00:00 TR'
 });
@@ -2309,8 +2258,7 @@ Object.assign(window.I18N.en, {
   'Perşembe':'Thursday', 'Cuma':'Friday', 'Cumartesi':'Saturday',
   'Bugün':'Today', 'Dün':'Yesterday', 'Yarın':'Tomorrow',
   'Bugün ·':'Today ·', 'Dün ·':'Yesterday ·', 'Yarın ·':'Tomorrow ·',
-  'Bugünün havuzları':'Today’s pools',
-  'Oyuncu sayısına göre sıralı · Bugünün havuzları':'Sorted by player count · today’s pools',
+  
 
   // ── hava durumu ──
   '☀️ Güneşli':'☀️ Sunny',
@@ -2675,7 +2623,7 @@ Object.assign(window.I18N.en, {
   'Gol Krallığı':'Top Scorers', 'Asist Krallığı':'Top Assists',
   'En Yüksek Reyting':'Highest Rating', '⭐ Sezon Reytingi':'⭐ Season Rating',
   'En Avantajlı':'Best Value', 'En İyi Değer':'Best Value',
-  'En yüksek kupon oranı':'Highest coupon odds', 'Sonuçlanma oranı':'Settlement rate',
+   'Sonuçlanma oranı':'Settlement rate',
   'Toplam kazanılan':'Total won', 'Toplam yatırılan':'Total staked',
   '🏅 Başarımlar':'🏅 Achievements', '🌱 Genç Geliştirici':'🌱 Youth Developer',
   '🎯 Antrenör':'🎯 Coach', '🔥 Motivatör':'🔥 Motivator',
@@ -2683,7 +2631,7 @@ Object.assign(window.I18N.en, {
   '📋 Eski Okul':'📋 Old School', '📢 Yönetim':'📢 Management',
   '🏆 Lig Yönetimi':'🏆 League Management', '🏆 Yarış Komisyonu':'🏆 Race Committee',
   '🏆 Milli Takım Daveti':'🏆 National Team Call-Up', '🎁 Günlük Giriş':'🎁 Daily Login',
-  '🎫 Kazı Kazan':'🎫 Scratch & Win', 'Daha Fazla Yetenek':'More Skills'
+   'Daha Fazla Yetenek':'More Skills'
 });
 
 /* ── 13c-1 · genel durum, onay, kısa etiketler ── */
@@ -2791,12 +2739,12 @@ Object.assign(window.I18N.en, {
   '🔒 Geçmiş Tarih':'🔒 Past Date', 'Geçmiş Tarih':'Past Date', 'Tarih geçersiz':'Invalid date',
   'Tarih çok ileride':'Date too far ahead', 'Geçersiz tarih':'Invalid date',
   'Geçersiz Süre':'Invalid Duration', 'Geçersiz formasyon':'Invalid formation',
-  'Geçersiz kupon bedeli':'Invalid coupon stake', 'Geçersiz mevki.':'Invalid position.',
+   'Geçersiz mevki.':'Invalid position.',
   'Geçerli bir tutar gir.':'Enter a valid amount.', '⚠️ Geçersiz':'⚠️ Invalid',
   'Maç saati geçmiş':'Kick-off time has passed', 'Maç bulunamadı':'Match not found',
   'Maç verisi bulunamadı':'Match data not found', 'Maç verisi eksik':'Match data missing',
   'Maç ekranı açılamadı':'Could not open the match screen',
-  'Bu görünümde maç yok':'No matches in this view', 'Bu maç için oran yok':'No odds for this match',
+  'Bu görünümde maç yok':'No matches in this view', 
   'Transfer Dönemi Kapalı':'Transfer Window Closed', 'Transfer hatası.':'Transfer error.',
   'Teklif bulunamadı.':'Offer not found.', 'Alıcı bulunamadı.':'Buyer not found.',
   'İlan bulunamadı.':'Listing not found.', 'İlan geri alınamadı.':'Could not withdraw the listing.',
@@ -2811,14 +2759,11 @@ Object.assign(window.I18N.en, {
   'Ödeme başlatılamadı.':'Could not start the payment.', '❌ Ödeme yapılamadı.':'❌ Payment failed.',
   '💳 Ödeme hazırlanıyor…':'💳 Preparing payment…', '⏳ Satın alınıyor…':'⏳ Purchasing…',
   '⏳ Transfer işleniyor…':'⏳ Processing transfer…', '⏳ İlan geri alınıyor…':'⏳ Withdrawing listing…',
-  'Ödendi':'Paid', 'Bilet alınamadı ·':'Could not buy a ticket ·',
-  'Bilet bulunamadı':'Ticket not found', 'Yeni bilet alabilirsin':'You can buy a new ticket',
-  'BİLET AL ·':'BUY TICKET ·', 'KUPONU AÇ':'OPEN COUPON',
-  'Kupon Sonuçlandı':'Coupon Settled', 'Kupon bulunamadı':'Coupon not found',
-  'Kupon kazandın!':'You won the coupon!', 'Kupon kazanmamış':'Coupon did not win',
-  '✅ Kupon oynandı':'✅ Coupon placed', '❌ Kupon aktarılamadı':'❌ Could not transfer the coupon',
-  '❌ Kupon bulunamadı':'❌ Coupon not found', 'kupon boş':'coupon is empty',
-  'OLASI KAZANÇ':'POSSIBLE WIN', 'Maaş Hesaplanamadı':'Wage Could Not Be Calculated',
+  'Ödendi':'Paid', 
+   
+   
+   
+   'Maaş Hesaplanamadı':'Wage Could Not Be Calculated',
   'Bağlantı Hatası':'Connection Error', '❌ Bağlantı yok':'❌ No connection',
   'Sunucuya ulaşılamadı.':'Could not reach the server.', 'sunucu hatası':'server error',
   'Veritabanı Hatası':'Database Error', 'Oturum Hazır Değil':'Session Not Ready',
@@ -3001,12 +2946,10 @@ Object.assign(window.I18N.en, {
   'Bu oyuncu zaten oyundan çıktı':'This player has already been substituted',
   'Bu oyuncu oyundan çıktı (':'This player has left the pitch (',
   'Bu oyuncunun bağlı bir kullanıcı hesabı yok, mesaj gönderilemez.':'This player has no linked user account, so no message can be sent.',
-  'Bu maç başladı — tahmin yapılamaz':'This match has started — no predictions',
-  'Bu maç bitti — tahmin yapılamaz':'This match is over — no predictions',
+  
   'Bu lig için bu tarihte maç yok.':'No matches for this league on this date.',
   'Bu sezon lig verisi bulunamadı':'No league data found for this season',
-  'Bu filtrede havuz yok. Diğer filtreleri deneyebilirsin.':'No pool for this filter. Try the other filters.',
-  'Bu kupon eski sistemden. Kuponlarım sekmesinden ödülünü al.':'This coupon is from the old system. Claim your reward from the My Coupons tab.',
+  
   'Başka bir lig/turnuva ya da farklı bir tarih seçmeyi deneyebilirsin.':'Try another league/tournament or a different date.',
   'Bu tarihte oynanan maçlar bulundu mu kontrol et veya başka bir lig seç.':'Check whether any matches were played on this date, or pick another league.',
   'Geçmiş bir tarih seçemezsin':'You cannot pick a past date',
@@ -3023,8 +2966,7 @@ Object.assign(window.I18N.en, {
   'Günlük harcama tavanı doldu':'Daily spending cap reached',
   'Günlük harcama tavanı doldu · kalan':'Daily spending cap reached · remaining',
   'Günlük yatırım tavanı doldu':'Daily investment cap reached',
-  'Günlük tahmin limiti aşılıyor':'You are exceeding the daily prediction limit',
-  'Bugünün ücretsiz bileti kullanıldı':'Today’s free ticket has been used',
+  
   'Hazırlık kaydı sunucuda yok':'The friendly record is not on the server',
   'Eşleşen kullanıcı bulunamadı.':'No matching user found.',
   'Henüz bir takımın yok. Önce takım satın al ya da bir takıma katıl.':'You do not have a team yet. Buy one or join a team first.',
@@ -3036,7 +2978,6 @@ Object.assign(window.I18N.en, {
   'Hesap oluşturuldu ama oyuncu kaydın hazırlanamadı. Birkaç saniye sonra':'The account was created but your player record could not be prepared. In a few seconds',
   'Inbox\'ı kontrol et — bazı mesajlar yanıt bekliyor':'Check your inbox — some messages are waiting for a reply',
   'Haftalık turnuva sonuçlandı, sıralamayı gör':'The weekly tournament has finished — see the standings',
-  'Antrenman, mağaza ve toto ile gelişimine devam et':'Keep improving through training, the shop and Toto'
 });
 
 /* ── 16. dalga · turnuva açıklamaları, maç anlatımı, bot diyalogları ── */
@@ -3071,7 +3012,6 @@ Object.assign(window.I18N.en, {
   'Championship şampiyonu ol':'Become Championship winner',
   'Convergence şampiyonu ol':'Become Convergence winner',
   'Bu günlerde lig maçları oynanmaz. Takımlar transfer pazarı açık kalır;':'No league matches are played on these days. The transfer market stays open for teams;',
-  'Bugün için hiçbir lige veya turnuvaya kupon yatırılmamış. İlk kuponu sen yatırırsan havuzu sen başlatırsın.':'No coupon has been placed on any league or tournament today. Place the first coupon and you start the pool.',
   'Ev sahibi maçlarda bilet geliri sağlayan taraftar kapasitesi. Süper Lig\'de €25/bilet, alt liglerde daha az.':'The crowd capacity that generates ticket income in home matches. €25 per ticket in the Super League, less in the lower divisions.',
   'Bilet satışı gelirlerini yüzdelik olarak artırır.':'Increases ticket sale income by a percentage.',
   'Günlük 450 enerjiye ek, takımdaki tüm oyunculara bonus enerji sağlar.':'On top of the daily 450 energy, gives bonus energy to every player in the team.',
@@ -3212,7 +3152,6 @@ Object.assign(window.I18N.en, {
   'Yeni Sezon Fikstürleri Belirleniyor 📋':'New Season Fixtures Being Drawn 📋',
   'Yeni takıma transfer (TM)':'Transfer to a new team (TM)',
   'Yeni bir mesaj aldın, tıkla oku':'You have a new message — tap to read',
-  'Toto kuponun sonuçlandı, tıkla görüntüle':'Your Toto coupon has been settled — tap to view',
   'Transfer hakkında yanıtla...':'Reply about the transfer...',
   'Transfer tamamlanamadı.':'The transfer could not be completed.',
   'Teslim edilemedi, elmasların iade edildi.':'Could not be delivered; your diamonds were refunded.',
@@ -3454,7 +3393,7 @@ Object.assign(window.I18N.en, {
 
   // ── kategori / rozet adları ──
   'Mental':'Mental', 'Oyun Kurucu':'Playmaker', 'Item':'Items',
-  'Galip':'Winner', 'Koleksiyoner':'Collector', 'Kuponcu':'Punter',
+  'Galip':'Winner', 'Koleksiyoner':'Collector', 
   'Milli Gurur':'National Pride', 'Sadık Oyuncu':'Loyal Player',
   'Çalışkan':'Hard Worker', 'COMMON':'COMMON', 'PRO':'PRO'
 });
@@ -3518,7 +3457,6 @@ Object.assign(window.I18N.en, {
   'Bu süreçte başka takımları görüntülemeye veya başka takımlara da istek göndermeye devam edebilirsin.':'In the meantime you can keep browsing other teams and sending requests to them.',
   'Kadroda oyuncunun kondisyonu kritik seviyede (%30 altı).':'A player in the squad is at critical fitness (below 30%).',
   'Not: Bot oyuncuların maaşı 0 €\'dur, sezonluk ödeme listesine eklenmez.':'Note: bot players have a wage of 0 €, so they are not on the seasonal payment list.',
-  'Ödülünü Eğlence → Kuponlarım sekmesinden "Ödülü Al" butonuyla cüzdanına aktarabilirsin.':'You can move your reward to your wallet from Entertainment → My Coupons using the "Claim Reward" button.',
   '• Artık takımdan istediğin an ayrılabilirsin':'• You can now leave the team at any time',
   '• Artık takımdan istediğin an ayrılabilirsin (Finans/Profil sayfasından)':'• You can now leave the team at any time (from the Finances/Profile page)',
   '• Başka takımlardan teklif gelebilir':'• Other teams may make you an offer',
@@ -3578,8 +3516,7 @@ Object.assign(window.I18N.en, {
   'Kura bekleniyor — fikstür belli olunca burada görünecek.':'Awaiting the draw — the fixtures will appear here once set.',
   'Sıralama sezon sonunda kesinleşir':'The standings are finalised at the end of the season',
   'Sezon ortalama maç reytingleri':'Season average match ratings',
-  'Kutucukları kazıyarak aç':'Scratch the panels to reveal them',
-  'Kazı Kazan Ödülün Bekliyor':'Your Scratch & Win Reward Is Waiting',
+  
   'Otomatik hesaplanan değer':'Automatically calculated value',
   'Kaptan tarafından belirlendi':'Set by the captain',
   'Standart iyileşme süresi':'Standard recovery time',
@@ -3652,11 +3589,8 @@ Object.assign(window.I18N.en, {
   'Maç sunucuda bulunamadı':'The match was not found on the server',
   'Maç motoru yüklenemedi.':'The match engine could not be loaded.',
   'Maç verisi yükleniyor, lütfen tekrar dene…':'Loading match data, please try again…',
-  'Maç başladı, tahmin kapandı':'The match has started — predictions are closed',
   'Maç henüz kabul edilmedi':'The match has not been accepted yet',
-  'Kuponda başlamış maç var':'The coupon contains a match that has started',
-  'Kuponda başlamış maç var, çıkar':'The coupon contains a started match — remove it',
-  'Misli sınırların dışında':'The stake is outside the limits',
+  
   'Lig sıralaması yeterli olmadı':'Your league position was not good enough',
   'Oturumun doğrulanamadı, tekrar giriş yap.':'Your session could not be verified — please sign in again.',
   'Oturumun düşmüş, tekrar giriş yap.':'Your session has expired — please sign in again.',
@@ -3673,7 +3607,6 @@ Object.assign(window.I18N.en, {
   '(sonraki sezon)':'(next season)',
   '(henüz sayaç yok)':'(no counter yet)',
   '. Başvurun, sonraki sezon seçiminde otomatik olarak aday listesine eklenir.':'. Your application is added automatically to the candidate list for next season’s election.',
-  '. Bu özellikler kumar değildir ve kumar oynamayı teşvik etmez.':'. These features are not gambling and do not encourage gambling.',
   '. Tesis seviyelerini görebilirsin ama yükseltme veya bağış yapamazsın.':'. You can see the facility levels but cannot upgrade or donate.',
   '. Diziliş\'ten yedek oyuncularla rotasyon yapmanı öneririz.':'. We suggest rotating with substitutes from the Line-up screen.',
   'CSC Media\'da paylaş':'Share on CSC Media',
@@ -3919,10 +3852,8 @@ Object.assign(window.I18N.en, {
   'kupon':'coupons',
   'Süper Lig':'Super League',
   'SALI':'TUE', 'PAZAR':'SUN', 'CUMA':'FRI',
-  'KAZI':'SCRATCH',
   'KAZANDIN':'YOU WON',
   '🎉 KAZANDIN':'🎉 YOU WON',
-  'bilet bedeli':'ticket price',
   'ÖDÜLÜ AL':'CLAIM REWARD',
   '🏆 ÖDÜLÜ AL':'🏆 CLAIM REWARD',
 
@@ -4169,7 +4100,6 @@ Object.assign(window.I18N.en, {
   'AL':'CLAIM',
   'Altın':'Gold', 'Bronz':'Bronze', 'Gümüş':'Silver',
   'Altın Bilet':'Gold Ticket', 'Bronz Bilet':'Bronze Ticket', 'Gümüş Bilet':'Silver Ticket',
-  'bilet bedeli':'ticket price',
 
   // ── transfer ──
   '📭 Satışta oyuncu yok.':'📭 No players for sale.',
@@ -4257,11 +4187,8 @@ window.I18N_PATTERNS.en.push(
 
 /* ── 35. dalga · kazı kazan kalanları ── */
 Object.assign(window.I18N.en, {
-  'KAZI':'SCRATCH',
-  'KAZI KAZAN':'SCRATCH & WIN',
-  '3 aynı sembol':'3 matching symbols',
-  '2. KAZI':'2. SCRATCH',
-  '9 kutucuğu parmakla aç':'Reveal the 9 panels with your finger'
+  
+  
 });
 window.I18N_PATTERNS.en.push(
   [/^×([\d.,]+) · ([\d.,]+)× bilet bedeli$/,  '×$1 · $2× ticket price'],
@@ -4452,7 +4379,6 @@ Object.assign(window.I18N.en, {
   'En yüksek puan':'Highest points',
   'En çok gol atan':'Top scorer',
   'Toplam gol':'Total goals',
-  'Toplam kupon':'Total coupons',
   'Takım sayısı':'Number of teams',
   'Top Kapma':'Ball Winning',
   'Yükselme':'Promotion',
@@ -4477,7 +4403,6 @@ Object.assign(window.I18N.en, {
   '⚽ Takım seç…':'⚽ Choose a team…',
   '🏆 Klasman seç…':'🏆 Choose a division…',
   '↕ daha eski sezonlar için kaydır':'↕ scroll for older seasons',
-  'Bülten sekmesinden 5–15 maç seç.':'Pick 5–15 matches from the Bulletin tab.',
   'Sezonluk dereceler için “Lig Şampiyonluğu” veya “Avrupa Kupası” kutusuna dokun.':'For seasonal honours, tap the “League Title” or “European Cup” box.',
   'Kaptan doğrudan ayrılamaz; aksi halde takım':'The captain cannot leave directly; otherwise the team',
   'Bir oyuncuyu kaptan yap, üye olarak kal.':'Make another player captain and stay on as a member.',
@@ -4544,8 +4469,7 @@ Object.assign(window.I18N.en, {
   '🆓 Boşta oyuncu yok.':'🆓 No free agents.',
   '📭 Mesaj yok':'📭 No messages',
   '📭 Şu anda satışta takım yok.':'📭 No teams for sale right now.',
-  '🎫 Henüz bilet almadın.':'🎫 You have not bought a ticket yet.',
-  '🎫 Henüz kupon oynamadın.':'🎫 You have not played a coupon yet.',
+  
   '⚽ Bekleyen hazırlık maçın yok.':'⚽ You have no pending friendlies.',
   '⏳ Fikstür yükleniyor…':'⏳ Loading fixtures…',
   'Maç akışı birazdan başlıyor…':'The match feed starts shortly…',
@@ -4864,7 +4788,6 @@ Object.assign(window.I18N.en, {
   'Mesaj kaydedilemedi.':'The message could not be saved.',
   'Yeni Mesaj':'New Message',
   'Maç Başlıyor':'Match Starting',
-  'Kupon Sonuçlandı':'Coupon Settled',
   'Haftalık Yarış Bitti':'Weekly Race Over',
   'Tüm mesajları sil':'Delete all messages',
   'Mesajı sil':'Delete message',
@@ -5159,7 +5082,7 @@ Object.assign(window.I18N.en, {
   'Yarı':'Half',             // devre; yarı final değil (o "Yarı Final")
   '1. Yarı':'1st Half',
   '2. Yarı':'2nd Half',
-  '2. KAZI':'2ND SCRATCH'    // "2. SCRATCH" İngilizce değil
+  // "2. SCRATCH" İngilizce değil
 });
 
 /* ─── Dalga 51 · Transfer sayfası + gelen kutusu transfer modalı ─── */
@@ -5220,7 +5143,6 @@ Object.assign(window.I18N.en, {
   '💰 Ödül:':'💰 Reward:',
   '• Yeteneklerin gelişti, piyasa değerin arttı.':'• Your skills improved and your market value rose.',
   '• Ödülünü Etkinlik > Yarış ekranından almayı unutma.':'• Don’t forget to claim your reward from Events > Race.',
-  'Eğlence > Kazı Kazan ekranından "Ödülü Al" ile tahsil edebilirsin.':'You can collect it from Entertainment > Scratch Card with "Claim Reward".',
   '• Yenileme talebini Takımım > Sözleşme ekranından gönderebilirsin.':'• You can send a renewal request from My Team > Contract.',
   '• Diziliş ekranından yedeklerle rotasyon yap.':'• Rotate with substitutes from the Formation screen.',
   '• Antrenman sayfasından yeteneklerini geliştirebilirsin.':'• You can improve your skills on the Training page.',
@@ -5347,7 +5269,6 @@ Object.assign(window.I18N.en, {
   '• Tür: Sözleşmesiz (istediğin zaman ayrılabilirsin)':'• Type: No contract (you can leave at any time)',
   'Duyuru':'Announcement',
   'Pazar Yeri':'Marketplace',
-  'Toto Sistem':'Toto System',
   'Teknik Ekip':'Technical Staff',
   'Performans':'Performance',
   'Sistem':'System'
@@ -5593,22 +5514,16 @@ window.I18N_PATTERNS.en.push(
    (4) Taramada çıkan kalan arayüz metinleri                        */
 Object.assign(window.I18N.en, {
   // ── toto bağlamı: bu anahtarlar oyunda YALNIZCA kupon ekranlarında geçiyor ──
-  'İsabet':'Correct',       // eskiden 'Accuracy' (şut isabeti) — kuponda yanlıştı
-  'Tuttu':'Correct',        // eskiden 'Saved' (kaleci kurtarışı) — kuponda yanlıştı
   'Olası':'Potential',
   // ── toto sekmeleri / butonları ──
-  'KUPON YAP':'CREATE COUPON',
-  'KUPONLARIM':'MY COUPONS',
-  'BÜLTEN':'COUPON',
+  
   'İSTATİSTİK':'STATISTICS',
-  'Kuponlarım':'My Coupons',
-  'Kupon Yap':'Create Coupon',
+  
   'Oran':'Odds',
   'KAZANDI':'WON',
   'KAYBETTİ':'LOST',
   'DEVAM EDİYOR':'IN PROGRESS',
   'ödül bekliyor':'reward pending',
-  'misli':'stake',
   'Maç ·':'Matches ·',
   'Gol ·':'Goals ·',
   // ── kalan arayüz ──
@@ -5761,7 +5676,6 @@ Object.assign(window.I18N.en, {
   '. Yani toplamda':'. So in total',
 
   /* Toto bülten alt notu */
-  '. Biletlerin':'. Of the tickets,',
   "%41,5'i":'%41,5'
 });
 
@@ -6022,14 +5936,12 @@ Object.assign(window.I18N.en, {
 /* 570 — Toto İstatistik */
 Object.assign(window.I18N.en, {
   "Son 3 gün": "Last 3 days",
-  "kuponlar 3 gün sonra silindiği için istatistik bu dönemi kapsar": "coupons are deleted after 3 days, so stats cover this period",
   "Net sonuç": "Net result",
   "▲ KÂRDA": "▲ IN PROFIT",
   "▼ ZARARDA": "▼ AT A LOSS",
   "devam ediyor": "in progress",
   "Kazanma oranı": "Win rate",
-  "Kazanan kupon": "Winning coupons",
-  "Kaybeden kupon": "Losing coupons"
+  
 });
 
 /* 571 — Menü grup başlıkları */
@@ -6322,7 +6234,6 @@ Object.assign(window.I18N.en, {
   "Elmas bakiyen": "Your diamond balance",
   "Cüzdan bakiyen": "Your wallet balance",
   "2 taksit borç birikti — sözleşmeni tek taraflı feshedip serbest kalabilirsin.": "2 instalments are overdue — you can terminate your contract and become a free agent.",
-  "Ödülünü Toto → Kuponlarım ekranından al.": "Claim your prize in Toto → My Coupons.",
   "Senin maçın": "Your match",
   "Maçın adamı": "Man of the match"
 });
@@ -6630,7 +6541,6 @@ Object.assign(window.I18N.en, {
 Object.assign(window.I18N.en, {
   "Eski takımı": "Former club",
   "Tüm zamanlar": "All time",
-  "kuponlar 3 gün sonra silinse de istatistiklerin saklanır": "your stats are kept even though slips are deleted after 3 days",
   "Milli ceza": "National team ban",
   "Sakat": "Injured"
 });
@@ -6986,7 +6896,6 @@ Object.assign(window.I18N.en, {
 });
 // 622 — CSC Media (Gece Akışı)
 Object.assign(window.I18N.en, {
-  "BU KUPONU OYNA": "PLAY THIS COUPON",
   "Takiptesin": "Following"
 });
 
@@ -7159,7 +7068,6 @@ Object.assign(window.I18N.en, {
   "Takımını Bul": "Find Your Team",
   "Avrupa Kupaları": "European Cups",
   "Ülkeni Temsil Et": "Represent Your Country",
-  "Toto ve Kazı Kazan": "Toto & Scratch Card",
   "Başla": "Start",
   "Dünya Sıralaması": "World Ranking",
   "En İyi 50": "Top 50",
@@ -7167,7 +7075,6 @@ Object.assign(window.I18N.en, {
   "32 ülke · 8 grup": "32 countries · 8 groups",
   "Milli kadroyu kurar · Kaptanlar aday olur": "Picks the national squad · Captains can run",
   "{ulke} milli takım kadrosuna çağrıldın.": "You've been called up to the {ulke} national team.",
-  "3 aynı sembolü yakala": "Match 3 identical symbols",
   "Her gün aktifim. Kadrosu eksik takım var mı?": "I'm active every day. Any team with an open spot?",
   "Burada her kulüp bir **şehir**. Şehrinin formasını giy; onu ligde, Avrupa'da ve dünyada temsil et.": "Here every club is a **city**. Wear your city’s shirt and represent it in the league, in Europe and around the world.",
   "Gücün (**OVR**), mevkin ve **45 yeteneğin** burada. Geliştikçe **dünyanın en iyi 50** oyuncusu sıralamasına girersin.": "Your rating (**OVR**), position and **45 skills** are here. As you improve, you can enter the **world’s top 50** players ranking.",
@@ -7301,3 +7208,91 @@ window.I18N_PATTERNS.en.push(
   [/^(.+)'y?[ıiuü] engelle$/, "Block $1"],
   [/^(.+)'n?[ıiuü]n gönderilerini ve mesajlarını artık görmezsin, sana mesaj gönderemez\.$/, "You won't see $1's posts and messages anymore, and they can't message you."]
 );
+
+/* ── 659 · Penaltı Düellosu ── */
+Object.assign(window.I18N.en, {
+  'Penaltı Düellosu': 'Penalty Duel',
+  '5 atış · eşitlikte seri penaltılar': '5 kicks each · sudden death if level',
+  'G · B · M': 'W · D · L',
+  'G 3 · B 2 · M 1': 'W 3 · D 2 · L 1',
+  'Günlük Hak': 'Daily Duels',
+  'Rakip Seç': 'Pick Opponent',
+  'Davetler': 'Invites',
+  'Son Düellolar': 'Recent Duels',
+  'Bu hafta henüz düello yok': 'No duels yet this week',
+  'Penaltı Ustası Sıralaması': 'Penalty Master Standings',
+  'Bekleniyor': 'Waiting',
+  'Kabul': 'Accept',
+  'Oyuncu ara': 'Search player',
+  'Şu an çevrim içi rakip yok': 'No opponents online right now',
+  'Gönderildi': 'Sent',
+  'Düelloda': 'In a duel',
+  'Bugün oynadın': 'Played today',
+  'Davet Et': 'Invite',
+  'Penaltı Düellosu Daveti': 'Penalty Duel Invite',
+  'Kura': 'Coin Toss',
+  'İlk atış': 'First kick',
+  'Sende': 'You',
+  'Rakibin gelmesi bekleniyor': 'Waiting for your opponent',
+  'Rakip gelmedi': 'Opponent didn’t show up',
+  'Ücretin iade edildi': 'Your fee was refunded',
+  'Seri Penaltılar': 'Sudden Death',
+  'Atış Sende': 'Your Kick',
+  'Kaledesin': 'You’re in Goal',
+  'Köşeni seç': 'Pick your corner',
+  'Atlayacağın yeri seç': 'Pick where to dive',
+  'Rakip seçiyor': 'Opponent is choosing',
+  'Süre doldu': 'Time’s up',
+  'Sola vurdun': 'You shot left',
+  'Ortaya vurdun': 'You shot down the middle',
+  'Sağa vurdun': 'You shot right',
+  'Sola atladın': 'You dived left',
+  'Ortada kaldın': 'You stayed in the middle',
+  'Sağa atladın': 'You dived right',
+  'Kurtardı!': 'Saved!',
+  'Kazandın': 'You Won',
+  'Berabere': 'Draw',
+  'Kaybettin': 'You Lost',
+  'Seri penaltılarda': 'In sudden death',
+  'Penaltı Ustası': 'Penalty Master',
+  'PENALTI USTASI': 'PENALTY MASTER',
+  'Puanı': 'Points',
+  'Yeni Rakip': 'New Opponent',
+  'Davet gönderildi': 'Invite sent',
+  'Davetin reddedildi': 'Your invite was declined',
+  'Davetin yanıtlanmadı · ücretin iade edildi': 'No reply to your invite · fee refunded',
+  'Düello': 'Duel',
+  'Bakiyen yetersiz': 'Not enough balance',
+  'Bugünkü düello hakkın doldu': 'You’ve used all your duels for today',
+  'Rakibin bugünkü hakkı doldu': 'Your opponent has no duels left today',
+  'Bu oyuncuyla bugün düello yaptın': 'You already dueled this player today',
+  'Takım arkadaşınla düello yapamazsın': 'You can’t duel a teammate',
+  'Oyuncu çevrim dışı': 'Player is offline',
+  'Oyuncu şu an düelloda': 'Player is in a duel right now',
+  'Devam eden bir düellon var': 'You have a duel in progress',
+  'Bekleyen bir davetin var': 'You already have a pending invite',
+  'Bu oyuncu seni zaten davet etti': 'This player has already invited you',
+  'Bu oyuncuyla düello yapamazsın': 'You can’t duel this player',
+  'Hesabın kısıtlı': 'Your account is restricted',
+  'Davet artık geçerli değil': 'This invite is no longer valid',
+  'Düello bulunamadı': 'Duel not found',
+  'Bağlantı hatası, tekrar dene': 'Connection error, try again',
+  'Penaltı düellosu': 'Penalty duel',
+  'Penaltı düellosu iadesi': 'Penalty duel refund',
+  'Bu yarışmada her hafta penaltı düellolarından en çok puan toplayan oyuncular yarışır. Galibiyet 3, beraberlik 2, mağlubiyet 1 puan getirir.': 'Every week the players who collect the most points in penalty duels compete in this race. A win is worth 3 points, a draw 2 and a loss 1.',
+  'Günde en fazla 10 düello oynayabilir, aynı rakiple günde bir kez karşılaşabilirsin. Takım arkadaşınla düello yapamazsın.': 'You can play up to 10 duels a day and face the same opponent once a day. You can’t duel a teammate.',
+  'Her gün düello yap — mağlubiyet bile 1 puan getirir.': 'Duel every day — even a loss earns 1 point.',
+  'Hep aynı köşeyi seçme; rakibin seni okumasın.': 'Don’t always pick the same corner — keep your opponent guessing.',
+  'Süre dolarsa köşe rastgele seçilir, kararını zamanında ver.': 'If time runs out a corner is picked at random, so decide in time.',
+  'Düello ücreti seviyenle birlikte artar.': 'The duel fee rises with your level.',
+  'Çevrim içi bir oyuncuya meydan oku: sırayla şut çek, kalede kal. Kazandıkça haftalık **Penaltı Ustası** yarışında yüksel.': 'Challenge an online player: take turns shooting and keeping goal. Every win lifts you in the weekly **Penalty Master** race.',
+  '3. Penaltı Düellosu': '3. Penalty Duel',
+  'Penaltı düellosu iki oyuncu arasında oynanan, beceri ve tahmin temalı bir mini oyundur. Katılım ücreti yalnızca oyun içi sanal para (€) ile ödenir ve oyuna gider; düellodan para ödülü kazanılmaz. Haftalık Penaltı Ustası sıralamasında yalnızca oyun içi 💎 ödülü verilir. Gerçek para ile oynanmaz ve gerçek para karşılığı yoktur.': 'The penalty duel is a skill-and-prediction themed mini game between two players. The entry fee is paid only in virtual in-game currency (€) and goes to the game; no money prize is won from a duel. The weekly Penalty Master standings award only in-game 💎. It is not played with real money and has no real-money value.',
+  '9. Üçüncü taraf içerikler': '9. Third-party content',
+  'Penaltı düellosundaki kale modeli, romullus tarafından hazırlanan “Football Goal” modelinden (Sketchfab) uyarlanmıştır ve CC BY-SA 4.0 lisansıyla kullanılır; değiştirilmiş hâli de aynı lisansa tabidir.': 'The goal model in the penalty duel is adapted from “Football Goal” by romullus (Sketchfab) and used under the CC BY-SA 4.0 licence; the modified version is shared under the same licence.',
+  'Kaleci modeli: “Football player” (Sketchfab, Standart lisans). 3B görüntüleme: three.js (MIT lisansı).': 'Goalkeeper model: “Football player” (Sketchfab, Standard licence). 3D rendering: three.js (MIT licence).',
+  'takım, kadro, yetenek seviyeleri, maç istatistikleri, kupalar, cüzdan bakiyesi (oyun içi € ve 💎), penaltı düellosu kayıtları, envanter.': 'team, squad, skill levels, match statistics, trophies, wallet balance (in-game € and 💎), penalty duel records and inventory.',
+  'Cüzdanın (€ ve 💎) ve envanterin silinir': 'Your wallet (€ and 💎) and inventory will be deleted',
+  'Antrenman, mağaza ve penaltı düellosu ile gelişimine devam et': 'Keep improving through training, the shop and penalty duels',
+  '⚽ Penaltı düellosunda rakiplerine meydan oku': '⚽ Challenge opponents in penalty duels',
+});
