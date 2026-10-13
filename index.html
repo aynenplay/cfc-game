@@ -7,8 +7,10 @@
   var q = location.search, h = location.hash, ua = navigator.userAgent;
   if (/[?&]oyna=0/.test(q)) localStorage.removeItem('csc_web_oyna');
   else if (/[?&]oyna(=|&|$)/.test(q)) localStorage.setItem('csc_web_oyna', '1');
-  var uygulama = !!window.Capacitor || /; wv\)/.test(ua)
-    || (/iPhone|iPad|iPod|Macintosh/.test(ua) && /AppleWebKit/.test(ua) && !/Safari\//.test(ua));
+  // 662 — sosyal uygulamaların içindeki tarayıcı da WebView'dur ama bizim uygulamamız değildir: karşılama sayfası
+  var sosyal = /Instagram|FBA[NV]|FB_IAB|FBIOS|FB4A|Messenger|Barcelona|musical_ly|Bytedance|TikTok|Twitter|LinkedInApp|Snapchat|Pinterest|\bLine\/|KAKAOTALK|Telegram|WhatsApp/.test(ua);
+  var uygulama = !!window.Capacitor || (!sosyal && (/; wv\)/.test(ua)
+    || (/iPhone|iPad|iPod|Macintosh/.test(ua) && /AppleWebKit/.test(ua) && !/Safari\//.test(ua))));
   var giris = /access_token=|type=recovery|error_description=/.test(h) || /[?&](code|token_hash)=/.test(q);
   if (!uygulama && !giris && localStorage.getItem('csc_web_oyna') !== '1') location.replace('/karsilama.html');
 })();
@@ -169,11 +171,12 @@ window._i18nSozlukYukle = function(dil, bitti){
   } catch(e) {}
 })();
 </script>
-<!-- ═══ GEÇİCİ HATA YAKALAYICI — sorun bulununca silinecek ═══
-     Telefonda konsol açılamadığı için: yalnızca GERÇEK bir hata olursa
-     ekranın en üstüne kırmızı bir şerit çıkar. Hata yoksa hiçbir şey görünmez. -->
+<!-- ═══ HATA YAKALAYICI — yalnız hata ayıklama modunda (localStorage cft_debug = '1') ═══
+     Telefonda konsol açılamadığı için: GERÇEK bir hata olursa ekranın en üstüne kırmızı bir şerit çıkar.
+     662 — oyunculara gösterilmez (telefon çalınca ses bağlamının reddettiği söz bile şerit açıyordu). -->
 <script>
 (function(){
+  try { if (localStorage.getItem('cft_debug') !== '1') return; } catch(e0) { return; }
   var kutu = null, sayi = 0;
   function goster(baslik, metin){
     sayi++;
@@ -214,9 +217,6 @@ window._i18nSozlukYukle = function(dil, bitti){
   //    Açmak için tarayıcı konsolunda: localStorage.setItem('cft_debug','1')
   setTimeout(function(){
     try{
-      var _dbg = false;
-      try { _dbg = localStorage.getItem('cft_debug') === '1'; } catch(e0) {}
-      if (!_dbg) return;
       var d = [];
       d.push('oturum=' + (window.authUser && window.authUser.id ? 'var' : 'YOK'));
       d.push('supabase=' + (window.sb ? 'var' : 'YOK'));
@@ -12884,6 +12884,12 @@ button.trk-sk:active{box-shadow:0 0 0 1px color-mix(in srgb,var(--acc) 60%,trans
 /* ══ INBOX / MESAJ SİSTEMİ ══ */
 .topbar-msg-btn{position:relative;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;flex-shrink:0;transition:background .15s}
 .topbar-msg-btn:hover{background:rgba(255,255,255,.12)}
+/* 662 · yeni mesaj: düğme iki kez zıplar, yeşil hale yayılır, rozet zıplar */
+.topbar-msg-btn.yeni{animation:inbZipla 1.05s cubic-bezier(.3,.7,.4,1) both,inbHale 1.05s ease-out both}
+.topbar-msg-btn.yeni .topbar-msg-badge{animation:inbRozet .45s cubic-bezier(.34,1.7,.5,1) .12s both}
+@keyframes inbZipla{0%{transform:translateY(0) scale(1)}14%{transform:translateY(0) scale(1.14,.84)}34%{transform:translateY(-10px) scale(.92,1.1)}54%{transform:translateY(0) scale(1.1,.9)}68%{transform:translateY(-4px) scale(.98,1.03)}84%{transform:translateY(0) scale(1.03,.97)}100%{transform:translateY(0) scale(1)}}
+@keyframes inbHale{0%{box-shadow:0 0 0 0 rgba(0,230,118,.7);border-color:#00e676}100%{box-shadow:0 0 0 12px rgba(0,230,118,0);border-color:var(--border)}}
+@keyframes inbRozet{0%{transform:scale(0)}100%{transform:scale(1)}}
 .topbar-msg-badge{position:absolute;top:-4px;right:-4px;background:#ef5350;color:#fff;font-size:9px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 3px;font-family:Twemoji Country Flags,'Barlow Condensed',sans-serif;pointer-events:none}
 
 .inbox-overlay{
@@ -24893,7 +24899,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-13-kurallar-661';
+const APP_BUILD = '2026-10-13-gelenkutusu-662';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -25185,8 +25191,8 @@ function _cftGetAudioCtx(){
   if(!_cftAudioCtx){
     _cftAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
-  if(_cftAudioCtx.state === 'suspended'){
-    _cftAudioCtx.resume();
+  if(_cftAudioCtx.state !== 'running'){
+    _cftAudioCtx.resume().catch(() => {});
   }
   return _cftAudioCtx;
 }
@@ -25414,7 +25420,7 @@ function _sesKis(oran, sure) {
 }
 document.addEventListener('visibilitychange', () => {
   if (!_cftAudioCtx) return;
-  if (document.hidden) _cftAudioCtx.suspend(); else _cftAudioCtx.resume();
+  (document.hidden ? _cftAudioCtx.suspend() : _cftAudioCtx.resume()).catch(() => {});
 });
 
 function _cftMusicStart() {
@@ -62322,7 +62328,7 @@ function _resGoalSound(){
     if (document.getElementById('match-screen').classList.contains('open')) return;
     const AC = window.AudioContext || window.webkitAudioContext; if(!AC) return;
     window._resAC = window._resAC || new AC();
-    const ac = window._resAC; if (ac.state === 'suspended') { try{ ac.resume(); }catch(e){} }
+    const ac = window._resAC; if (ac.state !== 'running') ac.resume().catch(() => {});
     const t = ac.currentTime;
     // 🆕 Daha belirgin "gol" sesi: yükselen triangle + kısa yankı
     const o = ac.createOscillator(); o.type = 'triangle';
@@ -62339,10 +62345,10 @@ function _resGoalSound(){
       const AC = window.AudioContext || window.webkitAudioContext; if(!AC) return;
       window._resAC = window._resAC || new AC();
       const ac = window._resAC;
-      if (ac.state === 'suspended') { try { ac.resume(); } catch(e){} }
+      if (ac.state !== 'running') ac.resume().catch(() => {});
       // iOS kilidi: gesture icinde kisa SESSIZ buffer cal (AudioContext'i tam acar)
       try { const b = ac.createBuffer(1, 1, 22050); const sb = ac.createBufferSource(); sb.buffer = b; sb.connect(ac.destination); sb.start(0); } catch(e){}
-      if (_cftAudioCtx && _cftAudioCtx.state === 'suspended') _cftAudioCtx.resume();
+      if (_cftAudioCtx && _cftAudioCtx.state !== 'running') _cftAudioCtx.resume().catch(() => {});
     } catch(e){}
     // listener'lari KALDIRMIYORUZ: iOS arka plana alinca AudioContext yeniden suspend olur,
     //   her dokunusta tekrar acmak icin acik kalsinlar (passive, zararsiz).
@@ -76914,12 +76920,24 @@ let _inboxCache = null;
 const _inboxBilinen = new Set();   // 590 — bu istemcinin gördüğü mesaj kimlikleri
 let _inboxNesil = 0;               // 590 — her yeni önbellek dizisinin kuşağı
 let _inboxSaveTimer = null;
-let _inboxSeenIds = null; // yeni mesaj sesi için görülen mesaj id'leri
+let _inboxSeenIds = null; // yeni mesaj sesi için: mesaj id → satır sayısı + zaman
 
+// Yeni mesaj: tını + gelen kutusu düğmesi zıplar
+function _inboxYeniGeldi() {
+  _inboxPlayDing();
+  const b = document.getElementById('inboxBtn'); if (!b) return;
+  b.classList.remove('yeni'); void b.offsetWidth; b.classList.add('yeni');
+  clearTimeout(b._yeniT); b._yeniT = setTimeout(() => b.classList.remove('yeni'), 1500);
+}
 // Yeni mesaj tınısı (Çıngırak — 3 çıkan nota), buton sesi ayarına bağlı
 function _inboxPlayDing() {
   if (!_cftButtonSoundEnabled) return;
   const c = _cftGetAudioCtx();
+  if (c.state !== 'running') { c.resume().then(_inboxDingCal, () => {}); return; }
+  _inboxDingCal();
+}
+function _inboxDingCal() {
+  const c = _cftAudioCtx;
   const tone = (freq, start, dur, gain) => {
     const o = c.createOscillator(), g = c.createGain();
     o.type = 'triangle';
@@ -77078,9 +77096,9 @@ async function _inboxLoadFromServer(hafif) {
     // 🆕 Sahte hazırlık bildirimlerini yükleme biter bitmez temizle
     try { if (typeof _frmPruneInbox === 'function') setTimeout(_frmPruneInbox, 1500); } catch(e) {}
 
-    const _curIds = new Set(_inboxCache.map(m => m && m.id).filter(Boolean));
-    if (_inboxSeenIds && _inboxCache.some(m => m && !m.read && !_inboxSeenIds.has(m.id))) _inboxPlayDing();
-    _inboxSeenIds = _curIds;
+    const _imza = new Map(_inboxCache.filter(m => m && m.id).map(m => [m.id, (Array.isArray(m.thread) ? m.thread.length : 0) + ':' + (m.ts || '')]));
+    if (_inboxSeenIds && _inboxCache.some(m => m && m.id && !m.read && _inboxSeenIds.get(m.id) !== _imza.get(m.id))) _inboxYeniGeldi();
+    _inboxSeenIds = _imza;
     console.info('[inbox] cache yüklendi:', _inboxCache.length, 'mesaj');
 
     // 🆕 Edge Function tarafından gelen onay mesajı varsa _userTeam'i Supabase'ten taze çek
@@ -80203,7 +80221,7 @@ function _playNotifSound() {
   try {
     const c = window._notifAudioCtx;
     if (!c) return; // audio context henüz unlock edilmedi (kullanıcı etkileşimi bekleniyor)
-    if (c.state === 'suspended') {
+    if (c.state !== 'running') {
       c.resume().catch(() => {});
     }
     // CHIME: C5 (523.25Hz) + E5 (659.25Hz), 80ms aralık, sine wave
@@ -80234,13 +80252,10 @@ function _playNotifSound() {
       if (!window._notifAudioCtx) {
         window._notifAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
       }
-      if (window._notifAudioCtx.state === 'suspended') {
+      if (window._notifAudioCtx.state !== 'running') {
         window._notifAudioCtx.resume().catch(()=>{});
       }
     } catch(e) {}
-    document.removeEventListener('click', unlock, true);
-    document.removeEventListener('touchstart', unlock, true);
-    document.removeEventListener('keydown', unlock, true);
   }
   document.addEventListener('click', unlock, true);
   document.addEventListener('touchstart', unlock, true);
