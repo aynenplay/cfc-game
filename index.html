@@ -24899,7 +24899,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-13-rehber-663';
+const APP_BUILD = '2026-10-13-botkadro-664';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -39837,6 +39837,8 @@ function showPage(name,btn){
       if(typeof rosterBuildTeam === 'function' && _userTeam && _userTeam.countryCode){ try{ rosterBuildTeam(_userTeam.countryCode); }catch(e){} }
       // İlk sekme aktif
       teamTab('roster', document.querySelector('.team-tab'));
+      // 664 — bot kaptanlı takımda kadro güncel güce göre kurulur (antrenmanla güçlenen oyuncu ilk 11'e girer)
+      if (_userTeam && _userTeam.role !== 'captain' && typeof _botKadroTazele === 'function') _botKadroTazele();
     }
   }
   if(name==='player') {
@@ -48262,6 +48264,25 @@ let _teamStrategyCache = null;
 let _teamStrategySaveTimer = null;
 
 // Server'dan strategy verisini yükle (bootstrap ve takım değişimi sonrası çağrılır)
+// 664 — bot kaptanlı takımın üyesi Takımım'ı açınca: sunucu kadroyu yetenek ve mevkiye göre yeniden kurar,
+//   değiştiyse diziliş tazelenir (en çok 5 dakikada bir sorulur; sunucu da kendi doğrular).
+let _botKadroT = 0;
+async function _botKadroTazele() {
+  if (!_userTeam || _userTeam.role === 'captain' || Date.now() - _botKadroT < 300000) return;
+  if (typeof getTeamCaptainType === 'function' && getTeamCaptainType(_userTeam.countryCode, _userTeam.teamName) !== 'bot') return;
+  _botKadroT = Date.now();
+  try {
+    const r = await edgeCall('bot_kadro', {});
+    if (!(r && r.data && r.data.degisti)) return;
+    await _teamStrategyLoadFromServer();
+    const pg = document.getElementById('page-team');
+    if (pg && pg.classList.contains('active') && !_viewingTeam) {
+      try { activePitchPlayers = []; benchPlayers = []; } catch(e) {}
+      if (typeof initFormation === 'function') initFormation();
+      if (typeof renderRoster === 'function') renderRoster(rosterCurrentFilter || 'all');
+    }
+  } catch(e) { console.warn('[botKadro]', e); }
+}
 async function _teamStrategyLoadFromServer() {
   if (!window.sb || !_userTeam || !_userTeam.countryCode || !_userTeam.teamName) {
     _teamStrategyCache = null;
