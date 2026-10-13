@@ -24899,7 +24899,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-13-botkadro-664';
+const APP_BUILD = '2026-10-13-duelloses-665';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -25346,7 +25346,8 @@ const _SES_DONGU = {
   muzik:     { url: 'muzik.mp3?v=614',       uz: 12.8,      seviye: 0.20, katman: 1 },
   antrenman: { url: 'antrenman.mp3?v=615',   uz: 69.8,      seviye: 0.45, katman: 1, ortam: true },
   tribun:    { url: 'tribun.mp3?v=614',      uz: 34.288005, seviye: 0.30, katman: 2, ortam: true },
-  devre:     { url: 'devre-arasi.mp3?v=614', uz: 7.5,       seviye: 0.22, katman: 1 }
+  devre:     { url: 'devre-arasi.mp3?v=614', uz: 7.5,       seviye: 0.22, katman: 1 },
+  duello:    { url: 'pd/duello-tribun.mp3?v=665', uz: 18,   seviye: 0.34, katman: 1, ortam: true }   // 665
 };
 const _sesBuf = {};
 const _muzikKanal = { ad: null, g: null, kaynak: [] }, _macKanal = { ad: null, g: null, kaynak: [] };
@@ -25424,7 +25425,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 function _cftMusicStart() {
-  if (window._cftMatchInProgress || _macDurum) return;
+  if (window._cftMatchInProgress || _macDurum || window._pdSesAcik) return;   // 665 — düelloda tribün çalar
   const ad = document.getElementById('page-training').classList.contains('active') ? 'antrenman' : 'muzik';
   if (_cftMusicPlaying && _muzikKanal.ad === ad) return;
   _cftMusicPlaying = true;
@@ -75065,6 +75066,43 @@ const _pd$ = id => document.getElementById(id);
 const _pdE = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const _pdBekle = ms => new Promise(r => setTimeout(r, ms));
 const _pdYol = ad => 'pd/' + ad + '?v=' + PD_SURUM;
+// 665 — DÜELLO SESLERİ (Maç Sesi anahtarına bağlı): düello açıkken oyun müziği susar, yerine tribün;
+//   her atışta hakem düdüğü vuruştan 2 sn önce, vuruş sesi, golde file, kurtarışta tribün alkışı.
+const PD_SES = { duduk: ['duello-duduk.mp3', 0.45], vurus: ['duello-vurus.mp3', 0.95], ag: ['duello-ag.mp3', 0.8], alkis: ['duello-alkis.mp3', 0.55] };
+const _pdSesTampon = {};
+const _pdKanal = { ad: null, g: null, kaynak: [] };
+function _pdSesYukle(ad) {
+  if (!_pdSesTampon[ad]) _pdSesTampon[ad] = fetch('pd/' + PD_SES[ad][0] + '?v=665').then(r => r.arrayBuffer())
+    .then(b => _cftGetAudioCtx().decodeAudioData(b))
+    .catch(e => { _pdSesTampon[ad] = null; throw e; });
+  return _pdSesTampon[ad];
+}
+function _pdSesCal(ad, sn) {
+  if (window._resGoalSoundOff) return;
+  try {
+    const c = _cftGetAudioCtx(), an = c.currentTime;
+    _pdSesYukle(ad).then(buf => {
+      const src = c.createBufferSource(), g = c.createGain();
+      src.buffer = buf; g.gain.value = PD_SES[ad][1];
+      src.connect(g); g.connect(c.destination);
+      src.start(Math.max(c.currentTime, an + (sn || 0)));
+    }).catch(() => {});
+  } catch (e) {}
+}
+function _pdAmbiyans(ac) {
+  if (ac === !!window._pdSesAcik) return;
+  window._pdSesAcik = ac;
+  try {
+    if (ac) {
+      _cftMusicStop();
+      if (!window._resGoalSoundOff) _sesCal(_pdKanal, 'duello');
+      Object.keys(PD_SES).forEach(ad => _pdSesYukle(ad).catch(() => {}));
+    } else {
+      _sesDurdur(_pdKanal, 1.5);
+      if (_cftMusicEnabled) _cftMusicStart();
+    }
+  } catch (e) {}
+}
 const _pdId = s => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(s || ''));
 function _pdBen() { return (typeof authUser !== 'undefined' && authUser && authUser.id) || null; }
 function _pdSimdi() { return Date.now() + PD.fark; }
@@ -75540,6 +75578,7 @@ function pdAc(d) {
   PD.d = d; PD.gosterilen = (d.atislar || []).length; PD.secimN = -1; PD.secim = null; PD.kuraBasladi = false; PD.sonOlay = Date.now(); PD.kaleKimde = null;
   _pdKatman('sheet', false); _pdKatman('modal', false); _pdKatman('kural', false);
   _pd$('pdOv').classList.add('on'); document.body.classList.add('pd-acik');
+  _pdAmbiyans(true);   // 665
   _pdOyunculariCiz();
   _pdSahneHazirla();
   _pdNabizBaslat();
@@ -75553,6 +75592,7 @@ function _pdKapat() {
   _pdTemizle(); PD.d = null; PD.ekran = null;
   const o = _pd$('pdOv'); if (o) o.classList.remove('on');
   document.body.classList.remove('pd-acik');
+  _pdAmbiyans(false);   // 665
 }
 function pdSonTamam() {
   _pdKapat();
@@ -75708,11 +75748,18 @@ async function _pdAtisOynat2(x) {
   _pd$('pdRolB').className = 'pd-rol-b ' + (benAtiyor ? 'at' : 'tut');
   _pd$('pdRolB').textContent = benAtiyor ? 'Atış Sende' : 'Kaledesin';
   _pd$('pdRolA').textContent = benAtiyor ? ['Sola vurdun', 'Ortaya vurdun', 'Sağa vurdun'][x.atis] : ['Sola atladın', 'Ortada kaldın', 'Sağa atladın'][x.dalis];
+  // 665 — hakem düdüğü, 2 sn sonra vuruş. Sahnede top 0,12 sn'de ayaktan çıkar; golde ~0,58 sn'de fileye,
+  //   kurtarışta ~0,5 sn'de eldivene ulaşır. (Sonuç yazısı 2,2 → 1,6 sn: atış gösterimi sunucunun 5 sn'sine sığar.)
+  _pdSesCal('duduk');
+  await _pdBekle(2000);
+  if (!PD.d || PD.d.id !== d.id) return;
+  _pdSesCal('vurus', 0.08);
+  if (x.gol) _pdSesCal('ag', 0.56); else _pdSesCal('alkis', 0.5);
   if (PD.sahneHazir) { try { await Sahne3D.atis(x.atis, x.dalis, x.gol); } catch (e) { await _pdBekle(900); } }
   else await _pdBekle(900);
   const y = _pd$('pdSonucYazi');
   y.textContent = x.gol ? 'Gol!' : 'Kurtardı!'; y.className = 'pd-sonuc-yazi on ' + (x.gol ? 'gol' : 'kur');
-  await _pdBekle(2200);
+  await _pdBekle(1600);
   y.className = 'pd-sonuc-yazi';
   PD.secimN = -1;
 }
