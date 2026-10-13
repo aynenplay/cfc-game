@@ -7296,3 +7296,11 @@ Object.assign(window.I18N.en, {
   'Antrenman, mağaza ve penaltı düellosu ile gelişimine devam et': 'Keep improving through training, the shop and penalty duels',
   '⚽ Penaltı düellosunda rakiplerine meydan oku': '⚽ Challenge opponents in penalty duels',
 });
+
+/* ── 660 · Etkinlik Akışı ── */
+Object.assign(window.I18N.en, {
+  "Düello Daveti": "Duel Invite",
+  "Şut çek, kurtar": "Shoot and save",
+  "Tam liste — Penaltı Ustası": "Full list — Penalty Master",
+  "Penaltı Ustası tam listesi": "Penalty Master full list",
+});

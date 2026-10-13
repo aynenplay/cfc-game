@@ -5231,3 +5231,11 @@ Object.assign(window.I18N.de, {
   'Antrenman, mağaza ve penaltı düellosu ile gelişimine devam et': 'Entwickle dich mit Training, Shop und Elfmeter-Duellen weiter',
   '⚽ Penaltı düellosunda rakiplerine meydan oku': '⚽ Fordere Gegner im Elfmeter-Duell heraus',
 });
+
+/* ── 660 · Etkinlik Akışı ── */
+Object.assign(window.I18N.de, {
+  "Düello Daveti": "Duell-Einladung",
+  "Şut çek, kurtar": "Schießen und halten",
+  "Tam liste — Penaltı Ustası": "Vollständige Liste — Elfmeter-Meister",
+  "Penaltı Ustası tam listesi": "Elfmeter-Meister — vollständige Liste",
+});

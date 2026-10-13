@@ -6931,3 +6931,11 @@ Object.assign(window.I18N.fr, {
   'Antrenman, mağaza ve penaltı düellosu ile gelişimine devam et': 'Continue à progresser avec l’entraînement, la boutique et les duels de penalties',
   '⚽ Penaltı düellosunda rakiplerine meydan oku': '⚽ Défie des adversaires en duel de penalties',
 });
+
+/* ── 660 · Etkinlik Akışı ── */
+Object.assign(window.I18N.fr, {
+  "Düello Daveti": "Invitation en duel",
+  "Şut çek, kurtar": "Tire et arrête",
+  "Tam liste — Penaltı Ustası": "Liste complète — Maître du penalty",
+  "Penaltı Ustası tam listesi": "Maître du penalty : liste complète",
+});

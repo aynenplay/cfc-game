@@ -6901,3 +6901,11 @@ Object.assign(window.I18N.ru, {
   'Antrenman, mağaza ve penaltı düellosu ile gelişimine devam et': 'Развивайся дальше с помощью тренировок, магазина и пенальти-дуэлей',
   '⚽ Penaltı düellosunda rakiplerine meydan oku': '⚽ Бросай вызов соперникам в пенальти-дуэлях',
 });
+
+/* ── 660 · Etkinlik Akışı ── */
+Object.assign(window.I18N.ru, {
+  "Düello Daveti": "Приглашение на дуэль",
+  "Şut çek, kurtar": "Бей и отражай",
+  "Tam liste — Penaltı Ustası": "Полный список — Мастер пенальти",
+  "Penaltı Ustası tam listesi": "Мастер пенальти — полный список",
+});

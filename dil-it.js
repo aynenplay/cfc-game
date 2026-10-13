@@ -6869,3 +6869,11 @@ Object.assign(window.I18N.it, {
   'Antrenman, mağaza ve penaltı düellosu ile gelişimine devam et': 'Continua a migliorare con allenamento, negozio e duelli ai rigori',
   '⚽ Penaltı düellosunda rakiplerine meydan oku': '⚽ Sfida gli avversari nei duelli ai rigori',
 });
+
+/* ── 660 · Etkinlik Akışı ── */
+Object.assign(window.I18N.it, {
+  "Düello Daveti": "Invito a duello",
+  "Şut çek, kurtar": "Tira e para",
+  "Tam liste — Penaltı Ustası": "Lista completa — Re del rigore",
+  "Penaltı Ustası tam listesi": "Lista completa Re del rigore",
+});
