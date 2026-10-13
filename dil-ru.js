@@ -6664,9 +6664,9 @@ Object.assign(window.I18N.ru, {
   "**21 gün** üst üste oyuna girmezsen **pasif oyuncu** olursun.": "Если ты не заходишь в игру **21 день** подряд, ты становишься **неактивным игроком**.",
   "Pasif kaldığın her gün yeteneklerin, antrenmanla yükselme hızının **dörtte biri** kadar yavaş düşer. Hiçbir yetenek **10**'un altına inmez.": "Каждый неактивный день твои навыки медленно снижаются — **в четыре раза** медленнее, чем растут на тренировках. Ни один навык не опускается ниже **10**.",
   "Hoş Geldin": "Добро пожаловать",
-  "Bu takımın yabancı oyuncu kontenjanı dolu (5/5).": "Лимит легионеров в этой команде исчерпан (5/5).",
-  "Takımının yabancı oyuncu kontenjanı dolu (5/5).": "Лимит легионеров в твоей команде исчерпан (5/5).",
-  "Alıcı takımın yabancı oyuncu kontenjanı dolu (5/5).": "Лимит легионеров в команде-покупателе исчерпан (5/5).",
+  "Bu takımın yabancı oyuncu kontenjanı dolu (10/10).": "Лимит легионеров в этой команде исчерпан (10/10).",
+  "Takımının yabancı oyuncu kontenjanı dolu (10/10).": "Лимит легионеров в твоей команде исчерпан (10/10).",
+  "Alıcı takımın yabancı oyuncu kontenjanı dolu (10/10).": "Лимит легионеров в команде-покупателе исчерпан (10/10).",
   "Yabancı Kontenjanı Dolu": "Лимит легионеров исчерпан",
   "Şehrini Temsil Et": "Представляй свой город",
   "Oyuncun": "Твой игрок",
@@ -7069,4 +7069,10 @@ Object.assign(window.I18N.ru, {
   "Takip et": "Подписывайся",
   "Oyuncuları takip et, akışını kur": "Подписывайся на игроков и собирай ленту",
   "Sonra": "Позже",
+});
+
+/* ── 667 · Federasyon üyeliği ── */
+Object.assign(window.I18N.ru, {
+  "Bu ülke uyruklu kulüp kaptanları": "Капитаны клубов этой национальности",
+  "Kaptan olmayanlar ve yabancı kaptanlar": "Не капитаны и иностранные капитаны",
 });

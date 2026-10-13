@@ -6694,9 +6694,9 @@ Object.assign(window.I18N.fr, {
   "**21 gün** üst üste oyuna girmezsen **pasif oyuncu** olursun.": "Si tu ne te connectes pas pendant **21 jours** d’affilée, tu deviens un **joueur inactif**.",
   "Pasif kaldığın her gün yeteneklerin, antrenmanla yükselme hızının **dörtte biri** kadar yavaş düşer. Hiçbir yetenek **10**'un altına inmez.": "Chaque jour d’inactivité, tes compétences baissent lentement, au **quart** de la vitesse à laquelle elles montent à l’entraînement. Aucune compétence ne descend sous **10**.",
   "Hoş Geldin": "Bienvenue",
-  "Bu takımın yabancı oyuncu kontenjanı dolu (5/5).": "Le quota de joueurs étrangers de cette équipe est atteint (5/5).",
-  "Takımının yabancı oyuncu kontenjanı dolu (5/5).": "Le quota de joueurs étrangers de ton équipe est atteint (5/5).",
-  "Alıcı takımın yabancı oyuncu kontenjanı dolu (5/5).": "Le quota de joueurs étrangers de l’équipe acheteuse est atteint (5/5).",
+  "Bu takımın yabancı oyuncu kontenjanı dolu (10/10).": "Le quota de joueurs étrangers de cette équipe est atteint (10/10).",
+  "Takımının yabancı oyuncu kontenjanı dolu (10/10).": "Le quota de joueurs étrangers de ton équipe est atteint (10/10).",
+  "Alıcı takımın yabancı oyuncu kontenjanı dolu (10/10).": "Le quota de joueurs étrangers de l’équipe acheteuse est atteint (10/10).",
   "Yabancı Kontenjanı Dolu": "Quota d’étrangers atteint",
   "Şehrini Temsil Et": "Représente ta ville",
   "Oyuncun": "Ton joueur",
@@ -7099,4 +7099,10 @@ Object.assign(window.I18N.fr, {
   "Takip et": "Suivre",
   "Oyuncuları takip et, akışını kur": "Suis des joueurs et crée ton fil",
   "Sonra": "Plus tard",
+});
+
+/* ── 667 · Federasyon üyeliği ── */
+Object.assign(window.I18N.fr, {
+  "Bu ülke uyruklu kulüp kaptanları": "Capitaines de club de cette nationalité",
+  "Kaptan olmayanlar ve yabancı kaptanlar": "Non-capitaines et capitaines étrangers",
 });

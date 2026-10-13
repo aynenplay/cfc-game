@@ -7059,9 +7059,9 @@ Object.assign(window.I18N.en, {
   "**21 gün** üst üste oyuna girmezsen **pasif oyuncu** olursun.": "If you don't log in for **21 days** in a row, you become an **inactive player**.",
   "Pasif kaldığın her gün yeteneklerin, antrenmanla yükselme hızının **dörtte biri** kadar yavaş düşer. Hiçbir yetenek **10**'un altına inmez.": "For every inactive day your skills slowly drop at **a quarter** of the speed they rise with training. No skill drops below **10**.",
   "Hoş Geldin": "Welcome",
-  "Bu takımın yabancı oyuncu kontenjanı dolu (5/5).": "This team's foreign player quota is full (5/5).",
-  "Takımının yabancı oyuncu kontenjanı dolu (5/5).": "Your team's foreign player quota is full (5/5).",
-  "Alıcı takımın yabancı oyuncu kontenjanı dolu (5/5).": "The buying team's foreign player quota is full (5/5).",
+  "Bu takımın yabancı oyuncu kontenjanı dolu (10/10).": "This team's foreign player quota is full (10/10).",
+  "Takımının yabancı oyuncu kontenjanı dolu (10/10).": "Your team's foreign player quota is full (10/10).",
+  "Alıcı takımın yabancı oyuncu kontenjanı dolu (10/10).": "The buying team's foreign player quota is full (10/10).",
   "Yabancı Kontenjanı Dolu": "Foreign Quota Full",
   "Şehrini Temsil Et": "Represent Your City",
   "Oyuncun": "Your Player",
@@ -7464,4 +7464,10 @@ Object.assign(window.I18N.en, {
   "Takip et": "Follow",
   "Oyuncuları takip et, akışını kur": "Follow players and build your feed",
   "Sonra": "Later",
+});
+
+/* ── 667 · Federasyon üyeliği ── */
+Object.assign(window.I18N.en, {
+  "Bu ülke uyruklu kulüp kaptanları": "Club captains of this nationality",
+  "Kaptan olmayanlar ve yabancı kaptanlar": "Non-captains and foreign captains",
 });

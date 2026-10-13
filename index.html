@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '663';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '667';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -22473,7 +22473,7 @@ body.pd-acik{overflow:hidden}
             <div class="ic"><svg viewBox="0 0 24 24"><use href="#ic-thb-globe"/></svg></div>
             <div class="info">
               <div class="lbl">Yabancı</div>
-              <div class="val"><span id="thbForeignCount">0</span>/5</div>
+              <div class="val"><span id="thbForeignCount">0</span>/10</div>
             </div>
           </div>
         </div>
@@ -24899,7 +24899,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-13-tribunkis-666';
+const APP_BUILD = '2026-10-13-yabanci10-667';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -26737,8 +26737,8 @@ const AWAY_TEAM = {
 //   🌍 YABANCI OYUNCU KURALI (FOREIGN PLAYER RULE)
 // ═══════════════════════════════════════════════════
 // Tanım: Takımın ülkesi (countryCode) ≠ oyuncunun uyruğu (nationality) → yabancı
-// Limit: Takım başına max 5 yabancı oyuncu
-// Uygulama: Hard limit — 5 yabancı varken 6.'sı kadroya eklenemez
+// Limit: Takım başına max 10 yabancı oyuncu (667)
+// Uygulama: Hard limit — 10 yabancı varken 11.'si kadroya eklenemez
 // Kapsam: Hem kullanıcı takımı hem AI takımları için geçerli
 //
 // Kullanım:
@@ -26746,7 +26746,7 @@ const AWAY_TEAM = {
 //   cftCountForeigners(roster, teamCC) → sayı
 //   cftCanAddPlayer(playerNationality, roster, teamCC) → {ok, count, limit, reason}
 // ═══════════════════════════════════════════════════
-const CFT_FOREIGN_LIMIT = 5;
+const CFT_FOREIGN_LIMIT = 10;
 
 function cftIsForeign(player, teamCC) {
   if (!player || !teamCC) return false;
@@ -29879,7 +29879,7 @@ window.inboxApproveJoinRequest = async function(msgId){
       terms_mismatch: { t:'Şartlar Değişmiş', s:'İsteğin şartları değişmiş. Oyuncudan yeni istek göndermesini iste.' },
       requestor_contract_active: { t:'Sözleşmesi Sürüyor', s:'Oyuncunun başka bir takımla sözleşmesi sürüyor' },
     };
-    const e = /yabanci_dolu/.test(String(resData.detail || resData.error || '')) ? { t:'Yabancı Kontenjanı Dolu', s:'Takımının yabancı oyuncu kontenjanı dolu (5/5).' }
+    const e = /yabanci_dolu/.test(String(resData.detail || resData.error || '')) ? { t:'Yabancı Kontenjanı Dolu', s:'Takımının yabancı oyuncu kontenjanı dolu (10/10).' }
       : errMap[resData.error] || { t:'Hata', s:resData.error || 'Bilinmeyen hata' };
     showInfoModal({icon:'❌',iconColor:'#ef4444',title:e.t,subtitle:e.s,body:''});
     return;
@@ -43872,7 +43872,7 @@ let _tnt = null;
 
 async function _tntVeri() {
   for (let i = 0; i < 20 && !_cftGetCountryCodes().length; i++) await new Promise(r => setTimeout(r, 300));
-  const u = window.authUser || {};
+  const u = (typeof authUser !== 'undefined' && authUser) || window.authUser || {};   // 667 — window.authUser'da uyruk yok
   const kodlar = _cftGetCountryCodes();
   const milli = kodlar.includes(u.nationality);
   const cc = milli ? u.nationality : (kodlar.includes('EN') ? 'EN' : kodlar[0]);
@@ -44080,7 +44080,7 @@ async function confirmTeamBuy() {
       takim_satildi: 'Bu takımın artık bir sahibi var.',
       sistemden_satildi: 'Bu takım az önce başkası tarafından alındı.',
       zaten_takimda: 'Önce mevcut takımından ayrılmalısın.',
-      yabanci_dolu: 'Bu takımın yabancı oyuncu kontenjanı dolu (5/5).',
+      yabanci_dolu: 'Bu takımın yabancı oyuncu kontenjanı dolu (10/10).',
       takim_devredilemedi_para_iade: 'Takım devredilemedi, ödemen iade edildi.'
     }[d.error] || 'Satın alınamadı.');
     closeTeamBuyConfirm();
@@ -49838,7 +49838,7 @@ function _fedKaptanlariYukle(cc) {
     const liste = {};
     for (let from = 0; from < 10000; from += 1000) {
       const { data, error } = await window.sb.from('players')
-        .select('team_name,num,name,avatar,avatar_id,is_bot,overall,rating,level,pos,role')
+        .select('team_name,num,name,avatar,avatar_id,is_bot,overall,rating,level,pos,role,nationality')
         .eq('country_code', cc).order('team_name').order('num').range(from, from + 999);
       if (error || !Array.isArray(data) || !data.length) break;
       for (const r of data) { if (r && r.team_name) (liste[r.team_name] || (liste[r.team_name] = [])).push(r); }
@@ -49846,12 +49846,14 @@ function _fedKaptanlariYukle(cc) {
     }
     const byTeam = {};
     const liderGercek = {};   // 572 — kulübü gerçek kullanıcı mı yönetiyor (kaptan, yoksa yardımcı kaptan)
+    const _yerli = p => String((p && p.nationality) || cc).toUpperCase() === String(cc).toUpperCase();   // 667
     for (const tn in liste) {
       const L = liste[tn];
       const c = L.find(p => p && (p.role === 'captain' || p.role === 'user')) || L[0];
       if (c) byTeam[tn] = c;
-      liderGercek[tn] = L.some(p => p && !p.is_bot && p.role === 'captain')
-        || (!L.some(p => p && !p.is_bot && p.role === 'captain') && L.some(p => p && !p.is_bot && p.role === 'vice'));
+      // 667 — yabancı kaptanlı kulüp federasyon üyesi değil; temsil eden gerçek lider de ülkenin uyruğunda olmalı
+      const kap = L.find(p => p && !p.is_bot && p.role === 'captain');
+      liderGercek[tn] = (!c || _yerli(c)) && (kap ? _yerli(kap) : L.some(p => p && !p.is_bot && p.role === 'vice' && _yerli(p)));
     }
     kayit.byTeam = byTeam; kayit.liderGercek = liderGercek; kayit.t = Date.now(); kayit.yukleniyor = false;
     try { if (typeof fedActiveCountry === 'function' && fedActiveCountry() === cc && typeof fedRender === 'function') fedRender(); } catch(e) {}
@@ -49884,6 +49886,7 @@ function computeFederationMembers(cc) {
       let captainLevel = null;
       let captainPos = null;
       let capIsBot = true;
+      let capUyruk = null;   // 667
       try {
         let captain = null;
         if (isUserTeam && typeof ROSTER_DATA !== 'undefined' && Array.isArray(ROSTER_DATA)) {
@@ -49902,7 +49905,7 @@ function computeFederationMembers(cc) {
             if (r) captain = {
               name: r.name, avatar: r.avatar || (r.is_bot ? '🤖' : '👤'), avatar_id: r.avatar_id || null,
               isBot: !!r.is_bot, overall: r.overall || 10, rating: r.rating || 10,
-              level: r.level || 0, pos: r.pos
+              level: r.level || 0, pos: r.pos, nationality: r.nationality || null
             };
           } else {
             _fedKaptanlariYukle(cc);
@@ -49917,6 +49920,7 @@ function computeFederationMembers(cc) {
           captainOverall = captain.overall || captain.rating || null;
           captainLevel = (typeof captain.level === 'number') ? captain.level : null;
           captainPos = captain.pos || null;
+          capUyruk = captain.nationality || null;
         }
       } catch(e) {}
 
@@ -49926,8 +49930,13 @@ function computeFederationMembers(cc) {
           if (typeof authUser !== 'undefined' && authUser && authUser.name) captainName = authUser.name;
           if (typeof authUser !== 'undefined' && authUser && authUser.avatar) avatar = authUser.avatar;
           if (typeof authUser !== 'undefined' && authUser && authUser.avatarId) avatar_id = authUser.avatarId;
+          if (typeof authUser !== 'undefined' && authUser && authUser.nationality) capUyruk = authUser.nationality;
         } catch(e) {}
       }
+
+      // 667 — FEDERASYON ÜYESİ = kaptanı bu ülkenin uyruğunda olan kulüp. Yabancı kaptanlı kulüp
+      //   hiçbir federasyona üye değil (oy, adaylık, başkanlık yok); milli takımı yine uyruğuna göre.
+      if (capUyruk && String(capUyruk).toUpperCase() !== String(cc).toUpperCase()) return;
 
       // Roster çıkmadıysa (nadir) güvenli fallback
       if (!captainName) captainName = team.name + ' Kaptanı';
@@ -50489,7 +50498,7 @@ function fedElectionTimeLeft() {
 // ═══════════════════════════════════════════════════════════════
 
 function fedActiveCountry() {
-  // 572 — FEDERASYON = kulübünün ülkesi (üyelik kulüp ülkesine göre; yabancı T.D. olabilir).
+  // 572 — FEDERASYON = kulübünün ülkesi. 667: yabancı kaptan bu federasyonda İzleyici (üye değil).
   //   Takımsızsa uyruğu. Milli takım sayfası kendi ülkesini ntActiveCountry() ile bilir.
   try {
     if(typeof _userTeam !== 'undefined' && _userTeam && _userTeam.countryCode) return _userTeam.countryCode;
@@ -50996,9 +51005,9 @@ function fedRenderPowers() {
       [[1, 'Milli takım kadrosunu seçer (12–20 kişi)'], [1, 'Diziliş ve taktiği belirler'], [1, 'En fazla 3 yardımcı seçer'], [0, 'Kadroyu kurmazsa en güçlü 20 oyuncu otomatik seçilir']]],
     ['vice', 'Yardımcı', 'En fazla 3 · başkan seçer', 'yildiz', '#b39ddb',
       [[1, 'Kadroya oyuncu çağırır / çıkarır'], [1, 'Diziliş ve taktiği düzenler'], [0, 'Yardımcı atayamaz (yalnız başkan)']]],
-    ['member', 'Üye', 'Kulüp kaptanları', 'uye', '#46d17a',
+    ['member', 'Üye', 'Bu ülke uyruklu kulüp kaptanları', 'uye', '#46d17a',
       [[1, 'Başkan seçiminde kulübü adına 1 oy'], [1, 'Başkanlığa aday olabilir'], [0, 'Kadroya doğrudan müdahale yok']]],
-    ['none', 'İzleyici', 'Kaptan olmayan oyuncular', 'goz', '#8b93a4',
+    ['none', 'İzleyici', 'Kaptan olmayanlar ve yabancı kaptanlar', 'goz', '#8b93a4',
       [[1, 'Federasyonu ve milli takımı görüntüler'], [0, 'Oy hakkı yok'], [0, 'Aday olamaz']]],
   ];
   root.innerHTML = `<div class="fdz-roller">${ROL.map(([k, ad, alt, ik, renk, liste]) => `
@@ -55614,7 +55623,7 @@ async function joinTeamDirect(countryCode, teamName, opts) {
       : /onay_gerekli/.test(_jm) ? '⛔ Bu takıma katılmak için kaptan onayı gerekiyor.'
       : /sart_karsilanmiyor/.test(_jm) ? '⛔ Takımın katılım şartlarını karşılamıyorsun.'
       : /kadro_dolu/.test(_jm) ? '⛔ Takım kadrosu dolu.'
-      : /yabanci_dolu/.test(_jm) ? '⛔ Bu takımın yabancı oyuncu kontenjanı dolu (5/5).'
+      : /yabanci_dolu/.test(_jm) ? '⛔ Bu takımın yabancı oyuncu kontenjanı dolu (10/10).'
       : /zaten_takimda/.test(_jm) ? '⛔ Önce mevcut takımından ayrılmalısın.'
       : '⚠️ Takıma katılınamadı, tekrar dene.';
     if (typeof showJoinToast === 'function') showJoinToast(_jMsg);
@@ -69281,7 +69290,7 @@ async function tmConfirmBuy(){
         sadece_elmas: 'Takımlar yalnız elmasla satılır.',
         fiyat_dusuk: 'İlan fiyatı en düşük fiyatın altında.',
         zaten_takimda: 'Önce mevcut takımından ayrılmalısın.',
-        yabanci_dolu: 'Bu takımın yabancı oyuncu kontenjanı dolu (5/5).'
+        yabanci_dolu: 'Bu takımın yabancı oyuncu kontenjanı dolu (10/10).'
       }[d && d.error] || 'Satın alınamadı.';
       if(typeof showJoinToast === 'function') showJoinToast('❌ ' + msg);
       try { _tmCache = null; if (typeof tmRender === 'function') tmRender(); } catch(e) {}
@@ -76161,7 +76170,7 @@ async function tfHireFreeAgent(agentId){
         takim_yok: 'Önce bir takıma katılmalısın.',
         yetki_yok: 'Sadece kaptan transfer yapabilir.',
         kadro_dolu: 'Kadro dolu.',
-        yabanci_dolu: 'Takımının yabancı oyuncu kontenjanı dolu (5/5).',
+        yabanci_dolu: 'Takımının yabancı oyuncu kontenjanı dolu (10/10).',
         serbest_degil: 'Oyuncu artık serbest değil.',
         oyuncu_bulunamadi: 'Oyuncu bulunamadı.'
       }[_d && _d.error] || 'Transfer hatası.';
@@ -76553,7 +76562,7 @@ function tfConfirmOffer() {
   // 652 — yabancı kontenjanı dolu takım yabancı oyuncuya teklif gönderemez (kabulde sunucu da engeller)
   if (_tfTarget._playerRef && _tfTarget._playerRef.nationality && _userTeam && _userTeam.countryCode
       && !cftCanAddPlayer(_tfTarget._playerRef.nationality, ROSTER_DATA, _userTeam.countryCode).ok) {
-    tfShowToast('❌ Takımının yabancı oyuncu kontenjanı dolu (5/5).', 'var(--red)');
+    tfShowToast('❌ Takımının yabancı oyuncu kontenjanı dolu (10/10).', 'var(--red)');
     return;
   }
   if (signingDia > 0 && typeof trsCanAfford === 'function' && !trsCanAfford('dia', signingDia)) {
@@ -78218,7 +78227,7 @@ function _jrKadroDurumu() {
     const cc = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.countryCode : null;
     const toplam = ROSTER_DATA.length;
     const yabanci = cc ? ROSTER_DATA.filter(p => p && p.nationality && p.nationality !== cc).length : 0;
-    const limit = (typeof CFT_FOREIGN_LIMIT !== 'undefined') ? CFT_FOREIGN_LIMIT : 5;
+    const limit = (typeof CFT_FOREIGN_LIMIT !== 'undefined') ? CFT_FOREIGN_LIMIT : 10;
     return { toplam, max: 22, yabanci, yabanciMax: limit };
   } catch(e) { return null; }
 }
@@ -78603,7 +78612,7 @@ async function inboxAcceptTransfer(msgId) {
         teklif_gecersiz: 'Teklif artık geçerli değil (teklifi yapan kulüpten ayrılmış ya da oyuncu takım değiştirmiş).',
         teklif_okunamadi: 'Teklif okunamadı, biraz sonra tekrar dene.',
         sozlesme_aktif: 'Sözleşmen sürüyor; transfer için kulübünün onayı gerekir.',
-        yabanci_dolu: 'Alıcı takımın yabancı oyuncu kontenjanı dolu (5/5).'
+        yabanci_dolu: 'Alıcı takımın yabancı oyuncu kontenjanı dolu (10/10).'
       }[d && d.error] || 'Transfer tamamlanamadı.';
       tfShowToast('❌ ' + msg, 'var(--red)');
       return;
@@ -100967,6 +100976,8 @@ function _teamChatCscSatir(m) {
     if (k === 'takim_bul') return (typeof userHasTeam === 'function' && !userHasTeam()) ? v : false;
     if (k === 'federasyon') {
       if (!ut || ut.role !== 'captain' || !ut.countryCode || typeof _loadFedStateFromServer !== 'function') return false;
+      const _uy = ((typeof authUser !== 'undefined' && authUser) || window.authUser || {}).nationality;   // 667
+      if (_uy && String(_uy).toUpperCase() !== String(ut.countryCode).toUpperCase()) return false;
       let st = null;
       try { st = await _loadFedStateFromServer(ut.countryCode); } catch (e) {}
       if (!st || st.electionPhase === 'open' || st.userCandidacy) return false;
@@ -100974,7 +100985,7 @@ function _teamChatCscSatir(m) {
       return v;
     }
     if (k === 'milli') {
-      const u = window.authUser || {};
+      const u = (typeof authUser !== 'undefined' && authUser) || window.authUser || {};   // 667 — window.authUser'da uyruk yok
       try { return _cftGetCountryCodes().includes(u.nationality) ? v : false; } catch (e) { return false; }
     }
     if (k === 'ekipman') return (typeof _visitedPlayerData !== 'undefined' && _visitedPlayerData) ? false : v;
