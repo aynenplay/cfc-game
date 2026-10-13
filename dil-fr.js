@@ -6851,7 +6851,7 @@ Object.assign(window.I18N.fr, {
   'G · B · M': 'V · N · D',
   'G 3 · B 2 · M 1': 'V 3 · N 2 · D 1',
   'Günlük Hak': 'Duels du jour',
-  'Rakip Seç': 'Choisir un adversaire',
+  'Rakip Seç': 'Choisir un rival',
   'Davetler': 'Invitations',
   'Son Düellolar': 'Derniers duels',
   'Bu hafta henüz düello yok': 'Aucun duel cette semaine',
@@ -6938,4 +6938,27 @@ Object.assign(window.I18N.fr, {
   "Şut çek, kurtar": "Tire et arrête",
   "Tam liste — Penaltı Ustası": "Liste complète — Maître du penalty",
   "Penaltı Ustası tam listesi": "Maître du penalty : liste complète",
+});
+
+/* ── 661 · Düello kuralları ── */
+Object.assign(window.I18N.fr, {
+  "Düello Kuralları": "Règles du duel",
+  "Puan ve Hak": "Points et limites",
+  "2 dk": "2 min",
+  "30 sn": "30 s",
+  "10 sn": "10 s",
+  "5 tur": "5 séries",
+  "Davet bu süre içinde yanıtlanmazsa düşer ve ücretin iade edilir.": "Si l'invitation reste sans réponse pendant ce délai, elle expire et tes frais te sont remboursés.",
+  "Aynı anda gönderebileceğin davet sayısı. Yalnız çevrim içi oyuncular davet edilebilir.": "Nombre d'invitations que tu peux envoyer à la fois. Seuls les joueurs en ligne peuvent être invités.",
+  "Takım arkadaşınla, engellediğin ya da seni engelleyen oyuncuyla düello yapılmaz. Takımsız oyuncular herkesle oynayabilir.": "Pas de duel avec un coéquipier, un joueur que tu as bloqué ou qui t'a bloqué. Les joueurs sans équipe peuvent affronter tout le monde.",
+  "Senin düello ücretin: (seviye + 4) × 20 €, en az 100 €. Davet eden davet ederken, kabul eden kabul ederken öder.": "Tes frais de duel : (niveau + 4) × 20 €, au moins 100 €. Celui qui invite paie en invitant, celui qui accepte en acceptant.",
+  "Kabulden sonra iki oyuncu da bu sürede düelloya girmeli; giremeyen olursa düello iptal olur ve iki ücret de iade edilir.": "Après l'acceptation, les deux joueurs doivent entrer dans le duel pendant ce délai ; sinon le duel est annulé et les deux frais sont remboursés.",
+  "Reddedilen, iptal edilen ya da süresi dolan davetin ücreti iade edilir. Oynanan düellonun ücreti oyuna gider; düellodan € kazanılmaz.": "Les frais d'une invitation refusée, annulée ou expirée sont remboursés. Ceux d'un duel joué reviennent au jeu ; les duels ne rapportent pas d'€.",
+  "Her oyuncunun atış sayısı. Kura ile ilk atan belirlenir, sonra sırayla şut çekilir; rakip artık yetişemiyorsa düello erken biter.": "Tirs par joueur. Un tirage au sort décide qui tire en premier, puis on tire à tour de rôle ; le duel s'arrête plus tôt si un camp ne peut plus revenir.",
+  "Her seçim için süren. Şut çekerken köşeyi, kalede atlayacağın köşeyi seçersin: köşeler farklıysa gol, aynıysa kurtarış. Seçmezsen köşe rastgele seçilir.": "Ton temps pour chaque choix. Au tir tu choisis le coin, dans les buts où plonger : coins différents = but, même coin = arrêt. Sans choix, un coin est tiré au hasard.",
+  "Eşitlikte seri penaltılar: turu farkla bitiren kazanır. 5 turdan sonra da eşitlik bozulmazsa düello berabere biter.": "En cas d'égalité, mort subite : celui qui termine une série devant gagne. Si l'égalité persiste après 5 séries, le duel se termine par un match nul.",
+  "Galibiyet, beraberlik ve mağlubiyet puanı. Puanlar haftalık Penaltı Ustası yarışına yazılır.": "Points pour une victoire, un nul et une défaite. Les points comptent pour la course hebdomadaire Maître du penalty.",
+  "Bir günde oynayabileceğin en fazla düello.": "Nombre maximum de duels par jour.",
+  "Aynı rakiple bir günde oynayabileceğin düello.": "Duels contre le même adversaire par jour.",
+  "Günlük hakların her gün bu saatte yenilenir.": "Tes duels quotidiens se renouvellent chaque jour à cette heure.",
 });

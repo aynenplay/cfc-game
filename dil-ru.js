@@ -6821,7 +6821,7 @@ Object.assign(window.I18N.ru, {
   'G · B · M': 'В · Н · П',
   'G 3 · B 2 · M 1': 'В 3 · Н 2 · П 1',
   'Günlük Hak': 'Дуэли в день',
-  'Rakip Seç': 'Выбрать соперника',
+  'Rakip Seç': 'Найти соперника',
   'Davetler': 'Приглашения',
   'Son Düellolar': 'Последние дуэли',
   'Bu hafta henüz düello yok': 'На этой неделе дуэлей ещё не было',
@@ -6908,4 +6908,27 @@ Object.assign(window.I18N.ru, {
   "Şut çek, kurtar": "Бей и отражай",
   "Tam liste — Penaltı Ustası": "Полный список — Мастер пенальти",
   "Penaltı Ustası tam listesi": "Мастер пенальти — полный список",
+});
+
+/* ── 661 · Düello kuralları ── */
+Object.assign(window.I18N.ru, {
+  "Düello Kuralları": "Правила дуэли",
+  "Puan ve Hak": "Очки и лимиты",
+  "2 dk": "2 мин",
+  "30 sn": "30 с",
+  "10 sn": "10 с",
+  "5 tur": "5 серий",
+  "Davet bu süre içinde yanıtlanmazsa düşer ve ücretin iade edilir.": "Если на приглашение не ответят за это время, оно сгорает, а плата возвращается.",
+  "Aynı anda gönderebileceğin davet sayısı. Yalnız çevrim içi oyuncular davet edilebilir.": "Столько приглашений можно отправить одновременно. Пригласить можно только игроков в сети.",
+  "Takım arkadaşınla, engellediğin ya da seni engelleyen oyuncuyla düello yapılmaz. Takımsız oyuncular herkesle oynayabilir.": "Нельзя играть дуэль с партнёром по команде, с игроком, которого ты заблокировал, или с тем, кто заблокировал тебя. Игроки без команды могут играть с кем угодно.",
+  "Senin düello ücretin: (seviye + 4) × 20 €, en az 100 €. Davet eden davet ederken, kabul eden kabul ederken öder.": "Твоя плата за дуэль: (уровень + 4) × 20 €, минимум 100 €. Пригласивший платит при приглашении, принявший — при принятии.",
+  "Kabulden sonra iki oyuncu da bu sürede düelloya girmeli; giremeyen olursa düello iptal olur ve iki ücret de iade edilir.": "После принятия оба игрока должны войти в дуэль за это время; если кто-то не войдёт, дуэль отменяется, а обе платы возвращаются.",
+  "Reddedilen, iptal edilen ya da süresi dolan davetin ücreti iade edilir. Oynanan düellonun ücreti oyuna gider; düellodan € kazanılmaz.": "Плата за отклонённое, отменённое или просроченное приглашение возвращается. Плата за сыгранную дуэль уходит игре; € за дуэли не начисляются.",
+  "Her oyuncunun atış sayısı. Kura ile ilk atan belirlenir, sonra sırayla şut çekilir; rakip artık yetişemiyorsa düello erken biter.": "Ударов у каждого игрока. Жребий решает, кто бьёт первым, затем бьют по очереди; если одна сторона уже не может догнать, дуэль заканчивается досрочно.",
+  "Her seçim için süren. Şut çekerken köşeyi, kalede atlayacağın köşeyi seçersin: köşeler farklıysa gol, aynıysa kurtarış. Seçmezsen köşe rastgele seçilir.": "Твоё время на каждый выбор. При ударе выбираешь угол, в воротах — куда прыгнуть: разные углы — гол, одинаковые — сейв. Если не выберешь, угол выбирается случайно.",
+  "Eşitlikte seri penaltılar: turu farkla bitiren kazanır. 5 turdan sonra da eşitlik bozulmazsa düello berabere biter.": "При равенстве — серия пенальти: побеждает тот, кто закончит серию впереди. Если после 5 серий всё ещё ничья, дуэль заканчивается вничью.",
+  "Galibiyet, beraberlik ve mağlubiyet puanı. Puanlar haftalık Penaltı Ustası yarışına yazılır.": "Очки за победу, ничью и поражение. Очки идут в еженедельную гонку «Мастер пенальти».",
+  "Bir günde oynayabileceğin en fazla düello.": "Максимум дуэлей в день.",
+  "Aynı rakiple bir günde oynayabileceğin düello.": "Дуэлей с одним и тем же соперником в день.",
+  "Günlük hakların her gün bu saatte yenilenir.": "Твои ежедневные дуэли обновляются каждый день в это время.",
 });

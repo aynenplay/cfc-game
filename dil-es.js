@@ -6879,3 +6879,26 @@ Object.assign(window.I18N.es, {
   "Tam liste — Penaltı Ustası": "Lista completa — Maestro del penalti",
   "Penaltı Ustası tam listesi": "Lista completa de Maestro del penalti",
 });
+
+/* ── 661 · Düello kuralları ── */
+Object.assign(window.I18N.es, {
+  "Düello Kuralları": "Reglas del duelo",
+  "Puan ve Hak": "Puntos y límites",
+  "2 dk": "2 min",
+  "30 sn": "30 s",
+  "10 sn": "10 s",
+  "5 tur": "5 rondas",
+  "Davet bu süre içinde yanıtlanmazsa düşer ve ücretin iade edilir.": "Si la invitación no se responde en este tiempo, caduca y se te devuelve la tarifa.",
+  "Aynı anda gönderebileceğin davet sayısı. Yalnız çevrim içi oyuncular davet edilebilir.": "Invitaciones que puedes enviar a la vez. Solo se puede invitar a jugadores en línea.",
+  "Takım arkadaşınla, engellediğin ya da seni engelleyen oyuncuyla düello yapılmaz. Takımsız oyuncular herkesle oynayabilir.": "No hay duelo con un compañero de equipo, con un jugador que bloqueaste ni con uno que te bloqueó. Los jugadores sin equipo pueden jugar contra cualquiera.",
+  "Senin düello ücretin: (seviye + 4) × 20 €, en az 100 €. Davet eden davet ederken, kabul eden kabul ederken öder.": "Tu tarifa de duelo: (nivel + 4) × 20 €, mínimo 100 €. Quien invita paga al invitar y quien acepta, al aceptar.",
+  "Kabulden sonra iki oyuncu da bu sürede düelloya girmeli; giremeyen olursa düello iptal olur ve iki ücret de iade edilir.": "Tras aceptar, ambos jugadores deben entrar al duelo en este tiempo; si alguno no entra, el duelo se cancela y se devuelven las dos tarifas.",
+  "Reddedilen, iptal edilen ya da süresi dolan davetin ücreti iade edilir. Oynanan düellonun ücreti oyuna gider; düellodan € kazanılmaz.": "La tarifa de una invitación rechazada, cancelada o caducada se devuelve. La de un duelo jugado va al juego; los duelos no dan €.",
+  "Her oyuncunun atış sayısı. Kura ile ilk atan belirlenir, sonra sırayla şut çekilir; rakip artık yetişemiyorsa düello erken biter.": "Tiros por jugador. Un sorteo decide quién tira primero y luego se alternan; si un lado ya no puede alcanzar al otro, el duelo termina antes.",
+  "Her seçim için süren. Şut çekerken köşeyi, kalede atlayacağın köşeyi seçersin: köşeler farklıysa gol, aynıysa kurtarış. Seçmezsen köşe rastgele seçilir.": "Tu tiempo para cada elección. Al tirar eliges la esquina y en la portería hacia dónde lanzarte: esquinas distintas es gol, la misma es parada. Si no eliges, se elige una esquina al azar.",
+  "Eşitlikte seri penaltılar: turu farkla bitiren kazanır. 5 turdan sonra da eşitlik bozulmazsa düello berabere biter.": "En caso de empate, muerte súbita: gana quien termina una ronda por delante. Si tras 5 rondas sigue el empate, el duelo acaba en empate.",
+  "Galibiyet, beraberlik ve mağlubiyet puanı. Puanlar haftalık Penaltı Ustası yarışına yazılır.": "Puntos por victoria, empate y derrota. Los puntos cuentan para la carrera semanal Maestro del penalti.",
+  "Bir günde oynayabileceğin en fazla düello.": "Máximo de duelos que puedes jugar en un día.",
+  "Aynı rakiple bir günde oynayabileceğin düello.": "Duelos contra el mismo rival en un día.",
+  "Günlük hakların her gün bu saatte yenilenir.": "Tus duelos diarios se renuevan cada día a esta hora.",
+});

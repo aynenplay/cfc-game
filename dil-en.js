@@ -7304,3 +7304,26 @@ Object.assign(window.I18N.en, {
   "Tam liste — Penaltı Ustası": "Full list — Penalty Master",
   "Penaltı Ustası tam listesi": "Penalty Master full list",
 });
+
+/* ── 661 · Düello kuralları ── */
+Object.assign(window.I18N.en, {
+  "Düello Kuralları": "Duel Rules",
+  "Puan ve Hak": "Points and Limits",
+  "2 dk": "2 min",
+  "30 sn": "30 s",
+  "10 sn": "10 s",
+  "5 tur": "5 rounds",
+  "Davet bu süre içinde yanıtlanmazsa düşer ve ücretin iade edilir.": "If the invite isn't answered within this time, it expires and your fee is refunded.",
+  "Aynı anda gönderebileceğin davet sayısı. Yalnız çevrim içi oyuncular davet edilebilir.": "Invites you can send at a time. Only online players can be invited.",
+  "Takım arkadaşınla, engellediğin ya da seni engelleyen oyuncuyla düello yapılmaz. Takımsız oyuncular herkesle oynayabilir.": "You can't duel a teammate, a player you blocked or a player who blocked you. Players without a team can play anyone.",
+  "Senin düello ücretin: (seviye + 4) × 20 €, en az 100 €. Davet eden davet ederken, kabul eden kabul ederken öder.": "Your duel fee: (level + 4) × 20 €, at least 100 €. The inviter pays when inviting, the other player when accepting.",
+  "Kabulden sonra iki oyuncu da bu sürede düelloya girmeli; giremeyen olursa düello iptal olur ve iki ücret de iade edilir.": "After accepting, both players must enter the duel within this time; if someone doesn't, the duel is cancelled and both fees are refunded.",
+  "Reddedilen, iptal edilen ya da süresi dolan davetin ücreti iade edilir. Oynanan düellonun ücreti oyuna gider; düellodan € kazanılmaz.": "The fee for a declined, cancelled or expired invite is refunded. The fee for a played duel goes to the game; duels don't pay out €.",
+  "Her oyuncunun atış sayısı. Kura ile ilk atan belirlenir, sonra sırayla şut çekilir; rakip artık yetişemiyorsa düello erken biter.": "Kicks per player. A coin toss decides who shoots first, then players take turns; the duel ends early once one side can no longer catch up.",
+  "Her seçim için süren. Şut çekerken köşeyi, kalede atlayacağın köşeyi seçersin: köşeler farklıysa gol, aynıysa kurtarış. Seçmezsen köşe rastgele seçilir.": "Your time for each pick. When shooting you pick the corner, in goal you pick where to dive: different corners mean a goal, the same corner a save. If you don't pick, a random corner is chosen.",
+  "Eşitlikte seri penaltılar: turu farkla bitiren kazanır. 5 turdan sonra da eşitlik bozulmazsa düello berabere biter.": "If level, sudden death: whoever finishes a round ahead wins. If it's still level after 5 rounds, the duel ends in a draw.",
+  "Galibiyet, beraberlik ve mağlubiyet puanı. Puanlar haftalık Penaltı Ustası yarışına yazılır.": "Points for a win, draw and loss. Points count toward the weekly Penalty Master race.",
+  "Bir günde oynayabileceğin en fazla düello.": "Maximum duels you can play in a day.",
+  "Aynı rakiple bir günde oynayabileceğin düello.": "Duels you can play against the same opponent in a day.",
+  "Günlük hakların her gün bu saatte yenilenir.": "Your daily duels reset at this time every day.",
+});

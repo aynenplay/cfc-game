@@ -6783,7 +6783,7 @@ Object.assign(window.I18N.pt, {
   'G · B · M': 'V · E · D',
   'G 3 · B 2 · M 1': 'V 3 · E 2 · D 1',
   'Günlük Hak': 'Duelos diários',
-  'Rakip Seç': 'Escolher adversário',
+  'Rakip Seç': 'Escolher rival',
   'Davetler': 'Convites',
   'Son Düellolar': 'Últimos duelos',
   'Bu hafta henüz düello yok': 'Nenhum duelo nesta semana ainda',
@@ -6870,4 +6870,27 @@ Object.assign(window.I18N.pt, {
   "Şut çek, kurtar": "Chute e defenda",
   "Tam liste — Penaltı Ustası": "Lista completa — Mestre do pênalti",
   "Penaltı Ustası tam listesi": "Lista completa do Mestre do pênalti",
+});
+
+/* ── 661 · Düello kuralları ── */
+Object.assign(window.I18N.pt, {
+  "Düello Kuralları": "Regras do duelo",
+  "Puan ve Hak": "Pontos e limites",
+  "2 dk": "2 min",
+  "30 sn": "30 s",
+  "10 sn": "10 s",
+  "5 tur": "5 rodadas",
+  "Davet bu süre içinde yanıtlanmazsa düşer ve ücretin iade edilir.": "Se o convite não for respondido nesse tempo, ele expira e sua taxa é devolvida.",
+  "Aynı anda gönderebileceğin davet sayısı. Yalnız çevrim içi oyuncular davet edilebilir.": "Convites que você pode enviar ao mesmo tempo. Só jogadores online podem ser convidados.",
+  "Takım arkadaşınla, engellediğin ya da seni engelleyen oyuncuyla düello yapılmaz. Takımsız oyuncular herkesle oynayabilir.": "Não há duelo com colega de time, com jogador que você bloqueou ou que bloqueou você. Jogadores sem time podem jogar com qualquer um.",
+  "Senin düello ücretin: (seviye + 4) × 20 €, en az 100 €. Davet eden davet ederken, kabul eden kabul ederken öder.": "Sua taxa de duelo: (nível + 4) × 20 €, no mínimo 100 €. Quem convida paga ao convidar e quem aceita, ao aceitar.",
+  "Kabulden sonra iki oyuncu da bu sürede düelloya girmeli; giremeyen olursa düello iptal olur ve iki ücret de iade edilir.": "Após o aceite, os dois jogadores devem entrar no duelo nesse tempo; se algum não entrar, o duelo é cancelado e as duas taxas são devolvidas.",
+  "Reddedilen, iptal edilen ya da süresi dolan davetin ücreti iade edilir. Oynanan düellonun ücreti oyuna gider; düellodan € kazanılmaz.": "A taxa de convite recusado, cancelado ou expirado é devolvida. A de um duelo jogado vai para o jogo; duelos não pagam €.",
+  "Her oyuncunun atış sayısı. Kura ile ilk atan belirlenir, sonra sırayla şut çekilir; rakip artık yetişemiyorsa düello erken biter.": "Cobranças por jogador. Um sorteio decide quem bate primeiro e depois se alternam; se um lado não puder mais alcançar o outro, o duelo termina antes.",
+  "Her seçim için süren. Şut çekerken köşeyi, kalede atlayacağın köşeyi seçersin: köşeler farklıysa gol, aynıysa kurtarış. Seçmezsen köşe rastgele seçilir.": "Seu tempo para cada escolha. Ao bater você escolhe o canto e no gol para onde pular: cantos diferentes é gol, o mesmo canto é defesa. Se não escolher, um canto é sorteado.",
+  "Eşitlikte seri penaltılar: turu farkla bitiren kazanır. 5 turdan sonra da eşitlik bozulmazsa düello berabere biter.": "Em caso de empate, morte súbita: vence quem termina uma rodada à frente. Se ainda estiver empatado após 5 rodadas, o duelo termina empatado.",
+  "Galibiyet, beraberlik ve mağlubiyet puanı. Puanlar haftalık Penaltı Ustası yarışına yazılır.": "Pontos por vitória, empate e derrota. Os pontos contam para a corrida semanal Mestre do pênalti.",
+  "Bir günde oynayabileceğin en fazla düello.": "Máximo de duelos que você pode jogar por dia.",
+  "Aynı rakiple bir günde oynayabileceğin düello.": "Duelos contra o mesmo adversário por dia.",
+  "Günlük hakların her gün bu saatte yenilenir.": "Seus duelos diários são renovados todos os dias neste horário.",
 });
