@@ -7471,3 +7471,31 @@ Object.assign(window.I18N.en, {
   "Bu ülke uyruklu kulüp kaptanları": "Club captains of this nationality",
   "Kaptan olmayanlar ve yabancı kaptanlar": "Non-captains and foreign captains",
 });
+
+/* ── 668 · Tesis/Finans rehberleri · takım arkadaşı düellosu ── */
+Object.assign(window.I18N.en, {
+  "Takım tesisleri": "Team facilities",
+  "Altı tesis, her biri 10 seviye.": "Six facilities, 10 levels each.",
+  "Kadro ve stadyum": "Squad and stadium",
+  "Daha geniş kadro, daha çok bilet geliri": "Bigger squad, more ticket income",
+  "Antrenman ve sağlık": "Training and medical",
+  "Aynı anda daha çok antrenman, kısa sakatlık": "More trainings at once, shorter injuries",
+  "Performans ve finans": "Performance and finance",
+  "Herkese günlük bonus enerji, bilet gelirine ek": "Daily bonus energy for all, extra ticket income",
+  "Tesisleri kaptan, kasadaki elmasla geliştirir. Güçlü tesis, güçlü takım!": "The captain upgrades them with treasury diamonds. Strong facilities, strong team!",
+  "Maç, lig ve turnuva gelirleri kasaya girer.": "Match, league and tournament income goes here.",
+  "Kaptan cüzdanından kasaya € ve elmas koyar": "The captain adds € and diamonds from their wallet",
+  "Kaptan kasadaki euroyla oyuncu alır": "The captain buys players with treasury euros",
+  "Kaptan kasadaki elmasla tesisleri geliştirir": "The captain upgrades facilities with treasury diamonds",
+  "Maaşlar sezonda 4 taksit kasadan ödenir. Kasayı boş bırakma!": "Salaries are paid from it in 4 instalments a season. Don’t let it run dry!",
+  "Takım Arkadaşı Düellosu": "Teammate Duel",
+  "Penaltı Ustası puanı yazılmaz": "No Penalty Master points",
+  "Günlük düello hakkından düşmez": "Doesn’t count toward your daily duels",
+  "Takım arkadaşı": "Teammate",
+  "Çevrim içi oyuncuya davet bu süre içinde yanıtlanmazsa düşer ve ücretin iade edilir.": "An invite to an online player expires if not answered within this time, and your fee is refunded.",
+  "10 dk": "10 min",
+  "Çevrim dışı oyuncuya davet bildirim olarak gider ve bu süre boyunca geçerlidir.": "An invite to an offline player is sent as a notification and stays valid for this long.",
+  "Aynı anda gönderebileceğin davet sayısı. Listede çevrim içi oyuncular var; herkesi oyuncu kartından davet edebilirsin.": "Invites you can send at once. The list shows online players; you can invite anyone from their player card.",
+  "Engellediğin ya da seni engelleyen oyuncuyla düello yapılmaz.": "You can’t duel a player you blocked or who blocked you.",
+  "Takım arkadaşınla düello yalnız eğlence içindir: puan yazılmaz ve günlük hakkından düşmez.": "A duel with a teammate is just for fun: no points, and it doesn’t count toward your daily duels.",
+});

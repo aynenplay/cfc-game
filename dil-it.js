@@ -7044,3 +7044,31 @@ Object.assign(window.I18N.it, {
   "Bu ülke uyruklu kulüp kaptanları": "Capitani di club di questa nazionalità",
   "Kaptan olmayanlar ve yabancı kaptanlar": "Non capitani e capitani stranieri",
 });
+
+/* ── 668 · Tesis/Finans rehberleri · takım arkadaşı düellosu ── */
+Object.assign(window.I18N.it, {
+  "Takım tesisleri": "Strutture della squadra",
+  "Altı tesis, her biri 10 seviye.": "Sei strutture, 10 livelli ciascuna.",
+  "Kadro ve stadyum": "Rosa e stadio",
+  "Daha geniş kadro, daha çok bilet geliri": "Rosa più ampia, più incassi dai biglietti",
+  "Antrenman ve sağlık": "Allenamento e salute",
+  "Aynı anda daha çok antrenman, kısa sakatlık": "Più allenamenti insieme, infortuni più brevi",
+  "Performans ve finans": "Prestazioni e finanze",
+  "Herkese günlük bonus enerji, bilet gelirine ek": "Energia bonus giornaliera per tutti, più incassi",
+  "Tesisleri kaptan, kasadaki elmasla geliştirir. Güçlü tesis, güçlü takım!": "Il capitano le migliora con i diamanti della cassa. Strutture forti, squadra forte!",
+  "Maç, lig ve turnuva gelirleri kasaya girer.": "Qui entrano gli incassi di partite, campionato e tornei.",
+  "Kaptan cüzdanından kasaya € ve elmas koyar": "Il capitano versa € e diamanti dal proprio portafoglio",
+  "Kaptan kasadaki euroyla oyuncu alır": "Il capitano acquista giocatori con gli euro della cassa",
+  "Kaptan kasadaki elmasla tesisleri geliştirir": "Il capitano migliora le strutture con i diamanti della cassa",
+  "Maaşlar sezonda 4 taksit kasadan ödenir. Kasayı boş bırakma!": "Gli stipendi escono da qui in 4 rate a stagione. Non lasciarla vuota!",
+  "Takım Arkadaşı Düellosu": "Sfida tra compagni",
+  "Penaltı Ustası puanı yazılmaz": "Nessun punto Re del rigore",
+  "Günlük düello hakkından düşmez": "Non conta nelle sfide giornaliere",
+  "Takım arkadaşı": "Compagno",
+  "Çevrim içi oyuncuya davet bu süre içinde yanıtlanmazsa düşer ve ücretin iade edilir.": "L'invito a un giocatore online scade se non riceve risposta entro questo tempo e il costo ti viene rimborsato.",
+  "10 dk": "10 min",
+  "Çevrim dışı oyuncuya davet bildirim olarak gider ve bu süre boyunca geçerlidir.": "L'invito a un giocatore offline arriva come notifica ed è valido per questo tempo.",
+  "Aynı anda gönderebileceğin davet sayısı. Listede çevrim içi oyuncular var; herkesi oyuncu kartından davet edebilirsin.": "Inviti che puoi mandare insieme. La lista mostra i giocatori online; puoi invitare chiunque dalla sua scheda.",
+  "Engellediğin ya da seni engelleyen oyuncuyla düello yapılmaz.": "Non puoi sfidare chi hai bloccato o chi ti ha bloccato.",
+  "Takım arkadaşınla düello yalnız eğlence içindir: puan yazılmaz ve günlük hakkından düşmez.": "Una sfida con un compagno è solo per divertimento: niente punti e non conta nelle sfide giornaliere.",
+});

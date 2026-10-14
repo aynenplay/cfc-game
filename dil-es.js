@@ -7046,3 +7046,31 @@ Object.assign(window.I18N.es, {
   "Bu ülke uyruklu kulüp kaptanları": "Capitanes de club de esta nacionalidad",
   "Kaptan olmayanlar ve yabancı kaptanlar": "No capitanes y capitanes extranjeros",
 });
+
+/* ── 668 · Tesis/Finans rehberleri · takım arkadaşı düellosu ── */
+Object.assign(window.I18N.es, {
+  "Takım tesisleri": "Instalaciones del equipo",
+  "Altı tesis, her biri 10 seviye.": "Seis instalaciones, 10 niveles cada una.",
+  "Kadro ve stadyum": "Plantilla y estadio",
+  "Daha geniş kadro, daha çok bilet geliri": "Plantilla más amplia, más taquilla",
+  "Antrenman ve sağlık": "Entrenamiento y salud",
+  "Aynı anda daha çok antrenman, kısa sakatlık": "Más entrenamientos a la vez, lesiones más cortas",
+  "Performans ve finans": "Rendimiento y finanzas",
+  "Herkese günlük bonus enerji, bilet gelirine ek": "Energía extra diaria para todos, más taquilla",
+  "Tesisleri kaptan, kasadaki elmasla geliştirir. Güçlü tesis, güçlü takım!": "El capitán las mejora con diamantes de la tesorería. ¡Buenas instalaciones, gran equipo!",
+  "Maç, lig ve turnuva gelirleri kasaya girer.": "Aquí entran los ingresos de partidos, liga y torneos.",
+  "Kaptan cüzdanından kasaya € ve elmas koyar": "El capitán aporta € y diamantes de su monedero",
+  "Kaptan kasadaki euroyla oyuncu alır": "El capitán ficha jugadores con euros de la tesorería",
+  "Kaptan kasadaki elmasla tesisleri geliştirir": "El capitán mejora las instalaciones con diamantes de la tesorería",
+  "Maaşlar sezonda 4 taksit kasadan ödenir. Kasayı boş bırakma!": "Los sueldos salen de aquí en 4 pagos por temporada. ¡No la dejes vacía!",
+  "Takım Arkadaşı Düellosu": "Duelo entre compañeros",
+  "Penaltı Ustası puanı yazılmaz": "No suma puntos de Maestro del penalti",
+  "Günlük düello hakkından düşmez": "No cuenta para tus duelos diarios",
+  "Takım arkadaşı": "Compañero",
+  "Çevrim içi oyuncuya davet bu süre içinde yanıtlanmazsa düşer ve ücretin iade edilir.": "La invitación a un jugador en línea caduca si no se responde en este tiempo, y se te devuelve la tarifa.",
+  "10 dk": "10 min",
+  "Çevrim dışı oyuncuya davet bildirim olarak gider ve bu süre boyunca geçerlidir.": "La invitación a un jugador desconectado llega como notificación y es válida durante este tiempo.",
+  "Aynı anda gönderebileceğin davet sayısı. Listede çevrim içi oyuncular var; herkesi oyuncu kartından davet edebilirsin.": "Invitaciones que puedes enviar a la vez. La lista muestra jugadores en línea; puedes invitar a cualquiera desde su ficha.",
+  "Engellediğin ya da seni engelleyen oyuncuyla düello yapılmaz.": "No puedes retar a un jugador que bloqueaste o que te bloqueó.",
+  "Takım arkadaşınla düello yalnız eğlence içindir: puan yazılmaz ve günlük hakkından düşmez.": "Un duelo con un compañero es solo por diversión: no da puntos ni cuenta para tus duelos diarios.",
+});

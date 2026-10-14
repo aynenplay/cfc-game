@@ -7076,3 +7076,31 @@ Object.assign(window.I18N.ru, {
   "Bu ülke uyruklu kulüp kaptanları": "Капитаны клубов этой национальности",
   "Kaptan olmayanlar ve yabancı kaptanlar": "Не капитаны и иностранные капитаны",
 });
+
+/* ── 668 · Tesis/Finans rehberleri · takım arkadaşı düellosu ── */
+Object.assign(window.I18N.ru, {
+  "Takım tesisleri": "Инфраструктура команды",
+  "Altı tesis, her biri 10 seviye.": "Шесть объектов, у каждого 10 уровней.",
+  "Kadro ve stadyum": "Состав и стадион",
+  "Daha geniş kadro, daha çok bilet geliri": "Больше состав, больше доход от билетов",
+  "Antrenman ve sağlık": "Тренировки и медицина",
+  "Aynı anda daha çok antrenman, kısa sakatlık": "Больше тренировок сразу, травмы короче",
+  "Performans ve finans": "Подготовка и финансы",
+  "Herkese günlük bonus enerji, bilet gelirine ek": "Бонус энергии всем каждый день, доход от билетов выше",
+  "Tesisleri kaptan, kasadaki elmasla geliştirir. Güçlü tesis, güçlü takım!": "Капитан улучшает их за алмазы из казны. Сильная база — сильная команда!",
+  "Maç, lig ve turnuva gelirleri kasaya girer.": "Сюда поступают доходы от матчей, лиги и турниров.",
+  "Kaptan cüzdanından kasaya € ve elmas koyar": "Капитан вносит € и алмазы из своего кошелька",
+  "Kaptan kasadaki euroyla oyuncu alır": "Капитан покупает игроков за евро из казны",
+  "Kaptan kasadaki elmasla tesisleri geliştirir": "Капитан улучшает инфраструктуру за алмазы из казны",
+  "Maaşlar sezonda 4 taksit kasadan ödenir. Kasayı boş bırakma!": "Зарплаты идут из казны 4 частями за сезон. Не оставляй её пустой!",
+  "Takım Arkadaşı Düellosu": "Дуэль с товарищем по команде",
+  "Penaltı Ustası puanı yazılmaz": "Очки «Мастера пенальти» не начисляются",
+  "Günlük düello hakkından düşmez": "Не расходует дневной лимит дуэлей",
+  "Takım arkadaşı": "Товарищ по команде",
+  "Çevrim içi oyuncuya davet bu süre içinde yanıtlanmazsa düşer ve ücretin iade edilir.": "Приглашение игроку онлайн сгорает, если на него не ответят за это время, а плата возвращается.",
+  "10 dk": "10 мин",
+  "Çevrim dışı oyuncuya davet bildirim olarak gider ve bu süre boyunca geçerlidir.": "Приглашение игроку офлайн приходит уведомлением и действует это время.",
+  "Aynı anda gönderebileceğin davet sayısı. Listede çevrim içi oyuncular var; herkesi oyuncu kartından davet edebilirsin.": "Сколько приглашений можно отправить одновременно. В списке игроки онлайн; пригласить любого можно из карточки игрока.",
+  "Engellediğin ya da seni engelleyen oyuncuyla düello yapılmaz.": "Нельзя сыграть дуэль с тем, кого ты заблокировал или кто заблокировал тебя.",
+  "Takım arkadaşınla düello yalnız eğlence içindir: puan yazılmaz ve günlük hakkından düşmez.": "Дуэль с товарищем по команде — просто для удовольствия: очков нет, дневной лимит не тратится.",
+});
