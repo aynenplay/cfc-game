@@ -7104,3 +7104,8 @@ Object.assign(window.I18N.ru, {
   "Engellediğin ya da seni engelleyen oyuncuyla düello yapılmaz.": "Нельзя сыграть дуэль с тем, кого ты заблокировал или кто заблокировал тебя.",
   "Takım arkadaşınla düello yalnız eğlence içindir: puan yazılmaz ve günlük hakkından düşmez.": "Дуэль с товарищем по команде — просто для удовольствия: очков нет, дневной лимит не тратится.",
 });
+
+/* ── 669 · tesis haritası ── */
+Object.assign(window.I18N.ru, {
+  "Kapasite": "Вместимость",
+});

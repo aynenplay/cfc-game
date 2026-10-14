@@ -7072,3 +7072,8 @@ Object.assign(window.I18N.it, {
   "Engellediğin ya da seni engelleyen oyuncuyla düello yapılmaz.": "Non puoi sfidare chi hai bloccato o chi ti ha bloccato.",
   "Takım arkadaşınla düello yalnız eğlence içindir: puan yazılmaz ve günlük hakkından düşmez.": "Una sfida con un compagno è solo per divertimento: niente punti e non conta nelle sfide giornaliere.",
 });
+
+/* ── 669 · tesis haritası ── */
+Object.assign(window.I18N.it, {
+  "Kapasite": "Capacità",
+});

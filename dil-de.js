@@ -5434,3 +5434,8 @@ Object.assign(window.I18N.de, {
   "Engellediğin ya da seni engelleyen oyuncuyla düello yapılmaz.": "Mit Spielern, die du blockiert hast oder die dich blockiert haben, gibt es kein Duell.",
   "Takım arkadaşınla düello yalnız eğlence içindir: puan yazılmaz ve günlük hakkından düşmez.": "Ein Duell mit einem Teamkollegen ist nur zum Spaß: keine Punkte, und es zählt nicht zu deinen täglichen Duellen.",
 });
+
+/* ── 669 · tesis haritası ── */
+Object.assign(window.I18N.de, {
+  "Kapasite": "Kapazität",
+});
