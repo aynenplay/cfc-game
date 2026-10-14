@@ -7109,3 +7109,8 @@ Object.assign(window.I18N.ru, {
 Object.assign(window.I18N.ru, {
   "Kapasite": "Вместимость",
 });
+
+/* ── 670 · ziyaretçi tesis özeti ── */
+window.I18N_PATTERNS.ru.push(
+  [/^Sv (\d+)$/, 'Ур. $1'],
+);

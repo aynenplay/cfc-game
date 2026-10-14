@@ -7139,3 +7139,8 @@ Object.assign(window.I18N.fr, {
 Object.assign(window.I18N.fr, {
   "Kapasite": "Capacité",
 });
+
+/* ── 670 · ziyaretçi tesis özeti ── */
+window.I18N_PATTERNS.fr.push(
+  [/^Sv (\d+)$/, 'Niv. $1'],
+);
