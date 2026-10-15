@@ -7153,3 +7153,6 @@ window.I18N_PATTERNS.fr.push(
 
 /* ── 672 · CSC Media: arıyorum paylaşımı sınırı ── */
 Object.assign(window.I18N.fr, { 'Bu paylaşımı 24 saatte 1 kez yapabilirsin.': 'Tu ne peux partager ceci qu’une fois toutes les 24 heures.' });
+
+/* ── 674 · Bizi Puanla ── */
+Object.assign(window.I18N.fr, { 'Bizi puanla': 'Note-nous', 'Google Play’deki yorumun yeni oyunculara yol gösterir.': 'Ton avis sur Google Play aide les nouveaux joueurs.', 'Google Play’de puanla': 'Noter sur Google Play' });
