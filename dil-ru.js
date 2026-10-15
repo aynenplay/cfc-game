@@ -7126,3 +7126,6 @@ Object.assign(window.I18N.ru, { 'Bu paylaşımı 24 saatte 1 kez yapabilirsin.':
 
 /* ── 674 · Bizi Puanla ── */
 Object.assign(window.I18N.ru, { 'Bizi puanla': 'Оцените нас', 'Google Play’deki yorumun yeni oyunculara yol gösterir.': 'Твой отзыв в Google Play поможет новым игрокам.', 'Google Play’de puanla': 'Оценить в Google Play' });
+
+/* ── 675 · arşiv açılır düğmeleri ── */
+Object.assign(window.I18N.ru, { 'DAHA ESKİ SEZONLAR ▾': 'ПРЕДЫДУЩИЕ СЕЗОНЫ ▾', 'TAM LİSTE ▾': 'ПОЛНЫЙ СПИСОК ▾' });

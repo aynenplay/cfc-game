@@ -7521,3 +7521,6 @@ Object.assign(window.I18N.en, { 'Bu paylaşımı 24 saatte 1 kez yapabilirsin.':
 
 /* ── 674 · Bizi Puanla ── */
 Object.assign(window.I18N.en, { 'Bizi puanla': 'Rate us', 'Google Play’deki yorumun yeni oyunculara yol gösterir.': 'Your Google Play review helps new players find their way.', 'Google Play’de puanla': 'Rate on Google Play' });
+
+/* ── 675 · arşiv açılır düğmeleri ── */
+Object.assign(window.I18N.en, { 'DAHA ESKİ SEZONLAR ▾': 'OLDER SEASONS ▾', 'TAM LİSTE ▾': 'FULL LIST ▾' });

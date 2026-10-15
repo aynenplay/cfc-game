@@ -7088,3 +7088,6 @@ Object.assign(window.I18N.pt, { 'Bu paylaşımı 24 saatte 1 kez yapabilirsin.':
 
 /* ── 674 · Bizi Puanla ── */
 Object.assign(window.I18N.pt, { 'Bizi puanla': 'Avalie-nos', 'Google Play’deki yorumun yeni oyunculara yol gösterir.': 'Sua avaliação no Google Play ajuda novos jogadores.', 'Google Play’de puanla': 'Avaliar no Google Play' });
+
+/* ── 675 · arşiv açılır düğmeleri ── */
+Object.assign(window.I18N.pt, { 'DAHA ESKİ SEZONLAR ▾': 'TEMPORADAS ANTERIORES ▾', 'TAM LİSTE ▾': 'LISTA COMPLETA ▾' });
