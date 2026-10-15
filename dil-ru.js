@@ -7120,3 +7120,6 @@ Object.assign(window.I18N.ru, { 'En Çok Kupa': 'Больше всего тро�
 window.I18N_PATTERNS.ru.push(
   [/^(.+?) · tüm zamanlar · ilk (\d+)$/, m => (typeof _icR === 'function' ? _icR(m[1]) : m[1]) + ' · за всё время · топ ' + m[2]],
 );
+
+/* ── 672 · CSC Media: arıyorum paylaşımı sınırı ── */
+Object.assign(window.I18N.ru, { 'Bu paylaşımı 24 saatte 1 kez yapabilirsin.': 'Этим можно делиться только раз в 24 часа.' });

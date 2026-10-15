@@ -7082,3 +7082,6 @@ Object.assign(window.I18N.pt, { 'En Çok Kupa': 'Mais títulos' });
 window.I18N_PATTERNS.pt.push(
   [/^(.+?) · tüm zamanlar · ilk (\d+)$/, m => (typeof _icP === 'function' ? _icP(m[1]) : m[1]) + ' · histórico · top ' + m[2]],
 );
+
+/* ── 672 · CSC Media: arıyorum paylaşımı sınırı ── */
+Object.assign(window.I18N.pt, { 'Bu paylaşımı 24 saatte 1 kez yapabilirsin.': 'Você só pode compartilhar isso uma vez a cada 24 horas.' });

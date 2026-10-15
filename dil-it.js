@@ -7088,3 +7088,6 @@ Object.assign(window.I18N.it, { 'En Çok Kupa': 'Più trofei' });
 window.I18N_PATTERNS.it.push(
   [/^(.+?) · tüm zamanlar · ilk (\d+)$/, m => (typeof _icI === 'function' ? _icI(m[1]) : m[1]) + ' · di sempre · top ' + m[2]],
 );
+
+/* ── 672 · CSC Media: arıyorum paylaşımı sınırı ── */
+Object.assign(window.I18N.it, { 'Bu paylaşımı 24 saatte 1 kez yapabilirsin.': 'Puoi condividerlo solo una volta ogni 24 ore.' });

@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '671';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '672';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -24986,7 +24986,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-15-arsivkupa-671';
+const APP_BUILD = '2026-10-15-cscmedia-672';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -85564,25 +85564,21 @@ function _rkInfoContent(tab){
 const SocialServerAdapter = {
   async getGlobal(limit) {
     if (!window.sb) return [];
-    // Son 24 saat içindeki postlar
-    const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+    // Son 50 paylaşım (zaman sınırı yok)
     const { data, error } = await window.sb.from('social_posts')
       .select('id, author_id, author_country, post_data, ts')
-      .gte('ts', since)
       .order('ts', { ascending: false })
-      .limit((limit || 50) * 2);  // daha çok çek, sonra like'a göre sırala
+      .limit(limit || 50);
     if (error) { console.warn('[social] getGlobal:', error); return []; }
     return await _sortByLikes((data || []).map(_postFromRow), limit || 50);
   },
   async getNational(countryCode, limit) {
     if (!window.sb) return [];
-    const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
     const { data, error } = await window.sb.from('social_posts')
       .select('id, author_id, author_country, post_data, ts')
       .eq('author_country', countryCode)
-      .gte('ts', since)
       .order('ts', { ascending: false })
-      .limit((limit || 50) * 2);
+      .limit(limit || 50);
     if (error) { console.warn('[social] getNational:', error); return []; }
     return await _sortByLikes((data || []).map(_postFromRow), limit || 50);
   },
@@ -85646,7 +85642,10 @@ const SocialServerAdapter = {
       post_data: post,
       ts: new Date().toISOString()
     });
-    if (error) { console.warn('[social] createPost:', error); return null; }
+    if (error) {
+      if (String(error.message || '').includes('tpl_gunluk')) return { hata: 'tpl_gunluk' };
+      console.warn('[social] createPost:', error); return null;
+    }
     return post;
   },
   async toggleLike(postId) {
@@ -86376,6 +86375,10 @@ async function cfcMdShareTemplate(kind, btn) {
       }};
     }
     const olusan = await _socialAdapter.createPost(content, extra);
+    if (olusan && olusan.hata === 'tpl_gunluk') {
+      if (typeof tfShowToast === 'function') tfShowToast('Bu paylaşımı 24 saatte 1 kez yapabilirsin.', '#ff9800');
+      return;
+    }
     if (!olusan) {
       if (typeof tfShowToast === 'function') tfShowToast('❌ Paylaşılamadı', '#ef5350');
       return;
