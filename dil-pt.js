@@ -7076,3 +7076,9 @@ Object.assign(window.I18N.pt, {
 window.I18N_PATTERNS.pt.push(
   [/^Sv (\d+)$/, 'Nv $1'],
 );
+
+/* ── 671 · arşiv: tüm zamanlar en çok kupa ── */
+Object.assign(window.I18N.pt, { 'En Çok Kupa': 'Mais títulos' });
+window.I18N_PATTERNS.pt.push(
+  [/^(.+?) · tüm zamanlar · ilk (\d+)$/, m => (typeof _icP === 'function' ? _icP(m[1]) : m[1]) + ' · histórico · top ' + m[2]],
+);

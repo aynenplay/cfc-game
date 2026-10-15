@@ -7114,3 +7114,9 @@ Object.assign(window.I18N.ru, {
 window.I18N_PATTERNS.ru.push(
   [/^Sv (\d+)$/, 'Ур. $1'],
 );
+
+/* ── 671 · arşiv: tüm zamanlar en çok kupa ── */
+Object.assign(window.I18N.ru, { 'En Çok Kupa': 'Больше всего трофеев' });
+window.I18N_PATTERNS.ru.push(
+  [/^(.+?) · tüm zamanlar · ilk (\d+)$/, m => (typeof _icR === 'function' ? _icR(m[1]) : m[1]) + ' · за всё время · топ ' + m[2]],
+);

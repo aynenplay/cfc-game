@@ -5444,3 +5444,9 @@ Object.assign(window.I18N.de, {
 window.I18N_PATTERNS.de.push(
   [/^Sv (\d+)$/, 'Lv $1'],
 );
+
+/* ── 671 · arşiv: tüm zamanlar en çok kupa ── */
+Object.assign(window.I18N.de, { 'En Çok Kupa': 'Meiste Titel' });
+window.I18N_PATTERNS.de.push(
+  [/^(.+?) · tüm zamanlar · ilk (\d+)$/, m => (typeof _icD === 'function' ? _icD(m[1]) : m[1]) + ' · aller Zeiten · Top ' + m[2]],
+);
