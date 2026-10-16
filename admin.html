@@ -709,9 +709,15 @@
   .fbsk dd q{ display:block; padding:7px 10px; border-left:3px solid var(--red); background:rgba(226,59,90,.07); border-radius:0 8px 8px 0; quotes:none; white-space:pre-wrap; }
   .fbcvp{ margin-top:10px; display:grid; gap:8px; }
   .fbcvp textarea{ font-family:var(--body); font-size:14px; min-height:84px; }
+  @media (max-width:760px){ .fbcvp textarea{ font-size:16px; } }
   .fbcvp .b{ display:flex; justify-content:flex-end; gap:8px; }
   .fbcvp .b .btn{ padding:6px 13px; font-size:13px; }
   .fbreply .t{ display:block; margin-top:3px; color:#5c6470; font-size:11px; }
+  .fbreply, .fboy{ white-space:pre-wrap; word-break:break-word; }
+  .fboy{ margin-top:8px; padding:9px 11px; border-radius:10px; font-size:12.5px; line-height:1.6;
+    background:rgba(102,179,255,.07); border:1px solid rgba(102,179,255,.28); color:var(--txt); }
+  .fboy b{ color:#66b3ff; }
+  .fboy .t{ display:block; margin-top:3px; color:#5c6470; font-size:11px; }
   .btn.islem{ background:linear-gradient(180deg,#e23b5a,#b8243f); color:#fff; border:1px solid #f0566f; }
   .btn.islem:hover{ filter:brightness(1.08); }
   .fbsk dd button{ background:none; padding:0; color:var(--txt); font-family:var(--body); font-size:13px; font-weight:700; letter-spacing:0; text-align:left; }
@@ -1123,10 +1129,22 @@ function fbKimHtml(f){
   return `<span class="fbkim">${av?`<img src="${av}" alt="">`:`<span class="ilk">${_fbEsc((String(ad).trim()[0]||'?').toUpperCase())}</span>`}
     <button data-fbu="${_fbEsc(ad)}">${_fbEsc(ad)}</button>${takim?`<small>${takimLogo(o.country_code, takim)}${_fbEsc(takim)}</small>`:''}</span>`;
 }
+// 683 — talep konuşması: ilk mesaj + ilk cevap (reply) ve sonrası thread'de sırayla
+function fbKonusma(f){ return Array.isArray(f.thread) ? f.thread.filter(e=>e&&(e.k==='oyuncu'||e.k==='yonetim')) : []; }
+function fbKonusmaHtml(th){
+  return th.map(e => e.k==='oyuncu'
+    ? `<div class="fboy"><b>Oyuncunun cevabı:</b> ${_fbEsc(e.m)}${e.t?`<span class="t">${_fbTime(e.t)}</span>`:''}</div>`
+    : `<div class="fbreply"><b>Cevabın:</b> ${_fbEsc(e.m)}${e.t?`<span class="t">${_fbTime(e.t)} · oyuncunun gelen kutusuna iletildi</span>`:''}</div>`).join('');
+}
 function fbItemHtml(f){
   const t = FB_TYPES[f.type] || { label:f.type||'?', color:'#8a93a3' };
   const st = f.status || 'yeni';
   const acik = String(FB_CEVAP) === String(f.id);
+  const th = fbKonusma(f), son = th.length ? th[th.length-1] : null;
+  // Düzenlenen cevap konuşmada gizlenir (metin kutusunda)
+  const gor = (acik && son && son.k==='yonetim') ? th.slice(0,-1) : th;
+  const cvpMetin = th.length ? (son.k==='yonetim' ? son.m : '') : (f.reply||'');
+  const cvpEtiket = th.length ? (son.k==='oyuncu' ? 'Cevapla' : 'Cevabı Düzenle') : (f.reply ? 'Cevabı Düzenle' : 'Cevapla');
   return `<div class="fbitem" style="border-left-color:${t.color}">
     <div class="top">
       <span class="fbbadge" style="background:${t.color}22;color:${t.color}">${t.label}</span>
@@ -1134,14 +1152,15 @@ function fbItemHtml(f){
       <span class="when">${_fbTime(f.created_at)}</span>
     </div>
     ${fbSikayet(f.message) || `<div class="msg">${_fbEsc(f.message)}</div>`}
-    ${f.reply && !acik ? `<div class="fbreply"><b>Cevabın:</b> ${_fbEsc(f.reply)}${f.replied_at?`<span class="t">${_fbTime(f.replied_at)} · oyuncunun gelen kutusuna iletildi</span>`:''}</div>` : ''}
-    ${acik ? `<div class="fbcvp"><textarea id="fbCvpMetin" maxlength="1000" placeholder="Oyuncuya cevabın…">${_fbEsc(f.reply||'')}</textarea>
+    ${f.reply && (!acik || th.length) ? `<div class="fbreply"><b>Cevabın:</b> ${_fbEsc(f.reply)}${f.replied_at?`<span class="t">${_fbTime(f.replied_at)} · oyuncunun gelen kutusuna iletildi</span>`:''}</div>` : ''}
+    ${fbKonusmaHtml(gor)}
+    ${acik ? `<div class="fbcvp"><textarea id="fbCvpMetin" maxlength="1000" placeholder="Oyuncuya cevabın…">${_fbEsc(cvpMetin)}</textarea>
       <div class="b"><button class="btn" data-fbv="1">Vazgeç</button><button class="btn green" data-fbg="${f.id}">Gönder</button></div></div>` : ''}
     <div class="foot">
       ${fbKimHtml(f)}
       <span class="acts">
         ${fbSikayetHedef(f.message) ? `<button class="btn islem" data-fbi="${f.id}">İşlem Yap</button>` : ''}
-        ${acik ? '' : `<button class="btn green" data-fbr="${f.id}">${f.reply ? 'Cevabı Düzenle' : 'Cevapla'}</button>`}
+        ${acik ? '' : `<button class="btn green" data-fbr="${f.id}">${cvpEtiket}</button>`}
         ${st!=='okundu'?`<button class="btn" data-fbs="okundu" data-id="${f.id}">Okundu</button>`:''}
         ${st!=='cozuldu'?`<button class="btn gold" data-fbs="cozuldu" data-id="${f.id}">Çözüldü</button>`:''}
         <button class="btn red" data-fbd="${f.id}">Sil</button>
@@ -1182,12 +1201,33 @@ function renderFeedback(){
 async function fbReply(id){
   const metin = String(($('fbCvpMetin')||{}).value||'').trim();
   if (!metin) { $('fbCvpMetin').focus(); return; }
+  const f = FB_DATA.find(x=>String(x.id)===String(id));
+  const th = f ? fbKonusma(f) : [];
   try {
-    await api('update', { table:'feedback', pk:{ id },
-      values:{ reply: metin, replied_at: new Date().toISOString(), status:'cozuldu' } });
+    if (th.length) {
+      // 683 — oyuncu cevap verdiyse yeni cevap konuşmaya eklenir; son mesaj bizimse düzenlenir
+      await fbRpc('destek_yonetim_cevap', { p_id:String(id), p_metin:metin, p_duzenle: th[th.length-1].k==='yonetim' });
+      // Gateway üzerinden durum yazımı: oyuncunun açık oyununa haber gider
+      await api('update', { table:'feedback', pk:{ id }, values:{ status:'cozuldu' } });
+    } else {
+      await api('update', { table:'feedback', pk:{ id },
+        values:{ reply: metin, replied_at: new Date().toISOString(), status:'cozuldu' } });
+    }
     FB_CEVAP = null;
     loadFeedback();
-  } catch(e){ alert('Cevap kaydedilemedi: '+e.message); }
+  } catch(e){
+    const M = { oyuncu_cevabi_yok:'Oyuncu henüz cevap vermedi; son cevabını düzenleyebilirsin.', duzenlenecek_cevap_yok:'Düzenlenecek cevap yok.',
+                yetki_yok:'Bu işlem için yönetici yetkisi gerekiyor.', talep_yok:'Talep bulunamadı; silinmiş olabilir.' };
+    const k = Object.keys(M).find(x => String(e.message||'').indexOf(x) !== -1);
+    alert('Cevap kaydedilemedi: ' + (k ? M[k] : e.message));
+  }
+}
+async function fbRpc(ad, args){
+  const r = await fetch(CFG.url + '/rest/v1/rpc/' + ad, { method:'POST',
+    headers:{ 'apikey':CFG.anon, 'Authorization':'Bearer '+TOKEN, 'Content-Type':'application/json' }, body: JSON.stringify(args) });
+  const d = await r.json().catch(()=>null);
+  if (!r.ok) throw new Error((d && (d.message || d.hint)) || ('HTTP '+r.status));
+  return d;
 }
 
 async function fbStatus(id, status){

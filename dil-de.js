@@ -5474,3 +5474,7 @@ window.I18N_PATTERNS.de.push([/^Maaş İadesi: (.+?) \(Sezon (\d+) Gün (\d+)\)$
 /* ── 681 · maaş borcu ödemesi · kaydedilemedi · takıma katıldı ── */
 Object.assign(window.I18N.de, { 'Maaş borcu ödemesi': 'Zahlung des Gehaltsrückstands', 'Kaydedilemedi, tekrar dene.': 'Konnte nicht gespeichert werden, versuche es erneut.' });
 window.I18N_PATTERNS.de.push([/^• Maaş borcu ödemesi: (.+)$/, '• Zahlung des Gehaltsrückstands: $1'], [/^✅ (.+?) takıma katıldı!$/, '✅ $1 ist dem Team beigetreten!']);
+
+/* ── 683 · destek talebine cevap ── */
+Object.assign(window.I18N.de, { 'Cevapla': 'Antworten', 'Cevabın iletildi': 'Antwort gesendet', '✅ Cevabın gönderildi': '✅ Deine Antwort wurde gesendet', 'Bu cevaba zaten yanıt verdin.': 'Du hast auf diese Nachricht bereits geantwortet.', 'En az 2 karakter yaz.': 'Schreibe mindestens 2 Zeichen.' });
+window.I18N_PATTERNS.de.push([/^(Şikayet|İste[kğ]|Tale[pb]|Bildirim)ine Yeni Cevap$/, m => 'Neue Antwort auf deine ' + ({ 'Şikayet':'Beschwerde', 'İstek':'Anfrage', 'Talep':'Eingabe', 'Bildirim':'Meldung' })[m[1].replace('ğ', 'k').replace(/b$/, 'p')]]);
