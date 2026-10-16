@@ -7125,3 +7125,6 @@ Object.assign(window.I18N.it, {"Açılacak koltuk": "Posto da sbloccare", "Kalec
 
 /* ── 688 · taraftar ── */
 Object.assign(window.I18N.it, {"Taraftar": "Tifosi", "Kimi destekliyorsun?": "Per chi tifi?", "Destekle": "Tifa", "Tarafsız": "Neutrale"});
+
+/* ── 692 · finans sekmeleri ── */
+Object.assign(window.I18N.it, {"İşlemler": "Transazioni", "Bağışla": "Dona", "Bağışlar geri alınamaz.": "Le donazioni sono irreversibili.", "Kasa nasıl işler?": "Come funziona la cassa?", "Gelir ve gider": "Entrate e uscite"});

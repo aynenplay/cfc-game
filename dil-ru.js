@@ -7157,3 +7157,6 @@ Object.assign(window.I18N.ru, {"Açılacak koltuk": "Откроется мест
 
 /* ── 688 · taraftar ── */
 Object.assign(window.I18N.ru, {"Taraftar": "Болельщики", "Kimi destekliyorsun?": "За кого ты болеешь?", "Destekle": "Поддержать", "Tarafsız": "Нейтральные"});
+
+/* ── 692 · finans sekmeleri ── */
+Object.assign(window.I18N.ru, {"İşlemler": "Операции", "Bağışla": "Пожертвовать", "Bağışlar geri alınamaz.": "Пожертвования нельзя отменить.", "Kasa nasıl işler?": "Как работает казна?", "Gelir ve gider": "Доходы и расходы"});

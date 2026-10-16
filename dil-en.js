@@ -7552,3 +7552,6 @@ Object.assign(window.I18N.en, {"Açılacak koltuk": "Seat to unlock", "Kaleci ko
 
 /* ── 688 · taraftar ── */
 Object.assign(window.I18N.en, {"Taraftar": "Supporters", "Kimi destekliyorsun?": "Who do you support?", "Destekle": "Support", "Tarafsız": "Neutral"});
+
+/* ── 692 · finans sekmeleri ── */
+Object.assign(window.I18N.en, {"İşlemler": "Transactions", "Bağışla": "Donate", "Bağışlar geri alınamaz.": "Donations cannot be reversed.", "Kasa nasıl işler?": "How does the treasury work?", "Gelir ve gider": "Income and expenses"});
