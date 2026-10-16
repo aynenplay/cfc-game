@@ -7098,3 +7098,7 @@ Object.assign(window.I18N.pt, { 'Alıcı takımın kadrosu dolu.': 'O plantel da
 /* ── 679 · kovma hakedişi · takım ilanı fiyatı ── */
 Object.assign(window.I18N.pt, { 'Kalan maaş ödemesi': 'Pagamento do salário restante', 'Maaş borcu dahil': 'Inclui salários em atraso', 'Kasada kalan maaşı ödeyecek kadar para yok.': 'O cofre não chega para pagar o salário restante.', 'İlan fiyatı değişti. Yeni fiyatı görüp tekrar dene.': 'O preço do anúncio mudou. Vê o novo preço e tenta novamente.' });
 window.I18N_PATTERNS.pt.push([/^Kalan Maaş Ödemesi: (.+)$/, 'Pagamento do salário restante: $1']);
+
+/* ── 680 · kaptan transferi · maaş iadesi ── */
+Object.assign(window.I18N.pt, { 'Kaptan transfer olamaz. Önce kaptanlığı bir takım arkadaşına devret.': 'O capitão não pode ser transferido. Passa primeiro a braçadeira a um colega.' });
+window.I18N_PATTERNS.pt.push([/^Maaş İadesi: (.+?) \(Sezon (\d+) Gün (\d+)\)$/, 'Reembolso de salário: $1 (Temporada $2 Dia $3)']);

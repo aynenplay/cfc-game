@@ -7531,3 +7531,7 @@ Object.assign(window.I18N.en, { 'Alıcı takımın kadrosu dolu.': "The buying t
 /* ── 679 · kovma hakedişi · takım ilanı fiyatı ── */
 Object.assign(window.I18N.en, { 'Kalan maaş ödemesi': 'Remaining wage payment', 'Maaş borcu dahil': 'Unpaid wages included', 'Kasada kalan maaşı ödeyecek kadar para yok.': 'The treasury cannot cover the remaining wages.', 'İlan fiyatı değişti. Yeni fiyatı görüp tekrar dene.': 'The listing price has changed. Check the new price and try again.' });
 window.I18N_PATTERNS.en.push([/^Kalan Maaş Ödemesi: (.+)$/, 'Remaining Wage Payment: $1']);
+
+/* ── 680 · kaptan transferi · maaş iadesi ── */
+Object.assign(window.I18N.en, { 'Kaptan transfer olamaz. Önce kaptanlığı bir takım arkadaşına devret.': 'The captain cannot be transferred. Hand the captaincy to a teammate first.' });
+window.I18N_PATTERNS.en.push([/^Maaş İadesi: (.+?) \(Sezon (\d+) Gün (\d+)\)$/, 'Wage Refund: $1 (Season $2 Day $3)']);

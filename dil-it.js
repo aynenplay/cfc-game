@@ -7104,3 +7104,7 @@ Object.assign(window.I18N.it, { 'Alıcı takımın kadrosu dolu.': 'La rosa dell
 /* ── 679 · kovma hakedişi · takım ilanı fiyatı ── */
 Object.assign(window.I18N.it, { 'Kalan maaş ödemesi': 'Pagamento dello stipendio residuo', 'Maaş borcu dahil': 'Arretrati inclusi', 'Kasada kalan maaşı ödeyecek kadar para yok.': 'La cassa non basta per pagare lo stipendio residuo.', 'İlan fiyatı değişti. Yeni fiyatı görüp tekrar dene.': "Il prezzo dell'annuncio è cambiato. Controlla il nuovo prezzo e riprova." });
 window.I18N_PATTERNS.it.push([/^Kalan Maaş Ödemesi: (.+)$/, 'Pagamento dello stipendio residuo: $1']);
+
+/* ── 680 · kaptan transferi · maaş iadesi ── */
+Object.assign(window.I18N.it, { 'Kaptan transfer olamaz. Önce kaptanlığı bir takım arkadaşına devret.': 'Il capitano non può essere trasferito. Cedi prima la fascia a un compagno.' });
+window.I18N_PATTERNS.it.push([/^Maaş İadesi: (.+?) \(Sezon (\d+) Gün (\d+)\)$/, 'Rimborso stipendio: $1 (Stagione $2 Giorno $3)']);

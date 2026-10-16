@@ -7136,3 +7136,7 @@ Object.assign(window.I18N.ru, { 'Alıcı takımın kadrosu dolu.': 'Состав
 /* ── 679 · kovma hakedişi · takım ilanı fiyatı ── */
 Object.assign(window.I18N.ru, { 'Kalan maaş ödemesi': 'Выплата оставшейся зарплаты', 'Maaş borcu dahil': 'Включая долг по зарплате', 'Kasada kalan maaşı ödeyecek kadar para yok.': 'В казне не хватает денег на оставшуюся зарплату.', 'İlan fiyatı değişti. Yeni fiyatı görüp tekrar dene.': 'Цена объявления изменилась. Проверь новую цену и попробуй снова.' });
 window.I18N_PATTERNS.ru.push([/^Kalan Maaş Ödemesi: (.+)$/, 'Выплата оставшейся зарплаты: $1']);
+
+/* ── 680 · kaptan transferi · maaş iadesi ── */
+Object.assign(window.I18N.ru, { 'Kaptan transfer olamaz. Önce kaptanlığı bir takım arkadaşına devret.': 'Капитан не может перейти. Сначала передай капитанство партнёру.' });
+window.I18N_PATTERNS.ru.push([/^Maaş İadesi: (.+?) \(Sezon (\d+) Gün (\d+)\)$/, 'Возврат зарплаты: $1 (Сезон $2, день $3)']);
