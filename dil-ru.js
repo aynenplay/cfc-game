@@ -7129,3 +7129,6 @@ Object.assign(window.I18N.ru, { 'Bizi puanla': 'Оцените нас', 'Google 
 
 /* ── 675 · arşiv açılır düğmeleri ── */
 Object.assign(window.I18N.ru, { 'DAHA ESKİ SEZONLAR ▾': 'ПРЕДЫДУЩИЕ СЕЗОНЫ ▾', 'TAM LİSTE ▾': 'ПОЛНЫЙ СПИСОК ▾' });
+
+/* ── 678 · transfer kabulü ── */
+Object.assign(window.I18N.ru, { 'Alıcı takımın kadrosu dolu.': 'Состав команды-покупателя заполнен.', 'Bu teklif zaten işleniyor.': 'Это предложение уже обрабатывается.' });

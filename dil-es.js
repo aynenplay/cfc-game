@@ -7099,3 +7099,6 @@ Object.assign(window.I18N.es, { 'Bizi puanla': 'Califícanos', 'Google Play’de
 
 /* ── 675 · arşiv açılır düğmeleri ── */
 Object.assign(window.I18N.es, { 'DAHA ESKİ SEZONLAR ▾': 'TEMPORADAS ANTERIORES ▾', 'TAM LİSTE ▾': 'LISTA COMPLETA ▾' });
+
+/* ── 678 · transfer kabulü ── */
+Object.assign(window.I18N.es, { 'Alıcı takımın kadrosu dolu.': 'La plantilla del equipo comprador está completa.', 'Bu teklif zaten işleniyor.': 'Esta oferta ya se está procesando.' });

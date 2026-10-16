@@ -7159,3 +7159,6 @@ Object.assign(window.I18N.fr, { 'Bizi puanla': 'Note-nous', 'Google Play’deki 
 
 /* ── 675 · arşiv açılır düğmeleri ── */
 Object.assign(window.I18N.fr, { 'DAHA ESKİ SEZONLAR ▾': 'SAISONS PRÉCÉDENTES ▾', 'TAM LİSTE ▾': 'LISTE COMPLÈTE ▾' });
+
+/* ── 678 · transfer kabulü ── */
+Object.assign(window.I18N.fr, { 'Alıcı takımın kadrosu dolu.': "L'effectif de l'équipe acheteuse est complet.", 'Bu teklif zaten işleniyor.': 'Cette offre est déjà en cours de traitement.' });

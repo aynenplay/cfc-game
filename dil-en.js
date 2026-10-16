@@ -7524,3 +7524,6 @@ Object.assign(window.I18N.en, { 'Bizi puanla': 'Rate us', 'Google Play’deki yo
 
 /* ── 675 · arşiv açılır düğmeleri ── */
 Object.assign(window.I18N.en, { 'DAHA ESKİ SEZONLAR ▾': 'OLDER SEASONS ▾', 'TAM LİSTE ▾': 'FULL LIST ▾' });
+
+/* ── 678 · transfer kabulü ── */
+Object.assign(window.I18N.en, { 'Alıcı takımın kadrosu dolu.': "The buying team's squad is full.", 'Bu teklif zaten işleniyor.': 'This offer is already being processed.' });
