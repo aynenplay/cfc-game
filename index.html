@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '692';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '694';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -25118,7 +25118,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-16-finans-692';
+const APP_BUILD = '2026-10-16-takim-694';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -41317,14 +41317,10 @@ async function userTeamLoadFromServer() {
 // 681 — takım değişince (ayrılma, katılma, satın alma, transfer) eski takımın diziliş/taktiği,
 //   tesis seviyeleri ve kasası yeni takımda görünmesin: takıma ait önbellekler sunucudan yeniden okunur
 async function _takimVerisiTazele() {
-  _teamStrategyCache = null; _trsCache = null;
+  _teamStrategyCache = null; _trsCache = null; _trsLogCache = null; _mfsCache = null;
   try { activePitchPlayers = []; benchPlayers = []; } catch(e) {}
-  await _teamStrategyLoadFromServer();
-  await _facLevelsLoadFromServer();
-  if (_userTeam) {
-    await _trsLoadFromServer();
-    if (typeof _mfsLoadFromServer === 'function') await _mfsLoadFromServer();
-  }
+  await Promise.all([_teamStrategyLoadFromServer(), _facLevelsLoadFromServer(), _trsLoadFromServer(), _mfsLoadFromServer(),
+    _setpieceLoadFromServer(), _votesLoadFromServer(), _teamTrophiesLoadFromServer()]);
 }
 
 // 629 — Yönetim değişikliği (takım, rol, mevki, avatar, seviye) gelince yalnız kendi verimi tazele.
@@ -41338,8 +41334,7 @@ function _yonetimIste() {
 async function _yonetimTazele() {
   const uid = authUser && authUser.id;
   if (!uid || !window.sb) return;
-  const _anahtar = () => _userTeam ? _userTeam.countryCode + '|' + _userTeam.teamName : '';
-  const eski = _anahtar();
+  const eski = _takimAnahtar();
   const [{ data: pr }, { data: upx }] = await Promise.all([
     window.sb.from('profiles').select('*').eq('id', uid).maybeSingle(),
     window.sb.from('user_player').select('skills').eq('user_id', uid).maybeSingle()
@@ -41367,26 +41362,30 @@ async function _yonetimTazele() {
     window._userProgressCache = { level: Number(p.level) || 0, xp: Number(p.xp) || 0, overall: Number(p.overall) || 10 };
   }
   await userTeamLoadFromServer();
-  const degisti = _anahtar() !== eski;
+  await _takimDurumTazele(eski);
+}
+
+// 694 — takım değişince (katılma, onaylı katılma, davet/transfer, satın alma, ayrılma, yönetim) yeni takımın
+//   her şeyi sunucudan okunur: kadro, diziliş, tesisler, kasa, kupalar, enerji bonusu, fikstür, takım sohbeti
+//   ve rol önbellekleri; açık sayfa yeniden çizilir. eski: değişiklikten önceki takım ('' = takımsızdı).
+//   Dönüş: tesis bonusundan gelen enerji farkı.
+function _takimAnahtar() { return _userTeam ? _userTeam.countryCode + '|' + _userTeam.teamName : ''; }
+async function _takimDurumTazele(eski) {
+  const degisti = _takimAnahtar() !== eski;
   if (degisti) {
     invalidateFixtureCache();
     _invalidateRealCaptainsCache();
     if (window.rtBindTeamChannels) window.rtBindTeamChannels();
+    _teamChatUnsubscribe();
+    if (eski) delete _teamRosterCache[eski.replace('|', ':')];
+    await _takimVerisiTazele();
   }
   if (_userTeam) {
     await _rosterRefreshFromServer(_userTeam.countryCode);
     syncUserToRoster();
     rosterBuildTeam(_userTeam.countryCode);
-    if (degisti) {
-      await _teamStrategyLoadFromServer();
-      await _facLevelsLoadFromServer();
-      _trsCache = null;
-      await _trsLoadFromServer();
-      await _mfsLoadFromServer();
-    }
   } else if (eski) rosterClearTeam();
-  if (degisti) recomputeUserEnergyBonus();
-  if (degisti && eski) delete _teamRosterCache[eski.replace('|', ':')];
+  const enerji = degisti ? recomputeUserEnergyBonus().delta : 0;
   for (const k in window._fedKaptanOnb) window._fedKaptanOnb[k].t = 0;
   for (const k in _fedStateLoaded) _fedStateLoaded[k] = false;
   for (const k in _ntRolCache) _ntRolCache[k].t = 0;
@@ -41397,12 +41396,13 @@ async function _yonetimTazele() {
   if (sayfa === 'page-training') trRender();
   if (sayfa === 'page-federation') _loadFedStateFromServer(fedActiveCountry());
   if (sayfa === 'page-national') ntRolYukle(ntActiveCountry(), true);
-  if (sayfa === 'page-team' && _userTeam) renderRoster('all');
+  if (sayfa === 'page-team' && _userTeam) { if (degisti) teamTab('roster', document.querySelector('.team-tab')); else renderRoster('all'); }
   if (sayfa === 'page-player') renderPlayerPage();
   if (sayfa === 'page-home') { updateHero(); renderHomeNextMatch(true); }
   if (sayfa === 'page-transfers') tfRender();
   if (sayfa === 'page-takimlar') takimlarTab(_mgSonAlt.takimlar);
   if (sayfa === 'page-settings') renderSettings();
+  return enerji;
 }
 
 // _userTeam'i server'a yaz (debounced)
@@ -44363,6 +44363,7 @@ async function confirmTeamBuy() {
 
   // 663 — kendi takımını aldıysa sözleşme, katılış günü gibi alanlar korunur
   const _ayniTakim = !!(_userTeam && _userTeam.countryCode === t.countryCode && _userTeam.teamName === t.teamName);
+  const _eskiTk = _ayniTakim ? '' : _takimAnahtar();   // 694 — kendi takımını aldıysa da kasa, rol ve tesis tazelensin
   _userTeam = Object.assign({}, _ayniTakim ? _userTeam : {}, {
     countryCode: t.countryCode,
     teamName: t.teamName,
@@ -44433,58 +44434,11 @@ async function confirmTeamBuy() {
     });
   }
 
-  // 🆕 Fikstür cache'ini sıfırla
-  if (typeof invalidateFixtureCache === 'function') invalidateFixtureCache();
-
-  // 🆕 Yeni takıma geçildi - eski strategy cache temizle, yeni takımın stratejisini server'dan yükle
-  _teamStrategyCache = null;
-  FAC_LEVELS = {};
-  _trsCache = null;
-  _trsLogCache = null;
-  _mfsCache = null;
-  _teamTrophiesCache = null;
-  if (typeof _teamStrategyLoadFromServer === 'function') {
-    _teamStrategyLoadFromServer().catch(()=>{});
-  }
-  if (typeof _facLevelsLoadFromServer === 'function') {
-    _facLevelsLoadFromServer().catch(()=>{});
-  }
-  if (typeof _trsLoadFromServer === 'function') {
-    _trsLoadFromServer().catch(()=>{});
-  }
-  if (typeof _mfsLoadFromServer === 'function') {
-    _mfsLoadFromServer().catch(()=>{});
-  }
-  if (typeof _teamTrophiesLoadFromServer === 'function') {
-    _teamTrophiesLoadFromServer().catch(()=>{});
-  }
-  if (typeof _setpieceLoadFromServer === 'function') {
-    _setpieceLoadFromServer().catch(()=>{});
-  }
-
-  // ROSTER_DATA'yı yeniden inşa et + kullanıcının rolünü kaptan yap
-  syncUserToRoster();
-  rosterBuildTeam(t.countryCode); // Yeni takım için fresh roster (kullanıcı kaptan, eski captain bot member)
-  rosterSavePersist();
-  // Kullanıcının roster'daki rolünü user'dan captain'e değil — özel: kullanıcı ROSTER_DATA'da
-  // 'user' olarak kalır (oyun mekanikleri için), AMA _userTeam.role='captain' olduğundan
-  // teklif sun butonu vs. yetkilerinde captain gibi davranır.
-
   closeTeamBuy();
-  applyUserTeamUI();
   szDurum('imzali');
-
-  if(typeof renderRoster === 'function') renderRoster('all');
-  if(typeof updateHero === 'function') updateHero();
-
-  // 🆕 Performans Merkezi bonus enerjisini uygula
-  let _energyDelta = 0;
-  try {
-    if(typeof recomputeUserEnergyBonus === 'function') {
-      const r = recomputeUserEnergyBonus();
-      _energyDelta = r ? r.delta : 0;
-    }
-  } catch(e){}
+  // 694 — yeni takımın her şeyi sunucudan (tesis, kasa, kupalar, diziliş, sohbet, rol, enerji bonusu)
+  const _energyDelta = await _takimDurumTazele(_eskiTk);
+  updateHero();
 
   let _buyToast = `👑 ${t.flag} ${t.teamName} takımını satın aldın! Artık kaptansın.`;
   if(_energyDelta > 0) _buyToast += ` ⚡+${_energyDelta} bonus enerji!`;
@@ -46060,15 +46014,11 @@ function leaveTeamPrompt() {
       if (typeof _carCloseCurrentHistory === 'function') {
         _carCloseCurrentHistory('Takımdan ayrıldı');
       }
-      if (typeof invalidateFixtureCache === 'function') invalidateFixtureCache();
+      const _eskiTk = _takimAnahtar();
       _userTeam = null;
-      await _takimVerisiTazele();
-      try { if (typeof _invalidateRealCaptainsCache === 'function') _invalidateRealCaptainsCache(); } catch(e){}
-      rosterClearTeam();
-      applyUserTeamUI();
+      await _takimDurumTazele(_eskiTk);   // 694
       renderSettings();
-      try { if (typeof wlLoadFromServer === 'function') wlLoadFromServer().catch(()=>{}); } catch(e){}
-      try { if(typeof recomputeUserEnergyBonus === 'function') recomputeUserEnergyBonus(); } catch(e){}
+      wlLoadFromServer().catch(()=>{});
 
       showJoinToast('🚪 Takımdan ayrıldın.');
     }
@@ -56137,27 +56087,12 @@ async function joinTeamDirect(countryCode, teamName, opts) {
     });
   }
 
-  await _takimVerisiTazele();
-  // ROSTER_DATA'yı yeni takıma göre yeniden inşa et
-  if(typeof syncUserToRoster === 'function') syncUserToRoster();
-  if(typeof rosterBuildTeam === 'function') rosterBuildTeam(countryCode);
-  if(typeof rosterSavePersist === 'function') rosterSavePersist();
-
-  // UI tazele
-  if(typeof exitGuestMode === 'function') exitGuestMode(true);
-  if(typeof applyUserTeamUI === 'function') applyUserTeamUI();
-  if(typeof renderRoster === 'function') renderRoster('all');
-  if(typeof updateHero === 'function') updateHero();
-  if(typeof renderForeignBar === 'function') renderForeignBar();
-
-  // 🆕 Performans Merkezi bonus enerjisini uygula
-  let _energyDelta = 0;
-  try {
-    if(typeof recomputeUserEnergyBonus === 'function') {
-      const r = recomputeUserEnergyBonus();
-      _energyDelta = r ? r.delta : 0;
-    }
-  } catch(e){}
+  // 694 — yeni takımın her şeyi sunucudan (tesis, kasa, diziliş, sohbet, rol, enerji bonusu)
+  await userTeamLoadFromServer();
+  exitGuestMode(true);
+  const _energyDelta = await _takimDurumTazele(_prevTeam ? _prevTeam.countryCode + '|' + _prevTeam.teamName : '');
+  updateHero();
+  renderForeignBar();
 
   if(_energyDelta > 0 && typeof showJoinToast === 'function') showJoinToast(`⚡ +${_energyDelta} bonus enerji!`);
 
@@ -69869,8 +69804,9 @@ async function tmConfirmBuy(){
 
   // Yeni takıma kaptan olarak yerleş — 681: takım, rol ve forma numarası sunucunun yazdığından okunur
   //   (eskiden burada kurulan nesne kaydedilince sunucunun verdiği forma numarası 16+ ile eziliyordu)
+  const _eskiTk = _takimAnahtar();
   await userTeamLoadFromServer();
-  await _takimVerisiTazele();
+  const _energyDelta = await _takimDurumTazele(_eskiTk);   // 694 — yeni takımın her şeyi sunucudan
 
   // Career history: TM'den satın alınan takım (kaptan)
   if (typeof pushCareerHistory === 'function') {
@@ -69885,21 +69821,6 @@ async function tmConfirmBuy(){
     });
   }
 
-  // Yeni takım için fresh roster oluştur (kullanıcı kaptan)
-  try{
-    if(typeof rosterBuildTeam === 'function') rosterBuildTeam(listing.countryCode);
-    rosterSavePersist();
-  }catch(e){ console.warn('Roster build hatası:', e); }
-
-  // 🆕 Başlangıç kasasını SUNUCU yazdı (team_treasury_apply). İstemcideki
-  //   `trsSaveData` çağrısı ölü koddu — ekranda para görünüyor ama sunucuda
-  //   hiç yoktu. Burada sadece önbelleği düşürüp sunucudan taze okuyoruz.
-  try {
-    if (typeof _trsCache !== 'undefined') _trsCache = null;
-    if (typeof _trsLogCache !== 'undefined') _trsLogCache = null;
-    if (typeof _trsLoadFromServer === 'function') await _trsLoadFromServer();
-  } catch(e) {}
-
   // İlan sunucuda zaten silindi — sadece yerel önbellekten düşür
   try {
     if (Array.isArray(_tmCache)) _tmCache = _tmCache.filter(l => l && l.id !== _tmBuyTargetId);
@@ -69910,15 +69831,6 @@ async function tmConfirmBuy(){
   if(typeof renderRoster === 'function') renderRoster('all');
   if(typeof trsSyncHeader === 'function') trsSyncHeader();
   if(typeof renderSettings === 'function') renderSettings();
-
-  // 🆕 Performans Merkezi bonus enerjisini uygula
-  let _energyDelta = 0;
-  try {
-    if(typeof recomputeUserEnergyBonus === 'function') {
-      const r = recomputeUserEnergyBonus();
-      _energyDelta = r ? r.delta : 0;
-    }
-  } catch(e){}
 
   // 🆕 MİSAFİR MODU KALINTISI — takım alındığı halde ana sayfada "Takıma Katıl"
   //   kartı ve ziyaretçi görünümü kalıyordu; ancak yeniden girişte düzeliyordu.
@@ -77803,24 +77715,12 @@ async function _inboxLoadFromServer(hafif) {
     if (_onay) {
       console.info('[inbox] yeni onay tespit edildi → _userTeam tazeleniyor');
       try {
-        if (typeof userTeamLoadFromServer === 'function') await userTeamLoadFromServer();
-        if (typeof wlLoadFromServer === 'function') await wlLoadFromServer();
-        // 🆕 Gerçek kullanıcı listesini de tazele (kadroda Özcan + Hayati görünmesi için)
-        if (typeof _invalidateRealCaptainsCache === 'function') _invalidateRealCaptainsCache();
-        if (typeof _loadRealCaptainsFromServer === 'function') await _loadRealCaptainsFromServer();
-        // UI tazele
-        if (_userTeam && _userTeam.countryCode) {
-          if (typeof syncUserToRoster === 'function') syncUserToRoster();
-          if (typeof rosterBuildTeam === 'function') rosterBuildTeam(_userTeam.countryCode);
-          if (typeof rosterSavePersist === 'function') rosterSavePersist();
-        }
-        // 🆕 Fikstür cache'ini sıfırla — yeni takıma göre maçlar görünsün
-        if (typeof invalidateFixtureCache === 'function') invalidateFixtureCache();
-        if (typeof exitGuestMode === 'function') exitGuestMode(true);
-        if (typeof applyUserTeamUI === 'function') applyUserTeamUI();
-        if (typeof renderRoster === 'function') renderRoster('all');
-        if (typeof updateHero === 'function') updateHero();
-        if (typeof updateTopbarFromUser === 'function') updateTopbarFromUser();
+        const _eskiTk = _takimAnahtar();
+        await userTeamLoadFromServer();
+        await wlLoadFromServer();
+        exitGuestMode(true);
+        await _takimDurumTazele(_eskiTk);   // 694 — yeni takımın tesis, kasa, diziliş, sohbet ve rolü
+        updateHero();
         if (typeof trsSyncHeader === 'function') trsSyncHeader();
         if (typeof wlSyncHeader === 'function') wlSyncHeader();
         // 🆕 Ana sayfa maç önizleme panelini yenile
@@ -79268,18 +79168,9 @@ async function inboxAcceptTransfer(msgId) {
   //   tarafından sessizce geri alınıyordu. Burada sadece ekranı tazeliyoruz.
   try {
     if (_amIThePlayer) {
-      if (typeof userTeamLoadFromServer === 'function') await userTeamLoadFromServer();
-      await _takimVerisiTazele();
-      if (typeof recomputeUserEnergyBonus === 'function') recomputeUserEnergyBonus();
-      if (_userTeam && _userTeam.countryCode) {
-        if (typeof _rosterRefreshFromServer === 'function') {
-          try { await _rosterRefreshFromServer(_userTeam.countryCode); } catch(e){}
-        }
-        if (typeof syncUserToRoster === 'function') syncUserToRoster();
-        if (typeof rosterBuildTeam === 'function') rosterBuildTeam(_userTeam.countryCode);
-      }
-      if (typeof applyUserTeamUI === 'function') applyUserTeamUI();
-      if (typeof renderRoster === 'function') renderRoster('all');
+      const _eskiTk = _takimAnahtar();
+      await userTeamLoadFromServer();
+      await _takimDurumTazele(_eskiTk);   // 694 — yeni takımın her şeyi sunucudan
     } else if (typeof _userTeam !== 'undefined' && _userTeam && td.buyerCountryCode) {
       if (typeof _rosterRefreshFromServer === 'function') {
         try { await _rosterRefreshFromServer(td.buyerCountryCode); } catch(e){}
