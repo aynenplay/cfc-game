@@ -1533,8 +1533,8 @@ async function cvVeriCek(){
   // players: user_id'ye göre ARTAN sıralayınca gerçek kullanıcılar başa gelir
   // (bot satırlarında user_id boş, Postgres onları sona atar).
   const [pl, pf] = await Promise.all([
-    api('list', { table:'players',  limit:500,  orderBy:'user_id', orderDir:'asc' }).catch(()=>({rows:[]})),
-    api('list', { table:'profiles', limit:2000 }).catch(()=>({rows:[]}))
+    api('list', { table:'players',  limit:500,  orderBy:'user_id', orderDir:'asc', cols:'user_id,is_bot,name,team_name,last_seen,son_aktif', sayim:'yok' }).catch(()=>({rows:[]})),
+    api('list', { table:'profiles', limit:2000, cols:'id,created_at', sayim:'yok' }).catch(()=>({rows:[]}))
   ]);
   CV_VERI = {
     oyuncular: (pl.rows||[]).filter(p => p && p.user_id && p.is_bot !== true),
@@ -1629,9 +1629,15 @@ function cvBasla(){
   CV_TIK = setInterval(() => {
     // Özet sayfasından çıkıldıysa kendini durdur
     if (!document.getElementById('cvArea')) { clearInterval(CV_TIK); CV_TIK = null; return; }
+    if (document.hidden) return;   // 690 — sekme arka plandayken sunucuya gitme
     cvVeriCek().then(cvCiz).catch(()=>{});
   }, 60000);
 }
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !CV_TIK || !document.getElementById('cvArea')) return;
+  if (CV_ZAMAN && Date.now() - CV_ZAMAN < 60000) return;
+  cvVeriCek().then(cvCiz).catch(()=>{});
+});
 
 /* ═══════════════════════════════════════════════════════════════════
    REKLAM YÖNETİMİ
