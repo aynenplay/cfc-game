@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '690';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '691';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -24993,7 +24993,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-16-yayin-690';
+const APP_BUILD = '2026-10-16-ios-sohbet-691';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -26669,11 +26669,25 @@ window.addEventListener('load', function() {
       }
     }
 
+    // 691 — iOS: klavye kapanıp kutu büyüyünce mesaj alanının kaydırma konumu yeni boya uymuyor,
+    //   son mesajın altında boşluk kalıyordu. En alttaysa klavye kapanınca yeniden en alta oturtulur.
+    const _ios = (() => { try { return (window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform() === 'ios') || /iP(hone|ad|od)/.test(navigator.userAgent); } catch(e) { return false; } })();
+    function _iosAltaOtur(){
+      if(!_ios) return;
+      const ca = _aktifSohbet().alan;
+      if(!ca || ca.scrollHeight - ca.scrollTop - ca.clientHeight > 60) return;
+      [60, 380].forEach(ms => setTimeout(() => {
+        const enAlt = Math.max(0, ca.scrollHeight - ca.clientHeight);
+        ca.scrollTop = Math.max(0, enAlt - 1);
+        requestAnimationFrame(() => { ca.scrollTop = ca.scrollHeight; });
+      }, ms));
+    }
+
     // Yöntem 1: Direkt input focus/blur (en güvenilir, iOS+Android)
     const chatInp = document.getElementById('teamChatInput');
     if(chatInp){
       chatInp.addEventListener('focus', () => setKbdOpen(true));
-      chatInp.addEventListener('blur', () => setKbdOpen(false));
+      chatInp.addEventListener('blur', () => { _iosAltaOtur(); setKbdOpen(false); });
     }
     // 🆕 Milli takım sohbeti girişi DOM'a sonradan ekleniyor (ntRenderChat) →
     //    doğrudan dinleyici yerine delegasyon. Kulüp yolu değişmedi.
@@ -26681,7 +26695,7 @@ window.addEventListener('load', function() {
       if(e.target && e.target.id === 'ntChatInput') setKbdOpen(true);
     });
     document.addEventListener('focusout', (e) => {
-      if(e.target && e.target.id === 'ntChatInput') setKbdOpen(false);
+      if(e.target && e.target.id === 'ntChatInput') { _iosAltaOtur(); setKbdOpen(false); }
     });
 
     // Sıralama arama alanı — aynı sistem: focus'ta anında kbd-open (nav gizle + arka plan dondur → titreme yok)
