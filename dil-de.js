@@ -5478,3 +5478,6 @@ window.I18N_PATTERNS.de.push([/^• Maaş borcu ödemesi: (.+)$/, '• Zahlung d
 /* ── 683 · destek talebine cevap ── */
 Object.assign(window.I18N.de, { 'Cevapla': 'Antworten', 'Cevabın iletildi': 'Antwort gesendet', '✅ Cevabın gönderildi': '✅ Deine Antwort wurde gesendet', 'Bu cevaba zaten yanıt verdin.': 'Du hast auf diese Nachricht bereits geantwortet.', 'En az 2 karakter yaz.': 'Schreibe mindestens 2 Zeichen.' });
 window.I18N_PATTERNS.de.push([/^(Şikayet|İste[kğ]|Tale[pb]|Bildirim)ine Yeni Cevap$/, m => 'Neue Antwort auf deine ' + ({ 'Şikayet':'Beschwerde', 'İstek':'Anfrage', 'Talep':'Eingabe', 'Bildirim':'Meldung' })[m[1].replace('ğ', 'k').replace(/b$/, 'p')]]);
+
+/* ── 685 · destek talebi kapandı ── */
+Object.assign(window.I18N.de, { 'Talep kapandı': 'Anfrage geschlossen' });

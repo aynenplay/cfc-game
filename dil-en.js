@@ -7543,3 +7543,6 @@ window.I18N_PATTERNS.en.push([/^• Maaş borcu ödemesi: (.+)$/, '• Unpaid wa
 /* ── 683 · destek talebine cevap ── */
 Object.assign(window.I18N.en, { 'Cevapla': 'Reply', 'Cevabın iletildi': 'Reply sent', '✅ Cevabın gönderildi': '✅ Your reply has been sent', 'Bu cevaba zaten yanıt verdin.': 'You have already replied to this message.', 'En az 2 karakter yaz.': 'Write at least 2 characters.' });
 window.I18N_PATTERNS.en.push([/^(Şikayet|İste[kğ]|Tale[pb]|Bildirim)ine Yeni Cevap$/, m => 'New reply to your ' + ({ 'Şikayet':'complaint', 'İstek':'request', 'Talep':'request', 'Bildirim':'report' })[m[1].replace('ğ', 'k').replace(/b$/, 'p')]]);
+
+/* ── 685 · destek talebi kapandı ── */
+Object.assign(window.I18N.en, { 'Talep kapandı': 'Request closed' });

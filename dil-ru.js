@@ -7148,3 +7148,6 @@ window.I18N_PATTERNS.ru.push([/^• Maaş borcu ödemesi: (.+)$/, '• Выпл�
 /* ── 683 · destek talebine cevap ── */
 Object.assign(window.I18N.ru, { 'Cevapla': 'Ответить', 'Cevabın iletildi': 'Ответ отправлен', '✅ Cevabın gönderildi': '✅ Твой ответ отправлен', 'Bu cevaba zaten yanıt verdin.': 'Ты уже ответил на это сообщение.', 'En az 2 karakter yaz.': 'Напиши минимум 2 символа.' });
 window.I18N_PATTERNS.ru.push([/^(Şikayet|İste[kğ]|Tale[pb]|Bildirim)ine Yeni Cevap$/, m => 'Новый ответ на ' + ({ 'Şikayet':'твою жалобу', 'İstek':'твой запрос', 'Talep':'твою заявку', 'Bildirim':'твоё сообщение' })[m[1].replace('ğ', 'k').replace(/b$/, 'p')]]);
+
+/* ── 685 · destek talebi kapandı ── */
+Object.assign(window.I18N.ru, { 'Talep kapandı': 'Заявка закрыта' });

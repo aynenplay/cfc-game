@@ -1204,14 +1204,17 @@ async function fbReply(id){
   const f = FB_DATA.find(x=>String(x.id)===String(id));
   const th = f ? fbKonusma(f) : [];
   try {
+    // 685 — cevap talebi "Çözüldü" yapmaz (Okundu olur); Çözüldü'yü yönetici elle verir ve sohbet kapanır.
+    //   Cevap düzenlemek durumu değiştirmez.
     if (th.length) {
       // 683 — oyuncu cevap verdiyse yeni cevap konuşmaya eklenir; son mesaj bizimse düzenlenir
-      await fbRpc('destek_yonetim_cevap', { p_id:String(id), p_metin:metin, p_duzenle: th[th.length-1].k==='yonetim' });
+      const duzenle = th[th.length-1].k==='yonetim';
+      await fbRpc('destek_yonetim_cevap', { p_id:String(id), p_metin:metin, p_duzenle: duzenle });
       // Gateway üzerinden durum yazımı: oyuncunun açık oyununa haber gider
-      await api('update', { table:'feedback', pk:{ id }, values:{ status:'cozuldu' } });
+      await api('update', { table:'feedback', pk:{ id }, values:{ status: duzenle ? ((f && f.status) || 'okundu') : 'okundu' } });
     } else {
       await api('update', { table:'feedback', pk:{ id },
-        values:{ reply: metin, replied_at: new Date().toISOString(), status:'cozuldu' } });
+        values:{ reply: metin, replied_at: new Date().toISOString(), status: (f && f.reply) ? ((f.status) || 'okundu') : 'okundu' } });
     }
     FB_CEVAP = null;
     loadFeedback();

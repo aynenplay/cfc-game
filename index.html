@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '683';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '685';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -24993,7 +24993,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-16-klavye-684';
+const APP_BUILD = '2026-10-16-desteksohbet-685';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -45481,14 +45481,28 @@ async function supportGonder(tip, ad) {
 }
 
 // ── Yönetici cevabı geldi mi? (gelen kutusuna işle) ──
-// 683 — talep bir konuşma: her yönetim cevabı ayrı mesaj olarak gelir ve oyuncuya bir cevap hakkı verir.
-//   Oyuncunun cevabı aynı talebe eklenir (destek_cevapla). _destekOnb: talep → { yon, oyu } sayıları.
+// 685 — her talep gelen kutusunda TEK sohbet: oyuncunun mesajları ve yönetim cevapları aynı mesajda
+//   sırayla görünür. Yeni yönetim cevabı gelince o sohbet okunmamış olur ve en üste çıkar.
+//   Her yönetim cevabı bir cevap hakkı verir; yönetim "Çözüldü" deyince talep kapanır.
+//   _destekOnb: talep → { yon, oyu, kapali }.
 const _destekOnb = {};
 let _destekTarandi = false;
+function _destekKonusma(f) {
+  const th = Array.isArray(f.thread) ? f.thread.filter(e => e && (e.k === 'oyuncu' || e.k === 'yonetim')) : [];
+  return [{ k: 'oyuncu', m: String(f.message || ''), t: f.created_at || null },
+          { k: 'yonetim', m: String(f.reply || ''), t: f.replied_at || null }]
+    .concat(th.map(e => ({ k: e.k, m: String(e.m || ''), t: e.t || null })));
+}
+// Düz metin (liste araması ve eski sürümler için)
+function _destekMetin(L) {
+  return L.map(e => e.k === 'oyuncu'
+    ? 'Gönderdiğin mesaj:\n"' + e.m.slice(0, 300) + '"'
+    : '— Yönetim cevabı —\n' + e.m).join('\n\n');
+}
 async function supportCevapTara() {
   try {
     if (!window.sb || !window.authUser || !window.authUser.id) return;
-    if (typeof sysMsg !== 'function') return;
+    if (!Array.isArray(_inboxCache)) return;          // gelen kutusu henüz yüklenmedi (tekrar koruması çalışmaz)
     let data = null;
     try {
       const r = await window.sb.rpc('destek_benim');
@@ -45505,57 +45519,98 @@ async function supportCevapTara() {
       if (error) return;
       data = d || [];
     }
+    if (!Array.isArray(_inboxCache)) return;
     _destekTarandi = true;
+    const msgs = getInboxMsgs();
+    const sent = _sysSentSet();
+    let degisti = false;
     data.forEach(f => {
+      const fid = String(f.id), id = 'destek_' + fid;
+      const L = _destekKonusma(f);
+      const yon = L.filter(e => e.k === 'yonetim').length, oyu = L.filter(e => e.k === 'oyuncu').length - 1;
+      const kapali = f.status === 'cozuldu';
+      _destekOnb[fid] = { yon, oyu, kapali };
       const ad = { sikayet:'Şikayetine', istek:'İsteğine', talep:'Talebine' }[f.type] || 'Bildirimine';
-      const th = Array.isArray(f.thread) ? f.thread.filter(e => e && (e.k === 'oyuncu' || e.k === 'yonetim')) : [];
-      _destekOnb[String(f.id)] = { yon: 1 + th.filter(e => e.k === 'yonetim').length, oyu: th.filter(e => e.k === 'oyuncu').length };
-      sysMsg({
-        id: 'destek_' + f.id,
-        from: '🛟 Destek', avatar: '🛟', kind: 'destek',
-        subject: ad + ' Cevap Geldi',
-        body: 'Gönderdiğin mesaj:\n"' + String(f.message || '').slice(0, 300) + '"\n\n'
-            + '— Yönetim cevabı —\n' + String(f.reply || ''),
-      });
-      // Sonraki yönetim cevapları: destek_<talep>_2, _3 …
-      let n = 1, sonCevap = '';
-      th.forEach(e => {
-        if (e.k === 'oyuncu') { sonCevap = String(e.m || ''); return; }
-        n++;
-        sysMsg({
-          id: 'destek_' + f.id + '_' + n,
-          from: '🛟 Destek', avatar: '🛟', kind: 'destek',
-          subject: ad + ' Yeni Cevap',
-          body: 'Gönderdiğin mesaj:\n"' + sonCevap.slice(0, 300) + '"\n\n'
-              + '— Yönetim cevabı —\n' + String(e.m || ''),
-        });
-      });
+      const konu = ad + (yon > 1 ? ' Yeni Cevap' : ' Cevap Geldi');
+      // 683'te ayrı mesaj olarak gelen sonraki cevaplar (destek_<id>_2 …) bu sohbette birleşir
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        const x = msgs[i] && msgs[i].id;
+        if (typeof x === 'string' && x.indexOf(id + '_') === 0 && /^\d+$/.test(x.slice(id.length + 1))) { msgs.splice(i, 1); degisti = true; }
+      }
+      const gorulen = n => n <= 1 ? sent.has(id) : (sent.has(id + '#' + n) || sent.has(id + '_' + n));
+      const yeniCevap = !gorulen(yon);
+      const veri = { fid, tur: f.type || null, mesajlar: L, kapali };
+      const govde = _destekMetin(L);
+      const ix = msgs.findIndex(m => m && m.id === id);
+      if (ix >= 0) {
+        const m = msgs[ix];
+        if (JSON.stringify(m.destek || null) !== JSON.stringify(veri) || m.body !== govde) { m.destek = veri; m.body = govde; degisti = true; }
+        if (yeniCevap) {
+          m.subject = konu; m.read = false; m.ts = Date.now(); m.time = new Date().toLocaleDateString('tr-TR');
+          degisti = true;
+        }
+      } else if (yeniCevap) {
+        msgs.unshift({ id, from: '🛟 Destek', fromAvatar: '🛟', type: 'system', sysKind: 'destek', subject: konu, body: govde, destek: veri,
+          time: new Date().toLocaleDateString('tr-TR'), ts: Date.now(), read: false, thread: [] });
+        degisti = true;
+      }
+      for (let n = 1; n <= yon; n++) if (!gorulen(n)) _sysSentAdd(n <= 1 ? id : id + '#' + n);
     });
-    // Açık destek mesajındaki Cevapla düğmesi güncel haklarla yeniden çizilir
+    if (degisti) {
+      saveInboxMsgs(msgs);
+      if (typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
+      try {
+        const ov = document.getElementById('inboxOverlay');
+        if (ov && ov.classList.contains('open') && typeof _inboxView !== 'undefined' && _inboxView === 'list' && typeof inboxRenderList === 'function') inboxRenderList();
+      } catch(e) {}
+    }
+    // Açık destek sohbeti güncel konuşma ve haklarla yeniden çizilir
     try {
       if (typeof _inboxCurrentMsg !== 'undefined' && _inboxCurrentMsg && _destekDurum(_inboxCurrentMsg)
-          && typeof inboxRenderDetail === 'function') inboxRenderDetail(_inboxCurrentMsg);
+          && typeof _inboxView !== 'undefined' && _inboxView === 'detail' && typeof inboxRenderDetail === 'function') {
+        const guncel = getInboxMsgs().find(m => m && m.id === _inboxCurrentMsg.id);
+        if (guncel) { _inboxCurrentMsg = guncel; inboxRenderDetail(guncel); }
+      }
     } catch(e) {}
   } catch(e) {}
 }
 window.supportCevapTara = supportCevapTara;
 
-// Destek mesajı → talep ve bu mesajın sırası (1: ilk cevap). Cevap hakkı yalnız son yönetim cevabında.
+// Destek sohbeti → talep ve durumu. Cevap hakkı: talep açıkken her yönetim cevabına bir cevap.
 function _destekDurum(m) {
   if (!m || m.sysKind !== 'destek') return null;
-  const k = /^destek_(.+?)(?:_(\d+))?$/.exec(String(m.id || ''));
-  if (!k) return null;
-  const fid = k[1], n = Number(k[2] || 1), d = _destekOnb[fid];
-  if (!d) return { fid, n, hak: false, gitti: false, yok: true };
-  return { fid, n, hak: n === d.yon && d.oyu < d.yon, gitti: d.oyu >= n };
+  const k = /^destek_(.+)$/.exec(String(m.id || ''));
+  if (!k || /_\d+$/.test(k[1]) && !_destekOnb[k[1]]) return null;
+  const fid = k[1], d = _destekOnb[fid];
+  if (!d) return { fid, hak: false, gitti: false, kapali: !!(m.destek && m.destek.kapali), yok: true };
+  return { fid, hak: !d.kapali && d.oyu < d.yon, gitti: d.oyu >= d.yon, kapali: d.kapali };
 }
 function _destekEylem(m) {
   const d = _destekDurum(m);
   if (!d) return '';
   if (d.yok && !_destekTarandi) { try { supportCevapTara(); } catch(e) {} }
+  if (d.kapali) return `<span class="gk-iletildi">${_gkIk('tamam')}Talep kapandı</span>`;
   if (d.hak) return `<button class="bir" onclick="destekCevapAc('${String(d.fid).replace(/'/g, "\\'")}')">${_gkIk('yanitla')}Cevapla</button>`;
   if (d.gitti) return `<span class="gk-iletildi">${_gkIk('tamam')}Cevabın iletildi</span>`;
   return '';
+}
+// Sohbet görünümü: oyuncunun mesajları sağda, destek cevapları solda (oyuncu sohbetiyle aynı balonlar)
+function _destekCiz(m, bas, body) {
+  if (!m || m.sysKind !== 'destek' || !m.destek || !Array.isArray(m.destek.mesajlar)) return false;
+  let h = bas + '<div class="gk-destek">';
+  m.destek.mesajlar.forEach(e => {
+    const ben = e.k === 'oyuncu';
+    const ms = e.t ? Date.parse(e.t) : NaN;
+    const zaman = (!isNaN(ms) && typeof _inboxFmtDateTime === 'function') ? _inboxFmtDateTime(ms) : '';
+    h += `<div class="inbox-thread-msg ${ben ? 'sent' : 'received'}">`
+       + `<div class="inbox-thread-bubble" data-noi18n>${_gkE(e.m).replace(/\n/g, '<br>')}</div>`
+       + `<div class="inbox-thread-meta"><span>${ben ? 'Sen' : 'Destek'}</span>${zaman ? `<span data-noi18n> · ${_gkE(zaman)}</span>` : ''}</div></div>`;
+  });
+  h += '</div>' + _gkEylemHtml(m);
+  body.innerHTML = h;
+  _gkYanitGizle(true);
+  requestAnimationFrame(() => { body.scrollTop = body.scrollHeight; requestAnimationFrame(() => { body.scrollTop = body.scrollHeight; }); });
+  return true;
 }
 
 function destekCevapAc(fid) {
@@ -45596,21 +45651,35 @@ async function destekCevapGonder(fid) {
   if (metin.length < 2) { gost('En az 2 karakter yaz.'); return; }
   if (!window.sb || !window.authUser || !window.authUser.id) { gost('Oturum bulunamadı.'); return; }
   btn.disabled = true; btn.textContent = 'Gönderiliyor…';
+  const ciz = () => { try { if (_inboxCurrentMsg) inboxRenderDetail(_inboxCurrentMsg); } catch(e) {} };
   try {
     const { error } = await window.sb.rpc('destek_cevapla', { p_id: String(fid), p_metin: metin.slice(0, 1000) });
     if (error) {
-      if (/cevap_hakki_yok/.test(error.message || '')) {
-        const d = _destekOnb[String(fid)]; if (d) d.oyu = d.yon;
-        gost('Bu cevaba zaten yanıt verdin.');
-        try { if (_inboxCurrentMsg) inboxRenderDetail(_inboxCurrentMsg); } catch(e) {}
+      const k = String(error.message || '');
+      const d = _destekOnb[String(fid)];
+      if (/cevap_hakki_yok|talep_kapali/.test(k)) {
+        if (d) { if (/talep_kapali/.test(k)) d.kapali = true; else d.oyu = d.yon; }
+        gost(/talep_kapali/.test(k) ? 'Talep kapandı' : 'Bu cevaba zaten yanıt verdin.');
         btn.textContent = 'Gönder';
+        ciz();
         return;
       }
       throw error;
     }
     const d = _destekOnb[String(fid)]; if (d) d.oyu++;
+    // Cevap sohbete hemen eklenir (sunucu taraması da aynısını getirir)
+    try {
+      const msgs = getInboxMsgs();
+      const m = msgs.find(x => x && x.id === 'destek_' + fid);
+      if (m && m.destek && Array.isArray(m.destek.mesajlar)) {
+        m.destek.mesajlar.push({ k: 'oyuncu', m: metin.slice(0, 1000), t: new Date().toISOString() });
+        m.body = _destekMetin(m.destek.mesajlar);
+        saveInboxMsgs(msgs);
+        if (_inboxCurrentMsg && _inboxCurrentMsg.id === m.id) _inboxCurrentMsg = m;
+      }
+    } catch(e) {}
     supportClose();
-    try { if (_inboxCurrentMsg) inboxRenderDetail(_inboxCurrentMsg); } catch(e) {}
+    ciz();
     if (typeof rosterToast === 'function') rosterToast('✅ Cevabın gönderildi', 'ok');
     else if (typeof showToast === 'function') showToast('✅ Cevabın gönderildi');
   } catch(e) {
@@ -78636,6 +78705,8 @@ function inboxRenderDetail(msg) {
   // Ana mesaj — 578: karbon başlık (gönderen kutusu + tarih + konu)
   _gkYanitGizle(false);
   let html = _gkDetayBas(msg);
+  // 685 — destek talebi: konuşma balonları + Cevapla / kapandı
+  if (typeof _destekCiz === 'function' && _destekCiz(msg, html, body)) return;
   // 578 — para fişi (kâğıt) / maç kartı / düz sistem mesajı (karbon)
   if (_gkOzelGovde(msg, html, body)) return;
 
@@ -97510,6 +97581,7 @@ function _dzDegisBildir(degis, milli) {
 .gk-eylem .gk-iletildi{flex:1;height:44px;display:flex;align-items:center;justify-content:center;gap:7px;border-radius:12px;border:1px dashed var(--gkCizgi);
   color:var(--text2);font:800 14px/1 'Barlow Condensed',sans-serif;letter-spacing:.8px;text-transform:uppercase}
 .gk-eylem .gk-iletildi .gk-i{width:16px;height:16px;color:var(--accent)}
+.gk-destek{padding-top:8px}
 .sup-ikon-svg svg{width:22px;height:22px;fill:none;stroke:var(--accent);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 .gk-not{margin:12px 16px 0;padding:10px 12px;border-radius:12px;background:rgba(255,152,0,.08);border:1px solid rgba(255,152,0,.3);color:#ffcc80;font:600 12.5px/1.4 'Barlow',sans-serif;display:flex;gap:8px}
 .gk-not .gk-i{width:17px;height:17px;color:#ff9800;margin-top:1px}
