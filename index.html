@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '678';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '679';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -7397,6 +7397,10 @@ body.team-captain .pr-mv.is-custom:hover{color:#ffe082}
 .kick-confirm-msg{font-size:14px;color:var(--text);line-height:1.5;margin-bottom:8px}
 .kick-confirm-msg b{color:#ffd54f}
 .kick-confirm-info{font-size:11px;color:var(--text3);line-height:1.45;margin-bottom:18px;padding:8px 12px;background:rgba(255,255,255,.025);border-radius:8px;border:1px solid var(--border)}
+.kick-confirm-pay{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 10px;padding:10px 12px;border-radius:9px;background:rgba(255,213,79,.07);border:1px solid rgba(255,213,79,.32);text-align:left}
+.kick-confirm-pay>span{font-size:12.5px;font-weight:800;color:var(--text);line-height:1.25}
+.kick-confirm-pay small{display:block;margin-top:2px;font-size:10.5px;font-weight:600;color:var(--text3)}
+.kick-confirm-pay b{font-family:Twemoji Country Flags,'Barlow Condensed',sans-serif;font-size:19px;font-weight:900;color:#ffd54f;white-space:nowrap}
 .kick-confirm-btns{display:flex;gap:9px}
 .kick-confirm-cancel,.kick-confirm-ok{flex:1;padding:12px 14px;border-radius:9px;font-family:Twemoji Country Flags,'Barlow Condensed',sans-serif;font-size:13px;font-weight:800;letter-spacing:.6px;cursor:pointer;border:1px solid transparent;transition:all .15s;text-transform:uppercase}
 .kick-confirm-cancel{background:var(--bg3);border-color:var(--border);color:var(--text2)}
@@ -24989,7 +24993,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-16-transfermaas-678';
+const APP_BUILD = '2026-10-16-kovmamaas-679';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -30039,6 +30043,8 @@ window.inboxRejectJoinRequest = async function(msgId){
   if (d.requestorUserId && typeof inboxSendToUser === 'function') {
     const gonderildi = await inboxSendToUser(d.requestorUserId, {
       id: 'jr_resp_no_' + Date.now(),
+      ts: Date.now(),
+      joinReqResp: { countryCode: d.countryCode, teamName: d.teamName, durum: 'red' },
       from: `${d.teamName} Yönetimi`,
       fromAvatar: '❌',
       type: 'system',
@@ -43190,10 +43196,24 @@ function rosterKickPlayer(playerNum){
   if(msgEl){
     msgEl.innerHTML = `<b>${_escapeHtml(p.name)}</b> kişisini kovacaksınız.<br><span style="font-size:12px;color:var(--text2)">Emin misiniz?</span>`;
   }
+  _kickHakedisGoster(p);
   const ov = document.getElementById('kickConfirmOverlay');
   if(ov) ov.classList.add('open');
   // Player modal'ı arka planda kapat
   if(typeof closePlayerModal === 'function') closePlayerModal();
+}
+
+// 679 — kovulan gerçek oyuncunun son maaş gününden bugüne hakedişi (+ maaş borcu) takım kasasından ödenir
+async function _kickHakedisGoster(p){
+  const el = document.getElementById('kickConfirmPay');
+  if (!el) return;
+  el.style.display = 'none'; el.innerHTML = '';
+  if (!window.sb || !p || !p.id || p.isBot || !(p.userId || p.user_id)) return;
+  const { data, error } = await window.sb.rpc('kovma_hakedis', { target_player_id: p.id });
+  if (error || !data || data.error || _pendingKickNum !== p.num) return;
+  const borc = Number(data.borc) > 0 ? ' · <span>Maaş borcu dahil</span>' : '';
+  el.innerHTML = `<span>Kalan maaş ödemesi<small><span>${Number(data.gun) || 0} gün</span>${borc}</small></span><b data-noi18n>${(Number(data.tutar) || 0).toLocaleString('tr')} €</b>`;
+  el.style.display = '';
 }
 
 // Kov onay modal'ını kapat (vazgeç)
@@ -43232,8 +43252,9 @@ function executeKick(){
         const { error } = await window.sb.rpc('team_kick_member', {
           target_player_id: p.id
         });
+        if (!error && typeof _trsLoadFromServer === 'function') _trsLoadFromServer().then(() => { if (typeof trsRender === 'function') trsRender(); if (typeof trsSyncHeader === 'function') trsSyncHeader(); });
         if (error) {
-          rosterToast('Kov başarısız: ' + error.message, 'err');
+          rosterToast(/kasa_yetersiz/.test(error.message || '') ? 'Kasada kalan maaşı ödeyecek kadar para yok.' : 'Kov başarısız: ' + error.message, 'err');
           // Lokal değişikliği geri al
           ROSTER_DATA.push(p);
           ROSTER_DATA.sort((a,b) => (a.num||999)-(b.num||999));
@@ -44604,7 +44625,21 @@ async function _joinRequestsLoadFromServer() {
 }
 
 function getJoinRequests() {
-  return Array.isArray(_joinRequestsCache) ? _joinRequestsCache : [];
+  const l = Array.isArray(_joinRequestsCache) ? _joinRequestsCache : [];
+  for (const r of l) if (r && r.status === 'pending' && _jrReddedildi(r)) r.status = 'rejected';
+  return l;
+}
+// 679 — kaptan reddettiyse oyuncunun gelen kutusuna red mesajı gelir; istek artık bekliyor sayılmaz
+function _jrReddedildi(r) {
+  const msgs = (typeof getInboxMsgs === 'function' && getInboxMsgs()) || [];
+  return msgs.some(m => {
+    if (!m) return false;
+    const y = m.joinReqResp;
+    const ayni = y ? (y.countryCode === r.countryCode && y.teamName === r.teamName)
+                   : m.subject === 'Katılma İsteğin Reddedildi — ' + r.teamName;
+    const t = Number(m.ts) || Number(String(m.id || '').replace(/^jr_resp_no_/, '')) || 0;
+    return ayni && t >= (Number(r.sentAt) || 0);
+  });
 }
 
 function saveJoinRequests(list) {
@@ -44649,8 +44684,8 @@ async function _fetchTeamJoinPolicy(cc, tn){
 // 🆕 Merkezî katılım kararı: bot→satın al; gerçek kaptan→şart karşılanırsa DİREKT (politikaya göre kontratlı/kontratsız), yoksa istek
 async function _joinDecide(cc, tn, rating){
   if(typeof userHasTeam==='function' && userHasTeam()){ showNeedTeamToast('Zaten bir takımdasın. Önce takımdan ayrıl.'); return; }
-  if(typeof _loadRealCaptainsFromServer === 'function'){ try{ if(typeof _invalidateRealCaptainsCache==='function') _invalidateRealCaptainsCache(); await _loadRealCaptainsFromServer(); }catch(e){} }
-  const pol = await _fetchTeamJoinPolicy(cc, tn);
+  if(typeof _loadRealCaptainsFromServer === 'function'){ try{ if(typeof _invalidateRealCaptainsCache==='function') _invalidateRealCaptainsCache(); await _loadRealCaptainsFromServer(cc); }catch(e){} }
+  const pol = getTeamCaptainType(cc, tn) === 'bot' ? { contract:false, minSkill:0, minLevel:0 } : await _fetchTeamJoinPolicy(cc, tn);
   const meets = (typeof userMeetsJoinRequirements==='function') ? userMeetsJoinRequirements({ minSkill: pol.minSkill, minLevel: pol.minLevel }) : true;
   _showJoinPolicyModal(cc, tn, pol, meets, rating);
 }
@@ -69408,7 +69443,7 @@ function shopTab(name) {
 
 
 // ── Satın alma sözleşmesini aç ──
-let _tmBuyTargetId = null;
+let _tmBuyTargetId = null, _tmBuyFiyat = 0;
 function tmShowBuyConfirm(listingId){
   const listing = tmGetListings().find(l => l.id === listingId);
   if(!listing) return;
@@ -69426,6 +69461,7 @@ function tmShowBuyConfirm(listingId){
   }
 
   _tmBuyTargetId = listingId;
+  _tmBuyFiyat = listing.price || 0;
 
   const country = _cftGetCountry(listing.countryCode);
   const lgName = (country && country.leagues && country.leagues[listing.tierIdx]) ? country.leagues[listing.tierIdx].name : 'Lig';
@@ -69464,7 +69500,7 @@ async function tmConfirmBuy(){
   szDurum('yuk');
   let _srv = null;
   try {
-    const _res = await edgeCall('buy_team_listing', { listing: _tmBuyTargetId });
+    const _res = await edgeCall('buy_team_listing', { listing: _tmBuyTargetId, fiyat: _tmBuyFiyat });
     const d = _res && _res.data;
     if (!_res.ok || !d || d.error) {
       const msg = {
@@ -69477,7 +69513,8 @@ async function tmConfirmBuy(){
         sadece_elmas: 'Takımlar yalnız elmasla satılır.',
         fiyat_dusuk: 'İlan fiyatı en düşük fiyatın altında.',
         zaten_takimda: 'Önce mevcut takımından ayrılmalısın.',
-        yabanci_dolu: 'Bu takımın yabancı oyuncu kontenjanı dolu (10/10).'
+        yabanci_dolu: 'Bu takımın yabancı oyuncu kontenjanı dolu (10/10).',
+        fiyat_degisti: 'İlan fiyatı değişti. Yeni fiyatı görüp tekrar dene.'
       }[d && d.error] || 'Satın alınamadı.';
       if(typeof showJoinToast === 'function') showJoinToast('❌ ' + msg);
       try { _tmCache = null; if (typeof tmRender === 'function') tmRender(); } catch(e) {}
@@ -76490,7 +76527,7 @@ function tfOpenSaleCard(id){
     const it = list.find(x=>x && String(x.id)===String(id)); if(!it) return;
     const grp = (typeof _tfPosGroup==='function') ? _tfPosGroup(it.pos) : (it.pos||'MID');
     const player = { name:it.playerId, pos:it.pos, posGroup:grp, subPos:it.subPos||it.sub_pos||null, overall:it.overall, avatar:it.avatar, nation:it.nation, id:(it._playerDbId||it.playerDbId||it.dbId||null) };
-    const ctx = { teamName:it.seller||'', teamLookupName:it.seller||'', countryCode:(it._countryCode||'') };
+    const ctx = { teamName:it.sellerTeam||it.seller||'', teamLookupName:it.sellerTeam||it.seller||'', countryCode:(it.sellerCC||it._countryCode||'') };
     if(typeof openPlayerModal==='function') openPlayerModal(player, ctx);
   }catch(e){ console.warn('tfOpenSaleCard', e); }
 }
@@ -76534,7 +76571,7 @@ function tfOpenOffer(id) {
   const grp = (typeof _tfPosGroup==='function') ? _tfPosGroup(it.pos) : (it.pos||'MID');
   const player = { name:it.playerId, pos:it.pos, posGroup:grp, subPos:it.subPos||it.sub_pos||null, overall:it.overall, level:it.level,
                    avatar:it.avatar, nation:it.nation, id:(it._playerDbId||it.playerDbId||it.dbId||null) };
-  const ctx = { teamName:it.seller||'', teamLookupName:it.seller||'', countryCode:(it._countryCode||''),
+  const ctx = { teamName:it.sellerTeam||it.seller||'', teamLookupName:it.sellerTeam||it.seller||'', countryCode:(it.sellerCC||it._countryCode||''),
                 listingId: it.id, listingFee: Number(it.fee) || 0 };
   if (typeof tfOpenOfferDirect === 'function') tfOpenOfferDirect(player, ctx);
 }
@@ -76595,7 +76632,7 @@ function tfOpenOfferDirect(player, ctx) {
   const fee = isFree
     ? 0
     : ((ctx && ctx.listingFee > 0)
-        ? Math.min(ctx.listingFee, _tfBonservisTavani(player.overall, player.level))
+        ? Math.min(ctx.listingFee, Math.max(_tfBonservisTavani(player.overall, player.level), getSystemTransferFee(player)))
         : ((typeof getSystemTransferFee === 'function') ? getSystemTransferFee(player) : 0));
 
   // 🆕 Sistem belirlemiş sezonluk maaş
@@ -79207,7 +79244,7 @@ async function inboxSendTransferOffer(target, _legacyWage, _legacyContract, offe
   } else {
     if (typeof _loadRealCaptainsFromServer === 'function') {
       _invalidateRealCaptainsCache();
-      await _loadRealCaptainsFromServer();
+      await _loadRealCaptainsFromServer(target._countryCode || undefined);
     }
     const entry = _realCaptainsCache[(target._countryCode||'') + ':' + (target.seller||'')];
     recipientId = entry ? entry.captainUserId : null;
@@ -88840,6 +88877,7 @@ document.addEventListener('keydown', function(e){
     <div class="kick-confirm-icon">🚪</div>
     <div class="kick-confirm-title">Oyuncuyu Kov</div>
     <div class="kick-confirm-msg" id="kickConfirmMsg">—</div>
+    <div class="kick-confirm-pay" id="kickConfirmPay" style="display:none"></div>
     <div class="kick-confirm-info">Oyuncu Transfer › Boştaki Oyuncular kısmına eklenecek. Yerine yeni bir oyuncu gelecek.</div>
     <div class="kick-confirm-btns">
       <button class="kick-confirm-cancel" onclick="closeKickConfirm()">Vazgeç</button>

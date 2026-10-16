@@ -7100,3 +7100,7 @@ Object.assign(window.I18N.it, { 'DAHA ESKİ SEZONLAR ▾': 'STAGIONI PRECEDENTI 
 
 /* ── 678 · transfer kabulü ── */
 Object.assign(window.I18N.it, { 'Alıcı takımın kadrosu dolu.': 'La rosa della squadra acquirente è al completo.', 'Bu teklif zaten işleniyor.': 'Questa offerta è già in elaborazione.' });
+
+/* ── 679 · kovma hakedişi · takım ilanı fiyatı ── */
+Object.assign(window.I18N.it, { 'Kalan maaş ödemesi': 'Pagamento dello stipendio residuo', 'Maaş borcu dahil': 'Arretrati inclusi', 'Kasada kalan maaşı ödeyecek kadar para yok.': 'La cassa non basta per pagare lo stipendio residuo.', 'İlan fiyatı değişti. Yeni fiyatı görüp tekrar dene.': "Il prezzo dell'annuncio è cambiato. Controlla il nuovo prezzo e riprova." });
+window.I18N_PATTERNS.it.push([/^Kalan Maaş Ödemesi: (.+)$/, 'Pagamento dello stipendio residuo: $1']);

@@ -7102,3 +7102,7 @@ Object.assign(window.I18N.es, { 'DAHA ESKİ SEZONLAR ▾': 'TEMPORADAS ANTERIORE
 
 /* ── 678 · transfer kabulü ── */
 Object.assign(window.I18N.es, { 'Alıcı takımın kadrosu dolu.': 'La plantilla del equipo comprador está completa.', 'Bu teklif zaten işleniyor.': 'Esta oferta ya se está procesando.' });
+
+/* ── 679 · kovma hakedişi · takım ilanı fiyatı ── */
+Object.assign(window.I18N.es, { 'Kalan maaş ödemesi': 'Pago del salario pendiente', 'Maaş borcu dahil': 'Incluye salarios adeudados', 'Kasada kalan maaşı ödeyecek kadar para yok.': 'La caja no alcanza para pagar el salario pendiente.', 'İlan fiyatı değişti. Yeni fiyatı görüp tekrar dene.': 'El precio del anuncio ha cambiado. Revisa el nuevo precio e inténtalo de nuevo.' });
+window.I18N_PATTERNS.es.push([/^Kalan Maaş Ödemesi: (.+)$/, 'Pago del salario pendiente: $1']);

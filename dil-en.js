@@ -7527,3 +7527,7 @@ Object.assign(window.I18N.en, { 'DAHA ESKİ SEZONLAR ▾': 'OLDER SEASONS ▾', 
 
 /* ── 678 · transfer kabulü ── */
 Object.assign(window.I18N.en, { 'Alıcı takımın kadrosu dolu.': "The buying team's squad is full.", 'Bu teklif zaten işleniyor.': 'This offer is already being processed.' });
+
+/* ── 679 · kovma hakedişi · takım ilanı fiyatı ── */
+Object.assign(window.I18N.en, { 'Kalan maaş ödemesi': 'Remaining wage payment', 'Maaş borcu dahil': 'Unpaid wages included', 'Kasada kalan maaşı ödeyecek kadar para yok.': 'The treasury cannot cover the remaining wages.', 'İlan fiyatı değişti. Yeni fiyatı görüp tekrar dene.': 'The listing price has changed. Check the new price and try again.' });
+window.I18N_PATTERNS.en.push([/^Kalan Maaş Ödemesi: (.+)$/, 'Remaining Wage Payment: $1']);
