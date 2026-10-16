@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '688';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '690';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -24993,7 +24993,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-16-taraftar-688';
+const APP_BUILD = '2026-10-16-yayin-690';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -48492,13 +48492,10 @@ function _teamChatSubscribe() {
 
   const myId = (typeof authUser !== 'undefined' && authUser) ? authUser.id : null;
   _teamChatChannelKey = newKey;
-  _teamChatChannel = window.sb.channel('team_chat:' + newKey)
-    .on('postgres_changes', {
-      event: 'INSERT',
-      schema: 'public',
-      table: 'team_chat',
-      filter: `team_name=eq.${_userTeam.teamName}`,
-    }, (payload) => {
+  // 690 — yeni mesaj veritabanı tetikleyicisinin yayınıyla ('mesaj': mid = mesaj kimliği) gelir; içerik tablodan okunur
+  //   (sahte yayın ekrana düşemez). Okumalar sıraya alınır, mesajlar geliş sırasıyla eklenir.
+  let _tcSira = Promise.resolve();
+  const _tcIsle = (payload) => {
       const m = payload.new;
       // Sadece kendi takımının mesajını al (filter team_name ile çalışıyor ama country için ekstra)
       if (!m || m.country_code !== _userTeam.countryCode || m.team_name !== _userTeam.teamName) return;
@@ -48512,6 +48509,17 @@ function _teamChatSubscribe() {
       if (m && typeof m.message === 'string' && m.message.indexOf('[[SYS]]') === 0) {
         if (typeof rosterBuildTeam === 'function' && _userTeam && _userTeam.countryCode) { try{ rosterBuildTeam(_userTeam.countryCode); }catch(e){} }
       }
+  };
+  _teamChatChannel = window.sb.channel('team_chat:' + newKey)
+    .on('broadcast', { event: 'mesaj' }, (msg) => {
+      const p = msg && msg.payload;
+      if (!p || p.mid == null || (p.u && p.u === myId)) return;
+      _tcSira = _tcSira.then(async () => {
+        const { data } = await window.sb.from('team_chat')
+          .select('id, country_code, team_name, user_id, username, display_name, avatar_id, message, created_at')
+          .eq('id', p.mid).maybeSingle();
+        if (data) _tcIsle({ new: data });
+      }).catch((e) => console.warn('[team_chat] mesaj okunamadı:', e));
     })
     .subscribe((status) => {
       console.info('[team_chat] realtime status:', status, newKey);
@@ -54159,11 +54167,9 @@ function _ntChatAbone() {
   if (_ntChatChannel) { try { window.sb.removeChannel(_ntChatChannel); } catch(e) {} _ntChatChannel = null; }
   const myId = (typeof authUser !== 'undefined' && authUser) ? authUser.id : null;
   _ntChatChannelKey = key;
-  _ntChatChannel = window.sb.channel('nt_chat:' + key)
-    .on('postgres_changes', {
-      event: 'INSERT', schema: 'public', table: 'team_chat',
-      filter: `team_name=eq.${ntName}`,
-    }, (payload) => {
+  // 690 — kulüp sohbetiyle aynı: veritabanı yayını ('mesaj': kimlik) → içerik tablodan, sırayla
+  let _ntSira = Promise.resolve();
+  const _ntIsle = (payload) => {
       const m = payload.new;
       if (!m || m.country_code !== cc || m.team_name !== ntName) return;
       if (m.user_id && m.user_id === myId) return;   // kendi mesajım zaten eklendi
@@ -54173,6 +54179,17 @@ function _ntChatAbone() {
       if (bos) area.innerHTML = '';
       if (typeof _teamChatAppendMsg === 'function') _teamChatAppendMsg(area, m, false);
       area.scrollTop = area.scrollHeight;
+  };
+  _ntChatChannel = window.sb.channel('nt_chat:' + key)
+    .on('broadcast', { event: 'mesaj' }, (msg) => {
+      const p = msg && msg.payload;
+      if (!p || p.mid == null || (p.u && p.u === myId)) return;
+      _ntSira = _ntSira.then(async () => {
+        const { data } = await window.sb.from('team_chat')
+          .select('id, country_code, team_name, user_id, username, display_name, avatar_id, message, created_at')
+          .eq('id', p.mid).maybeSingle();
+        if (data) _ntIsle({ new: data });
+      }).catch((e) => console.warn('[nt_chat] mesaj okunamadı:', e));
     })
     .subscribe();
 }
@@ -87494,6 +87511,9 @@ setTimeout(async ()=>{
             window._rtTeamChannels[k] = null;
           }
           window._rtTeamChannels.team = tn;
+          // 690 — players / team_data Realtime yayınında değil, bu abonelikler hiç olay almıyordu.
+          //   Kadro 12 sn'lik eşitleme ve sohbetteki [[SYS]] mesajıyla tazeleniyor.
+          return;
           if (!tn) return;
           window._rtTeamChannels.players = window.sb.channel('rt-players-' + tn)
             .on('postgres_changes', {
@@ -87533,7 +87553,8 @@ setTimeout(async ()=>{
       const _kisiselBagla = () => {
         const myUserId = (typeof authUser !== 'undefined' && authUser && authUser.id) || (window.authUser && window.authUser.id);
         if (!myUserId) return false;
-        window.sb.channel('rt-my-wallet')
+        // 690 — user_wallet Realtime yayınında değil, bu abonelik hiç olay almıyordu (kaldırıldı)
+        if (false) window.sb.channel('rt-my-wallet')
           .on('postgres_changes', { 
             event: '*', 
             schema: 'public', 
@@ -87563,10 +87584,8 @@ setTimeout(async ()=>{
         window.sb.channel('rt-my-inbox-' + myUserId)
           .on('broadcast', { event: 'yonetim' }, () => _yonetimIste())
           .on('broadcast', { event: 'duello' }, (m) => { try { pdOlay(m && m.payload); } catch(e) { console.warn('[düello] olay', e); } })
-          .on('postgres_changes', {
-            event: '*', schema: 'public', table: 'user_inbox',
-            filter: `user_id=eq.${myUserId}`
-          }, _rtDebounce(async () => {
+          // 690 — kutu değişince veritabanı tetikleyicisi bu kanala 'kutu' yayını atar
+          .on('broadcast', { event: 'kutu' }, _rtDebounce(async () => {
             if (typeof _inboxLoadFromServer !== 'function') return;
             await _inboxLoadFromServer();
             if (typeof inboxUpdateBadge === 'function') inboxUpdateBadge();
@@ -87584,7 +87603,7 @@ setTimeout(async ()=>{
             console.info('[inbox] realtime status:', status);
             if (status === 'SUBSCRIBED') { try { pdBaslat(); } catch(e) {} }
             if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-              console.warn('[inbox] realtime BAĞLANAMADI — user_inbox tablosu için Supabase Realtime publication açık mı? (Dashboard → Database → Replication)');
+              console.warn('[inbox] realtime BAĞLANAMADI — kanal: rt-my-inbox (kutu / yonetim / duello yayınları)');
             }
           });
         pdBaslat();
