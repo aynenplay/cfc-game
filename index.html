@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '685';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '686';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -24993,7 +24993,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-16-desteksohbet-685';
+const APP_BUILD = '2026-10-16-mevki-686';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -29973,7 +29973,9 @@ window.inboxApproveJoinRequest = async function(msgId){
       terms_mismatch: { t:'Şartlar Değişmiş', s:'İsteğin şartları değişmiş. Oyuncudan yeni istek göndermesini iste.' },
       requestor_contract_active: { t:'Sözleşmesi Sürüyor', s:'Oyuncunun başka bir takımla sözleşmesi sürüyor' },
     };
+    const _mdm = (typeof _mevkiDoluMetin === 'function') ? _mevkiDoluMetin(String(resData.detail || resData.error || '')) : null;   // 686
     const e = /yabanci_dolu/.test(String(resData.detail || resData.error || '')) ? { t:'Yabancı Kontenjanı Dolu', s:'Takımının yabancı oyuncu kontenjanı dolu (10/10).' }
+      : _mdm ? { t:'Mevki Kontenjanı Dolu', s:_mdm }
       : errMap[resData.error] || { t:'Hata', s:resData.error || 'Bilinmeyen hata' };
     showInfoModal({icon:'❌',iconColor:'#ef4444',title:e.t,subtitle:e.s,body:''});
     return;
@@ -44200,7 +44202,7 @@ async function confirmTeamBuy() {
       zaten_takimda: 'Önce mevcut takımından ayrılmalısın.',
       yabanci_dolu: 'Bu takımın yabancı oyuncu kontenjanı dolu (10/10).',
       takim_devredilemedi_para_iade: 'Takım devredilemedi, ödemen iade edildi.'
-    }[d.error] || 'Satın alınamadı.');
+    }[d.error] || ((typeof _mevkiDoluMetin === 'function') && _mevkiDoluMetin(d.error, d.grup)) || 'Satın alınamadı.');
     closeTeamBuyConfirm();
     showNeedTeamToast(msg);
     try { _invalidateRealCaptainsCache(); _loadRealCaptainsFromServer(t.countryCode).then(() => tbmRenderList()).catch(()=>{}); } catch(e) {}
@@ -46744,18 +46746,21 @@ function showSquadGroupModal(group) {
   };
   const meta = titleMap[group] || titleMap.starter;
 
-  function posBadge(pos) {
-    if (!pos) return '';
-    const group = (typeof POS_GROUP !== 'undefined' && POS_GROUP[pos]) || 'MID';
+  // 686 — yan mevki (alt mevki: RB, CM, ST…) rozeti; renk mevki grubundan
+  function posBadge(p) {
+    const sub = (typeof subPosOf === 'function') ? subPosOf(p) : (p && p.pos);
+    if (!sub) return '';
+    const group = (typeof subPosGroupOf === 'function') ? subPosGroupOf(sub) : ((typeof POS_GROUP !== 'undefined' && POS_GROUP[sub]) || 'MID');
     const colors = { GK:'#9c27b0', DEF:'#1976d2', MID:'#388e3c', FWD:'#d32f2f' };
     const c = colors[group] || '#888';
-    return `<span style="background:${c};color:#fff;font-size:9px;font-weight:800;padding:2px 5px;border-radius:4px;letter-spacing:.4px">${pos}</span>`;
+    return `<span style="background:${c};color:#fff;font-size:9px;font-weight:800;padding:2px 5px;border-radius:4px;letter-spacing:.4px">${sub}</span>`;
   }
 
+  // 686 — kadro listesindeki gibi: kendi avatarın, diğer gerçek oyuncuların avatarı, botlarda emoji
   function avatarHtml(p) {
-    const isUser = p.role === 'user';
-    if (isUser && typeof authUser !== 'undefined' && authUser && authUser.avatarId && typeof getAvatarEmoji === 'function') {
-      return getAvatarEmoji(authUser.avatarId, p.pos);
+    if (typeof getAvatarEmoji === 'function') {
+      if (p.role === 'user' && typeof authUser !== 'undefined' && authUser && authUser.avatarId) return getAvatarEmoji(authUser.avatarId, p.pos);
+      if (!p.isBot && p.avatar_id) return getAvatarEmoji(p.avatar_id, p.pos);
     }
     return p.avatar || '🤖';
   }
@@ -46787,7 +46792,7 @@ function showSquadGroupModal(group) {
               ${badge}
             </div>
             <div class="sgm-bottom">
-              ${posBadge(p.pos)}
+              ${posBadge(p)}
               <span class="sgm-lvl">Sv.${p.level || 0}</span>
             </div>
           </div>
@@ -55939,6 +55944,7 @@ async function joinTeamDirect(countryCode, teamName, opts) {
     const _jMsg = /sozlesme_aktif/.test(_jm) ? '⛔ Sözleşmen sürüyor, süresi bitmeden ayrılamazsın.'
       : /onay_gerekli/.test(_jm) ? '⛔ Bu takıma katılmak için kaptan onayı gerekiyor.'
       : /sart_karsilanmiyor/.test(_jm) ? '⛔ Takımın katılım şartlarını karşılamıyorsun.'
+      : /mevki_dolu/.test(_jm) && typeof _mevkiDoluMetin === 'function' ? '⛔ ' + _mevkiDoluMetin(_jm)
       : /kadro_dolu/.test(_jm) ? '⛔ Takım kadrosu dolu.'
       : /yabanci_dolu/.test(_jm) ? '⛔ Bu takımın yabancı oyuncu kontenjanı dolu (10/10).'
       : /zaten_takimda/.test(_jm) ? '⛔ Önce mevcut takımından ayrılmalısın.'
@@ -66156,6 +66162,13 @@ function openFacModal(facId) {
   document.getElementById('facModalName').textContent   = fac.name;
   document.getElementById('facModalLvl').textContent    = `Seviye ${lvl} → ${next}`;
   document.getElementById('facModalEffect').textContent = `${fac.effectLabel(lvl)} ${fac.nextLabel(lvl)||''}`;
+  // 686 — Takım Kapasitesi: sıradaki seviyede açılacak mevki koltuğu
+  try {
+    const _eskiSira = document.getElementById('facModalSira');
+    if (_eskiSira) _eskiSira.remove();
+    const _sk = (facId === 'capacity' && typeof _mkSiraKutu === 'function') ? _mkSiraKutu(lvl) : '';
+    if (_sk) document.getElementById('facModalEffect').insertAdjacentHTML('afterend', _sk);
+  } catch (e) {}
   document.getElementById('facModalCost').textContent   = cost;
 
   // 🆕 Kasa bakiyesini göster (gerçek kasadan, cüzdandan değil)
@@ -66199,10 +66212,15 @@ function closeFacModal() {
   _facUpgradeTarget = null;
 }
 
-function _facToast(msg, bg, fg, sure) {
+function _facToast(msg, bg, fg, sure, ek) {
   const t = document.createElement('div');
   t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:' + bg + ';color:' + (fg || '#fff') + ';padding:8px 18px;border-radius:20px;font-size:12px;font-weight:700;z-index:9999;font-family:Twemoji Country Flags,Barlow,sans-serif;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.4)';
   t.textContent = msg;
+  // 686 — ikinci satır (ör. "Forvet koltuğu açıldı")
+  if (ek) {
+    t.style.whiteSpace = 'normal'; t.style.textAlign = 'center'; t.style.width = 'max-content'; t.style.maxWidth = '92vw';
+    const s2 = document.createElement('span'); s2.className = 'mk-toast2'; s2.textContent = ek; t.appendChild(s2);
+  }
   document.body.appendChild(t);
   setTimeout(() => t.remove(), sure || 2200);
 }
@@ -66283,7 +66301,10 @@ function confirmUpgrade() {
     const ucret = Number(data.ucret) || cost;
     let _facMsg = `✅ ${fac.name} Seviye ${yeniLvl}! (-${ucret} 💎 kasadan)`;
     if(_perfDelta > 0) _facMsg += ` ⚡+${_perfDelta} bonus enerji takıma eklendi!`;
-    _facToast(_facMsg, 'var(--accent)', 'var(--bg)', 2400);
+    // 686 — Takım Kapasitesi: açılan mevki koltuğu ikinci satırda; hero formaları tazelenir
+    const _mkEk = (hedef === 'capacity' && typeof _mkAcilanMetin === 'function') ? _mkAcilanMetin(yeniLvl) : '';
+    _facToast(_facMsg, 'var(--accent)', 'var(--bg)', _mkEk ? 3200 : 2400, _mkEk);
+    if (hedef === 'capacity') { try { if (typeof thKunyeTazele === 'function') thKunyeTazele(); } catch (e) {} }
   }).catch(e => {
     window._facYukseltiliyor = false;
     console.warn('[tesis] rpc hata:', e);
@@ -68243,7 +68264,7 @@ async function confirmPosChange() {
         gecersiz_mevki: 'Geçersiz mevki.',
         oyuncu_bulunamadi: 'Oyuncu kaydı bulunamadı.',
         yazilamadi_para_iade: 'Kaydedilemedi, elmasların iade edildi.'
-      }[d && d.error] || 'Mevki değiştirilemedi.';
+      }[d && d.error] || ((typeof _mevkiDoluMetin === 'function') && _mevkiDoluMetin(d && d.error, d && d.grup)) || 'Mevki değiştirilemedi.';
       showPosToast('❌ ' + msg, '#ef5350');
       return;
     }
@@ -69708,7 +69729,7 @@ async function tmConfirmBuy(){
         zaten_takimda: 'Önce mevcut takımından ayrılmalısın.',
         yabanci_dolu: 'Bu takımın yabancı oyuncu kontenjanı dolu (10/10).',
         fiyat_degisti: 'İlan fiyatı değişti. Yeni fiyatı görüp tekrar dene.'
-      }[d && d.error] || 'Satın alınamadı.';
+      }[d && d.error] || ((typeof _mevkiDoluMetin === 'function') && _mevkiDoluMetin(d && d.error, d && d.grup)) || 'Satın alınamadı.';
       if(typeof showJoinToast === 'function') showJoinToast('❌ ' + msg);
       try { _tmCache = null; if (typeof tmRender === 'function') tmRender(); } catch(e) {}
       tmCloseBuyConfirm();
@@ -76623,7 +76644,7 @@ async function tfHireFreeAgent(agentId){
         yabanci_dolu: 'Takımının yabancı oyuncu kontenjanı dolu (10/10).',
         serbest_degil: 'Oyuncu artık serbest değil.',
         oyuncu_bulunamadi: 'Oyuncu bulunamadı.'
-      }[_d && _d.error] || 'Transfer hatası.';
+      }[_d && _d.error] || ((typeof _mevkiDoluMetin === 'function') && _mevkiDoluMetin(_d && _d.error, _d && _d.grup)) || 'Transfer hatası.';
       if (typeof rosterToast === 'function') rosterToast('❌ ' + _msg, 'err');
       if (typeof renderFreeAgentList === 'function') renderFreeAgentList();
       return;
@@ -77014,6 +77035,11 @@ function tfConfirmOffer() {
       && !cftCanAddPlayer(_tfTarget._playerRef.nationality, ROSTER_DATA, _userTeam.countryCode).ok) {
     tfShowToast('❌ Takımının yabancı oyuncu kontenjanı dolu (10/10).', 'var(--red)');
     return;
+  }
+  // 686 — oyuncunun mevkisi takımında doluysa teklif gönderilemez (kabulde sunucu da engeller)
+  {
+    const _mdm = (typeof _mkTeklifEngel === 'function') ? _mkTeklifEngel(_tfTarget._playerRef) : null;
+    if (_mdm) { tfShowToast('❌ ' + _mdm, 'var(--red)'); return; }
   }
   if (signingDia > 0 && typeof trsCanAfford === 'function' && !trsCanAfford('dia', signingDia)) {
     const balD = (typeof trsGetBalance==='function' ? trsGetBalance('dia') : 0).toLocaleString('tr');
@@ -78062,7 +78088,8 @@ async function inboxSendToUser(toUserId, msg) {
     if (!r.ok || !r.data || r.data.error) {
       const kod = (r.data && r.data.error) || ('http_' + r.status);
       console.error('[inboxSendToUser] hata:', kod, r.data);
-      if (typeof showToast === 'function' && _INBOX_HATA_TR[kod]) showToast('⚠️ ' + _INBOX_HATA_TR[kod]);
+      const _ht = _INBOX_HATA_TR[kod] || ((typeof _mevkiDoluMetin === 'function') && _mevkiDoluMetin(kod, r.data && r.data.grup));   // 686 — mevki kontenjanı
+      if (typeof showToast === 'function' && _ht) showToast('⚠️ ' + _ht);
       return false;
     }
     return true;
@@ -79083,7 +79110,7 @@ async function inboxAcceptTransfer(msgId) {
         kadro_dolu: 'Alıcı takımın kadrosu dolu.',
         teklif_isleniyor: 'Bu teklif zaten işleniyor.',
         kaptan_devretmeli: 'Kaptan transfer olamaz. Önce kaptanlığı bir takım arkadaşına devret.'
-      }[d && d.error] || 'Transfer tamamlanamadı.';
+      }[d && d.error] || ((typeof _mevkiDoluMetin === 'function') && _mevkiDoluMetin(d && d.error, d && d.grup)) || 'Transfer tamamlanamadı.';
       tfShowToast('❌ ' + msg, 'var(--red)');
       return;
     }
@@ -98889,6 +98916,203 @@ function konFisEkle(d, once) {
 :root body #page-national .team-hero-bar.nt-hero-bar .thk b{font:800 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.4px;color:#aab2c0}
 :root body #page-national .team-hero-bar.nt-hero-bar .thk b.tam{color:#46d17a}
 </style>
+<style id="mk-css">
+/* ═══════════════════════════════════════════════════════════════════
+   686 · MEVKİ KONTENJANI — hat kartlarının altında formalar
+   Renkli forma: dolu · kesik çizgili: boş koltuk · kilitli: tesis geliştikçe açılır
+   Milli takımda kırmızı forma: sakat/cezalı
+   ═══════════════════════════════════════════════════════════════════ */
+:root body #page-team #team-roster .team-hero-bar .thb-bar.mk{grid-template-areas:"lbl num" "trk trk" "kt kt"}
+:root body #page-team #team-roster .team-hero-bar .thk{grid-area:kt;display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:2px}
+:root body #page-team #team-roster .team-hero-bar .thk b{font:800 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.4px;color:#aab2c0}
+:root body #page-team #team-roster .team-hero-bar .thk b.tam{color:#46d17a}
+.thk-forma{display:inline-flex;align-items:center;gap:2px;min-width:0}
+.thk-forma i{width:13px;height:13px;flex:0 0 13px;position:relative;display:inline-flex;align-items:center;justify-content:center;font-style:normal}
+.thk-forma i svg{width:13px;height:13px}
+.thk-forma i.d svg{fill:currentColor}
+.thk-forma i.d.r svg{fill:#ef5350}
+.thk-forma i.b svg{fill:none;stroke:currentColor;stroke-width:1.7;stroke-dasharray:2.4 1.8;opacity:.8}
+.thk-forma i.k svg{fill:rgba(255,255,255,.07)}
+.thk-forma i.k em{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#5d6575}
+.thk-forma i.k em svg{width:7px;height:7px;fill:none;margin-top:2px}
+/* Tesis penceresi: açılacak koltuk */
+.mk-sirada{margin:-4px 0 18px;padding:12px 14px 13px;border-radius:12px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08);text-align:left}
+.mk-sirada .t{font:800 9.5px 'Barlow Condensed',sans-serif;letter-spacing:1.2px;color:#8a93a3;text-transform:uppercase;margin-bottom:8px}
+.mk-sirada .r{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.mk-sirada .ad{display:flex;align-items:center;gap:8px;font:800 15px 'Barlow',sans-serif;color:#fff}
+.mk-sirada .ad b{font:800 11px 'Barlow Condensed',sans-serif;letter-spacing:1.2px;padding:3px 7px;border-radius:6px}
+.mk-sirada .n{font:900 17px 'Barlow Condensed',sans-serif;color:#fff;white-space:nowrap}
+.mk-sirada .n span{color:#6f7787;margin:0 4px;font-weight:800}
+.mk-sirada .fr{display:flex;gap:5px;margin-top:11px}
+.mk-sirada .fr b{width:24px;height:22px;display:flex;align-items:center;justify-content:center;position:relative}
+.mk-sirada .fr b svg{width:22px;height:22px}
+.mk-sirada .fr b.d svg{fill:currentColor}
+.mk-sirada .fr b.b svg{fill:none;stroke:currentColor;stroke-width:1.5;stroke-dasharray:2.4 1.8;opacity:.8}
+.mk-sirada .fr b.k svg{fill:rgba(255,255,255,.06)}
+.mk-sirada .fr b.k em{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#5d6575}
+.mk-sirada .fr b.k em svg{width:10px;height:10px;fill:none;margin-top:3px}
+.mk-sirada .fr b.y svg{fill:none;stroke:currentColor;stroke-width:1.8;filter:drop-shadow(0 0 5px currentColor);animation:mkNabiz 1.2s ease-in-out infinite}
+@keyframes mkNabiz{50%{opacity:.4}}
+.mk-toast2{display:block;margin-top:3px;font-weight:800}
+</style>
+<script id="mk-js">
+// ═══════════════════════════════════════════════════════════════════
+// 686 · MEVKİ KONTENJANI
+//   Takım Kapasitesi seviyesine göre her mevkinin koltuğu (kaleci hep 2; toplam 14 + seviye).
+//   Kural sunucuda (mevki_yer_var / join_team_take_slot); burada yalnız gösterim ve mesajlar.
+// ═══════════════════════════════════════════════════════════════════
+(function () {
+  const KOTA = { GK: [2,2,2,2,2,2,2,2,2,2], DEF: [4,4,4,5,5,5,5,6,6,6], MID: [5,5,6,6,6,7,7,7,8,8], FWD: [4,5,5,5,6,6,7,7,7,8] };
+  const SIRA = ['GK', 'DEF', 'MID', 'FWD'];
+  const MAX = { GK: 2, DEF: 6, MID: 8, FWD: 8 };
+  const RENK = { GK: '#ffd166', DEF: '#66b3ff', MID: '#46d17a', FWD: '#ff8c66' };
+  const KOD = { GK: 'KL', DEF: 'DF', MID: 'OS', FWD: 'FW' };
+  const AD = { GK: 'Kaleci', DEF: 'Defans', MID: 'Orta Saha', FWD: 'Forvet' };
+  const SEC = { GK: 'kl', DEF: 'df', MID: 'os', FWD: 'fw' };
+  const POSG = { KL:'GK', GK:'GK', STB:'DEF', SB:'DEF', CB:'DEF', RB:'DEF', LB:'DEF', DEF:'DEF',
+    DOS:'MID', OS:'MID', SAK:'MID', SOK:'MID', CAM:'MID', DM:'MID', CM:'MID', RM:'MID', LM:'MID', AM:'MID', MID:'MID',
+    FWD:'FWD', RF:'FWD', LF:'FWD', ST:'FWD' };
+  const FORMA = '<svg viewBox="0 0 24 24"><path d="M8.2 3 4 5 1.8 9.4 5 11.2l1-1V21h12V10.2l1 1 3.2-1.8L20 5l-4.2-2c-.8 1.9-2.2 2.9-3.8 2.9S9 4.9 8.2 3Z"/></svg>';
+  const KILIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+  const DOLU_METIN = { GK: 'Bu takımda kaleci kontenjanı dolu.', DEF: 'Bu takımda defans kontenjanı dolu.',
+                       MID: 'Bu takımda orta saha kontenjanı dolu.', FWD: 'Bu takımda forvet kontenjanı dolu.' };
+
+  const grup = (p) => (p && (POSG[p.posGroup] || POSG[p.pos_group] || POSG[p.pos])) || 'MID';
+  const sv = (x) => Math.max(1, Math.min(10, Math.floor(Number(x) || 1)));
+  const say = (kadro) => { const s = { GK: 0, DEF: 0, MID: 0, FWD: 0 }; (kadro || []).forEach(p => { if (p) s[grup(p)]++; }); return s; };
+
+  // dolu: oyuncu · kirmizi: sakat/cezalı (milli) · acik: açılmış koltuk · max: en üst seviyedeki koltuk
+  function formalar(g, dolu, acik, max, kirmizi) {
+    kirmizi = kirmizi || 0;
+    let h = '';
+    for (let i = 0; i < Math.max(max, dolu); i++) {
+      if (i < dolu - kirmizi) h += '<i class="d">' + FORMA + '</i>';
+      else if (i < dolu) h += '<i class="d r">' + FORMA + '</i>';
+      else if (i < acik) h += '<i class="b">' + FORMA + '</i>';
+      else h += '<i class="k">' + FORMA + '<em>' + KILIT + '</em></i>';
+    }
+    return '<span class="thk-forma" style="color:' + RENK[g] + '">' + h + '</span>';
+  }
+
+  // Bir sonraki seviyede açılacak mevki (lvl: mevcut seviye)
+  function siradaki(lvl) {
+    lvl = sv(lvl);
+    if (lvl >= 10) return null;
+    for (const g of SIRA) if (KOTA[g][lvl] > KOTA[g][lvl - 1]) return g;
+    return null;
+  }
+
+  // ── Kulüp hero'su (kendi takımı ve ziyaretçi) ──
+  const svOnb = {}, svYukleniyor = {};
+  // Ziyaret edilen takımın Takım Kapasitesi seviyesi — her ziyarette bir kez sunucudan okunur
+  function ziyaretSv(cc, ad, v) {
+    const k = cc + ':' + ad, o = svOnb[k];
+    if (o && o.v === v) return o.sv;
+    if (!svYukleniyor[k] && window.sb) {
+      svYukleniyor[k] = true;
+      window.sb.from('team_data').select('data').eq('country_code', cc).eq('team_name', ad).eq('data_key', 'facilities').maybeSingle()
+        .then(({ data, error }) => {
+          svYukleniyor[k] = false;
+          if (error) return;
+          svOnb[k] = { sv: sv(data && data.data && data.data.capacity), v };
+          const g = (typeof _viewingTeam !== 'undefined') ? _viewingTeam : null;
+          if (g && g === v && typeof window.thKunyeTazele === 'function') window.thKunyeTazele();
+        }, () => { svYukleniyor[k] = false; });
+    }
+    return o ? o.sv : null;
+  }
+  function kulupCiz(hero) {
+    if (!hero) return;
+    let kadro = [], lvl = null;
+    const v = (typeof _viewingTeam !== 'undefined') ? _viewingTeam : null;
+    if (v && v.teamRef) {
+      const cc = String(v.countryCode || '').toUpperCase().slice(0, 2), ad = v.teamRef.name;
+      try { kadro = (typeof _teamRosterCache !== 'undefined' && _teamRosterCache[cc + ':' + ad]) || []; } catch (e) {}
+      lvl = ziyaretSv(cc, ad, v);
+    } else {
+      const ut = (typeof _userTeam !== 'undefined') ? _userTeam : null;
+      try { kadro = (ut && ut.teamName && typeof ROSTER_DATA !== 'undefined' && Array.isArray(ROSTER_DATA)) ? ROSTER_DATA : []; } catch (e) {}
+      try { lvl = sv(typeof FAC_LEVELS !== 'undefined' && FAC_LEVELS && FAC_LEVELS.capacity); } catch (e) { lvl = 1; }
+    }
+    const temizle = () => hero.querySelectorAll('.thb-line-bars .thb-bar.mk').forEach(b => { b.classList.remove('mk'); b.querySelectorAll('.thk').forEach(k => k.remove()); });
+    if (!kadro.length || lvl == null) { temizle(); return; }
+    const s = say(kadro);
+    for (const g of SIRA) {
+      const bar = hero.querySelector('.thb-line-bars .thb-bar.' + SEC[g]);
+      if (!bar) continue;
+      let k = bar.querySelector('.thk');
+      if (!k) { k = document.createElement('div'); k.className = 'thk'; k.setAttribute('data-noi18n', ''); bar.appendChild(k); }
+      bar.classList.add('mk');
+      const acik = KOTA[g][lvl - 1], dolu = s[g];
+      const h = formalar(g, dolu, acik, MAX[g]) + '<b class="' + (dolu >= acik ? 'tam' : '') + '">' + dolu + '/' + acik + '</b>';
+      if (k.innerHTML !== h) k.innerHTML = h;
+    }
+  }
+
+  // ── Tesis penceresi: açılacak koltuk (yalnız Takım Kapasitesi) ──
+  function siraKutu(lvl) {
+    lvl = sv(lvl);
+    const g = siradaki(lvl);
+    if (!g) return '';
+    let dolu = 0;
+    try { dolu = say(typeof ROSTER_DATA !== 'undefined' ? ROSTER_DATA : [])[g]; } catch (e) {}
+    const acik = KOTA[g][lvl - 1];
+    let f = '';
+    for (let i = 0; i < MAX[g]; i++) {
+      f += i < dolu ? '<b class="d">' + FORMA + '</b>'
+         : i < acik ? '<b class="b">' + FORMA + '</b>'
+         : i === acik ? '<b class="y">' + FORMA + '</b>'
+         : '<b class="k">' + FORMA + '<em>' + KILIT + '</em></b>';
+    }
+    const r = RENK[g];
+    return '<div class="mk-sirada" id="facModalSira"><div class="t">Açılacak koltuk</div>'
+      + '<div class="r"><div class="ad"><b style="color:' + r + ';background:' + r + '22;border:1px solid ' + r + '77">' + KOD[g] + '</b>' + AD[g] + '</div>'
+      + '<div class="n" data-noi18n>' + acik + '<span>→</span>' + (acik + 1) + '</div></div>'
+      + '<div class="fr" style="color:' + r + '">' + f + '</div></div>';
+  }
+  // Geliştirme sonrası bildirimin ikinci satırı (lvl: yeni seviye)
+  function acilanMetin(lvl) {
+    const g = siradaki(sv(lvl) - 1);
+    return g ? AD[g] + ' koltuğu açıldı' : '';
+  }
+
+  // ── Hata mesajı: sunucu "mevki_dolu:<GRUP>" ya da { error:'mevki_dolu', grup } döner ──
+  function doluMetin(x, g) {
+    const m = String(x || '').match(/mevki_dolu(?::(GK|DEF|MID|FWD))?/);
+    if (!m) return null;
+    return DOLU_METIN[g] || DOLU_METIN[m[1]] || DOLU_METIN.MID;
+  }
+  // Transfer teklifi öncesi: kendi takımında oyuncunun mevkisi dolu mu? (sunucu da bakar)
+  function teklifEngel(p) {
+    try {
+      if (!p || typeof ROSTER_DATA === 'undefined' || !Array.isArray(ROSTER_DATA) || !ROSTER_DATA.length) return null;
+      const g = POSG[p.posGroup] || POSG[p.pos_group];   // mevkisi kesin bilinmiyorsa karar sunucuya kalır
+      if (!g) return null;
+      const lvl = sv(typeof FAC_LEVELS !== 'undefined' && FAC_LEVELS && FAC_LEVELS.capacity);
+      return say(ROSTER_DATA)[g] >= KOTA[g][lvl - 1] ? DOLU_METIN[g] : null;
+    } catch (e) { return null; }
+  }
+
+  window._mkFormalar = formalar;
+  window._mkKulupCiz = kulupCiz;
+  window._mkSiraKutu = siraKutu;
+  window._mkAcilanMetin = acilanMetin;
+  window._mevkiDoluMetin = doluMetin;
+  window._mkTeklifEngel = teklifEngel;
+
+  // Tesis seviyeleri sunucudan gelince hero yeniden çizilir
+  const eskiFac = window._facLevelsLoadFromServer;
+  if (typeof eskiFac === 'function' && !eskiFac.__mk) {
+    const yeni = function () {
+      const r = eskiFac.apply(this, arguments);
+      Promise.resolve(r).then(() => { try { if (typeof window.thKunyeTazele === 'function') window.thKunyeTazele(); } catch (e) {} });
+      return r;
+    };
+    yeni.__mk = true;
+    window._facLevelsLoadFromServer = yeni;
+  }
+})();
+</script>
 <script id="th-js">
 // ═══════════════════════════════════════════════════════════════════
 // 581 · KADRO HERO — Tasarım A "Künye" · görsel yardımcı (işlev yok)
@@ -98929,6 +99153,8 @@ function konFisEkle(d, once) {
         let url = null;
         try { url = (t && typeof teamLogoUrl === 'function') ? teamLogoUrl(Object.assign({}, t, { countryCode: cc })) : null; } catch (e) {}
         h.style.setProperty('--thLogo', url ? `url("${url}")` : 'none');
+        // 686 — mevki kontenjanı: hat kartlarının altında formalar (dolu/açık)
+        try { if (typeof window._mkKulupCiz === 'function') window._mkKulupCiz(h); } catch (e) {}
       }
       // Milli takım
       const n = document.querySelector('#page-national .nt-hero-bar');
@@ -98973,7 +99199,10 @@ function konFisEkle(d, once) {
       let k = bar.querySelector('.thk');
       if (!k) { k = document.createElement('div'); k.className = 'thk'; k.setAttribute('data-noi18n', ''); bar.appendChild(k); }
       const [n, r] = say[g];
-      const h = '<span class="thk-top">' + thToplar(n, kota, r) + '</span><b class="' + (n >= kota ? 'tam' : '') + '">' + n + '/' + kota + '</b>';
+      // 686 — yeşil toplar yerine mevki renginde formalar (kırmızı = sakat/cezalı)
+      const top = (typeof window._mkFormalar === 'function') ? window._mkFormalar(g, n, kota, kota, r)
+        : '<span class="thk-top">' + thToplar(n, kota, r) + '</span>';
+      const h = top + '<b class="' + (n >= kota ? 'tam' : '') + '">' + n + '/' + kota + '</b>';
       if (k.innerHTML !== h) k.innerHTML = h;
     });
   }

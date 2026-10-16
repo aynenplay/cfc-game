@@ -7546,3 +7546,6 @@ window.I18N_PATTERNS.en.push([/^(Şikayet|İste[kğ]|Tale[pb]|Bildirim)ine Yeni 
 
 /* ── 685 · destek talebi kapandı ── */
 Object.assign(window.I18N.en, { 'Talep kapandı': 'Request closed' });
+
+/* ── 686 · mevki kontenjanı ── */
+Object.assign(window.I18N.en, {"Açılacak koltuk": "Seat to unlock", "Kaleci koltuğu açıldı": "Goalkeeper seat unlocked", "Defans koltuğu açıldı": "Defence seat unlocked", "Orta Saha koltuğu açıldı": "Midfield seat unlocked", "Forvet koltuğu açıldı": "Forward seat unlocked", "Bu takımda kaleci kontenjanı dolu.": "This team’s goalkeeper quota is full.", "Bu takımda defans kontenjanı dolu.": "This team’s defender quota is full.", "Bu takımda orta saha kontenjanı dolu.": "This team’s midfielder quota is full.", "Bu takımda forvet kontenjanı dolu.": "This team’s forward quota is full.", "Mevki Kontenjanı Dolu": "Position Quota Full"});

@@ -5481,3 +5481,6 @@ window.I18N_PATTERNS.de.push([/^(Şikayet|İste[kğ]|Tale[pb]|Bildirim)ine Yeni 
 
 /* ── 685 · destek talebi kapandı ── */
 Object.assign(window.I18N.de, { 'Talep kapandı': 'Anfrage geschlossen' });
+
+/* ── 686 · mevki kontenjanı ── */
+Object.assign(window.I18N.de, {"Açılacak koltuk": "Nächster Kaderplatz", "Kaleci koltuğu açıldı": "Torwart-Platz freigeschaltet", "Defans koltuğu açıldı": "Abwehr-Platz freigeschaltet", "Orta Saha koltuğu açıldı": "Mittelfeld-Platz freigeschaltet", "Forvet koltuğu açıldı": "Sturm-Platz freigeschaltet", "Bu takımda kaleci kontenjanı dolu.": "Das Torwart-Kontingent dieses Teams ist voll.", "Bu takımda defans kontenjanı dolu.": "Das Abwehr-Kontingent dieses Teams ist voll.", "Bu takımda orta saha kontenjanı dolu.": "Das Mittelfeld-Kontingent dieses Teams ist voll.", "Bu takımda forvet kontenjanı dolu.": "Das Sturm-Kontingent dieses Teams ist voll.", "Mevki Kontenjanı Dolu": "Positionskontingent voll"});
