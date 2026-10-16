@@ -24993,7 +24993,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-16-destekcevap-683';
+const APP_BUILD = '2026-10-16-klavye-684';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -78050,9 +78050,27 @@ function _inboxApplyViewport() {
     try { active.scrollIntoView({ block:'center', behavior:'smooth' }); } catch(e){}
   }
 }
+// 683 — klavye açılınca görünür alan küçülüyor ama konuşma kaydırılmıyordu: karşı tarafın son
+//   mesajı klavyenin altında kalıyordu. Yanıt kutusuna yazarken ya da konuşmanın sonundayken
+//   görünür alan her değiştiğinde konuşma en alta kayar (klavye animasyonu boyunca birkaç kez).
+let _inboxAltta = true, _inboxSonT = [];
+function _inboxSonaKaydir() {
+  const ov = document.getElementById('inboxOverlay');
+  const b = document.getElementById('inboxDetailBody');
+  if (!ov || !b || !ov.classList.contains('open') || _inboxView !== 'detail') return;
+  const inp = document.getElementById('inboxReplyInput');
+  if (!(_inboxAltta || document.activeElement === inp)) return;
+  _inboxSonT.forEach(clearTimeout);
+  _inboxSonT = [0, 120, 300, 600].map(ms => setTimeout(() => { b.scrollTop = b.scrollHeight; _inboxAltta = true; }, ms));
+}
 function _inboxBindViewport() {
   if (_inboxVVbound) return;
   _inboxVVbound = true;
+  const _db = document.getElementById('inboxDetailBody');
+  if (_db) _db.addEventListener('scroll', () => { _inboxAltta = _db.scrollHeight - _db.scrollTop - _db.clientHeight < 60; }, { passive: true });
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', _inboxSonaKaydir);
+  window.addEventListener('resize', _inboxSonaKaydir);
+  document.addEventListener('focusin', (e) => { if (e.target && e.target.id === 'inboxReplyInput') _inboxSonaKaydir(); });
   // input/textarea focus olunca o alanı görünür yap
   document.addEventListener('focusin', (e) => {
     const ov = document.getElementById('inboxOverlay');
@@ -86883,13 +86901,13 @@ async function cfcMdOpenSearch() {
   const inp = document.getElementById('cfcMdSearchInput');
   if (!ov) return;
   ov.classList.add('open');
-  if (inp) inp.value = '';
+  if (inp) { inp.value = ''; inp.blur(); }
+  // 683 — klavye kendiliğinden açılmaz: arama çubuğu ve kişiler görünür, kutuya dokununca klavye açılır
+  if (_cfcMdUsersCache && _cfcMdUsersCache.length) cfcMdRenderSearchResults('');
   // 🆕 Önce server'dan kayıtlı kullanıcıları yükle, sonra render
   try { await cfcMdLoadKnownUsers(''); } catch(e) {}
   await _cfcMdRozetYukle(cfcMdGetKnownUsers().map(u => u.id));
-  cfcMdRenderSearchResults('');
-  // Bir tık sonra fokuslan (animasyon bitsin)
-  setTimeout(() => { if (inp) inp.focus(); }, 250);
+  if (!inp || !inp.value) cfcMdRenderSearchResults('');
 }
 
 function cfcMdCloseSearch() {
