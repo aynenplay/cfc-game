@@ -7535,3 +7535,7 @@ window.I18N_PATTERNS.en.push([/^Kalan Maaş Ödemesi: (.+)$/, 'Remaining Wage Pa
 /* ── 680 · kaptan transferi · maaş iadesi ── */
 Object.assign(window.I18N.en, { 'Kaptan transfer olamaz. Önce kaptanlığı bir takım arkadaşına devret.': 'The captain cannot be transferred. Hand the captaincy to a teammate first.' });
 window.I18N_PATTERNS.en.push([/^Maaş İadesi: (.+?) \(Sezon (\d+) Gün (\d+)\)$/, 'Wage Refund: $1 (Season $2 Day $3)']);
+
+/* ── 681 · maaş borcu ödemesi · kaydedilemedi · takıma katıldı ── */
+Object.assign(window.I18N.en, { 'Maaş borcu ödemesi': 'Unpaid wage payment', 'Kaydedilemedi, tekrar dene.': 'Could not be saved, try again.' });
+window.I18N_PATTERNS.en.push([/^• Maaş borcu ödemesi: (.+)$/, '• Unpaid wage payment: $1'], [/^✅ (.+?) takıma katıldı!$/, '✅ $1 joined the team!']);

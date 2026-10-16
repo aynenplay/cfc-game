@@ -5470,3 +5470,7 @@ window.I18N_PATTERNS.de.push([/^Kalan Maaş Ödemesi: (.+)$/, 'Restgehaltszahlun
 /* ── 680 · kaptan transferi · maaş iadesi ── */
 Object.assign(window.I18N.de, { 'Kaptan transfer olamaz. Önce kaptanlığı bir takım arkadaşına devret.': 'Der Kapitän kann nicht wechseln. Übergib die Kapitänsbinde zuerst einem Mitspieler.' });
 window.I18N_PATTERNS.de.push([/^Maaş İadesi: (.+?) \(Sezon (\d+) Gün (\d+)\)$/, 'Gehaltsrückerstattung: $1 (Saison $2 Tag $3)']);
+
+/* ── 681 · maaş borcu ödemesi · kaydedilemedi · takıma katıldı ── */
+Object.assign(window.I18N.de, { 'Maaş borcu ödemesi': 'Zahlung des Gehaltsrückstands', 'Kaydedilemedi, tekrar dene.': 'Konnte nicht gespeichert werden, versuche es erneut.' });
+window.I18N_PATTERNS.de.push([/^• Maaş borcu ödemesi: (.+)$/, '• Zahlung des Gehaltsrückstands: $1'], [/^✅ (.+?) takıma katıldı!$/, '✅ $1 ist dem Team beigetreten!']);

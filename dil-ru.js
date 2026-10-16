@@ -7140,3 +7140,7 @@ window.I18N_PATTERNS.ru.push([/^Kalan Maaş Ödemesi: (.+)$/, 'Выплата о
 /* ── 680 · kaptan transferi · maaş iadesi ── */
 Object.assign(window.I18N.ru, { 'Kaptan transfer olamaz. Önce kaptanlığı bir takım arkadaşına devret.': 'Капитан не может перейти. Сначала передай капитанство партнёру.' });
 window.I18N_PATTERNS.ru.push([/^Maaş İadesi: (.+?) \(Sezon (\d+) Gün (\d+)\)$/, 'Возврат зарплаты: $1 (Сезон $2, день $3)']);
+
+/* ── 681 · maaş borcu ödemesi · kaydedilemedi · takıma katıldı ── */
+Object.assign(window.I18N.ru, { 'Maaş borcu ödemesi': 'Выплата долга по зарплате', 'Kaydedilemedi, tekrar dene.': 'Не удалось сохранить, попробуй ещё раз.' });
+window.I18N_PATTERNS.ru.push([/^• Maaş borcu ödemesi: (.+)$/, '• Выплата долга по зарплате: $1'], [/^✅ (.+?) takıma katıldı!$/, '✅ $1 вступил в команду!']);

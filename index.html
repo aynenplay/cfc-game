@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '680';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '681';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -24993,7 +24993,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-16-kasaguvenlik-680';
+const APP_BUILD = '2026-10-16-kadroakis-681';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -29081,7 +29081,7 @@ function canUserLeaveTeam() {
       const info = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : null;
       const remainSeasons = (info && typeof c.endsSeason === 'number')
         ? Math.max(0, c.endsSeason - info.season + 1) : 0;
-      const seasonSal = Number(c.seasonSalary || c.yearlySalary || 0);
+      const seasonSal = _benimSezonMaasim();
       const salStr = seasonSal > 0
         ? `Sezon maaşı: ${(seasonSal/1000).toLocaleString('tr')}K € (4 taksit)\n` : '';
       return {
@@ -29999,7 +29999,9 @@ window.inboxApproveJoinRequest = async function(msgId){
     const fmt = (v) => v >= 1e6 ? (v/1e6).toFixed(2)+'M €' : Math.round(v/1000)+'K €';
     const t = document.createElement('div');
     t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#00c853,#43a047);color:#fff;padding:14px 24px;border-radius:24px;font-size:14px;font-weight:700;z-index:9999;font-family:Twemoji Country Flags,"Barlow Condensed",sans-serif;letter-spacing:.4px;box-shadow:0 8px 24px rgba(0,0,0,.4)';
-    t.textContent = `✅ ${resData.requestor_name} takıma katıldı! ${fmt(d.signingBonus)} kasadan ödendi.`;
+    const _dia = Number(d.signingDiamond) || 0;   // 681 — kasadan düşen imza elması (€ imza bonusu yok)
+    t.textContent = _dia > 0 ? `✅ ${resData.requestor_name} takıma katıldı! ${_dia.toLocaleString('tr')} 💎 kasadan ödendi.`
+                             : `✅ ${resData.requestor_name} takıma katıldı!`;
     document.body.appendChild(t);
     setTimeout(() => { t.style.transition='opacity .4s'; t.style.opacity='0'; setTimeout(()=>t.remove(),400); }, 3500);
   } catch(e){}
@@ -41137,6 +41139,7 @@ async function userTeamLoadFromServer() {
     } else {
       _userTeam = null;
     }
+    window._utYuklendi = true;   // 681 — durum kontrolü (presence) bundan sonra karşılaştırır
     // 🆕 KRİTİK: çekirdek maç yüklemesi açılışta _userTeam henüz belli olmadığı için
     //   kendi ülkenin maçlarını atlıyordu (lig sahnesi + maç önizleme boş kalıyordu).
     //   Takım belli olur olmaz o ülkenin tüm sezon maçlarını çek ve panelleri doldur.
@@ -41155,6 +41158,19 @@ async function userTeamLoadFromServer() {
     modEngelYukle();
     if (_userTeam && _userTeam.role === 'captain') _szMevcutKontrol(user.id);
   } catch(e) { console.warn('[userTeam] load hata:', e); _userTeam = null; }
+}
+
+// 681 — takım değişince (ayrılma, katılma, satın alma, transfer) eski takımın diziliş/taktiği,
+//   tesis seviyeleri ve kasası yeni takımda görünmesin: takıma ait önbellekler sunucudan yeniden okunur
+async function _takimVerisiTazele() {
+  _teamStrategyCache = null; _trsCache = null;
+  try { activePitchPlayers = []; benchPlayers = []; } catch(e) {}
+  await _teamStrategyLoadFromServer();
+  await _facLevelsLoadFromServer();
+  if (_userTeam) {
+    await _trsLoadFromServer();
+    if (typeof _mfsLoadFromServer === 'function') await _mfsLoadFromServer();
+  }
 }
 
 // 629 — Yönetim değişikliği (takım, rol, mevki, avatar, seviye) gelince yalnız kendi verimi tazele.
@@ -43224,7 +43240,7 @@ function closeKickConfirm(){
 }
 
 // Kov işlemini gerçekleştir (Onay Ver)
-function executeKick(){
+async function executeKick(){
   const num = _pendingKickNum;
   _pendingKickNum = null;
   // Modal'ı kapat
@@ -43245,24 +43261,15 @@ function executeKick(){
     return;
   }
 
-  // Players tablosunda team_name=null yap → free agent havuzuna düşer (RPC ile RLS bypass)
-  if (window.sb && p.id) {
-    (async () => {
-      try {
-        const { error } = await window.sb.rpc('team_kick_member', {
-          target_player_id: p.id
-        });
-        if (!error && typeof _trsLoadFromServer === 'function') _trsLoadFromServer().then(() => { if (typeof trsRender === 'function') trsRender(); if (typeof trsSyncHeader === 'function') trsSyncHeader(); });
-        if (error) {
-          rosterToast(/kasa_yetersiz/.test(error.message || '') ? 'Kasada kalan maaşı ödeyecek kadar para yok.' : 'Kov başarısız: ' + error.message, 'err');
-          // Lokal değişikliği geri al
-          ROSTER_DATA.push(p);
-          ROSTER_DATA.sort((a,b) => (a.num||999)-(b.num||999));
-          if (typeof renderRoster === 'function') renderRoster(rosterCurrentFilter || 'all');
-        }
-      } catch(e) { console.warn('[kick] hata:', e); }
-    })();
+  // 681 — önce sunucu: kovma (ve kalan maaş ödemesi) gerçekleşmeden kadro ve diziliş değiştirilmez,
+  //   başarı gösterilmez (eskiden ekran önce güncelleniyor, sunucu reddederse diziliş bozuk kalıyordu)
+  if (!window.sb || !p.id) { rosterToast('Oyuncu bulunamadı.', 'err'); return; }
+  const { error: _kErr } = await window.sb.rpc('team_kick_member', { target_player_id: p.id });
+  if (_kErr) {
+    rosterToast(/kasa_yetersiz/.test(_kErr.message || '') ? 'Kasada kalan maaşı ödeyecek kadar para yok.' : 'Kov başarısız: ' + _kErr.message, 'err');
+    return;
   }
+  if (typeof _trsLoadFromServer === 'function') _trsLoadFromServer().then(() => { if (typeof trsRender === 'function') trsRender(); if (typeof trsSyncHeader === 'function') trsSyncHeader(); });
 
   // Lokal ROSTER_DATA'dan çıkar (UI hemen güncellensin)
   const idx = ROSTER_DATA.findIndex(x => x.num === num);
@@ -45643,7 +45650,7 @@ function _ayrilamazModal(check) {
   const info = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : null;
   const bitis = (typeof c.endsSeason === 'number') ? c.endsSeason : null;
   const kalan = (info && bitis != null) ? Math.max(0, bitis - info.season + 1) : null;
-  const maas = Number(c.seasonSalary || c.yearlySalary || 0);
+  const maas = _benimSezonMaasim();
   const satir = (ic, lbl, val) => '<div class="info-modal-row"><div class="info-modal-row-ic">' + ic + '</div>'
     + '<div class="info-modal-row-body"><div class="info-modal-row-lbl">' + lbl + '</div>'
     + '<div class="info-modal-row-val">' + val + '</div></div></div>';
@@ -45718,6 +45725,7 @@ function leaveTeamPrompt() {
       }
       if (typeof invalidateFixtureCache === 'function') invalidateFixtureCache();
       _userTeam = null;
+      await _takimVerisiTazele();
       try { if (typeof _invalidateRealCaptainsCache === 'function') _invalidateRealCaptainsCache(); } catch(e){}
       rosterClearTeam();
       applyUserTeamUI();
@@ -55770,6 +55778,7 @@ async function joinTeamDirect(countryCode, teamName, opts) {
     });
   }
 
+  await _takimVerisiTazele();
   // ROSTER_DATA'yı yeni takıma göre yeniden inşa et
   if(typeof syncUserToRoster === 'function') syncUserToRoster();
   if(typeof rosterBuildTeam === 'function') rosterBuildTeam(countryCode);
@@ -56682,24 +56691,25 @@ function _capReqSetContract(v){
   if(yes){ yes.style.borderColor=v?'#ffd54f':'var(--border)'; yes.style.background=v?'rgba(255,213,79,.12)':'rgba(255,255,255,.04)'; yes.style.color=v?'#ffd54f':'var(--text2)'; }
 }
 
-function captainSaveJoinReqs() {
+async function captainSaveJoinReqs() {
   if(!_userTeam || (_userTeam.role !== 'captain' && _userTeam.role !== 'vice')) return;
   const minSkill = Math.max(0, Math.min(99, parseInt(document.getElementById('capReqMinSkill').value, 10) || 0));
   const minLevel = Math.max(0, Math.min(99, parseInt(document.getElementById('capReqMinLevel').value, 10) || 0));
   const contract = (document.getElementById('capReqContract')||{}).value === '1';
+  // 🆕 Paylaşılan politika (başka oyuncular da okusun) → teams.join_policy
+  //   681 — "Kaydedildi" yalnız sunucu kaydettiyse
+  const { data: _pr, error: _pErr } = window.sb ? await window.sb.rpc('set_team_join_policy', {
+    p_cc: _userTeam.countryCode, p_name: _userTeam.teamName,
+    p_contract: contract, p_min_skill: minSkill, p_min_level: minLevel
+  }) : { data: null, error: true };
+  if (_pErr || !_pr || _pr.ok !== true) {
+    if(typeof showJoinToast === 'function') showJoinToast('❌ Kaydedilemedi, tekrar dene.');
+    return;
+  }
   _userTeam.joinRequirements = { minSkill, minLevel, contract };
   if(typeof userTeamSave === 'function') userTeamSave();
-  // 🆕 Paylaşılan politika (başka oyuncular da okusun) → teams.join_policy
-  if(window.sb){
-    (async()=>{ try{
-      await window.sb.rpc('set_team_join_policy', {
-        p_cc: _userTeam.countryCode, p_name: _userTeam.teamName,
-        p_contract: contract, p_min_skill: minSkill, p_min_level: minLevel
-      });
-      window._teamJoinPolicyCache = window._teamJoinPolicyCache || {};
-      window._teamJoinPolicyCache[_userTeam.countryCode+':'+_userTeam.teamName] = { contract, minSkill, minLevel };
-    }catch(e){ console.warn('[joinPolicy] kaydedilemedi:', e); } })();
-  }
+  window._teamJoinPolicyCache = window._teamJoinPolicyCache || {};
+  window._teamJoinPolicyCache[_userTeam.countryCode+':'+_userTeam.teamName] = { contract, minSkill, minLevel };
   const m = document.getElementById('captainReqModal');
   if(m) m.remove();
   if(typeof showJoinToast === 'function') {
@@ -69529,14 +69539,10 @@ async function tmConfirmBuy(){
     return;
   }
 
-  // Yeni takıma kaptan olarak yerleş
-  _userTeam = {
-    countryCode: listing.countryCode,
-    teamName: listing.teamName,
-    role: 'captain',
-    joinedAt: Date.now(),
-  };
-  userTeamSave();
+  // Yeni takıma kaptan olarak yerleş — 681: takım, rol ve forma numarası sunucunun yazdığından okunur
+  //   (eskiden burada kurulan nesne kaydedilince sunucunun verdiği forma numarası 16+ ile eziliyordu)
+  await userTeamLoadFromServer();
+  await _takimVerisiTazele();
 
   // Career history: TM'den satın alınan takım (kaptan)
   if (typeof pushCareerHistory === 'function') {
@@ -77233,13 +77239,10 @@ function tfAcceptOffer() {
   // 595 — Transfer kaydı artık yalnız sunucuda, oyuncu gerçekten taşındığında yazılır
   //   (kariyer_hareket). Buradan yazılan kayıt oyuncu taşınmadan "transfer" gösteriyordu.
 
-  // Oyuncuyu listeden çıkar
-  const newList = list.filter(l=>l.id!==_tfIncomingOffer.itemId);
-  saveTfList(newList);
-
+  // 681 — teklif gerçekte gelen kutusunda kabul edilir (sunucu transferi yapar); burada transfer
+  //   olmadan "kabul edildi" gösterilip ilan siliniyordu
   tfCloseIncoming();
-  tfShowToast(`✅ Transfer kabul edildi! ${item.playerId} → ${offer.from} · ${offer.wage}K/hafta · ${offer.contract} yıl`, 'var(--accent)');
-  tfRender();
+  if (typeof inboxOpen === 'function') inboxOpen();
 }
 
 function tfRejectOffer() {
@@ -78489,7 +78492,7 @@ function _jrKadroDurumu() {
     const toplam = ROSTER_DATA.length;
     const yabanci = cc ? ROSTER_DATA.filter(p => p && p.nationality && p.nationality !== cc).length : 0;
     const limit = (typeof CFT_FOREIGN_LIMIT !== 'undefined') ? CFT_FOREIGN_LIMIT : 10;
-    return { toplam, max: 22, yabanci, yabanciMax: limit };
+    return { toplam, max: (typeof getMaxRosterSize === 'function') ? getMaxRosterSize() : 15, yabanci, yabanciMax: limit };
   } catch(e) { return null; }
 }
 
@@ -78912,6 +78915,8 @@ async function inboxAcceptTransfer(msgId) {
   try {
     if (_amIThePlayer) {
       if (typeof userTeamLoadFromServer === 'function') await userTeamLoadFromServer();
+      await _takimVerisiTazele();
+      if (typeof recomputeUserEnergyBonus === 'function') recomputeUserEnergyBonus();
       if (_userTeam && _userTeam.countryCode) {
         if (typeof _rosterRefreshFromServer === 'function') {
           try { await _rosterRefreshFromServer(_userTeam.countryCode); } catch(e){}
@@ -79413,6 +79418,11 @@ function _trEstimate40DayCost(level) {
 
 // Sistem oyuncu maaşı (sezonluk, 4 taksit halinde ödenir).
 // player obje veya seviye sayısı kabul eder.
+// 681 — sunucu maaşı oyuncunun güncel OVR'si (eşya dahil, players.overall) ile öder; gösterim de aynısı
+function _benimSezonMaasim() {
+  return getSystemPlayerSalary(Number(window._userProgressCache && window._userProgressCache.overall) || 10);
+}
+
 function getSystemPlayerSalary(playerOrLevel) {
   let level;
   if (typeof playerOrLevel === 'number') {
@@ -87126,9 +87136,17 @@ setTimeout(async ()=>{
         const _uid = (typeof authUser !== 'undefined' && authUser && authUser.id) || (window.authUser && window.authUser.id);
         if (!_uid) return;
         try {
-          await window.sb.from('players')
+          // 681 — aynı yazımdan takım/rol de döner: kaptanlık devri, 21 gün kuralı, takımdan atılma, transfer gibi
+          //   başkasının yaptığı değişiklik açık oyunda fark edilir ve kendi verimiz tazelenir (ek sorgu yok)
+          const { data: _sr } = await window.sb.from('players')
             .update({ last_seen: new Date().toISOString() })
-            .eq('user_id', _uid);
+            .eq('user_id', _uid).select('team_name,country_code,role');
+          const r = _sr && _sr[0];
+          if (r && window._utYuklendi) {
+            const sunucu = r.team_name ? r.country_code + '|' + r.team_name + '|' + (r.role || 'member') : '';
+            const yerel = _userTeam ? _userTeam.countryCode + '|' + _userTeam.teamName + '|' + (_userTeam.role || 'member') : '';
+            if (sunucu !== yerel) _yonetimIste();
+          }
         } catch(e) {}
       };
       window._presenceYaz = _updateLastSeen;
@@ -97734,6 +97752,7 @@ function _gkKagit(f, m) {
     h += sr('Ödeyen', kulupKasasi(f.takim)) + sr('Alan', `${_gkNd(ben)} · <span>cüzdan</span>`);
     if (f.sezonMaas) h += sr('Sezon maaşı', _gkNd(_gkPara(f.sezonMaas, para)));
     if (f.taksit) h += sr('Bu taksit', _gkNd(f.taksit + ' / ' + (f.taksitToplam || 4)));
+    if (f.borcOdeme) h += sr('Maaş borcu ödemesi', _gkNd(_gkPara(f.borcOdeme, para)));
   } else if (f.tur === 'maas_borc') {
     h += sr('Borçlu', kulupKasasi(f.takim)) + sr('Ödenemeyen taksit', _gkNd(_gkPara(f.tutar, para)));
     if (f.borc) h += sr('Toplam borç', `${_gkNd(f.borc)} <span>taksit</span>`);
@@ -97773,7 +97792,8 @@ function _gkKagit(f, m) {
   h += '<div class="cz"></div>';
   const topAd = kot ? 'Ödenmedi' : 'Toplam';
   const _gider = f.tur === 'saglik';   // 580 — harcama fişi
-  const topDeger = _gider ? _gkPara(-(f.tutar || 0), para, true) : kot ? _gkPara(f.tutar, para) : _gkPara(f.tutar, para, true);
+  const _top = (f.tutar || 0) + (f.tur === 'maas' ? Number(f.borcOdeme) || 0 : 0);
+  const topDeger = _gider ? _gkPara(-(f.tutar || 0), para, true) : kot ? _gkPara(f.tutar, para) : _gkPara(_top, para, true);
   h += `<div class="top"><span>${topAd}</span><b class="${kot || _gider ? 'eks' : ''}" data-noi18n>${topDeger}</b></div>`;
   if (typeof f.bakiye === 'number') h += sr(_gider ? 'Kasa bakiyesi' : para === 'dia' ? 'Elmas bakiyen' : 'Cüzdan bakiyen', _gkNd(_gkPara(f.bakiye, para)));
   h += `<div class="kod"></div><div class="rf" data-noi18n>${_gkE(_gkRef(f, m))}</div>`;
