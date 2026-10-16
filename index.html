@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '687';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '688';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -24993,7 +24993,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-16-canlitaktik-687';
+const APP_BUILD = '2026-10-16-taraftar-688';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -31541,6 +31541,12 @@ async function resLmOpenFullScreen() {
     return;
   }
 
+  // 688 — TARAFTAR: kendi kulübünün / milli takımının maçı değilse maç açılmadan taraf seçilir
+  if (serverRow.status !== 'finished' && typeof window._izTarafHazirla === 'function') {
+    const _taraf = await window._izTarafHazirla(serverRow);
+    if (!_taraf) return;   // vazgeçti → canlı yayın penceresi açık kalır
+  }
+
   // İzleyici modu işareti — initTacticControls bunu kullanır
   if (typeof MS !== 'undefined' && MS) {
     MS._spectatorMode = true;
@@ -33510,8 +33516,11 @@ function _msStartViewerBeat(mk) {
     if (!key) return;
     if (typeof MS !== 'undefined' && MS && MS.finished && !listeZorla) return;
     const _liste = (listeZorla === true || !!document.getElementById('viewersModal')) ? '&liste=1' : '';
+    // 688 — TARAFTAR: seçilen taraf (kendi kulübü / milli takımı sunucuda otomatik)
+    const _tr = (typeof window._izTarafOku === 'function') ? window._izTarafOku(key) : null;
+    const _trQ = _tr ? '&taraf=' + _tr : '';
     // 🔒 565 — kimlik oturumdan (sunucu adresteki user_id'ye artık bakmıyor)
-    _oturumJwt().then(_jwt => _jwt ? fetch(`${SUPABASE_URL}/functions/v1/tick-matches?action=viewer_beat&match_key=${encodeURIComponent(key)}&user_id=${encodeURIComponent(window.authUser.id)}${_liste}`, {
+    _oturumJwt().then(_jwt => _jwt ? fetch(`${SUPABASE_URL}/functions/v1/tick-matches?action=viewer_beat&match_key=${encodeURIComponent(key)}&user_id=${encodeURIComponent(window.authUser.id)}${_liste}${_trQ}`, {
       headers: { 'Authorization': 'Bearer ' + _jwt, 'apikey': SUPABASE_KEY }
     }) : null).then(r => (r && r.ok) ? r.json() : null)
       .then(d => {
@@ -33519,8 +33528,12 @@ function _msStartViewerBeat(mk) {
           const el = document.getElementById('msViewerCount');
           if (el) el.textContent = d.viewer_count;
         }
+        // 688 — sunucunun belirlediği taraf + taraftar sayıları
+        if (d && (d.taraf === 'home' || d.taraf === 'away') && typeof window._izTarafYaz === 'function') window._izTarafYaz(key, d.taraf);
+        if (d && d.taraftar && typeof d.taraftar === 'object') window._taraftarCache = { mk: key, h: Number(d.taraftar.h) || 0, a: Number(d.taraftar.a) || 0 };
         if (d && Array.isArray(d.viewers)) {
           window._viewersListCache = d.viewers;
+          window._viewersListKey = key;
           if (document.getElementById('viewersModal') && typeof _renderViewersModalList === 'function') {
             _renderViewersModalList();
           }
@@ -57713,46 +57726,13 @@ function showViewersModal() {
   const existing = document.getElementById('viewersModal');
   if (existing) existing.remove();
 
+  // 688 — iki yarı: hangi takımı kaç kişi destekliyor (Tasarım A, alçak başlık)
   const modal = document.createElement('div');
   modal.id = 'viewersModal';
-  modal.innerHTML = `
-    <style>
-      #viewersModal{position:fixed;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(4px);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;animation:vwmFadeIn .2s ease}
-      @keyframes vwmFadeIn{from{opacity:0}to{opacity:1}}
-      .vwm-box{background:linear-gradient(180deg,#1a1f2e 0%,#0f1320 100%);border-radius:16px;max-width:440px;width:100%;max-height:82vh;display:flex;flex-direction:column;border:1px solid #2a3349;box-shadow:0 20px 60px rgba(0,0,0,.6),0 0 0 1px rgba(80,140,255,.08) inset;overflow:hidden}
-      .vwm-header{position:relative;padding:18px 18px 14px;background:linear-gradient(135deg,rgba(80,140,255,.12),rgba(0,176,255,.08));border-bottom:1px solid rgba(255,255,255,.06)}
-      .vwm-title{font-family:Twemoji Country Flags,'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;letter-spacing:1px;color:#fff;text-transform:uppercase;display:flex;align-items:center;gap:10px}
-      .vwm-title-eye{font-size:18px;animation:vwmEyeBlink 3.5s ease-in-out infinite}
-      @keyframes vwmEyeBlink{0%,92%,100%{opacity:1;transform:scale(1)}95%{opacity:.3;transform:scale(.85)}97%{opacity:1;transform:scale(1.05)}}
-      .vwm-subtitle{font-family:Twemoji Country Flags,'Barlow Condensed',sans-serif;font-size:12px;color:#7eb4ff;letter-spacing:.5px;margin-top:2px;font-weight:700}
-      .vwm-close{position:absolute;top:14px;right:14px;background:rgba(255,255,255,.06);border:none;color:#fff;width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;transition:all .2s}
-      .vwm-close:hover{background:rgba(255,255,255,.14);transform:rotate(90deg)}
-      .vwm-list{overflow-y:auto;flex:1;padding:8px 8px 12px}
-      .vwm-list::-webkit-scrollbar{width:6px}
-      .vwm-list::-webkit-scrollbar-thumb{background:#2a3349;border-radius:3px}
-      .vwm-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;margin:4px 4px;transition:background .15s;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04)}
-      .vwm-row:hover{background:rgba(80,140,255,.06);border-color:rgba(80,140,255,.18)}
-      .vwm-row.is-me{background:rgba(255,214,0,.08);border-color:rgba(255,214,0,.25)}
-      .vwm-avatar-wrap{position:relative;flex-shrink:0}
-      .vwm-avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#1e293b,#0f172a);display:flex;align-items:center;justify-content:center;font-size:22px;border:2px solid #2a3349;overflow:hidden}
-      .vwm-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}
-      .vwm-dot{position:absolute;bottom:0;right:0;width:12px;height:12px;border-radius:50%;background:#7eb4ff;border:2px solid #0f1320;box-shadow:0 0 8px rgba(80,140,255,.7)}
-      .vwm-info{flex:1;min-width:0}
-      .vwm-top{display:flex;align-items:center;gap:6px;margin-bottom:3px}
-      .vwm-flag{font-size:16px;flex-shrink:0}
-      .vwm-name{font-weight:700;color:#fff;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
-      .vwm-bottom{display:flex;align-items:center;gap:8px;font-size:12px}
-      .vwm-team{font-family:Twemoji Country Flags,'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.4px;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      .vwm-uname{color:#7eb4ff;font-size:11px;font-weight:600}
-      .vwm-me-tag{background:#ffd600;color:#000;font-size:9px;font-weight:800;padding:2px 5px;border-radius:3px;letter-spacing:.4px}
-    </style>
-    <div class="vwm-box">
-      <div class="vwm-header">
-        <div class="vwm-title"><span class="vwm-title-eye">👁️</span>İzleyiciler</div>
-        <div class="vwm-subtitle" id="vwmSubtitle">— maçı izliyor</div>
-        <button class="vwm-close" id="viewersModalClose">✕</button>
-      </div>
-      <div class="vwm-list" id="vwmList"></div>
+  modal.innerHTML = `<div class="iz-kutu" role="dialog" aria-modal="true">
+      <div class="iz-bas"><span class="iz-goz"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 20v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="3.2"/><path d="M22 20v-2a4 4 0 0 0-3-3.87"/><path d="M16.5 3.6a4 4 0 0 1 0 6.8"/></svg></span><div class="iz-bt"><b>İzleyiciler</b><small id="vwmSubtitle">— maçı izliyor</small></div><button type="button" class="iz-x" id="viewersModalClose" aria-label="Kapat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+      <div id="izTaraf"></div>
+      <div class="iz-liste" id="vwmList"></div>
     </div>`;
   modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
   modal.querySelector('#viewersModalClose').addEventListener('click', () => modal.remove());
@@ -57766,9 +57746,12 @@ function showViewersModal() {
 function _renderViewersModalList() {
   const listEl = document.getElementById('vwmList');
   const subEl = document.getElementById('vwmSubtitle');
+  const trEl = document.getElementById('izTaraf');
   if (!listEl) return;
-  const list = Array.isArray(window._viewersListCache) ? window._viewersListCache : [];
+  const mk = window._viewerBeatMatchKey || ((typeof MS !== 'undefined' && MS) ? MS.match_key : null) || null;
+  const list = (Array.isArray(window._viewersListCache) && (!window._viewersListKey || window._viewersListKey === mk)) ? window._viewersListCache : [];
   const myId = (window.authUser && window.authUser.id) || null;
+  const esc = window._izEsc || ((v) => String(v == null ? '' : v));
 
   if (subEl) {
     subEl.textContent = list.length === 0
@@ -57776,65 +57759,49 @@ function _renderViewersModalList() {
       : `${list.length} kişi maçı izliyor`;
   }
 
-  function avatarHtml(p) {
-    if (typeof getAvatarEmoji === 'function') {
-      return getAvatarEmoji(p.avatar_id, p.position);
-    }
-    return '🧑';
-  }
-  // 587 — alt mevki (LB, CB, CM…) ve grubunun rengi; eskiden user_player.position (grup/eski kod) yazıyordu
-  function posBadge(pos, grp) {
-    if (!pos) return '';
-    const colors = { GK:'#f59e0b', DEF:'#3b82f6', MID:'#22c55e', FWD:'#ef4444' };
-    const g = (typeof SUBPOS_GROUP !== 'undefined' && SUBPOS_GROUP[pos]) || grp || pos;
-    const c = colors[g] || '#888';
-    return `<span data-noi18n style="background:${c};color:#fff;font-size:9px;font-weight:800;padding:2px 5px;border-radius:3px;letter-spacing:.4px">${pos}</span>`;
-  }
-  function bayrak(p) {
-    const cc = String(p.nationality || '').toUpperCase();
-    const map = (typeof CFT_FLAG_BY_CC !== 'undefined') ? CFT_FLAG_BY_CC : null;
-    return (map && cc && map[cc]) || p.nation || '🏳️';
+  // Taraflar: sunucudan gelen taraf; kendim için yerelde bilinen taraf
+  const benT = (typeof window._izTarafOku === 'function') ? window._izTarafOku(mk) : null;
+  const taraf = (p) => (p.taraf === 'home' || p.taraf === 'away') ? p.taraf : ((myId && p.user_id === myId) ? benT : null);
+  const benOnde = (a, b) => (myId && a.user_id === myId) ? -1 : ((myId && b.user_id === myId) ? 1 : 0);
+  const H = list.filter(p => taraf(p) === 'home').sort(benOnde);
+  const A = list.filter(p => taraf(p) === 'away').sort(benOnde);
+  const N = list.filter(p => !taraf(p)).sort(benOnde);
+  let h = H.length, a = A.length;
+  const tc = window._taraftarCache;
+  if (!list.length && tc && tc.mk === mk) { h = tc.h; a = tc.a; }
+  const top = h + a, ph = top ? Math.round(100 * h / top) : 0, pa = top ? 100 - ph : 0;
+
+  if (trEl && typeof window._izTakimlar === 'function') {
+    const milli = !!(typeof MS !== 'undefined' && MS && MS._isNational);
+    const evT = (typeof curHome !== 'undefined' && curHome) ? curHome : {};
+    const depT = (typeof curAway !== 'undefined' && curAway) ? curAway : {};
+    const T = window._izTakimlar(evT.name || '', depT.name || '', evT.countryCode || '', milli);
+    const dil = (typeof window._cftDilBelirle === 'function') ? window._cftDilBelirle() : 'tr';
+    const yuzde = (v) => dil === 'tr' ? '%' + v : (['de', 'fr', 'es', 'ru'].includes(dil) ? v + ' %' : v + '%');
+    const yarim = (sd, n, p) => `<div class="iz-t${sd === 'away' ? ' dep' : ''}" style="background:linear-gradient(170deg,${T[sd].renk} 0%,${T[sd].renk2} 100%)">${T[sd].arma(T[sd].ad, 'iz-arma')}<div class="iz-tb"><b data-noi18n>${esc(T[sd].ad)}</b><small>Taraftar</small></div><div class="iz-say"><em data-noi18n>${n}</em><small data-noi18n>${yuzde(p)}</small></div></div>`;
+    const html = `<div class="iz-yarim">${yarim('home', h, ph)}${yarim('away', a, pa)}</div>`
+      + `<div class="iz-cubuk"><i style="width:${top ? ph : 50}%;background:${T.home.renk}"></i><i style="width:${top ? pa : 50}%;background:${T.away.renk}"></i></div>`;
+    if (trEl._son !== html) { trEl._son = html; trEl.innerHTML = html; }
   }
 
   if (list.length === 0) {
-    listEl.innerHTML = `<div style="text-align:center;padding:40px 20px;color:#666">
-      <div style="font-size:36px;opacity:.4;margin-bottom:8px">👁️</div>
-      <div style="font-family:Twemoji Country Flags,'Barlow Condensed',sans-serif;font-size:14px;letter-spacing:.5px">HENÜZ KİMSE İZLEMİYOR</div>
-    </div>`;
+    listEl.innerHTML = `<div class="iz-bos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 20v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="3.2"/><path d="M22 20v-2a4 4 0 0 0-3-3.87"/><path d="M16.5 3.6a4 4 0 0 1 0 6.8"/></svg><span>HENÜZ KİMSE İZLEMİYOR</span></div>`;
     return;
   }
 
-  // Beni en üste taşı, diğerleri sırayla
-  const sorted = list.slice().sort((a, b) => {
-    if (myId && a.user_id === myId) return -1;
-    if (myId && b.user_id === myId) return 1;
-    return 0;
-  });
-
-  listEl.innerHTML = sorted.map(p => {
-    const isMe = myId && p.user_id === myId;
-    const team = p.team_name || 'SERBEST';
-    const teamColor = p.team_name ? '#fff' : '#ff6d00';
-    const uname = p.username ? `@${p.username}` : '';
-    return `<div class="vwm-row ${isMe ? 'is-me' : ''}">
-      <div class="vwm-avatar-wrap">
-        <div class="vwm-avatar">${avatarHtml(p)}</div>
-        <span class="vwm-dot"></span>
-      </div>
-      <div class="vwm-info">
-        <div class="vwm-top">
-          <span class="vwm-flag">${bayrak(p)}</span>
-          <span class="vwm-name">${p.name || 'Oyuncu'}</span>
-          ${isMe ? '<span class="vwm-me-tag">SEN</span>' : ''}
-          ${posBadge(p.position, p.pos_group)}
-        </div>
-        <div class="vwm-bottom">
-          <span class="vwm-team" style="color:${teamColor}">${team}</span>
-          ${uname ? `<span class="vwm-uname">${uname}</span>` : ''}
-        </div>
-      </div>
-    </div>`;
-  }).join('');
+  const avatarHtml = (p) => (typeof getAvatarEmoji === 'function') ? getAvatarEmoji(p.avatar_id, p.position) : '🧑';
+  const bayrak = (p) => {
+    const cc = String(p.nationality || '').toUpperCase();
+    const map = (typeof CFT_FLAG_BY_CC !== 'undefined') ? CFT_FLAG_BY_CC : null;
+    return (map && cc && map[cc]) || p.nation || '🏳️';
+  };
+  const satir = (p) => {
+    const ben = !!(myId && p.user_id === myId);
+    const takim = p.team_name ? `<span data-noi18n>${esc(p.team_name)}</span>` : '<span class="iz-serbest">SERBEST</span>';
+    return `<div class="iz-r${ben ? ' ben' : ''}"><div class="iz-av">${avatarHtml(p)}</div><div class="iz-ad"><b data-noi18n>${esc(p.name || 'Oyuncu')}</b><small><span class="iz-bay">${bayrak(p)}</span> ${takim}</small></div>${ben ? '<span class="iz-sen">SEN</span>' : ''}</div>`;
+  };
+  listEl.innerHTML = `<div class="iz-sutlar"><div class="iz-sut">${H.map(satir).join('')}</div><div class="iz-sut">${A.map(satir).join('')}</div></div>`
+    + (N.length ? `<div class="iz-tsz"><span>Tarafsız</span><em data-noi18n>${N.length}</em></div><div class="iz-nliste">${N.map(satir).join('')}</div>` : '');
 }
 
 // Online sayım pill'ine tıklanınca modal aç
@@ -99143,6 +99110,175 @@ html.ms-kilit body{position:fixed !important;left:0;right:0;width:100%}
   kilit(ms.classList.contains('open'));
 })();
 </script>
+<style id="ms688-css">
+/* 688 — taraftar: taraf seçimi + izleyiciler penceresi (iki yarı) */
+.ts-ov,#viewersModal{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(5,10,22,.74);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);animation:izFade .2s ease}
+@keyframes izFade{from{opacity:0}to{opacity:1}}
+.ts-kutu{width:min(360px,100%);border-radius:22px;background:linear-gradient(180deg,#27406f 0%,#1c2f56 100%);border:1px solid rgba(150,185,255,.18);box-shadow:0 24px 60px rgba(0,0,0,.55);padding:16px 14px;color:#fff;font-family:'Barlow',sans-serif}
+.ts-ust{display:flex;align-items:center;justify-content:space-between;min-height:32px;margin-bottom:12px}
+.ts-canli{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;background:#ff4d5e;font:800 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.8px}
+.ts-canli i{width:6px;height:6px;border-radius:50%;background:#fff}
+.ts-x,.iz-x{width:32px;height:32px;flex:0 0 32px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.25);color:#dfe4ec;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.ts-x svg,.iz-x svg{width:15px;height:15px}
+.ts-bas{text-align:center;font:800 24px/1.05 'Barlow Condensed',sans-serif;letter-spacing:.5px;text-transform:uppercase;margin:2px 0 14px}
+.ts-takimlar{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ts-t{position:relative;min-width:0;border-radius:18px;padding:16px 10px 12px;display:flex;flex-direction:column;align-items:center;gap:10px;border:0;cursor:pointer;color:#fff;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);-webkit-tap-highlight-color:transparent}
+.ts-t::after{content:'';position:absolute;inset:0;background:radial-gradient(120% 80% at 50% 0%,rgba(255,255,255,.18),transparent 60%);pointer-events:none}
+.ts-t:active{transform:scale(.97)}
+.ts-arma{width:76px;height:76px;border-radius:16px;display:flex;align-items:center;justify-content:center;font:800 22px/1 'Barlow Condensed',sans-serif;overflow:hidden}
+.ts-arma.crest-has-logo{background:none !important;border-radius:0}
+.ts-arma img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 6px 10px rgba(0,0,0,.4))}
+.ts-arma.bayrak,.iz-arma.bayrak{background:none;font-family:'Twemoji Country Flags',sans-serif;font-weight:400}
+.ts-arma.bayrak{font-size:60px}
+.ts-t b{max-width:100%;font:800 21px/1 'Barlow Condensed',sans-serif;letter-spacing:.8px;text-transform:uppercase;text-shadow:0 2px 6px rgba(0,0,0,.35);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ts-t > span{display:flex;align-items:center;justify-content:center;width:100%;height:38px;border-radius:12px;background:rgba(0,0,0,.24);font:800 14px/1 'Barlow Condensed',sans-serif;letter-spacing:1px;text-transform:uppercase}
+.ts-skor{position:absolute;left:50%;top:58px;transform:translateX(-50%);z-index:2;background:#fff;color:#12203c;border-radius:10px;padding:6px 9px;font:900 20px/1 'Barlow Condensed',sans-serif;letter-spacing:1px;box-shadow:0 6px 16px rgba(0,0,0,.35);white-space:nowrap;pointer-events:none}
+.iz-kutu{width:min(380px,100%);max-height:84vh;display:flex;flex-direction:column;border-radius:22px;background:#1a2b4f;border:1px solid rgba(150,185,255,.18);box-shadow:0 24px 60px rgba(0,0,0,.55);overflow:hidden;color:#fff;font-family:'Barlow',sans-serif}
+.iz-bas{display:flex;align-items:center;gap:10px;padding:14px 14px 12px}
+.iz-goz{width:34px;height:34px;flex:0 0 34px;border-radius:10px;background:rgba(63,211,255,.14);color:#3fd3ff;display:flex;align-items:center;justify-content:center}
+.iz-goz svg{width:18px;height:18px}
+.iz-bt{flex:1;min-width:0}
+.iz-bt b{display:block;font:800 19px/1 'Barlow Condensed',sans-serif;letter-spacing:.8px;text-transform:uppercase}
+.iz-bt small{display:block;margin-top:3px;font:600 12.5px/1 'Barlow',sans-serif;color:#aebddc}
+.iz-yarim{display:grid;grid-template-columns:1fr 1fr}
+.iz-t{display:flex;align-items:center;gap:8px;padding:6px 10px;min-width:0}
+.iz-t.dep{flex-direction:row-reverse;text-align:right}
+.iz-arma{width:30px;height:30px;flex:0 0 30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font:800 11px/1 'Barlow Condensed',sans-serif;overflow:hidden}
+.iz-arma.crest-has-logo{background:none !important;border-radius:0}
+.iz-arma img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 3px 6px rgba(0,0,0,.35))}
+.iz-arma.bayrak{font-size:24px}
+.iz-tb{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.iz-tb b{font:800 14px/1 'Barlow Condensed',sans-serif;letter-spacing:.6px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.iz-tb small{font:700 10.5px/1 'Barlow Condensed',sans-serif;letter-spacing:.8px;text-transform:uppercase;opacity:.88;white-space:nowrap}
+.iz-say{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+.iz-t.dep .iz-say{align-items:flex-start}
+.iz-say em{font:900 23px/1 'Barlow Condensed',sans-serif;font-style:normal}
+.iz-say small{font:800 11px/1 'Barlow Condensed',sans-serif;letter-spacing:.5px;opacity:.92}
+.iz-cubuk{display:flex;height:5px}
+.iz-cubuk i{display:block;height:100%;transition:width .4s ease}
+.iz-liste{flex:1;min-height:0;overflow-y:auto;background:#152441;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.iz-sutlar{display:grid;grid-template-columns:1fr 1fr}
+.iz-sut{padding:6px 6px 10px;display:flex;flex-direction:column;gap:5px;min-width:0}
+.iz-sut + .iz-sut{border-left:1px solid rgba(160,190,255,.14)}
+.iz-r{display:flex;align-items:center;gap:8px;padding:6px 7px;border-radius:11px;background:#21335a;min-width:0}
+.iz-r.ben{background:rgba(255,203,61,.14);box-shadow:inset 0 0 0 1px rgba(255,203,61,.45)}
+.iz-av{width:30px;height:30px;border-radius:50%;flex:0 0 30px;overflow:hidden;background:#283d68;display:flex;align-items:center;justify-content:center;font-size:15px}
+.iz-av img{width:100%;height:100%;object-fit:cover}
+.iz-ad{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
+.iz-ad b{font:700 13px/1.1 'Barlow',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.iz-ad small{font:600 11px/1.1 'Barlow',sans-serif;color:#7488b0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.iz-ad small .iz-bay{font-family:'Twemoji Country Flags',sans-serif}
+.iz-ad small .iz-serbest{color:#ff8a3d}
+.iz-sen{flex:0 0 auto;font:800 10px/1 'Barlow Condensed',sans-serif;letter-spacing:.6px;background:#ffcb3d;color:#2a1f00;padding:3px 5px;border-radius:5px}
+.iz-tsz{display:flex;align-items:center;justify-content:space-between;margin:0 6px 6px;padding:7px 10px;border-radius:10px;background:#1d2e52;font:800 12px/1 'Barlow Condensed',sans-serif;letter-spacing:1px;text-transform:uppercase;color:#aebddc}
+.iz-tsz em{font-style:normal;color:#fff}
+.iz-nliste{display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:0 6px 10px}
+.iz-bos{display:flex;flex-direction:column;align-items:center;gap:10px;padding:36px 20px;color:#7488b0;font:700 14px/1 'Barlow Condensed',sans-serif;letter-spacing:.5px;text-align:center}
+.iz-bos svg{width:34px;height:34px;opacity:.45}
+</style>
+<script id="ms688-js">
+// 688 — TARAFTAR: maç açılmadan taraf seçimi (kendi kulübünün / milli takımının maçı otomatik) + izleyiciler penceresi yardımcıları
+(function () {
+  const ANAHTAR = 'cs_iz_taraf';
+  const bellek = {};
+  try { Object.assign(bellek, JSON.parse(localStorage.getItem(ANAHTAR) || '{}') || {}); } catch (e) {}
+  window._izTarafOku = (mk) => (mk && (bellek[mk] === 'home' || bellek[mk] === 'away')) ? bellek[mk] : null;
+  window._izTarafYaz = (mk, t) => {
+    if (!mk || (t !== 'home' && t !== 'away') || bellek[mk] === t) return;
+    delete bellek[mk]; bellek[mk] = t;
+    const k = Object.keys(bellek);
+    if (k.length > 40) k.slice(0, k.length - 40).forEach(x => { delete bellek[x]; });
+    try { localStorage.setItem(ANAHTAR, JSON.stringify(bellek)); } catch (e) {}
+  };
+  const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  window._izEsc = esc;
+
+  // Kendi kulübünün maçı → o taraf · milli maçta (enc) uyruğunun takımı → o taraf · diğerleri: null (sorulur)
+  window._izOtoTaraf = function (row) {
+    if (!row) return null;
+    try {
+      if (row.tournament_key === 'enc') {
+        const uy = String((window.authUser && window.authUser.nationality) || '').toUpperCase();
+        if (!uy || typeof _ulkeKodu !== 'function') return null;
+        if (String(_ulkeKodu(row.home_team) || '').toUpperCase() === uy) return 'home';
+        if (String(_ulkeKodu(row.away_team) || '').toUpperCase() === uy) return 'away';
+        return null;
+      }
+      const ut = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam : (window._userTeam || null);
+      if (!ut || !ut.teamName) return null;
+      if (row.country_code && ut.countryCode && ut.countryCode !== row.country_code) return null;
+      if (ut.teamName === row.home_team) return 'home';
+      if (ut.teamName === row.away_team) return 'away';
+    } catch (e) {}
+    return null;
+  };
+
+  // Takım görseli: arma (milli maçta bayrak) + forma rengi
+  window._izTakimlar = function (evAd, depAd, cc, milli) {
+    const gecerli = (c) => (typeof _ktHex === 'function') && !!_ktHex(c);
+    const karis = (a, b, t) => (typeof _ktKaris === 'function') ? _ktKaris(a, b, t) : a;
+    const isik = (c) => (typeof _ktIsik === 'function') ? _ktIsik(c) : 0.5;
+    let h = null, a = null;
+    try { if (!milli && typeof pickMatchJerseys === 'function') { const k = pickMatchJerseys(evAd, depAd); h = k.home.shirt; a = k.away.shirt; } } catch (e) {}
+    if (!gecerli(h)) h = '#0e8a5f';
+    if (!gecerli(a)) a = '#6d28d9';
+    const duzelt = (c) => { const L = isik(c); return L > 0.62 ? karis(c, '#000000', 0.5) : (L < 0.16 ? karis(c, '#ffffff', 0.28) : c); };
+    h = duzelt(h); a = duzelt(a);
+    if (String(h).toLowerCase() === String(a).toLowerCase()) a = karis(a, isik(a) > 0.5 ? '#000000' : '#ffffff', 0.35);
+    const arma = (ad, cls) => {
+      if (milli && typeof _hmUlkeBayrak === 'function') { const b = _hmUlkeBayrak(ad); if (b) return `<div class="${cls} bayrak">${b}</div>`; }
+      const kisa = String(ad || '').slice(0, 3).toUpperCase();
+      if (typeof inlineBadge === 'function') return inlineBadge({ name: ad, cc: milli ? '' : (cc || ''), tag: 'div', cls, short: kisa });
+      return `<div class="${cls}" style="background:#333;color:#fff">${esc(kisa)}</div>`;
+    };
+    return {
+      home: { ad: evAd, renk: h, renk2: karis(h, '#000000', 0.38), arma },
+      away: { ad: depAd, renk: a, renk2: karis(a, '#000000', 0.38), arma },
+    };
+  };
+
+  const X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+  // Taraf seçimi penceresi → 'home' | 'away' | null (vazgeçti)
+  window._izTarafSor = function (row) {
+    return new Promise((coz) => {
+      document.querySelectorAll('.ts-ov').forEach(e => e.remove());
+      const milli = row.tournament_key === 'enc';
+      const T = window._izTakimlar(row.home_team, row.away_team, row.country_code, milli);
+      const dk = Number(row.sim_minute) || 0;
+      const canli = row.status === 'live' || dk > 0;
+      const kart = (sd) => `<button type="button" class="ts-t" data-taraf="${sd}" style="background:linear-gradient(165deg,${T[sd].renk} 0%,${T[sd].renk2} 100%)">${T[sd].arma(T[sd].ad, 'ts-arma')}<b data-noi18n>${esc(T[sd].ad)}</b><span>Destekle</span></button>`;
+      const ov = document.createElement('div');
+      ov.className = 'ts-ov';
+      ov.innerHTML = `<div class="ts-kutu" role="dialog" aria-modal="true">
+        <div class="ts-ust">${canli ? `<span class="ts-canli"><i></i><span>CANLI</span><span data-noi18n>· ${dk}'</span></span>` : '<span></span>'}<button type="button" class="ts-x" aria-label="Kapat">${X}</button></div>
+        <div class="ts-bas">Kimi destekliyorsun?</div>
+        <div class="ts-takimlar">${kart('home')}${kart('away')}<div class="ts-skor" data-noi18n>${Number(row.home_score) || 0} – ${Number(row.away_score) || 0}</div></div>
+      </div>`;
+      let bitti = false;
+      const bitir = (t) => { if (bitti) return; bitti = true; ov.remove(); coz(t); };
+      ov.addEventListener('click', (e) => {
+        const b = e.target.closest('.ts-t');
+        if (b) { bitir(b.getAttribute('data-taraf')); return; }
+        if (e.target.closest('.ts-x') || e.target === ov) bitir(null);
+      });
+      document.body.appendChild(ov);
+    });
+  };
+
+  // Maç açılmadan: otomatik taraf / daha önce seçilen taraf / sor
+  window._izTarafHazirla = async function (row) {
+    const mk = row && row.match_key;
+    if (!mk) return 'yok';
+    const oto = window._izOtoTaraf(row);
+    if (oto) { window._izTarafYaz(mk, oto); return oto; }
+    const eski = window._izTarafOku(mk);
+    if (eski) return eski;
+    const t = await window._izTarafSor(row);
+    if (t) window._izTarafYaz(mk, t);
+    return t;
+  };
+})();
+</script>
 <script id="th-js">
 // ═══════════════════════════════════════════════════════════════════
 // 581 · KADRO HERO — Tasarım A "Künye" · görsel yardımcı (işlev yok)
@@ -99827,9 +99963,9 @@ const FM_TURLER = ['Dengeli', 'Hücum', 'Orta saha', 'Savunma'];
 .tk-rozet.mac{color:#ff8c66;border-color:rgba(255,140,102,.4);background:rgba(255,140,102,.08)}
 .tk-stiller{display:flex;gap:8px;padding:0 16px 12px;overflow-x:auto;scrollbar-width:none}
 .tk-stiller::-webkit-scrollbar{display:none}
-.tk-stil{flex:0 0 auto;width:86px;border-radius:12px;border:1px solid #232833;background:#13161c;padding:9px 6px;text-align:center;cursor:pointer;color:#e8ebf0;-webkit-tap-highlight-color:transparent}
+.tk-stil{flex:0 0 auto;width:86px;min-height:48px;display:flex;align-items:center;justify-content:center;border-radius:12px;border:1px solid #232833;background:#13161c;padding:8px 6px;text-align:center;cursor:pointer;color:#e8ebf0;-webkit-tap-highlight-color:transparent}
 .tk-stil i{display:block;font-style:normal;font-size:20px;line-height:1}
-.tk-stil span{display:block;margin-top:6px;font:800 11.5px/1.1 'Barlow Condensed',sans-serif;letter-spacing:.4px;text-transform:uppercase}
+.tk-stil span{display:block;margin-top:0;font:800 11.5px/1.1 'Barlow Condensed',sans-serif;letter-spacing:.4px;text-transform:uppercase}
 .tk-stil.on{border-color:rgba(0,230,118,.6);background:rgba(0,230,118,.08)}.tk-stil.on span{color:#00e676}
 .tk-ozel{margin:-4px 16px 12px;font:700 11px/1 'Barlow Condensed',sans-serif;letter-spacing:.6px;color:#ffd54f;text-transform:uppercase}
 .tk-boy{padding:0 16px}
@@ -99922,7 +100058,6 @@ function planYaz(hedef, kaynak) {
   const AD = { mentalite: 'Mentalite', savunma: 'Savunma yaklaşımı', pas: 'Pas stili', yon: 'Hücum yönü', tempo: 'Tempo', mudahale: 'Müdahale' };
   const NOT = { mentalite: 'şut sıklığı dahil', savunma: 'pres ve savunma hattı', mudahale: 'faul ve kart' };
   const KISA = { mentalite: 'Mentalite', savunma: 'Savunma', pas: 'Pas', yon: 'Yön', tempo: 'Tempo', mudahale: 'Müdahale' };
-  const IKON = { 'Dengeli': '⚖️', 'Gegenpres': '⚡', 'Tiki-Taka': '🎯', 'Kontra atak': '🏃', 'Kanat oyunu': '↔️', 'Otobüsü park et': '🚌' };
   // Etki kartı: a = artı · z = bedel · k = hangi rakibe karşı zayıf
   const ETKI = {
     mentalite: { 'Hücum': [['a', 'Daha çok şut'], ['z', 'Rakibe kontra fırsatı']], 'Savunma': [['a', 'Rakibe az pozisyon'], ['z', 'Daha az şut']] },
@@ -99971,7 +100106,7 @@ function planYaz(hedef, kaynak) {
     kap.classList.add('tk-kap');
     kap.innerHTML = (baglam === 'mac' ? '' : '<div class="strategy-handle"></div>') + `<div class="tk${salt ? ' salt' : ''}">
       <div class="tk-bas"><div><small>${esc(K.ust)}</small><b>Oyun planı</b></div><span class="tk-rozet${baglam === 'mac' ? ' mac' : ''}">${esc(K.rozet)}</span></div>
-      <div class="tk-stiller">${Object.keys(PLAN_STIL).map(st => `<button type="button" class="tk-stil${p.stil === st ? ' on' : ''}" onclick="tkStil('${baglam}','${st}')"><i>${IKON[st]}</i><span${st === 'Tiki-Taka' ? ' lang="en"' : ''}>${esc(st)}</span></button>`).join('')}</div>
+      <div class="tk-stiller">${Object.keys(PLAN_STIL).map(st => `<button type="button" class="tk-stil${p.stil === st ? ' on' : ''}" onclick="tkStil('${baglam}','${st}')"><span${st === 'Tiki-Taka' ? ' lang="en"' : ''}>${esc(st)}</span></button>`).join('')}</div>
       ${p.stil === 'Özel' ? '<div class="tk-ozel">✎ <span>Özel plan — hazır stillerden farklı</span></div>' : ''}
       <div class="tk-boy">${PLAN_ALANLAR.map(k => `<div class="tk-b"><div class="tk-l"><span>${esc(AD[k])}</span>${NOT[k] ? `<em>${esc(NOT[k])}</em>` : ''}</div>
         <div class="tk-seg">${PLAN_DEGER[k].map(v => `<button type="button" class="${p[k] === v ? 'on' : ''}" onclick="tkSec('${baglam}','${k}','${v}')">${esc(v)}</button>`).join('')}</div></div>`).join('')}</div>

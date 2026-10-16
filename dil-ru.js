@@ -7154,3 +7154,6 @@ Object.assign(window.I18N.ru, { 'Talep kapandı': 'Заявка закрыта' 
 
 /* ── 686 · mevki kontenjanı ── */
 Object.assign(window.I18N.ru, {"Açılacak koltuk": "Откроется место", "Kaleci koltuğu açıldı": "Открыто место вратаря", "Defans koltuğu açıldı": "Открыто место защитника", "Orta Saha koltuğu açıldı": "Открыто место полузащитника", "Forvet koltuğu açıldı": "Открыто место нападающего", "Bu takımda kaleci kontenjanı dolu.": "В этой команде квота вратарей заполнена.", "Bu takımda defans kontenjanı dolu.": "В этой команде квота защитников заполнена.", "Bu takımda orta saha kontenjanı dolu.": "В этой команде квота полузащитников заполнена.", "Bu takımda forvet kontenjanı dolu.": "В этой команде квота нападающих заполнена.", "Mevki Kontenjanı Dolu": "Квота позиции заполнена"});
+
+/* ── 688 · taraftar ── */
+Object.assign(window.I18N.ru, {"Taraftar": "Болельщики", "Kimi destekliyorsun?": "За кого ты болеешь?", "Destekle": "Поддержать", "Tarafsız": "Нейтральные"});

@@ -7116,3 +7116,6 @@ Object.assign(window.I18N.pt, { 'Talep kapandı': 'Solicitação encerrada' });
 
 /* ── 686 · mevki kontenjanı ── */
 Object.assign(window.I18N.pt, {"Açılacak koltuk": "Vaga a desbloquear", "Kaleci koltuğu açıldı": "Vaga de goleiro desbloqueada", "Defans koltuğu açıldı": "Vaga de defensor desbloqueada", "Orta Saha koltuğu açıldı": "Vaga de meio-campista desbloqueada", "Forvet koltuğu açıldı": "Vaga de atacante desbloqueada", "Bu takımda kaleci kontenjanı dolu.": "A cota de goleiros deste time está completa.", "Bu takımda defans kontenjanı dolu.": "A cota de defensores deste time está completa.", "Bu takımda orta saha kontenjanı dolu.": "A cota de meio-campistas deste time está completa.", "Bu takımda forvet kontenjanı dolu.": "A cota de atacantes deste time está completa.", "Mevki Kontenjanı Dolu": "Cota de posição completa"});
+
+/* ── 688 · taraftar ── */
+Object.assign(window.I18N.pt, {"Taraftar": "Torcedores", "Kimi destekliyorsun?": "Para quem você torce?", "Destekle": "Torcer", "Tarafsız": "Neutro"});
