@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '698';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '699';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -25136,7 +25136,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-17-sozlesme-698';
+const APP_BUILD = '2026-10-17-takimi-al-699';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -43988,6 +43988,110 @@ function tbmShowBuyConfirm(countryCode, tierIdx, teamName) {
     });
 }
 
+// ═══ 699 — "Takımı Al" etiketi ve bilgi modalı ═══
+//   Kaptanı bot olan ya da gerçek kaptanının satışa çıkardığı takımın hero'sunda sallanır. Kendi takımında
+//   kaptan olmayan oyuncu ve ziyarette takımsız oyuncu görür. Fiyat modalda: bot kaptanlı takımda sistem fiyatı,
+//   ilandaki takımda kaptanın belirlediği fiyat. Satın alma sözleşmeden ve sunucudan geçer; ilk alan kaptan olur.
+const _tsaOnb = {};
+let _tsaSira = 0, _tsaHedef = null;
+const _TSA_TAC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5Z"/><path d="M5 19h14"/></svg>';
+async function _tsaDurum(cc, tn) {
+  const k = cc + '|' + tn, o = _tsaOnb[k];
+  if (o && Date.now() - o.t < 30000) return o.d;
+  const [kap, ilan] = await Promise.all([
+    window.sb.from('players').select('user_id,is_bot').eq('country_code', cc).eq('team_name', tn).eq('role', 'captain'),
+    window.sb.from('transfer_listings').select('id,price,owner_user_id').eq('country_code', cc).eq('team_name', tn)
+  ]);
+  if (kap.error || ilan.error) return null;
+  const gercek = (kap.data || []).find(p => p && !p.is_bot && p.user_id);
+  const l = gercek && (ilan.data || []).find(x => x && x.owner_user_id === gercek.user_id);
+  const d = !gercek ? { tur: 'sistem' } : l ? { tur: 'ilan', id: l.id, fiyat: Number(l.price) || 0, satici: gercek.user_id } : null;
+  _tsaOnb[k] = { t: Date.now(), d };
+  return d;
+}
+async function _tsaGuncelle() {
+  const sira = ++_tsaSira;
+  document.querySelectorAll('#team-roster .tsa').forEach(e => e.remove());
+  const misafir = !!_viewingTeam;
+  const cc = misafir ? _viewingTeam.countryCode : (_userTeam && _userTeam.countryCode);
+  const tn = misafir ? _viewingTeam.teamRef.name : (_userTeam && _userTeam.teamName);
+  if (!cc || !tn || !window.sb || (misafir ? userHasTeam() : _userTeam.role === 'captain')) return;
+  const d = await _tsaDurum(cc, tn);
+  if (sira !== _tsaSira || !d || (d.satici && authUser && d.satici === authUser.id)) return;
+  const bas = document.querySelector('#team-roster .team-hero-bar .thb-head');
+  if (!bas) return;
+  _tsaHedef = Object.assign({ cc, tn }, d);
+  bas.insertAdjacentHTML('beforeend', `<button class="tsa tsa-a" type="button" onclick="ksoAc()"><span class="ip"></span><span class="kart">${_TSA_TAC}<b>TAKIMI AL</b></span></button>`);
+}
+function _tsaSifirla() {
+  for (const k in _tsaOnb) delete _tsaOnb[k];
+  _tsaGuncelle();
+}
+function _tsaTakim(cc, tn) {
+  const c = _cftGetCountry(cc);
+  if (!c) return null;
+  for (let i = 0; i < c.leagues.length; i++) {
+    const t = c.leagues[i].teams.find(x => x.name === tn);
+    if (t) return { c, lg: c.leagues[i], tier: i, t };
+  }
+  return null;
+}
+const _KSO_SAHA = '<svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/><circle cx="12" cy="12" r="3"/><path d="M3 9h3v6H3M21 9h-3v6h3"/></svg>';
+function ksoAc() {
+  const h = _tsaHedef, k = h && _tsaTakim(h.cc, h.tn);
+  if (!k) return;
+  const fiyat = h.tur === 'ilan' ? h.fiyat : calcTeamPrice(k.t.pop, k.t.rating, k.tier);
+  const bakiye = wlGetData().dia || 0;
+  const eksik = fiyat - bakiye;
+  const U = i => `<svg viewBox="0 0 24 24"><use href="#${i}"/></svg>`;
+  const E = '<svg viewBox="0 0 64 56"><use href="#ic-elmas-tas"/></svg>';
+  const yetki = [[_KSO_SAHA, 'Kadro & Taktik', 'Diziliş, taktik'], [U('ic-transfers'), 'Transfer', 'Oyuncu al, sat'], [U('ic-thb-bank'), 'Tesis & Kasa', 'Tesisleri büyüt'],
+    [U('ic-thb-users'), 'Yönetim', 'Yardımcı ata'],
+    getUserNationalityCC() === h.cc ? [U('ic-federation'), 'Federasyon', 'Başkanlığa aday ol'] : [U('ic-tv-shirt'), 'Forma', 'Formanı tasarla'],
+    [U('ic-thb-diamond'), 'Takımı Sat', 'Elmasla sat']];
+  let ov = document.getElementById('ksoOv');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.className = 'join-confirm-overlay';
+    ov.id = 'ksoOv';
+    ov.onclick = e => { if (e.target === ov) ksoKapat(); };
+    document.body.appendChild(ov);
+  }
+  ov.innerHTML = `<div class="kso">
+    <button class="kso-x" type="button" onclick="ksoKapat()">${U('ic-thb-x')}</button>
+    <div class="kso-ust"><div class="kso-arma"><div class="kso-logo"></div><svg class="tac" viewBox="0 0 24 24"><use href="#ic-ar-tac"/></svg></div>
+      <div class="kso-ad"></div><div class="kso-lig"></div></div>
+    <div class="kso-bas"><b>KAPTAN SEN OL</b><span>Takımı sen yönet</span></div>
+    <div class="kso-yt">${yetki.map(([s, a, b]) => `<div class="kso-y">${s}<b>${a}</b><small>${b}</small></div>`).join('')}</div>
+    <div class="kso-ilk">${U('ic-bolt')}İlk satın alan kaptan olur</div>
+    <div class="kso-fy"><div><small>FİYAT</small><em>${E}${fiyat.toLocaleString('tr')}</em></div><i></i><div class="${eksik > 0 ? 'yok' : 'var'}"><small>BAKİYEN</small><em>${E}${bakiye.toLocaleString('tr')}</em></div></div>
+    ${eksik > 0
+      ? `<button class="kso-al" type="button" onclick="ksoElmas()">${E}ELMAS AL</button><div class="kso-eks">${eksik.toLocaleString('tr')} elmas eksik</div>`
+      : `<button class="kso-al" type="button" onclick="ksoAl()">${_TSA_TAC}TAKIMI AL</button>`}
+  </div>`;
+  applyCrestToEl(ov.querySelector('.kso-logo'), h.tn, h.tn.slice(0, 3).toUpperCase());
+  ov.querySelector('.kso-ad').textContent = h.tn;
+  ov.querySelector('.kso-lig').textContent = k.c.flag + ' ' + k.lg.name;
+  requestAnimationFrame(() => ov.classList.add('open'));
+}
+function ksoKapat() {
+  const ov = document.getElementById('ksoOv');
+  if (ov) ov.classList.remove('open');
+}
+async function ksoAl() {
+  const h = _tsaHedef;
+  ksoKapat();
+  if (h.tur === 'sistem') { tbmShowBuyConfirm(h.cc, _tsaTakim(h.cc, h.tn).tier, h.tn); return; }
+  _tmCache = await _tmLoadFromServer();   // ilanın güncel fiyatı
+  if (!_tmCache.some(l => l.id === h.id)) { showJoinToast('❌ Bu takım az önce başkası tarafından alındı.'); _tsaSifirla(); return; }
+  tmShowBuyConfirm(h.id);
+}
+function ksoElmas() {
+  ksoKapat();
+  showPage('shop', findNavBtn('shop'));
+  shopTab('diamond');
+}
+
 function closeTeamBuyConfirm() {
   szKapat();
   _tbmBuyTarget = null;
@@ -44415,6 +44519,7 @@ async function confirmTeamBuy() {
     closeTeamBuyConfirm();
     showNeedTeamToast(msg);
     try { _invalidateRealCaptainsCache(); _loadRealCaptainsFromServer(t.countryCode).then(() => tbmRenderList()).catch(()=>{}); } catch(e) {}
+    _tsaSifirla();
     return;
   }
 
@@ -45149,6 +45254,7 @@ function applyUserTeamUI() {
   if(typeof updateHero === 'function') updateHero();
   // 🆕 Üst bar kulüp adı da yenilenir (takım değişiminde hemen yansır)
   if(typeof updateTopbarFromUser === 'function') updateTopbarFromUser();
+  _tsaGuncelle();   // 699 — "Takımı Al" etiketi
 }
 
 // ── Ayarlar sayfası dinamik render ──
@@ -55987,6 +56093,7 @@ function guestRenderHeader() {
     setLine('thbLineMD', 'thbLineMDBar', ls.MID);
     setLine('thbLineFW', 'thbLineFWBar', ls.FWD);
   } catch(e) {}
+  _tsaGuncelle();   // 699 — "Takımı Al" etiketi
 }
 
 // Hero başlığını kullanıcının kendi takımına geri al
@@ -69787,7 +69894,8 @@ function tmShowBuyConfirm(listingId){
   }
 
   // 639 — herhangi bir rolde takımdayken takım satın alınamaz
-  if(userHasTeam()){
+  //   699 — istisna: takımın kendi oyuncusu (satıcı kaptan takımda üye olarak kalır)
+  if(userHasTeam() && !(_userTeam.countryCode === listing.countryCode && _userTeam.teamName === listing.teamName)){
     showJoinToast('🔒 Önce mevcut takımından ayrılmalısın.');
     return;
   }
@@ -69850,6 +69958,7 @@ async function tmConfirmBuy(){
       }[d && d.error] || ((typeof _mevkiDoluMetin === 'function') && _mevkiDoluMetin(d && d.error, d && d.grup)) || 'Satın alınamadı.';
       if(typeof showJoinToast === 'function') showJoinToast('❌ ' + msg);
       try { _tmCache = null; if (typeof tmRender === 'function') tmRender(); } catch(e) {}
+      _tsaSifirla();
       tmCloseBuyConfirm();
       return;
     }
@@ -69863,12 +69972,18 @@ async function tmConfirmBuy(){
 
   // Yeni takıma kaptan olarak yerleş — 681: takım, rol ve forma numarası sunucunun yazdığından okunur
   //   (eskiden burada kurulan nesne kaydedilince sunucunun verdiği forma numarası 16+ ile eziliyordu)
-  const _eskiTk = _takimAnahtar();
+  const _ayniTakim = !!(_userTeam && _userTeam.countryCode === listing.countryCode && _userTeam.teamName === listing.teamName);   // 699 — kendi takımını aldı
+  const _eskiTk = _ayniTakim ? '' : _takimAnahtar();
   await userTeamLoadFromServer();
   const _energyDelta = await _takimDurumTazele(_eskiTk);   // 694 — yeni takımın her şeyi sunucudan
 
-  // Career history: TM'den satın alınan takım (kaptan)
-  if (typeof pushCareerHistory === 'function') {
+  // Career history: TM'den satın alınan takım (kaptan) — 699: kendi takımıysa mevcut satır kaptan olur
+  if (_ayniTakim && typeof getCareerHistory === 'function' && typeof _saveCareerHistory === 'function') {
+    try {
+      const _kl = getCareerHistory().slice(), _ks = _kl[_kl.length - 1];
+      if (_ks && _ks.teamName === listing.teamName && !_ks.leaveDate) { _ks.role = 'captain'; _saveCareerHistory(_kl); }
+    } catch(e) {}
+  } else if (typeof pushCareerHistory === 'function') {
     const lgName = (_cftGetCountry(listing.countryCode) && _cftGetCountry(listing.countryCode).leagues && _cftGetCountry(listing.countryCode).leagues[0])
       ? _cftGetCountry(listing.countryCode).leagues[0].name : '';
     pushCareerHistory({
@@ -89680,7 +89795,7 @@ document.addEventListener('keydown', function(e){
         <span id="tlmMinText">Minimum fiyat: <b>150 💎</b></span>
       </div>
       <div class="tlm-min-info is-dia">
-        <span>Takım satılınca elmaslar cüzdanına geçer ve takımdan ayrılırsın.</span>
+        <span>Takım satılınca elmaslar cüzdanına geçer. Takım arkadaşın alırsa üye olarak kalırsın, dışarıdan biri alırsa takımdan ayrılırsın.</span>
       </div>
 
       <!-- Önerilen fiyat (her zaman görünür, yer kaplar) -->
@@ -102413,6 +102528,65 @@ function _teamChatCscSatir(m) {
   }, 15000);
 })();
 </script>
+
+<style id="tsa-css">
+/* 699 — "Takımı Al" sallanan etiket */
+.tsa{all:unset;box-sizing:border-box;cursor:pointer;font-family:'Barlow Condensed',sans-serif;-webkit-tap-highlight-color:transparent}
+.tsa svg{display:block}
+.tsa-a{position:absolute;right:10px;top:44px;z-index:4;display:flex;flex-direction:column;align-items:center;transform-origin:50% 0;animation:tsaSal 2.6s ease-in-out infinite}
+#page-team.guest-mode .tsa-a{top:0}
+#page-team.guest-mode .tsa-a .ip{height:12px}
+.tsa-a .ip{width:1.5px;height:9px;background:linear-gradient(#c9a44a,#8a6a1f)}
+.tsa-a .kart{position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;min-width:66px;padding:12px 6px 6px;border-radius:7px 7px 9px 9px;
+  background:linear-gradient(160deg,#ffe58a,#f5b81f 55%,#d88f0a);color:#3a2300;box-shadow:0 6px 14px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.6)}
+.tsa-a .kart::before{content:'';position:absolute;top:4px;left:50%;width:7px;height:7px;margin-left:-3.5px;border-radius:50%;background:#2a1a00;box-shadow:inset 0 1px 1px rgba(0,0,0,.6)}
+.tsa-a .kart::after{content:'';position:absolute;top:0;bottom:0;width:45%;left:-70%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.65),transparent);transform:skewX(-18deg);animation:tsaParla 2.6s ease-in-out infinite}
+.tsa-a .kart svg{width:16px;height:16px}
+.tsa-a b{display:block;margin-top:2px;font-weight:900;font-size:12px;letter-spacing:.4px;line-height:1;white-space:nowrap}
+@keyframes tsaSal{0%,100%{transform:rotate(7deg)}50%{transform:rotate(-7deg)}}
+@keyframes tsaParla{0%,45%{left:-70%}80%,100%{left:140%}}
+/* 699 — satın alma bilgi modalı */
+.kso{position:relative;width:100%;max-width:360px;border-radius:18px;overflow:hidden;background:#12151c;border:1px solid rgba(255,213,79,.32);
+  box-shadow:0 24px 60px rgba(0,0,0,.7);font-family:'Barlow',sans-serif;color:#e8eaf0;transform:scale(.94);transition:transform .2s}
+#ksoOv.open .kso{transform:none}
+.kso-x{all:unset;position:absolute;top:10px;right:10px;z-index:2;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;background:rgba(0,0,0,.35);color:#c9ccd6}
+.kso-x svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.2}
+.kso-ust{position:relative;overflow:hidden;padding:30px 16px 14px;text-align:center;background:linear-gradient(#1d1a12,#12151c)}
+.kso-ust::before{content:'';position:absolute;left:50%;top:58px;width:420px;height:420px;margin:-210px 0 0 -210px;border-radius:50%;
+  background:repeating-conic-gradient(rgba(255,206,64,.13) 0 9deg,transparent 9deg 22deg);-webkit-mask-image:radial-gradient(closest-side,#000 25%,transparent);mask-image:radial-gradient(closest-side,#000 25%,transparent);animation:ksoDon 28s linear infinite}
+.kso-ust::after{content:'';position:absolute;left:50%;top:58px;width:180px;height:180px;margin:-90px 0 0 -90px;border-radius:50%;background:radial-gradient(closest-side,rgba(255,193,7,.32),transparent)}
+@keyframes ksoDon{to{transform:rotate(360deg)}}
+.kso-arma{position:relative;z-index:1;width:72px;height:72px;margin:0 auto}
+.kso-logo{width:72px;height:72px;border-radius:16px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#1d2230;color:#fff;font:900 22px/1 'Barlow Condensed',sans-serif}
+.kso-logo.crest-has-logo{background:none !important;border-radius:0}
+.kso-arma .tac{position:absolute;left:50%;top:-25px;width:34px;height:34px;margin-left:-17px;filter:drop-shadow(0 3px 4px rgba(0,0,0,.5))}
+.kso-ad{position:relative;z-index:1;margin-top:10px;font:900 23px/1 'Barlow Condensed',sans-serif;letter-spacing:.6px;text-transform:uppercase;color:#fff}
+.kso-lig{position:relative;z-index:1;margin-top:5px;font-family:Twemoji Country Flags,'Barlow',sans-serif;font-size:12px;color:#8b90a0}
+.kso-bas{padding:12px 16px 0;text-align:center}
+.kso-bas b{display:block;font:900 27px/1 'Barlow Condensed',sans-serif;letter-spacing:1px;color:#ffd54f;text-shadow:0 2px 12px rgba(255,193,7,.35)}
+.kso-bas span{display:block;margin-top:4px;font-size:13.5px;font-weight:600;color:#c9ccd6}
+.kso-yt{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;padding:14px 14px 0}
+.kso-y{padding:10px 3px 9px;border-radius:12px;text-align:center;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07)}
+.kso-y svg{display:block;width:22px;height:22px;margin:0 auto;color:#ffd54f;fill:none;stroke:currentColor;stroke-width:2}
+.kso-y b{display:block;margin-top:6px;font:800 13px/1.05 'Barlow Condensed',sans-serif;letter-spacing:.3px;color:#fff}
+.kso-y small{display:block;margin-top:3px;font-size:10.5px;line-height:1.2;color:#8b90a0}
+.kso-ilk{display:flex;align-items:center;justify-content:center;gap:5px;margin:12px 14px 0;font-size:12px;font-weight:700;color:#ffb74d}
+.kso-ilk svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.2}
+.kso-fy{display:grid;grid-template-columns:1fr 1px 1fr;align-items:center;margin:10px 14px 0;padding:9px 0;border-radius:12px;background:rgba(0,0,0,.28);border:1px solid rgba(255,213,79,.18)}
+.kso-fy>i{height:30px;background:rgba(255,255,255,.08)}
+.kso-fy div{text-align:center}
+.kso-fy small{display:block;font-size:10px;font-weight:700;letter-spacing:1px;color:#8b90a0}
+.kso-fy em{display:inline-flex;align-items:center;gap:4px;margin-top:3px;font:900 21px/1 'Barlow Condensed',sans-serif;font-style:normal;color:#fff}
+.kso-fy em svg{width:17px;height:15px}
+.kso-fy .yok em{color:#ef5350}
+.kso-fy .var em{color:#7ee08a}
+.kso-al{all:unset;box-sizing:border-box;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;gap:7px;width:calc(100% - 28px);height:48px;margin:12px 14px 14px;border-radius:12px;cursor:pointer;
+  background:linear-gradient(135deg,#ffe27a,#ffb300 60%,#ff8f00);color:#2a1a00;font:900 17px/1 'Barlow Condensed',sans-serif;letter-spacing:1px;box-shadow:0 6px 18px rgba(255,170,0,.3)}
+.kso-al svg{width:19px;height:19px}
+.kso-al svg[viewBox='0 0 64 56']{width:22px;height:19px}
+.kso-al::after{content:'';position:absolute;top:0;bottom:0;width:35%;left:-60%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.6),transparent);transform:skewX(-18deg);animation:tsaParla 2.8s ease-in-out infinite}
+.kso-eks{margin:-4px 14px 13px;text-align:center;font-size:11.5px;font-weight:700;color:#ef5350}
+</style>
 
 </body>
 </html>
