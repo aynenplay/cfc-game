@@ -733,6 +733,12 @@
   .fbitem .msg{ padding:2px 0 0; }
   .fbhead .chip{ border:1px solid var(--line); }
   .fbhead .ayrac{ width:1px; height:20px; background:var(--line); margin:0 3px; }
+  .fbsekme{ display:flex; gap:3px; padding:3px; margin-left:6px; background:var(--panel2); border:1px solid var(--line); border-radius:11px; }
+  .fbsekme button{ display:flex; align-items:center; gap:7px; background:none; border-radius:8px; padding:6px 14px; font-weight:800; font-size:13.5px; color:var(--dim); transition:.12s; }
+  .fbsekme button:hover{ color:var(--txt); }
+  .fbsekme button b{ min-width:20px; padding:1px 6px; border-radius:10px; background:rgba(255,255,255,.06); font-size:12px; text-align:center; }
+  .fbsekme button.on{ color:#fff; background:linear-gradient(180deg,rgba(46,195,107,.28),rgba(31,158,84,.16)); box-shadow:inset 0 0 0 1px #2ec36b; }
+  .fbsekme button.on b{ background:#2ec36b; color:#06140b; }
   .fbkim{ display:flex; align-items:center; gap:8px; min-width:0; }
   .fbkim img, .fbkim .ilk{ width:26px; height:26px; border-radius:50%; object-fit:cover; flex-shrink:0; }
   .fbkim .ilk{ display:flex; align-items:center; justify-content:center; background:var(--panel2); border:1px solid var(--line); font-family:var(--disp); font-weight:800; font-size:12px; color:var(--dim); }
@@ -1094,7 +1100,7 @@ const FB_STATUS = { yeni:'Yeni', okundu:'Okundu', cozuldu:'Çözüldü' };
 let FB_DATA = [];
 let FB_FILTER = 'all';
 
-let FB_DURUM = 'all', FB_CEVAP = null, FB_OYUNCU = null, FB_PROFIL = null;
+let FB_DURUM = 'all', FB_CEVAP = null, FB_OYUNCU = null, FB_PROFIL = null, FB_SEKME = 'aktif';
 async function openFeedback(){
   CUR='feedback'; GRID_BACK=null;
   $('dashBtn').classList.remove('active');
@@ -1208,13 +1214,18 @@ function fbItemHtml(f){
 function renderFeedback(){
   const area = $('fbArea'); if(!area) return;
   const sayfa = area.classList.contains('fbsayfa');
-  const counts = { all:FB_DATA.length, sikayet:0, istek:0, talep:0 };
+  const cozuldu = f => (f.status||'yeni') === 'cozuldu';
+  const ssay = { aktif:FB_DATA.filter(f=>!cozuldu(f)).length, cozuldu:FB_DATA.filter(cozuldu).length };
+  const kaynak = sayfa ? FB_DATA : FB_DATA.filter(f => cozuldu(f) === (FB_SEKME === 'cozuldu'));
+  const counts = { all:kaynak.length, sikayet:0, istek:0, talep:0 };
   const dsay = { all:FB_DATA.length, yeni:0, okundu:0, cozuldu:0 };
-  FB_DATA.forEach(f=>{ if(counts[f.type]!==undefined) counts[f.type]++; const st=f.status||'yeni'; if(dsay[st]!==undefined) dsay[st]++; });
+  kaynak.forEach(f=>{ if(counts[f.type]!==undefined) counts[f.type]++; });
+  FB_DATA.forEach(f=>{ const st=f.status||'yeni'; if(dsay[st]!==undefined) dsay[st]++; });
   const chip = (k,lbl)=>`<button class="chip ${FB_FILTER===k?'active':''}" data-f="${k}">${lbl} (${counts[k]||0})</button>`;
   const dchip = (k,lbl)=>`<button class="chip ${FB_DURUM===k?'active':''}" data-d="${k}">${lbl} (${dsay[k]||0})</button>`;
-  const items = FB_DATA.filter(f => (FB_FILTER==='all' || f.type===FB_FILTER) && (!sayfa || FB_DURUM==='all' || (f.status||'yeni')===FB_DURUM));
-  const head = `<div class="fbhead">${sayfa?'':'<h2>Geri Bildirimler</h2><div class="sp"></div>'}
+  const sekme = (k,lbl)=>`<button class="${FB_SEKME===k?'on':''}" data-sk="${k}">${lbl}<b>${ssay[k]}</b></button>`;
+  const items = kaynak.filter(f => (FB_FILTER==='all' || f.type===FB_FILTER) && (!sayfa || FB_DURUM==='all' || (f.status||'yeni')===FB_DURUM));
+  const head = `<div class="fbhead">${sayfa?'':`<h2>Geri Bildirimler</h2><div class="fbsekme">${sekme('aktif','Aktif')}${sekme('cozuldu','Çözüldü')}</div><div class="sp"></div>`}
     ${chip('all','Tümü')}${chip('sikayet','Şikayet')}${chip('istek','İstek')}${chip('talep','Talep')}
     ${sayfa?`<span class="ayrac"></span>${dchip('yeni','Yeni')}${dchip('okundu','Okundu')}${dchip('cozuldu','Çözüldü')}`:''}</div>`;
   const list = items.length
@@ -1223,6 +1234,7 @@ function renderFeedback(){
   area.innerHTML = head + list;
   const cnt = $('fbCnt'); if(cnt) cnt.textContent = dsay.yeni + ' yeni · ' + FB_DATA.length + ' kayıt';
   area.querySelectorAll('[data-f]').forEach(c=>c.onclick=()=>{ FB_FILTER=c.dataset.f; renderFeedback(); });
+  area.querySelectorAll('[data-sk]').forEach(c=>c.onclick=()=>{ FB_SEKME=c.dataset.sk; renderFeedback(); });
   area.querySelectorAll('[data-d]').forEach(c=>c.onclick=()=>{ FB_DURUM=(FB_DURUM===c.dataset.d)?'all':c.dataset.d; renderFeedback(); });
   area.querySelectorAll('[data-fbs]').forEach(b=>b.onclick=()=>fbStatus(b.dataset.id, b.dataset.fbs));
   area.querySelectorAll('[data-fbd]').forEach(b=>b.onclick=()=>fbDelete(b.dataset.fbd));
