@@ -7199,3 +7199,5 @@ Object.assign(window.I18N.fr, {"TAKIMI AL": "ACHETER", "KAPTAN SEN OL": "DEVIENS
 window.I18N_PATTERNS.fr.push([/^([\d.,]+) elmas eksik$/, "Il manque $1 diamants"], [/^(.+?) takımın ([\d.,]+) 💎 karşılığında satıldı\.$/, "Ton équipe $1 a été vendue pour $2 💎."], [/^• Takım arkadaşın (.+?) yeni kaptan oldu; sen takımda üye olarak kalıyorsun\.$/, "• Ton coéquipier $1 est le nouveau capitaine ; tu restes dans l’équipe comme membre."], [/^(.+?) Satıldı$/, "$1 vendu"]);
 /* ── 699 · uzatma ve penaltılar canlı ── */
 Object.assign(window.I18N.fr, {"Uzatmalarda": "Après prolongation", "1. UZATMA": "PROLONGATION 1", "2. UZATMA": "PROLONGATION 2", "UZATMA ARASI": "PAUSE DES PROLONGATIONS", "NORMAL SÜRE BİTTİ": "FIN DU TEMPS RÉGLEMENTAIRE", "Direkte!": "Poteau !", "Dışarı!": "À côté !", "TURU GEÇTİ": "QUALIFIÉ"});
+/* ── 711 · Ana sayfa Futbolcu Odası ── */
+Object.assign(window.I18N.fr, {"Futbolcu Odası": "Salle du joueur", "Milliyet": "Nationalité", "Futbolcu": "Joueur"});
