@@ -1006,7 +1006,8 @@ window.Sahne3D = (() => {
     konumX = 0; poz('hazir', 'hazir', 1); topSifirla();
     isik.hedef = null; secimBekliyor = true;
   }
-  async function atis(bolge, dalis, gol) {
+  // 699 — kacis: kaçan penaltı ('direk' = direğe/üst direğe çarpar, 'aut' = auta/üstten dışarı); yoksa eski davranış
+  async function atis(bolge, dalis, gol, kacis) {
     isik.hedef = null; secimBekliyor = false;
     const hedefY = !gol && bolge !== 1 ? .9 + Math.random() * .35 : (bolge === 1 ? 1.15 + Math.random() * .6 : .7 + Math.random() * 1.1);
     const hedef = new T.Vector3(BOLGE_X[bolge] + (Math.random() - .5) * .5, hedefY, 0);
@@ -1022,6 +1023,22 @@ window.Sahne3D = (() => {
     if (gol) {
       FIZ.v.copy(atisHizi(bas, hedef, ucus)); spin(); FIZ.aktif = true;
       await oynat(ucus + .42, () => {});
+    } else if (kacis === 'direk') {
+      const sx = bolge === 0 ? -1 : 1, r = Math.random;
+      const nokta = bolge === 1 ? new T.Vector3((r() - .5) * 1.6, KALE_Y + .02, .12) : new T.Vector3(sx * (KALE_G / 2 - .02), .75 + r() * 1.3, .12);
+      FIZ.v.copy(atisHizi(bas, nokta, ucus * .95)); spin(); FIZ.aktif = true;
+      await oynat(ucus * .95, () => {});
+      // direkten seken top sahaya döner
+      FIZ.v.set(bolge === 1 ? (r() - .5) * 3 : -sx * (1.2 + r() * 2), bolge === 1 ? 2.5 + r() * 1.5 : .8 + r() * 1.6, 4.5 + r() * 3);
+      FIZ.w.set(FIZ.v.z / R_TOP * .4, (r() - .5) * 20, -FIZ.v.x / R_TOP * .4);
+      await oynat(.55, () => {});
+    } else if (kacis === 'aut') {
+      const sx = bolge === 0 ? -1 : 1, r = Math.random;
+      // üstten (kale içinden görünür) ya da direğin hemen yanından dışarı
+      const disari = bolge === 1 || r() < .5 ? new T.Vector3(bolge === 1 ? (r() - .5) * 2.4 : sx * (1.6 + r() * 1.4), KALE_Y + .45 + r() * .5, -.6)
+                                             : new T.Vector3(sx * (KALE_G / 2 + .25 + r() * .2), .5 + r() * 1.4, -.6);
+      FIZ.v.copy(atisHizi(bas, disari, ucus * 1.05)); spin(); FIZ.aktif = true;
+      await oynat(ucus * 1.05 + .3, () => {});
     } else {
       const temas = .82, el = new T.Vector3(BOLGE_X[dalis] * .92, bolge === 1 ? 1.45 : 1.05, .45);
       const varis = bolge === 1 ? el : hedef.clone().setZ(.45);
