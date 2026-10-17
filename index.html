@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '696';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '697';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -4672,6 +4672,8 @@ select.auth-input option{background:var(--bg3)}
 .cins-ik{display:inline-flex;flex:0 0 auto;width:13px;height:13px;margin-left:4px;vertical-align:-1px;font-style:normal}
 .cins-ik svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
 .cins-ik.e{color:#64b5f6}.cins-ik.k{color:#f48fb1}
+.pmk-alt .cins-ik{margin-left:0;vertical-align:-2px}
+#page-player .pl-name .cins-ik{width:20px;height:20px;margin-left:8px;vertical-align:1px}
 .avatar-card{aspect-ratio:1/1;background:var(--bg3);border:2px solid var(--border);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:42px;cursor:pointer;transition:all .15s;position:relative;overflow:hidden;user-select:none}
 
 /* 🆕 Avatar image (gerçek fotoğraf PNG) */
@@ -25134,7 +25136,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-17-cinsiyet-696';
+const APP_BUILD = '2026-10-17-cinsiyet-697';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -41370,11 +41372,12 @@ async function _yonetimTazele() {
   _eqData = getEqData();
   syncEnergyDisplay();
   supportCevapTara();
-  const { data: p } = await window.sb.from('players').select('pos, sub_pos, avatar_id, level, xp, overall').eq('user_id', uid).maybeSingle();
+  const { data: p } = await window.sb.from('players').select('pos, sub_pos, avatar_id, gender, level, xp, overall').eq('user_id', uid).maybeSingle();
   if (p) {
     authUser.position = p.pos || authUser.position;
     authUser.subPos = p.sub_pos || '';
     if (p.avatar_id) authUser.avatarId = p.avatar_id;
+    authUser.gender = p.gender || null;
     window._userProgressCache = { level: Number(p.level) || 0, xp: Number(p.xp) || 0, overall: Number(p.overall) || 10 };
   }
   await userTeamLoadFromServer();
@@ -41779,7 +41782,7 @@ function authInit(){
             window.sb.from('profiles').select('*').eq('id', userId).maybeSingle(),
             window.sb.from('user_player').select('*').eq('user_id', userId).maybeSingle(),
             window.sb.from('user_wallet').select('*').eq('user_id', userId).maybeSingle(),
-            window.sb.from('players').select('pos, sub_pos, avatar_id, level, xp, overall, gizli').eq('user_id', userId).maybeSingle()
+            window.sb.from('players').select('pos, sub_pos, avatar_id, gender, level, xp, overall, gizli').eq('user_id', userId).maybeSingle()
           ]);
           const prof = profRes.data;
           if (prof && prof.ban_until) { const _bt = new Date(prof.ban_until); if (!isNaN(_bt) && _bt > new Date()) { showBanScreen(_bt, prof.ban_reason); return; } }
@@ -41800,6 +41803,7 @@ function authInit(){
           authUser.subPos = (_plr && _plr.sub_pos) || authUser.subPos || '';
           authUser.gizli = !!(_plr && _plr.gizli);
           if (_plr && _plr.avatar_id) authUser.avatarId = _plr.avatar_id;
+          authUser.gender = (_plr && _plr.gender) || null;
           if (!authUser.avatarId && typeof AVATAR_OPTIONS !== 'undefined') {
             authUser.avatarId = AVATAR_OPTIONS[Math.floor(Math.random() * AVATAR_OPTIONS.length)].id;
           }
@@ -42490,7 +42494,7 @@ function doLogin(){
 
       // 🆕 players çek — pos/avatar/stat kanonik kaynak
       const { data: _plr } = await window.sb.from('players')
-        .select('pos, sub_pos, avatar_id, level, xp, overall, gizli').eq('user_id', data.user.id).maybeSingle();
+        .select('pos, sub_pos, avatar_id, gender, level, xp, overall, gizli').eq('user_id', data.user.id).maybeSingle();
 
       const randomAvatar = AVATAR_OPTIONS[Math.floor(Math.random() * AVATAR_OPTIONS.length)].id;
       authUser = {
@@ -42503,6 +42507,7 @@ function doLogin(){
         position: (_plr && _plr.pos) || 'MID',
         subPos: (_plr && _plr.sub_pos) || '',
         avatarId: (_plr && _plr.avatar_id) || randomAvatar,
+        gender: (_plr && _plr.gender) || null,
         gizli: !!(_plr && _plr.gizli)
       };
 
@@ -47506,6 +47511,7 @@ function openPlayerModalRanking(idx) {
     overall: rk.o,      // deterministik hesaplanmış overall
     avatar: rk.av || '⚽',
     avatar_id: rk.avatar_id || null,   // 🆕 avatar_id taşı (fallback'te de avatar görünsün)
+    gender: rk.gender || null,
     userId: rk.userId || null,         // 🆕 user_id → resolve uid ile kesin bulsun (team_name'e takılmaz)
     user_id: rk.userId || null,
     role: 'member'
@@ -47903,7 +47909,7 @@ async function openPlayerModal(player, ctx) {
     <button class="pmk-kapat" onclick="closePlayerModal()" aria-label="Kapat">${_pmkIk('kapat')}</button>
     <div class="pmk-kah${takimAd ? '' : ' takimsiz'}"${renk ? ` style="--r1:${renk.renk};--r2:${renk.serit}"` : ''}>
       ${takimAd ? inlineBadge({ name: lookup, cc: ctx.countryCode || '', cls: 'pmk-silik' }) : ''}
-      <div class="pmk-ust"><div class="pmk-ad" data-noi18n>${player.name || '—'}</div><div class="pmk-alt">${flag ? flag + ' · ' : ''}Sv.${player.level || 0}${_pmkGorulme(player)}</div></div>
+      <div class="pmk-ust"><div class="pmk-ad" data-noi18n>${player.name || '—'}</div><div class="pmk-alt">${flag ? flag + (_cinsIk(player) ? ' ' : ' · ') : ''}${_cinsIk(player) ? _cinsIk(player) + ' · ' : ''}Sv.${player.level || 0}${_pmkGorulme(player)}</div></div>
     </div>
     <div class="pmk-not"><b data-noi18n>${ovr}</b><span>OVR</span></div>
     <div class="pmk-av${isCap ? ' kap' : isVice ? ' yrd' : ''}">${avatarHtml}</div>
@@ -67033,6 +67039,7 @@ function renderPlayerPage() {
 
   // Hero — FIFA kart yapısı
   document.getElementById('plName').textContent    = isVisitor ? (vp.name || 'Oyuncu') : (user.name || 'Oyuncu');
+  document.getElementById('plName').insertAdjacentHTML('beforeend', _cinsIk(isVisitor ? vp : Object.assign({ isUser: true }, meRoster || {})));   // 697
   // 🆕 Milli Takım Oyuncusu rozeti (Oyuncum sayfası)
   try {
     const _ntB = document.getElementById('plNtBadge');
@@ -85281,7 +85288,7 @@ function rkPlayerRow(p, rank, isMe){
     <div class="lst-rank ${(typeof _rankClass === 'function') ? _rankClass(rank) : ''}">${rank}</div>
     ${(typeof inlineBadge === 'function') ? inlineBadge({tag:'div', cls:'lst-team-logo', name:p.teamName, bg:teamBg, tc:teamTc, short:teamShort}) : `<div class="lst-team-logo" style="background:${teamBg};color:${teamTc}">${teamShort}</div>`}
     <div class="lst-info-col">
-      <div class="lst-pname ${isMe?'user-mark':''}"><span class="lst-pos-pill ${posCls}">${posLbl3}</span>${p.n}</div>
+      <div class="lst-pname ${isMe?'user-mark':''}"><span class="lst-pos-pill ${posCls}">${posLbl3}</span>${p.n}${_cinsIk(p)}</div>
       <div class="lst-psub">${p.f} ${p.c}</div>
     </div>
     <div>
@@ -85471,7 +85478,7 @@ async function rkRenderPlayers(){
   let rows=[], ok=false;
   try{
     const { data, error } = await window.sb.from('players')
-      .select('id, user_id, name, pos, sub_pos, country_code, team_name, overall, level, avatar, avatar_id, nation')
+      .select('id, user_id, name, pos, sub_pos, country_code, team_name, overall, level, avatar, avatar_id, gender, nation')
       .order(metric, { ascending:false, nullsFirst:false })
       .order(second, { ascending:false, nullsFirst:false })
       .limit(50);
@@ -85498,6 +85505,7 @@ function _rkMapPlayerRow(r){
     n:r.name, f:v.flag, c:r.team_name || 'Serbest',
     p:r.pos, subPos:r.sub_pos||null, o:r.overall||10, lv:r.level||0,
     av:r.avatar || '🧑', avatar_id:r.avatar_id || null,
+    gender:r.gender || null, isBot:!r.user_id,
     cc:r.country_code, teamName:r.team_name,
     teamBg:v.bg, teamTc:v.tc, teamShort:v.short,
     userId:r.user_id || null,
@@ -85525,7 +85533,7 @@ async function _rkRenderPlayerMe(metric, top50){
   const v=_rkTeamVisuals(cc, tn);
   const html = '<div style="padding:10px 14px;font-size:10px;color:var(--text3);text-align:center;letter-spacing:.4px;text-transform:uppercase">Senin sıran</div>'
     + '<div class="lst-list">' + rkPlayerRow(
-        {n:myName, f:v.flag, c:(tn||'Serbest'), p:myPos, o:myOverall, lv:myLevel, av:myAvatar,
+        {n:myName, f:v.flag, c:(tn||'Serbest'), p:myPos, o:myOverall, lv:myLevel, av:myAvatar, isUser:true,
          teamBg:v.bg, teamTc:v.tc, teamShort:v.short, cc, _isMe:true},
         myRank, true
       ) + '</div>';
@@ -85563,7 +85571,7 @@ async function _rkSearchPlayersServer(rawQ){
   let rows=[];
   try{
     const { data } = await window.sb.from('players')
-      .select('id, user_id, name, pos, sub_pos, country_code, team_name, overall, level, avatar, avatar_id, nation')
+      .select('id, user_id, name, pos, sub_pos, country_code, team_name, overall, level, avatar, avatar_id, gender, nation')
       .ilike('name', '%'+safe+'%')
       .order(metric,{ascending:false,nullsFirst:false}).order(second,{ascending:false,nullsFirst:false})
       .limit(60);
