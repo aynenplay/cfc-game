@@ -7160,3 +7160,6 @@ Object.assign(window.I18N.ru, {"Taraftar": "Болельщики", "Kimi destekl
 
 /* ── 692 · finans sekmeleri ── */
 Object.assign(window.I18N.ru, {"İşlemler": "Операции", "Bağışla": "Пожертвовать", "Bağışlar geri alınamaz.": "Пожертвования нельзя отменить.", "Kasa nasıl işler?": "Как работает казна?", "Gelir ve gider": "Доходы и расходы"});
+
+/* ── 696 · kayıt: cinsiyet ve isim kuralı ── */
+Object.assign(window.I18N.ru, {"Cinsiyet": "Пол", "Cinsiyet seçin.": "Выбери пол.", "Adın ve soyadın": "Твои имя и фамилия", "Soyisim zorunlu.": "Фамилия обязательна.", "Ad ve soyaddaki her kelime en az 2 harf olmalı.": "Каждое слово в имени должно содержать не менее 2 букв."});

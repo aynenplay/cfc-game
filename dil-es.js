@@ -7130,3 +7130,6 @@ Object.assign(window.I18N.es, {"Taraftar": "Aficionados", "Kimi destekliyorsun?"
 
 /* ── 692 · finans sekmeleri ── */
 Object.assign(window.I18N.es, {"İşlemler": "Transacciones", "Bağışla": "Donar", "Bağışlar geri alınamaz.": "Las donaciones no se pueden revertir.", "Kasa nasıl işler?": "¿Cómo funciona la tesorería?", "Gelir ve gider": "Ingresos y gastos"});
+
+/* ── 696 · kayıt: cinsiyet ve isim kuralı ── */
+Object.assign(window.I18N.es, {"Cinsiyet": "Género", "Cinsiyet seçin.": "Elige tu género.", "Adın ve soyadın": "Tu nombre y apellido", "Soyisim zorunlu.": "El apellido es obligatorio.", "Ad ve soyaddaki her kelime en az 2 harf olmalı.": "Cada palabra de tu nombre debe tener al menos 2 letras."});
