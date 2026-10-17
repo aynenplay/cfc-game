@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '700';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '701';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -25136,7 +25136,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-17-uzatma-penalti-700';
+const APP_BUILD = '2026-10-17-sohbet-cani-701';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -41573,6 +41573,7 @@ async function userTeamLoadFromServer() {
     setTimeout(() => { if (typeof rhBaslat === 'function') rhBaslat(); }, 6000);   // 663
     modEngelYukle();
     if (_userTeam && _userTeam.role === 'captain') _szMevcutKontrol(user.id);
+    _tsBaslat();   // 701 — sohbet çanı
   } catch(e) { console.warn('[userTeam] load hata:', e); _userTeam = null; }
 }
 
@@ -41665,6 +41666,7 @@ async function _takimDurumTazele(eski) {
   if (sayfa === 'page-transfers') tfRender();
   if (sayfa === 'page-takimlar') takimlarTab(_mgSonAlt.takimlar);
   if (sayfa === 'page-settings') renderSettings();
+  _tsBaslat(true);   // 701 — sohbet çanı (takım değiştiyse yeni takımın sohbeti)
   return enerji;
 }
 
@@ -48972,6 +48974,47 @@ async function _teamChatLoadAndRender() {
   } catch(e) { console.warn('[team_chat] load hata:', e); }
 }
 
+// ═══ 701 — TAKIM SOHBETİ: OKUNMAMIŞ MESAJ ÇANI ═══
+//   Okundu anı sunucuda (players.sohbet_okundu); sayı sunucudan, yeni mesaj yayınıyla anında artar.
+//   Sohbet sekmesi açılınca ve açıkken gelen mesajlarda okundu yazılır.
+let _tsOkunmamis = 0, _tsSonSay = 0, _tsErteleT = null;
+const _TS_CAN = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.6c-.9 0-1.6.7-1.6 1.6v.5A6.1 6.1 0 0 0 6 10.6v4.1l-1.7 2.6c-.4.6 0 1.3.7 1.3h14c.7 0 1.1-.7.7-1.3L18 14.7v-4.1a6.1 6.1 0 0 0-4.4-5.9v-.5c0-.9-.7-1.6-1.6-1.6Z"/><path d="M9.7 19.8a2.4 2.4 0 0 0 4.6 0Z"/></svg>';
+function _tsAcikMi() {
+  const pg = document.getElementById('page-team'), ch = document.getElementById('team-chat');
+  return !!(pg && ch && pg.classList.contains('active') && ch.style.display === 'block' && !_viewingTeam && !document.hidden);
+}
+function _tsCiz() {
+  const btn = document.querySelector('#page-team .team-tab[onclick*="teamTab(\'chat\'"]');
+  if (!btn) return;
+  const n = _userTeam ? _tsOkunmamis : 0;
+  let c = btn.querySelector('.ts-can');
+  btn.classList.toggle('ts-var', n > 0);
+  if (!n) { if (c) c.remove(); return; }
+  if (!c) { btn.insertAdjacentHTML('beforeend', `<span class="ts-can" data-noi18n>${_TS_CAN}<i></i></span>`); c = btn.querySelector('.ts-can'); }
+  c.classList.toggle('cok', n > 9); c.querySelector('i').textContent = n > 9 ? '9+' : String(n);
+}
+async function _tsSay(zorla) {
+  if (!window.sb || !_userTeam) { _tsOkunmamis = 0; _tsCiz(); return; }
+  if (_tsAcikMi()) { _tsOkundu(); return; }
+  if (!zorla && Date.now() - _tsSonSay < 20000) return;
+  _tsSonSay = Date.now();
+  const { data, error } = await window.sb.rpc('takim_sohbet_okunmamis');
+  if (error) return;
+  _tsOkunmamis = Number(data) || 0; _tsCiz();
+}
+function _tsOkundu() {
+  clearTimeout(_tsErteleT);
+  _tsOkunmamis = 0; _tsCiz();
+  if (window.sb && _userTeam) window.sb.rpc('takim_sohbet_okundu').then(() => {}, () => {});
+}
+function _tsOkunduErtele() { clearTimeout(_tsErteleT); _tsErteleT = setTimeout(() => { if (_tsAcikMi()) _tsOkundu(); }, 4000); }
+function _tsBaslat(zorla) {
+  if (!_userTeam) { _tsOkunmamis = 0; _tsCiz(); return; }
+  _teamChatSubscribe();
+  _tsSay(zorla);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && _userTeam) _tsSay(); });
+
 // 🆕 Realtime subscription state
 let _teamChatChannel = null;
 let _teamChatChannelKey = null;
@@ -49011,6 +49054,8 @@ function _teamChatSubscribe() {
     .on('broadcast', { event: 'mesaj' }, (msg) => {
       const p = msg && msg.payload;
       if (!p || p.mid == null || (p.u && p.u === myId)) return;
+      if (!_tsAcikMi()) { if (!(p.u && modEngelliMi(p.u))) { _tsOkunmamis++; _tsCiz(); } }   // 701 — okunmamış çanı
+      else _tsOkunduErtele();
       _tcSira = _tcSira.then(async () => {
         const { data } = await window.sb.from('team_chat')
           .select('id, country_code, team_name, user_id, username, display_name, avatar_id, message, created_at')
@@ -56025,6 +56070,7 @@ function teamTab(name, el) {
   }
   if(name === 'chat') {
     if(_viewingTeam) return;
+    _tsOkundu();   // 701
     // 🆕 Server'dan son 200 mesajı yükle
     if (typeof _teamChatLoadAndRender === 'function') {
       _teamChatLoadAndRender().catch(()=>{});
@@ -102778,6 +102824,18 @@ function _teamChatCscSatir(m) {
 })();
 </script>
 
+<style id="ts-css">
+/* 701 — Takımım › Sohbet: okunmamış mesaj çanı + sekmede hafif kırmızı parıltı */
+#page-team .team-tab{position:relative}
+#page-team .team-tab.ts-var{border-color:rgba(255,45,70,.42);animation:tsParla 2.4s ease-in-out infinite}
+@keyframes tsParla{0%,100%{box-shadow:inset 0 1px 0 rgba(255,255,255,.03),0 0 5px rgba(255,45,70,.16)}50%{box-shadow:inset 0 1px 0 rgba(255,255,255,.03),0 0 12px rgba(255,45,70,.36)}}
+.ts-can{position:absolute;top:-9px;right:-7px;width:25px;height:25px;z-index:2;pointer-events:none;color:#ff2d46;
+  filter:drop-shadow(0 0 4px rgba(255,45,70,.75)) drop-shadow(0 1px 0 #0d0f13);transform-origin:50% 8%;animation:tsSal 2.2s ease-in-out infinite}
+#page-team .team-tab .ts-can svg{display:block;width:25px;height:25px}
+.ts-can i{position:absolute;left:0;right:0;top:7px;height:9px;display:flex;align-items:center;justify-content:center;font:400 10.5px/1 'Barlow Condensed',sans-serif;font-style:normal;letter-spacing:0;color:#fff}
+.ts-can.cok i{font-size:9.5px;letter-spacing:-.2px}
+@keyframes tsSal{0%,55%,100%{transform:rotate(0)}5%{transform:rotate(18deg)}12%{transform:rotate(-16deg)}19%{transform:rotate(12deg)}26%{transform:rotate(-9deg)}33%{transform:rotate(5deg)}40%{transform:rotate(-2deg)}}
+</style>
 <style id="uz-css">
 /* 699 — maç penaltıları düello ekranında: takım armaları, sayaç / puan / düğmeler yok */
 #pdOv.mac .pd-saat,#pdOv.mac .pd-son-puan,#pdOv.mac .pd-son-btn,#pdOv.mac .pd-bolgeler{display:none}
