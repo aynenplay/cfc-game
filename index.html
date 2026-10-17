@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '699';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '700';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -25136,7 +25136,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-17-takimi-al-699';
+const APP_BUILD = '2026-10-17-uzatma-penalti-700';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -36562,6 +36562,7 @@ async function startMatch(){
     // sonradan server'dan gerçek started_at gelince MS._matchStartedAt değişir ve görsel geriye düşer.
     // tick_match çağrısı her saniye çalışıyor — started_at en geç 1 saniye içinde gelir.
     if (!MS._matchStartedAt) { _macSesDurum(null); return; }
+    if (MS._uzt) { _uzSaat(); return; }   // 699 — uzatma / penaltılar
     
     const elapsed = Date.now() - MS._matchStartedAt;
     const clkS = document.getElementById('matchClock');
@@ -36600,7 +36601,7 @@ async function startMatch(){
           badge.className = 'status-badge sb-live';
           badge.innerHTML = '<div class="live-dot"></div> UZATMA';
         }
-        if (_bekleme > 45000 && typeof _finalizeMatch === 'function') {
+        if (_bekleme > (MS._uzBekleBas ? 90000 : 45000) && typeof _finalizeMatch === 'function') {
           console.warn('[smooth] sunucu 45 sn içinde bitirmedi → yerel bitiş');
           MS.finished = true;
           MS.running = false;
@@ -36817,17 +36818,23 @@ async function startMatch(){
       // Live geçişi: scheduled iken running olunca badge'i CANLI yap
       // 🆕 SUNUCU BİTİRDİ → ekranı hemen maç sonuna al
       if (liveRow && liveRow.status === 'finished' && !MS.finished) {
-        try {
-          MS.scoreH = liveRow.home_score ?? MS.scoreH ?? 0;
-          MS.scoreA = liveRow.away_score ?? MS.scoreA ?? 0;
-          MS.script = MS.script || {};
-          if (Array.isArray(liveRow.events)) MS.script.evs = liveRow.events;
-          if (liveRow.stats) MS.script.stats = liveRow.stats;
-          try { _msSkorSenkron(true); } catch(e) {}   // 574 — 90'/uzatma golü: ses skorla birlikte
-          MS.finished = true; MS.running = false;
-          if (typeof _finalizeMatch === 'function') _finalizeMatch(MS.script);
-        } catch(e) { console.warn('[poll] finalize hata:', e); }
-        return;
+        const _uz = _uzBitisKarar(liveRow);   // 699 — eleme maçı berabere: uzatma + penaltı canlı izlenir
+        if (_uz === 'bekle') return;
+        if (_uz === 'oyna') liveRow = _uzSanalSatir(liveRow);
+        else {
+          try {
+            MS.scoreH = liveRow.home_score ?? MS.scoreH ?? 0;
+            MS.scoreA = liveRow.away_score ?? MS.scoreA ?? 0;
+            MS.script = MS.script || {};
+            if (Array.isArray(liveRow.events)) MS.script.evs = MS._uzt ? _uzOlaylar(liveRow.events, 'son') : liveRow.events;
+            if (liveRow.stats) MS.script.stats = liveRow.stats;
+            try { _msSkorSenkron(true); } catch(e) {}   // 574 — 90'/uzatma golü: ses skorla birlikte
+            if (MS._uzt) { MS.scoreH = MS._uzt.reg[0]; MS.scoreA = MS._uzt.reg[1]; }
+            MS.finished = true; MS.running = false;
+            if (typeof _finalizeMatch === 'function') _finalizeMatch(MS.script);
+          } catch(e) { console.warn('[poll] finalize hata:', e); }
+          return;
+        }
       }
       if (liveRow && liveRow.status === 'running' && !MS.running) {
         MS.running = true;
@@ -36947,7 +36954,7 @@ async function startMatch(){
           //   Önemli olaylar (gol/kart/sub/sakatlık/penaltı/devre/maç sonu) HER ZAMAN gösterilir.
           //   Gürültü olayları (top kapma, çalım, pas kesme, taç, mücadele...) elenir; kalan
           //   kota (3'e kadar) orta-önemli olaylarla (şut, korner, kurtarış, faul) doldurulur.
-          const _evImportant = new Set(['goal','yellow','red','sub','injury','penalty','penaltymissed','half','halftime','fulltime','end','var']);
+          const _evImportant = new Set(['goal','yellow','red','sub','injury','penalty','penaltymissed','half','halftime','fulltime','end','var','uzatmabas','uzatmaara','uzatmason']);
           const _evMid = new Set(['shotoff','shot_off','shot','save','corner','freekick','foul','offside','bigchancemissed']);
           const events = (() => {
             const byMin = new Map();
@@ -37047,6 +37054,9 @@ async function startMatch(){
               else if (rawType === 'var') { cls = 'ev-build'; ico = '📺'; title = 'VAR'; }
               else if (rawType === 'error') { return ''; } // hata event'ini gizle
               else if (rawType === 'half' || rawType === 'halftime') { cls = 'ev-half'; ico = '⏸️'; title = 'DEVRE ARASI'; }
+              else if (rawType === 'uzatmabas') { cls = 'ev-half'; ico = '⏱️'; title = 'NORMAL SÜRE BİTTİ'; }
+              else if (rawType === 'uzatmaara') { cls = 'ev-half'; ico = '⏸️'; title = 'UZATMA ARASI'; }
+              else if (rawType === 'uzatmason') { cls = 'ev-half'; ico = '⏱️'; title = (MS._uzt && MS._uzt.pens) ? 'PENALTILAR' : 'UZATMA SONU'; }
               else if (rawType === 'fulltime' || rawType === 'end') { cls = 'ev-fulltime'; ico = '⏱️'; title = 'MAÇ SONU'; }
               else { cls = 'ev-build'; ico = '•'; title = (rawType || 'olay').replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase()); }
               let sideCls = 'ev-neutral';
@@ -37061,7 +37071,7 @@ async function startMatch(){
                       + `<span class="ev-out">▼ <span data-noi18n>${_e(ev.playerOut || '—')}</span></span></div>`;
               }
               // 574 — "Önemli olaylar" filtresi önemsizleri gizler; gol kartında skor + asist
-              const _gmOnemli = ['tactic','formation','goal','yellow','red','sub','injury','penalty','penaltymissed','half','halftime','fulltime','end','var','kickoff'];
+              const _gmOnemli = ['tactic','formation','goal','yellow','red','sub','injury','penalty','penaltymissed','half','halftime','fulltime','end','var','kickoff','uzatmabas','uzatmaara','uzatmason'];
               const _gmMinor = _gmOnemli.indexOf(rawType) === -1 ? ' ev-minor' : '';
               if (rawType === 'goal') {
                 const _e3 = (x) => (typeof _escapeHtml === 'function') ? _escapeHtml(x) : x;
@@ -37213,8 +37223,8 @@ async function startMatch(){
         } catch(e) { /* sessizce devam */ }
         // 587 — maç içi diziliş/plan sunucudan (çıkıp girince de maçın o anki hali)
         try { if (typeof mkCanliEsle === 'function' && liveRow) mkCanliEsle(liveRow, 'son'); } catch(e) {}
-        // Bittiyse
-        if (liveRow.status === 'finished' || liveRow.sim_minute >= 90) {
+        // Bittiyse (699 — uzatma/penaltı oynanırken bitişi zaman çizelgesi yapar)
+        if (!MS._uzt && (liveRow.status === 'finished' || liveRow.sim_minute >= 90)) {
           // MS skorları Edge Function'ın son skorlarıyla senkronla (finalize bunları kullanır)
           MS.scoreH = liveRow.home_score ?? MS.scoreH ?? 0;
           MS.scoreA = liveRow.away_score ?? MS.scoreA ?? 0;
@@ -39728,6 +39738,240 @@ function closeSeasonEndCeremony() {
 }
 
 // Maç sonu işlemleri
+// ═══ 699 — ELEME MAÇI: UZATMA + PENALTILAR CANLI ═══
+//   Sunucu 90'da berabere biten eleme maçının uzatma/penaltı sonucunu maç biter bitmez yazar
+//   (stats: extraTime, etGoals, pens, penSeq, penFirst, pensWinner / etWinner). İzleyici aynı saatle izler:
+//   90' → 30 sn ara · 1. uzatma 15 dk (105 sn) · 30 sn ara · 2. uzatma 15 dk · berabereyse penaltılar
+//   düello sahnesinde (Sahne3D, atışlar sunucunun) · turu geçen · maç sonu ekranı.
+const UZ_ARA = 30000, UZ_YARI = 105000, UZ_PEN_ON = 3000, UZ_ATIS = 5500, UZ_SONUC = 5000, UZ_TUR = 3000;
+const _UZ_FAZ = ['ara1', 'u1', 'ara2', 'u2', 'son'];
+// Bitiş anında uzatma bekleniyor mu: tek maçlık elemede berabere, rövanşta toplam skor eşit
+function _uzAday(r) {
+  const k = r.tournament_key, f = r.tournament_phase;
+  if (!k || !f) return false;
+  const kupa = ['champ', 'elite', 'conv'].includes(k);
+  if ((k === 'enc' && f !== 'group') || (kupa && ['playoff', 'playoff2', 'final'].includes(f))) return r.home_score === r.away_score;
+  if (!(kupa && ['r32', 'r16', 'qf', 'sf'].includes(f) && String(r.match_key || '').includes('_L2_'))) return false;
+  if (MS._uzIlk === undefined) {
+    MS._uzIlk = null;
+    window.sb.from('match_state').select('home_score,away_score').eq('season', r.season).eq('tournament_key', k)
+      .eq('tournament_phase', f).eq('home_team', r.away_team).eq('away_team', r.home_team).maybeSingle()
+      .then(({ data }) => { MS._uzIlk = data || false; });
+  }
+  if (MS._uzIlk === null) return true;
+  return !!MS._uzIlk && r.home_score + MS._uzIlk.away_score === r.away_score + MS._uzIlk.home_score;
+}
+function _uzKur(r) {
+  const st = r.stats, et = st.extraTime;
+  if (!MS._matchStartedAt && r.started_at) MS._matchStartedAt = Date.parse(r.started_at);
+  const t90 = MS._matchStartedAt + 45 * 7000 + 100000 + 45 * 7000;
+  const pens = Array.isArray(st.pens) && st.pens.length === 2 ? st.pens : null;
+  const seq = pens && Array.isArray(st.penSeq) ? st.penSeq : [];
+  const penBas = t90 + 2 * UZ_ARA + 2 * UZ_YARI + UZ_PEN_ON, penSon = penBas + seq.length * UZ_ATIS;
+  MS._uzt = {
+    reg: [Number(r.home_score) || 0, Number(r.away_score) || 0], et: [Number(et[0]) || 0, Number(et[1]) || 0],
+    goller: (Array.isArray(st.etGoals) ? st.etGoals : []).map(g => ({ type: 'goal', team: g[0] === 0 ? 'home' : 'away', player: g[1], min: Number(g[2]) || 105, extraTime: true })),
+    pens, seq, kazanan: st.pensWinner || st.etWinner || null, t90, penBas, penSon,
+    bitis: pens ? penSon + UZ_SONUC : t90 + 2 * UZ_ARA + 2 * UZ_YARI + UZ_TUR,
+  };
+}
+// 'oyna' · 'bekle' (sunucu sonucu henüz yazmadı) · null (normal bitiş)
+function _uzBitisKarar(r) {
+  if (!MS._uzt) {
+    const st = r.stats || {};
+    if (Array.isArray(st.extraTime) && (st.pensWinner || st.etWinner)) _uzKur(r);
+    else {
+      if (!_uzAday(r)) return null;
+      MS._uzBekleBas = MS._uzBekleBas || Date.now();
+      return Date.now() - MS._uzBekleBas < 40000 ? 'bekle' : null;
+    }
+  }
+  return Date.now() < MS._uzt.bitis ? 'oyna' : null;
+}
+function _uzOlaylar(evs, faz) {
+  const U = MS._uzt, f = _UZ_FAZ.indexOf(faz);
+  const out = (evs || []).filter(e => e && e.type !== 'fulltime' && e.type !== 'extratime' && e.type !== 'penshootout');
+  out.push({ type: 'uzatmabas', min: 90, team: 'neutral' }, ...U.goller);
+  if (f >= 2) out.push({ type: 'uzatmaara', min: 105, team: 'neutral' });
+  if (f >= 4) out.push({ type: 'uzatmason', min: 120, team: 'neutral' });
+  return out;
+}
+function _uzSanalSatir(r) {
+  return Object.assign({}, r, { status: 'running', sim_minute: MS._uzDk || 90, events: _uzOlaylar(r.events, MS._uzFaz || 'ara1') });
+}
+const _uzBekleKadar = t => new Promise(r => setTimeout(r, Math.max(0, t - Date.now())));
+function _uzSaat() {
+  const U = MS._uzt, e = Date.now() - U.t90;
+  let faz, dk, kalan = 0;
+  if (e < UZ_ARA) { faz = 'ara1'; dk = 90; kalan = UZ_ARA - e; }
+  else if (e < UZ_ARA + UZ_YARI) { faz = 'u1'; dk = Math.min(105, 91 + Math.floor((e - UZ_ARA) / 7000)); }
+  else if (e < 2 * UZ_ARA + UZ_YARI) { faz = 'ara2'; dk = 105; kalan = 2 * UZ_ARA + UZ_YARI - e; }
+  else if (e < 2 * UZ_ARA + 2 * UZ_YARI) { faz = 'u2'; dk = Math.min(120, 106 + Math.floor((e - 2 * UZ_ARA - UZ_YARI) / 7000)); }
+  else { faz = 'son'; dk = 120; }
+  MS._uzFaz = faz; MS._uzDk = dk; MS._displayMin = dk;
+  const clk = document.getElementById('matchClock'), sb = document.getElementById('statusBadge');
+  if (clk) { if (clk.textContent !== dk + "'") clk.textContent = dk + "'"; if (clk.className !== 'match-clock') clk.className = 'match-clock'; }
+  if (sb) {
+    const html = kalan ? `${faz === 'ara1' ? 'DEVRE ARASI' : 'UZATMA ARASI'} <span style="margin-left:8px;font-variant-numeric:tabular-nums;opacity:.95">${Math.ceil(kalan / 1000)}s</span>`
+      : faz === 'son' ? (U.pens ? 'PENALTILAR' : 'UZATMA SONU') : `<div class="live-dot"></div> ${faz === 'u1' ? '1. UZATMA' : '2. UZATMA'}`;
+    const cls = 'status-badge ' + (kalan ? 'sb-ht' : faz === 'son' ? 'sb-ft' : 'sb-live');
+    if (sb._uzHtml !== html) { sb._uzHtml = html; sb.innerHTML = html; }
+    if (sb.className !== cls) sb.className = cls;
+    const ms = document.getElementById('match-screen'); if (ms) ms.classList.toggle('is-live', cls.indexOf('sb-live') !== -1);
+  }
+  _macSesDurum(kalan ? 'devre' : faz === 'son' ? null : 'tribun');
+  try { _msSkorSenkron(); _gmSaatGuncelle(); _gmAtakAdim(); } catch (er) {}
+  if (U.pens && !U.sahne && (faz === 'u2' || faz === 'son')) { U.sahne = true; _pdSahneHazirla(); }   // 3B sahne önceden yüklenir
+  if (faz === 'son') _uzSon(U);
+}
+async function _uzSon(U) {
+  if (U.basladi) return;
+  U.basladi = true;
+  if (U.pens) await _uzPenaltilar(U);
+  else { _uzSerit(U); await _uzBekleKadar(U.bitis); }
+  if (MS._uzt !== U || MS.finished) return;
+  MS.scoreH = U.reg[0]; MS.scoreA = U.reg[1];   // sunucunun skoru (90'); uzatma golleri maç sonu ekranında eklenir
+  MS.finished = true; MS.running = false;
+  _finalizeMatch(MS.script);
+}
+// Uzatmada kazanan: skorbord şeridinde turu geçen
+function _uzSerit(U) {
+  const strip = document.getElementById('msEventStrip');
+  if (!strip || !U.kazanan) return;
+  document.getElementById('mesIcon').innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><use href="#ic-tv-trophy"/></svg>';
+  document.getElementById('mesWord').textContent = 'TURU GEÇTİ';
+  const dt = document.getElementById('mesDetail'); dt.textContent = U.kazanan; dt.style.display = '';
+  strip.dataset.type = 'special';
+  strip.classList.remove('show-in', 'show-out'); void strip.offsetWidth; strip.classList.add('show-in');
+  clearTimeout(window._evtBannerTimer); clearTimeout(window._evtBannerTimer2);
+  window._evtBannerTimer = setTimeout(() => {
+    strip.classList.remove('show-in'); strip.classList.add('show-out');
+    window._evtBannerTimer2 = setTimeout(() => strip.classList.remove('show-out'), 420);
+  }, UZ_TUR - 500);
+}
+// ── Penaltılar: düello ekranı (skor tablosu, 3B kale/kaleci/top), takımlarla ──
+function _uzTakimB(tk) {
+  const ad = tk && tk.name;
+  for (const cc of _cftGetCountryCodes()) if (_cftFindTeam(cc, ad)) return { takim: ad, cc };
+  return { takim: ad, cc: null };
+}
+function _uzArma(el, tk) {
+  el.innerHTML = ''; el.classList.remove('bayrak');
+  const bay = MS._isNational && typeof _hmUlkeBayrak === 'function' ? _hmUlkeBayrak(tk.name) : null;
+  if (bay) { el.textContent = bay; el.classList.add('bayrak'); return; }
+  const url = _pdLogo(_uzTakimB(tk));
+  if (url) el.innerHTML = `<img src="${_pdE(url)}" alt="">`;
+  else el.textContent = tk.short || String(tk.name || '').slice(0, 3).toUpperCase();
+}
+function _uzPenTablo() {
+  [['pdTBen', curHome], ['pdTRak', curAway], ['pdSBen', curHome], ['pdSRak', curAway]].forEach(([id, tk]) => {
+    const el = _pd$(id);
+    _uzArma(el.querySelector('.pd-av'), tk);
+    el.querySelector('.ad').textContent = tk.name;
+    const t = el.querySelector('.tk'); if (t) t.innerHTML = '';
+  });
+  [['pdTzBen', 'pdTsBen', curHome], ['pdTzRak', 'pdTsRak', curAway]].forEach(([z, l, tk]) => {
+    const b = _uzTakimB(tk), s = _pdSerit(b), url = MS._isNational ? null : _pdLogo(b), img = _pd$(l);
+    _pd$(z).style.setProperty('--r1', s.renk); _pd$(z).style.setProperty('--r2', s.serit);
+    img.parentNode.style.display = url ? '' : 'none'; if (url) img.src = url;
+  });
+}
+function _uzPenTabloCiz(U) {
+  const at = U.seq.slice(0, U.gosterilen);
+  const dizi = t => at.filter(x => x[0] === t).map(x => x[2] ? 1 : 0);
+  const B = dizi(0), R = dizi(1), g = a => a.filter(x => x === 1).length;
+  const seri = B.length >= 5 && R.length >= 5 && g(B.slice(0, 5)) === g(R.slice(0, 5));
+  const sira = U.gosterilen < U.seq.length ? U.seq[U.gosterilen][0] : null;
+  const ciz = (a, el, buSira) => {
+    const n = seri ? a.slice(5) : a.slice(0, 5), adet = seri ? Math.max(1, n.length + (buSira ? 1 : 0)) : 5;
+    let h = '';
+    for (let i = 0; i < adet; i++) {
+      const v = n[i];
+      h += `<div class="pd-nok${v === 1 ? ' gol' : v === 0 ? ' kur' : ''}${buSira && i === n.length ? ' sira' : ''}">${v === 1 ? PD_IK.gol : v === 0 ? PD_IK.kur : ''}</div>`;
+    }
+    el.innerHTML = h;
+  };
+  ciz(B, _pd$('pdNBen'), sira === 0); ciz(R, _pd$('pdNRak'), sira === 1);
+  _pd$('pdTSkor').innerHTML = `${g(B)}<span>-</span>${g(R)}`;
+  _pd$('pdTSeri').classList.toggle('on', seri);
+  if (seri) _pd$('pdTSeriN').textContent = '· ' + Math.min(5, Math.floor((at.length - 10) / 2) + 1) + '/5';
+}
+// Atış: [taraf 0=ev 1=dep, atan, gol 1/0, kaçış sebebi]. Köşe ve kalecinin yönü maça özgü tohumdan (herkes aynısını görür).
+async function _uzAtis(U, i) {
+  const x = U.seq[i], taraf = x[0] === 0 ? 'home' : 'away', tk = taraf === 'home' ? curHome : curAway;
+  const kaleTk = taraf === 'home' ? curAway : curHome;
+  if (PD.sahneHazir) {
+    try { if (U.kaleKimde !== kaleTk.name) { U.kaleKimde = kaleTk.name; Sahne3D.kaleciTakim(_pdKit(_uzTakimB(kaleTk))); } Sahne3D.sifirla(); } catch (e) {}
+  }
+  _pd$('pdRolB').className = 'pd-rol-b ' + (taraf === 'home' ? 'at' : 'tut');
+  _pd$('pdRolB').textContent = String(tk.name || '').toLocaleUpperCase('tr');
+  _pd$('pdRolA').textContent = x[1] || '';
+  const r = _knRng(String(MS.match_key || '') + '|pen|' + i);
+  const atis = Math.floor(r() * 3), yan = (atis + 1 + Math.floor(r() * 2)) % 3, gol = !!x[2];
+  const kacis = !gol && x[3] === 'post' ? 'direk' : !gol && x[3] === 'wide' ? 'aut' : null;
+  const dalis = gol || kacis ? yan : atis;
+  _pdSesCal('duduk');
+  await _pdBekle(2000);
+  _pdSesCal('vurus', 0.08);
+  if (gol) _pdSesCal('ag', 0.56); else _pdSesCal('alkis', 0.5);
+  if (PD.sahneHazir) { try { await Promise.race([Sahne3D.atis(atis, dalis, gol, kacis), _pdBekle(1800)]); } catch (e) { await _pdBekle(900); } }   // arka planda kare durursa atış sırası kaymasın
+  else await _pdBekle(900);
+  const y = _pd$('pdSonucYazi');
+  y.textContent = gol ? 'Gol!' : kacis === 'direk' ? 'Direkte!' : kacis === 'aut' ? 'Dışarı!' : 'Kurtardı!';
+  y.className = 'pd-sonuc-yazi on ' + (gol ? 'gol' : 'kur');
+  await _pdBekle(1600);
+  y.className = 'pd-sonuc-yazi';
+}
+function _knRng(seed) {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return () => { h = Math.imul(h ^ (h >>> 13), h | 1) >>> 0; h ^= h >>> 17; return (h >>> 0) / 4294967296; };
+}
+function _uzPenSonuc(U) {
+  const son = _pd$('pdSon');
+  son.style.setProperty('--son-c', 'var(--accent)'); son.style.setProperty('--son-r', 'rgba(0,230,118,.18)');
+  _pd$('pdSonBas').textContent = (U.kazanan || '') + ' turu geçti';
+  _pd$('pdSonAlt').textContent = U.seq.length > 10 ? 'Seri penaltılarda' : 'Penaltılar';
+  const dizi = t => U.seq.filter(x => x[0] === t).map(x => x[2] ? 1 : 0);
+  const ciz = a => a.map((v, i) => (i === 5 ? '<span class="ayr"></span>' : '') + `<div class="pd-nok ${v ? 'gol' : 'kur'}">${v ? PD_IK.gol : PD_IK.kur}</div>`).join('');
+  [['pdSBen', 0], ['pdSRak', 1]].forEach(([id, t]) => {
+    const el = _pd$(id), a = dizi(t);
+    el.querySelector('.pd-son-noklar').innerHTML = ciz(a);
+    el.querySelector('.s').textContent = a.filter(v => v === 1).length;
+  });
+  _pdEkran('sonuc');
+}
+async function _uzPenaltilar(U) {
+  const acik = () => MS._uzt === U && !!document.querySelector('#match-screen.open');
+  if (PD.d || !acik()) { await _uzBekleKadar(U.bitis); return; }   // süren bir düello varsa sahne onundur
+  _pdDom();
+  const ov = _pd$('pdOv');
+  _uzPenTablo();
+  U.gosterilen = 0; _uzPenTabloCiz(U);
+  _pd$('pdBolgeler').className = 'pd-bolgeler kapali';
+  _pd$('pdSonucYazi').className = 'pd-sonuc-yazi';
+  _pd$('pdRolB').textContent = ''; _pd$('pdRolA').textContent = '';
+  _pdEkran('duello');
+  ov.classList.add('on', 'mac'); document.body.classList.add('pd-acik');
+  _pdAmbiyans(true);
+  await Promise.race([_pdSahneHazirla(), _pdBekle(5000)]);
+  for (let i = 0; i < U.seq.length && acik(); i++) {
+    const bas = U.penBas + i * UZ_ATIS;
+    if (Date.now() > bas + 3000) { U.gosterilen = i + 1; _uzPenTabloCiz(U); continue; }   // geç gelen izleyici: geçmiş atışlar
+    await _uzBekleKadar(bas);
+    if (!acik()) break;
+    await _uzAtis(U, i);
+    U.gosterilen = i + 1; _uzPenTabloCiz(U);
+  }
+  if (acik()) {
+    await _uzBekleKadar(U.penSon);
+    _uzPenSonuc(U);
+    await _uzBekleKadar(U.bitis);
+  }
+  ov.classList.remove('on', 'mac'); document.body.classList.remove('pd-acik');
+  _pdAmbiyans(false); PD.ekran = null;
+}
+
 function _finalizeMatch(script) {
   updateClock(90);
   if (script && script.stats) updateStats(script.stats, 1);
@@ -39738,8 +39982,8 @@ function _finalizeMatch(script) {
 
   // 🆕 Olay listesine "MAÇ BİTTİ" satırı ekle + live header
   try {
-    if (typeof addEvent === 'function') addEvent({ type: 'fulltime', min: 90 });
-    if (typeof updateLiveHeader === 'function') updateLiveHeader(90, 'Maç bitti', 50, 50);
+    if (typeof addEvent === 'function') addEvent({ type: 'fulltime', min: MS._uzt ? 120 : 90 });
+    if (typeof updateLiveHeader === 'function') updateLiveHeader(MS._uzt ? 120 : 90, 'Maç bitti', 50, 50);
   } catch(e) {}
 
   // 🆕 Maç bitti: arka plan müziğini (ayar açıksa) tekrar başlat
@@ -75680,7 +75924,7 @@ function _trn2ScrollActiveStab(el) {
 //   Atışları sunucu çözer; istemci yalnız seçimi gönderir ve gelen sonucu oynatır.
 //   3B sahne ilk düelloda pd/ klasöründen yüklenir (three r128 + GLTFLoader + sahne3d.js).
 // ═══════════════════════════════════════════════════════════════════
-const PD_SURUM = '659', PD_SEC = 10, PD_PAY = 2;
+const PD_SURUM = '699', PD_SEC = 10, PD_PAY = 2;
 const PD = { durum: null, d: null, fark: 0, gosterilen: 0, ekran: null, isliyor: false, tekrar: false, secimN: -1, secim: null,
   sahne: null, sahneHazir: false, kuraBasladi: false, sonOlay: 0, bakT: 0, hazirT: 0, kaleKimde: null, saatT: null, nabizT: null, hubT: null,
   davetModal: null, gorulen: new Set(), bildirilen: new Set(), okunan: {}, liste: [], listeNo: 0, araT: null, durumNo: 0,
@@ -101806,7 +102050,8 @@ function _teamChatCscSatir(m) {
     if (!ic || !curHome || !curAway) return;
     const R = renkler();
     const lr = (typeof _liveMatchCache === 'object' && _liveMatchCache && MS.match_key) ? _liveMatchCache[MS.match_key] : null;
-    const sH = o.scoreH, sA = o.scoreA;
+    const _uz = MS._uzt || null;   // 699 — eleme: uzatma golleri skora eklenir, turu geçen yazılır
+    const sH = _uz ? _uz.reg[0] + _uz.et[0] : o.scoreH, sA = _uz ? _uz.reg[1] + _uz.et[1] : o.scoreA;
 
     // Başlık: lig
     const ligAd = String((lr && lr.league_name) || (MS._fixtureRef && MS._fixtureRef.comp) || '').replace(/^[^\p{L}\p{N}]+/u, '').trim();
@@ -101828,7 +102073,11 @@ function _teamChatCscSatir(m) {
     // Sonuç rozeti
     const ligMaci = !MS._isFriendly && !MS._isNational && (lr ? !lr.tournament_key : !!(MS._fixtureRef && MS._fixtureRef.competition === 'league'));
     let sonuc;
-    if (o.userSide) {
+    if (_uz && _uz.kazanan) {
+      const ek = _uz.pens ? `<span>Penaltılar</span> <span data-noi18n>${_uz.pens[0]}–${_uz.pens[1]}</span>` : '<span>Uzatmalarda</span>';
+      const gecti = o.userSide ? (o.userSide === 'home' ? curHome : curAway).name === _uz.kazanan : null;
+      sonuc = `<span class="${gecti === null ? 'notr' : gecti ? 'win' : 'loss'}">${gecti ? svg('ic-tv-trophy', 'mss-ik') : ''}<span>${E(_uz.kazanan)} turu geçti</span> · ${ek}</span>`;
+    } else if (o.userSide) {
       const b = o.userSide === 'home' ? sH : sA, k = o.userSide === 'home' ? sA : sH;
       sonuc = b > k ? `<span class="win">${svg('ic-tv-trophy', 'mss-ik')}<span>Galibiyet</span>${ligMaci ? ' · <span data-noi18n>+3</span> <span>puan</span>' : ''}</span>`
         : b === k ? `<span class="draw"><span>Beraberlik</span>${ligMaci ? ' · <span data-noi18n>+1</span> <span>puan</span>' : ''}</span>`
@@ -102529,6 +102778,15 @@ function _teamChatCscSatir(m) {
 })();
 </script>
 
+<style id="uz-css">
+/* 699 — maç penaltıları düello ekranında: takım armaları, sayaç / puan / düğmeler yok */
+#pdOv.mac .pd-saat,#pdOv.mac .pd-son-puan,#pdOv.mac .pd-son-btn,#pdOv.mac .pd-bolgeler{display:none}
+#pdOv.mac .pd-av{background:transparent;border-color:transparent;box-shadow:none}
+#pdOv.mac .pd-av img{object-fit:contain;border-radius:0}
+#pdOv.mac .pd-av.bayrak{font-family:'Twemoji Country Flags',sans-serif}
+#pdOv.mac .pd-rol-a{font-weight:700}
+#pdOv.mac .pd-son-bas{text-align:center;font-size:40px;line-height:1.08;letter-spacing:2px}
+</style>
 <style id="tsa-css">
 /* 699 — "Takımı Al" sallanan etiket */
 .tsa{all:unset;box-sizing:border-box;cursor:pointer;font-family:'Barlow Condensed',sans-serif;-webkit-tap-highlight-color:transparent}
