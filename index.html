@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '720';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '721';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -25150,7 +25150,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-18-uzatma-canli-720';
+const APP_BUILD = '2026-10-18-sohbet-cift-721';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -49045,7 +49045,8 @@ function _teamChatSubscribe() {
     _teamChatChannel = null;
   }
 
-  const myId = (typeof authUser !== 'undefined' && authUser) ? authUser.id : null;
+  // 721 — kimlik her mesajda okunur (kanal açılışta authUser dolmadan kurulabiliyor)
+  const benId = () => (typeof authUser !== 'undefined' && authUser && authUser.id) || null;
   _teamChatChannelKey = newKey;
   // 690 — yeni mesaj veritabanı tetikleyicisinin yayınıyla ('mesaj': mid = mesaj kimliği) gelir; içerik tablodan okunur
   //   (sahte yayın ekrana düşemez). Okumalar sıraya alınır, mesajlar geliş sırasıyla eklenir.
@@ -49055,7 +49056,7 @@ function _teamChatSubscribe() {
       // Sadece kendi takımının mesajını al (filter team_name ile çalışıyor ama country için ekstra)
       if (!m || m.country_code !== _userTeam.countryCode || m.team_name !== _userTeam.teamName) return;
       // Kendi gönderdiğim mesaj zaten sendTeamChat tarafından ekrana eklendi, dublicate engelle
-      if (m.user_id && m.user_id === myId) return;
+      if (m.user_id && m.user_id === benId()) return;
       const area = document.getElementById('teamChatArea');
       if (!area) return;
       _teamChatAppendMsg(area, m, false);
@@ -49068,7 +49069,7 @@ function _teamChatSubscribe() {
   _teamChatChannel = window.sb.channel('team_chat:' + newKey)
     .on('broadcast', { event: 'mesaj' }, (msg) => {
       const p = msg && msg.payload;
-      if (!p || p.mid == null || (p.u && p.u === myId)) return;
+      if (!p || p.mid == null || (p.u && p.u === benId())) return;
       if (!_tsAcikMi()) { if (!(p.u && modEngelliMi(p.u))) { _tsOkunmamis++; _tsCiz(); } }   // 701 — okunmamış çanı
       else _tsOkunduErtele();
       _tcSira = _tcSira.then(async () => {
@@ -54722,14 +54723,14 @@ function _ntChatAbone() {
   const key = cc + ':' + ntName;
   if (_ntChatChannelKey === key && _ntChatChannel) return;
   if (_ntChatChannel) { try { window.sb.removeChannel(_ntChatChannel); } catch(e) {} _ntChatChannel = null; }
-  const myId = (typeof authUser !== 'undefined' && authUser) ? authUser.id : null;
+  const benId = () => (typeof authUser !== 'undefined' && authUser && authUser.id) || null;   // 721
   _ntChatChannelKey = key;
   // 690 — kulüp sohbetiyle aynı: veritabanı yayını ('mesaj': kimlik) → içerik tablodan, sırayla
   let _ntSira = Promise.resolve();
   const _ntIsle = (payload) => {
       const m = payload.new;
       if (!m || m.country_code !== cc || m.team_name !== ntName) return;
-      if (m.user_id && m.user_id === myId) return;   // kendi mesajım zaten eklendi
+      if (m.user_id && m.user_id === benId()) return;   // kendi mesajım zaten eklendi
       const area = document.getElementById('ntChatArea');
       if (!area) return;
       const bos = area.querySelector('div[style*="Henüz mesaj yok"]');
@@ -54740,7 +54741,7 @@ function _ntChatAbone() {
   _ntChatChannel = window.sb.channel('nt_chat:' + key)
     .on('broadcast', { event: 'mesaj' }, (msg) => {
       const p = msg && msg.payload;
-      if (!p || p.mid == null || (p.u && p.u === myId)) return;
+      if (!p || p.mid == null || (p.u && p.u === benId())) return;
       _ntSira = _ntSira.then(async () => {
         const { data } = await window.sb.from('team_chat')
           .select('id, country_code, team_name, user_id, username, display_name, avatar_id, message, created_at')
