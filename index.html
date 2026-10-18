@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '719';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '720';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -25150,7 +25150,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-18-hesap-engel-719';
+const APP_BUILD = '2026-10-18-uzatma-canli-720';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -31509,7 +31509,7 @@ function _resLiveUpdate() {
   const userTeamName = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : null;
   const isUserMatch = userTeamName && (m.home === userTeamName || m.away === userTeamName);
 
-  let hs = 0, as = 0, minute = 0, isHT = false, ratio = 0, events = [], statusMode = 'pre';
+  let hs = 0, as = 0, minute = 0, isHT = false, ratio = 0, events = [], statusMode = 'pre', _uzK = null;
   // statusMode: 'pre' | 'live' | 'ht' | 'finished'
 
   if (isUserMatch && typeof MS !== 'undefined' && MS && MS.matchActive) {
@@ -31532,7 +31532,12 @@ function _resLiveUpdate() {
       }
     }
 
-    if (liveRow && (liveRow.status === 'running' || liveRow.status === 'scheduled')) {
+    _uzK = (liveRow && liveRow.status === 'finished') ? _uzListeDurum(_uzSatir(liveRow)) : null;   // 720
+    if (_uzK) {
+      minute = _uzK.dk; hs = _uzK.hs; as = _uzK.as; ratio = 1; statusMode = 'live';
+      events = (Array.isArray(liveRow.events) ? liveRow.events : [])
+        .concat(_uzK.goller.map(g => ({ type: 'goal', team: g[0] === 0 ? 'home' : 'away', player: g[2], min: g[1] })));
+    } else if (liveRow && (liveRow.status === 'running' || liveRow.status === 'scheduled')) {
       // 🆕 CANLI: server'dan gelen anlık veri (dakika smoothing ile hesaplanır)
       minute = (typeof _computeLiveSimMinute === 'function') ? _computeLiveSimMinute(liveRow) : (liveRow.sim_minute || 0);  // 🆕 liste ile AYNI: started_at saati
       hs = liveRow.home_score || 0;
@@ -31591,7 +31596,7 @@ function _resLiveUpdate() {
       minuteText.innerHTML = `⏰ <b>${tStr}</b> başlayacak`;
     } else {
       minuteText.classList.remove('is-ht');
-      minuteText.innerHTML = `<b>${minute}'</b> dakika`;
+      minuteText.innerHTML = (_uzK && _uzK.metin === 'PEN') ? '<b>PENALTILAR</b>' : `<b>${minute}'</b> dakika`;
     }
   }
 
@@ -62247,7 +62252,8 @@ function _msFmtRow(m) {
     status: m.status,
     sim_minute: m.sim_minute,
     home_score: m.home_score,
-    away_score: m.away_score
+    away_score: m.away_score,
+    started_at: m.started_at || null
   };
   try {
     if (m.country_code) {
@@ -62568,6 +62574,95 @@ function _resClampedLiveMin(ms){
   return _d;
 }
 
+// ═══ 720 — ELEME MAÇI UZATMA / PENALTI: LİSTE, CANLI KUTU, AĞAÇ ═══
+//   Sunucu uzatma/penaltı sonucunu 90'da yazar (stats); maç ekranı bunu 699 saatiyle oynatır. Liste ve ağaç da
+//   aynı saati izler: uzatmalar ve penaltılar bitene kadar maç canlıdır, skor ve tur atlayan erkenden görünmez.
+window._uzListe = window._uzListe || {};
+let _uzListeKuyruk = new Set(), _uzListeZaman = null, _uzAgacZaman = null, _uzAgacHedef = 0;
+function _uzOlabilir(ms) {
+  const k = ms && ms.tournament_key, f = ms && ms.tournament_phase;
+  if (!k || !f) return false;
+  if (k === 'enc') return f !== 'group';
+  if (!['champ', 'elite', 'conv'].includes(k)) return false;
+  return ['playoff', 'playoff2', 'final'].includes(f) || (['r32', 'r16', 'qf', 'sf'].includes(f) && String(ms.matchKey || '').includes('_L2_'));
+}
+// Uzatma olabilir mi: tek maçta beraberlik, rövanşta toplam skor eşitliği (ilk maç bilinmiyorsa olabilir)
+function _uzBeklenir(ms) {
+  const mk = String(ms.matchKey || '');
+  if (!mk.includes('_L2_')) return ms.home_score === ms.away_score;
+  const bk = (_matchStateCache && _matchStateCache.byKey) || {};
+  const l1 = bk[mk.replace('_L2_' + ms.home + '_' + ms.away, '_L1_' + ms.away + '_' + ms.home)];
+  if (!l1 || l1.status !== 'finished') return true;
+  return (Number(ms.home_score) || 0) + (Number(l1.away_score) || 0) === (Number(ms.away_score) || 0) + (Number(l1.home_score) || 0);
+}
+function _uzListeKaydet(mk, st) {
+  st = st || {};
+  const et = st.extraTime;
+  const v = (Array.isArray(et) && (st.pensWinner || st.etWinner)) ? {
+    goller: (Array.isArray(st.etGoals) ? st.etGoals : []).map(g => [g[0] === 0 ? 0 : 1, Number(g[2]) || 105, g[1]]),
+    pens: Array.isArray(st.pens) && st.pens.length === 2, seq: Array.isArray(st.penSeq) ? st.penSeq.length : 0,
+  } : null;
+  window._uzListe[mk] = { v, at: Date.now() };
+  return v;
+}
+function _uzListeIste(mk) {
+  const c = window._uzListe[mk];
+  if (c && (c.istek || Date.now() - c.at < 6000)) return;
+  window._uzListe[mk] = Object.assign(c || { at: 0 }, { istek: true });
+  _uzListeKuyruk.add(mk);
+  if (_uzListeZaman || !window.sb) return;
+  _uzListeZaman = setTimeout(async () => {
+    _uzListeZaman = null;
+    const keys = [..._uzListeKuyruk].slice(0, 50);
+    keys.forEach(k => _uzListeKuyruk.delete(k));
+    let rows = [];
+    try { const { data } = await window.sb.from('match_state').select('match_key,stats').in('match_key', keys); rows = data || []; } catch (e) {}
+    let yeni = false;
+    keys.forEach(k => { const r = rows.find(x => x.match_key === k); if (_uzListeKaydet(k, r && r.stats)) yeni = true; });
+    if (!yeni) return;
+    try { const pg = document.getElementById('page-results'); if (pg && pg.classList.contains('active')) renderResultsPage(); } catch (e) {}
+    try { _trnCanliCiz(); } catch (e) {}
+  }, 60);
+}
+// null: normal akış · { dk, hs, as, metin, bitis, goller }: uzatma / penaltı sürüyor (ya da sonucu bekleniyor)
+function _uzListeDurum(ms) {
+  if (!ms || ms.status !== 'finished' || !ms.started_at || !_uzOlabilir(ms)) return null;
+  const t90 = Date.parse(ms.started_at) + 730000, simdi = Date.now(), e = simdi - t90;
+  if (!(e >= 0) || e > 600000 || !_uzBeklenir(ms)) return null;
+  const hs = Number(ms.home_score) || 0, as = Number(ms.away_score) || 0;
+  const c = window._uzListe[ms.matchKey];
+  if (!c || c.v === undefined || (c.v === null && e < 45000)) {
+    _uzListeIste(ms.matchKey);
+    return { dk: 90, hs, as, metin: "90'", bitis: t90 + 45500, goller: [] };
+  }
+  if (!c.v) return null;
+  const U = c.v, B = 2 * UZ_ARA + 2 * UZ_YARI;
+  const son = U.pens ? B + UZ_PEN_ON + U.seq * UZ_ATIS + UZ_SONUC : B + UZ_TUR;
+  if (e >= son) return null;
+  let dk;
+  if (e < UZ_ARA) dk = 90;
+  else if (e < UZ_ARA + UZ_YARI) dk = Math.min(105, 91 + Math.floor((e - UZ_ARA) / 7000));
+  else if (e < 2 * UZ_ARA + UZ_YARI) dk = 105;
+  else if (e < B) dk = Math.min(120, 106 + Math.floor((e - 2 * UZ_ARA - UZ_YARI) / 7000));
+  else dk = 120;
+  const gol = U.goller.filter(g => g[1] <= dk);
+  return { dk, hs: hs + gol.filter(g => g[0] === 0).length, as: as + gol.filter(g => g[0] === 1).length,
+    metin: (U.pens && e >= B) ? 'PEN' : dk + "'", bitis: t90 + son, goller: gol };
+}
+// Sunucu satırını (match_key, home_team …) önbellek biçimine çevirir; stats geldiyse sorgu atılmaz
+function _uzSatir(r) {
+  if (r && r.stats && r.match_key) _uzListeKaydet(r.match_key, r.stats);
+  return Object.assign({}, r, { matchKey: r.match_key, home: r.home_team, away: r.away_team });
+}
+// Ağaç: uzatma/penaltı bitince (ya da sonucu gelince) yeniden çizilir
+function _uzAgacPlanla(t) {
+  const simdi = Date.now(), hedef = Math.max(simdi + 1000, t + 800);
+  if (_uzAgacZaman && _uzAgacHedef <= hedef) return;
+  clearTimeout(_uzAgacZaman);
+  _uzAgacHedef = hedef;
+  _uzAgacZaman = setTimeout(() => { _uzAgacZaman = null; _uzAgacHedef = 0; try { _trnCanliCiz(); } catch (e) {} }, hedef - simdi);
+}
+
 // 🆕 SUPABASE TEK KAYNAK — lokal fikstür hesabı KALDIRILDI.
 //   Eski versiyon buildLeagueFixture + _resFixtureDayCache + _resFixtureSeasonCache +
 //   _matchResultsLoad + encLoad gibi 4-5 ayrı kaynaktan veri topluyordu; bunlar
@@ -62593,7 +62688,8 @@ function _resGetMatchesForDate(targetDate) {
     //   yapsa bile istemci saati 90 gösteriyorsa o ~7sn "90'" canlı kalır.
     const _cmL = (typeof _computeLiveSimMinute === 'function') ? _computeLiveSimMinute(ms) : (ms.sim_minute || 0);
     const _pastFull = (typeof _resPastFullTime === 'function') ? _resPastFullTime(ms) : (((ms.sim_minute||0)>=90)||(ms.status==='finished'));
-    const isLive = !_pastFull && ((ms.status === 'running') || (ms.status === 'finished' && _cmL >= 90));
+    const _uz = _uzListeDurum(ms);   // 720 — uzatma / penaltı bitene kadar canlı
+    const isLive = !!_uz || (!_pastFull && ((ms.status === 'running') || (ms.status === 'finished' && _cmL >= 90)));
     const isFinished = !isLive && ((ms.status === 'finished') || (ms.status === 'running' && _pastFull));
     const isFriendly = ms.tournament_key === 'friendly';
     // 🆕 BUG FIX: cache mapping camelCase (leagueName) kullanır, ms.league_name undefined döner.
@@ -62630,11 +62726,12 @@ function _resGetMatchesForDate(targetDate) {
       matchDate: targetDay.toISOString().slice(0,10),
       scheduledTime: _getMatchHM(ms),
       played: isFinished,
-      hs: (isFinished || isLive) ? (ms.home_score ?? null) : null,
-      as: (isFinished || isLive) ? (ms.away_score ?? null) : null,
+      hs: _uz ? _uz.hs : (isFinished || isLive) ? (ms.home_score ?? null) : null,
+      as: _uz ? _uz.as : (isFinished || isLive) ? (ms.away_score ?? null) : null,
+      uzMetin: _uz ? _uz.metin : null,
       playedAt: isFinished ? t : null,
       isLive: isLive,
-      liveMinute: isLive ? ((typeof _computeLiveSimMinute === 'function') ? _computeLiveSimMinute(ms) : (ms.sim_minute ?? 0)) : null,  // 🆕 maç ekranıyla AYNI: started_at saati (1'den başlar, 7sn akar, 90'da biter)
+      liveMinute: isLive ? (_uz ? _uz.dk : (typeof _computeLiveSimMinute === 'function') ? _computeLiveSimMinute(ms) : (ms.sim_minute ?? 0)) : null,  // 🆕 maç ekranıyla AYNI: started_at saati (1'den başlar, 7sn akar, 90'da biter)
       cacheKey: ms.matchKey,
       _raw: ms
     });
@@ -63139,7 +63236,7 @@ function _resRenderMatches(matches) {
         const _li = window._resLiveKeys.length;
         window._resLiveKeys.push(_lk);
         scoreCell = `<div id="res-sc-${_li}" class="res-match-score res-match-score-live">${ls.hs} - ${ls.as}</div>`;
-        timeStr = `${ls.minute}'`;
+        timeStr = m.uzMetin || `${ls.minute}'`;
         timeId = ` id="res-tm-${_li}"`;
         liveClass = ' res-match-live';
         liveBadge = `<div class="res-live-dot"></div>`;
@@ -63315,15 +63412,18 @@ async function _resUpdateLiveCells() {
   } catch(e) { return; }
   const _liveSet = new Set(liveKeys);
   let anyFinished = false, anyNewLive = false, _goalFired = false;
+  const _bkU = (_matchStateCache && _matchStateCache.byKey) || {};
+  const _uzR = r => _uzListeDurum(Object.assign({}, _bkU[r.match_key], r, { matchKey: r.match_key }));   // 720
   for (const r of rows) {
     const _cm = (typeof _computeLiveSimMinute === 'function') ? _computeLiveSimMinute(r) : (r.sim_minute || 0);  // gösterilen dakika (1-based, 7sn, 90 cap)
+    const _uz = _uzR(r);
     const _pastFull = (typeof _resPastFullTime === 'function') ? _resPastFullTime(r) : (((r.sim_minute||0)>=90)||(r.status==='finished'));
     // 90. dk penceresi canlı kalsın: server bitirse bile saat 90 gösteriyorsa ~7sn canlı.
-    const _running = !_pastFull && ((r.status === 'running') || (r.status === 'finished' && _cm >= 90));
+    const _running = !!_uz || (!_pastFull && ((r.status === 'running') || (r.status === 'finished' && _cm >= 90)));
     const _fin = !_running && ((r.status === 'finished') || ((r.status === 'running') && _pastFull));
     // cache'i her durumda tazele → liste yeniden çizilince doğru skor/dakika kalsın
     try { const _cc = _matchStateCache && _matchStateCache.byKey && _matchStateCache.byKey[r.match_key];
-      if (_cc) { _cc.status = r.status; if (typeof r.sim_minute === 'number') _cc.sim_minute = r.sim_minute; if (r.home_score != null) _cc.home_score = r.home_score; if (r.away_score != null) _cc.away_score = r.away_score; } } catch(e){}
+      if (_cc) { _cc.status = r.status; if (r.started_at) _cc.started_at = r.started_at; if (typeof r.sim_minute === 'number') _cc.sim_minute = r.sim_minute; if (r.home_score != null) _cc.home_score = r.home_score; if (r.away_score != null) _cc.away_score = r.away_score; } } catch(e){}
     if (!_liveSet.has(r.match_key)) {
       if (_running) anyNewLive = true;   // scheduled→running → listeyi bir kez yeniden çiz
       continue;
@@ -63338,7 +63438,7 @@ async function _resUpdateLiveCells() {
     const scEl = document.getElementById('res-sc-' + idx);
     if (scEl) {
       // SKOR = motorun her gol/tick'te yazdığı resmi skor kolonu (scoreboard) — basit ve tek kaynak
-      const _gh = r.home_score ?? 0, _ga = r.away_score ?? 0;
+      const _gh = _uz ? _uz.hs : (r.home_score ?? 0), _ga = _uz ? _uz.as : (r.away_score ?? 0);
       const _newSc = `${_gh} - ${_ga}`;
       window._resPrevScores = window._resPrevScores || {};
       const _prev = window._resPrevScores[r.match_key];
@@ -63356,7 +63456,7 @@ async function _resUpdateLiveCells() {
       }
       window._resPrevScores[r.match_key] = _newSc;
       try { const _ce2 = _matchStateCache && _matchStateCache.byKey && _matchStateCache.byKey[r.match_key];
-        if (_ce2) { _ce2.home_score = _gh; _ce2.away_score = _ga; } } catch(e){}
+        if (_ce2 && !_uz) { _ce2.home_score = _gh; _ce2.away_score = _ga; } } catch(e){}
     }
     // 🆕 Dakika = SUNUCU sim_minute (maç ekranı/motorla TUTARLI — listeyle maç arasında sapma olmasın).
     //    Edge her ~7sn tick'lediğinde sim_minute +1 → liste de 7sn'de bir dakika ilerler.
@@ -63364,7 +63464,7 @@ async function _resUpdateLiveCells() {
     // 🆕 DAKİKA = motorun yazdığı GERÇEK sim_minute (uydurma yok). 45 = devre arası → HT.
     const _sm = _cm;   // 🆕 akan canlı dakika (her 7sn +1, devre arası 45=HT)
     const tmEl = document.getElementById('res-tm-' + idx);
-    if (tmEl) tmEl.innerHTML = (_sm === 45) ? `<div class="res-live-dot"></div>HT`
+    if (tmEl) tmEl.innerHTML = _uz ? `<div class="res-live-dot"></div>${_uz.metin}` : (_sm === 45) ? `<div class="res-live-dot"></div>HT`
                                             : `<div class="res-live-dot"></div>${_sm}'`;
   }
   // 🆕 FLICKER FIX: Tam yeniden-render SADECE üyelik değişince (scheduled↔live↔finished).
@@ -63375,7 +63475,7 @@ async function _resUpdateLiveCells() {
     _memSig = rows.map(r => {
       const _cmS = (typeof _computeLiveSimMinute === 'function') ? _computeLiveSimMinute(r) : (r.sim_minute || 0);
       const _pf = (typeof _resPastFullTime === 'function') ? _resPastFullTime(r) : (((r.sim_minute||0)>=90)||(r.status==='finished'));
-      const _liveNow = !_pf && ((r.status === 'running') || (r.status === 'finished' && _cmS >= 90));
+      const _liveNow = !!_uzR(r) || (!_pf && ((r.status === 'running') || (r.status === 'finished' && _cmS >= 90)));
       const _st = _liveNow ? 'L' : ((r.status === 'finished' || ((r.status === 'running') && _pf)) ? 'F' : 'S');
       return r.match_key + _st;
     }).sort().join(',');
@@ -74666,7 +74766,10 @@ function trn2BuildBracket(groups, season, trnKey) {
 
         // Kazanan: toplam skor; eşitlikte belirleyici maçın uzatma/penaltı kaydı (sunucu yazar)
         const _bel = info.twoLeg ? srvL2 : srvL1;
-        const _pi = _bel ? _penBilgi(_bel.matchKey) : null;
+        // 720 — belirleyici maçta uzatma / penaltı sürüyorsa sonuç henüz yok
+        const _uzc = (_bel && _matchStateCache && _matchStateCache.byKey) ? _uzListeDurum(_matchStateCache.byKey[_bel.matchKey]) : null;
+        if (_uzc) _uzAgacPlanla(_uzc.bitis);
+        const _pi = (_bel && !_uzc) ? _penBilgi(_bel.matchKey) : null;
         const _evT = info.twoLeg ? t2 : t1;   // belirleyici maçın ev sahibi
         let winner = null, _aggH = '', _aggA = '';
         if (info.twoLeg ? (leg1 && leg2) : leg1) {
@@ -74689,6 +74792,7 @@ function trn2BuildBracket(groups, season, trnKey) {
           winner,
           pens: _pens,
           et: _et,
+          uzCanli: !!_uzc,
           belMk: _bel ? _bel.matchKey : null,
           twoLeg: info.twoLeg,
           fromServer: true
@@ -75122,6 +75226,34 @@ function _trkAgacHtml(k, T) {
     return { ad: t.ad, n, bitti: t.bitti, govHtml: gov };
   }) });
 }
+// 720 — tur atlayan, eşleşmesi biter bitmez sonraki turdaki yerine yazılır (sunucu turu tüm eşleşmeler bitince kurar).
+//   Ağaçta yan yana iki eşleşmenin galipleri karşılaşır (sunucudaki eşleştirmeyle aynı). Sunucu turu kurduysa,
+//   uzatması / penaltısı süren eşleşmeden gelen takım o bitene kadar gösterilmez.
+function _trkTahminiTur(T, tip, season) {
+  const galip = c => (c && c.galip) ? (c.ev && c.ev.name === c.galip ? c.ev : c.dep) : null;
+  for (let i = 1; i < T.length; i++) {
+    const once = T[i - 1].kartlar;
+    if (T[i].kartlar.every(c => !c || c.bos)) {
+      if (!once.some(c => c && c.galip)) continue;
+      const gun = (_trkAsamalar(tip).find(a => a.ad === T[i].ad) || { gunler: [] }).gunler[0];
+      T[i].kartlar = T[i].kartlar.map((_, k) => {
+        const ev = galip(once[2 * k]), dep = galip(once[2 * k + 1]);
+        if (!ev && !dep) return { bos: true };
+        if (!ev || !dep) return { ev, dep, ust: 'Rakip bekleniyor', skEv: null, skDep: null, galip: null, detay: null, et: { k: 'p', t: 'Bekliyor' } };
+        return { ev, dep, ust: gun ? _trkTarih(season, gun) : '', skEv: null, skDep: null, galip: null, detay: null, et: _trkEt(false) };
+      });
+      continue;
+    }
+    const sur = once.filter(c => c && c.uz);
+    if (!sur.length) continue;
+    const gizli = t => t && sur.some(c => (c.ev && c.ev.name === t.name) || (c.dep && c.dep.name === t.name));
+    T[i].kartlar = T[i].kartlar.map(c => {
+      if (!c || c.bos || !(gizli(c.ev) || gizli(c.dep))) return c;
+      const ev = gizli(c.ev) ? null : c.ev, dep = gizli(c.dep) ? null : c.dep;
+      return { ev, dep, ust: 'Rakip bekleniyor', skEv: null, skDep: null, galip: null, detay: null, et: { k: 'p', t: 'Bekliyor' } };
+    });
+  }
+}
 // Kart durum etiketi
 function _trkEt(bitti, pen, uzt, canli, basladi) {
   if (bitti && (pen || uzt)) return { h: _trkUzPen(pen, uzt, 'trk-et') };
@@ -75142,7 +75274,7 @@ function _trkKulupAgac(groups, trnKey, season) {
         const l1 = m.leg1, l2 = m.leg2, faz = r.faz;
         const ms1 = idx[faz + '|' + m.home.name + '|' + m.away.name], ms2 = m.twoLeg ? idx[faz + '|' + m.away.name + '|' + m.home.name] : null;
         const tam = m.twoLeg ? !!(l1 && l2) : !!l1;
-        if (tam && !m.winner && m.belMk) eksik.push(m.belMk);
+        if (tam && !m.winner && m.belMk && !m.uzCanli) eksik.push(m.belMk);
         const pen = m.pens ? [m.pens.homePens, m.pens.awayPens] : null;
         const uzt = (m.winner && m.et && !m.pens) ? (m.twoLeg ? [m.et.as, m.et.hs] : [m.et.hs, m.et.as]) : null;
         let skEv = null, skDep = null;
@@ -75151,12 +75283,13 @@ function _trkKulupAgac(groups, trnKey, season) {
         const detay = l1 ? { tur: trnKey, round: _TRK_TUR_AD[faz], twoLeg: !!m.twoLeg, home: _trkMdTakim(m.home), away: _trkMdTakim(m.away),
           legs: [{ mk: l1.mk, hs: l1.hs, as: l1.as, date: m.leg1Date, ev: 'home' }].concat(m.twoLeg && l2 ? [{ mk: l2.mk, hs: l2.hs, as: l2.as, date: m.leg2Date, ev: 'away' }] : []),
           pens: m.pens || null, et: m.et || null, winner: m.winner ? m.winner.name : null, bitti: !!m.winner } : null;
-        const canli = (ms1 && ms1.status === 'running') || (ms2 && ms2.status === 'running');
-        return { ev: m.home, dep: m.away, ust, skEv, skDep, galip: m.winner ? m.winner.name : null, detay,
+        const canli = (ms1 && ms1.status === 'running') || (ms2 && ms2.status === 'running') || !!m.uzCanli;
+        return { ev: m.home, dep: m.away, ust, skEv, skDep, galip: m.winner ? m.winner.name : null, detay, uz: !!m.uzCanli,
           et: _trkEt(!!m.winner, pen, uzt, canli, !!l1) };
       });
       return { ad: _TRK_TUR_AD[r.faz], faz: r.faz, kartlar, bitti: kartlar.length > 0 && kartlar.every(c => c.galip) };
     });
+    _trkTahminiTur(T, _TRK_TIP[trnKey], season);
   } else {
     // Kura öncesi: CHM grupları bittiyse Son 16 çapraz eşleşmeleri (ağaç sırasıyla), ELI/CON'da gruplarını bitiren takımlar
     const fazlar = trnKey === 'champ' ? ['r16', 'qf', 'sf', 'final'] : ['r32', 'r16', 'qf', 'sf', 'final'];
@@ -75196,18 +75329,21 @@ function _trkEncAgac(state, season) {
       const dep = { milli: true, code: m.away.short, name: m.away.name, flag: m.away.flag };
       const row = idx[faz + '|' + m.home.name + '|' + m.away.name];
       const oyn = m.hg != null && m.ag != null;
-      const galip = m.winner === 'home' ? ev.name : m.winner === 'away' ? dep.name : null;
-      if (oyn && m.hg === m.ag && !galip && m.matchKey) eksik.push(m.matchKey);
-      const pen = m.pens ? [m.pens.homePens, m.pens.awayPens] : null;
+      const uzc = row ? _uzListeDurum(row) : null;   // 720 — uzatma / penaltı sürerken sonuç yok
+      if (uzc) _uzAgacPlanla(uzc.bitis);
+      const galip = uzc ? null : m.winner === 'home' ? ev.name : m.winner === 'away' ? dep.name : null;
+      if (oyn && m.hg === m.ag && !galip && m.matchKey && !uzc) eksik.push(m.matchKey);
+      const pen = (!uzc && m.pens) ? [m.pens.homePens, m.pens.awayPens] : null;
       const uzt = (galip && !pen && Array.isArray(m.et)) ? m.et : null;
-      const detay = oyn ? { tur: 'enc', round: r.name, twoLeg: false, home: _trkMdTakim(ev), away: _trkMdTakim(dep),
+      const detay = (oyn && !uzc) ? { tur: 'enc', round: r.name, twoLeg: false, home: _trkMdTakim(ev), away: _trkMdTakim(dep),
         legs: [{ mk: m.matchKey || null, hs: m.hg, as: m.ag }], pens: m.pens || null, et: Array.isArray(m.et) ? { hs: m.et[0], as: m.et[1] } : null, winner: galip, bitti: true } : null;
       const ust = oyn ? 'Tek maç' : (row && row.matchDateTime ? _trnMdSaat(row.matchDateTime) : 'Tek maç');
-      return { ev, dep, ust, skEv: oyn ? m.hg : null, skDep: oyn ? m.ag : null, galip, detay,
-        et: _trkEt(!!galip, pen, uzt, !!row && row.status === 'running', oyn) };
+      return { ev, dep, ust, skEv: oyn ? m.hg : null, skDep: oyn ? m.ag : null, galip, detay, uz: !!uzc,
+        et: _trkEt(!!galip, pen, uzt, (!!row && row.status === 'running') || !!uzc, oyn) };
     });
     return { ad: String(r.name).replace(/\s*🏆\s*/, ''), faz, kartlar, bitti: kartlar.every(c => c.galip) };
   });
+  _trkTahminiTur(T, 'enc', season);
   _trkPenIste(eksik);
   return _trkAgacHtml('enc', T);
 }
