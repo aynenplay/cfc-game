@@ -7173,3 +7173,5 @@ Object.assign(window.I18N.ru, {"Uzatmalarda": "После дополнитель
 Object.assign(window.I18N.ru, {"Futbolcu Odası": "Комната игрока", "Milliyet": "Гражданство", "Futbolcu": "Игрок"});
 /* ── 715 · Futbolcu Odası Ev/Dep forma ── */
 Object.assign(window.I18N.ru, { "Ev": "Дома", "Dep": "Выезд" });
+/* ── 716 · Forma ücreti ── */
+Object.assign(window.I18N.ru, { "Ücretsiz Kaydet": "Сохранить бесплатно", "İlk değişim ücretsiz · sonrakiler 200 elmas, kasadan düşülür": "Первая смена бесплатна · далее 200 алмазов из казны", "✅ Forma renkleri güncellendi": "✅ Цвета формы обновлены" });

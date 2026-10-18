@@ -7568,3 +7568,5 @@ Object.assign(window.I18N.en, {"Uzatmalarda": "After extra time", "1. UZATMA": "
 Object.assign(window.I18N.en, {"Futbolcu Odası": "Player Room", "Milliyet": "Nationality", "Futbolcu": "Player"});
 /* ── 715 · Futbolcu Odası Ev/Dep forma ── */
 Object.assign(window.I18N.en, { "Ev": "Home", "Dep": "Away" });
+/* ── 716 · Forma ücreti ── */
+Object.assign(window.I18N.en, { "Ücretsiz Kaydet": "Save for Free", "İlk değişim ücretsiz · sonrakiler 200 elmas, kasadan düşülür": "First change is free · later changes cost 200 diamonds from the treasury", "✅ Forma renkleri güncellendi": "✅ Kit colours updated" });

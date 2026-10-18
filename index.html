@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '715';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '716';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -23104,8 +23104,8 @@ body.pd-acik{overflow:hidden}
       <div class="jrs-cost-info">
         <div class="jrs-cost-ic"><svg viewBox="0 0 24 24"><use href="#ic-thb-diamond"/></svg></div>
         <div class="jrs-cost-body">
-          <div class="jrs-cost-line">Sonraki değişim: <b><span id="jrsCostLabel">100</span> elmas</b></div>
-          <div class="jrs-cost-sub">Maliyet kasadan düşülür · her değişimde +100 artar</div>
+          <div class="jrs-cost-line">Sonraki değişim: <b id="jrsCostUcretli"><span id="jrsCostLabel">200</span> elmas</b><b id="jrsCostUcretsiz" style="display:none">Ücretsiz</b></div>
+          <div class="jrs-cost-sub">İlk değişim ücretsiz · sonrakiler 200 elmas, kasadan düşülür</div>
         </div>
         <div class="jrs-cost-bal"><b id="jrsBalanceLabel">—</b><small>Kasa</small></div>
       </div>
@@ -23200,7 +23200,7 @@ body.pd-acik{overflow:hidden}
 
       <div class="jrs-actions">
         <button class="jrs-btn jrs-btn-cancel" id="jrsCancelBtn" onclick="jrsCancel()" style="display:none">İptal</button>
-        <button class="jrs-btn jrs-btn-save" id="jrsSaveBtn" onclick="jrsSave()" style="display:none">💎 <span id="jrsSaveCost">100</span> Elmas ile Kaydet</button>
+        <button class="jrs-btn jrs-btn-save" id="jrsSaveBtn" onclick="jrsSave()" style="display:none"><span id="jrsSaveUcretli">💎 <span id="jrsSaveCost">200</span> Elmas ile Kaydet</span><span id="jrsSaveUcretsiz" style="display:none">Ücretsiz Kaydet</span></button>
       </div>
 
       <div class="jrs-locked-info" id="jrsLockedInfo" style="display:none">
@@ -25150,7 +25150,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-18-ev-dep-forma-715';
+const APP_BUILD = '2026-10-18-forma-ucret-716';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -38591,9 +38591,9 @@ function setTeamJerseys(teamName, setA, setB) {
 function getNextJerseyChangeCost(teamName) {
   try {
     const j = getTeamJerseys(teamName);
-    const count = j.changeCount || 0;
-    return (count + 1) * 100;
-  } catch(e) { return 100; }
+    // 716 — takımın ilk değişimi ücretsiz, sonrakiler sabit 200 elmas
+    return (j.changeCount || 0) > 0 ? 200 : 0;
+  } catch(e) { return 200; }
 }
 
 // İki rengin "çakışıyor" olup olmadığını HSL color space ile tespit et.
@@ -60849,6 +60849,10 @@ function jrsRender() {
   if (costLabel) costLabel.textContent = String(nextCost);
   const saveCost = document.getElementById('jrsSaveCost');
   if (saveCost) saveCost.textContent = String(nextCost);
+  // 716 — ilk değişim ücretsiz: etiket ve düğme "Ücretsiz"
+  [['jrsCostUcretli', nextCost > 0], ['jrsCostUcretsiz', nextCost === 0], ['jrsSaveUcretli', nextCost > 0], ['jrsSaveUcretsiz', nextCost === 0]].forEach(([id, g]) => {
+    const e = document.getElementById(id); if (e) e.style.display = g ? '' : 'none';
+  });
 
   // 🆕 Takım kasası bakiyesini göster
   const balanceLabel = document.getElementById('jrsBalanceLabel');
@@ -61110,7 +61114,7 @@ function jrsSave() {
     try { const _k = _formaKanalBagla(); if (_k) _k.send({ type: 'broadcast', event: 'forma', payload: { t: teamName } }); } catch(e) {}
     try { if (typeof oyKartTazele === 'function') oyKartTazele(); } catch(e) {}
     const _ucret = Number(data.ucret) || cost;
-    if (typeof showJoinToast === 'function') showJoinToast(`✅ Forma renkleri güncellendi (-${_ucret} 💎 kasadan)`);
+    if (typeof showJoinToast === 'function') showJoinToast(Number(data.ucret) === 0 ? '✅ Forma renkleri güncellendi' : `✅ Forma renkleri güncellendi (-${_ucret} 💎 kasadan)`);
     if (typeof updateHud === 'function') try { updateHud(); } catch(e) {}
     if (typeof refreshHud === 'function') try { refreshHud(); } catch(e) {}
     jrsRender();
@@ -102072,7 +102076,7 @@ function _teamChatCscSatir(m) {
 #page-home .oyk-xp span{display:block;margin-top:4px;font-size:12px;font-weight:800;color:#3d2900}
 #page-home .oyk-git{width:44px;height:44px;padding:0;border:0;border-radius:12px;background:#1d1300;display:flex;align-items:center;justify-content:center;cursor:pointer}
 #page-home .oyk-git svg{width:22px;height:22px;stroke:#ffd54f;fill:none;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
-#page-home .oyk-set{position:absolute;left:10px;top:8px;z-index:3;display:flex;gap:2px;padding:2px;border-radius:9px;background:rgba(5,9,20,.72);border:1px solid rgba(214,177,92,.35);box-shadow:0 4px 12px rgba(0,0,0,.45)}
+#page-home .oyk-set{position:absolute;right:8px;top:8px;z-index:3;display:flex;gap:2px;padding:2px;border-radius:9px;background:rgba(5,9,20,.72);border:1px solid rgba(214,177,92,.35);box-shadow:0 4px 12px rgba(0,0,0,.45)}
 #page-home .oyk-set button{all:unset;position:relative;cursor:pointer;font:900 11px/1 'Barlow Condensed',sans-serif;letter-spacing:.9px;text-transform:uppercase;color:#8d9bb8;padding:5px 10px;border-radius:7px;-webkit-tap-highlight-color:transparent}
 #page-home .oyk-set button::before{content:'';position:absolute;inset:-8px -1px}
 #page-home .oyk-set button.on{background:linear-gradient(180deg,#ffd54f,#f6a823);color:#1d1300}
@@ -102235,7 +102239,7 @@ function oyFormaSec(s) {
   document.querySelectorAll('#oyKartSet [data-s]').forEach(b => b.classList.toggle('on', b.dataset.s === s));
   oyKartTazele();
 }
-// Başlık, sol üstteki Ev/Dep düğmesiyle çakışmasın: iki yandan eşit daralır (ortası değişmez), sığmazsa küçülür
+// Başlık, sağ üstteki Ev/Dep düğmesiyle çakışmasın: iki yandan eşit daralır (ortası değişmez), sığmazsa küçülür
 function _oyBaslikSigdir(goster) {
   const b = document.querySelector('#oyKart .oyk-bas'), set = document.getElementById('oyKartSet');
   if (!b || !set) return true;
@@ -102245,8 +102249,8 @@ function _oyBaslikSigdir(goster) {
   b.style.whiteSpace = pay ? 'nowrap' : '';
   const sigdir = () => { b.style.fontSize = ''; if (pay && b.scrollWidth > b.clientWidth) b.style.fontSize = Math.max(13, Math.floor(23 * b.clientWidth / b.scrollWidth)) + 'px'; };
   sigdir();
-  // Uzun dillerde (ru, it, es) iki yandan daralınca çok küçülüyorsa sağdaki boşluk kullanılır
-  if (pay && parseFloat(b.style.fontSize || '23') < 17) { b.style.right = '10px'; sigdir(); }
+  // Uzun dillerde (ru, it, es) iki yandan daralınca çok küçülüyorsa soldaki boşluk kullanılır
+  if (pay && parseFloat(b.style.fontSize || '23') < 17) { b.style.left = '10px'; sigdir(); }
   return true;
 }
 // Kariyer sayıları + kupalar (players satırı ve oyuncu_kupalari; 5 dk önbellek)

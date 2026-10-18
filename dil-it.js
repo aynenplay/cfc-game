@@ -7141,3 +7141,5 @@ Object.assign(window.I18N.it, {"Uzatmalarda": "Dopo i supplementari", "1. UZATMA
 Object.assign(window.I18N.it, {"Futbolcu Odası": "Stanza del giocatore", "Milliyet": "Nazionalità", "Futbolcu": "Giocatore"});
 /* ── 715 · Futbolcu Odası Ev/Dep forma ── */
 Object.assign(window.I18N.it, { "Ev": "Casa", "Dep": "Trasf." });
+/* ── 716 · Forma ücreti ── */
+Object.assign(window.I18N.it, { "Ücretsiz Kaydet": "Salva gratis", "İlk değişim ücretsiz · sonrakiler 200 elmas, kasadan düşülür": "Il primo cambio è gratis · i successivi costano 200 diamanti dalla cassa", "✅ Forma renkleri güncellendi": "✅ Colori della divisa aggiornati" });
