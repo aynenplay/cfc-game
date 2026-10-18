@@ -379,7 +379,7 @@
   /* ===== Kullanıcılar (tek sayfa: profil + oyuncu + cüzdan) ===== */
   .u-list{ display:flex; flex-direction:column; gap:9px; max-width:620px; }
   /* Kullanıcılar: sekmeler + uyruk özeti + uyruk sıralaması */
-  .u-sek{ display:flex; gap:6px; max-width:620px; margin-bottom:10px; }
+  .u-sek{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; max-width:620px; margin-bottom:10px; }
   .u-sek button{ flex:1; height:36px; border-radius:10px; border:1px solid var(--line); background-image:var(--carbon); color:var(--dim); font-size:13px; font-weight:800; letter-spacing:.5px; text-transform:uppercase; }
   .u-sek button.on{ color:#fff; border-color:rgba(255,213,79,.6); background:linear-gradient(180deg,rgba(255,213,79,.16),rgba(255,213,79,.03)); }
   .u-oz{ background-image:var(--carbon); border:1px solid var(--line); border-radius:13px; padding:4px 14px; margin-bottom:10px; max-width:620px; }
@@ -1520,7 +1520,7 @@ const CV_DONEM = [
   { k:'yil',    ad:'Bu Yıl'  },
   { k:'tumu',   ad:'Tümü'    }
 ];
-let CV_SECILI = '7';
+let CV_SECILI = 'tumu';   // 718 — varsayılan: Tümü
 let CV_VERI   = null;   // { oyuncular:[], profiller:[] }
 let CV_ZAMAN  = null;
 
@@ -1572,8 +1572,7 @@ function cvCiz(){
   const aktif  = oyn.filter(p => giris(p) >= bas).length;
   const yeni   = prof.filter(x => _cvMs(x.created_at) >= bas).length;
   const omap   = {}; oyn.forEach(p => { omap[p.user_id] = p; });
-  const hic    = prof.filter(x => { const p = omap[x.id], k = _cvMs(x.created_at);
-    return !p || (!(damga && p.son_aktif === damga) && k && now - k > 86400000 && _cvMs(p.son_aktif) - k < 86400000); }).length;
+  const iki    = oyn.filter(p => p.son_aktif && now - _cvMs(p.son_aktif) >= 2 * 86400000).length;   // 718 — son girişi 2 gün ve daha eski
   const donemAd= (CV_DONEM.find(d=>d.k===CV_SECILI)||{}).ad || '';
 
   const canliListe = suAn.slice().sort((a,b)=>_cvMs(b.last_seen)-_cvMs(a.last_seen)).slice(0,25);
@@ -1598,7 +1597,7 @@ function cvCiz(){
       ${_opKart('AKTİF KULLANICI', aktif,    donemAd.toLowerCase() + ' içinde giren')}
       ${_opKart('YENİ KAYIT',   yeni,        donemAd.toLowerCase() + ' açılan hesap', 's')}
       ${_opKart('TOPLAM KAYITLI', prof.length, 'hesap')}
-      ${_opKart('HİÇ DÖNMEMİŞ', hic,         'kayıt gününden sonra girmemiş', hic>0?'k':'')}
+      ${_opKart('2+ GÜN GİRMEYEN', iki,      'son giriş 2+ gün önce', iki>0?'k':'')}
     </div>
 
     <div class="cvliste">
@@ -2584,7 +2583,7 @@ function renderUsers(){
       <div class="sp"></div>
       <input id="uSval" placeholder="İsim / kullanıcı adı (en az 2 harf)…" value="${uEsc(USTATE.search)}" autocomplete="off">
     </div>`;
-  $('main').innerHTML = head + `<div class="u-sek fadein" id="uSek"><button data-s="liste">Liste</button><button data-s="uyruk">Uyruklar</button><button data-s="kaptan">Kaptanlar</button><button data-s="aktif">Aktiflik</button><button data-s="silinen">Silinenler</button></div>`
+  $('main').innerHTML = head + `<div class="u-sek fadein" id="uSek"><button data-s="liste">Liste</button><button data-s="uyruk">Uyruklar</button><button data-s="kaptan">Kaptanlar</button><button data-s="aktif">Aktiflik</button><button data-s="silinen">Silinenler</button><button data-s="engel">Engellenenler</button></div>`
     + `<div class="u-oz fadein" id="uOz"></div><div class="u-list fadein" id="uList"></div><div id="uPage"></div><div class="u-rk fadein" id="uRk"></div><div class="fadein" id="uEk"></div>`;
   $('uBack').onclick=openDash;
   $('uSek').querySelectorAll('button').forEach(b=>b.onclick=()=>uSekme(b.dataset.s));
@@ -2638,8 +2637,8 @@ function uSekme(t){
   $('uList').style.display=$('uPage').style.display=(t==='liste')?'':'none';
   $('uRk').style.display=(t==='uyruk')?'':'none';
   $('uOz').style.display=(t==='liste'||t==='uyruk')?'':'none';
-  const ek=$('uEk'); ek.style.display=(t==='kaptan'||t==='aktif'||t==='silinen')?'':'none';
-  if(t==='kaptan') uKaptanCiz(); else if(t==='aktif') uAktifCiz(); else if(t==='silinen') uSilinenCiz();
+  const ek=$('uEk'); ek.style.display=(t==='kaptan'||t==='aktif'||t==='silinen'||t==='engel')?'':'none';
+  if(t==='kaptan') uKaptanCiz(); else if(t==='aktif') uAktifCiz(); else if(t==='silinen') uSilinenCiz(); else if(t==='engel') uEngelCiz();
 }
 
 /* 689 — KAPTANLAR · AKTİFLİK · SİLİNENLER
@@ -2662,7 +2661,8 @@ function _akVeri(){
     const once=!!(pl&&damga&&pl.son_aktif===damga);
     const ms=pl?_akMs(pl.son_aktif):0, kayit=_akMs(pf.created_at);
     const oyunda=!!(pl&&pl.last_seen&&simdi-_akMs(pl.last_seen)<=5*60000);
-    const donmedi=!pl || (!once && kayit && simdi-kayit>_AK_GUN && ms-kayit<_AK_GUN);
+    // 718 — oyuncu kaydı olmayan yeni üye de 1 gün dolmadan 'hiç dönmedi' sayılmaz
+    const donmedi=(!pl && (!kayit || simdi-kayit>_AK_GUN)) || (!!pl && !once && kayit && simdi-kayit>_AK_GUN && ms-kayit<_AK_GUN);
     return { pf, pl, id, ms, once, oyunda, donmedi, gun:ms?(simdi-ms)/_AK_GUN:Infinity };
   });
   return { L, damga, prof };
@@ -2730,6 +2730,7 @@ const AK_SUZ=[
   { k:'g7',  g:'gir',  ad:'1 hafta', c:'u-yes', f:x=>!x.once&&x.gun<=7 },
   { k:'g30', g:'gir',  ad:'1 ay',    c:'u-yes', f:x=>!x.once&&x.gun<=30 },
   { k:'g90', g:'gir',  ad:'3 ay',    c:'u-yes', f:x=>!x.once&&x.gun<=90 },
+  { k:'y2',  g:'yok',  ad:'2 gün',   c:'u-sar', f:x=>x.ms&&x.gun>=2 },   // 718 — son girişi 2 gün ve daha eski
   { k:'y7',  g:'yok',  ad:'1 hafta', c:'u-sar', f:x=>x.ms&&x.gun>7 },
   { k:'y30', g:'yok',  ad:'1 ay',    c:'u-tur', f:x=>x.ms&&x.gun>30 },
   { k:'y90', g:'yok',  ad:'3 ay',    c:'u-kir', f:x=>x.ms&&x.gun>90 },
@@ -2747,8 +2748,8 @@ function uAktifCiz(){
   const top=M.length, sayfa=Math.max(1,Math.ceil(top/AK_SAYFA)), cur=Math.min(sayfa,Math.floor(AK_OFS/AK_SAYFA)+1);
   const P=M.slice((cur-1)*AK_SAYFA, cur*AK_SAYFA);
   ek.innerHTML=`<div class="ak-kart">
-      <div class="ak-sat"><b>Girdi</b><div class="ak-cips">${AK_SUZ.filter(d=>d.g==='gir').map(cip).join('')}</div></div>
-      <div class="ak-sat"><b>Girmedi</b><div class="ak-cips">${AK_SUZ.filter(d=>d.g==='yok').map(cip).join('')}</div></div>
+      <div class="ak-sat"><b>Girdi</b><div class="ak-cips" style="grid-template-columns:repeat(${AK_SUZ.filter(d=>d.g==='gir').length},1fr)">${AK_SUZ.filter(d=>d.g==='gir').map(cip).join('')}</div></div>
+      <div class="ak-sat"><b>Girmedi</b><div class="ak-cips" style="grid-template-columns:repeat(${AK_SUZ.filter(d=>d.g==='yok').length},1fr)">${AK_SUZ.filter(d=>d.g==='yok').map(cip).join('')}</div></div>
     </div>
     <div class="ak-bas"><span><b>${top}</b> kullanıcı</span></div>
     <div class="u-list">${P.length?P.map(x=>_akSatir(x, x.pf.created_at?`<span>Katılım: ${uEsc(new Date(x.pf.created_at).toLocaleDateString('tr'))}</span>`:'')).join(''):'<div class="msg">Kayıt yok.</div>'}</div>
@@ -2791,6 +2792,37 @@ async function uSilinenCiz(){
           </div>
         </div>`; }).join(''):'<div class="msg">Kayıt yok.</div>'}</div>`;
   ek.querySelectorAll('[data-sl]').forEach(b=>b.onclick=()=>slAktifAc(b.dataset.sl));
+}
+// 718 — ENGELLENENLER: şu an engeli süren kullanıcılar (biten engel listede durmaz); bitişi en yakın olan üstte, süresizler en altta
+function uEngelCiz(){
+  const ek=$('uEk'); if(!ek) return;
+  const E=(UDATA.all||[]).map(p=>({ p, b:uBanInfo(p) })).filter(x=>x.b)
+    .sort((a,b)=>(a.b.perm-b.b.perm)||(a.b.until-b.b.until));
+  const sures=E.filter(x=>x.b.perm).length;
+  ek.innerHTML=_akOz([['u-kir','Süresiz',sures],['u-tur','Süreli',E.length-sures]], E.length)
+    + `<div class="ak-bas"><span><b>${E.length}</b> engelli hesap</span></div>`
+    + `<div class="u-list">${E.length?E.map(({p,b})=>{
+        const id=uUid(p), pl=UDATA.plMap[id]||{}, c=uCountry(p), ad=p.name||p.username||'(isimsiz)', avS=pl.avatar_id?avSrc(pl.avatar_id):'';
+        const takim=pl.team_name||'', rol=takim&&pl.role?` <span class="u-rolebadge">${uEsc(ROLE_TR[String(pl.role).toLowerCase()]||pl.role)}</span>`:'';
+        const pb=uPlayerBits(UDATA.plMap[id], UDATA.pMap[id]);
+        const oy=pb?[pb.ovr!=='–'?'OVR '+pb.ovr:'', pb.pos||'', pb.level!=='–'?'Seviye '+pb.level:''].filter(Boolean).join(' · '):'';
+        const kalan=b.perm?'':Math.max(1,Math.ceil((b.until-Date.now())/_AK_GUN));
+        return `<div class="ak-r sil">
+          <div class="u-av">${avS?`<img src="${avS}" alt="">`:uEsc((String(ad).trim()[0]||'?').toUpperCase())}${c.flag?`<span class="flag">${c.flag}</span>`:''}</div>
+          <div class="u-info">
+            <div class="u-name">${uEsc(ad)}</div>
+            <div class="u-mail">${p.username?'@'+uEsc(p.username):''}</div>
+            <div class="u-meta"><span>${takim?takimLogo(pl.country_code,takim):''}<b>${uEsc(takim||'Takımsız')}</b>${rol}</span>${oy?`<span>${uEsc(oy)}</span>`:''}${b.reason?`<span>Sebep: <b>${uEsc(b.reason)}</b></span>`:''}</div>
+          </div>
+          <div class="sl-sag">
+            <div class="ak-son ${b.perm?'u-kir':'u-tur'}"><b>${b.perm?'Süresiz':b.until.toLocaleDateString('tr')}</b><small>${b.perm?'<span class="sl-ne yon">KALICI</span>':kalan+' gün kaldı'}</small></div>
+            <button class="btn green sl-ac" data-eg="${uEsc(String(id))}">Engeli Kaldır</button>
+          </div>
+        </div>`; }).join(''):'<div class="msg">Engelli hesap yok.</div>'}</div>`;
+  ek.querySelectorAll('[data-eg]').forEach(bt=>bt.onclick=async()=>{
+    const p=(UDATA.all||[]).find(x=>String(uUid(x))===bt.dataset.eg); if(!p) return;
+    await uUnban(p); if(USTATE.sekme==='engel') uEngelCiz();
+  });
 }
 const SL_HATA={ eposta_kayitli:'Bu e-posta ile kayıtlı bir hesap zaten var.', zaten_acildi:'Bu hesap zaten aktif edildi.', veri_yok:'Bu kayıtta geri açılacak veri yok.', kayit_yok:'Kayıt bulunamadı.', eksik_parametre:'Geçerli bir e-posta yaz.' };
 async function hesapAc(id, email){
