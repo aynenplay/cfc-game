@@ -5505,3 +5505,17 @@ Object.assign(window.I18N.de, {"Futbolcu Odası": "Spielerraum", "Milliyet": "Na
 Object.assign(window.I18N.de, { "Ev": "Heim", "Dep": "Ausw." });
 /* ── 716 · Forma ücreti ── */
 Object.assign(window.I18N.de, { "Ücretsiz Kaydet": "Kostenlos speichern", "İlk değişim ücretsiz · sonrakiler 200 elmas, kasadan düşülür": "Erste Änderung kostenlos · danach 200 Diamanten aus der Kasse", "✅ Forma renkleri güncellendi": "✅ Trikotfarben aktualisiert" });
+
+/* ── 719 · Hesap engeli: giriş mesajı · engel sebepleri · sohbet satırı ── */
+Object.assign(window.I18N.de, { "Hakaret / küfür / kötü dil": "Beleidigung / Fluchen / Schimpfwörter", "Hile / bug istismarı": "Betrug / Ausnutzen von Fehlern", "Spam / reklam": "Spam / Werbung", "Çoklu hesap kullanımı": "Nutzung mehrerer Konten", "Uygunsuz isim / avatar / içerik": "Unangemessener Name / Avatar / Inhalt", "Takım & sohbet tacizi": "Belästigung im Team & Chat", "Şike / adil olmayan oyun": "Spielmanipulation / unfaires Spiel" });
+(function () {
+  var D = window.I18N.de, P = window.I18N_PATTERNS.de;
+  var S = function (x) { return D[x] || x; };
+  var K = function (x) { return x ? ' Neuer Kapitän: ' + x : ''; };
+  P.unshift(
+    [/^Bu hesap (.+?) tarihine kadar engellidir\. Sebep: (.+)$/, function (m) { return 'Dieses Konto ist bis ' + m[1] + ' gesperrt. Grund: ' + S(m[2]); }],
+    [/^Bu hesap süresiz engellidir\. Sebep: (.+)$/, function (m) { return 'Dieses Konto ist dauerhaft gesperrt. Grund: ' + S(m[1]); }],
+    [/^(.+?) sistem tarafından süresiz engellendi\.(?: Yeni kaptan: (.+))?$/, function (m) { return m[1] + ' wurde vom System dauerhaft gesperrt.' + K(m[2]); }],
+    [/^(.+?) sistem tarafından (\d+) gün engellendi\.(?: Yeni kaptan: (.+))?$/, function (m) { return m[1] + ' wurde vom System für ' + m[2] + (m[2] === '1' ? ' Tag' : ' Tage') + ' gesperrt.' + K(m[3]); }]
+  );
+})();

@@ -7175,3 +7175,19 @@ Object.assign(window.I18N.ru, {"Futbolcu Odası": "Комната игрока",
 Object.assign(window.I18N.ru, { "Ev": "Дома", "Dep": "Выезд" });
 /* ── 716 · Forma ücreti ── */
 Object.assign(window.I18N.ru, { "Ücretsiz Kaydet": "Сохранить бесплатно", "İlk değişim ücretsiz · sonrakiler 200 elmas, kasadan düşülür": "Первая смена бесплатна · далее 200 алмазов из казны", "✅ Forma renkleri güncellendi": "✅ Цвета формы обновлены" });
+
+/* ── 719 · Hesap engeli: giriş mesajı · engel sebepleri · sohbet satırı ── */
+Object.assign(window.I18N.ru, { "Hakaret / küfür / kötü dil": "Оскорбления / мат / грубые выражения", "Hile / bug istismarı": "Читерство / использование багов", "Spam / reklam": "Спам / реклама", "Çoklu hesap kullanımı": "Использование нескольких аккаунтов", "Uygunsuz isim / avatar / içerik": "Неприемлемое имя / аватар / контент", "Takım & sohbet tacizi": "Травля в команде и чате", "Şike / adil olmayan oyun": "Договорные матчи / нечестная игра" });
+(function () {
+  var D = window.I18N.ru, P = window.I18N_PATTERNS.ru;
+  var S = function (x) { return D[x] || x; };
+  var K = function (x) { return x ? ' Новый капитан: ' + x : ''; };
+  var G = function (n) { n = Number(n); var a = n % 10, b = n % 100;
+    return (a === 1 && b !== 11) ? 'день' : (a >= 2 && a <= 4 && (b < 12 || b > 14)) ? 'дня' : 'дней'; };
+  P.unshift(
+    [/^Bu hesap (.+?) tarihine kadar engellidir\. Sebep: (.+)$/, function (m) { return 'Этот аккаунт заблокирован до ' + m[1] + '. Причина: ' + S(m[2]); }],
+    [/^Bu hesap süresiz engellidir\. Sebep: (.+)$/, function (m) { return 'Этот аккаунт заблокирован навсегда. Причина: ' + S(m[1]); }],
+    [/^(.+?) sistem tarafından süresiz engellendi\.(?: Yeni kaptan: (.+))?$/, function (m) { return m[1] + ' заблокирован системой навсегда.' + K(m[2]); }],
+    [/^(.+?) sistem tarafından (\d+) gün engellendi\.(?: Yeni kaptan: (.+))?$/, function (m) { return m[1] + ' заблокирован системой на ' + m[2] + ' ' + G(m[2]) + '.' + K(m[3]); }]
+  );
+})();
