@@ -7159,3 +7159,10 @@ Object.assign(window.I18N.es, { "Hakaret / küfür / kötü dil": "Insultos / pa
     [/^(.+?) sistem tarafından (\d+) gün engellendi\.(?: Yeni kaptan: (.+))?$/, function (m) { return m[1] + ' ha sido bloqueado por el sistema durante ' + m[2] + (m[2] === '1' ? ' día.' : ' días.') + K(m[3]); }]
   );
 })();
+
+/* ─── 727 · Mevki Değiştir: 150 elmas, yetenekler korunur ─── */
+Object.assign(window.I18N.es, {
+  "ödenir; yeteneklerin olduğu gibi korunur.": "y tus atributos se mantienen igual.",
+  "150 Diamond": "150 Diamantes",
+  "Yetersiz Diamond! Mevki değişimi 150 💎.": "¡Diamantes insuficientes! Cambiar de posición cuesta 150 💎."
+});

@@ -7191,3 +7191,10 @@ Object.assign(window.I18N.ru, { "Hakaret / küfür / kötü dil": "Оскорб�
     [/^(.+?) sistem tarafından (\d+) gün engellendi\.(?: Yeni kaptan: (.+))?$/, function (m) { return m[1] + ' заблокирован системой на ' + m[2] + ' ' + G(m[2]) + '.' + K(m[3]); }]
   );
 })();
+
+/* ─── 727 · Mevki Değiştir: 150 elmas, yetenekler korunur ─── */
+Object.assign(window.I18N.ru, {
+  "ödenir; yeteneklerin olduğu gibi korunur.": "и навыки остаются прежними.",
+  "150 Diamond": "150 алмазов",
+  "Yetersiz Diamond! Mevki değişimi 150 💎.": "Недостаточно алмазов! Смена позиции стоит 150 💎."
+});

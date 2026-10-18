@@ -7584,3 +7584,10 @@ Object.assign(window.I18N.en, { "Hakaret / küfür / kötü dil": "Insults / swe
     [/^(.+?) sistem tarafından (\d+) gün engellendi\.(?: Yeni kaptan: (.+))?$/, function (m) { return m[1] + ' was banned by the system for ' + m[2] + (m[2] === '1' ? ' day.' : ' days.') + K(m[3]); }]
   );
 })();
+
+/* ─── 727 · Mevki Değiştir: 150 elmas, yetenekler korunur ─── */
+Object.assign(window.I18N.en, {
+  "ödenir; yeteneklerin olduğu gibi korunur.": "is paid; your attributes stay as they are.",
+  "150 Diamond": "150 Diamonds",
+  "Yetersiz Diamond! Mevki değişimi 150 💎.": "Not enough diamonds! A position change costs 150 💎."
+});
