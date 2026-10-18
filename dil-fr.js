@@ -7201,3 +7201,5 @@ window.I18N_PATTERNS.fr.push([/^([\d.,]+) elmas eksik$/, "Il manque $1 diamants"
 Object.assign(window.I18N.fr, {"Uzatmalarda": "Après prolongation", "1. UZATMA": "PROLONGATION 1", "2. UZATMA": "PROLONGATION 2", "UZATMA ARASI": "PAUSE DES PROLONGATIONS", "NORMAL SÜRE BİTTİ": "FIN DU TEMPS RÉGLEMENTAIRE", "Direkte!": "Poteau !", "Dışarı!": "À côté !", "TURU GEÇTİ": "QUALIFIÉ"});
 /* ── 711 · Ana sayfa Futbolcu Odası ── */
 Object.assign(window.I18N.fr, {"Futbolcu Odası": "Salle du joueur", "Milliyet": "Nationalité", "Futbolcu": "Joueur"});
+/* ── 715 · Futbolcu Odası Ev/Dep forma ── */
+Object.assign(window.I18N.fr, { "Ev": "Dom.", "Dep": "Ext." });

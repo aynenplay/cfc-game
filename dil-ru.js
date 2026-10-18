@@ -7171,3 +7171,5 @@ window.I18N_PATTERNS.ru.push([/^([\d.,]+) elmas eksik$/, "Не хватает $1
 Object.assign(window.I18N.ru, {"Uzatmalarda": "После дополнительного времени", "1. UZATMA": "1-Й ДОП. ТАЙМ", "2. UZATMA": "2-Й ДОП. ТАЙМ", "UZATMA ARASI": "ПЕРЕРЫВ МЕЖДУ ДОП. ТАЙМАМИ", "NORMAL SÜRE BİTTİ": "ОСНОВНОЕ ВРЕМЯ ЗАВЕРШЕНО", "Direkte!": "Штанга!", "Dışarı!": "Мимо!", "TURU GEÇTİ": "ПРОХОДИТ ДАЛЬШЕ"});
 /* ── 711 · Ana sayfa Futbolcu Odası ── */
 Object.assign(window.I18N.ru, {"Futbolcu Odası": "Комната игрока", "Milliyet": "Гражданство", "Futbolcu": "Игрок"});
+/* ── 715 · Futbolcu Odası Ev/Dep forma ── */
+Object.assign(window.I18N.ru, { "Ev": "Дома", "Dep": "Выезд" });

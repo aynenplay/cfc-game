@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '714';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '715';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -22212,7 +22212,7 @@ body.pd-acik{overflow:hidden}
     </div>
     <div class="hm-kaydir-sayfa">
       <div class="oyk" id="oyKart">
-        <div class="oyk-oda"><canvas id="oyKartSahne"></canvas><div class="oyk-bas">Futbolcu Odası</div><div class="oyk-pnl" id="oyKartPnl"></div></div>
+        <div class="oyk-oda"><canvas id="oyKartSahne"></canvas><div class="oyk-bas">Futbolcu Odası</div><div class="oyk-set" id="oyKartSet" style="display:none"><button type="button" data-s="A" class="on" onclick="oyFormaSec('A')">Ev</button><button type="button" data-s="B" onclick="oyFormaSec('B')">Dep</button></div><div class="oyk-pnl" id="oyKartPnl"></div></div>
         <div class="oyk-ekip" id="oyKartEkip"></div>
         <div class="oyk-koc"><div><small>Seviye</small><b id="oyKartSv" data-noi18n>—</b></div><div class="oyk-xp"><i><em id="oyKartXpB"></em></i><span id="oyKartXp" data-noi18n></span></div><button type="button" class="oyk-git" onclick="showPage('player', findNavBtn('player'))"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button></div>
       </div>
@@ -25150,7 +25150,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-18-gogus-yazisi-714';
+const APP_BUILD = '2026-10-18-ev-dep-forma-715';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -102072,6 +102072,10 @@ function _teamChatCscSatir(m) {
 #page-home .oyk-xp span{display:block;margin-top:4px;font-size:12px;font-weight:800;color:#3d2900}
 #page-home .oyk-git{width:44px;height:44px;padding:0;border:0;border-radius:12px;background:#1d1300;display:flex;align-items:center;justify-content:center;cursor:pointer}
 #page-home .oyk-git svg{width:22px;height:22px;stroke:#ffd54f;fill:none;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+#page-home .oyk-set{position:absolute;left:10px;top:8px;z-index:3;display:flex;gap:2px;padding:2px;border-radius:9px;background:rgba(5,9,20,.72);border:1px solid rgba(214,177,92,.35);box-shadow:0 4px 12px rgba(0,0,0,.45)}
+#page-home .oyk-set button{all:unset;position:relative;cursor:pointer;font:900 11px/1 'Barlow Condensed',sans-serif;letter-spacing:.9px;text-transform:uppercase;color:#8d9bb8;padding:5px 10px;border-radius:7px;-webkit-tap-highlight-color:transparent}
+#page-home .oyk-set button::before{content:'';position:absolute;inset:-8px -1px}
+#page-home .oyk-set button.on{background:linear-gradient(180deg,#ffd54f,#f6a823);color:#1d1300}
 </style>
 <script id="oyk-js">
 // ═══ 711 — ANA SAYFA · FUTBOLCU ODASI (maç önizlemenin yanında, kaydırınca) ═══
@@ -102142,7 +102146,7 @@ async function _oySahneCiz(cv, o) {
   sx.drawImage(oda, 0, 0);
   if (o.kit && odaM) {
     const [mx, my] = OY_META.oda.m, d = sx.getImageData(mx, my, odaM.width, odaM.height), p = d.data, m = _oyPiksel(odaM);
-    const c = _oyHex(o.kit.shirt).map(v => v * .92);
+    const c = _oyHex(o.asili || o.kit.shirt).map(v => v * .92);
     for (let i = 0; i < p.length; i += 4) {
       const a = m[i] / 255; if (!a) continue;
       const g = m[i + 1] / 255 * 1.15;
@@ -102224,6 +102228,27 @@ const _OY_IK = {
   yildiz: '<svg viewBox="0 0 24 24"><path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9Z"/></svg>',
 };
 let _oyKr = null, _oySahneImza = '', _oyCalisiyor = false, _oyTekrar = false;
+let _oySet = 'A';   // 715 — Ev (A) / Dep (B) forması; oda her açılışta ev formasıyla açılır
+function oyFormaSec(s) {
+  if ((s !== 'A' && s !== 'B') || s === _oySet) return;
+  _oySet = s;
+  document.querySelectorAll('#oyKartSet [data-s]').forEach(b => b.classList.toggle('on', b.dataset.s === s));
+  oyKartTazele();
+}
+// Başlık, sol üstteki Ev/Dep düğmesiyle çakışmasın: iki yandan eşit daralır (ortası değişmez), sığmazsa küçülür
+function _oyBaslikSigdir(goster) {
+  const b = document.querySelector('#oyKart .oyk-bas'), set = document.getElementById('oyKartSet');
+  if (!b || !set) return true;
+  const pay = goster ? set.offsetWidth + 16 : 0;
+  if (goster && set.offsetWidth === 0) return false;   // sayfa henüz görünür değil: sonra yeniden denenir
+  b.style.left = b.style.right = pay ? pay + 'px' : '';
+  b.style.whiteSpace = pay ? 'nowrap' : '';
+  const sigdir = () => { b.style.fontSize = ''; if (pay && b.scrollWidth > b.clientWidth) b.style.fontSize = Math.max(13, Math.floor(23 * b.clientWidth / b.scrollWidth)) + 'px'; };
+  sigdir();
+  // Uzun dillerde (ru, it, es) iki yandan daralınca çok küçülüyorsa sağdaki boşluk kullanılır
+  if (pay && parseFloat(b.style.fontSize || '23') < 17) { b.style.right = '10px'; sigdir(); }
+  return true;
+}
 // Kariyer sayıları + kupalar (players satırı ve oyuncu_kupalari; 5 dk önbellek)
 async function _oyKariyer() {
   if (_oyKr && Date.now() - _oyKr.t < 300000) return _oyKr;
@@ -102284,7 +102309,8 @@ function _oyVeri() {
     bayrak: (me && me.nation) || ccToFlag(u.nationality), ulke: _uyrukUlke(u.nationality).name || u.nationality || '',
     alt, grup: subPosGroupOf(alt), yet, no: tk && me && me.num != null ? String(me.num) : '',
     takim: tk ? tk.teamName : '', logo: tk ? teamLogoUrl({ name: tk.teamName, countryCode: tk.countryCode }) : null,
-    kit: tk ? getTeamJerseys(tk.teamName).setA : null,
+    kit: tk ? getTeamJerseys(tk.teamName)[_oySet === 'B' ? 'setB' : 'setA'] : null,
+    kitA: tk ? getTeamJerseys(tk.teamName).setA : null,
     lvl, xp: (me && me.xp) || 0, xpG: rosterXpForLevel(lvl), eq: getEqData(), kr: _oyKr,
   };
 }
@@ -102313,6 +102339,11 @@ function _oyCiz(v) {
   const xb = document.getElementById('oyKartXpB'), gen = Math.min(100, Math.round(v.xp / v.xpG * 100)) + '%';
   if (xb && xb.style.width !== gen) xb.style.width = gen;
   yaz('oyKartXp', v.xp.toLocaleString('tr') + ' / ' + v.xpG.toLocaleString('tr') + ' XP', true);
+  // 715 — Ev/Dep seçimi yalnız takımı olan oyuncuda
+  const set = document.getElementById('oyKartSet'), goster = !!v.kit;
+  if (set && (set.style.display === 'none') === goster) set.style.display = goster ? '' : 'none';
+  const bk = dil + (goster ? '1' : '0');
+  if (kok._baslikK !== bk && _oyBaslikSigdir(goster)) kok._baslikK = bk;
 }
 async function oyKartTazele() {
   if (!authUser || !document.getElementById('oyKart')) return;
@@ -102321,7 +102352,7 @@ async function oyKartTazele() {
   try {
     const v = _oyVeri();
     _oyCiz(v);
-    const sahne = { kod: v.kod, kit: v.kit, no: v.kit ? v.no : '', logo: v.kit ? v.logo : null, numRenk: v.kit ? _oyNumRenk(v.kit) : null };
+    const sahne = { kod: v.kod, kit: v.kit, no: v.kit ? v.no : '', logo: v.kit ? v.logo : null, numRenk: v.kit ? _oyNumRenk(v.kit) : null, asili: v.kitA ? v.kitA.shirt : null };
     const imza = JSON.stringify(sahne);
     if (imza !== _oySahneImza && await _oySahneCiz(document.getElementById('oyKartSahne'), sahne)) _oySahneImza = imza;
     if (window.sb && (!_oyKr || Date.now() - _oyKr.t >= 300000)) {
