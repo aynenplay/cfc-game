@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '728';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '730';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -24926,6 +24926,7 @@ body.pd-acik{overflow:hidden}
     </div>
     <div id="shop-diamond">
       <div class="shop-section-note">💡 Diamond ile oyuncu transfer eder, tesis yükseltir, item ve takım satın alabilirsin. Büyük paketler kademeli bonus kazandırır.</div>
+      <div id="bpKart"></div>
       <div class="diamond-packages" id="diamondPackages"></div>
     </div>
     <div id="shop-saglik" style="display:none"></div>
@@ -25181,7 +25182,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-18-bildirim-cani-728';
+const APP_BUILD = '2026-10-19-baslangic-paketi-730';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -40435,6 +40436,7 @@ function showPage(name,btn){
     try { if (typeof _evRaceServerLbCache !== 'undefined' && _evRaceServerLbCache) { const _t = Date.now(); if (_evRaceServerLbCache.train && _t - (_evRaceServerLbCache.train.t || 0) > 120000) _evRaceServerLbCache.train = null; if (_evRaceServerLbCache.rating && _t - (_evRaceServerLbCache.rating.t || 0) > 120000) _evRaceServerLbCache.rating = null; } } catch(e){}
     if(typeof renderHomeEventFeed === 'function') { try { renderHomeEventFeed(true); } catch(e){} }
     _bnTazele(); _bnEvGuncelle({});   // 728 — bildirim çanı
+    _bpBaslat();   // 730 — başlangıç paketi
   }
   if(name==='shop') { renderDiamondPacks(); const sb=document.getElementById('shopDiamondBal'); if(sb) { const _dd=document.getElementById('diamond-display'); sb.textContent=(_dd && (_dd.dataset.tam || _dd.textContent))||'0'; } }
   if(name==='federation') { if(typeof fedRender === 'function') fedRender(); }
@@ -70700,6 +70702,7 @@ function renderDiamondPacks() {
     </div>
   `;
   }).join('');
+  _bpKartCiz();   // 730
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -71395,6 +71398,96 @@ try {
 //  Cordova uyumluluk katmani gelmiyor.
 // ═══════════════════════════════════════════════════════════════════
 
+// ═══ 730 — BAŞLANGIÇ PAKETİ (150 elmas + Hafif Krampon) ═══
+//   Mağaza ürünü 'baslangic_paketi'. Mağaza ürünü vermiyorsa (ör. App Store onayı yok) hiç görünmez.
+//   Pencere günde bir kez; ilk gösterimden 5 gün sonra biter; alınınca bir daha yok. Durum sunucuda (baslangic_durum).
+const BP_URUN = 'baslangic_paketi';
+const BP = { durum: null, basladi: false };
+const _BP_TAS = '<svg class="bp-tas" viewBox="0 0 100 72"><ellipse cx="50" cy="40" rx="30" ry="18" fill="url(#dp-hale)"/><use href="#ic-elmas-tas" x="27" y="14.9" width="46" height="40.3"/></svg>';
+const _BP_MTAS = '<svg class="bp-mtas" viewBox="0 0 64 56"><use href="#ic-elmas-tas" width="64" height="56"/></svg>';
+const _BP_SAAT = '<svg class="bp-saat" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9.5 2.5h5"/></svg>';
+const _BP_YZ = '<svg viewBox="0 0 24 24"><path d="M12 0l2.6 9.4L24 12l-9.4 2.6L12 24l-2.6-9.4L0 12l9.4-2.6z"/></svg>';
+function _bpVar() { return !!(window._playFiyat && window._playFiyat[BP_URUN]); }
+function _bpAktif() { const d = BP.durum; return !!(d && !d.alindi && !d.bitti && d.bitis && Date.parse(d.bitis) > Date.now() && _bpVar()); }
+function _bpKalan() {
+  const ms = Math.max(0, Date.parse(BP.durum.bitis) - Date.now());
+  const g = Math.floor(ms / 86400000), sa = Math.floor(ms % 86400000 / 3600000), dk = Math.max(1, Math.floor(ms % 3600000 / 60000));
+  return g > 0 ? `<span>${g}g</span> <span>${sa}sa</span>` : sa > 0 ? `<span>${sa}sa</span> <span>${dk}dk</span>` : `<span>${dk}dk</span>`;
+}
+function _bpYildiz(poz) { return poz.map(([x, y, d]) => `<i class="bp-pz" style="left:${x}%;top:${y}%;animation-delay:-${d}s">${_BP_YZ}</i>`).join(''); }
+function _bpKrampon() { return `<img src="${itemGorselUrl('pm8')}" alt="" draggable="false">`; }
+function _bpIndirim() { return (typeof i18nAktif === 'function' && i18nAktif()) ? '−80%' : '−%80'; }
+// Kart başlığı uzun dillerde (ör. Rusça) sığmazsa yazı küçülür
+function _bpSigdir() {
+  document.querySelectorAll('#bpKart .bp-k-orta b').forEach(el => {
+    el.style.fontSize = '';
+    let b = parseFloat(getComputedStyle(el).fontSize);
+    while (el.scrollWidth > el.clientWidth + 1 && b > 11) { b -= 0.5; el.style.fontSize = b + 'px'; }
+  });
+}
+function _bpFiyat() { return (window._playFiyat && window._playFiyat[BP_URUN]) || '€1'; }
+function _bpKartCiz() {
+  const el = document.getElementById('bpKart');
+  if (!el) return;
+  el.innerHTML = !_bpAktif() ? '' : `<div class="bp-kart" onclick="_bpAl()">${_bpYildiz([[8,18,0],[88,12,.6],[50,4,.9],[70,30,2.3]])}
+    <div class="bp-k-sol"><div class="bp-kg">${_BP_TAS}</div><div class="bp-kg bp-krampon">${_bpKrampon()}</div></div>
+    <div class="bp-k-orta"><b>BAŞLANGIÇ PAKETİ</b><span>150 Elmas + Hafif Krampon</span><small class="bp-kalan">${_BP_SAAT}${_bpKalan()}</small></div>
+    <div class="bp-k-sag"><em data-noi18n>${_bpIndirim()}</em><button type="button" class="bp-al"><b data-noi18n>${_bpFiyat()}</b></button></div></div>`;
+  if (el.innerHTML) { requestAnimationFrame(_bpSigdir); setTimeout(_bpSigdir, 400); }
+}
+function _bpModalAc() {
+  if (document.getElementById('bpOv') || !_bpAktif()) return;
+  const ov = document.createElement('div');
+  ov.id = 'bpOv'; ov.className = 'bp-ov';
+  ov.onclick = (e) => { if (e.target === ov) ov.remove(); };
+  ov.innerHTML = `<div class="bp-mod"><div class="bp-isik"></div>${_bpYildiz([[8,18,0],[88,12,.6],[14,62,1.2],[92,54,1.8],[50,4,.9],[70,30,2.3],[26,36,1.5]])}
+    <button type="button" class="bp-x" aria-label="Kapat" onclick="document.getElementById('bpOv').remove()"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <div class="bp-serit"><span>BAŞLANGIÇ PAKETİ</span></div>
+    <div class="bp-sure bp-kalan">${_BP_SAAT}<span>Sınırlı süre</span> · ${_bpKalan()}</div>
+    <div class="bp-ic">
+      <div class="bp-kalem"><div class="bp-kg">${_BP_TAS}</div><b data-noi18n>150</b><span>ELMAS</span></div>
+      <div class="bp-arti">+</div>
+      <div class="bp-kalem"><div class="bp-kg bp-krampon">${_bpKrampon()}</div><b class="bp-ad">Hafif Krampon</b><span>Ekipman</span></div>
+    </div>
+    <div class="bp-deger"><s data-noi18n>260 ${_BP_MTAS}</s><em data-noi18n>${_bpIndirim()}</em></div>
+    <button type="button" class="bp-al" onclick="_bpAl()"><span>Satın Al</span><b data-noi18n>${_bpFiyat()}</b></button></div>`;
+  document.body.appendChild(ov);
+}
+// Ana sayfa açıkken ve önünde başka pencere yokken gösterilir (en çok 2 dk bekler)
+function _bpModalSira(n) {
+  n = n || 0;
+  const ust = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+  if (!(ust && ust.closest && ust.closest('#page-home'))) { if (n < 24) setTimeout(() => _bpModalSira(n + 1), 5000); return; }
+  _bpModalAc();
+}
+async function _bpBaslat() {
+  if (BP.basladi || !_bpVar() || !window.sb || typeof authUser === 'undefined' || !authUser || !authUser.id) return;
+  BP.basladi = true;
+  const { data, error } = await window.sb.rpc('baslangic_durum', { p_gun: new Date().toLocaleDateString('sv') });
+  if (error || !data) { BP.basladi = false; return; }
+  BP.durum = data;
+  _bpKartCiz();
+  if (data.modal) setTimeout(_bpModalSira, 2500);
+}
+function _bpAl() { _playSatinAl(-1, { id: BP_URUN, dia: 150 }); }
+function _bpAlindi() {
+  BP.durum = { alindi: true };
+  const ov = document.getElementById('bpOv'); if (ov) ov.remove();
+  _bpKartCiz();
+  try { _eqDataLoadFromServer(); } catch (e) {}
+}
+function _bpTeslimBildir(d) {
+  if (!d || typeof d.esya !== 'boolean') return;
+  showShopToast(d.esya ? '✅ Hafif Krampon dolabına eklendi!' : '✅ Hafif Krampon yerine 110 elmas eklendi.', '#00e676');
+}
+setInterval(() => {
+  if (!BP.durum || BP.durum.alindi) return;
+  if (!_bpAktif()) { _bpKartCiz(); const ov = document.getElementById('bpOv'); if (ov) ov.remove(); return; }
+  document.querySelectorAll('.bp-kalan').forEach(el => {
+    el.innerHTML = el.classList.contains('bp-sure') ? `${_BP_SAAT}<span>Sınırlı süre</span> · ${_bpKalan()}` : `${_BP_SAAT}${_bpKalan()}`;
+  });
+}, 60000);
+
 const PLAY_FN = SUPABASE_URL + '/functions/v1/' + ((window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform() === 'ios') ? 'apple-verify' : 'play-verify');
 
 // Play'den gelen yerel fiyatlar: { dia_3: '₺129,99', ... }
@@ -71424,7 +71517,7 @@ async function _playKur() {
 
     await PB.baslat();
 
-    const idler = (DIAMOND_PACKS || []).map(function (p) { return 'dia_' + p.priceEur; });
+    const idler = (DIAMOND_PACKS || []).map(function (p) { return 'dia_' + p.priceEur; }).concat([BP_URUN]);
     const sonuc = await PB.urunleriGetir({ productIds: idler });
 
     const gelen = (sonuc && sonuc.urunler) || [];
@@ -71435,6 +71528,7 @@ async function _playKur() {
 
     _playHazir = true;
     PB.addListener('bekleyenVar', _playBekleyenleriIsle);
+    _bpBaslat();   // 730 — başlangıç paketi (ürün mağazada varsa)
 
     // Fiyatlar geldi — magaza aciksa kartlari tazele
     try {
@@ -71502,6 +71596,7 @@ async function _playBekleyenleriIsle() {
     for (const sa of liste) {
       if (!sa || !sa.productId || !sa.purchaseToken) continue;
       const r = await _playDogrula(sa.productId, sa.purchaseToken);
+      if (r && r.ok && sa.productId === BP_URUN) _bpAlindi();   // 730
       if (r && r.ok && !r.tekrar) {
         try { await wlLoadFromServer(); } catch (e) {}
         try { wlSyncHeader(); } catch (e) {}
@@ -71514,10 +71609,10 @@ async function _playBekleyenleriIsle() {
 }
 
 // Magaza kartindan cagrilir
-async function _playSatinAl(idx) {
-  const p = DIAMOND_PACKS[idx];
+async function _playSatinAl(idx, urun) {   // 730 — urun: { id, dia } (başlangıç paketi)
+  const p = urun ? { amount: urun.dia, bonus: 0 } : DIAMOND_PACKS[idx];
   if (!p) return;
-  const urunId = 'dia_' + p.priceEur;
+  const urunId = urun ? urun.id : 'dia_' + p.priceEur;
 
   try { showShopToast(window.Capacitor.getPlatform() === 'ios' ? '💳 Ödeme hazırlanıyor…' : '💳 Google Play aciliyor…', '#3b82f6'); } catch (e) {}
 
@@ -71552,11 +71647,14 @@ async function _playSatinAl(idx) {
     try { await wlLoadFromServer(); } catch (e) {}
 
     const miktar = dogrulama.dia || ((p.amount || 0) + (p.bonus || 0));
+    if (urun && urun.id === BP_URUN) _bpAlindi();   // 730
+    const _sonra = function () { try { renderShop(); } catch (e) {} if (urun && urun.id === BP_URUN) _bpTeslimBildir(dogrulama); };
     if (typeof _xsKutlama === 'function') {
-      _xsKutlama(miktar, function () { try { renderShop(); } catch (e) {} });
+      _xsKutlama(miktar, _sonra);
     } else {
       try { window._WL_HOLD.dia = false; wlSyncHeader(); } catch (e) {}
       try { showShopToast('✅ ' + miktar + ' elmas hesabina gecti!', '#00e676'); } catch (e) {}
+      _sonra();
     }
 
   } catch (h) {
@@ -103560,6 +103658,73 @@ function hmKaydirGec() {
 .ts-can i{position:absolute;left:0;right:0;top:7px;height:9px;display:flex;align-items:center;justify-content:center;font:400 10.5px/1 'Barlow Condensed',sans-serif;font-style:normal;letter-spacing:0;color:#fff}
 .ts-can.cok i{font-size:9.5px;letter-spacing:-.2px}
 @keyframes tsSal{0%,55%,100%{transform:rotate(0)}5%{transform:rotate(18deg)}12%{transform:rotate(-16deg)}19%{transform:rotate(12deg)}26%{transform:rotate(-9deg)}33%{transform:rotate(5deg)}40%{transform:rotate(-2deg)}}
+</style>
+<style id="bp-css">
+/* 730 — Başlangıç Paketi · Kristal Neon: mor-mavi cam, kenarda dönen neon, yukarı süzülen parıltılar */
+.bp-ov{position:fixed;inset:0;z-index:6000;display:flex;align-items:center;justify-content:center;padding:16px;background:radial-gradient(70% 50% at 50% 48%,rgba(8,12,28,.6),rgba(2,4,10,.88));animation:bpSol .25s ease both}
+@keyframes bpSol{from{opacity:0}to{opacity:1}}
+.bp-mod{position:relative;width:min(332px,100%);border-radius:22px;padding:30px 18px 18px;text-align:center;
+  background:linear-gradient(160deg,#361c6e,#0e163c 55%,#08284a);box-shadow:0 20px 50px rgba(0,0,0,.6),0 0 46px rgba(120,90,255,.35);
+  animation:bpGir .55s cubic-bezier(.2,1.4,.4,1) both}
+@keyframes bpGir{from{transform:translateY(24px) scale(.86);opacity:0}to{transform:none;opacity:1}}
+.bp-mod::before{content:'';position:absolute;inset:-2px;border-radius:24px;padding:2px;background:conic-gradient(from var(--bpn,0deg),#7c4dff,#00e5ff,#ff4dd2,#7c4dff);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:bpNeon 4s linear infinite;pointer-events:none}
+@property --bpn{syntax:'<angle>';inherits:false;initial-value:0deg}
+@keyframes bpNeon{to{--bpn:360deg}}
+.bp-isik{position:absolute;inset:0;border-radius:22px;overflow:hidden;pointer-events:none;
+  background:radial-gradient(3px 3px at 20% 100%,#8fe9ff,transparent),radial-gradient(2px 2px at 45% 100%,#c8a8ff,transparent),radial-gradient(3px 3px at 72% 100%,#8fe9ff,transparent),radial-gradient(2px 2px at 88% 100%,#ffb3ee,transparent);
+  animation:bpYuksel 3.2s linear infinite}
+@keyframes bpYuksel{0%{background-position:0 0,0 0,0 0,0 0;opacity:0}15%{opacity:1}100%{background-position:0 -560px,0 -480px,0 -620px,0 -520px;opacity:0}}
+.bp-pz{position:absolute;width:12px;height:12px;pointer-events:none;z-index:3;animation:bpPz 2.6s ease-in-out infinite}
+.bp-pz svg{width:100%;height:100%;display:block;fill:#fff;filter:drop-shadow(0 0 4px #fff)}
+@keyframes bpPz{0%,100%{transform:scale(.2) rotate(0);opacity:0}45%{transform:scale(1) rotate(45deg);opacity:1}70%{transform:scale(.4) rotate(90deg);opacity:.4}}
+.bp-x{position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:50%;border:1px solid rgba(255,255,255,.18);background:rgba(0,0,0,.35);display:grid;place-items:center;cursor:pointer;z-index:4;padding:0}
+.bp-x svg{width:14px;height:14px;fill:none;stroke:#cfd6e4;stroke-width:2.4;stroke-linecap:round}
+.bp-serit{position:absolute;top:-16px;left:50%;transform:translateX(-50%);z-index:4;white-space:nowrap}
+.bp-serit span{display:block;padding:8px 22px 7px;font:900 15px/1 'Barlow Condensed',sans-serif;letter-spacing:1.6px;color:#fff;border-radius:999px;
+  background:linear-gradient(90deg,#7c4dff,#00b8ff);box-shadow:0 4px 18px rgba(124,77,255,.55),inset 0 1px 0 rgba(255,255,255,.35)}
+.bp-saat{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;flex:0 0 auto}
+.bp-sure{position:relative;z-index:2;display:inline-flex;align-items:center;gap:5px;margin:6px 0 14px;padding:5px 11px;border-radius:999px;font:700 12.5px/1 'Barlow Condensed',sans-serif;letter-spacing:.6px;
+  color:#ffd9de;background:rgba(255,45,70,.16);border:1px solid rgba(255,80,100,.38)}
+.bp-ic{position:relative;z-index:2;display:flex;align-items:stretch;justify-content:center;gap:8px}
+.bp-kalem{flex:1;max-width:128px;border-radius:16px;padding:10px 8px;display:flex;flex-direction:column;align-items:center;gap:3px;
+  background:rgba(255,255,255,.06);border:1px solid rgba(160,200,255,.28);box-shadow:0 0 18px rgba(0,229,255,.12),inset 0 1px 0 rgba(255,255,255,.1)}
+.bp-kg{width:96px;height:76px;display:grid;place-items:center}
+.bp-tas{width:100%;height:100%;display:block}
+.bp-krampon{border-radius:12px;overflow:hidden}
+.bp-krampon img{width:100%;height:100%;object-fit:cover;display:block}
+.bp-kalem b{font:900 26px/1 'Barlow Condensed',sans-serif;color:#fff;margin-top:4px;min-height:40px;display:flex;align-items:center;justify-content:center;text-align:center}
+.bp-kalem b.bp-ad{font-size:17px;line-height:1.1}
+.bp-kalem>span{font:700 11px/1 'Barlow Condensed',sans-serif;letter-spacing:1px;text-transform:uppercase;color:#8d9bb8}
+.bp-arti{align-self:center;font:900 26px/1 'Barlow Condensed',sans-serif;color:#9fe8ff;text-shadow:0 0 10px rgba(0,229,255,.8)}
+.bp-deger{position:relative;z-index:2;display:flex;align-items:center;justify-content:center;gap:10px;margin:14px 0;font:800 17px/1 'Barlow Condensed',sans-serif;color:#8d9bb8}
+.bp-deger s{text-decoration-color:rgba(255,80,100,.85);text-decoration-thickness:2px}
+.bp-mtas{width:16px;height:14px;display:inline-block;vertical-align:-1px;margin-left:3px}
+.bp-deger em,.bp-k-sag em{font-style:normal;font:900 15px/1 'Barlow Condensed',sans-serif;color:#fff;padding:5px 9px;border-radius:8px;background:linear-gradient(180deg,#ff5a6e,#d81f3c);box-shadow:0 0 12px rgba(255,45,70,.5)}
+.bp-al{position:relative;z-index:2;overflow:hidden;width:100%;height:52px;border:0;border-radius:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:12px;
+  font:900 19px/1 'Barlow Condensed',sans-serif;letter-spacing:1.2px;text-transform:uppercase;color:#fff;background:linear-gradient(90deg,#7c4dff,#00b8ff);box-shadow:0 6px 20px rgba(124,77,255,.5),inset 0 1px 0 rgba(255,255,255,.35)}
+.bp-al b{font:900 22px/1 'Barlow Condensed',sans-serif;padding:5px 10px;border-radius:9px;background:rgba(255,255,255,.18);text-transform:none}
+.bp-al::after{content:'';position:absolute;top:0;bottom:0;width:40px;left:-60px;background:linear-gradient(100deg,transparent,rgba(255,255,255,.75),transparent);animation:bpAlIsik 2.8s ease-in-out infinite}
+@keyframes bpAlIsik{0%,45%{transform:translateX(0) skewX(-18deg)}75%,100%{transform:translateX(460px) skewX(-18deg)}}
+#bpKart{padding:12px 10px 0}
+#bpKart:empty{display:none}
+.bp-kart{position:relative;overflow:hidden;display:flex;align-items:center;gap:8px;height:108px;padding:12px 10px 12px 12px;border-radius:16px;cursor:pointer;
+  background:linear-gradient(120deg,#3a1d7a,#11214f 55%,#08365a);border:1.5px solid rgba(140,170,255,.5);box-shadow:0 0 20px rgba(124,77,255,.3)}
+.bp-kart::after{content:'';position:absolute;top:0;bottom:0;width:50px;left:-80px;background:linear-gradient(100deg,transparent,rgba(255,255,255,.22),transparent);animation:bpKartIsik 3.6s ease-in-out infinite;pointer-events:none}
+@keyframes bpKartIsik{0%,50%{transform:translateX(0) skewX(-18deg)}85%,100%{transform:translateX(520px) skewX(-18deg)}}
+.bp-k-sol{position:relative;width:92px;height:84px;flex:0 0 auto}
+.bp-k-sol .bp-kg{position:absolute;width:56px;height:48px}
+.bp-k-sol .bp-kg:first-child{left:-4px;top:0;z-index:2}
+.bp-k-sol .bp-krampon{right:0;bottom:2px;width:60px;height:50px;border-radius:10px}
+.bp-k-orta{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;position:relative;z-index:2}
+.bp-k-orta b{font:900 16px/1 'Barlow Condensed',sans-serif;letter-spacing:.8px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bp-k-orta>span{font:700 13px/1.2 'Barlow Condensed',sans-serif;letter-spacing:.3px;color:#c7d0e2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.bp-k-orta small{display:inline-flex;align-items:center;gap:5px;font:700 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.5px;color:#ffb3bf;margin-top:2px}
+.bp-k-sag{display:flex;flex-direction:column;align-items:center;gap:6px;position:relative;z-index:2}
+.bp-k-sag em{font-size:13px;padding:4px 7px;border-radius:7px}
+.bp-kart .bp-al{width:auto;min-width:68px;padding:0 10px;height:42px;border-radius:12px}
+.bp-kart .bp-al b{background:none;padding:0;font-size:21px}
+@media (prefers-reduced-motion: reduce){.bp-mod,.bp-mod *,.bp-mod::before,.bp-kart,.bp-kart *,.bp-kart::after,.bp-al::after{animation:none!important}}
 </style>
 <style id="cn-css">
 /* 728 — bildirim çanı (takım sohbeti çanının aynısı) + kenarda hafif kırmızı parıltı */

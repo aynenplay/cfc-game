@@ -7198,3 +7198,12 @@ Object.assign(window.I18N.ru, {
   "150 Diamond": "150 алмазов",
   "Yetersiz Diamond! Mevki değişimi 150 💎.": "Недостаточно алмазов! Смена позиции стоит 150 💎."
 });
+
+/* ─── 730 · Başlangıç Paketi ─── */
+Object.assign(window.I18N.ru, {
+  "BAŞLANGIÇ PAKETİ": "СТАРТОВЫЙ НАБОР",
+  "Sınırlı süre": "Ограниченное время",
+  "150 Elmas + Hafif Krampon": "150 алмазов + Лёгкие бутсы",
+  "Hafif Krampon dolabına eklendi!": "Лёгкие бутсы добавлены в гардероб!",
+  "Hafif Krampon yerine 110 elmas eklendi.": "Вместо Лёгких бутс начислено 110 алмазов."
+});

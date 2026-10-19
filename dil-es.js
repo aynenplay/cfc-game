@@ -7166,3 +7166,12 @@ Object.assign(window.I18N.es, {
   "150 Diamond": "150 Diamantes",
   "Yetersiz Diamond! Mevki değişimi 150 💎.": "¡Diamantes insuficientes! Cambiar de posición cuesta 150 💎."
 });
+
+/* ─── 730 · Başlangıç Paketi ─── */
+Object.assign(window.I18N.es, {
+  "BAŞLANGIÇ PAKETİ": "PACK DE INICIO",
+  "Sınırlı süre": "Tiempo limitado",
+  "150 Elmas + Hafif Krampon": "150 diamantes + Botas ligeras",
+  "Hafif Krampon dolabına eklendi!": "¡Botas ligeras añadidas a tu armario!",
+  "Hafif Krampon yerine 110 elmas eklendi.": "Se añadieron 110 diamantes en lugar de Botas ligeras."
+});
