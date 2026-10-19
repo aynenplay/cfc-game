@@ -1156,6 +1156,7 @@ const FB_STATUS = { yeni:'Yeni', okundu:'Okundu', cozuldu:'Çözüldü' };
 let FB_DATA = [];
 let FB_FILTER = 'all';
 
+let FB_EK = false;   // 743 — yönetimin ek mesajı (arka arkaya ikinci mesaj)
 let FB_DURUM = 'all', FB_CEVAP = null, FB_OYUNCU = null, FB_PROFIL = null, FB_SEKME = 'aktif';
 async function openFeedback(){
   CUR='feedback'; GRID_BACK=null;
@@ -1242,8 +1243,8 @@ function fbItemHtml(f){
   const acik = String(FB_CEVAP) === String(f.id);
   const th = fbKonusma(f), son = th.length ? th[th.length-1] : null;
   // Düzenlenen cevap konuşmada gizlenir (metin kutusunda)
-  const gor = (acik && son && son.k==='yonetim') ? th.slice(0,-1) : th;
-  const cvpMetin = th.length ? (son.k==='yonetim' ? son.m : '') : (f.reply||'');
+  const gor = (acik && !FB_EK && son && son.k==='yonetim') ? th.slice(0,-1) : th;
+  const cvpMetin = FB_EK ? '' : th.length ? (son.k==='yonetim' ? son.m : '') : (f.reply||'');
   const cvpEtiket = th.length ? (son.k==='oyuncu' ? 'Cevapla' : 'Cevabı Düzenle') : (f.reply ? 'Cevabı Düzenle' : 'Cevapla');
   return `<div class="fbitem" style="border-left-color:${t.color}">
     <div class="top">
@@ -1252,15 +1253,16 @@ function fbItemHtml(f){
       <span class="when">${_fbTime(f.created_at)}</span>
     </div>
     ${fbSikayet(f.message) || `<div class="msg">${_fbEsc(f.message)}</div>`}
-    ${f.reply && (!acik || th.length) ? `<div class="fbreply"><b>Cevabın:</b> ${_fbEsc(f.reply)}${f.replied_at?`<span class="t">${_fbTime(f.replied_at)} · oyuncunun gelen kutusuna iletildi</span>`:''}</div>` : ''}
+    ${f.reply && (!acik || FB_EK || th.length) ? `<div class="fbreply"><b>Cevabın:</b> ${_fbEsc(f.reply)}${f.replied_at?`<span class="t">${_fbTime(f.replied_at)} · oyuncunun gelen kutusuna iletildi</span>`:''}</div>` : ''}
     ${fbKonusmaHtml(gor)}
-    ${acik ? `<div class="fbcvp"><textarea id="fbCvpMetin" maxlength="1000" placeholder="Oyuncuya cevabın…">${_fbEsc(cvpMetin)}</textarea>
+    ${acik ? `<div class="fbcvp"><textarea id="fbCvpMetin" maxlength="1000" placeholder="${FB_EK ? 'Ek mesajın…' : 'Oyuncuya cevabın…'}">${_fbEsc(cvpMetin)}</textarea>
       <div class="b"><button class="btn" data-fbv="1">Vazgeç</button><button class="btn green" data-fbg="${f.id}">Gönder</button></div></div>` : ''}
     <div class="foot">
       ${fbKimHtml(f)}
       <span class="acts">
         ${fbSikayetHedef(f.message) ? `<button class="btn islem" data-fbi="${f.id}">İşlem Yap</button>` : ''}
         ${acik ? '' : `<button class="btn green" data-fbr="${f.id}">${cvpEtiket}</button>`}
+        ${acik || cvpEtiket !== 'Cevabı Düzenle' ? '' : `<button class="btn green" data-fbek="${f.id}">Ek Mesaj</button>`}
         ${st!=='okundu'?`<button class="btn" data-fbs="okundu" data-id="${f.id}">Okundu</button>`:''}
         ${st!=='cozuldu'?`<button class="btn gold" data-fbs="cozuldu" data-id="${f.id}">Çözüldü</button>`:''}
         <button class="btn red" data-fbd="${f.id}">Sil</button>
@@ -1296,8 +1298,9 @@ function renderFeedback(){
   area.querySelectorAll('[data-d]').forEach(c=>c.onclick=()=>{ FB_DURUM=(FB_DURUM===c.dataset.d)?'all':c.dataset.d; renderFeedback(); });
   area.querySelectorAll('[data-fbs]').forEach(b=>b.onclick=()=>fbStatus(b.dataset.id, b.dataset.fbs));
   area.querySelectorAll('[data-fbd]').forEach(b=>b.onclick=()=>fbDelete(b.dataset.fbd));
-  area.querySelectorAll('[data-fbr]').forEach(b=>b.onclick=()=>{ FB_CEVAP=b.dataset.fbr; renderFeedback(); const t=$('fbCvpMetin'); if(t){ t.focus(); t.setSelectionRange(t.value.length,t.value.length); } });
-  area.querySelectorAll('[data-fbv]').forEach(b=>b.onclick=()=>{ FB_CEVAP=null; renderFeedback(); });
+  area.querySelectorAll('[data-fbek]').forEach(b=>b.onclick=()=>{ FB_CEVAP=b.dataset.fbek; FB_EK=true; renderFeedback(); const t=$('fbCvpMetin'); if(t) t.focus(); });
+  area.querySelectorAll('[data-fbr]').forEach(b=>b.onclick=()=>{ FB_CEVAP=b.dataset.fbr; FB_EK=false; renderFeedback(); const t=$('fbCvpMetin'); if(t){ t.focus(); t.setSelectionRange(t.value.length,t.value.length); } });
+  area.querySelectorAll('[data-fbv]').forEach(b=>b.onclick=()=>{ FB_CEVAP=null; FB_EK=false; renderFeedback(); });
   area.querySelectorAll('[data-fbg]').forEach(b=>b.onclick=()=>fbReply(b.dataset.fbg));
   area.querySelectorAll('[data-fbi]').forEach(b=>b.onclick=()=>fbIslem(b.dataset.fbi));
   area.querySelectorAll('[data-fbu]').forEach(b=>b.onclick=async()=>{ const ad=b.dataset.fbu; await openUsers(); const i=$('uSval'); if(i){ i.value=ad; uOnSearch(); } });
@@ -1312,7 +1315,11 @@ async function fbReply(id){
   try {
     // 685 — cevap talebi "Çözüldü" yapmaz (Okundu olur); Çözüldü'yü yönetici elle verir ve sohbet kapanır.
     //   Cevap düzenlemek durumu değiştirmez.
-    if (th.length) {
+    if (FB_EK) {
+      // 743 — ek mesaj aynı konuşmanın sonuna eklenir; durum yazımı oyuncunun açık oyununa haber verir (yeni cevap)
+      await fbRpc('destek_yonetim_cevap', { p_id:String(id), p_metin:metin, p_duzenle:false });
+      await api('update', { table:'feedback', pk:{ id }, values:{ status: (f && f.status === 'cozuldu') ? 'cozuldu' : 'okundu' } });
+    } else if (th.length) {
       // 683 — oyuncu cevap verdiyse yeni cevap konuşmaya eklenir; son mesaj bizimse düzenlenir
       const duzenle = th[th.length-1].k==='yonetim';
       await fbRpc('destek_yonetim_cevap', { p_id:String(id), p_metin:metin, p_duzenle: duzenle });
@@ -1322,7 +1329,7 @@ async function fbReply(id){
       await api('update', { table:'feedback', pk:{ id },
         values:{ reply: metin, replied_at: new Date().toISOString(), status: (f && f.reply) ? ((f.status) || 'okundu') : 'okundu' } });
     }
-    FB_CEVAP = null;
+    FB_CEVAP = null; FB_EK = false;
     loadFeedback();
   } catch(e){
     const M = { oyuncu_cevabi_yok:'Oyuncu henüz cevap vermedi; son cevabını düzenleyebilirsin.', duzenlenecek_cevap_yok:'Düzenlenecek cevap yok.',
