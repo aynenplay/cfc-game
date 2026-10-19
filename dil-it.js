@@ -7173,3 +7173,8 @@ Object.assign(window.I18N.it, {
   "Hafif Krampon dolabına eklendi!": "Scarpini Leggeri aggiunti al tuo armadio!",
   "Hafif Krampon yerine 110 elmas eklendi.": "110 diamanti aggiunti al posto degli Scarpini Leggeri."
 });
+
+/* ─── 734 · CSC Media paylaşım kartı tuşu ─── */
+Object.assign(window.I18N.it, {
+  "Oyuncu Kartı": "Scheda giocatore"
+});

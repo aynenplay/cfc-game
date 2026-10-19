@@ -7207,3 +7207,8 @@ Object.assign(window.I18N.ru, {
   "Hafif Krampon dolabına eklendi!": "Лёгкие бутсы добавлены в гардероб!",
   "Hafif Krampon yerine 110 elmas eklendi.": "Вместо Лёгких бутс начислено 110 алмазов."
 });
+
+/* ─── 734 · CSC Media paylaşım kartı tuşu ─── */
+Object.assign(window.I18N.ru, {
+  "Oyuncu Kartı": "Карточка игрока"
+});

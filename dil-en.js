@@ -7600,3 +7600,8 @@ Object.assign(window.I18N.en, {
   "Hafif Krampon dolabına eklendi!": "Light Boots added to your wardrobe!",
   "Hafif Krampon yerine 110 elmas eklendi.": "110 diamonds added instead of Light Boots."
 });
+
+/* ─── 734 · CSC Media paylaşım kartı tuşu ─── */
+Object.assign(window.I18N.en, {
+  "Oyuncu Kartı": "Player Card"
+});
