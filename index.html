@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '736';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '737';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -20216,6 +20216,16 @@ body.drawer-open .hb-btn .hb-lv{opacity:0}
   border:1px solid rgba(120,170,255,.12);background:rgba(255,255,255,.04);color:#e6eeff;font-family:'Barlow',sans-serif;font-size:14.5px;font-weight:700;text-align:left}
 .mod-satir svg{width:20px;height:20px;flex-shrink:0}
 .mod-satir.kirmizi{color:#ff8a8a;border-color:rgba(255,107,107,.22);background:rgba(255,107,107,.06)}
+.mod-pop-ov{position:fixed;inset:0;z-index:7600;background:transparent}
+.mod-pop{position:fixed;width:max-content;min-width:220px;max-width:calc(100vw - 24px);padding:6px;border-radius:16px;background:#1c212a;border:1px solid #2c323d;
+  box-shadow:0 18px 40px rgba(0,0,0,.6),0 2px 6px rgba(0,0,0,.4);transform-origin:top right;animation:modPop .15s ease-out}
+@keyframes modPop{from{opacity:0;transform:scale(.88)}to{opacity:1;transform:none}}
+.mod-pop .mod-satir{height:46px;margin:0;padding:0 14px 0 12px;border:0;border-radius:11px;background:none;font-size:15px;white-space:nowrap}
+.mod-pop .mod-satir span{overflow:hidden;text-overflow:ellipsis}
+.mod-pop .mod-satir:active{background:rgba(255,255,255,.07)}
+.mod-pop .mod-satir.kirmizi{background:none}
+.mod-pop .mod-baslik{margin:0;padding:10px 12px 6px;text-align:left;font-size:15px;color:var(--text2)}
+.mod-pop .mod-vazgec{display:none}
 .mod-vazgec{display:block;width:100%;height:46px;margin-top:4px;border:0;border-radius:14px;background:none;color:#9fb3d6;font-family:'Barlow',sans-serif;font-size:14px;font-weight:800;cursor:pointer}
 .mod-kisi{display:flex;align-items:center;gap:12px;height:60px;padding:0 4px;border-bottom:1px solid rgba(120,170,255,.10)}
 .mod-kisi:last-of-type{border-bottom:0}
@@ -22076,6 +22086,7 @@ body.pd-acik{overflow:hidden}
     <div class="inbox-header">
       <button class="inbox-hdr-back" id="inboxHdrBack" onclick="inboxBackToList()" aria-label="Geri" style="display:none">‹</button>
       <div class="inbox-title">Mesajlar</div>
+      <div class="inbox-sohbet-kisi" id="inboxSohbetKisi"></div>
       <div class="inbox-header-actions">
         <button class="inbox-compose-btn" onclick="window._inboxComposeTarget=null; inboxOpenCompose()" aria-label="Yeni Mesaj">
           <svg class="inbox-compose-ico" viewBox="0 0 24 24"><path d="M12 3.5C7 3.5 3 6.9 3 11c0 1.9.8 3.6 2.2 4.9L4.5 20l4.6-1.3c.9.25 1.9.4 2.9.4 5 0 9-3.4 9-7.6S17 3.5 12 3.5z" fill="none" stroke="#06210f" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 8v6M9 11h6" stroke="#06210f" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -25185,7 +25196,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-19-milli-euro-736';
+const APP_BUILD = '2026-10-19-sohbet-737';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -45866,19 +45877,25 @@ let _modSira = 0;
 function _modKayit(o) { const k = 'm' + (++_modSira); _modHedef.set(k, o); return k; }
 
 function _modKapat() { const ov = document.getElementById('modOv'); if (ov) ov.remove(); }
+let _modPopEl = null;   // 737 — menü bir düğmeden açıldıysa o köşede küçük pencere
 function _modSheet(ic) {
   _modKapat();
   const ov = document.createElement('div');
   ov.id = 'modOv'; ov.className = 'mod-ov';
   ov.onclick = (e) => { if (e.target === ov) _modKapat(); };
-  ov.innerHTML = `<div class="mod-sheet"><div class="mod-tutamac"></div>${ic}</div>`;
+  if (_modPopEl && _modPopEl.isConnected) {
+    const r = _modPopEl.getBoundingClientRect();
+    ov.className = 'mod-pop-ov';
+    ov.innerHTML = `<div class="mod-pop" style="top:${Math.round(r.bottom + 4)}px;right:${Math.max(8, Math.round(window.innerWidth - r.right))}px">${ic}</div>`;
+  } else ov.innerHTML = `<div class="mod-sheet"><div class="mod-tutamac"></div>${ic}</div>`;
   document.body.appendChild(ov);
 }
 
 const _MOD_SIKAYET_SATIR = { gonderi: 'Gönderiyi şikayet et', mesaj: 'Mesajı şikayet et', sohbet: 'Mesajı şikayet et', profil: 'Profili şikayet et' };
-function modMenuAc(k) {
+function modMenuAc(k, el) {
   const o = _modHedef.get(k);
   if (!o) return;
+  _modPopEl = el || null;
   const engelli = modEngelliMi(o.hedef);
   _modSheet(`<button class="mod-satir" onclick="modSikayetAc('${k}')">${_MOD_IK.bayrak}${_MOD_SIKAYET_SATIR[o.tur]}</button>`
     + (engelli
@@ -45914,6 +45931,7 @@ function modEngelSor(k) {
   _modKapat();
   const ov = document.createElement('div');
   ov.id = 'modOv'; ov.className = 'cfcmd-del-overlay open';
+  if (_modPopEl) ov.style.zIndex = '7700';
   ov.onclick = (e) => { if (e.target === ov) _modKapat(); };
   ov.innerHTML = `<div class="cfcmd-del-modal" role="dialog" aria-modal="true">
       <div class="cfcmd-del-icon">${_MOD_IK.engel}</div>
@@ -71225,6 +71243,15 @@ function _pushAc(tip, alt){
   else if (tip === 'satildi') git('team');
   else git('home');
 }
+// 737 — mesaj bildirimi: gelen kutusu sunucudan tazelenir, o kişinin sohbeti açılır
+async function _pushSohbetAc(conv){
+  try { await _inboxLoadFromServer(); } catch(e){}
+  const yeni = (a, b) => (b.ts || 0) - (a.ts || 0);
+  const s = getInboxMsgs().filter(m => m && m.type === 'chat');
+  const m = (conv && s.find(x => x.id === conv)) || s.filter(x => !x.read).sort(yeni)[0] || s.sort(yeni)[0];
+  inboxOpen();
+  if (m) inboxOpenMsg(m.id);
+}
 async function _pushBaslat(){
   const PN = _pushPN();
   if (!PN || _pushKuruldu) return;
@@ -71239,6 +71266,7 @@ async function _pushBaslat(){
     PN.addListener('pushNotificationActionPerformed', function(a){
       const v = (a && a.notification && a.notification.data) || {};
       if (v.tip && v.tip !== 'inbox') { _pushAc(v.tip, v.alt); return; }
+      if (v.mesajTipi === 'chat') { _pushSohbetAc(v.conv); return; }
       try { if (typeof inboxOpen === 'function') inboxOpen(); } catch(e){}
     });
     // Uygulama açıkken Android bildirimi göstermez: sistem bildirimi üstte şerit olarak çıkar
@@ -79162,6 +79190,7 @@ function inboxShowList() {
   if (cv) cv.style.display = 'none';
   _inboxView = 'list';
   _inboxToggleHdrBack(false);
+  _sohbetBaslik(null);
 }
 
 // 🆕 Header'daki geri oku (<) — detay/compose'da göster, listede gizle
@@ -79190,6 +79219,7 @@ function inboxShowCompose() {
   if (cv) { cv.style.display = 'flex'; cv.style.flexDirection = 'column'; }
   _inboxView = 'compose';
   _inboxToggleHdrBack(true);
+  _sohbetBaslik(null);
 }
 
 function inboxBackToList() {
@@ -79676,6 +79706,7 @@ function inboxRenderDetail(msg) {
 
   // Ana mesaj — 578: karbon başlık (gönderen kutusu + tarih + konu)
   _gkYanitGizle(false);
+  _sohbetBaslik(msg);
   let html = _gkDetayBas(msg);
   // 685 — destek talebi: konuşma balonları + Cevapla / kapandı
   if (typeof _destekCiz === 'function' && _destekCiz(msg, html, body)) return;
@@ -79965,7 +79996,9 @@ function inboxRenderDetail(msg) {
   } else if (!(msg.type === 'chat' && (msg.thread||[]).length)) {
     html += `<div class="inbox-detail-text">${_gkE(msg.body).replace(/\n/g,'<br>')}</div>`;
   }
-  if(msg.thread?.length) {
+  if (msg.type === 'chat' && msg.thread?.length) {
+    html += _sohbetBaloncuk(msg);
+  } else if(msg.thread?.length) {
     html += '<div style="margin-top:14px;margin-bottom:6px;font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Konuşma</div>';
     const myName = (authUser||{}).name || 'Sen';
     const myId   = (authUser||{}).id;
@@ -98654,6 +98687,34 @@ function _dzDegisBildir(degis, milli) {
 #inboxDetailBody .jr-profil-btn{border-radius:12px}
 
 </style>
+<style id="sohbet-css">
+/* 737 · sohbet — başlıkta kişi, WhatsApp tipi akış */
+.inbox-sohbet-kisi{display:none}
+#inboxPanel.sohbet .inbox-title,#inboxPanel.sohbet .inbox-header-actions{display:none}
+#inboxPanel.sohbet .inbox-header{padding:8px 8px 8px 6px;gap:4px}
+#inboxPanel.sohbet .inbox-sohbet-kisi{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+.inbox-sohbet-kisi .gk-tas{width:40px;height:40px}
+.inbox-sohbet-kisi b{flex:1;min-width:0;font:700 17px/1.2 'Barlow',sans-serif;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.inbox-sohbet-kisi .gk-daha{flex-shrink:0;width:38px;height:38px;border-radius:50%;border:0;background:none;color:var(--text2);display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
+.inbox-sohbet-kisi .gk-daha svg{width:20px;height:20px}
+#inboxPanel.sohbet #inboxDetailBody.inbox-detail-body{padding:4px 0 12px;background-color:#0c1015;background-image:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='170' height='170' fill='none' stroke='%23fff' stroke-opacity='.045' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><g transform='translate(22 24)'><circle r='10'/><path d='M0-4.5l4.3 3.1-1.6 5h-5.4l-1.6-5z'/></g><g transform='translate(100 30) rotate(-12)'><path d='M-7-9h14v6a7 7 0 0 1-14 0zM-7-7h-3.5a3.5 3.5 0 0 0 3.5 5.5M7-7h3.5a3.5 3.5 0 0 1-3.5 5.5M0 4v5M-5 11h10'/></g><g transform='translate(150 82) rotate(18)'><path d='M-9-4h10a5.5 5.5 0 1 1-5.5 5.5h-4.5zM1-4v-3.5h5'/></g><g transform='translate(58 86)'><path d='M0-8l2.3 5 5.4.6-4 3.7 1.2 5.3L0 3.9l-4.9 2.7 1.2-5.3-4-3.7 5.4-.6z'/></g><g transform='translate(118 128) rotate(25)'><circle r='7'/><path d='M0-3l3 2.2-1.1 3.5h-3.8l-1.1-3.5z'/></g><g transform='translate(34 140)'><path d='M-12 6v-12h24v12M-12-6l3.5 3.5h17l3.5-3.5M-8.5-2.5v8.5M8.5-2.5v8.5M-3-2.5v8.5M3-2.5v8.5'/></g><g transform='translate(160 152)'><path d='M-5 6l5-13 5 13zM-6.5 6h13M-3 1h6'/></g></svg>");background-size:170px 170px}
+.sb-akis{display:flex;flex-direction:column;padding:0 14px}
+.sb-gun{display:flex;justify-content:center;margin:12px 0 4px}
+.sb-gun span{padding:6px 12px;border-radius:9px;background:#1a1f27;color:var(--text2);font:700 12px/1 'Barlow',sans-serif;box-shadow:0 1px 2px rgba(0,0,0,.35)}
+.sb{display:flex;margin-top:2px}
+.sb.ilk{margin-top:9px}
+.sb.ben{justify-content:flex-end}
+.sb-b{position:relative;max-width:80%;padding:6px 8px 7px 10px;border-radius:11px;font:500 15px/1.38 'Barlow',sans-serif;color:#e9edef;word-break:break-word;box-shadow:0 1px 1.5px rgba(0,0,0,.4)}
+.sb.o .sb-b{background:#1f242c}
+.sb.ben .sb-b{background:#1b6a43;color:#effff5}
+.sb.o.ilk .sb-b{border-top-left-radius:0}
+.sb.ben.ilk .sb-b{border-top-right-radius:0}
+.sb.ilk .sb-b:before{content:'';position:absolute;top:0;width:8px;height:13px;background:inherit}
+.sb.o.ilk .sb-b:before{left:-8px;clip-path:polygon(0 0,100% 0,100% 100%)}
+.sb.ben.ilk .sb-b:before{right:-8px;clip-path:polygon(0 0,100% 0,0 100%)}
+.sb-z{float:right;margin:8px 0 -5px 12px;font:600 11px/1 'Barlow',sans-serif;color:rgba(233,237,239,.5);white-space:nowrap}
+.sb.ben .sb-z{color:rgba(239,255,245,.62)}
+</style>
 <script id="gk-js">
 /* ═══════════════════════════════════════════════════════════════════
    578 · GELEN KUTUSU
@@ -98860,6 +98921,7 @@ function _gkYanitGizle(gizle) {
   if (r) r.style.display = gizle ? 'none' : '';
 }
 function _gkDetayBas(m) {
+  if (m.type === 'chat') return '';
   const tr = _gkTur(m);
   const dt = (typeof _inboxFmtDateTime === 'function') ? _inboxFmtDateTime(typeof m.ts === 'number' ? m.ts : _inboxParseTs(m.time)) : '';
   const kim = m.sent ? `<span>Kime</span>: ${_gkNd(String(m.toName || m.to || '—'))}` : (m.type === 'chat' ? _gkNd(String(m.from || '—')) : _gkAd(m.from || '—'));
@@ -98867,6 +98929,43 @@ function _gkDetayBas(m) {
   const daha = peer ? `<button class="gk-daha" onclick="modMenuAc('${_modKayit({ tur: 'mesaj', hedef: peer, ad: m.peerName || m.from, icerikId: m.id, icerik: ((m.thread || []).filter(t => t.fromId === peer).pop() || {}).body || m.body })}')" aria-label="Diğer">${_MOD_IK.daha}</button>` : '';
   return `<div class="gk-meta">${_gkTas(m, tr)}<div class="gk-kim"><b>${kim}</b><small data-noi18n>${_gkE(dt)}</small></div>${daha}</div>`
     + (m.subject ? `<div class="gk-konu" ${m.type === 'chat' ? 'data-noi18n' : ''}>${_gkE(m.subject)}</div>` : '');
+}
+// 737 — sohbet: başlıkta kişi (avatar + ad), WhatsApp tipi baloncuklar
+function _sohbetBaslik(m) {
+  const p = document.getElementById('inboxPanel'), k = document.getElementById('inboxSohbetKisi');
+  const ac = !!(m && m.type === 'chat');
+  if (p) p.classList.toggle('sohbet', ac);
+  if (!k) return;
+  if (!ac) { k.innerHTML = ''; return; }
+  const ad = String(m.peerName || (m.sent ? (m.toName || m.to) : m.from) || '—');
+  const id = m.peerAvatarId || m.fromAvatarId;
+  const av = (id && typeof getAvatarEmoji === 'function') ? getAvatarEmoji(id) : '';
+  const peer = !m.sent ? (m.peerId || m.fromUserId) : null;
+  const daha = peer ? `<button class="gk-daha" onclick="modMenuAc('${_modKayit({ tur: 'mesaj', hedef: peer, ad: m.peerName || m.from, icerikId: m.id, icerik: ((m.thread || []).filter(t => t.fromId === peer).pop() || {}).body || m.body })}', this)" aria-label="Diğer">${_MOD_IK.daha}</button>` : '';
+  k.innerHTML = `<div class="gk-tas gk-av">${av || m.fromAvatar || '👤'}</div><b data-noi18n>${_gkE(ad)}</b>${daha}`;
+}
+function _sohbetLoc() { return (typeof _i18nLang !== 'undefined' && _i18nLang && _i18nLang !== 'tr') ? _i18nLang : 'tr-TR'; }
+function _sohbetGun(ts) {
+  const d = new Date(ts), b = new Date(); b.setHours(0, 0, 0, 0);
+  const g = Math.round((b.getTime() - new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()) / 864e5);
+  if (g <= 0) return 'Bugün';
+  if (g === 1) return 'Dün';
+  return d.toLocaleDateString(_sohbetLoc(), d.getFullYear() === b.getFullYear() ? { day: 'numeric', month: 'long' } : { day: 'numeric', month: 'long', year: 'numeric' });
+}
+function _sohbetBaloncuk(msg) {
+  const myName = (authUser || {}).name || 'Sen', myId = (authUser || {}).id;
+  let h = '<div class="sb-akis">', sonGun = '', onceki = null;
+  msg.thread.forEach(t => {
+    const ben = t.fromId ? (t.fromId === myId) : (t.from === myName);
+    if (typeof t.ts === 'number') {
+      const g = _sohbetGun(t.ts);
+      if (g !== sonGun) { h += `<div class="sb-gun"><span ${g === 'Bugün' || g === 'Dün' ? '' : 'data-noi18n'}>${g}</span></div>`; sonGun = g; onceki = null; }
+    }
+    const z = typeof t.ts === 'number' ? new Date(t.ts).toLocaleTimeString(_sohbetLoc(), { hour: '2-digit', minute: '2-digit' }) : (t.time || '');
+    h += `<div class="sb ${ben ? 'ben' : 'o'}${onceki !== ben ? ' ilk' : ''}"><div class="sb-b">${_gkE(modFiltre(t.body))}<span class="sb-z" data-noi18n>${_gkE(z)}</span></div></div>`;
+    onceki = ben;
+  });
+  return h + '</div>';
 }
 const GK_EYLEM = {
   cuzdan: ['Cüzdanı aç', 'cuzdan', () => { if (typeof wlOpenLog === 'function') wlOpenLog(); }],
