@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '739';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '742';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -25196,7 +25196,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-19-antrenman-739';
+const APP_BUILD = '2026-10-20-yaris-742';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -46726,7 +46726,6 @@ let _userTrainLogCache = null;
 let _userRaceClaimedCache = null;
 let _userMatchLogSaveTimer = null;
 let _userXpLogSaveTimer = null;
-let _userTrainLogSaveTimer = null;
 let _userRaceClaimedSaveTimer = null;
 
 async function _userMatchLogLoadFromServer() {
@@ -46863,30 +46862,10 @@ function saveUserXpLog(list) {
 function getUserTrainLog() {
   return Array.isArray(_userTrainLogCache) ? _userTrainLogCache : [];
 }
-function saveUserTrainLog(list, immediate) {
-  _userTrainLogCache = Array.isArray(list) ? list.slice(-200) : [];  // son 200
-  if (!window.sb || !authUser || !authUser.id) return;
-  clearTimeout(_userTrainLogSaveTimer);
-  const doSave = async () => {
-    try {
-      // 🔑 ESKİ HATA: burada UPSERT kullanılıyordu. Upsert veritabanı için
-      //    INSERT işlemidir; user_player'da INSERT politikası olmadığı için
-      //    istek tamamen reddediliyor ve antrenman kaydı sessizce kayboluyordu.
-      //    Satır zaten var (kullanıcı kaydında oluşuyor) → UPDATE yeterli.
-      const { error, status } = await window.sb.from('user_player')
-        .update({ train_log: _userTrainLogCache })
-        .eq('user_id', authUser.id);
-      if (error) {
-        console.warn('[train_log] save error:', status, error.message || error);
-        // Görünür uyarı — bir daha sessizce kaybolmasın
-        if (typeof rosterToast === 'function') {
-          rosterToast('⚠️ Antrenman kaydı sunucuya yazılamadı', 'warn');
-        }
-      }
-    } catch(e) { console.warn('[train_log] save exception:', e); }
-  };
-  if (immediate) doSave();
-  else _userTrainLogSaveTimer = setTimeout(doSave, 1000);
+// 742 — yarış günlüğünü yalnız sunucu yazar (train_collect, son 9 gün). Telefon listeyi 200 kayda
+//   kırpıp bütün olarak yazıyordu: haftada 200'den fazla antrenman yapanın yarış puanı siliniyordu.
+function saveUserTrainLog(list) {
+  _userTrainLogCache = Array.isArray(list) ? list : [];
 }
 
 // Yarış ödül claim'leri: { "<weekKey>_<metric>": true }
@@ -81458,12 +81437,13 @@ async function trStartTraining() {
       trToast(`Yeterli paran yok! Gerekli: ${Number(r.gerekli || cost.euro).toLocaleString('tr')} € · Mevcut: ${Number(r.eur || 0).toLocaleString('tr')} €`, '#ef5350');
     } else if(hata === 'es_zamanli_sinir') {
       trToast(`Antrenman Merkezi Sv.${r.sinir}: Eş zamanlı en fazla ${r.sinir} antrenman. Tesisi yükselt!`, '#ff9800');
+      _trAktifTazele();   // 740 — sunucuda olup ekranda görünmeyen antrenman varsa gelsin
     } else if(hata === 'yetersiz_enerji') {
       trToast('⚡ Yetersiz Enerji', '#ef5350');
       if (typeof rhIste === 'function') rhIste('enerji');   // 663
     } else if(hata === 'zaten_aktif') {
       trToast('Bu yetenek için zaten aktif antrenman var!', '#ff9800');
-      if (Array.isArray(r.active)) { _activeCache = r.active; trRender(); }
+      if (Array.isArray(r.active)) { _trSunucuEkle(r.active); trRender(); }
     } else {
       trToast(r ? 'Antrenman başlatılamadı.' : 'Sunucuya ulaşılamadı.', '#ef5350');
       if (!r) _trAktifTazele();   // 739 — cevap kaybolduysa antrenman sunucuda başlamış olabilir
@@ -81477,9 +81457,9 @@ async function trStartTraining() {
   _wlApplyLocal(-r.euro, 0, 'out');
   _wlGunlukOnbellek = null;
 
-  // 739 — antrenman kaydı sunucuda biletle aynı anda oluştu; liste sunucudan
-  if (Array.isArray(r.active)) {
-    _activeCache = r.active;
+  // 739 — antrenman kaydı sunucuda biletle aynı anda oluştu · 740 — yalnız bu kayıt eklenir
+  if (r.entry && r.entry.id) {
+    _trSunucuEkle([r.entry]);
     trCloseModal();
     trRender();
     return;
@@ -81509,10 +81489,17 @@ async function trStartTraining() {
 async function _trAktifTazele() {
   try {
     const { data } = await window.sb.from('user_player').select('active_trainings').eq('user_id', authUser.id).maybeSingle();
-    if (data && Array.isArray(data.active_trainings)) { _activeCache = data.active_trainings; trRender(); }
+    if (data && Array.isArray(data.active_trainings)) { _trSunucuEkle(data.active_trainings); trRender(); }
   } catch (e) {}
   try { await _energyLoadFromServer(); syncEnergyDisplay(); } catch (e) {}
   try { await wlLoadFromServer(); } catch (e) {}
+}
+// 740 — sunucudaki kayıtlardan ekranda olmayanları ekle (toplanmakta olanlar hariç)
+const _trToplaniyor = new Set();
+function _trSunucuEkle(list) {
+  const ac = trGetActive(), var_ = new Set(ac.map(a => a && a.id));
+  const ek = (list || []).filter(a => a && a.id && !var_.has(a.id) && !_trToplaniyor.has(a.id));
+  if (ek.length) _activeCache = ac.concat(ek);
 }
 // 739 — liste bütün olarak yazılmaz (eski ekran başka kaydı silebiliyordu): yalnız ilgili antrenman işaretlenir
 function _trIsaret(ids, tur) {
@@ -81573,6 +81560,8 @@ async function trCollect(id) {
 
   const now = Date.now();
   if(now < entry.endTime) { trToast('Antrenman henüz bitmedi!', '#ff9800'); return; }
+  if (_trToplaniyor.has(id)) return;
+  _trToplaniyor.add(id);
 
   // 🆕 OPTIMISTIC: sonucu istemcide (sunucuyla AYNI formülle) hesaplayıp ANINDA göster.
   //   train_collect RPC arkada çalışıp kesin değerle sessizce eşitler (skills kolonu sunucu-korumalı).
@@ -81635,7 +81624,7 @@ async function trCollect(id) {
   try{
     const trainLog = getUserTrainLog();
     trainLog.push({ ts: Date.now(), energy: entry.mins });
-    saveUserTrainLog(trainLog, true);
+    saveUserTrainLog(trainLog);
   }catch(e){}
 
   try { _evRaceServerLbCache.train = null; } catch(e) {}
@@ -81673,9 +81662,10 @@ async function trCollect(id) {
     } catch(e) { r = null; console.warn('[trCollect] rpc hata:', e); }
     if (_den === 0) await new Promise(res => setTimeout(res, 2500));
   }
+  _trToplaniyor.delete(id);
   if (r && !r.error && r.data && r.data.ok) {
     if (r.data.skills) _skillsCache = r.data.skills;
-    if (Array.isArray(r.data.active)) _activeCache = r.data.active;
+    _activeCache = trGetActive().filter(a => a.id !== id);
     if (typeof trRenderSkills === 'function') { try { trRenderSkills(); } catch(e){} }
     else if (typeof trRender === 'function') { try { trRender(); } catch(e){} }
   } else if (r && !r.error) {
@@ -81684,8 +81674,8 @@ async function trCollect(id) {
     const _hk = (r.data && r.data.error) || '';
     try {
       if (_skillsCache && _skillsCache[pos]) _skillsCache[pos][skillId] = cur;
-      if (_hk === 'bilet_yok' && Array.isArray(r.data.active)) {
-        _activeCache = r.data.active;   // sunucu bu antrenmanı kaldırdı
+      if (_hk === 'bilet_yok' || _hk === 'not_found') {
+        _activeCache = trGetActive().filter(a => a.id !== id);   // sunucuda bu antrenman yok / kaldırıldı
       } else {
         const _ac = Array.isArray(_activeCache) ? _activeCache : [];
         if (!_ac.some(a => a && a.id === id)) _activeCache = _ac.concat([entry]);
