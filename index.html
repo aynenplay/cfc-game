@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '738';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '739';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -25196,7 +25196,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-19-cevrimici-738';
+const APP_BUILD = '2026-10-19-antrenman-739';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -81436,7 +81436,7 @@ async function trStartTraining() {
 
   // Toplam eş zamanlı = antrenman tesisi seviyesi
   const facilityLvl = FAC_LEVELS['training'] || 1;
-  if(active.length >= facilityLvl) {
+  if(active.filter(a => a && a.endTime > Date.now()).length >= facilityLvl) {
     trCloseModal();
     trToast(`Antrenman Merkezi Sv.${facilityLvl}: Eş zamanlı en fazla ${facilityLvl} antrenman. Tesisi yükselt!`, '#ff9800');
     return;
@@ -81461,8 +81461,12 @@ async function trStartTraining() {
     } else if(hata === 'yetersiz_enerji') {
       trToast('⚡ Yetersiz Enerji', '#ef5350');
       if (typeof rhIste === 'function') rhIste('enerji');   // 663
+    } else if(hata === 'zaten_aktif') {
+      trToast('Bu yetenek için zaten aktif antrenman var!', '#ff9800');
+      if (Array.isArray(r.active)) { _activeCache = r.active; trRender(); }
     } else {
       trToast(r ? 'Antrenman başlatılamadı.' : 'Sunucuya ulaşılamadı.', '#ef5350');
+      if (!r) _trAktifTazele();   // 739 — cevap kaybolduysa antrenman sunucuda başlamış olabilir
     }
     if(r && typeof r.energy === 'number') { energy.current = r.energy; trSaveEnergy(energy); }
     return;
@@ -81473,6 +81477,13 @@ async function trStartTraining() {
   _wlApplyLocal(-r.euro, 0, 'out');
   _wlGunlukOnbellek = null;
 
+  // 739 — antrenman kaydı sunucuda biletle aynı anda oluştu; liste sunucudan
+  if (Array.isArray(r.active)) {
+    _activeCache = r.active;
+    trCloseModal();
+    trRender();
+    return;
+  }
   // Aktif listeye ekle
   const newEntry = {
     id: 'tr_' + Date.now(),
@@ -81492,6 +81503,22 @@ async function trStartTraining() {
   trCloseModal();
   // 🆕 'antrenman başladı' toast'ı kaldırıldı (modal yeterli)
   trRender();
+}
+
+// 739 — başlatma cevabı ulaşmadıysa aktif listeyi, enerjiyi ve cüzdanı sunucudan tazele
+async function _trAktifTazele() {
+  try {
+    const { data } = await window.sb.from('user_player').select('active_trainings').eq('user_id', authUser.id).maybeSingle();
+    if (data && Array.isArray(data.active_trainings)) { _activeCache = data.active_trainings; trRender(); }
+  } catch (e) {}
+  try { await _energyLoadFromServer(); syncEnergyDisplay(); } catch (e) {}
+  try { await wlLoadFromServer(); } catch (e) {}
+}
+// 739 — liste bütün olarak yazılmaz (eski ekran başka kaydı silebiliyordu): yalnız ilgili antrenman işaretlenir
+function _trIsaret(ids, tur) {
+  if (!ids.length || !window.sb) return;
+  window.sb.rpc('antrenman_isaret', { p_ids: ids, p_tur: tur })
+    .then(({ error }) => { if (error) console.warn('[antrenman_isaret]', error.message); });
 }
 
 // ── Antrenman topla ──
@@ -81717,7 +81744,7 @@ function trInstantFinish(id, mins) {
   const idx = active.findIndex(a => a.id === id);
   if(idx !== -1) {
     active[idx].endTime = Date.now() - 1;
-    trSaveActive(active);
+    _trIsaret([id], 'bitir');
   }
 
   // 🆕 'anında tamamlandı' toast'ı kaldırıldı (Topla modali yeterli)
@@ -81765,22 +81792,20 @@ function _trWatchCompleted() {
   const active = trGetActive();
   if (!active.length) return;
   const now = Date.now();
-  let dirty = false;
   // Antrenman sayfasında zaten "Topla ✓" butonu görünüyor — orada bildirim gereksiz
   const trPage = document.getElementById('page-training');
   const onTrPage = trPage && trPage.classList.contains('active');
+  const yeni = [];
   active.forEach(a => {
     if (a.notified) return;          // bu antrenman zaten bildirildi
     if (now < a.endTime) return;     // henüz bitmedi
     a.notified = true;
-    dirty = true;
+    yeni.push(a.id);
     if (!onTrPage) {
       _trEnqueueDoneNotif(a);
     }
   });
-  if (dirty) {
-    try { trSaveActive(active); } catch(e){}
-  }
+  _trIsaret(yeni, 'bildirildi');
 }
 function _trEnqueueDoneNotif(entry) {
   if (!window._trNotifQueue) window._trNotifQueue = [];
