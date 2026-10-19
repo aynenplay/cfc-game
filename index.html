@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '734';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '735';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -25185,7 +25185,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-19-csc-media-kart-tusu-734';
+const APP_BUILD = '2026-10-19-geri-antrenman-735';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -40301,6 +40301,8 @@ function selectTeamFormation(fname) {
 // 🆕 Geri butonu — sayfa geçmişinden bir önceki sayfaya dön
 function goBackPage(){
   if (typeof _visitedPlayerData !== 'undefined' && _visitedPlayerData && typeof exitVisitorMode === 'function') { exitVisitorMode(); return; }
+  // 735 — misafir takım sayfasında Geri: misafir modundan çık (girilmeden önceki sayfaya)
+  if (typeof _viewingTeam !== 'undefined' && _viewingTeam && document.getElementById('page-team').classList.contains('active')) { exitGuestMode(); return; }
   try {
     const h = window._pageHist || [];
     let prev = null;
@@ -40481,7 +40483,10 @@ function showPage(name,btn){
   }
   if(name==='training') {
     // 🆕 Sayfa her açıldığında kullanıcının ana mevki grubuna sıfırla
-    try {
+    // 735 — devam eden ya da tamamlanmış (toplanmamış) antrenman varsa ilk bitenin mevkisinden açılır
+    const _trAkt = (typeof trGetActive === 'function' ? trGetActive() : []).filter(a => a && ['GK','DEF','MID','FWD'].includes(a.pos) && Number(a.endTime) > 0);
+    if (_trAkt.length) _trPos = _trAkt.reduce((m, a) => (Number(a.endTime) < Number(m.endTime) ? a : m)).pos;
+    else try {
       const userPos = (authUser && authUser.position) || (_userTeam && _userTeam.position);
       if (userPos) {
         // Spesifik pozisyondan grup'a çevir (STB→DEF, SAK→MID, ...)
@@ -48846,7 +48851,8 @@ async function playerViewProfile(playerJson) {
         type: 'guestTeam',
         cc: _viewingTeam.countryCode,
         tn: _viewingTeam.teamRef.name,
-        prevPage: (typeof _viewingTeamPrevPage !== 'undefined') ? _viewingTeamPrevPage : null
+        prevPage: (typeof _viewingTeamPrevPage !== 'undefined') ? _viewingTeamPrevPage : null,
+        hl: (window._pageHist || []).length, ghl: _viewingTeamHl   // 735
       };
       // Ziyaretçi profil moduna geçerken misafir takım state'ini temizle
       // (exitVisitorMode'da viewTeam tekrar çağrılıp restore edilecek)
@@ -48865,7 +48871,7 @@ async function playerViewProfile(playerJson) {
         const an = ap ? ap.id.replace('page-','') : null;
         if (an && an !== 'player') fromName = an;
       }
-      _visitedReturnAction = { type: 'page', name: fromName || 'home' };
+      _visitedReturnAction = { type: 'page', name: fromName || 'home', hl: (window._pageHist || []).length };   // 735
     }
   }
 
@@ -48895,15 +48901,13 @@ function exitVisitorMode() {
   _visitedReturnAction = null;
   window._pmFromPage = null;
 
-  if (!action) {
-    // Hiç action yoksa ana sayfaya
-    if (typeof showPage === 'function') {
-      const navBtn = (typeof findNavBtn === 'function') ? findNavBtn('home') : null;
-      showPage('home', navBtn);
-    }
-    return;
-  }
+  if (!action) { goBackPage(); return; }   // 735 — ana sayfa yerine bir önceki sayfa
 
+  // 735 — dönüş bir geri adımıdır: geçmiş ziyaretçi profile girilmeden önceki hâline döner
+  const _h = window._pageHist || [];
+  if (typeof action.hl === 'number' && _h.length > action.hl) _h.length = action.hl;
+  window._navBack = true;
+  try {
   if (action.type === 'guestTeam' && typeof viewTeam === 'function') {
     // Misafir takıma geri dön (viewTeam yeni state ile sayfayı yeniden kurar)
     viewTeam(action.cc, action.tn);
@@ -48913,6 +48917,7 @@ function exitVisitorMode() {
     if (typeof _viewingTeamPrevPage !== 'undefined') {
       _viewingTeamPrevPage = action.prevPage || null;
     }
+    if (typeof action.ghl === 'number') _viewingTeamHl = action.ghl;   // 735
   } else if (action.type === 'page' && typeof showPage === 'function') {
     // Normal sayfaya geri dön
     const navBtn = (typeof findNavBtn === 'function') ? findNavBtn(action.name) : null;
@@ -48920,6 +48925,7 @@ function exitVisitorMode() {
   } else if (typeof showPage === 'function') {
     showPage('home', (typeof findNavBtn === 'function') ? findNavBtn('home') : null);
   }
+  } finally { window._navBack = false; }
 }
 
 // Teklif sun — sözleşme şartları modal'ını (tfOfferModal) aç
@@ -56242,6 +56248,7 @@ function goToTreasury(){
 // Başka takımları yetkisiz görüntüleme. Sadece Kadro ve Tesis erişilebilir.
 let _viewingTeam = null; // null = kullanıcının kendi takımı (Ankara), {countryCode, teamRef} = ziyaretçi modu
 let _viewingTeamPrevPage = null; // ziyaretçi moduna geçmeden önceki sayfa (geri butonu için)
+let _viewingTeamHl = 0;          // 735 — misafir takıma girerken sayfa geçmişinin uzunluğu (dönüşte o hâle döner)
 
 // Bottom nav indeksleri (showPage'in btn parametresi için)
 const NAV_PAGE_INDEX = {
@@ -56350,7 +56357,8 @@ function viewTeam(countryCode, teamName) {
   let prevId = activePage ? activePage.id.replace('page-', '') : 'home';
   // Eğer zaten guest mode'daysak (takım sayfasında bir başka takıma geçiş), önceki sayfa korunur
   if(!_viewingTeam) {
-    _viewingTeamPrevPage = prevId === 'team' ? null : prevId; // team ise önceki yoktur (Ankara → ?), o zaman home dönsün
+    _viewingTeamPrevPage = prevId;   // 735 — 'team' = kendi takım sayfası (Geri oraya döner)
+    _viewingTeamHl = (window._pageHist || []).length;
   }
 
   _viewingTeam = {
@@ -56416,7 +56424,7 @@ function viewTeam(countryCode, teamName) {
 }
 
 function exitGuestMode(silent) {
-  const prevPage = _viewingTeamPrevPage;
+  const prevPage = _viewingTeamPrevPage, hl = _viewingTeamHl;
   _viewingTeam = null;
   _viewingTeamPrevPage = null;
   const page = document.getElementById('page-team');
@@ -56425,14 +56433,12 @@ function exitGuestMode(silent) {
   // Hero'yu kullanıcı takımına geri al
   guestRestoreHeader();
   if(!silent) {
-    // Geri butonu: ÖNCEKİ sayfaya dön (Ankara'e değil)
-    if(prevPage && prevPage !== 'team') {
-      const navBtn = findNavBtn(prevPage);
-      showPage(prevPage, navBtn);
-    } else {
-      // Önceki sayfa yoksa veya bilinmiyorsa Ana Menü'ye dön
-      showPage('home', findNavBtn('home'));
-    }
+    // 735 — Geri: misafir takıma girmeden önceki sayfa ('team' = kendi takım sayfası); geçmiş o ana döner
+    const h = window._pageHist || [];
+    if (h.length > hl) h.length = hl;
+    const hedef = prevPage || 'home';
+    window._navBack = true;
+    try { showPage(hedef, findNavBtn(hedef)); } finally { window._navBack = false; }
   }
 }
 
