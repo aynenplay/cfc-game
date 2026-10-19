@@ -986,6 +986,21 @@ function uCountry(p){ const cc=String(p.nationality||p.country_code||'').toUpper
 function uBanInfo(p){ const bu=p.ban_until||p.banned_until; if(!bu) return null; const t=new Date(bu); if(isNaN(t)||t<=new Date()) return null; return {until:t, perm:t.getFullYear()>=9999, reason:p.ban_reason||p.banned_reason||''}; }
 
 // API
+// 729 — tablonun tamamını sayfa sayfa okur (sunucu tek istekte sınırlı satır döndürür); durdur(satırlar) true dönerse biter
+async function apiTum(p, durdur) {
+  const out = [];
+  for (let off = 0, tur = 0; tur < 200; tur++) {
+    const r = await api('list', Object.assign({}, p, { limit: 1000, offset: off }));
+    const rows = (r && r.rows) || [];
+    if (!rows.length) break;
+    out.push(...rows); off += rows.length;
+    if (durdur && durdur(rows)) break;
+  }
+  return { rows: out };
+}
+// Gerçek kullanıcılar user_id sırasında önce gelir (botlarda user_id boş, sona düşer): bota gelince durulur
+const _gercekBitti = rows => rows.some(x => !x.user_id);
+
 async function api(op, payload={}) {
   const r = await fetch(GATEWAY, {
     method:'POST',
@@ -1117,8 +1132,8 @@ async function loadFeedback(){
   try {
     const [r, pl, pf] = await Promise.all([
       api('list', { table:'feedback', orderBy:'created_at', orderDir:'desc', limit:100 }),
-      FB_OYUNCU ? null : api('list', { table:'players', limit:2000, orderBy:'user_id', orderDir:'asc' }).catch(()=>null),
-      api('list', { table:'profiles', limit:2000 }).catch(()=>null)
+      FB_OYUNCU ? null : apiTum({ table:'players', orderBy:'user_id', orderDir:'asc' }, _gercekBitti).catch(()=>null),
+      apiTum({ table:'profiles', orderBy:'id', orderDir:'asc' }).catch(()=>null)
     ]);
     if (pl) { FB_OYUNCU = {}; (pl.rows||[]).forEach(x=>{ if(x.user_id) FB_OYUNCU[x.user_id]=x; }); }
     if (pf) FB_PROFIL = pf.rows || [];
@@ -1338,8 +1353,8 @@ function _odTl(x){ return (x.tl != null) ? Number(x.tl) || 0 : 0; }
 
 async function _odVeriCek(){
   const [pay, pl] = await Promise.all([
-    api('list', { table:'payments', limit:5000 }),
-    api('list', { table:'players',  limit:500, orderBy:'user_id', orderDir:'asc' }).catch(()=>({rows:[]}))
+    apiTum({ table:'payments', orderBy:'created_at', orderDir:'desc' }),
+    apiTum({ table:'players', orderBy:'user_id', orderDir:'asc', cols:'user_id,name,team_name', sayim:'yok' }, _gercekBitti).catch(()=>({rows:[]}))
   ]);
   OD_LISTE = pay.rows || [];
   OD_ISIM = {};
@@ -1521,17 +1536,9 @@ const CV_DONEM = [
   { k:'tumu',   ad:'Tümü'    }
 ];
 let CV_SECILI = 'tumu';   // 718 — varsayılan: Tümü
-let CV_VERI   = null;   // { oyuncular:[], profiller:[] }
+let CV_VERI   = null;   // 729 — { ozet:{…sayılar}, canli:[şu an oyunda, en çok 25] } — sayım veritabanında
 let CV_ZAMAN  = null;
 
-function _cvBaslangic(k){
-  const d = new Date();
-  if (k === 'bugun'){ d.setHours(0,0,0,0); return d.getTime(); }
-  if (k === '7')    return Date.now() - 7*86400000;
-  if (k === '30')   return Date.now() - 30*86400000;
-  if (k === 'yil')  return new Date(d.getFullYear(),0,1).getTime();
-  return 0;                                   // tümü
-}
 function _cvMs(t){ if(!t) return 0; const x = new Date(t).getTime(); return isNaN(x) ? 0 : x; }
 function _cvGecen(ms){
   const f = Date.now() - ms;
@@ -1542,16 +1549,12 @@ function _cvGecen(ms){
 }
 
 async function cvVeriCek(){
-  // players: user_id'ye göre ARTAN sıralayınca gerçek kullanıcılar başa gelir
-  // (bot satırlarında user_id boş, Postgres onları sona atar).
-  const [pl, pf] = await Promise.all([
-    api('list', { table:'players',  limit:500,  orderBy:'user_id', orderDir:'asc', cols:'user_id,is_bot,name,team_name,last_seen,son_aktif', sayim:'yok' }).catch(()=>({rows:[]})),
-    api('list', { table:'profiles', limit:2000, cols:'id,created_at', sayim:'yok' }).catch(()=>({rows:[]}))
+  // 729 — sayılar veritabanında sayılır (kullanıcı sayısından bağımsız tek küçük cevap)
+  const [oz, cv] = await Promise.all([
+    api('list', { table:'admin_aktiflik', limit:1, sayim:'yok' }),
+    api('list', { table:'admin_cevrimici', limit:25, orderBy:'last_seen', orderDir:'desc', sayim:'yok' })
   ]);
-  CV_VERI = {
-    oyuncular: (pl.rows||[]).filter(p => p && p.user_id && p.is_bot !== true),
-    profiller: pf.rows || []
-  };
+  CV_VERI = { ozet: (oz.rows && oz.rows[0]) || {}, canli: cv.rows || [] };
   CV_ZAMAN = Date.now();
 }
 
@@ -1560,22 +1563,14 @@ function cvCiz(){
   if (!alan) return;
   if (!CV_VERI){ alan.innerHTML = '<div class="cvbox"><div class="cvbos">Yükleniyor…</div></div>'; return; }
 
-  const now = Date.now();
-  const oyn = CV_VERI.oyuncular, prof = CV_VERI.profiller;
-
-  const suAn   = oyn.filter(p => now - _cvMs(p.last_seen) <= 5*60000);
-  // 689 — giriş ölçüsü son_aktif (oyun açıkken tazelenir, çıkışta sıfırlanmaz); 639 damgası (sayaç başlangıcı) giriş sayılmaz
-  const damga  = _akDamga(oyn);
-  const giris  = p => (damga && p.son_aktif === damga) ? 0 : _cvMs(p.son_aktif);
-  const sonSaat= oyn.filter(p => now - giris(p) <= 60*60000).length;
-  const bas    = _cvBaslangic(CV_SECILI);
-  const aktif  = oyn.filter(p => giris(p) >= bas).length;
-  const yeni   = prof.filter(x => _cvMs(x.created_at) >= bas).length;
-  const omap   = {}; oyn.forEach(p => { omap[p.user_id] = p; });
-  const iki    = oyn.filter(p => p.son_aktif && now - _cvMs(p.son_aktif) >= 2 * 86400000).length;   // 718 — son girişi 2 gün ve daha eski
+  // 729 — kurallar veritabanında (admin_aktiflik): şu an = son 5 dk, giriş = son_aktif (639 damgası sayılmaz),
+  //   gün/yıl başı İstanbul saatiyle, 2+ gün = son girişi 2 gün ve daha eski
+  const o = CV_VERI.ozet, n = k => Number(o[k]) || 0;
+  const suAn = n('su_an'), sonSaat = n('son_saat'), aktif = n('aktif_' + CV_SECILI), yeni = n('yeni_' + CV_SECILI);
+  const toplam = n('toplam'), iki = n('iki_gun');
   const donemAd= (CV_DONEM.find(d=>d.k===CV_SECILI)||{}).ad || '';
 
-  const canliListe = suAn.slice().sort((a,b)=>_cvMs(b.last_seen)-_cvMs(a.last_seen)).slice(0,25);
+  const canliListe = CV_VERI.canli;
 
   alan.innerHTML = `<div class="cvbox">
     <div class="cvhead">
@@ -1592,16 +1587,16 @@ function cvCiz(){
     </div>
 
     <div class="rk-ozet">
-      ${_opKart('ŞU AN OYUNDA', suAn.length, 'son 5 dakika')}
+      ${_opKart('ŞU AN OYUNDA', suAn, 'son 5 dakika')}
       ${_opKart('SON 1 SAAT',   sonSaat,     'giriş yapan kişi', 's')}
       ${_opKart('AKTİF KULLANICI', aktif,    donemAd.toLowerCase() + ' içinde giren')}
       ${_opKart('YENİ KAYIT',   yeni,        donemAd.toLowerCase() + ' açılan hesap', 's')}
-      ${_opKart('TOPLAM KAYITLI', prof.length, 'hesap')}
+      ${_opKart('TOPLAM KAYITLI', toplam, 'hesap')}
       ${_opKart('2+ GÜN GİRMEYEN', iki,      'son giriş 2+ gün önce', iki>0?'k':'')}
     </div>
 
     <div class="cvliste">
-      <div class="cvliste-bas">Şu an oyunda (${suAn.length})</div>
+      <div class="cvliste-bas">Şu an oyunda (${suAn})</div>
       ${canliListe.length
         ? canliListe.map(p=>`<div class="cvsat">
              <span class="cvnokta"></span>
@@ -1707,7 +1702,7 @@ async function _rkVeriCek(){
   RK_LISTE = (r.rows || []).slice().sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0));
   RK_GUNLUK = {};
   try {
-    const g = await api('list', { table:'ad_stats_daily', limit:5000 });
+    const g = await apiTum({ table:'ad_stats_daily', orderBy:'gun', orderDir:'desc' });
     (g.rows||[]).forEach(x => { (RK_GUNLUK[x.ad_id] = RK_GUNLUK[x.ad_id] || []).push(x); });
     Object.keys(RK_GUNLUK).forEach(k => RK_GUNLUK[k].sort((a,b)=> String(b.gun).localeCompare(String(a.gun))));
   } catch(e) { /* günlük kırılım yoksa sorun değil */ }
@@ -2448,10 +2443,10 @@ async function loadUsers(){
   try{
     if(!UDATA.pLoaded){
       const [pf,pl,up,wl]=await Promise.all([
-        api('list',{ table:'profiles', limit:2000 }),
-        api('list',{ table:'players', limit:2000, orderBy:'user_id', orderDir:'asc' }).catch(()=>({rows:[]})),
-        api('list',{ table:'user_player', limit:2000 }).catch(()=>({rows:[]})),
-        api('list',{ table:'user_wallet', limit:2000 }).catch(()=>({rows:[]}))
+        apiTum({ table:'profiles', orderBy:'id', orderDir:'asc' }),
+        apiTum({ table:'players', orderBy:'user_id', orderDir:'asc' }, _gercekBitti).catch(()=>({rows:[]})),
+        apiTum({ table:'user_player', orderBy:'user_id', orderDir:'asc' }).catch(()=>({rows:[]})),
+        apiTum({ table:'user_wallet', orderBy:'user_id', orderDir:'asc' }).catch(()=>({rows:[]}))
       ]);
       UDATA.all=pf.rows||[];
       const ep=await api('eposta',{}).catch(()=>null);
@@ -2707,7 +2702,7 @@ async function uKaptanCiz(){
   const ek=$('uEk'); if(!ek) return;
   if(!UDATA.sozlesme){
     ek.innerHTML='<div class="msg">Yükleniyor…</div>';
-    const r=await api('list',{ table:'takim_sozlesme', limit:2000, orderBy:'imzalandi', orderDir:'desc' }).catch(()=>({ rows:[] }));
+    const r=await apiTum({ table:'takim_sozlesme', orderBy:'imzalandi', orderDir:'desc' }).catch(()=>({ rows:[] }));
     UDATA.sozlesme=r.rows||[];
     if(USTATE.sekme!=='kaptan') return;
   }
@@ -2766,7 +2761,7 @@ async function uSilinenCiz(){
   const ek=$('uEk'); if(!ek) return;
   if(!UDATA.silinen){
     ek.innerHTML='<div class="msg">Yükleniyor…</div>';
-    try{ const r=await api('list',{ table:'silinen_hesaplar', limit:1000, orderBy:'silindi', orderDir:'desc' }); UDATA.silinen=r.rows||[]; }
+    try{ const r=await apiTum({ table:'silinen_hesaplar', orderBy:'silindi', orderDir:'desc' }); UDATA.silinen=r.rows||[]; }
     catch(e){ ek.innerHTML='<div class="msg err">'+uEsc(e.message)+'</div>'; return; }
     if(USTATE.sekme!=='silinen') return;
   }
@@ -2868,9 +2863,9 @@ let WSTATE={ search:'', sira:'eur' };
 let WDATA={ rows:[], prof:{}, pl:{} };
 async function walletVeri(oyuncuDa){
   const [w,pf,pl]=await Promise.all([
-    api('list',{ table:'user_wallet', limit:2000 }),
-    api('list',{ table:'profiles', limit:2000 }),
-    oyuncuDa?api('list',{ table:'players', limit:2000, orderBy:'user_id', orderDir:'asc' }).catch(()=>({ rows:[] })):null ]);
+    apiTum({ table:'user_wallet', orderBy:'user_id', orderDir:'asc' }),
+    apiTum({ table:'profiles', orderBy:'id', orderDir:'asc' }),
+    oyuncuDa?apiTum({ table:'players', orderBy:'user_id', orderDir:'asc' }, _gercekBitti).catch(()=>({ rows:[] })):null ]);
   const prof={}; (pf.rows||[]).forEach(p=>{ prof[p.id]=p; });
   const plm={}; ((pl&&pl.rows)||[]).forEach(x=>{ if(x.user_id) plm[x.user_id]=x; });
   return { rows:(w.rows||[]).filter(x=>prof[x.user_id]), prof, pl:plm };
@@ -3006,7 +3001,7 @@ async function loadClubs(){
   try{
     const [tm, pf] = await Promise.all([
       api('list',{ table:'teams', limit:CSTATE.limit, offset:CSTATE.offset, search:CSTATE.search||undefined, searchCol:CSTATE.search?CSTATE.searchCol:undefined }),
-      api('list',{ table:'profiles', limit:2000 }).catch(()=>({rows:[]}))
+      apiTum({ table:'profiles', orderBy:'id', orderDir:'asc' }).catch(()=>({rows:[]}))
     ]);
     CDATA.rows=tm.rows||[]; CDATA.count=tm.count||0;
     CDATA.mgr={}; (pf.rows||[]).forEach(p=>{ const id=p.user_id||p.id; if(id!=null) CDATA.mgr[id]=p.display_name||p.username||p.name; });
@@ -3180,7 +3175,7 @@ function NTApplyFilter(){
 async function loadNTs(){
   if(!$('nList')) $('main').innerHTML='<div class="msg">Yükleniyor…</div>';
   try{
-    const tm=await api('list',{ table:'teams', limit:2000 });
+    const tm=await apiTum({ table:'teams', orderBy:'id', orderDir:'asc' });
     const map={};
     (tm.rows||[]).forEach(t=>{ const cc=String(t.country_code||'').toUpperCase(); if(!cc) return; if(!map[cc]) map[cc]={ teamCount:0, ovrSum:0 }; map[cc].teamCount++; map[cc].ovrSum+=(Number(t.team_ovr!=null?t.team_ovr:t.ovr)||0); });
     NDATA.all=Object.keys(map).map(cc=>{ const m=map[cc]; return { cc, name:CC_NAME[cc]||cc, flag:ccFlag(cc), teamCount:m.teamCount, ovrAvg:m.teamCount?Math.round(m.ovrSum/m.teamCount):0 }; }).sort((x,y)=>x.name.localeCompare(y.name,'tr'));
@@ -3309,9 +3304,9 @@ async function loadFeds(){
   if(!$('fList')) $('main').innerHTML='<div class="msg">Yükleniyor…</div>';
   try{
     const [tm,fs,pf]=await Promise.all([
-      api('list',{ table:'teams', limit:2000 }),
+      apiTum({ table:'teams', orderBy:'id', orderDir:'asc' }),
       api('list',{ table:'federation_state', limit:2000 }).catch(()=>({rows:[]})),
-      api('list',{ table:'profiles', limit:2000 }).catch(()=>({rows:[]}))
+      apiTum({ table:'profiles', orderBy:'id', orderDir:'asc' }).catch(()=>({rows:[]}))
     ]);
     FDATA.who={}; (pf.rows||[]).forEach(p=>{ const id=p.user_id||p.id; if(id!=null) FDATA.who[id]=p.display_name||p.username||p.name; });
     const fedByCc={}; (fs.rows||[]).forEach(fr=>{ const cc=String(fr.country_code||'').toUpperCase(); if(cc) fedByCc[cc]=fr; });
@@ -4121,7 +4116,7 @@ async function openOps() {
 
   // Aktif oyuncu — players.last_seen son 5 dk
   try {
-    const r = await api('list',{ table:'players', limit:2000, orderBy:'last_seen', orderDir:'desc' });
+    const r = await apiTum({ table:'players', orderBy:'user_id', orderDir:'asc', cols:'user_id,last_seen', sayim:'yok' }, _gercekBitti);
     const sinir = Date.now() - 5*60*1000;
     aktif = (r.rows||[]).filter(p => p.last_seen && new Date(p.last_seen).getTime() > sinir).length;
   } catch(e) {}
@@ -4255,7 +4250,7 @@ async function openEconomy() {
   $('main').innerHTML = _opBaslik('Ekonomi','yükleniyor…') + '<div class="msg">Yükleniyor…</div>';
 
   let cuzdan = [], duello = [];
-  const cek = async (t, ek) => { try { const r = await api('list', Object.assign({ table:t, limit:2000 }, ek||{})); return r.rows||[]; } catch(e) { return null; } };
+  const cek = async (t, ek) => { try { const r = await apiTum(Object.assign({ table:t }, ek||{})); return r.rows||[]; } catch(e) { return null; } };
   cuzdan = await walletVeri(false).then(v => v.rows).catch(() => null);
   duello = await cek('duello', { orderBy:'created_at', orderDir:'desc' });
 
@@ -4306,7 +4301,7 @@ async function openBroadcast() {
 
   // Ülke ve takım listesi + oyuncu sayıları
   let oyuncular = [];
-  try { const r = await api('list',{ table:'players', limit:2000 }); oyuncular = r.rows || []; } catch(e) {}
+  try { const r = await apiTum({ table:'players', orderBy:'user_id', orderDir:'asc' }, _gercekBitti); oyuncular = r.rows || []; } catch(e) {}
   const gercek = oyuncular.filter(p => p && p.user_id && !p.is_bot);
   const ulkeSay = {}, takimSay = {};
   gercek.forEach(p => {
@@ -4416,7 +4411,7 @@ function _opYukleniyor(ad) {
 async function openLeagues() {
   _opAktif('__ligler__'); _opYukleniyor('Lig Tabloları');
   let takimlar = [], sonuclar = [];
-  try { takimlar = (await api('list',{ table:'teams', limit:2000 })).rows || []; } catch(e) {}
+  try { takimlar = (await apiTum({ table:'teams', orderBy:'id', orderDir:'asc' })).rows || []; } catch(e) {}
   try { sonuclar = (await api('list',{ table:'match_results', limit:2000,
         orderBy:'created_at', orderDir:'desc' })).rows || []; } catch(e) {}
 
@@ -4570,8 +4565,8 @@ async function openFixture() {
 async function openTraining() {
   _opAktif('__antrenman__'); _opYukleniyor('Antrenman Yarışı');
   let up = [], pl = [];
-  try { up = (await api('list',{ table:'user_player', limit:2000 })).rows || []; } catch(e) {}
-  try { pl = (await api('list',{ table:'players', limit:2000 })).rows || []; } catch(e) {}
+  try { up = (await apiTum({ table:'user_player', orderBy:'user_id', orderDir:'asc' })).rows || []; } catch(e) {}
+  try { pl = (await apiTum({ table:'players', orderBy:'user_id', orderDir:'asc' }, _gercekBitti)).rows || []; } catch(e) {}
   const adByUid = {}; pl.forEach(p => { if (p.user_id) adByUid[p.user_id] = p; });
 
   // Döngü: son Cuma 17:00 UTC
@@ -4622,7 +4617,7 @@ async function openMedia() {
   let gonderi = [], pl = [];
   try { gonderi = (await api('list',{ table:'social_posts', limit:200,
         orderBy:'created_at', orderDir:'desc' })).rows || []; } catch(e) {}
-  try { pl = (await api('list',{ table:'players', limit:2000 })).rows || []; } catch(e) {}
+  try { pl = (await apiTum({ table:'players', orderBy:'user_id', orderDir:'asc' }, _gercekBitti)).rows || []; } catch(e) {}
   const adByUid = {}; pl.forEach(p => { if (p.user_id) adByUid[p.user_id] = p.name; });
 
   const sat = gonderi.map(g => {
