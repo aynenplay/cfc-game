@@ -139,6 +139,12 @@
   .cvsat .cvad{ flex:1; min-width:0; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .cvsat .cvsure{ font-size:11px; color:var(--dim); flex-shrink:0; }
   .cvbos{ padding:14px 12px; color:var(--dim); font-size:13px; }
+  .cvtumu{ display:flex; width:100%; align-items:center; justify-content:center; gap:6px; padding:10px 12px; border:0; background:var(--panel2);
+    color:var(--accent); font-family:var(--disp); font-weight:800; font-size:13px; letter-spacing:.6px; text-transform:uppercase; cursor:pointer; }
+  .cvtumu:hover{ background:#1f2430; }
+  .cvtumu:disabled{ color:var(--dim); cursor:default; }
+  .cvtumu svg{ width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:2.6; stroke-linecap:round; stroke-linejoin:round; transition:transform .18s; }
+  .cvtumu.acik svg{ transform:rotate(180deg); }
 
   /* ── ELMAS SATIŞLARI ── */
   .od-ust{ display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:13px; }
@@ -300,6 +306,8 @@
   .card:hover{ border-color:var(--accent); transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,0,0,.35); }
   .card .num{ font-family:var(--disp); font-weight:900; font-size:30px; color:var(--gold); line-height:1; }
   .card .lbl{ color:var(--dim); font-family:var(--disp); font-weight:600; font-size:14px; margin-top:7px; letter-spacing:.4px; }
+  .cardgrid.ozet4{ grid-template-columns:repeat(4,1fr); }   /* 732 — 4 kart tek sırada eşit */
+  @media (max-width:760px){ .cardgrid.ozet4{ grid-template-columns:repeat(2,1fr); } }
 
   /* Geri bildirim */
   .fbhead{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:24px 0 12px; }
@@ -1035,11 +1043,8 @@ async function doLogin() {
 function logout(){ TOKEN=null; META=null; CUR=null; clearSess(); document.body.classList.remove('navopen'); var b=$('boot'); if(b) b.style.display='none'; $('app').classList.remove('show'); $('login').style.display='block'; $('pass').value=''; }
 
 // Özet (dashboard)
-const DASH = [
-  {t:'profiles',label:'Kullanıcılar'},{t:'players',label:'Oyuncular'},{t:'teams',label:'Takımlar'},
-  {t:'match_state',label:'Canlı Maçlar'},{t:'match_results',label:'Maç Sonuçları'},{t:'user_wallet',label:'Cüzdanlar'},
-  {t:'tournament_state',label:'Turnuvalar'},{t:'transfer_listings',label:'Transfer İlanları'},{t:'social_posts',label:'Sosyal Gönderiler'},
-  {t:'ads',label:'Yayındaki Reklam'},{t:'payments',label:'Elmas Satışı'}
+const DASH = [   // 732 — sadeleşti
+  {t:'profiles',label:'Kullanıcılar'},{t:'user_wallet',label:'Cüzdanlar'},{t:'social_posts',label:'Sosyal Gönderiler'},{t:'payments',label:'Elmas Satışı'}
 ];
 function openDash(){
   CUR=null;
@@ -1048,7 +1053,7 @@ function openDash(){
   document.body.classList.remove('navopen');
   $('main').innerHTML = `<div class="titlebox fadein"><h2>Özet</h2><span class="cnt">CSC Admin · genel bakış</span></div>
     <div id="cvArea" class="fadein"></div>
-    <div class="cardgrid fadein">${DASH.map(d=>`<div class="card" data-t="${d.t}"><div class="num" id="num-${d.t}">…</div><div class="lbl">${d.label}</div></div>`).join('')}</div>
+    <div class="cardgrid ozet4 fadein">${DASH.map(d=>`<div class="card" data-t="${d.t}"><div class="num" id="num-${d.t}">…</div><div class="lbl">${d.label}</div></div>`).join('')}</div>
     <div id="fbArea"></div>`;
   cvBasla();
   $('main').querySelectorAll('.card').forEach(b=>b.onclick=()=>{ const t=b.dataset.t; if(t==='profiles') openUsers(); else if(t==='teams') openClubs(); else if(t==='players') openPlayers(); else if(t==='ads') openAds(); else if(t==='payments') openPayments(); else if(t==='user_wallet') openWallets(); else openTable(t); });
@@ -1538,6 +1543,7 @@ const CV_DONEM = [
 let CV_SECILI = 'tumu';   // 718 — varsayılan: Tümü
 let CV_VERI   = null;   // 729 — { ozet:{…sayılar}, canli:[şu an oyunda, en çok 25] } — sayım veritabanında
 let CV_ZAMAN  = null;
+let CV_TUMU   = false;   // 732 — "Şu an oyunda" listesi açık mı (kapalıyken ilk 5)
 
 function _cvMs(t){ if(!t) return 0; const x = new Date(t).getTime(); return isNaN(x) ? 0 : x; }
 function _cvGecen(ms){
@@ -1552,7 +1558,8 @@ async function cvVeriCek(){
   // 729 — sayılar veritabanında sayılır (kullanıcı sayısından bağımsız tek küçük cevap)
   const [oz, cv] = await Promise.all([
     api('list', { table:'admin_aktiflik', limit:1, sayim:'yok' }),
-    api('list', { table:'admin_cevrimici', limit:25, orderBy:'last_seen', orderDir:'desc', sayim:'yok' })
+    CV_TUMU ? apiTum({ table:'admin_cevrimici', orderBy:'last_seen', orderDir:'desc', sayim:'yok' })
+            : api('list', { table:'admin_cevrimici', limit:5, orderBy:'last_seen', orderDir:'desc', sayim:'yok' })
   ]);
   CV_VERI = { ozet: (oz.rows && oz.rows[0]) || {}, canli: cv.rows || [] };
   CV_ZAMAN = Date.now();
@@ -1570,7 +1577,7 @@ function cvCiz(){
   const toplam = n('toplam'), iki = n('iki_gun');
   const donemAd= (CV_DONEM.find(d=>d.k===CV_SECILI)||{}).ad || '';
 
-  const canliListe = CV_VERI.canli;
+  const canliListe = CV_TUMU ? CV_VERI.canli : CV_VERI.canli.slice(0, 5);
 
   alan.innerHTML = `<div class="cvbox">
     <div class="cvhead">
@@ -1604,6 +1611,7 @@ function cvCiz(){
              <span class="cvsure">${_cvGecen(_cvMs(p.last_seen))}</span>
            </div>`).join('')
         : '<div class="cvbos">Şu anda oyunda kimse yok.</div>'}
+      ${suAn > 5 ? `<button type="button" class="cvtumu${CV_TUMU ? ' acik' : ''}" id="cvTumu">${CV_TUMU ? 'Daha az göster' : `Tümünü göster (${suAn.toLocaleString('tr')})`}<svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>` : ''}
     </div>
 
     <div class="opnot" style="margin-top:12px">
@@ -1622,6 +1630,14 @@ function cvCiz(){
   if (btns) btns.querySelectorAll('button').forEach(b => b.onclick = () => {
     CV_SECILI = b.dataset.k; cvCiz();
   });
+  const tumu = document.getElementById('cvTumu');
+  if (tumu) tumu.onclick = async () => {
+    CV_TUMU = !CV_TUMU;
+    if (!CV_TUMU) { cvCiz(); return; }
+    tumu.disabled = true; tumu.firstChild.textContent = 'Yükleniyor…';
+    try { await cvVeriCek(); } catch (e) {}
+    cvCiz();
+  };
 }
 
 let CV_TIK = null;
