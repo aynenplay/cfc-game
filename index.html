@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '735';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '736';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -25185,7 +25185,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-19-geri-antrenman-735';
+const APP_BUILD = '2026-10-19-milli-euro-736';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -38501,6 +38501,17 @@ function _trnCanliCiz() {
       window.scrollTo(0, wy);
     } else if (id === 'page-national') {
       if (document.getElementById('nt-fixture') && typeof ntRenderFixture === 'function') ntRenderFixture();
+      // 736 — EURO Cup sekmesi açıksa canlı skorlar (ağaç kaydırması yerinde kalır)
+      const nts = document.getElementById('nt-standings');
+      if (nts && nts.style.display === 'block' && typeof ntRenderStandings === 'function') {
+        const kay = [];
+        nts.querySelectorAll('*').forEach((el, i) => { if (el.scrollLeft || el.scrollTop) kay.push([i, el.scrollLeft, el.scrollTop]); });
+        const wy = window.scrollY;
+        ntRenderStandings();
+        const hepsi = nts.querySelectorAll('*');
+        kay.forEach(([i, l, t]) => { const el = hepsi[i]; if (el) { el.scrollLeft = l; el.scrollTop = t; } });
+        window.scrollTo(0, wy);
+      }
     }
   } catch(e) { console.warn('[trn çiz] hata:', e); }
 }
@@ -55074,57 +55085,43 @@ function _ntFindUserGroup(cc) {
 }
 
 let _ntEncLoadTried = {};   // 🆕 EURO Cup state bir kez async yükleme bayrağı
-function ntRenderStandings() {
+function ntRenderStandings(acilis) {
+  // 736 — Turnuvalar › EURO Cup ile aynı bileşen (trn2RenderEuroNation); yalnız kendi alt sekmesi
   const box = document.getElementById('ntStandingsContent');
   if (!box) return;
-  const cc = ntActiveCountry();
   const info = (typeof getSeasonInfo === 'function') ? getSeasonInfo() : null;
-  const logoSm = (typeof _cupLogoInline === 'function') ? _cupLogoInline('natcup', 22) : '🏆';
-  const cName = (_cftGetCountry(cc) && _cftGetCountry(cc).name) || cc;
-
-  const _hero = (sub) => `<div class="nt-pane-hero"><div class="h-row"><div class="h-ic" style="background:transparent;padding:0">${logoSm}</div><div class="h-tx"><div class="h-ti">EURO Cup</div><div class="h-sb">${sub}</div></div></div></div>`;
-  const _empty = (icon, msg) => `<div class="nt-tr-empty" style="text-align:center;padding:40px 16px;color:var(--text2)"><div style="font-size:46px;margin-bottom:10px">${icon}</div><div style="font-size:13px;line-height:1.5">${msg}</div></div>`;
-
   const _season = info ? info.season : 1;
   const _preSeason = info ? info.preSeason : false;
-  if (_preSeason) { box.innerHTML = _hero('Sezon henüz başlamadı') + _empty('⏳','EURO Cup sezon içinde kurulur.'); return; }
 
-  // 🆕 State yüklü değilse async yükle + tekrar render (Turnuvalar > EURO Cup ile AYNI kaynak; sezon/gün guard YOK)
-  if (typeof _encLoadFromServer === 'function' && typeof encLoad === 'function' && !encLoad(_season) && !_ntEncLoadTried[_season]) {
+  // State yüklü değilse async yükle + tekrar render (Turnuvalar > EURO Cup ile AYNI kaynak)
+  if (!_preSeason && typeof _encLoadFromServer === 'function' && typeof encLoad === 'function' && !encLoad(_season) && !_ntEncLoadTried[_season]) {
     _ntEncLoadTried[_season] = true;
-    _encLoadFromServer(_season).then(() => { try { if (document.getElementById('ntStandingsContent')) ntRenderStandings(); } catch(e){} }).catch(()=>{});
+    _encLoadFromServer(_season).then(() => { try { if (document.getElementById('ntStandingsContent')) ntRenderStandings(acilis); } catch(e){} }).catch(()=>{});
   }
+  const state = _preSeason ? null : encEnsureState(_season);
 
-  const state = (typeof encEnsureState === 'function') ? encEnsureState(_season) : null;
-  if (!state) { box.innerHTML = _hero('EURO Cup hazırlanıyor') + _empty('🎲','Kura bekleniyor — fikstür belli olunca burada görünecek.'); return; }
-
-  const phase = state.phase || 'group';
-  const stageLabel = { group:'Grup Aşaması', r16:'Son 16', qf:'Çeyrek Final', sf:'Yarı Final', final:'Final 🏆', completed:'Turnuva Tamamlandı' }[phase] || 'Grup Aşaması';
-
-  let html = _hero(`${cName} · Güncel aşama: <b style="color:var(--gold,#ffd54f)">${stageLabel}</b>`);
-  if (state.champion) {
-    const _kod = (typeof _ulkeKodu === 'function') ? _ulkeKodu(state.champion) : null;
-    const _c = _kod ? _cftGetCountry(_kod) : null;
-    html += `<div class="nt-sampiyon-bant">🏆 <span>Şampiyon</span> <b data-noi18n>${_c ? _c.flag + ' ' : ''}${_escapeHtml(state.champion)}</b>${state.runnerUp ? ` <span class="ikinci">· Final: <span data-noi18n>${_escapeHtml(state.runnerUp)}</span></span>` : ''}</div>`;
+  // Sekme açılışı: güncel aşama + görüntülenen milli takımın grubu
+  if (acilis || !_ntEncSekme) {
+    _ntEncSekme = (state && state.phase && state.phase !== 'group') ? 'knockout' : 'groups';
+    const cc = ntActiveCountry();
+    const gi = state ? (state.groups || []).findIndex(g => g.teams && g.teams.some(t => t.code === cc)) : -1;
+    if (gi >= 0) (_trkSecim.enc = _trkSecim.enc || {}).grup = gi;
   }
-
-  if (phase === 'group') {
-    let g = (typeof encRenderGroups === 'function') ? encRenderGroups(state) : '';
-    // 🆕 id çakışmasını önle (Turnuvalar > EURO Cup ile aynı grp_euro_X id'leri)
-    g = g.replace(/grp_euro_/g, 'grp_euronat_');
-    html += g;
-  } else {
-    html += (typeof encRenderKnockout === 'function') ? encRenderKnockout(state) : '';
-  }
-  box.innerHTML = html;
-
-  // 🆕 Aktif milli takımın grubunu önce aç
-  if (phase === 'group') {
-    try {
-      const gi = (state.groups || []).findIndex(g => g.teams && g.teams.some(t => t.code === cc));
-      if (gi >= 0 && typeof trn2GroupTab === 'function') trn2GroupTab(gi);
-    } catch(e){}
-  }
+  const subtab = _ntEncSekme;
+  let ic;
+  if (subtab === 'groups')        ic = _trkEncGruplar(state, _season);
+  else if (subtab === 'knockout') ic = _trkEncAgac(state, _season);
+  else if (subtab === 'schedule') ic = _trkTakvimHtml('enc', _season);
+  else                            ic = _trkIstatHtml('enc', subtab);
+  box.innerHTML = `<div class="trn2-detail"><div class="trn2-banner is-natcup"><img src="${_CUP_BANNERS.natcup || ''}" alt=""></div>`
+    + `<div class="trk gece" style="${_trkStil('enc')}">${_trkSekmeBar(['groups', 'knockout', 'schedule', 'goals', 'assists', 'rating'], subtab, s => `ntEncSekme('${s}')`)}<div class="trk-ic">${ic}</div></div></div>`;
+  _trn2ScrollActiveStab(box);
+}
+let _ntEncSekme = null;   // 736 — Milli Takım › EURO Cup alt sekmesi
+function ntEncSekme(tab) {
+  if (!['groups', 'knockout', 'schedule', 'goals', 'assists', 'rating'].includes(tab)) tab = 'groups';
+  _ntEncSekme = tab;
+  ntRenderStandings();
 }
 
 // Kullanıcının knockout yolundaki maçlarını sırala
@@ -56061,7 +56058,7 @@ function ntTab(name, el) {
   }
   else if(name === 'chat' && typeof ntRenderChat === 'function') ntRenderChat();
   else if(name === 'fixture' && typeof ntRenderFixture === 'function') ntRenderFixture();
-  else if(name === 'standings' && typeof ntRenderStandings === 'function') ntRenderStandings();
+  else if(name === 'standings' && typeof ntRenderStandings === 'function') ntRenderStandings(true);   // 736 — açılış: güncel aşama
   else if(name === 'callup' && typeof ntRenderCallup === 'function') ntRenderCallup();
   else if(name === 'trophies' && typeof ntRenderTrophies === 'function') ntRenderTrophies();
 
