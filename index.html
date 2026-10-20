@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '749';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '750';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -4321,7 +4321,7 @@ body > #tacticFlash{top:calc(env(safe-area-inset-top,0px) + 64px)}
 /* ══════════════════════════════
    TOURNAMENTS PAGE
 ══════════════════════════════ */
-#page-tournaments{padding-bottom:60px}
+#page-tournaments{padding-bottom:12px}
 
 /* Hero */
 .trn-hero{margin:12px;background:linear-gradient(135deg,#1a1000 0%,#0a0d1a 100%);border-radius:var(--radius);border:1px solid rgba(255,214,0,.2);padding:18px;position:relative;overflow:hidden}
@@ -12648,7 +12648,7 @@ button.trk-sk:active{box-shadow:0 0 0 1px color-mix(in srgb,var(--acc) 60%,trans
 .enc-about-block ul li b{color:var(--text)}
 
 /* ── Turnuva detay sayfası — premium ── */
-.trn2-detail{padding-bottom:120px}
+.trn2-detail{padding-bottom:0}
 .trn2-banner{margin:12px 12px 2px;border-radius:16px;overflow:hidden;border:1px solid var(--border);box-shadow:0 6px 22px rgba(0,0,0,.45);line-height:0;aspect-ratio:915/408}
 .trn2-banner img{display:block;width:100%;height:100%;object-fit:cover}
 .trn2-banner.is-natcup{aspect-ratio:967/502}
@@ -25390,7 +25390,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-20-haber-749';
+const APP_BUILD = '2026-10-20-agac-750';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -41043,10 +41043,12 @@ function showPage(name,btn){
     //   sezonun kurası (39. günde kurulur) beklemeden görünsün.
     try {
       if (typeof _tournamentStateLoadFromServer === 'function') {
+        const _imza = () => { const s = getSeasonInfo().season; return JSON.stringify(Object.values(_tournamentStateCache).filter(r => r && r.season >= s).map(r => [r.trnKey, r.season, r.phase, r.fixture, r.results])); };
+        const _once = _imza();
         _tournamentStateLoadFromServer(true).then(() => {
           try {
             const _pg = document.querySelector('.page.active');
-            if (_pg && _pg.id === 'page-tournaments' && typeof trn2Render === 'function') trn2Render();
+            if (_pg && _pg.id === 'page-tournaments' && _imza() !== _once) _trnCanliCiz();
           } catch(e) {}
         }).catch(()=>{});
       }
@@ -75357,6 +75359,7 @@ function _agcAgac(o) {
     const ag = w.querySelector('.trnag-agac'); if (!ag || ag.dataset.ilk === '1') return true;
     if (!ag.clientWidth) return false;
     ag.dataset.ilk = '1';
+    if (ag.scrollLeft > 0) return true;
     const s = ag.children[ak];
     if (s) ag.scrollLeft = s.offsetLeft - ag.offsetLeft;
     ag.dataset.sekI = String(ak);
@@ -76046,9 +76049,15 @@ function _trkAktifTur(T) {
 }
 // 749 — CSC News'ten gelince açılacak tur ({ k, faz }); kullanıcı sekme/alt sekme değiştirince silinir
 let _trkHedefFaz = null;
+function _trkFazTur(k, T) {
+  const ph = _trnGuncelFaz(k, k === 'enc' ? getSeasonInfo().season : _trnGosterSezon(k));
+  const i = ph ? T.findIndex(t => t.faz === ph) : -1;
+  return (i > 0 && i === T.length - 1 && T[i].bitti) ? i - 1 : i;
+}
 function _trkAgacHtml(k, T) {
   const hi = (_trkHedefFaz && _trkHedefFaz.k === k) ? T.findIndex(t => t.faz === _trkHedefFaz.faz) : -1;
-  return _agcAgac({ sinif: 'trk-ag', acc: _agcTema(k).acc, aktif: hi >= 0 ? hi : _trkAktifTur(T), turlar: T.map((t, ti) => {
+  const fi = hi >= 0 ? hi : _trkFazTur(k, T);
+  return _agcAgac({ sinif: 'trk-ag', acc: _agcTema(k).acc, aktif: fi >= 0 ? fi : _trkAktifTur(T), turlar: T.map((t, ti) => {
     const n = t.kartlar.length, son = ti === T.length - 1;
     let gov = '';
     if (n === 1) gov = _trkKart(t.kartlar[0], t.faz === 'final');
@@ -76230,8 +76239,10 @@ function trn2RenderTrn(trnKey, season) {
   else if (subtab === 'bracket')  ic = _trkKulupAgac(groups, trnKey, season);
   else if (subtab === 'schedule') ic = _trkTakvimHtml(trnKey, season);
   else                            ic = _trkIstatHtml(trnKey, subtab);
-  el.innerHTML = `<div class="trn2-detail"><div class="trn2-banner"><img src="${_CUP_BANNERS[trnKey] || ''}" alt=""></div>`
-    + `<div class="trk" style="${_trkStil(trnKey)}">${_trkSekmeBar(sekmeler, subtab, s => `trn2SubTab('${trnKey}','${s}',this)`)}<div class="trk-ic">${ic}</div></div></div>`;
+  const trk = `<div class="trk" style="${_trkStil(trnKey)}">${_trkSekmeBar(sekmeler, subtab, s => `trn2SubTab('${trnKey}','${s}',this)`)}<div class="trk-ic">${ic}</div></div>`;
+  const eskiTrk = el.dataset.trn === trnKey ? el.querySelector('.trn2-detail > .trk') : null;
+  if (eskiTrk) eskiTrk.outerHTML = trk;
+  else { el.innerHTML = `<div class="trn2-detail"><div class="trn2-banner"><img src="${_CUP_BANNERS[trnKey] || ''}" alt=""></div>${trk}</div>`; el.dataset.trn = trnKey; }
   _trn2ScrollActiveStab(el);
 }
 
@@ -76672,8 +76683,10 @@ function trn2RenderEuroNation(season) {
   else if (subtab === 'knockout') ic = _trkEncAgac(state, season);
   else if (subtab === 'schedule') ic = _trkTakvimHtml('enc', season);
   else                            ic = _trkIstatHtml('enc', subtab);
-  el.innerHTML = `<div class="trn2-detail"><div class="trn2-banner is-natcup"><img src="${_CUP_BANNERS.natcup || ''}" alt=""></div>`
-    + `<div class="trk gece" style="${_trkStil('enc')}">${_trkSekmeBar(['groups', 'knockout', 'schedule', 'goals', 'assists', 'rating'], subtab, s => `encSetSubTab('${s}')`)}<div class="trk-ic">${ic}</div></div></div>`;
+  const trk = `<div class="trk gece" style="${_trkStil('enc')}">${_trkSekmeBar(['groups', 'knockout', 'schedule', 'goals', 'assists', 'rating'], subtab, s => `encSetSubTab('${s}')`)}<div class="trk-ic">${ic}</div></div>`;
+  const eskiTrk = el.dataset.trn === 'enc' ? el.querySelector('.trn2-detail > .trk') : null;
+  if (eskiTrk) eskiTrk.outerHTML = trk;
+  else { el.innerHTML = `<div class="trn2-detail"><div class="trn2-banner is-natcup"><img src="${_CUP_BANNERS.natcup || ''}" alt=""></div>${trk}</div>`; el.dataset.trn = 'enc'; }
   _trn2ScrollActiveStab(el);
 }
 
