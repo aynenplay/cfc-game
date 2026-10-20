@@ -7357,3 +7357,16 @@ Object.assign(window.I18N.it, {
   "Finalde": "In finale",
   "Elendi": "Eliminata"
 });
+/* ─── 755 · CSC News: özel haber (kulüp satın alma) ─── */
+Object.assign(window.I18N.it, {
+  "ÖZEL HABER": "ESCLUSIVA",
+  "Kulüp satışı": "Cessione del club",
+  "YENİ SAHİBİ": "NUOVO PROPRIETARIO"
+});
+(function () {
+  const _ad = x => (x != null && Object.prototype.hasOwnProperty.call(window.I18N.it, x)) ? window.I18N.it[x] : x;
+  window.I18N_PATTERNS.it.unshift(
+  [/^(\d+) kulübün yeni sahibi belli oldu$/, m => "$1 club hanno un nuovo proprietario".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+)'n?[ıiuü]n yeni sahibi belli oldu$/, m => "Nuovo proprietario per $1".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))]
+  );
+})();
