@@ -7381,3 +7381,13 @@ Object.assign(window.I18N.ru, {
   [/^(.+)'[dt][ae] sezon tamamlandı$/, m => "Сезон завершён: $1".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))]
   );
 })();
+/* ─── 754 · CSC News: manşetteki Avrupa kupaları tablosu ─── */
+Object.assign(window.I18N.ru, {
+  "Grup aşamasında": "Групповой этап",
+  "Play-Off 2. turunda": "2-й раунд плей-офф",
+  "Son 16'da": "1/8 финала",
+  "Çeyrek finalde": "1/4 финала",
+  "Yarı finalde": "1/2 финала",
+  "Finalde": "В финале",
+  "Elendi": "Выбыл"
+});

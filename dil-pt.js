@@ -7341,3 +7341,13 @@ Object.assign(window.I18N.pt, {
   [/^(.+)'[dt][ae] sezon tamamlandı$/, m => "Terminou a temporada: $1".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))]
   );
 })();
+/* ─── 754 · CSC News: manşetteki Avrupa kupaları tablosu ─── */
+Object.assign(window.I18N.pt, {
+  "Grup aşamasında": "Fase de grupos",
+  "Play-Off 2. turunda": "2.ª ronda do play-off",
+  "Son 16'da": "Oitavos de final",
+  "Çeyrek finalde": "Quartos de final",
+  "Yarı finalde": "Meias-finais",
+  "Finalde": "Na final",
+  "Elendi": "Eliminado"
+});
