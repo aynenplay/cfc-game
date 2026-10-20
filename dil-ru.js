@@ -7220,3 +7220,47 @@ Object.assign(window.I18N.ru, {
 window.I18N_PATTERNS.ru.push(
   [/^Bu numara (.+) oyuncusunda zaten kullanılıyor\.$/, "Этот номер уже занят игроком $1."]
 );
+
+/* ─── 747 · CSC News ─── */
+Object.assign(window.I18N.ru, {
+  "GLOBAL": "МИР",
+  "ULUSAL": "СТРАНА",
+  "SON DAKİKA": "СРОЧНО",
+  "SON HABERLER": "ПОСЛЕДНИЕ НОВОСТИ",
+  "SATIŞ LİSTESİNDE ÖNE ÇIKANLAR": "ЛУЧШИЕ НА ПРОДАЖЕ",
+  "TURNUVA": "ТУРНИР",
+  "ŞAMPİYON": "ЧЕМПИОН",
+  "KULÜP SATIŞI": "ПРОДАЖА КЛУБА",
+  "MİLLİ TAKIM": "СБОРНАЯ",
+  "Henüz haber yok": "Пока новостей нет",
+  "TOPLAM": "СУММА",
+  "Play-Off": "Плей-офф",
+  "Play-Off 2": "Плей-офф 2",
+  "Son 16 eşleşmeleri belli oldu": "Определились пары 1/8 финала",
+  "Çeyrek final eşleşmeleri belli oldu": "Определились пары 1/4 финала",
+  "Yarı final eşleşmeleri belli oldu": "Определились пары полуфинала",
+  "Final eşleşmesi belli oldu": "Определились финалисты"
+});
+(function () {
+  const _ad = x => (x != null && Object.prototype.hasOwnProperty.call(window.I18N.ru, x)) ? window.I18N.ru[x] : x;
+  window.I18N_PATTERNS.ru.push(
+  [/^(.+) şampiyon!$/, m => "$1 — чемпион!".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+), (Championship|Elite|Convergence|EURO Cup)'[ae] veda etti$/, m => "$1 выбывает: $2".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+) grup aşamasında$/, m => "$1 в групповом этапе".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+) Play-Off 2\. turunda$/, m => "$1 во 2-м раунде плей-офф".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+) son 16'da$/, m => "$1 в 1/8 финала".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+) çeyrek finalde$/, m => "$1 в 1/4 финала".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+) yarı finalde$/, m => "$1 в полуфинале".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+) finalde$/, m => "$1 в финале".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^Finalde (.+) karşısında$/, m => "Финал против $1".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+) karşısında$/, m => "против $1".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+), (.+) transferini bitirdi$/, m => "$1 оформил трансфер: $2".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+), (.+) ile anlaştı$/, m => "$1 подписал $2".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+) yeni sahibini buldu: (.+)$/, m => "У клуба $1 новый владелец: $2".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+) satışa çıktı$/, m => "$1 выставлен на продажу".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^Zirve el değiştirdi: (.+) lider$/, m => "Смена лидера: $1 на первом месте".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+) zirvede$/, m => "$1 на вершине".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+) şampiyon oldu$/, m => "$1 — чемпион".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+) (\d+)–(\d+) (.+)$/, m => "$1 $2–$3 $4".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))]
+  );
+})();
