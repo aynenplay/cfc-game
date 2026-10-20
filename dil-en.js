@@ -7605,3 +7605,11 @@ Object.assign(window.I18N.en, {
 Object.assign(window.I18N.en, {
   "Oyuncu Kartı": "Player Card"
 });
+
+/* ─── 744 · Forma numarası modalı (sade) ─── */
+Object.assign(window.I18N.en, {
+  "Numara 1-99 arasında olmalı.": "Number must be between 1 and 99."
+});
+window.I18N_PATTERNS.en.push(
+  [/^Bu numara (.+) oyuncusunda zaten kullanılıyor\.$/, "That number is already used by $1."]
+);

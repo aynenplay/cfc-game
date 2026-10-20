@@ -7212,3 +7212,11 @@ Object.assign(window.I18N.ru, {
 Object.assign(window.I18N.ru, {
   "Oyuncu Kartı": "Карточка игрока"
 });
+
+/* ─── 744 · Forma numarası modalı (sade) ─── */
+Object.assign(window.I18N.ru, {
+  "Numara 1-99 arasında olmalı.": "Номер должен быть от 1 до 99."
+});
+window.I18N_PATTERNS.ru.push(
+  [/^Bu numara (.+) oyuncusunda zaten kullanılıyor\.$/, "Этот номер уже занят игроком $1."]
+);

@@ -5540,3 +5540,11 @@ Object.assign(window.I18N.de, {
 Object.assign(window.I18N.de, {
   "Oyuncu Kartı": "Spielerkarte"
 });
+
+/* ─── 744 · Forma numarası modalı (sade) ─── */
+Object.assign(window.I18N.de, {
+  "Numara 1-99 arasında olmalı.": "Die Nummer muss zwischen 1 und 99 liegen."
+});
+window.I18N_PATTERNS.de.push(
+  [/^Bu numara (.+) oyuncusunda zaten kullanılıyor\.$/, "Diese Nummer wird bereits von $1 genutzt."]
+);
