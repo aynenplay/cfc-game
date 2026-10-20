@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '744';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '746';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -6243,7 +6243,9 @@ body:not(.team-captain):not(.team-vice) #team-treasury.fx .fx-sekme-bagis,body:n
 .futc-right{flex-shrink:0;display:flex;flex-direction:row;align-items:center;gap:8px;align-self:center}
 .futc-num{font-family:Twemoji Country Flags,'Barlow Condensed',sans-serif;font-size:13px;font-weight:900;color:#4a4f5a}
 /* 744 — kadro satırı forması (sırt, belden yukarı): 1. forma rengi + soyad + numara */
-.futc-num.kf{position:relative;width:44px;height:56px;flex-shrink:0;filter:drop-shadow(0 3px 5px rgba(0,0,0,.5));isolation:isolate}
+.futc-num.kf{position:relative;width:44px;height:56px;flex-shrink:0;isolation:isolate}
+/* 746 — forma arkası ışık: formanın renginde (koyu formada açılmış tonu) → koyu temada da belirgin */
+.kf-ic{position:absolute;inset:0;filter:drop-shadow(0 0 2px var(--kf-isik)) drop-shadow(0 0 7px var(--kf-isik))}
 .futc-num.kf[onclick]{cursor:pointer}
 @media (max-width:359px){.futc-num.kf{width:34px;height:43px}}
 .kf-renk{position:absolute;inset:0;-webkit-mask:url(forma-sirt.webp) center/100% 100% no-repeat;mask:url(forma-sirt.webp) center/100% 100% no-repeat}
@@ -7622,7 +7624,8 @@ body.team-captain .pr-mv.is-custom:hover{color:#ffe082}
 .jersey-cancel:active,.jersey-save:active:not(:disabled){transform:scale(.96)}
 /* 744 — sade forma numarası modalı */
 #jerseyEditOverlay .jersey-edit-modal.jm{max-width:272px;padding:22px 20px 18px;border:1px solid var(--border);border-radius:18px;background:var(--card);box-shadow:0 18px 50px rgba(0,0,0,.6)}
-.jm-forma{position:relative;width:100px;height:128px;margin:0 auto 12px;filter:drop-shadow(0 6px 12px rgba(0,0,0,.55));isolation:isolate}
+.jm-forma{position:relative;width:100px;height:128px;margin:0 auto 12px;isolation:isolate}
+.jm-forma .kf-ic{filter:drop-shadow(0 0 3px var(--kf-isik)) drop-shadow(0 0 14px var(--kf-isik))}
 .jm-ad{font-size:14px;font-weight:700;color:var(--text);margin-bottom:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .jm-giris{display:block;width:100%;box-sizing:border-box;height:56px;padding:0;text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:34px;font-weight:900;color:var(--text);background:var(--bg3);border:1.5px solid var(--border);border-radius:12px;outline:none;transition:border-color .15s}
 .jm-giris::placeholder{color:var(--text3);font-size:22px;font-weight:700}
@@ -25222,7 +25225,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-20-forma-744';
+const APP_BUILD = '2026-10-20-isik-746';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -47097,6 +47100,76 @@ function _kfTakimKiti(teamName) {
   } catch (e) {}
   return { shirt: '#1565c0', short: '#90caf9' };
 }
+// 745 — Kaleci forması: pembe / açık yeşil / turuncu / sarı.
+//   Sıra takım adından sabit (her açılışta aynı); takımın forma renkleriyle (1. ve 2. set,
+//   forma + şort) çakışan renk atlanır. Kaptan formayı değiştirirse uygun renk kendiliğinden yeniden seçilir.
+const KF_KALECI = ['#ff4fa3', '#8ee04c', '#ff8c1a', '#ffe135'];
+function _kfLab(h) {
+  const c = _kfRgb(h);
+  if (!c) return null;
+  const [r, g, b] = c.map(v => { v /= 255; return v <= .04045 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); });
+  const f = t => t > .008856 ? Math.cbrt(t) : (7.787 * t + 16 / 116);
+  const x = f((r * .4124 + g * .3576 + b * .1805) / .95047), y = f(r * .2126 + g * .7152 + b * .0722), z = f((r * .0193 + g * .1192 + b * .9505) / 1.08883);
+  return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+}
+function _kfFark(A, B) {   // CIEDE2000
+  const rad = Math.PI / 180, p7 = v => Math.pow(v, 7);
+  const [L1, a1, b1] = A, [L2, a2, b2] = B;
+  const Cm = (Math.hypot(a1, b1) + Math.hypot(a2, b2)) / 2, G = .5 * (1 - Math.sqrt(p7(Cm) / (p7(Cm) + p7(25))));
+  const a1p = a1 * (1 + G), a2p = a2 * (1 + G), C1 = Math.hypot(a1p, b1), C2 = Math.hypot(a2p, b2);
+  const ac = (y, x) => { if (!y && !x) return 0; const t = Math.atan2(y, x) / rad; return t < 0 ? t + 360 : t; };
+  const h1 = ac(b1, a1p), h2 = ac(b2, a2p), cc = C1 * C2;
+  let dh = 0; if (cc) { dh = h2 - h1; if (dh > 180) dh -= 360; else if (dh < -180) dh += 360; }
+  const dL = L2 - L1, dC = C2 - C1, dH = 2 * Math.sqrt(cc) * Math.sin(dh / 2 * rad);
+  const Lm = (L1 + L2) / 2, Cp = (C1 + C2) / 2;
+  let hm = h1 + h2; if (cc) { if (Math.abs(h1 - h2) > 180) hm += (hm < 360 ? 360 : -360); hm /= 2; }
+  const T = 1 - .17 * Math.cos((hm - 30) * rad) + .24 * Math.cos(2 * hm * rad) + .32 * Math.cos((3 * hm + 6) * rad) - .2 * Math.cos((4 * hm - 63) * rad);
+  const Rt = -Math.sin(2 * 30 * Math.exp(-Math.pow((hm - 275) / 25, 2)) * rad) * 2 * Math.sqrt(p7(Cp) / (p7(Cp) + p7(25)));
+  const Sl = 1 + .015 * Math.pow(Lm - 50, 2) / Math.sqrt(20 + Math.pow(Lm - 50, 2)), Sc = 1 + .045 * Cp, Sh = 1 + .015 * Cp * T;
+  return Math.sqrt(Math.pow(dL / Sl, 2) + Math.pow(dC / Sc, 2) + Math.pow(dH / Sh, 2) + Rt * (dC / Sc) * (dH / Sh));
+}
+function _kfKaleciMi(p) {
+  if (!p) return false;
+  const g = p.posGroup || ((typeof POS_GROUP !== 'undefined' && POS_GROUP) ? POS_GROUP[p.pos] : null);
+  return p.pos === 'GK' || p.pos === 'KL' || g === 'GK';
+}
+function _kfKaleciKiti(teamName, kit) {
+  kit = kit || _kfTakimKiti(teamName);
+  let renkler = [kit.shirt, kit.short];
+  try {
+    const j = (teamName && typeof getTeamJerseys === 'function') ? getTeamJerseys(teamName) : null;
+    if (j && j.setB) renkler.push(j.setB.shirt, j.setB.short);
+  } catch (e) {}
+  // Beyaz / siyah / gri gibi renksiz tonlar canlı kaleci renkleriyle karışmaz → yalnız renkli tonlar
+  renkler = renkler.map(_kfLab).filter(l => l && Math.hypot(l[1], l[2]) >= 20);
+  const ad = String(teamName || '');
+  const hs = t => { let h = 2166136261; for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+  const sira = KF_KALECI.slice().sort((x, y) => hs(ad + '|' + x) - hs(ad + '|' + y));
+  const enYakin = c => { const l = _kfLab(c); return renkler.reduce((m, r) => Math.min(m, _kfFark(l, r)), 999); };
+  const secim = sira.find(c => enYakin(c) >= 33) || sira.slice().sort((x, y) => enYakin(y) - enYakin(x))[0];
+  return { shirt: secim, short: kit.short };
+}
+// 746 — ışık rengi: formanın tonu, en az %55 açıklıkta. Siyah/koyu gri formada şort rengi
+//   (renkliyse ya da açıksa), o da değilse açık gri.
+function _kfHsl(h) {
+  const c = _kfRgb(h);
+  if (!c) return null;
+  const [r, g, b] = c.map(x => x / 255), mx = Math.max(r, g, b), mn = Math.min(r, g, b), L = (mx + mn) / 2;
+  let H = 0, S = 0;
+  if (mx !== mn) {
+    const d = mx - mn;
+    S = L > .5 ? d / (2 - mx - mn) : d / (mx + mn);
+    H = (mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4) * 60;
+  }
+  return [H, S, L];
+}
+function _kfIsik(kit) {
+  kit = kit || {};
+  let t = _kfHsl(kit.shirt) || [215, .8, .4];
+  if (t[1] < .15 && t[2] < .5) { const s2 = _kfHsl(kit.short); if (s2 && (s2[1] >= .15 || s2[2] >= .5)) t = s2; }
+  const S = t[1] < .15 ? 0 : Math.max(t[1], .6), L = Math.max(t[2], .55);
+  return `hsla(${Math.round(t[0])},${Math.round(S * 100)}%,${Math.round(L * 100)}%,.7)`;
+}
 function _kfHtml(ad, no, kit) {
   kit = kit || {};
   const sh = _kfRgb(kit.shirt) ? kit.shirt : '#1565c0';
@@ -47104,10 +47177,10 @@ function _kfHtml(ad, no, kit) {
   const soy = (String(ad || '').trim().split(/\s+/).pop() || '').toLocaleUpperCase('tr-TR');
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const tl = Math.min(430, soy.length * 44);
-  return `<span class="kf-renk" style="background:${sh}"></span><img class="kf-golge" src="${KF_SIRT}" alt="" draggable="false">`
+  return `<span class="kf-ic" style="--kf-isik:${_kfIsik(Object.assign({}, kit, { shirt: sh }))}"><span class="kf-renk" style="background:${sh}"></span><img class="kf-golge" src="${KF_SIRT}" alt="" draggable="false">`
     + `<svg class="kf-yazi" viewBox="0 0 719 922" aria-hidden="true" data-noi18n>`
     + (soy ? `<text x="360" y="232" text-anchor="middle" font-size="86" textLength="${tl}" lengthAdjust="spacingAndGlyphs" fill="${yz}">${esc(soy)}</text>` : '')
-    + `<text x="360" y="580" text-anchor="middle" font-size="300" fill="${yz}" class="kf-no">${esc(no)}</text></svg>`;
+    + `<text x="360" y="580" text-anchor="middle" font-size="300" fill="${yz}" class="kf-no">${esc(no)}</text></svg></span>`;
 }
 
 function editJerseyNumber(currentNum, ev) {
@@ -47143,7 +47216,7 @@ function editJerseyNumber(currentNum, ev) {
   }
   // 744 — modalın üstündeki forma (yazdıkça numara değişir)
   const formaEl = document.getElementById('jerseyForma');
-  if (formaEl) formaEl.innerHTML = _kfHtml(player.name, currentNum, _kfTakimKiti(_userTeam.teamName));
+  if (formaEl) formaEl.innerHTML = _kfHtml(player.name, currentNum, _kfKaleciMi(player) ? _kfKaleciKiti(_userTeam.teamName) : _kfTakimKiti(_userTeam.teamName));
 
   // İlk anda durum güncelle
   onJerseyInputChange();
@@ -47656,6 +47729,7 @@ function renderRoster(filter) {
   });
 
   const _kfKit = _kfTakimKiti((typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : null);   // 744
+  const _kfKitK = _kfKaleciKiti((typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : null, _kfKit);   // 745
   list.innerHTML = players.map(p => {
     const isUser = p.role === 'user';
     // 🆕 Kullanıcı kaptan/vice ise role'ünü _userTeam.role'tan al (avatar ve badge için)
@@ -47770,7 +47844,7 @@ function renderRoster(filter) {
           ${addToSquadBtn}
           ${removeBtn}
           ${_kdDugmeHtml('k' + p.num, p, (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : null)}
-          <div class="futc-num kf" onclick="editJerseyNumber(${p.num}, event)" title="Forma numarasını düzenle (kaptan)">${_kfHtml(p.name, p.num, _kfKit)}</div>
+          <div class="futc-num kf" onclick="editJerseyNumber(${p.num}, event)" title="Forma numarasını düzenle (kaptan)">${_kfHtml(p.name, p.num, _kfKaleciMi(p) ? _kfKitK : _kfKit)}</div>
         </div>
       </div>
     </div>`;
@@ -57743,6 +57817,7 @@ function guestRenderRoster() {
   }
 
   const _kfKit = _kfTakimKiti(v.teamRef && v.teamRef.name);   // 744
+  const _kfKitK = _kfKaleciKiti(v.teamRef && v.teamRef.name, _kfKit);   // 745
   list.innerHTML = filtered.map(p => {
     const isCap  = p.role === 'captain';
     const isVice = p.role === 'vice';
@@ -57796,7 +57871,7 @@ function guestRenderRoster() {
         </div>
         <div class="futc-right">
           ${_kdDugmeHtml('g' + p.num, p, v.teamRef && v.teamRef.name)}
-          <div class="futc-num kf">${_kfHtml(p.name, p.num, _kfKit)}</div>
+          <div class="futc-num kf">${_kfHtml(p.name, p.num, _kfKaleciMi(p) ? _kfKitK : _kfKit)}</div>
         </div>
       </div>
     </div>`;
