@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '755';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '756';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -25630,7 +25630,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-21-ozel-755';
+const APP_BUILD = '2026-10-21-reyting-756';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -32473,8 +32473,11 @@ async function resOpenFinishedMatch(matchKey) {
       }
     });
   }
-  _pickMotm(homeLineup, m.home);
-  _pickMotm(awayLineup, m.away);
+  // 756 — sunucunun seçtiği maçın adamı (eşitlikte istemci kendisi seçmesin); yoksa en yüksek reyting
+  const _mmS = entry && ((entry.home_lineup && entry.home_lineup.motm) || (entry.away_lineup && entry.away_lineup.motm));
+  const _mmP = _mmS && _mmS.ad ? (_mmS.ev ? homeLineup : awayLineup).find(p => p && p.name === _mmS.ad && typeof p.matchRating === 'number') : null;
+  if (_mmP) { motm = _mmP; motmRating = _mmP.matchRating; motmTeam = _mmS.ev ? m.home : m.away; }
+  else { _pickMotm(homeLineup, m.home); _pickMotm(awayLineup, m.away); }
   const motmWrap = document.getElementById('resFmMotmWrap');
   if (motmWrap) {
     if (motm && motmRating > 0) {
@@ -36062,59 +36065,99 @@ function _cscOyuncuOlaylari(evs, isim) {
   }
   return s;
 }
+// 🆕 (511) TEK REYTİNG FORMÜLÜ — sunucudaki _calcMatchRating'in (edge/tick-matches) BİREBİR kopyası.
+//   index.html'deki mevcut _cscMacReytingi() yerine konur; mevki grubu için mevcut _cscPg() kullanılır
+//   (sunucudaki _pg ile aynı eşleme). _cscOyuncuOlaylari() değişmez. Birini değiştirirsen diğerini de.
+// 🆕 (756) YENİDEN KALİBRASYON — 6 600 maçlık simülasyon (eşit/farklı güç, bot yolu, karışık kadrolar;
+//   183 877 oyuncu-maç), üretimdeki akışla (_simKatilimcilar → _collectPlayerStats → bu fonksiyon):
+//     ort 6.80 · sd 0.64 · 8.0+ %4.9 · 9.0+ %0.46 · 9.5+ %0.06 · 10.0 hiç (tavan 9.9, en yüksek görülen 9.8)
+//     (örneklem dışı 1 760 taze maçta: 6.80 · 0.63 · %4.7 · %0.43 · %0.02 · 10.0 hiç)
+//     mevki ortalaması GK 6.79 · DEF 6.81 · MID 6.80 · FWD 6.81 (≥60 dk: 6.80 / 6.87 / 6.83 / 6.93)
+//     maçın adamı payı GK %11 · DEF %23 · MID %31 · FWD %35 (eski formül: 9 / 22 / 43 / 26)
+//     çapalar: forvet hat-trick + galibiyet ≈ 9.3 · iki gol ≈ 8.8 · tek gol ≈ 7.9–8.0 · kaleci gol yemeden
+//     5 kurtarış + galibiyet ≈ 8.2 · 6 kurtarış (2 büyük) ≈ 8.8 · baskın stoper (20 savunma olayı, gol yemeden) ≈ 8.0
+//   Yöntem: motorun bol ürettiği savunma/çalım/pas olayları mevkinin 90 dk beklentisine göre MERKEZLENİR
+//   (ortalama oyuncu ±0 alır, sapma ödüllenir); taban mevkiye göre ayarlıdır → mevkiler arası ortalama eşit.
+//   Forvetin golsüz maçı düşük, golü değerli; orta saha/defansın tabanı yüksek, golü biraz daha az değerli
+//   → tek gollü galibiyette forvet ve orta saha ≈ 7.9, gol + gol yememe ile defans ≈ 8.4.
+//   8.4 üstü yumuşak sıkıştırılır (9.9'a asimptotik) → çok gol azalan getirir, 10.0 çıkamaz.
 function _cscMacReytingi(player, s, teamWon, teamDraw, teamConceded, minutesPlayed) {
   if (!player) return 6.0;
   s = s || {};
   const g = _cscPg(player);
   const isGK = g === 'GK', isDef = g === 'DEF', isMid = g === 'MID', isFwd = g === 'FWD';
-  let r = 6.35;
-  r += (s.goals||0) * (isFwd ? 0.95 : 1.10);
-  r += (s.assists||0) * 0.70;
-  r += (s.keyPasses||0) * 0.12;
-  r += (s.wonPens||0) * 0.30;
-  r += (s.dribbles||0) * 0.05;
-  r += (s.foulsDrawn||0) * 0.04;
-  r += (s.tackles||0) * 0.055;
-  r += (s.blocks||0) * 0.07;
-  r += (s.interceptions||0) * 0.055;
-  r += (s.clearances||0) * 0.03;
-  r += ((s.duelsWon||0) - (s.duelsLost||0)) * 0.03;
-  if (isGK) {
-    r += (s.saves||0) * 0.16;
-    r += (s.greatSaves||0) * 0.30;
-    if (teamConceded === 0) r += 0.75;
-    else if (teamConceded === 1) r += 0.20;
-    else if (teamConceded === 2) r -= 0.15;
-    else if (teamConceded === 3) r -= 0.55;
-    else r -= 0.95;
-  }
-  if (isDef) {
-    if (teamConceded === 0) r += 0.30;
-    else if (teamConceded === 2) r -= 0.15;
-    else if (teamConceded >= 3) r -= 0.45;
-  }
-  if (isMid && teamConceded === 0) r += 0.10;
-  if (isFwd) {
-    if ((s.goals||0) === 0 && (s.assists||0) === 0 && (s.keyPasses||0) === 0) r -= 0.25;
-    else r += 0.30;
-  }
-  r -= (s.missedBigChances||0) * 0.35;
-  for (const min of (s.yellowMins||[])) { if (min < 30) r -= 0.35; else if (min < 60) r -= 0.25; else r -= 0.20; }
-  for (const min of (s.redMins||[]))    { if (min < 45) r -= 1.60; else r -= 1.20; }
-  r -= (s.ownGoals||0) * 1.20;
-  r -= (s.missedPens||0) * 0.80;
-  r -= (s.fouls||0) * 0.04;
-  r -= (s.offsides||0) * 0.03;
-  for (const min of (s.goalMins||[])) { if (min >= 80) r += 0.15; }
-  if (teamWon === true) r += 0.30; else if (teamDraw) r += 0.05; else r -= 0.20;
   const pm = Math.max(1, Math.min(90, minutesPlayed || 90));
-  if (pm < 30) r = 6.5 + (r - 6.5) * (pm / 30);
-  else if (pm < 60) r = 6.5 + (r - 6.5) * (0.6 + 0.4 * ((pm - 30) / 30));
+  const f90 = pm / 90;
+  const gc = Math.max(0, (teamConceded || 0) | 0);
+  // Mevki beklentileri (90 dk başına, simülasyon ortalaması): anahtar pas, çalım, faul kazanma, ikili kayıp
+  const eKp = isDef ? 0.38 : (isMid ? 0.94 : (isFwd ? 0.71 : 0));
+  const eDr = isDef ? 1.27 : (isMid ? 1.89 : (isFwd ? 1.88 : 0));
+  const eFd = isMid ? 0.46 : (isFwd ? 0.47 : 0);
+  const eDl = isDef ? 2.17 : (isMid ? 3.07 : (isFwd ? 3.11 : 0));
+
+  // 1) Oyun katkısı (mevki tabanı + beklentiye göre merkezli hacim istatistikleri)
+  let a = isGK ? 6.25 : (isDef ? 6.91 : (isMid ? 6.76 : 6.55));
+  a += (isGK ? 0 : (isFwd ? 0.14 : 0.08)) * ((s.keyPasses || 0) - eKp * f90);
+  a += (isGK ? 0 : (isFwd ? 0.10 : 0.04)) * ((s.dribbles || 0) - eDr * f90);
+  a += 0.03 * ((s.foulsDrawn || 0) - eFd * f90);
+  if (isDef || isMid) {
+    // Savunma olayları: motor maç başı defansa ~11.6, orta sahaya ~6.6 üretir → beklentiden sapma ödüllenir
+    const d = (s.tackles || 0) + (s.interceptions || 0) + 1.2 * (s.blocks || 0) + 0.6 * (s.clearances || 0) + 0.8 * (s.duelsWon || 0);
+    a += (isDef ? 0.05 : 0.035) * (d - (isDef ? 11.6 : 6.6) * f90);
+  } else if (isFwd) {
+    a += 0.05 * ((s.tackles || 0) + (s.interceptions || 0) + (s.blocks || 0) + (s.clearances || 0)) + 0.04 * (s.duelsWon || 0);
+  }
+  a -= 0.04 * ((s.duelsLost || 0) - eDl * f90);
+  // 2) Kaleci: kurtarış + yenen gol
+  if (isGK) {
+    a += 0.18 * (s.saves || 0) + 0.25 * (s.greatSaves || 0);   // büyük kurtarış yalnız kaleci diving ≥ 75 iken çıkar → küçük ek
+    if (gc === 0) a += 0.70;
+    else if (gc === 1) a += 0.13;
+    else if (gc === 2) a -= 0.19;
+    else if (gc === 3) a -= 0.60;
+    else a -= 0.90 + 0.25 * (gc - 4);
+  } else if (isDef) {
+    // 3) Defans: gol yememe / çok gol yeme
+    if (gc === 0) a += 0.34;
+    else if (gc === 2) a -= 0.17;
+    else if (gc >= 3) a -= 0.45 + 0.10 * (gc - 3);
+  } else if (isMid) {
+    if (gc === 0) a += 0.05;
+    else if (gc >= 3) a -= 0.10;
+  }
+  // 4) Kaçan büyük fırsat, ofsayt, faul, kazanılan penaltı
+  a -= 0.15 * (s.missedBigChances || 0) + 0.03 * (s.offsides || 0) + 0.04 * (s.fouls || 0);
+  a += 0.30 * (s.wonPens || 0);
+  // 5) Maç sonucu
+  a += (teamWon === true) ? 0.30 : (teamDraw ? 0.05 : -0.31);
+
+  // 6) Gol / asist — azalan getiri (her ek gol ×0.89, her ek asist ×0.90); 80+ dk golü +0.15
+  const gv = isFwd ? 1.09 : (isMid ? 0.82 : 0.89);
+  let b = 0;
+  for (let i = 0; i < (s.goals || 0); i++) b += gv * Math.pow(0.89, i);
+  for (const mn of (s.goalMins || [])) if (mn >= 80) b += 0.15;
+  for (let i = 0; i < (s.assists || 0); i++) b += 0.68 * Math.pow(0.90, i);
+
+  // 7) Oynanan süre: az veri → 6.5'e çekilir (0–60 dk doğrusal 0.2→1.0; eski formüldeki 30. dk sıçraması yok).
+  //    Gol/asist daha az çekilir (yedekten girip gol atan belirgin ödül alır).
+  const k = Math.min(1, 0.2 + 0.8 * pm / 60);
+  let r = 6.5 + (a - 6.5) * k + b * (0.5 + 0.5 * k);
+
+  // 8) Disiplin ve hatalar — süreden bağımsız, tam uygulanır (erken kırmızı kısa süreyle sulanmaz)
+  for (const mn of (s.yellowMins || [])) r -= mn < 30 ? 0.35 : (mn < 60 ? 0.25 : 0.20);
+  for (const mn of (s.redMins || [])) r -= mn < 30 ? 1.50 : (mn < 60 ? 1.30 : 1.00);
+  r -= (s.ownGoals || 0) * 1.00;
+  r -= (s.missedPens || 0) * 0.80;
+
+  // 9) Deterministik küçük varyasyon (oyuncu adından — random DEĞİL, her yerde aynı) ±0.10
   let h = 2166136261;
-  const seed = (player.name || '') + '|' + (s.goals||0) + (s.saves||0) + (s.tackles||0);
+  const seed = (player.name || '') + '|' + (s.goals || 0) + (s.saves || 0) + (s.tackles || 0);
   for (let i = 0; i < seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
   r += (((h >>> 0) % 1000) / 1000 - 0.5) * 0.20;
-  return Math.max(3.0, Math.min(10.0, Math.round(r * 10) / 10));
+
+  // 10) 8.4 üstü yumuşak sıkıştırma (9.9'a asimptotik) + sınırlar
+  if (r > 8.4) r = 8.4 + 1.5 * (1 - Math.exp(-(r - 8.4) / 1.5));
+  return Math.max(3.0, Math.min(9.9, Math.round(r * 10) / 10));
 }
 
 // 🆕 Maç sürerken her oyuncuya anlık stats ekle (matchRating, matchGoals, matchAssists)
@@ -75921,7 +75964,11 @@ function _trnMdHtml(d, rows) {
     const liste = (m) => Object.keys(m).map(k => [k, m[k]]).sort((a, b) => b[1] - a[1]);
     const lh = liste(rh), la = liste(ra);
     if (lh.length || la.length) {
-      const enIyi = [].concat(lh.map(x => x.concat(evT)), la.map(x => x.concat(depT))).sort((a, b) => b[1] - a[1])[0];
+      // 756 — sunucunun seçtiği maçın adamı (lineup.motm, yoksa playerStats.motm); yoksa en yüksek reyting
+      const _mmS = (r.home_lineup && r.home_lineup.motm) || (r.away_lineup && r.away_lineup.motm)
+        || [[evT, true], [depT, false]].map(([t, ev]) => { const x = ((r.playerStats || {})[t.name] || []).find(p => p && p.motm); return x ? { ad: x.name, ev } : null; }).find(Boolean);
+      const _mmX = _mmS && _mmS.ad ? (_mmS.ev ? lh : la).find(x => x[0] === _mmS.ad) : null;
+      const enIyi = _mmX ? _mmX.concat(_mmS.ev ? evT : depT) : [].concat(lh.map(x => x.concat(evT)), la.map(x => x.concat(depT))).sort((a, b) => b[1] - a[1])[0];
       const renk = (v) => v >= 8 ? '#00e676' : (v >= 7 ? '#9ccc65' : (v >= 6.5 ? '#ffd54f' : (v >= 6 ? '#ff9800' : '#ef5350')));
       h += `<div class="tmd-bl"><div class="tmd-bt"><span>Maçın Adamı</span></div>
         <div class="tmd-motm">🏆 <b>${e(enIyi[0])}</b> <span class="tk">${e(enIyi[2].short || enIyi[2].name)}</span><span class="rt" style="color:${renk(enIyi[1])}">${Number(enIyi[1]).toFixed(1)}</span></div>
@@ -78094,7 +78141,7 @@ async function _pdYarisYukle() {
     const ms = _evRaceCycleInfo().start.getTime(), k = _evRaceServerLbCache.penalti;
     if (k && k.cycleStart === ms && Date.now() - k.t < 20000) return;
     const { data, error } = await window.sb.rpc('get_race_penalti_leaderboard', { cycle_start_ms: ms });
-    if (!error && Array.isArray(data)) _evRaceServerLbCache.penalti = { cycleStart: ms, data, t: Date.now() };
+    if (!error && Array.isArray(data)) { _evRaceServerLbCache.penalti = { cycleStart: ms, data, t: Date.now() }; await _evRaceBenimYukle('penalti', ms); }
     const ana = document.getElementById('page-home');
     if (ana && ana.classList.contains('active') && typeof renderHomeEventFeed === 'function') renderHomeEventFeed();
   } catch (e) {}
@@ -84224,6 +84271,7 @@ async function _evRacePreloadServerLb() {
     });
     if (!error && Array.isArray(data)) {
       _evRaceServerLbCache.rating = { cycleStart: cycleStartMs, data, t: Date.now() };
+      await _evRaceBenimYukle('rating', cycleStartMs);
     }
   } catch(e) { console.warn('[race lb rating] hata:', e); }
   // 🆕 Train leaderboard — server-side, tüm gerçek kullanıcıların train_log toplamı
@@ -84233,6 +84281,7 @@ async function _evRacePreloadServerLb() {
     });
     if (!error && Array.isArray(data)) {
       _evRaceServerLbCache.train = { cycleStart: cycleStartMs, data, t: Date.now() };
+      await _evRaceBenimYukle('train', cycleStartMs);
     }
   } catch(e) { console.warn('[race lb train] hata:', e); }
   // 659 — Penaltı Ustası (G 3 · B 2 · M 1)
@@ -84240,8 +84289,17 @@ async function _evRacePreloadServerLb() {
     const { data, error } = await window.sb.rpc('get_race_penalti_leaderboard', { cycle_start_ms: cycleStartMs });
     if (!error && Array.isArray(data)) {
       _evRaceServerLbCache.penalti = { cycleStart: cycleStartMs, data, t: Date.now() };
+      await _evRaceBenimYukle('penalti', cycleStartMs);
     }
   } catch(e) { console.warn('[race lb penalti] hata:', e); }
+}
+
+// 756 — Listede olmayan (ilk 200 / satır sınırının altındaki) kullanıcının gerçek sırası: yaris_benim
+async function _evRaceBenimYukle(metric, cycleStartMs) {
+  const c = _evRaceServerLbCache[metric], myId = (window.authUser && window.authUser.id) || null;
+  if (!c || !myId || c.cycleStart !== cycleStartMs || !Array.isArray(c.data) || c.data.some(r => r && r.user_id === myId)) return;
+  const { data, error } = await window.sb.rpc('yaris_benim', { p_tur: metric, cycle_start_ms: cycleStartMs });
+  if (!error) c.ben = (Array.isArray(data) ? data[0] : data) || null;
 }
 
 // 659 — Penaltı Ustası sıralaması (sunucu: get_race_penalti_leaderboard)
@@ -84403,6 +84461,9 @@ function _evRaceBuildLeaderboard(metric) {
   // Yoksa score=0 ile ekle (cycle'da hiç oynamamış veya veri yok)
   // ÖNEMLİ: Kullanıcı/bot ayrımı yok. Listedeyse oradan, değilse 0.
   if (!userInList) {
+    // 756 — listenin dışındaysa sunucudaki gerçek sırası (yaris_benim); sıralamada yoksa 0 / katılmadı
+    const _c = _evRaceServerLbCache[metric === 'rating' || metric === 'penalti' ? metric : 'train'];
+    const _ben = _c && _c.ben, _sira = _ben ? Number(_ben.sira) || 0 : 0;
     bots.push({
       playerName: userPlayerName,
       teamName: userTeamName,
@@ -84411,14 +84472,15 @@ function _evRaceBuildLeaderboard(metric) {
       teamTc,
       countryCode: userCC,
       countryFlag: userFlag,
-      score: 0,
+      score: _sira ? (metric === 'rating' ? Math.round(Number(_ben.skor) * 100) / 100 : Number(_ben.skor) || 0) : 0,
       isUser: true,
-      katilmadi: true,
+      katilmadi: !_sira,
+      sabitSira: _sira || null,
     });
   }
   const all = bots;
   all.sort((a, b) => b.score - a.score);
-  all.forEach((e, i) => { e.rank = i + 1; });
+  all.forEach((e, i) => { e.rank = e.sabitSira || i + 1; });
 
   return all;
 }
@@ -84697,7 +84759,8 @@ function evRaceShowInfo() {
       <div class="ev-race-info-section">
         <div class="ev-race-info-section-title">📌 NASIL ÇALIŞIR</div>
         <p>Bu yarışmada her hafta <b>en yüksek ortalama maç reytingi</b> alan oyuncular yarışır. Maç motoru her maçta oyuncularının performansını 17 farklı kategoride değerlendirir ve bir maç sonu reytingi üretir.</p>
-        <p>Bir hafta boyunca oynadığın tüm maçların reytinglerinin <b>ortalaması</b> alınır. Daha çok maç oynamak değil, <b>iyi oynamak</b> önemli.</p>
+        <p>Bir hafta boyunca oynadığın tüm maçların (lig, kupa ve milli) reyting ortalaması alınır.</p>
+        <p><b>Sıralamaya girmek için haftada en az 5 maç oynaman gerekir.</b> Hafta başında bu sayı, tamamlanan lig günü kadardır.</p>
       </div>
 
       <div class="ev-race-info-section">
@@ -84724,7 +84787,7 @@ function evRaceShowInfo() {
       <div class="ev-race-info-section">
         <div class="ev-race-info-section-title">💡 İPUÇLARI</div>
         <ul class="ev-race-info-tips">
-          <li>Az ama kaliteli maç oyna — bir kötü maç ortalamayı düşürür.</li>
+          <li>Maç kaçırma — 5 maçı tamamlamadan sıralamaya giremezsin.</li>
           <li>Form yüksekken oyna; düşük formda reyting alma riski yüksek.</li>
           <li>Hava koşullarına dikkat — yağmurda performans düşer.</li>
           <li>Sakat oyuncuları sahaya sürme, reytingleri çok düşük gelir.</li>
@@ -104215,7 +104278,7 @@ function hmKaydirGec() {
     const giren = Object.keys(giris).sort((x, y) => giris[x] - giris[y]).map(bul)
       .map(p => { altlar[p.name] = (yerine[p.name] && altlar[yerine[p.name]]) || mkAltMevki(p); return p; });
     const formasyon = (lu && lu.formation) || (T && T._mkFormasyon) || null;
-    return { T, side, ilk, giren, giris, cikis, altlar, reyt, formasyon, evs };
+    return { T, side, ilk, giren, giris, cikis, altlar, reyt, formasyon, evs, lu };
   }
 
   function oyuncuOlay(K, ad) {
@@ -104368,7 +104431,9 @@ function hmKaydirGec() {
     // Kadrolar + maçın adamı
     const KH = kadro('home'), KA = kadro('away');
     let mvp = null;
-    [KH, KA].forEach(K => [...K.ilk, ...K.giren].forEach(p => { const r = K.reyt(p); if (typeof r === 'number' && (!mvp || r > mvp.r)) mvp = { p, r, K }; }));
+    const _mmS = (KH.lu && KH.lu.motm) || (KA.lu && KA.lu.motm);   // 756 — sunucunun seçtiği maçın adamı
+    if (_mmS && _mmS.ad) { const K = _mmS.ev ? KH : KA, p = [...K.ilk, ...K.giren].find(x => x && x.name === _mmS.ad), r = p ? K.reyt(p) : null; if (typeof r === 'number') mvp = { p, r, K }; }
+    if (!mvp) [KH, KA].forEach(K => [...K.ilk, ...K.giren].forEach(p => { const r = K.reyt(p); if (typeof r === 'number' && (!mvp || r > mvp.r)) mvp = { p, r, K }; }));
     let mvpHtml = '';
     if (mvp) {
       const K = mvp.K, p = mvp.p, alt = K.altlar[p.name] || mkAltMevki(p), ol = oyuncuOlay(K, p.name);

@@ -7404,3 +7404,10 @@ Object.assign(window.I18N.ru, {
   [/^(.+)'n?[ıiuü]n yeni sahibi belli oldu$/, m => "У «$1» новый владелец".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))]
   );
 })();
+/* ─── 756 · Haftanın Yıldızı: en az 5 maç kuralı ─── */
+Object.assign(window.I18N.ru, {
+  "Bir hafta boyunca oynadığın tüm maçların (lig, kupa ve milli) reyting ortalaması alınır.": "Учитывается средняя оценка за все матчи недели (лига, кубок и сборная).",
+  "Sıralamaya girmek için haftada en az 5 maç oynaman gerekir.": "Чтобы попасть в рейтинг, нужно сыграть за неделю минимум 5 матчей.",
+  "Hafta başında bu sayı, tamamlanan lig günü kadardır.": "В начале недели минимум равен числу уже сыгранных туров лиги.",
+  "Maç kaçırma — 5 maçı tamamlamadan sıralamaya giremezsin.": "Не пропускай матчи — без 5 сыгранных матчей в рейтинг не попасть."
+});

@@ -7372,3 +7372,10 @@ Object.assign(window.I18N.es, {
   [/^(.+)'n?[ıiuü]n yeni sahibi belli oldu$/, m => "Nuevo dueño para $1".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))]
   );
 })();
+/* ─── 756 · Haftanın Yıldızı: en az 5 maç kuralı ─── */
+Object.assign(window.I18N.es, {
+  "Bir hafta boyunca oynadığın tüm maçların (lig, kupa ve milli) reyting ortalaması alınır.": "Cuenta la media de valoración de todos los partidos que juegas en la semana (liga, copa y selección).",
+  "Sıralamaya girmek için haftada en az 5 maç oynaman gerekir.": "Para entrar en la clasificación necesitas al menos 5 partidos en la semana.",
+  "Hafta başında bu sayı, tamamlanan lig günü kadardır.": "Al principio de la semana, el mínimo es igual a las jornadas de liga ya jugadas.",
+  "Maç kaçırma — 5 maçı tamamlamadan sıralamaya giremezsin.": "No te pierdas partidos: sin completar 5 no entras en la clasificación."
+});
