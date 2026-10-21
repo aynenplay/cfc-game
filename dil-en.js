@@ -7851,3 +7851,10 @@ Object.assign(window.I18N.en, {
   "Antrenmandan kazandığın yetenek puanı artar": "You earn more skill points from training",
   "Antrenmandan kazandığın XP artar": "You earn more XP from training"
 });
+/* ─── 763 · Antrenman üst alanı ─── */
+Object.assign(window.I18N.en, {
+  "Enerjiyi değiştir": "Change energy",
+  "Şu an kullanıyorsun": "You're using now",
+  "Değiştirmek istediğine emin misin?": "Are you sure you want to change it?",
+  "Eski enerjinin etkisi ve kalan süresi biter": "The old energy's effect and remaining time end"
+});

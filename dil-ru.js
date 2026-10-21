@@ -7458,3 +7458,10 @@ Object.assign(window.I18N.ru, {
   "Antrenmandan kazandığın yetenek puanı artar": "За тренировки ты получаешь больше очков навыка",
   "Antrenmandan kazandığın XP artar": "За тренировки ты получаешь больше опыта"
 });
+/* ─── 763 · Antrenman üst alanı ─── */
+Object.assign(window.I18N.ru, {
+  "Enerjiyi değiştir": "Сменить энергию",
+  "Şu an kullanıyorsun": "Сейчас используешь",
+  "Değiştirmek istediğine emin misin?": "Точно хочешь сменить?",
+  "Eski enerjinin etkisi ve kalan süresi biter": "Эффект и оставшееся время старой энергии закончатся"
+});
