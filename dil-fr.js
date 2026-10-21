@@ -7493,3 +7493,27 @@ Object.assign(window.I18N.fr, {
   "Değiştirmek istediğine emin misin?": "Veux-tu vraiment la changer ?",
   "Eski enerjinin etkisi ve kalan süresi biter": "L'effet et le temps restant de l'ancienne énergie prennent fin"
 });
+/* ─── 767 · Federasyon yardımcıları ─── */
+Object.assign(window.I18N.fr, {
+  "Federasyon Yardımcıları": "Adjoints de la fédération",
+  "Federasyon Yardımcısı Ata": "Nommer un adjoint de la fédération",
+  "Ata": "Nommer",
+  "Atanabilecek üye yok.": "Aucun membre à nommer.",
+  "Yardımcıları başkan, federasyon üyesi kaptanlar arasından seçer (en fazla 3).": "Le président choisit les adjoints parmi les capitaines membres de la fédération (3 au maximum).",
+  "Yardımcıyı yalnız başkan atar": "Seul le président nomme les adjoints",
+  "Bu kişi federasyon üyesi değil": "Cette personne n'est pas membre de la fédération",
+  "Kaydedilemedi, tekrar dene": "Échec de l'enregistrement, réessaie",
+  "Federasyon yardımcısı atandı": "Adjoint de la fédération nommé",
+  "Yardımcılıktan çıkarıldı": "Retiré des adjoints",
+  "Yardımcılıktan Çıkar": "Retirer l'adjoint",
+  "Federasyon yardımcılığından çıkarılsın mı?": "Retirer des adjoints de la fédération ?",
+  "Kadrodan en fazla 3 milli takım yardımcısı seçer": "Choisit jusqu'à 3 adjoints de la sélection dans l'effectif",
+  "Üyelerden en fazla 3 federasyon yardımcısı seçer": "Choisit jusqu'à 3 adjoints de la fédération parmi les membres",
+  "En fazla 3 · başkan, üyelerden seçer": "3 au maximum · choisis par le président parmi les membres",
+  "Federasyon yönetiminde yer alır": "Siège à la direction de la fédération",
+  "Üye hakları sürer (oy, adaylık)": "Garde ses droits de membre (vote, candidature)",
+  "Bu görevle milli takıma karışamaz": "Ce rôle ne donne pas accès à la sélection",
+  "Milli Takım Yardımcısı": "Adjoint de la sélection",
+  "En fazla 3 · başkan, kadrodan seçer": "3 au maximum · choisis par le président dans l'effectif",
+  "Federasyon yardımcısı sayılmaz": "Ne compte pas comme adjoint de la fédération"
+});

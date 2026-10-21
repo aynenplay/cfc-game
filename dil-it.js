@@ -7431,3 +7431,27 @@ Object.assign(window.I18N.it, {
   "Değiştirmek istediğine emin misin?": "Sei sicuro di volerla cambiare?",
   "Eski enerjinin etkisi ve kalan süresi biter": "L'effetto e il tempo residuo della vecchia energia terminano"
 });
+/* ─── 767 · Federasyon yardımcıları ─── */
+Object.assign(window.I18N.it, {
+  "Federasyon Yardımcıları": "Assistenti della Federazione",
+  "Federasyon Yardımcısı Ata": "Nomina assistente della Federazione",
+  "Ata": "Nomina",
+  "Atanabilecek üye yok.": "Nessun membro da nominare.",
+  "Yardımcıları başkan, federasyon üyesi kaptanlar arasından seçer (en fazla 3).": "Il presidente sceglie gli assistenti tra i capitani membri della federazione (massimo 3).",
+  "Yardımcıyı yalnız başkan atar": "Solo il presidente nomina gli assistenti",
+  "Bu kişi federasyon üyesi değil": "Questa persona non è membro della federazione",
+  "Kaydedilemedi, tekrar dene": "Salvataggio non riuscito, riprova",
+  "Federasyon yardımcısı atandı": "Assistente della Federazione nominato",
+  "Yardımcılıktan çıkarıldı": "Rimosso da assistente",
+  "Yardımcılıktan Çıkar": "Rimuovi assistente",
+  "Federasyon yardımcılığından çıkarılsın mı?": "Rimuovere dagli assistenti della Federazione?",
+  "Kadrodan en fazla 3 milli takım yardımcısı seçer": "Sceglie fino a 3 assistenti della nazionale dalla rosa",
+  "Üyelerden en fazla 3 federasyon yardımcısı seçer": "Sceglie fino a 3 assistenti della Federazione tra i membri",
+  "En fazla 3 · başkan, üyelerden seçer": "Massimo 3 · scelti dal presidente tra i membri",
+  "Federasyon yönetiminde yer alır": "Fa parte della dirigenza della federazione",
+  "Üye hakları sürer (oy, adaylık)": "Mantiene i diritti di membro (voto, candidatura)",
+  "Bu görevle milli takıma karışamaz": "Con questo ruolo non interviene sulla nazionale",
+  "Milli Takım Yardımcısı": "Assistente della nazionale",
+  "En fazla 3 · başkan, kadrodan seçer": "Massimo 3 · scelti dal presidente dalla rosa",
+  "Federasyon yardımcısı sayılmaz": "Non conta come assistente della Federazione"
+});

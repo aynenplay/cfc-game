@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '766';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '767';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -16633,6 +16633,14 @@ body.drawer-open .hb-btn span:nth-child(3){transform:translateY(-6px) rotate(-45
 .fdz-yuva .n{font:900 13px/1.05 'Barlow Condensed',sans-serif;color:#fff;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fdz-yuva .t{font-size:9.5px;color:var(--fdz-y3);font-weight:600;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fdz-yuva.bos{border:1.5px dashed #2c323d;color:#5c6473}
+.fdz-yuva{position:relative}
+.fdz-yuva.bos.ata{cursor:pointer;color:var(--fdz-altin);border-color:rgba(255,213,79,.45)}
+.fdz-yuva.bos.ata .p{border-color:rgba(255,213,79,.55)}
+.fdz-yuva.bos.ata span{font-weight:800}
+.fdz-yuva-x{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;border:0;padding:0;background:rgba(255,255,255,.07);color:#9aa3b2;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.fdz-yuva-x .fdz-ik{width:11px;height:11px}
+.fdz-ata{flex:none;font:900 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.6px;text-transform:uppercase;padding:8px 13px;border-radius:9px;background:var(--fdz-altin);color:#1b1300}
+.fdz-roller .fdz-rol:first-child{grid-column:1/-1}
 .fdz-yuva.bos .p{width:34px;height:34px;border-radius:50%;border:1.5px dashed #3a414e;display:flex;align-items:center;justify-content:center}
 .fdz-yuva.bos span{font:800 10.5px 'Barlow',sans-serif}
 .fdz-not{display:flex;gap:8px;align-items:flex-start;margin:10px 12px 0;padding:10px 12px;border-radius:12px;background:var(--fdz-karbon);border:1px solid var(--fdz-cizgi);font-size:11px;line-height:1.35;color:var(--fdz-y2);font-weight:600}
@@ -25627,7 +25635,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-21-td-766';
+const APP_BUILD = '2026-10-21-federasyon-767';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -52150,7 +52158,7 @@ function _fedKaptanlariYukle(cc) {
     const liste = {};
     for (let from = 0; from < 10000; from += 1000) {
       const { data, error } = await window.sb.from('players')
-        .select('team_name,num,name,avatar,avatar_id,is_bot,overall,rating,level,pos,role,nationality')
+        .select('team_name,num,name,avatar,avatar_id,is_bot,overall,rating,level,pos,role,nationality,user_id')
         .eq('country_code', cc).order('team_name').order('num').range(from, from + 999);
       if (error || !Array.isArray(data) || !data.length) break;
       for (const r of data) { if (r && r.team_name) (liste[r.team_name] || (liste[r.team_name] = [])).push(r); }
@@ -52199,6 +52207,7 @@ function computeFederationMembers(cc) {
       let captainPos = null;
       let capIsBot = true;
       let capUyruk = null;   // 667
+      let capUid = null;     // 767
       try {
         let captain = null;
         if (isUserTeam && typeof ROSTER_DATA !== 'undefined' && Array.isArray(ROSTER_DATA)) {
@@ -52218,7 +52227,7 @@ function computeFederationMembers(cc) {
             if (r) captain = {
               name: r.name, avatar: r.avatar || (r.is_bot ? '🤖' : '👤'), avatar_id: r.avatar_id || null,
               isBot: !!r.is_bot, overall: r.overall || 10, rating: r.rating || 10,
-              level: r.level || 0, pos: r.pos, nationality: r.nationality || null
+              level: r.level || 0, pos: r.pos, nationality: r.nationality || null, userId: r.user_id || null
             };
           } else {
             _fedKaptanlariYukle(cc);
@@ -52234,6 +52243,7 @@ function computeFederationMembers(cc) {
           captainLevel = (typeof captain.level === 'number') ? captain.level : null;
           captainPos = captain.pos || null;
           capUyruk = captain.nationality || null;
+          capUid = (!captain.isBot && captain.userId) || null;
         }
       } catch(e) {}
 
@@ -52244,6 +52254,7 @@ function computeFederationMembers(cc) {
           if (typeof authUser !== 'undefined' && authUser && authUser.avatar) avatar = authUser.avatar;
           if (typeof authUser !== 'undefined' && authUser && authUser.avatarId) avatar_id = authUser.avatarId;
           if (typeof authUser !== 'undefined' && authUser && authUser.nationality) capUyruk = authUser.nationality;
+          if (typeof authUser !== 'undefined' && authUser && authUser.id) capUid = authUser.id;
         } catch(e) {}
       }
 
@@ -52279,6 +52290,7 @@ function computeFederationMembers(cc) {
         tier: league.tier,
         power,
         isUser: isUserTeam,
+        captainUid: capUid,   // 767
         isBotCaptain: isUserTeam ? false : capIsBot,
         // Influence skoru: tier yüksekse + rank düşükse daha güçlü oy
         influence: Math.round((7 - league.tier) * 10 + (16 - Math.min(team.rank,16)))
@@ -52308,6 +52320,7 @@ function _fedServerCandidacy(cc, row, members) {
   return apps.includes(me.teamName) || cands.includes(me.teamName);
 }
 
+function _fedBaskanAnahtar(row) { return row ? (row.president_user ? 'u:' + row.president_user : (row.president_team ? 't:' + row.president_team : '')) : ''; }   // 767
 function _fedMapState(cc, row, oy) {
   const members = (typeof computeFederationMembers === 'function') ? computeFederationMembers(cc) : [];
   const idByTeam = {}; members.forEach(m => { idByTeam[m.teamName] = m.id; });
@@ -52323,7 +52336,7 @@ function _fedMapState(cc, row, oy) {
       serverPresidentId: null, serverPresidentTeam: null, serverViceIds: [], vekilUid: null,
       electionPhase: 'closed', electionSeason: null, lastElectedSeason: 0,
       candidates: [], votes: {}, oySayilari: {}, toplamOy: 0, benimOyum: null,
-      history: [], userCandidacy: !!_fedCandidacy[cc] };
+      history: [], fedYardimci: [], userCandidacy: !!_fedCandidacy[cc] };
   }
   const _srvPresId = toId(row.president_team);
   const _oySezonu = (_oy.sezon != null) ? _oy.sezon : null;
@@ -52354,6 +52367,8 @@ function _fedMapState(cc, row, oy) {
     toplamOy: _gecerliOy ? (Number(_oy.toplam) || 0) : 0,
     benimOyum: (_gecerliOy && _oy.benim) ? toId(_oy.benim) : null,
     history: Array.isArray(row.history) ? row.history : [],
+    // 767 — federasyon yardımcıları: atayan başkan değişince geçersiz
+    fedYardimci: (row.yardimcilar && row.yardimcilar.baskan === _fedBaskanAnahtar(row) && Array.isArray(row.yardimcilar.uids)) ? row.yardimcilar.uids.filter(Boolean).slice(0, 3) : [],
     userCandidacy: _fedServerCandidacy(cc, row, members) || !!_fedCandidacy[cc]
   };
 }
@@ -52937,7 +52952,7 @@ function _fedSonrakiSecim(state, info) {
 }
 function _fedRolum(cc) {
   let role = fedUserRole(cc);
-  if (role !== 'president' && typeof ntRol === 'function' && ntRol(cc) === 'yardimci') role = 'vice';
+  if (role !== 'president' && _fedYardimciMi(cc)) role = 'vice';   // 767 — yalnız federasyon yardımcısı
   return role;
 }
 
@@ -52986,22 +53001,83 @@ function fedViewMember(mid){
     if(typeof openPlayerModal==='function') openPlayerModal(player, ctx);
   }catch(e){}
 }
-// 572 — Başkanın seçtiği milli takım yardımcıları (oyuncu kartları)
-const _fedYrdOnb = {};   // cc -> { t, liste, anahtar }
+// 767 — Federasyon yardımcıları: başkan, federasyon üyesi gerçek kaptanlar arasından en fazla 3 kişi atar.
+//   Milli takım yardımcıları ayrı (milli takım kadrosundan seçilir) ve burada görünmez.
+function _fedYardimciMi(cc) {
+  const st = fedLoad(cc);
+  return !!(st && typeof authUser !== 'undefined' && authUser && (st.fedYardimci || []).includes(authUser.id));
+}
+const _fedYrdOnb = {};   // cc -> { anahtar, liste }
 function _fedYardimcilariYukle(cc) {
-  const ids = (typeof ntLoadVices === 'function') ? (ntLoadVices(cc) || []) : [];
+  const st = fedLoad(cc);
+  const ids = (st && st.fedYardimci) || [];
   const anahtar = ids.join(',');
   const o = _fedYrdOnb[cc];
   if (o && o.anahtar === anahtar && (o.liste || o.yukleniyor)) return o.liste || [];
   if (!ids.length) { _fedYrdOnb[cc] = { anahtar, liste: [] }; return []; }
   if (!window.sb) return [];
   _fedYrdOnb[cc] = { anahtar, liste: null, yukleniyor: true };
-  window.sb.from('players').select('id, name, team_name, country_code, level, avatar, avatar_id, pos, is_bot, user_id')
-    .in('id', ids).then(({ data }) => {
-      _fedYrdOnb[cc] = { anahtar, liste: (data || []).sort((a, b) => (b.level || 0) - (a.level || 0)) };
+  window.sb.from('players').select('name, team_name, country_code, nationality, level, avatar, avatar_id, pos, is_bot, user_id, role')
+    .in('user_id', ids).then(({ data }) => {
+      const U = String(cc).toUpperCase();
+      const gecerli = (data || []).filter(p => p && !p.is_bot && p.role === 'captain'
+        && String(p.country_code || '').toUpperCase() === U && String(p.nationality || p.country_code || '').toUpperCase() === U);
+      _fedYrdOnb[cc] = { anahtar, liste: ids.map(id => gecerli.find(p => p.user_id === id)).filter(Boolean) };
       try { if (fedActiveCountry() === cc) fedRenderBoard(); } catch(e) {}
     }, () => { _fedYrdOnb[cc] = { anahtar, liste: [] }; });
   return [];
+}
+// Atanabilecekler: federasyon üyesi kulüplerin gerçek kaptanları (başkan ve mevcut yardımcılar hariç)
+function fedYardimciAtaAc() {
+  const cc = fedActiveCountry();
+  if (fedUserRole(cc) !== 'president') return;
+  const mevcut = fedLoad(cc).fedYardimci || [];
+  if (mevcut.length >= 3) return;
+  const ben = (typeof authUser !== 'undefined' && authUser) ? authUser.id : null;
+  const aday = computeFederationMembers(cc)
+    .filter(m => m && !m.isBotCaptain && m.captainUid && m.captainUid !== ben && !mevcut.includes(m.captainUid))
+    .sort((a, b) => (b.captainLevel || 0) - (a.captainLevel || 0));
+  document.getElementById('fedSonucKutu').innerHTML = `
+    <button class="fdz-kapat" onclick="fedSonucKapat()" aria-label="Kapat">${_fdzIk('carpi')}</button>
+    <div class="fdz-mbas">${_fdzIk('yildiz')}<span>Federasyon Yardımcısı Ata</span></div>
+    <div class="fdz-liste">${aday.map(m => `
+      <div class="fdz-uye" onclick="fedYardimciAta('${m.captainUid}')">${_fdzAv(m)}
+        <div class="m"><div class="n"><span data-noi18n>${_escapeHtml(m.captainName)}</span></div>
+          <div class="t">${_fdzKulup(m.teamName, cc)} <span style="color:${m.leagueColor}">· ${_fedLeagueName(cc, m.tier)}</span></div></div>
+        <span class="fdz-ata">Ata</span>
+      </div>`).join('') || '<div class="fdz-bos">Atanabilecek üye yok.</div>'}</div>`;
+  document.getElementById('fedSonucOv').classList.add('open');
+}
+async function _fedYardimciKaydet(cc, uids, mesaj) {
+  if (!window.sb) return false;
+  const { data, error } = await window.sb.rpc('fed_yardimci_ata', { p_cc: cc, p_uids: uids }).then(r => r, e => ({ error: e }));
+  if (error || !data || !data.ok) {
+    const kod = (data && data.error) || '';
+    fedShowToast(({ yetki_yok: 'Yardımcıyı yalnız başkan atar', gecersiz_uye: 'Bu kişi federasyon üyesi değil', en_fazla_3: 'En fazla 3 yardımcı seçilebilir' })[kod] || 'Kaydedilemedi, tekrar dene', 'err');
+    return false;
+  }
+  _fedStateLoaded[cc] = false;
+  await _loadFedStateFromServer(cc);
+  fedRender();
+  fedShowToast(mesaj, 'ok');
+  return true;
+}
+function fedYardimciAta(uid) {
+  const cc = fedActiveCountry();
+  fedSonucKapat();
+  _fedYardimciKaydet(cc, (fedLoad(cc).fedYardimci || []).concat([uid]).slice(0, 3), 'Federasyon yardımcısı atandı');
+}
+function fedYardimciCikar(uid) {
+  const cc = fedActiveCountry();
+  const v = ((_fedYrdOnb[cc] && _fedYrdOnb[cc].liste) || []).find(p => p.user_id === uid);
+  fedShowConfirm({
+    icon: `<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="#b39ddb" stroke-width="2" stroke-linejoin="round">${_FDZ_IK.yildiz}</svg>`,
+    title: 'Yardımcılıktan Çıkar',
+    message: `<b data-noi18n>${_escapeHtml((v && v.name) || '')}</b><br><span>Federasyon yardımcılığından çıkarılsın mı?</span>`,
+    confirmText: 'Çıkar',
+    confirmStyle: 'warn',
+    onConfirm: () => _fedYardimciKaydet(cc, (fedLoad(cc).fedYardimci || []).filter(x => x !== uid), 'Yardımcılıktan çıkarıldı')
+  });
 }
 
 function fedRenderBoard() {
@@ -53012,6 +53088,7 @@ function fedRenderBoard() {
   const pres = fedGetPresident(cc);
   const yetkili = (typeof ntRol === 'function') && !!ntRol(cc);
   const yrd = _fedYardimcilariYukle(cc);
+  const atar = fedUserRole(cc) === 'president';   // 767 — yalnız başkan atar / çıkarır
   const kart = pres
     ? `<div class="fdz-bkart" onclick="fedViewMember('${pres.id}')">
         <div class="ust">${_fdzAv(pres)}<div><div class="ad" data-noi18n>${_escapeHtml(pres.captainName)}</div>
@@ -53021,20 +53098,22 @@ function fedRenderBoard() {
     : `<div class="fdz-bos">Başkan seçimle belirlenir</div>`;
   const yuva = [0, 1, 2].map(i => {
     const v = yrd[i];
-    if (!v) return `<div class="fdz-yuva bos"><div class="p">${_fdzIk('arti')}</div><span>Boş yuva</span></div>`;
+    if (!v) return atar
+      ? `<div class="fdz-yuva bos ata" onclick="fedYardimciAtaAc()"><div class="p">${_fdzIk('arti')}</div><span data-noi18n>${(typeof i18nAktif === 'function' && i18nAktif()) ? T('Ata') : 'Yardımcı Ata'}</span></div>`
+      : `<div class="fdz-yuva bos"><div class="p">${_fdzIk('arti')}</div><span>Boş yuva</span></div>`;
     const ulke = _cftGetCountry(v.country_code);
     const benim = !!(authUser && v.user_id === authUser.id);
     const av = (v.avatar_id && typeof getAvatarEmoji === 'function') ? getAvatarEmoji(v.avatar_id, v.pos || 'MID') : _fdzIk('kisi');
-    return `<div class="fdz-yuva dolu${benim ? ' ben' : ''}"><div class="fdz-av">${av}</div><div class="n" data-noi18n>${_escapeHtml(v.name || '—')}</div>`
+    return `<div class="fdz-yuva dolu${benim ? ' ben' : ''}">${atar ? `<button class="fdz-yuva-x" type="button" aria-label="Çıkar" onclick="fedYardimciCikar('${v.user_id}')">${_fdzIk('carpi')}</button>` : ''}<div class="fdz-av">${av}</div><div class="n" data-noi18n>${_escapeHtml(v.name || '—')}</div>`
       + `<div class="t">${ulke ? ulke.flag + ' ' : ''}<span data-noi18n>${_escapeHtml(v.team_name || '')}</span>${v.team_name ? '' : '<span>Serbest</span>'}</div></div>`;
   }).join('');
   root.innerHTML = `
     <div class="fdz-bas">${_fdzIk('tac')}<span>Başkan</span><em>Sezon ${st.season || 1} görev süresi</em></div>
     ${kart}
     ${yetkili ? `<button class="fdz-yonet" onclick="ntYonet('${cc}')">${_fdzIk('top')}<span>Milli Takımı Yönet</span></button>` : ''}
-    <div class="fdz-bas">${_fdzIk('yildiz')}<span>Milli Takım Yardımcıları</span><em data-noi18n>${yrd.length} / 3</em></div>
+    <div class="fdz-bas">${_fdzIk('yildiz')}<span>Federasyon Yardımcıları</span><em data-noi18n>${yrd.length} / 3</em></div>
     <div class="fdz-yuvalar">${yuva}</div>
-    <div class="fdz-not">${_fdzIk('liste')}<span>Yardımcıları başkan, milli takım oyuncuları arasından seçer (en fazla 3).</span></div>`;
+    <div class="fdz-not">${_fdzIk('liste')}<span>Yardımcıları başkan, federasyon üyesi kaptanlar arasından seçer (en fazla 3).</span></div>`;
 }
 
 let _fedMemberFilter = 'all';
@@ -53313,18 +53392,22 @@ function fedRenderPowers() {
   const root = document.getElementById('fedPowersRoot');
   if (!root) return;
   const rol = _fedRolum(fedActiveCountry());
+  const ntYrd = rol !== 'president' && typeof ntRol === 'function' && ntRol(fedActiveCountry()) === 'yardimci';   // 767
   const ROL = [
     ['president', 'Başkan', '1 kişi · milli takımın teknik direktörü', 'tac', '#ffd54f',
-      [[1, 'Milli takım kadrosunu seçer (12–20 kişi)'], [1, 'Diziliş ve taktiği belirler'], [1, 'En fazla 3 yardımcı seçer'], [0, 'Kadroyu kurmazsa en güçlü 20 oyuncu otomatik seçilir']]],
-    ['vice', 'Yardımcı', 'En fazla 3 · başkan seçer', 'yildiz', '#b39ddb',
-      [[1, 'Kadroya oyuncu çağırır / çıkarır'], [1, 'Diziliş ve taktiği düzenler'], [0, 'Yardımcı atayamaz (yalnız başkan)']]],
+      [[1, 'Milli takım kadrosunu seçer (12–20 kişi)'], [1, 'Diziliş ve taktiği belirler'], [1, 'Kadrodan en fazla 3 milli takım yardımcısı seçer'], [1, 'Üyelerden en fazla 3 federasyon yardımcısı seçer'], [0, 'Kadroyu kurmazsa en güçlü 20 oyuncu otomatik seçilir']]],
+    ['vice', 'Federasyon Yardımcısı', 'En fazla 3 · başkan, üyelerden seçer', 'yildiz', '#b39ddb',
+      [[1, 'Federasyon yönetiminde yer alır'], [1, 'Üye hakları sürer (oy, adaylık)'], [0, 'Bu görevle milli takıma karışamaz']]],
+    ['ntvice', 'Milli Takım Yardımcısı', 'En fazla 3 · başkan, kadrodan seçer', 'top', '#66b3ff',
+      [[1, 'Kadroya oyuncu çağırır / çıkarır'], [1, 'Diziliş ve taktiği düzenler'], [0, 'Federasyon yardımcısı sayılmaz']]],
     ['member', 'Üye', 'Bu ülke uyruklu kulüp kaptanları', 'uye', '#46d17a',
       [[1, 'Başkan seçiminde kulübü adına 1 oy'], [1, 'Başkanlığa aday olabilir'], [0, 'Kadroya doğrudan müdahale yok']]],
     ['none', 'İzleyici', 'Kaptan olmayanlar ve yabancı kaptanlar', 'goz', '#8b93a4',
       [[1, 'Federasyonu ve milli takımı görüntüler'], [0, 'Oy hakkı yok'], [0, 'Aday olamaz']]],
   ];
+  const benim = k => k === rol || (k === 'ntvice' && ntYrd);
   root.innerHTML = `<div class="fdz-roller">${ROL.map(([k, ad, alt, ik, renk, liste]) => `
-    <div class="fdz-rol${k === rol ? ' ben' : ''}" style="--rc:${renk}">${k === rol ? '<span class="sen">Sen</span>' : ''}
+    <div class="fdz-rol${benim(k) ? ' ben' : ''}" style="--rc:${renk}">${benim(k) ? '<span class="sen">Sen</span>' : ''}
       <div class="ri">${_fdzIk(ik)}</div><h5>${ad}</h5><div class="s">${alt}</div>
       <ul>${liste.map(([e, m]) => `<li class="${e ? 'e' : 'h'}">${_fdzIk(e ? 'onay' : 'carpi')}<span>${m}</span></li>`).join('')}</ul>
     </div>`).join('')}</div>

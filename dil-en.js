@@ -7858,3 +7858,27 @@ Object.assign(window.I18N.en, {
   "Değiştirmek istediğine emin misin?": "Are you sure you want to change it?",
   "Eski enerjinin etkisi ve kalan süresi biter": "The old energy's effect and remaining time end"
 });
+/* ─── 767 · Federasyon yardımcıları ─── */
+Object.assign(window.I18N.en, {
+  "Federasyon Yardımcıları": "Federation Assistants",
+  "Federasyon Yardımcısı Ata": "Appoint Federation Assistant",
+  "Ata": "Appoint",
+  "Atanabilecek üye yok.": "No members can be appointed.",
+  "Yardımcıları başkan, federasyon üyesi kaptanlar arasından seçer (en fazla 3).": "The president picks assistants from the federation's member captains (up to 3).",
+  "Yardımcıyı yalnız başkan atar": "Only the president can appoint assistants",
+  "Bu kişi federasyon üyesi değil": "This person is not a federation member",
+  "Kaydedilemedi, tekrar dene": "Couldn't save, try again",
+  "Federasyon yardımcısı atandı": "Federation assistant appointed",
+  "Yardımcılıktan çıkarıldı": "Removed as assistant",
+  "Yardımcılıktan Çıkar": "Remove Assistant",
+  "Federasyon yardımcılığından çıkarılsın mı?": "Remove from federation assistants?",
+  "Kadrodan en fazla 3 milli takım yardımcısı seçer": "Picks up to 3 national team assistants from the squad",
+  "Üyelerden en fazla 3 federasyon yardımcısı seçer": "Picks up to 3 federation assistants from members",
+  "En fazla 3 · başkan, üyelerden seçer": "Up to 3 · picked by the president from members",
+  "Federasyon yönetiminde yer alır": "Sits on the federation board",
+  "Üye hakları sürer (oy, adaylık)": "Keeps member rights (vote, candidacy)",
+  "Bu görevle milli takıma karışamaz": "Can't manage the national team in this role",
+  "Milli Takım Yardımcısı": "National Team Assistant",
+  "En fazla 3 · başkan, kadrodan seçer": "Up to 3 · picked by the president from the squad",
+  "Federasyon yardımcısı sayılmaz": "Doesn't count as federation assistant"
+});

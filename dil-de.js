@@ -5793,3 +5793,27 @@ Object.assign(window.I18N.de, {
   "Değiştirmek istediğine emin misin?": "Möchtest du wirklich wechseln?",
   "Eski enerjinin etkisi ve kalan süresi biter": "Wirkung und Restzeit der alten Energie enden"
 });
+/* ─── 767 · Federasyon yardımcıları ─── */
+Object.assign(window.I18N.de, {
+  "Federasyon Yardımcıları": "Verbandsvertreter",
+  "Federasyon Yardımcısı Ata": "Verbandsvertreter ernennen",
+  "Ata": "Ernennen",
+  "Atanabilecek üye yok.": "Kein Mitglied kann ernannt werden.",
+  "Yardımcıları başkan, federasyon üyesi kaptanlar arasından seçer (en fazla 3).": "Der Präsident wählt die Verbandsvertreter aus den Kapitänen der Mitgliedsklubs (höchstens 3).",
+  "Yardımcıyı yalnız başkan atar": "Nur der Präsident ernennt Verbandsvertreter",
+  "Bu kişi federasyon üyesi değil": "Diese Person ist kein Verbandsmitglied",
+  "Kaydedilemedi, tekrar dene": "Speichern fehlgeschlagen, versuch es erneut",
+  "Federasyon yardımcısı atandı": "Verbandsvertreter ernannt",
+  "Yardımcılıktan çıkarıldı": "Als Verbandsvertreter entfernt",
+  "Yardımcılıktan Çıkar": "Verbandsvertreter entfernen",
+  "Federasyon yardımcılığından çıkarılsın mı?": "Als Verbandsvertreter entfernen?",
+  "Kadrodan en fazla 3 milli takım yardımcısı seçer": "Wählt bis zu 3 Co-Trainer aus dem Kader",
+  "Üyelerden en fazla 3 federasyon yardımcısı seçer": "Wählt bis zu 3 Verbandsvertreter aus den Mitgliedern",
+  "En fazla 3 · başkan, üyelerden seçer": "Höchstens 3 · vom Präsidenten aus den Mitgliedern gewählt",
+  "Federasyon yönetiminde yer alır": "Gehört zur Verbandsführung",
+  "Üye hakları sürer (oy, adaylık)": "Behält Mitgliedsrechte (Stimme, Kandidatur)",
+  "Bu görevle milli takıma karışamaz": "Darf in dieser Rolle nicht in die Nationalmannschaft eingreifen",
+  "Milli Takım Yardımcısı": "Co-Trainer der Nationalmannschaft",
+  "En fazla 3 · başkan, kadrodan seçer": "Höchstens 3 · vom Präsidenten aus dem Kader gewählt",
+  "Federasyon yardımcısı sayılmaz": "Zählt nicht als Verbandsvertreter"
+});

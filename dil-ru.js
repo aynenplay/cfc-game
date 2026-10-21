@@ -7465,3 +7465,27 @@ Object.assign(window.I18N.ru, {
   "Değiştirmek istediğine emin misin?": "Точно хочешь сменить?",
   "Eski enerjinin etkisi ve kalan süresi biter": "Эффект и оставшееся время старой энергии закончатся"
 });
+/* ─── 767 · Federasyon yardımcıları ─── */
+Object.assign(window.I18N.ru, {
+  "Federasyon Yardımcıları": "Вице-президенты федерации",
+  "Federasyon Yardımcısı Ata": "Назначить вице-президента",
+  "Ata": "Назначить",
+  "Atanabilecek üye yok.": "Некого назначить.",
+  "Yardımcıları başkan, federasyon üyesi kaptanlar arasından seçer (en fazla 3).": "Президент выбирает вице-президентов из капитанов — членов федерации (не более 3).",
+  "Yardımcıyı yalnız başkan atar": "Назначать может только президент",
+  "Bu kişi federasyon üyesi değil": "Этот человек не член федерации",
+  "Kaydedilemedi, tekrar dene": "Не удалось сохранить, попробуй снова",
+  "Federasyon yardımcısı atandı": "Вице-президент назначен",
+  "Yardımcılıktan çıkarıldı": "Снят с должности вице-президента",
+  "Yardımcılıktan Çıkar": "Снять вице-президента",
+  "Federasyon yardımcılığından çıkarılsın mı?": "Снять с должности вице-президента федерации?",
+  "Kadrodan en fazla 3 milli takım yardımcısı seçer": "Выбирает до 3 помощников сборной из состава",
+  "Üyelerden en fazla 3 federasyon yardımcısı seçer": "Выбирает до 3 вице-президентов из членов",
+  "En fazla 3 · başkan, üyelerden seçer": "Не более 3 · президент выбирает из членов",
+  "Federasyon yönetiminde yer alır": "Входит в руководство федерации",
+  "Üye hakları sürer (oy, adaylık)": "Сохраняет права члена (голос, кандидатура)",
+  "Bu görevle milli takıma karışamaz": "В этой роли не управляет сборной",
+  "Milli Takım Yardımcısı": "Помощник сборной",
+  "En fazla 3 · başkan, kadrodan seçer": "Не более 3 · президент выбирает из состава",
+  "Federasyon yardımcısı sayılmaz": "Не считается вице-президентом федерации"
+});

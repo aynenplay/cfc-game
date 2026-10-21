@@ -7425,3 +7425,27 @@ Object.assign(window.I18N.pt, {
   "Değiştirmek istediğine emin misin?": "Tens a certeza de que queres trocar?",
   "Eski enerjinin etkisi ve kalan süresi biter": "O efeito e o tempo restante da energia anterior terminam"
 });
+/* ─── 767 · Federasyon yardımcıları ─── */
+Object.assign(window.I18N.pt, {
+  "Federasyon Yardımcıları": "Assistentes da federação",
+  "Federasyon Yardımcısı Ata": "Nomear assistente da federação",
+  "Ata": "Nomear",
+  "Atanabilecek üye yok.": "Nenhum membro para nomear.",
+  "Yardımcıları başkan, federasyon üyesi kaptanlar arasından seçer (en fazla 3).": "O presidente escolhe os assistentes entre os capitães membros da federação (até 3).",
+  "Yardımcıyı yalnız başkan atar": "Só o presidente nomeia assistentes",
+  "Bu kişi federasyon üyesi değil": "Esta pessoa não é membro da federação",
+  "Kaydedilemedi, tekrar dene": "Não foi possível guardar, tenta de novo",
+  "Federasyon yardımcısı atandı": "Assistente da federação nomeado",
+  "Yardımcılıktan çıkarıldı": "Removido de assistente",
+  "Yardımcılıktan Çıkar": "Remover assistente",
+  "Federasyon yardımcılığından çıkarılsın mı?": "Remover dos assistentes da federação?",
+  "Kadrodan en fazla 3 milli takım yardımcısı seçer": "Escolhe até 3 assistentes da seleção do plantel",
+  "Üyelerden en fazla 3 federasyon yardımcısı seçer": "Escolhe até 3 assistentes da federação entre os membros",
+  "En fazla 3 · başkan, üyelerden seçer": "Até 3 · escolhidos pelo presidente entre os membros",
+  "Federasyon yönetiminde yer alır": "Faz parte da direção da federação",
+  "Üye hakları sürer (oy, adaylık)": "Mantém os direitos de membro (voto, candidatura)",
+  "Bu görevle milli takıma karışamaz": "Com este cargo não interfere na seleção",
+  "Milli Takım Yardımcısı": "Assistente da seleção",
+  "En fazla 3 · başkan, kadrodan seçer": "Até 3 · escolhidos pelo presidente do plantel",
+  "Federasyon yardımcısı sayılmaz": "Não conta como assistente da federação"
+});
