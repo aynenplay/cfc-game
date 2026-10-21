@@ -7411,3 +7411,7 @@ Object.assign(window.I18N.ru, {
   "Hafta başında bu sayı, tamamlanan lig günü kadardır.": "В начале недели минимум равен числу уже сыгранных туров лиги.",
   "Maç kaçırma — 5 maçı tamamlamadan sıralamaya giremezsin.": "Не пропускай матчи — без 5 сыгранных матчей в рейтинг не попасть."
 });
+/* ─── 759 · Başarım mesajı detayı ─── */
+Object.assign(window.I18N.ru, {
+  "Toplam ödül": "Итоговая награда"
+});

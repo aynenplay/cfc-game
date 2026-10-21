@@ -7804,3 +7804,7 @@ Object.assign(window.I18N.en, {
   "Hafta başında bu sayı, tamamlanan lig günü kadardır.": "Early in the week, the minimum equals the number of league days played so far.",
   "Maç kaçırma — 5 maçı tamamlamadan sıralamaya giremezsin.": "Don't skip matches — you can't be ranked before completing 5 matches."
 });
+/* ─── 759 · Başarım mesajı detayı ─── */
+Object.assign(window.I18N.en, {
+  "Toplam ödül": "Total reward"
+});

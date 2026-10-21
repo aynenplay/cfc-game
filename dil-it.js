@@ -7377,3 +7377,7 @@ Object.assign(window.I18N.it, {
   "Hafta başında bu sayı, tamamlanan lig günü kadardır.": "A inizio settimana il minimo è pari alle giornate di campionato già giocate.",
   "Maç kaçırma — 5 maçı tamamlamadan sıralamaya giremezsin.": "Non saltare partite: senza 5 partite non entri in classifica."
 });
+/* ─── 759 · Başarım mesajı detayı ─── */
+Object.assign(window.I18N.it, {
+  "Toplam ödül": "Ricompensa totale"
+});

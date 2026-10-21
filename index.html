@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '757';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '759';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -22711,7 +22711,7 @@ body.pd-acik{overflow:hidden}
       <div class="hm-title">HIZLI <span>ERİŞİM</span></div>
     </div>
     <div class="hm-quick-grid hm-quick-grid-9">
-      <button class="hm-quick" onclick="showPage('team', findNavBtn ? findNavBtn('team') : document.querySelectorAll('.nav-btn')[2])">
+      <button class="hm-quick" id="hmQuickTeam" style="position:relative" onclick="showPage('team', findNavBtn ? findNavBtn('team') : document.querySelectorAll('.nav-btn')[2])">
         <div class="hm-quick-icon"><svg viewBox="0 0 24 24"><use href="#ic-team"/></svg></div>
         <div class="hm-quick-lbl">Takımım</div>
       </button>
@@ -25630,7 +25630,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-21-basari-757';
+const APP_BUILD = '2026-10-21-kaydir-759';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -41291,7 +41291,7 @@ function _cnAlimSlayt(l) {
 }
 function _cnKarusel(sl) {
   if (!sl.length) return '';
-  return `<div class="cn-kar"><div class="cn-kar-ic" onscroll="_cnKarNokta(this)">${sl.join('')}</div>${sl.length > 1 ? `<div class="cn-kar-n">${sl.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('')}</div>` : ''}</div>`;
+  return `<div class="cn-kar"><div class="cn-kar-ic" onscroll="_cnKarNokta(this)" ontouchstart="_ykBas(event,this)" ontouchmove="_ykHar(event,this)" ontouchend="_ykBit(event,this)" ontouchcancel="_ykBit(event,this)">${sl.join('')}</div>${sl.length > 1 ? `<div class="cn-kar-n">${sl.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('')}</div>` : ''}</div>`;
 }
 function _cnKarNokta(el) {
   const i = Math.round(el.scrollLeft / (el.clientWidth || 1));
@@ -50330,9 +50330,10 @@ function _tsAcikMi() {
   return !!(pg && ch && pg.classList.contains('active') && ch.style.display === 'block' && !_viewingTeam && !document.hidden);
 }
 function _tsCiz() {
+  const n = _userTeam ? _tsOkunmamis : 0;
+  try { _bnCan(document.getElementById('hmQuickTeam'), n); } catch(e) {}   // 759 — ana sayfa Takımım çanı
   const btn = document.querySelector('#page-team .team-tab[onclick*="teamTab(\'chat\'"]');
   if (!btn) return;
-  const n = _userTeam ? _tsOkunmamis : 0;
   let c = btn.querySelector('.ts-can');
   btn.classList.toggle('ts-var', n > 0);
   if (!n) { if (c) c.remove(); return; }
@@ -76055,7 +76056,7 @@ function _agcAgac(o) {
         `<button class="trnag-tab${i === ak ? ' active' : ''}${t.bitti ? ' bitti' : ''}" `
       + `onclick="trnAgcTur(this,${i})">${t.ad}<span class="sy">${adet(t)}</span></button>`
       ).join('') + `</div>`;
-  h += `<div class="trnag-agac" onscroll="trnAgcKaydi(this)">`;
+  h += `<div class="trnag-agac" onscroll="trnAgcKaydi(this)" ontouchstart="_ykBas(event,this)" ontouchmove="_ykHar(event,this)" ontouchend="_ykBit(event,this)" ontouchcancel="_ykBit(event,this)">`;
   turlar.forEach(t => {
     h += `<div class="trnag-sut" data-n="${adet(t)}"><div class="trnag-bas">${t.ad}</div>`
        + `<div class="trnag-gov">${t.govHtml != null ? t.govHtml : (t.kartlar || []).join('')}</div></div>`;
@@ -76087,6 +76088,96 @@ function _agcAgac(o) {
 //      durduktan sonra YUMUŞAK ANİMASYONLA küçülür — hoş duran hareket bu.
 //    ← GERİ (sola): açılacak tur soldan ekrana giriyor. Ölçek ANINDA ve
 //      ANİMASYONSUZ uygulanır ki sıkışık/iç içe ara kare hiç görünmesin.
+// 759 — YATAY SAYFALI KAYDIRICI (turnuva ağacı, CSC News manşeti)
+//   Dokunmatikte yatay kaydırmayı tarayıcı değil bu kod yapar (kapsayıcıda touch-action:pan-y):
+//   · hareketin ilk ~7 px'i yönü kilitler: yataysa yalnız sayfa/tur değişir, dikeyse yalnız ekran kayar
+//   · parmak ne kadar hızlı ya da uzun çekerse çeksin bir hareket en fazla BİR sayfa ilerletir
+//   Fare / dokunmatik yüzey eski yerel kaydırmayı (scroll-snap) kullanmaya devam eder.
+let _ykSon = { t: 0, el: null };
+function _ykKonumlar(el) {
+  const cs = getComputedStyle(el), er = el.getBoundingClientRect();
+  const spL = parseFloat(cs.scrollPaddingLeft) || 0, spR = parseFloat(cs.scrollPaddingRight) || 0;
+  const maks = Math.max(0, el.scrollWidth - el.clientWidth), sl = el.scrollLeft, sol = er.left + el.clientLeft;
+  const k = [];
+  for (const c of el.children) {
+    const hiza = String(getComputedStyle(c).scrollSnapAlign || '').split(' ').pop();
+    if (!hiza || hiza === 'none') continue;
+    const r = c.getBoundingClientRect();
+    const x = hiza === 'center' ? sl + r.left + r.width / 2 - (sol + spL + (el.clientWidth - spL - spR) / 2)
+            : hiza === 'end' ? sl + r.right - (sol + el.clientWidth - spR)
+            : sl + r.left - (sol + spL);
+    k.push(Math.round(Math.max(0, Math.min(maks, x))));
+  }
+  k.sort((a, b) => a - b);
+  return k.filter((x, i) => !i || x - k[i - 1] > 2);
+}
+function _ykYakin(k, x) { let b = 0; k.forEach((v, i) => { if (Math.abs(v - x) < Math.abs(k[b] - x)) b = i; }); return b; }
+function _ykGit(el, x) {
+  if (el._ykAnim) { cancelAnimationFrame(el._ykAnim); el._ykAnim = 0; }
+  const bas = el.scrollLeft, fark = x - bas;
+  if (Math.abs(fark) < 1) { el.scrollLeft = x; el.classList.remove('yk-surukle'); return; }
+  const t0 = performance.now(), sure = Math.min(340, 180 + Math.abs(fark) * 0.35);
+  const adim = (an) => {
+    const p = Math.min(1, (an - t0) / sure), e = 1 - Math.pow(1 - p, 3);
+    el.scrollLeft = bas + fark * e;
+    if (p < 1) { el._ykAnim = requestAnimationFrame(adim); return; }
+    el._ykAnim = 0; el.scrollLeft = x; el.classList.remove('yk-surukle');
+  };
+  el.classList.add('yk-surukle');
+  el._ykAnim = requestAnimationFrame(adim);
+}
+function _ykBas(e, el) {
+  el._yk = null;
+  if (!e.touches || e.touches.length !== 1) return;
+  const kesti = !!el._ykAnim;
+  if (kesti) { cancelAnimationFrame(el._ykAnim); el._ykAnim = 0; }
+  const t = e.touches[0];
+  el._yk = { x: t.clientX, y: t.clientY, sl: el.scrollLeft, yon: '', kesti, iz: [[performance.now(), t.clientX]] };
+}
+function _ykHar(e, el) {
+  const d = el._yk;
+  if (!d || !e.touches || e.touches.length !== 1) return;
+  const t = e.touches[0], dx = t.clientX - d.x, dy = t.clientY - d.y;
+  if (!d.yon) {
+    if (Math.abs(dx) < 7 && Math.abs(dy) < 7) return;
+    d.yon = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+    if (d.yon === 'y') return;                       // dikey: ekran kendi kayar, tur/sayfa yerinde kalır
+    d.k = _ykKonumlar(el);
+    if (d.k.length < 2) { d.yon = 'y'; return; }
+    d.i = _ykYakin(d.k, d.sl);
+    el.classList.add('yk-surukle');
+  }
+  if (d.yon !== 'x') return;
+  if (e.cancelable) e.preventDefault();
+  const alt = d.k[Math.max(0, d.i - 1)], ust = d.k[Math.min(d.k.length - 1, d.i + 1)];
+  let x = d.sl - dx;
+  if (x < alt) x = alt - (alt - x) * 0.25;           // bir sayfadan öteye çekilirse direnç
+  if (x > ust) x = ust + (x - ust) * 0.25;
+  el.scrollLeft = x;
+  d.iz.push([performance.now(), t.clientX]); if (d.iz.length > 6) d.iz.shift();
+}
+function _ykBit(e, el) {
+  const d = el._yk; el._yk = null;
+  if (!d) return;
+  if (d.yon !== 'x') {
+    if (d.kesti || el.classList.contains('yk-surukle')) { const k = _ykKonumlar(el); if (k.length) _ykGit(el, k[_ykYakin(k, el.scrollLeft)]); }
+    return;
+  }
+  _ykSon = { t: Date.now(), el };
+  const iz = d.iz, a = iz[0], b = iz[iz.length - 1];
+  const dx = b[1] - d.x, v = (b[0] - a[0]) > 0 ? (b[1] - a[1]) / (b[0] - a[0]) : 0;   // px/ms (+ = parmak sağa)
+  const gen = Math.abs((d.k[Math.min(d.k.length - 1, d.i + 1)] - d.k[Math.max(0, d.i - 1)]) / 2) || el.clientWidth;
+  const esik = Math.min(56, gen * 0.22);
+  let h = d.i;
+  if (dx <= -esik || (v < -0.3 && dx < -12)) h = d.i + 1;
+  else if (dx >= esik || (v > 0.3 && dx > 12)) h = d.i - 1;
+  h = Math.max(0, Math.min(d.k.length - 1, h));
+  _ykGit(el, d.k[h]);
+}
+// sürüklemenin sonunda parmağın altındaki karta / takıma tıklanmış sayılmasın
+document.addEventListener('click', ev => {
+  if (_ykSon.el && Date.now() - _ykSon.t < 450 && _ykSon.el.contains(ev.target)) { ev.preventDefault(); ev.stopPropagation(); }
+}, true);
 function _agcYukseklik(n) { return Math.max(2, Math.min(64, n || 1)) * 94; }
 function _agcGen(ag, tazele) {
   // sütun genişliği + boşluk — her kaydırma olayında layout okumamak için önbellekli
@@ -80118,7 +80209,7 @@ function _sysInboxTekrarTemizle() {
     let silinen = 0;
     for (const m of _inboxCache) {                 // dizi en yeniden eskiye sıralı
       if (!m) continue;
-      if (m.type === 'system' && m.sysKind) {
+      if (m.type === 'system' && m.sysKind && !Array.isArray(m.ach)) {
         const anahtar = m.sysKind + '|' + (m.subject || '');
         if (gorulen.has(anahtar)) { silinen++; if (m.id) _sysSentAdd(m.id); continue; }
         gorulen.add(anahtar);
@@ -80231,7 +80322,8 @@ function sysMsg(o) {
       time: new Date().toLocaleDateString('tr-TR'),
       ts: Date.now(),
       read: false,
-      thread: []
+      thread: [],
+      ach: Array.isArray(o.ach) && o.ach.length ? o.ach.slice(0, 40) : undefined   // 759 — başarım kimlikleri (detay kartı)
     });
     saveInboxMsgs(msgs);
     _sysSentAdd(id);
@@ -87354,7 +87446,7 @@ function _achMesajKontrol() {
     const n = yeni.length;
     sysMsg({
       id: 'ach_grup_' + _sysKisaAnahtar(yeni),
-      from: '🏅 Başarımlar', avatar: '🏅', kind: 'basarim',
+      from: '🏅 Başarımlar', avatar: '🏅', kind: 'basarim', ach: yeni,
       subject: n > 1 ? `${n} Başarım Açıldı — Ödüllerini Al` : 'Başarım Açıldı — Ödülünü Al',
       body: (n > 1 ? `${n} başarımı tamamladın.` : 'Bir başarımı tamamladın.')
           + `\n\n• Ödüllerini Etkinlik > Başarımlar ekranından "Topla" butonuyla alabilirsin.`
@@ -100329,10 +100421,32 @@ function _gkMetin(b) {
     return t.startsWith('•') ? `<span class="gk-madde">${_gkE(t)}</span>` : `<p>${_gkE(t)}</p>`;
   }).join('');
 }
+// 759 — başarım mesajı: açılan başarımlar (ad, görev, seviye) ve ödülleri
+function _gkBasarimListe(m) {
+  if (!m || m.sysKind !== 'basarim' || !Array.isArray(m.ach) || !m.ach.length) return '';
+  let te = 0, td = 0;
+  const sat = [];
+  m.ach.forEach(id => {
+    const s = (typeof ACH_SERIES !== 'undefined') ? ACH_SERIES.find(a => a[0] === id) : null;
+    const p = (!s && typeof ACH_PRO !== 'undefined') ? ACH_PRO.find(a => a[0] === id) : null;
+    if (!s && !p) return;
+    const [ad, ac, eur, dia, et] = s ? [s[3], s[4], s[6], s[7], 'T' + s[1]] : [p[2], p[3], p[4], p[5], 'PRO'];
+    te += eur; td += dia;
+    sat.push(`<div class="gk-ba${p ? ' pro' : ''}"><span class="gk-ba-t" data-noi18n>${et}</span>`
+      + `<div class="gk-ba-m"><b>${_gkE(ad)}</b><small>${_gkE(ac)}</small></div>`
+      + `<div class="gk-ba-o" data-noi18n><span class="e">${_gkSay(eur)} €</span><span class="d">${_gkSay(dia)} 💎</span></div></div>`);
+  });
+  if (!sat.length) return '';
+  const top = sat.length > 1 ? `<div class="gk-ba-top"><span>Toplam ödül</span><div class="gk-ba-o" data-noi18n><span class="e">${_gkSay(te)} €</span><span class="d">${_gkSay(td)} 💎</span></div></div>` : '';
+  return `<div class="gk-ba-l">${sat.join('')}${top}</div>`;
+}
 function _gkSistemKart(m) {
   const tr = _gkTur(m);
+  let metin = _gkMetin(m.body);
+  const ba = _gkBasarimListe(m);
+  if (ba) { const i = metin.indexOf('</p>'); metin = i >= 0 ? metin.slice(0, i + 4) + ba + metin.slice(i + 4) : ba + metin; }
   return `<div class="gk-kart kt-${tr.kot ? 'kot' : tr.kat}"><div class="gk-ku">${_gkTas(m, tr)}<div><h3>${GK_KAT[tr.kat] || 'Sistem'}</h3><small>${_gkAd(m.from || '')}</small></div></div>`
-    + `<div class="gk-metin">${_gkMetin(m.body)}</div></div>`;
+    + `<div class="gk-metin">${metin}</div></div>`;
 }
 
 // ── Kâğıt fiş ──
@@ -105206,6 +105320,29 @@ function hmKaydirGec() {
 @keyframes cnParlaMavi{0%,100%{box-shadow:0 4px 14px rgba(29,161,242,.45),inset 0 1px 0 rgba(255,255,255,.25),inset 0 -2px 6px rgba(0,0,0,.15),0 0 5px rgba(255,45,70,.2)}50%{box-shadow:0 4px 14px rgba(29,161,242,.45),inset 0 1px 0 rgba(255,255,255,.25),inset 0 -2px 6px rgba(0,0,0,.15),0 0 12px rgba(255,45,70,.45)}}
 @keyframes cnParlaSekme{0%,100%{box-shadow:inset 0 0 0 1px rgba(255,45,70,.42),0 0 5px rgba(255,45,70,.16)}50%{box-shadow:inset 0 0 0 1px rgba(255,45,70,.42),0 0 12px rgba(255,45,70,.36)}}
 @media (prefers-reduced-motion: reduce){.cn-can,.cn-var{animation:none!important}}
+</style>
+<style id="v759-css">
+/* 759 — yatay sayfalı kaydırıcı: dokunmatikte dikey hareket ekranı, yatay hareket sayfayı kaydırır */
+.trnag-agac,.cn-kar-ic{touch-action:pan-y;overscroll-behavior-x:contain}
+.cn-kar-ic > .cn-manset{scroll-snap-stop:always}
+.trnag-agac.yk-surukle,.cn-kar-ic.yk-surukle{scroll-snap-type:none!important;scroll-behavior:auto!important}
+/* 759 — başarım mesajı: açılan başarımlar + ödülleri */
+.gk-ba-l{margin:6px 0 4px;border-radius:12px;background:#1d2129;border:1px solid #262a33;overflow:hidden}
+.gk-ba{display:flex;align-items:center;gap:10px;padding:10px 12px}
+.gk-ba + .gk-ba{border-top:1px solid #262a33}
+.gk-ba-t{flex:0 0 38px;height:24px;display:grid;place-items:center;border-radius:7px;font:800 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.4px;
+  color:var(--gkKul);background:color-mix(in srgb,var(--gkKul) 12%,transparent);border:1px solid color-mix(in srgb,var(--gkKul) 32%,transparent)}
+.gk-ba.pro .gk-ba-t{color:var(--gold,#ffd600);background:linear-gradient(135deg,rgba(255,213,0,.16),rgba(255,109,0,.06));border-color:rgba(255,213,0,.4)}
+.gk-ba-m{flex:1;min-width:0}
+.gk-ba-m b{display:block;font:800 14px/1.2 'Barlow',sans-serif;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gk-ba-m small{display:block;margin-top:2px;font:500 12px/1.25 'Barlow',sans-serif;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gk-ba-o{flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:4px;font:800 14px/1 'Barlow Condensed',sans-serif;letter-spacing:.2px;white-space:nowrap}
+.gk-ba-o .e{color:#ffa726}
+.gk-ba-o .d{color:var(--accent2)}
+.gk-ba.pro .gk-ba-o .d{color:var(--gold,#ffd600)}
+.gk-ba-top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-top:1px solid #2e333d;background:rgba(255,255,255,.025)}
+.gk-ba-top > span{font:800 12px/1 'Barlow Condensed',sans-serif;letter-spacing:1px;text-transform:uppercase;color:var(--text2)}
+.gk-ba-top .gk-ba-o{flex-direction:row;gap:10px;font-size:15px}
 </style>
 <style id="uz-css">
 /* 699 — maç penaltıları düello ekranında: takım armaları, sayaç / puan / düğmeler yok */
