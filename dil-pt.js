@@ -7375,3 +7375,40 @@ Object.assign(window.I18N.pt, {
 Object.assign(window.I18N.pt, {
   "Toplam ödül": "Recompensa total"
 });
+/* ─── 760 · Enerji ürünleri ─── */
+Object.assign(window.I18N.pt, {
+  "Antrenmanı güçlendirir": "Potencia o teu treino",
+  "Enerji İçeceği": "Bebida energética",
+  "Tavuklu Pilav": "Arroz de frango",
+  "Donut": "Donut",
+  "Antrenman süresini kısaltır": "Reduz o tempo de treino",
+  "Yetenek puanını artırır": "Aumenta os pontos de habilidade",
+  "Antrenman XP’sini artırır": "Aumenta a XP de treino",
+  "Yeşil Şimşek": "Raio Verde",
+  "Mavi Şimşek": "Raio Azul",
+  "Altın Şimşek": "Raio Dourado",
+  "Bol Tavuklu": "Frango extra",
+  "Izgara Tavuklu": "Frango grelhado",
+  "Çilekli": "Morango",
+  "Çikolatalı": "Chocolate",
+  "Böğürtlenli": "Amora",
+  "Uzat": "Prolongar",
+  "7 gün geçerli": "Válido 7 dias",
+  "Süre dolunca ürün slottan kalkar, etkisi de biter": "Quando o tempo acaba, o produto sai do slot e o efeito termina",
+  "Alınca hemen takılır": "Equipado assim que compras",
+  "Süre, yetenek ve XP slotları aynı antrenmanda birlikte çalışır": "Os slots de tempo, habilidade e XP funcionam juntos no mesmo treino",
+  "Aynı ürün süreyi uzatır": "O mesmo produto prolonga o tempo",
+  "Başka model alırsan yenisi hemen geçer, eskisinin kalan süresi silinir": "Outro modelo substitui-o de imediato e perde-se o tempo restante do anterior",
+  "7 günlük ürün": "Produto de 7 dias",
+  "Yeni bitiş": "Novo fim",
+  "Elmasın": "Os teus diamantes",
+  "Aktif ürünün süresi 7 gün uzar": "O teu produto ativo é prolongado 7 dias",
+  "Mevcut ürün slottan kalkar, kalan süresi silinir": "O teu produto atual sai do slot e perde-se o tempo restante",
+  "Alır almaz slotuna takılır, 7 gün sonra etkisiyle birlikte kalkar": "Equipado de imediato e retirado com o efeito ao fim de 7 dias",
+  "En fazla 4 hafta ileriye uzatabilirsin": "Podes prolongar no máximo 4 semanas",
+  "Süreyi uzat": "Prolongar",
+  "Elmas yetersiz": "Diamantes insuficientes",
+  "Bu ürün şu an satışta değil": "Este produto não está à venda agora",
+  "Süre 7 gün uzatıldı": "Prolongado 7 dias",
+  "Enerji slota takıldı": "Energia equipada"
+});

@@ -7808,3 +7808,40 @@ Object.assign(window.I18N.en, {
 Object.assign(window.I18N.en, {
   "Toplam ödül": "Total reward"
 });
+/* ─── 760 · Enerji ürünleri ─── */
+Object.assign(window.I18N.en, {
+  "Antrenmanı güçlendirir": "Boosts your training",
+  "Enerji İçeceği": "Energy Drink",
+  "Tavuklu Pilav": "Chicken Rice",
+  "Donut": "Donut",
+  "Antrenman süresini kısaltır": "Shortens training time",
+  "Yetenek puanını artırır": "Increases skill points",
+  "Antrenman XP’sini artırır": "Increases training XP",
+  "Yeşil Şimşek": "Green Bolt",
+  "Mavi Şimşek": "Blue Bolt",
+  "Altın Şimşek": "Golden Bolt",
+  "Bol Tavuklu": "Extra Chicken",
+  "Izgara Tavuklu": "Grilled Chicken",
+  "Çilekli": "Strawberry",
+  "Çikolatalı": "Chocolate",
+  "Böğürtlenli": "Blackberry",
+  "Uzat": "Extend",
+  "7 gün geçerli": "Valid for 7 days",
+  "Süre dolunca ürün slottan kalkar, etkisi de biter": "When time runs out, the item leaves its slot and its effect ends",
+  "Alınca hemen takılır": "Equipped as soon as you buy it",
+  "Süre, yetenek ve XP slotları aynı antrenmanda birlikte çalışır": "Time, skill and XP slots all work together in the same training",
+  "Aynı ürün süreyi uzatır": "Buying the same item extends the time",
+  "Başka model alırsan yenisi hemen geçer, eskisinin kalan süresi silinir": "A different model replaces it right away; the old one's remaining time is lost",
+  "7 günlük ürün": "7-day item",
+  "Yeni bitiş": "New end",
+  "Elmasın": "Your diamonds",
+  "Aktif ürünün süresi 7 gün uzar": "Your active item is extended by 7 days",
+  "Mevcut ürün slottan kalkar, kalan süresi silinir": "Your current item leaves the slot and its remaining time is lost",
+  "Alır almaz slotuna takılır, 7 gün sonra etkisiyle birlikte kalkar": "Equipped to its slot right away; removed with its effect after 7 days",
+  "En fazla 4 hafta ileriye uzatabilirsin": "You can extend up to 4 weeks ahead",
+  "Süreyi uzat": "Extend",
+  "Elmas yetersiz": "Not enough diamonds",
+  "Bu ürün şu an satışta değil": "This item is not on sale right now",
+  "Süre 7 gün uzatıldı": "Extended by 7 days",
+  "Enerji slota takıldı": "Energy equipped"
+});

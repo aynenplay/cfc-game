@@ -7383,3 +7383,40 @@ Object.assign(window.I18N.es, {
 Object.assign(window.I18N.es, {
   "Toplam ödül": "Recompensa total"
 });
+/* ─── 760 · Enerji ürünleri ─── */
+Object.assign(window.I18N.es, {
+  "Antrenmanı güçlendirir": "Potencia tu entrenamiento",
+  "Enerji İçeceği": "Bebida energética",
+  "Tavuklu Pilav": "Arroz con pollo",
+  "Donut": "Dónut",
+  "Antrenman süresini kısaltır": "Acorta el tiempo de entrenamiento",
+  "Yetenek puanını artırır": "Aumenta los puntos de habilidad",
+  "Antrenman XP’sini artırır": "Aumenta la XP de entrenamiento",
+  "Yeşil Şimşek": "Rayo Verde",
+  "Mavi Şimşek": "Rayo Azul",
+  "Altın Şimşek": "Rayo Dorado",
+  "Bol Tavuklu": "Con mucho pollo",
+  "Izgara Tavuklu": "Pollo a la parrilla",
+  "Çilekli": "Fresa",
+  "Çikolatalı": "Chocolate",
+  "Böğürtlenli": "Mora",
+  "Uzat": "Ampliar",
+  "7 gün geçerli": "Válido 7 días",
+  "Süre dolunca ürün slottan kalkar, etkisi de biter": "Al terminar el tiempo, el producto sale del slot y su efecto termina",
+  "Alınca hemen takılır": "Se equipa nada más comprarlo",
+  "Süre, yetenek ve XP slotları aynı antrenmanda birlikte çalışır": "Los slots de tiempo, habilidad y XP funcionan juntos en el mismo entrenamiento",
+  "Aynı ürün süreyi uzatır": "El mismo producto amplía el tiempo",
+  "Başka model alırsan yenisi hemen geçer, eskisinin kalan süresi silinir": "Otro modelo lo sustituye al instante y se pierde el tiempo restante del anterior",
+  "7 günlük ürün": "Producto de 7 días",
+  "Yeni bitiş": "Nuevo fin",
+  "Elmasın": "Tus diamantes",
+  "Aktif ürünün süresi 7 gün uzar": "Tu producto activo se amplía 7 días",
+  "Mevcut ürün slottan kalkar, kalan süresi silinir": "Tu producto actual sale del slot y se pierde su tiempo restante",
+  "Alır almaz slotuna takılır, 7 gün sonra etkisiyle birlikte kalkar": "Se equipa al instante y se retira con su efecto a los 7 días",
+  "En fazla 4 hafta ileriye uzatabilirsin": "Puedes ampliar como máximo 4 semanas",
+  "Süreyi uzat": "Ampliar",
+  "Elmas yetersiz": "Diamantes insuficientes",
+  "Bu ürün şu an satışta değil": "Este producto no está a la venta ahora",
+  "Süre 7 gün uzatıldı": "Ampliado 7 días",
+  "Enerji slota takıldı": "Energía equipada"
+});

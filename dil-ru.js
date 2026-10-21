@@ -7415,3 +7415,40 @@ Object.assign(window.I18N.ru, {
 Object.assign(window.I18N.ru, {
   "Toplam ödül": "Итоговая награда"
 });
+/* ─── 760 · Enerji ürünleri ─── */
+Object.assign(window.I18N.ru, {
+  "Antrenmanı güçlendirir": "Усиливает тренировки",
+  "Enerji İçeceği": "Энергетик",
+  "Tavuklu Pilav": "Плов с курицей",
+  "Donut": "Пончик",
+  "Antrenman süresini kısaltır": "Сокращает время тренировки",
+  "Yetenek puanını artırır": "Увеличивает очки навыка",
+  "Antrenman XP’sini artırır": "Увеличивает опыт за тренировку",
+  "Yeşil Şimşek": "Зелёная молния",
+  "Mavi Şimşek": "Синяя молния",
+  "Altın Şimşek": "Золотая молния",
+  "Bol Tavuklu": "Много курицы",
+  "Izgara Tavuklu": "Курица гриль",
+  "Çilekli": "Клубничный",
+  "Çikolatalı": "Шоколадный",
+  "Böğürtlenli": "Ежевичный",
+  "Uzat": "Продлить",
+  "7 gün geçerli": "Действует 7 дней",
+  "Süre dolunca ürün slottan kalkar, etkisi de biter": "Когда время выходит, предмет покидает слот и эффект заканчивается",
+  "Alınca hemen takılır": "Ставится в слот сразу после покупки",
+  "Süre, yetenek ve XP slotları aynı antrenmanda birlikte çalışır": "Слоты времени, навыка и опыта работают вместе в одной тренировке",
+  "Aynı ürün süreyi uzatır": "Тот же предмет продлевает срок",
+  "Başka model alırsan yenisi hemen geçer, eskisinin kalan süresi silinir": "Другая модель сразу заменяет текущую, оставшееся время старой сгорает",
+  "7 günlük ürün": "Предмет на 7 дней",
+  "Yeni bitiş": "Новое окончание",
+  "Elmasın": "Твои алмазы",
+  "Aktif ürünün süresi 7 gün uzar": "Активный предмет продлится на 7 дней",
+  "Mevcut ürün slottan kalkar, kalan süresi silinir": "Текущий предмет покинет слот, оставшееся время сгорит",
+  "Alır almaz slotuna takılır, 7 gün sonra etkisiyle birlikte kalkar": "Сразу ставится в слот и через 7 дней снимается вместе с эффектом",
+  "En fazla 4 hafta ileriye uzatabilirsin": "Продлить можно не больше чем на 4 недели вперёд",
+  "Süreyi uzat": "Продлить",
+  "Elmas yetersiz": "Недостаточно алмазов",
+  "Bu ürün şu an satışta değil": "Этот предмет сейчас не продаётся",
+  "Süre 7 gün uzatıldı": "Продлено на 7 дней",
+  "Enerji slota takıldı": "Энергия установлена"
+});
