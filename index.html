@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '767';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '768';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -25635,7 +25635,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-21-federasyon-767';
+const APP_BUILD = '2026-10-21-kadro-768';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -30401,11 +30401,14 @@ window.submitJoinRequestWithTerms = async function(){
     _invalidateRealCaptainsCache();
     try { await _loadRealCaptainsFromServer(cc); } catch(e) {}
   }
-  const teamKey = cc + ':' + tn;
-  const teamEntry = _realCaptainsCache[teamKey];
-  const realMemberCount = (teamEntry && Array.isArray(teamEntry.members)) ? teamEntry.members.length : 0;
-  // Not: 15 varsayılan kadro sınırı (hedef takımın tesis seviyesini bilmiyoruz, en kötü senaryo)
-  if (realMemberCount >= 15) {
+  // 768 — sınır takımın kendi kapasitesinden (14 + Takım Kapasitesi seviyesi) ve mevki kontenjanından
+  const _engel = (typeof window._mkBasvuruEngel === 'function') ? await window._mkBasvuruEngel(cc, tn).catch(() => null) : null;
+  if (_engel && _engel.tur === 'mevki') {
+    if (typeof showJoinToast === 'function') showJoinToast('⛔ ' + _engel.metin);
+    return;
+  }
+  const realMemberCount = _engel ? _engel.gercek : 0;
+  if (_engel && _engel.tur === 'kadro') {
     showInfoModal({
       icon: '👥', iconColor: '#f59e0b',
       title: 'Kadro Dolu',
@@ -44760,7 +44763,7 @@ function rosterPromoteVice(playerNum){
           rosterToast('Sunucu hatası: ' + error.message, 'err');
           p.role = 'member';
           if (typeof renderRoster === 'function') renderRoster(rosterCurrentFilter || 'all');
-        }
+        } else kadroYayin('oyuncu', p.id);   // 768
       } catch(e) { console.warn('[promoteVice] hata:', e); }
     })();
   }
@@ -44813,6 +44816,7 @@ function rosterMakeCaptain(playerNum){
         if (typeof applyUserTeamUI === 'function') applyUserTeamUI();
         if (typeof closePlayerModal === 'function') closePlayerModal();
         rosterToast(`👑 ${p.name} artık kaptan. Sen üye oldun.`, 'ok');
+        kadroYayin('oyuncu', p.id); if (meRow) kadroYayin('oyuncu', meRow.id);   // 768
       } catch(e) { rosterToast('Hata: ' + e, 'err'); }
     };
     if (typeof cftConfirm === 'function') {
@@ -44840,6 +44844,7 @@ function rosterMakeCaptain(playerNum){
       if(typeof applyUserTeamUI === 'function') applyUserTeamUI();
       if(typeof closePlayerModal === 'function') closePlayerModal();
       rosterToast(`👑 ${p.name} artık kaptan. Sen üye oldun.`, 'ok');
+        kadroYayin('oyuncu', p.id); if (meRow) kadroYayin('oyuncu', meRow.id);   // 768
     }catch(e){ rosterToast('Hata: ' + e, 'err'); }
   };
   if(typeof cftConfirm === 'function'){
@@ -44869,7 +44874,7 @@ function rosterDemoteVice(playerNum){
           rosterToast('Sunucu hatası: ' + error.message, 'err');
           p.role = 'vice';
           if (typeof renderRoster === 'function') renderRoster(rosterCurrentFilter || 'all');
-        }
+        } else kadroYayin('oyuncu', p.id);   // 768
       } catch(e) { console.warn('[demoteVice] hata:', e); }
     })();
   }
@@ -44988,6 +44993,7 @@ async function executeKick(){
     return;
   }
   if (typeof _trsLoadFromServer === 'function') _trsLoadFromServer().then(() => { if (typeof trsRender === 'function') trsRender(); if (typeof trsSyncHeader === 'function') trsSyncHeader(); });
+  kadroYayin('oyuncu', p.id);   // 768 — takımdakiler oyuncuyu hemen çıkarır
 
   // Lokal ROSTER_DATA'dan çıkar (UI hemen güncellensin)
   const idx = ROSTER_DATA.findIndex(x => x.num === num);
@@ -48449,6 +48455,9 @@ function executeJerseyEdit(){
           if (typeof renderRoster === 'function') {
             renderRoster(typeof rosterCurrentFilter !== 'undefined' ? rosterCurrentFilter : 'all');
           }
+        } else {
+          kadroYayin('oyuncu', player.id);   // 768 — numara herkese; kayıtlı dizilişteki numara da tazelenir
+          if (typeof _canManageSquad === 'function' && _canManageSquad()) saveTeamStrategy();
         }
       } catch(e) { console.warn('[jersey] hata:', e); }
     })();
@@ -50454,6 +50463,154 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) _bnT
 let _teamChatChannel = null;
 let _teamChatChannelKey = null;
 
+// ═══ 768 — TAKIM İÇİ ANLIK KADRO OLAYLARI ═══
+//   Diziliş kaydı, mevki / numara / rol değişikliği, kovma: işlemi yapan takım kanalına küçük bir haber
+//   ('kadro' yayını) atar. Yayın yalnız "şu değişti" der; alan istemci içeriği sunucudan okur (yalnız
+//   değişen satırı ya da diziliş kaydını). Kadro üyeliği değişince de yalnız yeni gelenler okunur.
+const _KD768_KOLON = 'id, user_id, num, name, pos, pos_group, sub_pos, nationality, nation, level, xp, overall, rating, abilities, equipment, role, avatar, avatar_id, gender, is_bot, last_seen, user_team_data, goals_total, assists_total, matches_played, match_ratings, stats_by_comp, season_yellow, suspend_matches, suspend_reason, injury_until, kondisyon, kondisyon_at, kondisyon_hiz';
+let _kadroSonImza = null, _kadroDzT = null, _kadroEsitleSurer = null, _dzKayipIds = [];
+function kadroYayin(tur, id) {
+  try {
+    if (typeof _teamChatChannel !== 'undefined' && _teamChatChannel && typeof _teamChatChannel.send === 'function')
+      _teamChatChannel.send({ type: 'broadcast', event: 'kadro', payload: { tur, id: id || null } });
+  } catch (e) {}
+}
+function _kadroImza(d) {
+  try {
+    d = d || {};
+    const yedek = (Array.isArray(d.benchIds) && d.benchIds.some(Boolean)) ? d.benchIds : (d.bench || []);
+    return JSON.stringify([d.formation || null, (d.lineup || []).map(e => [e.id || e.num, e.slotIdx]), yedek, d.strategy || null]);
+  } catch (e) { return ''; }
+}
+// Kaydedilen diziliş takıma duyurulur (aynı diziliş az önce gelen yayınla geldiyse tekrar duyurulmaz)
+function _kadroDizilisYayinla(payload) {
+  const im = _kadroImza(payload);
+  if (!im || im === _kadroSonImza) return;
+  _kadroSonImza = im;
+  kadroYayin('dizilis');
+}
+function _kadroOlay(p) {
+  if (!p || !_userTeam || !_userTeam.teamName) return;
+  if (p.tur === 'dizilis') { clearTimeout(_kadroDzT); _kadroDzT = setTimeout(() => { _kadroDizilisTazele().catch(() => {}); }, 300); }
+  else if (p.tur === 'oyuncu' && p.id) _kadroOyuncuTazele(p.id).catch(() => {});
+}
+function _kadroCiz() {
+  try {
+    const pg = document.getElementById('page-team');
+    if (!pg || !pg.classList.contains('active') || (typeof _viewingTeam !== 'undefined' && _viewingTeam)) return;
+    if (typeof renderRoster === 'function') renderRoster(rosterCurrentFilter || 'all');
+    const tf = document.getElementById('team-formation');
+    if (tf && tf.style.display !== 'none') { if (typeof renderPitch === 'function') renderPitch(); if (typeof renderBench === 'function') renderBench(); }
+    if (typeof window.thKunyeTazele === 'function') window.thKunyeTazele();
+  } catch (e) {}
+}
+// Kayıtlı dizilişi yeniden kur (Diziliş açıksa sahada, değilse bellekte)
+function _kadroDizilisUygula() {
+  if (typeof ROSTER_DATA === 'undefined' || !Array.isArray(ROSTER_DATA) || !ROSTER_DATA.length) return;
+  if (typeof _viewingTeam !== 'undefined' && _viewingTeam) return;   // ziyaretten dönüşte kadro zaten yeniden kurulur
+  activePitchPlayers = []; benchPlayers = [];
+  const pg = document.getElementById('page-team'), tf = document.getElementById('team-formation');
+  if (pg && pg.classList.contains('active') && tf && tf.style.display !== 'none' && typeof initFormation === 'function') initFormation();
+  else if (typeof loadTeamStrategy === 'function') loadTeamStrategy();
+  try { if (typeof applyStrategyToUI === 'function') applyStrategyToUI(); } catch (e) {}
+  _kadroCiz();
+}
+async function _kadroDizilisTazele() {
+  if (typeof _teamStrategyLoadFromServer !== 'function') return;
+  const once = _kadroImza(_teamStrategyCache || {});
+  await _teamStrategyLoadFromServer();
+  const d = _teamStrategyCache || {};
+  const im = _kadroImza(d);
+  _kadroSonImza = im;
+  if (im === once) return;
+  // Dizilişte bende henüz olmayan oyuncu varsa (yeni katılan) önce o okunur
+  const ids = [].concat((d.lineup || []).map(e => e && e.id), d.benchIds || []).filter(Boolean);
+  if (ids.some(id => !ROSTER_DATA.some(p => p && p.id === id))) await _kadroUyelikEsitle(false);
+  _kadroDizilisUygula();
+}
+// Tek oyuncunun satırı (mevki, numara, rol…) — yalnız o satır okunur
+async function _kadroOyuncuTazele(id) {
+  if (!window.sb || !_userTeam || typeof ROSTER_DATA === 'undefined') return;
+  const { data: r, error } = await window.sb.from('players').select(_KD768_KOLON + ', country_code, team_name').eq('id', id).maybeSingle();
+  if (error) return;
+  const i = ROSTER_DATA.findIndex(p => p && p.id === id);
+  const bizde = !!(r && r.country_code === _userTeam.countryCode && r.team_name === _userTeam.teamName);
+  if (!bizde || i < 0) { if (bizde || i >= 0) await _kadroUyelikEsitle(true); return; }
+  const yeni = _buildRosterFromPlayers([r], _userTeam.countryCode)[0];
+  const eski = ROSTER_DATA[i], numDegisti = eski.num !== yeni.num;
+  Object.assign(eski, yeni);   // sahadaki / yedekteki kayıtlar aynı nesneyi gösterir, onlar da güncellenir
+  if (numDegisti) ROSTER_DATA.sort((a, b) => (a.num || 999) - (b.num || 999));
+  if (typeof recalcAllPlayerOveralls === 'function') recalcAllPlayerOveralls();
+  _teamRosterCache[_userTeam.countryCode + ':' + _userTeam.teamName] = ROSTER_DATA.slice();
+  // Kendi rolüm değiştiyse (yardımcı oldum / kaptan oldum) yetkiler hemen açılır
+  if (yeni.isUser && r.role && _userTeam.role !== r.role) {
+    _userTeam.role = r.role;
+    try { if (typeof applyUserTeamUI === 'function') applyUserTeamUI(); } catch (e) {}
+  }
+  _kadroCiz();
+}
+// Kadro üyeliği: yalnız kimlikler karşılaştırılır; yeni gelenlerin satırı okunur, gidenler çıkarılır
+function _kadroUyelikEsitle(uygula) {
+  if (_kadroEsitleSurer) return _kadroEsitleSurer;
+  _kadroEsitleSurer = (async () => {
+    try {
+      if (!window.sb || !_userTeam || !_userTeam.teamName || typeof ROSTER_DATA === 'undefined') return false;
+      const cc = _userTeam.countryCode, tn = _userTeam.teamName;
+      const { data, error } = await window.sb.from('players').select('id').eq('country_code', cc).eq('team_name', tn);
+      if (error || !Array.isArray(data) || !data.length) return false;
+      if (ROSTER_DATA.some(p => p && !p.id)) { if (typeof _rosterRefreshFromServer === 'function') await _rosterRefreshFromServer(cc); return true; }
+      const sunucu = new Set(data.map(r => r.id)), yerel = new Set(ROSTER_DATA.filter(Boolean).map(p => p.id));
+      const yeni = [...sunucu].filter(id => !yerel.has(id)), giden = [...yerel].filter(id => !sunucu.has(id));
+      if (!yeni.length && !giden.length) return false;
+      let ek = [];
+      if (yeni.length) {
+        const { data: rows, error: e2 } = await window.sb.from('players').select(_KD768_KOLON).in('id', yeni);
+        if (e2 || !Array.isArray(rows)) return false;
+        ek = _buildRosterFromPlayers(rows, cc);
+      }
+      if (!_userTeam || _userTeam.teamName !== tn) return false;
+      ROSTER_DATA = ROSTER_DATA.filter(p => p && sunucu.has(p.id)).concat(ek).sort((a, b) => (a.num || 999) - (b.num || 999));
+      if (typeof recalcAllPlayerOveralls === 'function') recalcAllPlayerOveralls();
+      _teamRosterCache[cc + ':' + tn] = ROSTER_DATA.slice();
+      if (uygula) _kadroDizilisUygula(); else _kadroCiz();
+      try { if (typeof updateHero === 'function') updateHero(); } catch (e) {}
+      return true;
+    } catch (e) { return false; }
+    finally { _kadroEsitleSurer = null; }
+  })();
+  return _kadroEsitleSurer;
+}
+// Kayıtlı dizilişte boş kalan yuvalar (oyuncu takımdan ayrıldı): diğerleri yerinde kalır, yalnız boş yuva dolar
+function _dzBosYuvaDoldur(slots) {
+  const dolu = new Set(activePitchPlayers.map(e => e.slotIdx));
+  const sahada = new Set(activePitchPlayers.map(e => e.player));
+  let havuz = ROSTER_DATA.filter(p => p && !sahada.has(p)), doldu = 0;
+  slots.forEach((s, i) => {
+    if (dolu.has(i) || !havuz.length) return;
+    const r = (typeof _computeSmartLineup === 'function') ? _computeSmartLineup(havuz, [s], { skipBench: true }) : null;
+    const e = r && Array.isArray(r.lineup) ? r.lineup.find(x => x && x.slotIdx === 0) : null;
+    if (!e || !e.player) return;
+    activePitchPlayers.push({ rosterIdx: ROSTER_DATA.indexOf(e.player), slotIdx: i, pos: s.pos, s: s.s, x: s.x, y: s.y, player: e.player });
+    havuz = havuz.filter(p => p !== e.player); doldu++;
+  });
+  activePitchPlayers.sort((a, b) => a.slotIdx - b.slotIdx);
+  if (Array.isArray(benchPlayers)) benchPlayers = benchPlayers.filter(p => !activePitchPlayers.some(e => e.player === p));
+  return { doldu, kayip: _dzKayipIds.slice() };
+}
+// Doldurulan diziliş yalnız eksik oyuncuların gerçekten takımdan ayrıldığı doğrulanınca kaydedilir
+//   (bende eski kadro varsa önce yeni gelenler okunur, kaptanın dizilişi ezilmez)
+async function _dzEksikKaydet(kayip) {
+  try {
+    if (kayip && kayip.length && window.sb && _userTeam) {
+      const { data, error } = await window.sb.from('players').select('id')
+        .eq('country_code', _userTeam.countryCode).eq('team_name', _userTeam.teamName).in('id', kayip);
+      if (error) return;
+      if (Array.isArray(data) && data.length) { await _kadroUyelikEsitle(true); return; }
+    }
+    if (typeof _canManageSquad === 'function' && _canManageSquad()) saveTeamStrategy();
+  } catch (e) {}
+}
+
 function _teamChatSubscribe() {
   if (!window.sb || !_userTeam || !_userTeam.countryCode || !_userTeam.teamName) return;
   const newKey = _userTeam.countryCode + ':' + _userTeam.teamName;
@@ -50483,7 +50640,7 @@ function _teamChatSubscribe() {
       area.scrollTop = area.scrollHeight;
       // 🆕 Sistem mesajı (katılma/ayrılma) → kadroyu da ANINDA tazele (herkes güncel görsün, sayfa yenilemeden)
       if (m && typeof m.message === 'string' && m.message.indexOf('[[SYS]]') === 0) {
-        if (typeof rosterBuildTeam === 'function' && _userTeam && _userTeam.countryCode) { try{ rosterBuildTeam(_userTeam.countryCode); }catch(e){} }
+        if (_userTeam && _userTeam.countryCode) _kadroUyelikEsitle(true);   // 768 — yalnız yeni gelenler okunur
       }
   };
   _teamChatChannel = window.sb.channel('team_chat:' + newKey)
@@ -50499,6 +50656,7 @@ function _teamChatSubscribe() {
         if (data) _tcIsle({ new: data });
       }).catch((e) => console.warn('[team_chat] mesaj okunamadı:', e));
     })
+    .on('broadcast', { event: 'kadro' }, (msg) => { try { _kadroOlay(msg && msg.payload); } catch (e) {} })   // 768
     .subscribe((status) => {
       console.info('[team_chat] realtime status:', status, newKey);
     });
@@ -50636,12 +50794,16 @@ function loadTeamStrategy() {
     if (data.lineup && Array.isArray(data.lineup) && data.lineup.length >= 11 && typeof ROSTER_DATA !== 'undefined' && ROSTER_DATA.length) {
       const slots = FORMATIONS[currentFormation];
       if (slots) {
-        const restored = [];
+        const restored = [], _kullan = new Set();
+        _dzKayipIds = [];
         data.lineup.forEach(saved => {
-          const player = ROSTER_DATA.find(p => p && p.num === saved.num);
+          // 768 — kimlikle eşlenir (numara değişse de yerinde kalır); kimliksiz eski kayıtta numara
+          const player = saved.id ? ROSTER_DATA.find(p => p && p.id === saved.id) : ROSTER_DATA.find(p => p && p.num === saved.num);
           const _yer = _fy.yer(saved.slotIdx);
           const slot = slots[_yer];
-          if (player && slot) {
+          if (!player && saved.id) _dzKayipIds.push(saved.id);
+          if (player && slot && !_kullan.has(player)) {
+            _kullan.add(player);
             restored.push({
               rosterIdx: ROSTER_DATA.indexOf(player),
               slotIdx: _yer,
@@ -50660,11 +50822,11 @@ function loadTeamStrategy() {
     }
     // 🆕 Bench yükleme — saved bench num listesinden ROSTER_DATA referanslarına çevir
     if (Array.isArray(data.bench) && typeof ROSTER_DATA !== 'undefined' && ROSTER_DATA.length) {
-      const pitchNums = new Set((activePitchPlayers || []).map(e => e && e.player && e.player.num).filter(n => typeof n === 'number'));
+      const _sahada = new Set((activePitchPlayers || []).map(e => e && e.player));
+      const _yIds = Array.isArray(data.benchIds) ? data.benchIds : [];   // 768 — yedekler de kimlikle
       benchPlayers = data.bench
-        .filter(num => typeof num === 'number' && !pitchNums.has(num))
-        .map(num => ROSTER_DATA.find(p => p && p.num === num))
-        .filter(Boolean);
+        .map((num, i) => _yIds[i] ? ROSTER_DATA.find(p => p && p.id === _yIds[i]) : (typeof num === 'number' ? ROSTER_DATA.find(p => p && p.num === num) : null))
+        .filter((p, i, a) => p && !_sahada.has(p) && a.indexOf(p) === i);
     }
     applyStrategyToUI();   // 577 — yüklenen formasyon/strateji etikete ve çiplere yansısın (eskiden hiç çağrılmıyordu → hep 4-3-3 yazıyordu)
   } catch(e) {}
@@ -50737,13 +50899,14 @@ function saveTeamStrategy() {
       clearTimeout(_teamStrategySaveTimer);
       _teamStrategySaveTimer = setTimeout(async () => {
         try {
-          await window.sb.from('team_data').upsert({
+          const { error: _dzErr } = await window.sb.from('team_data').upsert({
             country_code: _userTeam.countryCode,
             team_name: _userTeam.teamName,
             data_key: 'strategy',
             data: payload,
             updated_at: new Date().toISOString()
           }, { onConflict: 'country_code,team_name,data_key' });
+          if (!_dzErr) _kadroDizilisYayinla(payload);   // 768
         } catch(e) { console.warn('[team_strategy] save hata:', e); }
       }, 500);
     }
@@ -50765,18 +50928,17 @@ function initFormation() {
   const slots = FORMATIONS[currentFormation];
 
   // 🆕 Eğer loadTeamStrategy KOMPLE (>= 11) bir lineup yüklediyse, onu koru
-  // Eksikse (< 11) → temizle, smart yerleştirmeye bırak
-  if (Array.isArray(activePitchPlayers) && activePitchPlayers.length >= 11) {
+  // 768 — eksikse (oyuncu ayrıldı) diğerleri yerinde kalır, yalnız boş yuvalar dolar
+  const _dzEksik = (Array.isArray(activePitchPlayers) && activePitchPlayers.length > 0 && activePitchPlayers.length < 11 && slots && typeof ROSTER_DATA !== 'undefined')
+    ? _dzBosYuvaDoldur(slots) : null;
+  if (Array.isArray(activePitchPlayers) && (activePitchPlayers.length >= 11 || _dzEksik)) {
     // Sahaya yerleşmiş oyuncuların num'leri
     const pitchNums = new Set(activePitchPlayers.map(e => e.player && e.player.num));
+    const _sahadaO = new Set(activePitchPlayers.map(e => e.player));
     // 🆕 Bench yüklendiyse koru (kullanıcı yönetiyor olabilir veya saved liste).
     // Sadece geçerli oyuncuları tut: kadrodaysa ve sahada değilse.
     if (Array.isArray(benchPlayers) && benchPlayers.length > 0) {
-      benchPlayers = benchPlayers.filter(p =>
-        p && typeof p.num === 'number' &&
-        !pitchNums.has(p.num) &&
-        ROSTER_DATA.some(r => r && r.num === p.num)
-      );
+      benchPlayers = benchPlayers.filter(p => p && !_sahadaO.has(p) && ROSTER_DATA.includes(p));   // 768 — aynı nesne (numara değişse de)
     }
     // 🆕 Kullanıcı bench'i yönetmiyorsa VE liste boşsa → default 7 yedek doldur
     // (kadro dışı kavramı: 7'den fazlası kadro dışı kalır)
@@ -50796,9 +50958,12 @@ function initFormation() {
     } catch(e) { console.warn('[dz] uygunsuz düzeltme hata:', e); }
     renderPitch();
     renderBench();
+    if (_dzEksik && _dzEksik.doldu) _dzEksikKaydet(_dzEksik.kayip);   // 768
     return;
   }
 
+  // 768 — kayıtlı diziliş var ama hiçbiri bu kadroda bulunamadıysa (eski kadro) üzerine yazılmaz
+  const _kayitliDz = !!(_teamStrategyCache && Array.isArray(_teamStrategyCache.lineup) && _teamStrategyCache.lineup.length >= 11);
   activePitchPlayers = [];
   benchPlayers = [];
 
@@ -50819,6 +50984,7 @@ function initFormation() {
     renderPitch();
     renderBench();
     // 🆕 Sadece kaptan/yardımcı kaydeder (üye otomatik dizilişi sunucuya yazıp kaptanınkini EZMESİN)
+    if (_kayitliDz) { _kadroUyelikEsitle(true); return; }   // 768 — kayıtlı diziliş korunur, kadro tazelenir
     if (typeof _canManageSquad === 'function' && _canManageSquad()) { try { saveTeamStrategy(); } catch(e){} }
     return;
   }
@@ -52030,13 +52196,15 @@ async function flushTeamStrategySave() {
     _teamStrategySaveTimer = null;
   }
   if (window.sb && _userTeam && _userTeam.countryCode && _userTeam.teamName && _teamStrategyCache) {
-    await window.sb.from('team_data').upsert({
+    const _kayit = _teamStrategyCache;
+    const { error: _dzErr } = await window.sb.from('team_data').upsert({
       country_code: _userTeam.countryCode,
       team_name: _userTeam.teamName,
       data_key: 'strategy',
-      data: _teamStrategyCache,
+      data: _kayit,
       updated_at: new Date().toISOString()
     }, { onConflict: 'country_code,team_name,data_key' });
+    if (!_dzErr) _kadroDizilisYayinla(_kayit);   // 768
   }
 }
 
@@ -70479,6 +70647,8 @@ async function confirmPosChange() {
       if (_up) { _up.pos = newGroup; _up.posGroup = newGroup; _up.subPos = newSub; }
     }
   } catch(e) {}
+
+  try { kadroYayin('oyuncu', ((typeof ROSTER_DATA !== 'undefined' && ROSTER_DATA.find(p => p && p.role === 'user')) || {}).id); } catch(e) {}   // 768 — mevki herkese
 
   // 🆕 players yazımı KALDIRILDI — yukarıdaki change_position aksiyonu
   //   pos, pos_group ve sub_pos'u service_role ile zaten yazdı. Buradaki
@@ -90423,7 +90593,7 @@ async function _rosterLiveSyncTick(){
     if (error || !Array.isArray(data)) return;
     const sig = data.length + '|' + data.filter(p=>p && !p.is_bot && p.user_id).map(p=>p.user_id).sort().join(',');
     if (sig !== _rosterCurrentSig()){
-      if (typeof rosterBuildTeam === 'function') rosterBuildTeam(_userTeam.countryCode);  // değişti → tek-kaynak tazele + render
+      _kadroUyelikEsitle(true);   // 768 — değişti → yalnız yeni gelenler okunur, diziliş korunur
     }
   }catch(e){}
 }
@@ -101990,6 +102160,24 @@ function konFisEkle(d, once) {
   window._mkAcilanMetin = acilanMetin;
   window._mevkiDoluMetin = doluMetin;
   window._mkTeklifEngel = teklifEngel;
+  // 768 — başvuru öncesi (sunucunun katılma kuralıyla aynı): gerçek oyuncu sınırı 14 + seviye; oyuncunun mevkisi doluysa
+  //   ve o mevkide yer açacak bot yoksa mevki dolu
+  window._mkBasvuruEngel = async function (cc, tn) {
+    if (!window.sb || typeof authUser === 'undefined' || !authUser || !authUser.id) return null;
+    const [k, t, b] = await Promise.all([
+      window.sb.from('players').select('pos_group, pos, is_bot, user_id').eq('country_code', cc).eq('team_name', tn),
+      window.sb.from('team_data').select('data').eq('country_code', cc).eq('team_name', tn).eq('data_key', 'facilities').maybeSingle(),
+      window.sb.from('players').select('pos_group, pos').eq('user_id', authUser.id).maybeSingle()]);
+    const kadro = k && k.data;
+    if (!Array.isArray(kadro) || !kadro.length) return null;
+    const lvl = sv(t && t.data && t.data.data && t.data.data.capacity);
+    const gercek = kadro.filter(p => p && !p.is_bot && p.user_id).length;
+    if (gercek >= 14 + lvl) return { tur: 'kadro', gercek, sinir: 14 + lvl };
+    const g = grup(b && b.data);
+    const ayni = kadro.filter(p => grup(p) === g);
+    if (b && b.data && ayni.length >= KOTA[g][lvl - 1] && !ayni.some(p => p.is_bot)) return { tur: 'mevki', metin: DOLU_METIN[g] };
+    return null;
+  };
 
   // Tesis seviyeleri sunucudan gelince hero yeniden çizilir
   const eskiFac = window._facLevelsLoadFromServer;
