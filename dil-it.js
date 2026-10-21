@@ -7418,3 +7418,9 @@ Object.assign(window.I18N.it, {
   "Süre 7 gün uzatıldı": "Esteso di 7 giorni",
   "Enerji slota takıldı": "Energia equipaggiata"
 });
+/* ─── 762 · Enerji ürün bilgisi ─── */
+Object.assign(window.I18N.it, {
+  "Antrenmanların daha kısa sürer": "I tuoi allenamenti durano meno",
+  "Antrenmandan kazandığın yetenek puanı artar": "Guadagni più punti abilità dall'allenamento",
+  "Antrenmandan kazandığın XP artar": "Guadagni più XP dall'allenamento"
+});
