@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '768';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '769';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -25635,7 +25635,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-21-kadro-768';
+const APP_BUILD = '2026-10-22-haber-769';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -40808,6 +40808,7 @@ function selectTeamFormation(fname) {
 // 747/752 — CSC NEWS: haberler sunucuda oyunun gerçek kayıtlarından üretilir (csc_haber_akisi)
 // ══════════════════════════════════════════════════════════
 let _cnVeri = null, _cnAt = 0, _cnSekme = 'ulusal', _cnYuk = null, _cnUlkeKod = null, _cnKaydir = 0;
+let _cnCizAt = 0, _cnCizBekle = false;   // 769 — son çizim zamanı, bekleyen yeniden çizim
 // 752 — çizilen sekmenin ekleri (röportaj, krallık, yarış…) ve röportaj sahneleri (id → jpeg, yalnız bellekte)
 let _cnEkler = null, _cnRop = [];
 const _cnSahne = {};
@@ -41062,11 +41063,6 @@ function _cnGuncel(liste) {
     kim.concat(isa).forEach(x => gor.add(x));
     return !eski;
   });
-}
-// Süre: sınırdan yeniler; hiç yoksa (yeni haber gelmediyse) son günün haberleri kalır. l: yeniden eskiye
-function _cnTaze(l, sinir) {
-  const t = l.filter(o => o.h.z > sinir);
-  return t.length ? t : l.filter(o => o.h.z > (l.length ? l[0].h.z : 0) - 864e5);
 }
 function _cnMansetHtml(h, x) {
   const sinif = x.bg.kupa ? ` kp cnb-${x.bg.kupa}` : x.bg.stad ? ' net' : ' rk';
@@ -41368,7 +41364,7 @@ function _cnYanVeriYukle() {
   isler.push(window.sb.rpc('turnuva_istatistik', { p_kupa: 'champ', p_sezon: getSeasonInfo().season }).then(({ data }) => { _cnKupaIstat = data || []; }));
   if (!_cnYarisHazir()) isler.push(_evRacePreloadServerLb());
   _cnYanYuk = Promise.all(isler).then(_cnYarisAvYukle);
-  _cnYanYuk.finally(() => setTimeout(() => { _cnYanYuk = null; }, 120000));
+  _cnYanYuk.catch(() => {}).finally(() => setTimeout(() => { _cnYanYuk = null; }, 120000));
   return _cnYanYuk;
 }
 function _cnSezonSonuHtml(s) {
@@ -41392,25 +41388,60 @@ function cnAc() {
   if (!geri) { _cnSekme = (_cnVeri && !_cnVeri.u) ? 'global' : 'ulusal'; _cnKaydir = 0; }
   _cnCiz();
   pg.scrollTop = geri ? _cnKaydir : 0;
-  if (_cnVeri && Date.now() - _cnAt < 120000) return;
-  if (_cnYuk) return;
-  _cnYuk = Promise.all([window.sb.rpc('csc_haber_akisi', { p_cc: _cnUlkeKod, p_milli: _cnMilliAd() }), _cnYanVeriYukle()]).then(([{ data, error }]) => {
-    _cnYuk = null;
+  _cnGetir();
+}
+// 769 — Haberler sunucudan: sayfa açılınca (1 dk'dan eskiyse), sayfa açıkken her dakika ve uygulamaya dönünce.
+//   Yeni haber geldiyse ekran, kaydırma yeri ve manşette bakılan kart korunarak yeniden çizilir.
+function _cnGetir() {
+  const pg = document.getElementById('page-news');
+  if (!pg || !window.sb || _cnYuk) return;
+  if (_cnVeri && Date.now() - _cnAt < 55000) return;
+  let yan = null;
+  try { yan = _cnYanVeriYukle().catch(() => {}); } catch (e) {}   // krallık / yarış verisi gelmese de haberler gelir
+  _cnYuk = Promise.all([window.sb.rpc('csc_haber_akisi', { p_cc: _cnUlkeKod, p_milli: _cnMilliAd() }), yan]).then(([{ data, error }]) => {
     if (error || !data) {
       const ic = pg.classList.contains('active') && !_cnVeri ? pg.querySelector('.cn-ic') : null;
       if (ic) ic.innerHTML = '<div class="cn-bos"><img src="csc-news-logo.webp?v=748" alt=""><span>Henüz haber yok</span></div>';
       return;
     }
-    const ilk = !_cnVeri;
+    const ilk = !_cnVeri, ayni = !ilk && JSON.stringify(data) === JSON.stringify(_cnVeri);
     _cnVeri = data; _cnAt = Date.now();
     if (ilk && !data.u && _cnSekme === 'ulusal') _cnSekme = 'global';
-    if (pg.classList.contains('active')) { const y = pg.scrollTop; _cnCiz(); pg.scrollTop = y; }
-  });
+    if (!ayni) _cnYerindeCiz();
+  }).catch(() => {}).finally(() => { _cnYuk = null; });
 }
+function _cnYerindeCiz() {
+  const pg = document.getElementById('page-news');
+  if (!pg || !pg.classList.contains('active')) return;
+  const k = pg.querySelector('.cn-kar-ic');
+  // Röportaj / kürsü açıkken ya da manşet kaydırılırken bekler, sonraki turda çizilir
+  if (document.getElementById('cnSh') || (k && (k._yk || k._ykAnim))) { _cnCizBekle = true; return; }
+  let i = 0;
+  try { if (k) i = _ykYakin(_ykKonumlar(k), k.scrollLeft); } catch (e) {}
+  const y = pg.scrollTop;
+  _cnCiz();
+  pg.scrollTop = y;
+  const k2 = pg.querySelector('.cn-kar-ic');
+  if (k2 && i > 0) { try { const kn = _ykKonumlar(k2); if (kn.length) { k2.scrollLeft = kn[Math.min(i, kn.length - 1)]; _cnKarNokta(k2); } } catch (e) {} }
+}
+setInterval(() => {
+  const pg = document.getElementById('page-news');
+  if (!pg || !pg.classList.contains('active') || document.hidden) return;
+  if (_cnCizBekle || Date.now() - _cnCizAt > 300000) _cnYerindeCiz();   // "x dk önce" yazıları ve süresi dolanlar
+  _cnGetir();
+}, 20000);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  const pg = document.getElementById('page-news');
+  if (!pg || !pg.classList.contains('active')) return;
+  if (Date.now() - _cnCizAt > 60000) _cnYerindeCiz();
+  _cnGetir();
+});
 function cnSekmeSec(s) { _cnSekme = s; _cnCiz(); document.getElementById('page-news').scrollTop = 0; }
 function _cnCiz() {
   const pg = document.getElementById('page-news');
   const info = getSeasonInfo();
+  _cnCizAt = Date.now(); _cnCizBekle = false;
   const ust = `<div class="cn-bas">
       <div class="cn-ust"><button class="cn-geri" onclick="goBackPage()" aria-label="Geri">${_CN_IK.geri}</button><img class="cn-logo" src="csc-news-logo.webp?v=748" alt="CSC News">
         <span class="cn-tarih"><b>${info.preSeason ? 'Sezon <span>Başlıyor</span>' : `Sezon <span>${info.season}</span> · Gün ${info.dayInSeason}`}</b><i>${_cnEsc(formatTrDate(new Date()))}</i></span></div>
@@ -41420,42 +41451,46 @@ function _cnCiz() {
   const ulusal = _cnSekme === 'ulusal';
   const blok = ulusal ? _cnVeri.u : _cnVeri.g;
   const ek = _cnEkler = (blok && blok.ek) || {};
-  _cnRop = _cnRopHazirla(ek.rop);
-  const liste = ((blok && blok.h) || []).map(h => ({ h, x: _cnHaber(h) })).filter(o => o.x);
+  // 769 — Haber ömrü 3 gün: son 24 saatin haberleri manşette, daha eskiler alt başlıklarda, 3 günü dolan gösterilmez
+  const simdi = Date.now(), birGun = simdi - 864e5, ucGun = simdi - 3 * 864e5, taze = z => Number(z) > ucGun;
+  _cnRop = _cnRopHazirla((ek.rop || []).filter(r => Number(r.z) > birGun));
+  const liste = ((blok && blok.h) || []).filter(h => taze(h.z)).map(h => ({ h, x: _cnHaber(h) })).filter(o => o.x);
   if (!liste.length && !(blok && blok.l && blok.l.length) && !Object.keys(ek).length) {
     pg.innerHTML = ust + `<div class="cn-ic"><div class="cn-bos"><img src="csc-news-logo.webp?v=748" alt=""><span>Henüz haber yok</span></div></div>`;
     return;
   }
-  // Manşet sırası: özel haber (kulüp satın alma) · milli takım · Avrupa (en önemli 2–3 haber tek tabloda) · lig · alt ligler · istatistik · röportajlar
-  // 754 — manşette 2 gün, altta 4 gün; aynı konuda yeni haber gelince eskisi kalkar, yeni haber gelmezse son haber kalır
-  const guncel = _cnGuncel(liste), simdi = Date.now();
-  const kul = new Set(), sl = [], ikiGun = simdi - 2 * 864e5, dortGun = simdi - 4 * 864e5;
+  // Manşet sırası (önem): özel haber (kulüp satın alma) · milli takım · Avrupa (en önemli 2–3 haber tek tabloda) · lig · alt ligler · istatistik · röportajlar
+  // 769 — manşette yalnız son 24 saatin haberleri; aynı konuda yeni haber gelince eskisi kalkar
+  const guncel = _cnGuncel(liste), yeni = o => o.h.z > birGun;
+  const kul = new Set(), sl = [];
   const ropKisi = new Set(_cnRop.map(o => o.r.ad + '|' + o.r.yt));
   const ropMu = o => (o.h.t === 'transfer' || o.h.t === 'imza') && ropKisi.has(o.h.ad + '|' + o.h.yt);
   const onemli = l => l.sort((a, b) => _cnOnem(b.h) - _cnOnem(a.h) || b.h.z - a.h.z);
-  // 755 — Özel haber (kulüp satın alma): manşette 1 gün (en fazla 3 kulüp tek manşette), sonra altta 2 gün
-  const birGun = simdi - 864e5, ucGun = simdi - 3 * 864e5;
-  const alimM = guncel.filter(o => o.h.t === 'alim' && o.h.z > birGun).slice(0, 3);
+  // 755 — Özel haber (kulüp satın alma): en fazla 3 kulüp tek manşette
+  const alimM = guncel.filter(o => o.h.t === 'alim' && yeni(o)).slice(0, 3);
   if (alimM.length) { sl.push(_cnAlimSlayt(alimM)); alimM.forEach(o => kul.add(o)); }
-  let milliO = onemli(_cnTaze(guncel.filter(o => o.x.ms && (o.h.t === 'milli' || o.h.k === 'enc')), ikiGun))[0];
-  if (milliO && ek.kura && milliO.h.z <= ikiGun && ek.kura.z > milliO.h.z) milliO = null;
-  const kuraSl = !milliO && !!ek.kura;
+  const kura = ek.kura && taze(ek.kura.z) ? ek.kura : null, kuraYeni = !!kura && kura.z > birGun;
+  let milliO = onemli(guncel.filter(o => o.x.ms && (o.h.t === 'milli' || o.h.k === 'enc') && yeni(o)))[0];
+  if (milliO && kuraYeni && kura.z > milliO.h.z) milliO = null;
+  const kuraSl = !milliO && kuraYeni;
   if (milliO) { sl.push(_cnMansetHtml(milliO.h, milliO.x)); kul.add(milliO); }
-  else if (kuraSl) sl.push(_cnKuraSlayt(ek.kura));
-  const av = onemli(_cnTaze(guncel.filter(o => (o.h.t === 'ko' || o.h.t === 'kupa') && o.h.k !== 'enc'), ikiGun)).slice(0, 3);
+  else if (kuraSl) sl.push(_cnKuraSlayt(kura));
+  const av = onemli(guncel.filter(o => (o.h.t === 'ko' || o.h.t === 'kupa') && o.h.k !== 'enc' && yeni(o))).slice(0, 3);
   if (av.length) { sl.push(av.length > 1 ? _cnAvrupaSlayt(av) : _cnMansetHtml(av[0].h, av[0].x)); av.forEach(o => kul.add(o)); }
   if (ulusal) {
-    const l = guncel.find(o => o.h.t === 'lider' || o.h.t === 'ligsamp');
+    const l = guncel.find(o => (o.h.t === 'lider' || o.h.t === 'ligsamp') && yeni(o));
     if (l) { sl.push(_cnMansetHtml(l.h, l.x)); kul.add(l); }
-  } else if (ek.lig) sl.push(_cnLigSlayt(ek.lig, true));
-  if (ulusal && ek.alt) sl.push(_cnLigSlayt(ek.alt, false));
+  } else if (ek.lig && ek.lig.z > birGun) sl.push(_cnLigSlayt(ek.lig, true));
+  if (ulusal && ek.alt && ek.alt.z > birGun) sl.push(_cnLigSlayt(ek.alt, false));
   const kral = _cnKralVeri();
   if (kral) sl.push(_cnKralSlayt(kral));
   _cnRop.forEach((_, i) => sl.push(_cnRopSlayt(i)));
+  // Son 24 saatte hiç manşet çıkmadıysa en yeni haber manşete çıkar
+  if (!sl.length) { const o = guncel.find(o => o.x.ms); if (o) { sl.push(_cnMansetHtml(o.h, o.x)); kul.add(o); } }
   // Bölümler (manşette olan ve röportajı yapılan transfer tekrar edilmez)
   const G = { avrupa: [], lig: [], milli: [], transfer: [], topluluk: [] };
   for (const o of guncel) {
-    if (kul.has(o) || (o.h.t === 'alim' && o.h.z <= ucGun)) continue;
+    if (kul.has(o)) continue;
     const t = o.h.t;
     if (t === 'ko' || t === 'kupa' || t === 'eslesme') (o.h.k === 'enc' ? G.milli : G.avrupa).push(o);
     else if (t === 'milli') G.milli.push(o);
@@ -41463,15 +41498,14 @@ function _cnCiz() {
     else if (t === 'fedbaskan' || t === 'fedsecim') G.topluluk.push(o);
     else if (!ropMu(o)) G.transfer.push(o);
   }
-  for (const b in G) G[b] = _cnTaze(G[b], dortGun);
   const yaris = _cnYarisVeri();
   const haberler = l => l.map(o => `<article class="cn-hb" onclick="_cnKaydirSakla();${o.x.git}">${o.x.r}<div class="cn-hb-m"><div class="cn-hb-ust">${_cnEtk(o.x.k)}<span class="cn-zm">${_cnZaman(o.h.z)}</span></div>
       <h3>${_cnEsc(o.x.b)}</h3><p>${o.x.a}</p></div></article>`).join('');
   const bolum = (ad, renk, ic) => ic ? `<section class="cn-bol"><div class="cn-bl" style="--b:${renk}"><h2>${ad}</h2></div>${ic}</section>` : '';
-  const govde = (ulusal && ek.ss ? bolum('SEZON SONU', _CN_KAT.sezon[1], _cnSezonSonuHtml(ek.ss)) : '')
+  const govde = (ulusal && ek.ss && taze(ek.ss.z) ? bolum('SEZON SONU', _CN_KAT.sezon[1], _cnSezonSonuHtml(ek.ss)) : '')
     + bolum('AVRUPA', '#60a5fa', haberler(G.avrupa))
     + (ulusal ? bolum(_cnEsc(_cnLigAd(_cnUlkeKod, 1)), '#22d3ee', haberler(G.lig)) : '')
-    + bolum('MİLLİ TAKIM', '#f87171', (ulusal && ek.kura && !kuraSl ? _cnKuraKart(ek.kura) : '') + haberler(G.milli))
+    + bolum('MİLLİ TAKIM', '#f87171', (ulusal && kura && !kuraSl ? _cnKuraKart(kura) : '') + haberler(G.milli))
     + bolum('TRANSFER', '#22c55e', haberler(G.transfer))
     + _cnListeHtml(blok.l)
     + bolum('TOPLULUK', '#fb7185', (yaris ? _cnYarisKart(yaris) : '') + haberler(G.topluluk));
