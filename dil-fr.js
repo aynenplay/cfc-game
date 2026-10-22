@@ -7517,3 +7517,7 @@ Object.assign(window.I18N.fr, {
   "En fazla 3 · başkan, kadrodan seçer": "3 au maximum · choisis par le président dans l'effectif",
   "Federasyon yardımcısı sayılmaz": "Ne compte pas comme adjoint de la fédération"
 });
+/* ─── 771 · Futbolcu Odası: Milli forma ─── */
+Object.assign(window.I18N.fr, {
+  "Milli": "Sélec."
+});

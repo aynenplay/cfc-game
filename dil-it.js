@@ -7455,3 +7455,7 @@ Object.assign(window.I18N.it, {
   "En fazla 3 · başkan, kadrodan seçer": "Massimo 3 · scelti dal presidente dalla rosa",
   "Federasyon yardımcısı sayılmaz": "Non conta come assistente della Federazione"
 });
+/* ─── 771 · Futbolcu Odası: Milli forma ─── */
+Object.assign(window.I18N.it, {
+  "Milli": "Naz."
+});

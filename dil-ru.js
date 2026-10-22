@@ -7489,3 +7489,7 @@ Object.assign(window.I18N.ru, {
   "En fazla 3 · başkan, kadrodan seçer": "Не более 3 · президент выбирает из состава",
   "Federasyon yardımcısı sayılmaz": "Не считается вице-президентом федерации"
 });
+/* ─── 771 · Futbolcu Odası: Milli forma ─── */
+Object.assign(window.I18N.ru, {
+  "Milli": "Сборн."
+});
