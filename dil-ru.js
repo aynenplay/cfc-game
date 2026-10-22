@@ -7509,3 +7509,13 @@ Object.assign(window.I18N.ru, {
   [/^(.+) milli takımına (\d+) yeni isim$/, m => "Сборная ($1): новые имена — $2".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))]
   );
 })();
+/* ─── 774 · Antrenman bitince bildirim ─── */
+Object.assign(window.I18N.ru, {
+  "Antrenman bitince": "Окончание тренировки"
+});
+(function () {
+  const _ad = x => (x != null && Object.prototype.hasOwnProperty.call(window.I18N.ru, x)) ? window.I18N.ru[x] : x;
+  window.I18N_PATTERNS.ru.unshift(
+  [/^(.+) antrenmanın bitti\. Puanlarını topla!$/, m => "Тренировка «$1» завершена. Забери очки!".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))]
+  );
+})();

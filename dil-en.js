@@ -7902,3 +7902,13 @@ Object.assign(window.I18N.en, {
   [/^(.+) milli takımına (\d+) yeni isim$/, m => "$2 new names in the $1 squad".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))]
   );
 })();
+/* ─── 774 · Antrenman bitince bildirim ─── */
+Object.assign(window.I18N.en, {
+  "Antrenman bitince": "Training finished"
+});
+(function () {
+  const _ad = x => (x != null && Object.prototype.hasOwnProperty.call(window.I18N.en, x)) ? window.I18N.en[x] : x;
+  window.I18N_PATTERNS.en.unshift(
+  [/^(.+) antrenmanın bitti\. Puanlarını topla!$/, m => "Your $1 training is done. Collect your points!".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))]
+  );
+})();

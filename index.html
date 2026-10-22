@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '773';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '774';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -25546,6 +25546,7 @@ body.pd-acik{overflow:hidden}
         <div class="setting-row"><span class="setting-label">Bildirimler</span><div class="toggle" id="set-toggle-bildirim" onclick="bldToggleAna(this)"></div></div>
         <div class="setting-row" id="set-row-bld-mac2" style="padding-left:18px"><span class="setting-label" style="color:var(--text2)">Maç başlangıcı (2 dk önce)</span><div class="toggle" id="set-toggle-bld-mac2" onclick="bldToggleTip('mac2')"></div></div>
         <div class="setting-row" id="set-row-bld-macSonu" style="padding-left:18px"><span class="setting-label" style="color:var(--text2)">Maç sonucu</span><div class="toggle" id="set-toggle-bld-macSonu" onclick="bldToggleTip('macSonu')"></div></div>
+        <div class="setting-row" id="set-row-bld-antrenman" style="padding-left:18px"><span class="setting-label" style="color:var(--text2)">Antrenman bitince</span><div class="toggle" id="set-toggle-bld-antrenman" onclick="bldToggleTip('antrenman')"></div></div>
         <div class="setting-row" id="set-row-bld-gunluk" style="padding-left:18px"><span class="setting-label" style="color:var(--text2)">Günlük giriş hediyesi</span><div class="toggle" id="set-toggle-bld-gunluk" onclick="bldToggleTip('gunluk')"></div></div>
         <div class="setting-row" id="set-row-bld-fedSecim" style="padding-left:18px"><span class="setting-label" style="color:var(--text2)">Federasyon seçimi</span><div class="toggle" id="set-toggle-bld-fedSecim" onclick="bldToggleTip('fedSecim')"></div></div>
         <div class="setting-row" id="set-row-bld-sezon" style="padding-left:18px"><span class="setting-label" style="color:var(--text2)">Yeni sezon ve fikstür</span><div class="toggle" id="set-toggle-bld-sezon" onclick="bldToggleTip('sezon')"></div></div>
@@ -25666,7 +25667,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-22-haber-773';
+const APP_BUILD = '2026-10-22-antrenman-774';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -43505,6 +43506,7 @@ function authInit(){
               _activeCache = serverActive;
               console.info('[ActiveTrainings] Server\'dan yüklendi:', serverActive.length);
             }
+            if (typeof _bldMacTara === 'function') _bldMacTara(true);   // 774
           } catch(e) { console.warn('[Skills/Active] cache hata:', e); }
 
 
@@ -44172,6 +44174,7 @@ function doLogin(){
         if (serverActive.length > 0) {
           _activeCache = serverActive;
         }
+        if (typeof _bldMacTara === 'function') _bldMacTara(true);   // 774
       } catch(e) { console.warn('[Login skills cache] hata:', e); }
 
       /* cft_auth localStorage kaldırıldı - sadece Supabase */
@@ -72599,11 +72602,11 @@ let _bldBasladi = false;
 
 // 🆕 540 — Bildirim türleri. Yeni tür eklemek: buraya bir satır + _bldPlanUret
 //   içine zamanını üreten küçük bir blok + ayarlar ekranına bir anahtar.
-const BLD_TIPLER = ['mac2','macSonu','gunluk','fedSecim','sezon','anlik'];
+const BLD_TIPLER = ['mac2','macSonu','gunluk','fedSecim','sezon','anlik','antrenman'];
 // 🔔 642 — telefon sunucu bildirimi alıyorsa bunlar sunucudan gelir (zamanında); yerelde planlanmaz
 const BLD_SUNUCU_TIPLER = ['mac2','macSonu','gunluk'];
 function _bldVarsayilan(){
-  return { acik:true, mac2:true, macSonu:true, gunluk:true, fedSecim:true, sezon:true, anlik:true };
+  return { acik:true, mac2:true, macSonu:true, gunluk:true, fedSecim:true, sezon:true, anlik:true, antrenman:true };
 }
 function _bldAyar(){
   try { return Object.assign(_bldVarsayilan(), JSON.parse(localStorage.getItem(BLD_ANAHTAR) || 'null') || {}); }
@@ -72704,6 +72707,15 @@ function _bldPlanUret(rows, takim){
     }
   } catch(e){}
 
+  // ── 774 — Antrenman bitişi ──
+  if (Array.isArray(_activeCache)) {
+    for (const a of _activeCache) {
+      if (!a || !a.id || !a.endTime) continue;
+      ekle('antrenman', a.id, Number(a.endTime), _bldT('Antrenman Tamamlandı!'),
+           _bldT((a.skillName || '') + ' antrenmanın bitti. Puanlarını topla!'));
+    }
+  }
+
   // ── Sezon takvimi: federasyon seçimi + yeni sezon ──
   try {
     if (typeof getSeasonInfo === 'function' && typeof _seasonRangeMs === 'function') {
@@ -72733,7 +72745,8 @@ async function _bldTemizle(){
   if (LN) {
     try {
       const p = await LN.getPending();
-      const eski = (p && p.notifications) || [];
+      const koru = !Array.isArray(_activeCache);   // 774
+      const eski = ((p && p.notifications) || []).filter(n => !(koru && n.extra && n.extra.tip === 'antrenman'));
       if (eski.length) await LN.cancel({ notifications: eski.map(n => ({ id: n.id })) });
     } catch(e){}
   }
@@ -72825,7 +72838,7 @@ async function _bldPlanla(rows, takim){
         channelId: BLD_KANAL,
         // smallIcon verilmedi → eklenti varsayılanı (uygulama ikonu) kullanılır.
         // res/drawable/ic_stat_icon.png eklersen burada belirtip kullanabilirsin.
-        extra: { tip: 'mac2', match_key: x.key }
+        extra: { tip: x.tip, match_key: x.key }
       })) });
     } catch(e){ console.warn('[bld] planlama hatası:', e && e.message); return 0; }
     console.info('[bld] ' + liste.length + ' maç hatırlatması planlandı (native)');
@@ -73001,8 +73014,9 @@ async function _bldBaslat(){
           description: _Tk('Maç başlamadan önce hatırlatma'), importance: 5, visibility: 1, vibration: true }); } catch(e){}
       }
       if (LN.addListener) {
-        try { LN.addListener('localNotificationActionPerformed', function(){
-          try { if (typeof showPage === 'function') showPage('home', null); } catch(e){}
+        try { LN.addListener('localNotificationActionPerformed', function(a){
+          const ex = (a && a.notification && a.notification.extra) || {};
+          try { if (ex.tip === 'antrenman') showPage('training', findNavBtn('training')); else if (typeof showPage === 'function') showPage('home', null); } catch(e){}
         }); } catch(e){}
       }
     }
@@ -83308,6 +83322,7 @@ async function trStartTraining() {
     _trSunucuEkle([r.entry]);
     trCloseModal();
     trRender();
+    _bldMacTara(true);   // 774
     return;
   }
   // Aktif listeye ekle

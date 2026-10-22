@@ -5837,3 +5837,13 @@ Object.assign(window.I18N.de, {
   [/^(.+) milli takımına (\d+) yeni isim$/, m => "$2 neue Namen im Kader von $1".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))]
   );
 })();
+/* ─── 774 · Antrenman bitince bildirim ─── */
+Object.assign(window.I18N.de, {
+  "Antrenman bitince": "Training beendet"
+});
+(function () {
+  const _ad = x => (x != null && Object.prototype.hasOwnProperty.call(window.I18N.de, x)) ? window.I18N.de[x] : x;
+  window.I18N_PATTERNS.de.unshift(
+  [/^(.+) antrenmanın bitti\. Puanlarını topla!$/, m => "Training „$1“ ist fertig. Hol dir deine Punkte!".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))]
+  );
+})();
