@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '771';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '772';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -25635,7 +25635,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-22-forma-771';
+const APP_BUILD = '2026-10-22-enerji-772';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -101722,8 +101722,8 @@ async function enjSatinAl() {
 function enjSlotlarCiz() {
   const bolum = document.getElementById('enjBolum'), el = document.getElementById('enjSlotlar'); if (!el) return;
   const ziyaret = typeof _eqIsVisitor === 'function' && _eqIsVisitor();
-  if (bolum) bolum.style.display = ziyaret ? 'none' : '';
-  if (ziyaret) return;
+  if (ziyaret) { _enjZiyaretCiz(bolum, el); return; }   // 772 — bakılan oyuncunun enerjileri (yalnız görünüm)
+  if (bolum) bolum.style.display = '';
   if (!_enjYuklendi) enjYukle();
   const dolu = Object.keys(ENJ_TUR).filter(t => _enjSlot(t)).length;
   const say = document.getElementById('enjSlotSay'); if (say) say.textContent = dolu + '/3';
@@ -101736,6 +101736,37 @@ function enjSlotlarCiz() {
         <div class="enj-s-etki" data-noi18n>${_enjSlotEtki(t)}</div>
         ${_enjSureBar(s)}
         <div class="enj-s-kalan${_enjAz(s) ? ' az' : ''}">${ENJ_IK.saat}<span data-noi18n>${enjKalanYazi(s.bitis)}</span></div></div>`;
+  }).join('');
+}
+// 772 — Ziyaretçi: bakılan oyuncunun kullandığı enerjiler. Bitiş süresi gösterilmez, dokunulmaz.
+//   Bot ya da kimliği olmayan oyuncuda bölüm görünmez. Sunucudan dakikada bir tazelenir.
+const _enjZiy = {};   // uid -> { veri, t, yuk }
+function _enjZiyaretUid() {
+  try { const p = _visitedPlayerData && _visitedPlayerData.player; return p && !p.isBot ? (p.userId || p.user_id || p.uid || null) : null; } catch (e) { return null; }
+}
+function _enjZiyaretYukle(uid) {
+  const o = _enjZiy[uid];
+  if (o && (o.yuk || Date.now() - o.t < 60000)) return;
+  _enjZiy[uid] = { veri: o ? o.veri : null, t: Date.now(), yuk: true };
+  window.sb.rpc('oyuncu_enerji_goster', { p_user: uid }).then(({ data, error }) => {
+    _enjZiy[uid] = { veri: error ? ((o && o.veri) || {}) : ((data && typeof data === 'object') ? data : {}), t: Date.now(), yuk: false };
+    if (_enjZiyaretUid() === uid) enjSlotlarCiz();
+  }, () => { _enjZiy[uid] = { veri: (o && o.veri) || {}, t: Date.now(), yuk: false }; });
+}
+function _enjZiyaretCiz(bolum, el) {
+  const uid = _enjZiyaretUid();
+  if (!uid || !window.sb) { if (bolum) bolum.style.display = 'none'; return; }
+  if (bolum) bolum.style.display = '';
+  _enjZiyaretYukle(uid);
+  const veri = _enjZiy[uid] && _enjZiy[uid].veri, geldi = !!veri;
+  const slot = t => { const v = veri && veri[t]; return v && enjUrun(v.id) ? v : null; };
+  const say = document.getElementById('enjSlotSay'); if (say) say.textContent = geldi ? Object.keys(ENJ_TUR).filter(slot).length + '/3' : '';
+  el.innerHTML = Object.keys(ENJ_TUR).map(t => {
+    const v = slot(t), u = v && enjUrun(v.id);
+    if (!u) return `<div class="enj-s bos ziy t-${t}"><span class="enj-s-tur">${ENJ_TUR[t].slot}</span><div class="enj-s-art bos">${ENJ_IK[t]}</div><div class="enj-s-ad">${geldi ? 'Boş' : '&nbsp;'}</div></div>`;
+    const y = Number(v.y) > 0 ? Number(v.y) : u.yuzde;
+    return `<div class="enj-s ziy r-${u.rar} t-${t}"><span class="enj-s-tur">${ENJ_TUR[t].slot}</span><div class="enj-s-art">${enjGorsel(u.id)}</div><div class="enj-s-ad">${u.model}</div>`
+      + `<div class="enj-s-etki" data-noi18n>${ENJ_TUR[t].isaret}${_enjYz(y)}</div></div>`;
   }).join('');
 }
 function enjMagazayaGit() { showPage('shop', (typeof findNavBtn === 'function') ? findNavBtn('shop') : null); shopTab('enerji'); }
@@ -106259,6 +106290,7 @@ function hmKaydirGec() {
 .enj-mu-kl.az{color:#ffab40}
 .kon-md-not .enj-not-alt{display:block;margin-top:4px;font-weight:600;opacity:.95}
 .enj-tc,.enj-s{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.enj-s.ziy{cursor:default}
 #enjTrSerit:empty{display:none}
 .enj-al{display:flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap}
 .enj-al-uz{display:grid;place-items:center}
