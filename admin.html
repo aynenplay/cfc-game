@@ -436,6 +436,16 @@
   .u-oz .bar{ grid-column:1/-1; height:6px; border-radius:3px; background:rgba(255,255,255,.06); overflow:hidden; margin-top:-4px; }
   .u-oz .bar b{ display:block; height:100%; border-radius:3px; background:var(--c); }
   .u-yes{ --c:#2ec36b; } .u-mav{ --c:#42a5f5; }
+  /* 780 — Uyruklar: dönem seçimi */
+  .u-don{ display:flex; flex-direction:column; gap:8px; }
+  .u-don .ak-cips{ grid-template-columns:repeat(4,1fr); }
+  .u-don-t{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .u-don-t .bcinp{ width:100%; min-width:0; height:36px; color-scheme:dark; }
+  .u-ar{ justify-self:end; min-width:40px; height:22px; padding:0 7px; border-radius:7px; display:inline-flex; align-items:center; justify-content:center;
+    font-family:var(--disp); font-size:13px; font-weight:900; background:rgba(255,213,79,.14); color:#ffd54f; box-shadow:inset 0 0 0 1px rgba(255,213,79,.3); }
+  .u-ar:empty{ background:none; box-shadow:none; }
+  .u-rk.art .r{ grid-template-columns:26px 30px 150px 1fr 34px 44px; }
+  .u-oz.art .s{ grid-template-columns:1fr 64px 44px 46px; }
   /* 689 — Kaptanlar / Aktiflik / Silinenler */
   .u-sar{ --c:#ffd54f; } .u-tur{ --c:#ff9f43; } .u-kir{ --c:#e23b5a; } .u-gri{ --c:#7a8494; }
   .u-sek button{ padding:0 4px; }
@@ -2634,7 +2644,7 @@ async function loadUsers(){
   if(!$('uList')) $('main').innerHTML='<div class="msg">Yükleniyor…</div>';
   const istek=++_uIstek;
   try{
-    if(!UDATA.pLoaded){ UDATA.tum=false; UDATA.uyruk=null; UDATA.pLoaded=true; }
+    if(!UDATA.pLoaded){ UDATA.tum=false; UDATA.uyruk=null; UDATA.gun=null; UDATA.pLoaded=true; }
     const q=(USTATE.search||'').trim();
     const [r,uy]=await Promise.all([
       api('list', Object.assign({ table:'admin_kullanici', orderBy:'created_at', orderDir:'desc', limit:USTATE.limit, offset:USTATE.offset }, q.length>=2?{ search:q, searchCol:'ara' }:{})),
@@ -2785,7 +2795,7 @@ function renderUsers(){
       <input id="uSval" placeholder="İsim / kullanıcı adı / e-posta (en az 2 harf)…" value="${uEsc(USTATE.search)}" autocomplete="off">
     </div>`;
   $('main').innerHTML = head + `<div class="u-sek fadein" id="uSek"><button data-s="liste">Liste</button><button data-s="uyruk">Uyruklar</button><button data-s="kaptan">Kaptanlar</button><button data-s="aktif">Aktiflik</button><button data-s="silinen">Silinenler</button><button data-s="engel">Engellenenler</button></div>`
-    + `<div class="u-oz fadein" id="uOz"></div><div class="u-list fadein" id="uList"></div><div id="uPage"></div><div class="u-rk fadein" id="uRk"></div><div class="fadein" id="uEk"></div>`;
+    + `<div class="ak-kart u-don fadein" id="uDon" style="display:none"></div><div class="u-oz fadein" id="uOz"></div><div class="u-list fadein" id="uList"></div><div id="uPage"></div><div class="u-rk fadein" id="uRk"></div><div class="fadein" id="uEk"></div>`;
   $('uBack').onclick=openDash;
   $('uSek').querySelectorAll('button').forEach(b=>b.onclick=()=>uSekme(b.dataset.s));
   const inp=$('uSval');
@@ -2818,17 +2828,73 @@ function uPaintList(){
   if(nx) nx.onclick=()=>{ USTATE.offset+=USTATE.limit; loadUsers(); };
   uUyrukCiz(); uSekme(USTATE.sekme);
 }
-// Uyruk özeti (32 ülke / harici) + uyruk sıralaması — tüm kullanıcılar üzerinden
+// 780 — Uyruklar dönemi: bugün (varsayılan) · bu ay · tüm zamanlar · özel tarih (Türkiye saatine göre gün)
+const UDON={ k:'bugun', bas:null, bit:null };
+const _uGunFmt=new Intl.DateTimeFormat('en-CA',{ timeZone:'Europe/Istanbul', year:'numeric', month:'2-digit', day:'2-digit' });
+function uIstGun(ms){ return _uGunFmt.format(new Date(ms==null?Date.now():ms)); }
+function uDonAra(k){
+  const bugun=uIstGun();
+  if(k==='bugun') return [bugun,bugun];
+  if(k==='ay') return [bugun.slice(0,8)+'01',bugun];
+  if(k==='ozel'){
+    if(!UDON.bas){ UDON.bas=uIstGun(Date.now()-6*86400000); UDON.bit=bugun; }
+    return UDON.bas<=UDON.bit?[UDON.bas,UDON.bit]:[UDON.bit,UDON.bas];
+  }
+  return null;
+}
+// Günlük sayım en yeni günden geriye okunur; istenen ilk güne varınca durur (daha önce okunan yeterliyse istek yok)
+let _uGunYuk=null;
+function uGunYukle(bas){
+  const G=UDATA.gun;
+  if(G && (G.tam || G.bas<=bas)) return Promise.resolve(G);
+  if(_uGunYuk) return _uGunYuk.then(()=>uGunYukle(bas));
+  _uGunYuk=apiTum({ table:'admin_uyruk_gun', orderBy:'k', orderDir:'desc', sayim:'yok' }, rows=>rows.some(x=>x.gun<bas))
+    .then(r=>{ UDATA.gun={ rows:r.rows, bas, tam:!r.rows.some(x=>x.gun<bas) }; return UDATA.gun; })
+    .finally(()=>{ _uGunYuk=null; });
+  return _uGunYuk;
+}
+function uDonSay(k){   // [{cc,n}] · null: henüz okunmadı
+  if(k==='tum') return UDATA.uyruk||[];
+  const G=UDATA.gun, a=uDonAra(k); if(!G || G.bas>a[0] && !G.tam) return null;
+  const say={}; G.rows.forEach(x=>{ if(x.gun>=a[0] && x.gun<=a[1]) say[x.cc]=(say[x.cc]||0)+(Number(x.n)||0); });
+  return Object.keys(say).map(cc=>({ cc, n:say[cc] }));
+}
+function uDonCiz(){
+  const el=$('uDon'); if(!el) return;
+  const top=k=>{ const L=uDonSay(k); return L?L.reduce((t,x)=>t+x.n,0):'…'; };
+  const D=[['bugun','Bugün'],['ay','Bu ay'],['tum','Tüm zamanlar'],['ozel','Özel tarih']];
+  const a=UDON.k==='ozel'?uDonAra('ozel'):null;
+  el.innerHTML=`<div class="ak-cips">${D.map(([k,ad])=>`<button class="ak-cip u-sar${UDON.k===k?' on':''}" data-d="${k}"><em>${top(k)}</em><span>${ad}</span></button>`).join('')}</div>`
+    + (a?`<div class="u-don-t"><input type="date" class="bcinp" id="uDonBas" value="${a[0]}" max="${uIstGun()}"><input type="date" class="bcinp" id="uDonBit" value="${a[1]}" max="${uIstGun()}"></div>`:'');
+  el.querySelectorAll('.ak-cip[data-d]').forEach(b=>b.onclick=()=>{ UDON.k=b.dataset.d; uDonYenile(); });
+  const db=$('uDonBas'), dt=$('uDonBit');
+  if(db) db.onchange=()=>{ if(db.value){ UDON.bas=db.value; uDonYenile(); } };
+  if(dt) dt.onchange=()=>{ if(dt.value){ UDON.bit=dt.value; uDonYenile(); } };
+}
+function uDonYenile(){
+  uDonCiz(); uUyrukCiz();
+  const ay=uDonAra('ay')[0], oz=UDON.k==='ozel'?uDonAra('ozel')[0]:ay;
+  const bas=oz<ay?oz:ay;
+  if(UDATA.gun && (UDATA.gun.tam || UDATA.gun.bas<=bas)) return;
+  uGunYukle(bas).then(()=>{ if(USTATE.sekme==='uyruk' && CUR==='__users__'){ uDonCiz(); uUyrukCiz(); } })
+    .catch(e=>{ const rk=$('uRk'); if(rk && USTATE.sekme==='uyruk') rk.innerHTML='<div class="msg err">'+uEsc(e.message)+'</div>'; });
+}
+// Uyruk özeti (32 ülke / harici) + uyruk sıralaması — tüm zamanlar; Uyruklar'da yanında seçilen dönemin kaydı (+12)
 function uUyrukCiz(){
   const oz=$('uOz'), rk=$('uRk'); if(!oz||!rk) return;
   const say={}; let oyun=0, top=0;
   (UDATA.uyruk||[]).forEach(x=>{ const n=Number(x.n)||0, cc=String(x.cc||'').toUpperCase(); top+=n; if(!cc) return; say[cc]=(say[cc]||0)+n; if(OYUN_CC.has(cc)) oyun+=n; });
+  const don=USTATE.sekme==='uyruk' && UDON.k!=='tum', ek=don?uDonSay(UDON.k):null;
+  const art={}; let aOyun=0, aTop=0;
+  (ek||[]).forEach(x=>{ const n=Number(x.n)||0, cc=String(x.cc||'').toUpperCase(); aTop+=n; if(!cc) return; art[cc]=(art[cc]||0)+n; if(OYUN_CC.has(cc)) aOyun+=n; });
+  const ar=n=>don?`<span class="u-ar">${ek?(n?'+'+n:''):'…'}</span>`:'';
   const haric=top-oyun, yuz=n=>top?Math.round(n/top*100):0;
-  const satir=(cls,ad,n)=>`<div class="s ${cls}"><div class="l"><i></i>${ad}</div><div class="n">${n}</div><div class="p">%${yuz(n)}</div><div class="bar"><b style="width:${yuz(n)}%"></b></div></div>`;
-  oz.innerHTML=satir('u-yes','32 ülke uyruklu',oyun)+satir('u-mav','Harici uyruk',haric);
+  const satir=(cls,ad,n,a)=>`<div class="s ${cls}"><div class="l"><i></i>${ad}</div><div class="n">${n}</div>${ar(a)}<div class="p">%${yuz(n)}</div><div class="bar"><b style="width:${yuz(n)}%"></b></div></div>`;
+  oz.classList.toggle('art',don); rk.classList.toggle('art',don);
+  oz.innerHTML=satir('u-yes','32 ülke uyruklu',oyun,aOyun)+satir('u-mav','Harici uyruk',haric,aTop-aOyun);
   const L=Object.keys(say).map(cc=>({ cc, n:say[cc], ad:CC_NAME[cc]||cc })).sort((a,b)=>b.n-a.n||a.ad.localeCompare(b.ad,'tr'));
   const max=L.length?L[0].n:1;
-  rk.innerHTML=L.length?L.map((x,i)=>`<div class="r ${OYUN_CC.has(x.cc)?'u-yes':'u-mav'}"><span class="rk${i<3?' g'+(i+1):''}">${i+1}</span><span class="bay">${ccFlag(x.cc)}</span><span class="ad">${uEsc(x.ad)}<small>${uEsc(x.cc)}</small></span><span class="cb"><b style="width:${Math.max(4,x.n/max*100)}%"></b></span><span class="say">${x.n}</span></div>`).join('')
+  rk.innerHTML=L.length?L.map((x,i)=>`<div class="r ${OYUN_CC.has(x.cc)?'u-yes':'u-mav'}"><span class="rk${i<3?' g'+(i+1):''}">${i+1}</span><span class="bay">${ccFlag(x.cc)}</span><span class="ad">${uEsc(x.ad)}<small>${uEsc(x.cc)}</small></span><span class="cb"><b style="width:${Math.max(4,x.n/max*100)}%"></b></span><span class="say">${x.n}</span>${ar(art[x.cc]||0)}</div>`).join('')
     :'<div class="msg">Kayıt yok.</div>';
 }
 function uSekme(t){
@@ -2838,6 +2904,8 @@ function uSekme(t){
   $('uList').style.display=$('uPage').style.display=(t==='liste')?'':'none';
   $('uRk').style.display=(t==='uyruk')?'':'none';
   $('uOz').style.display=(t==='liste'||t==='uyruk')?'':'none';
+  $('uDon').style.display=(t==='uyruk')?'':'none';
+  if(t==='uyruk') uDonYenile(); else if(t==='liste') uUyrukCiz();
   const ek=$('uEk'); ek.style.display=(t==='kaptan'||t==='aktif'||t==='silinen'||t==='engel')?'':'none';
   if((t==='kaptan'||t==='aktif'||t==='engel') && !UDATA.tum){
     ek.innerHTML='<div class="msg">Yükleniyor…</div>';
