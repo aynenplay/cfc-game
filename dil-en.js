@@ -7912,3 +7912,14 @@ Object.assign(window.I18N.en, {
   [/^(.+) antrenmanın bitti\. Puanlarını topla!$/, m => "Your $1 training is done. Collect your points!".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))]
   );
 })();
+/* ─── 776 · CSC News: canlı maçlar ─── */
+Object.assign(window.I18N.en, {
+  "İY": "HT",
+  "ELİ": "ELI"
+});
+(function () {
+  const _ad = x => (x != null && Object.prototype.hasOwnProperty.call(window.I18N.en, x)) ? window.I18N.en[x] : x;
+  window.I18N_PATTERNS.en.unshift(
+  [/^UZT (\d+)'$/, m => "ET $1'".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))]
+  );
+})();

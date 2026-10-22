@@ -7485,3 +7485,14 @@ Object.assign(window.I18N.it, {
   [/^(.+) antrenmanın bitti\. Puanlarını topla!$/, m => "Il tuo allenamento di $1 è finito. Raccogli i punti!".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))]
   );
 })();
+/* ─── 776 · CSC News: canlı maçlar ─── */
+Object.assign(window.I18N.it, {
+  "İY": "INT",
+  "ELİ": "ELI"
+});
+(function () {
+  const _ad = x => (x != null && Object.prototype.hasOwnProperty.call(window.I18N.it, x)) ? window.I18N.it[x] : x;
+  window.I18N_PATTERNS.it.unshift(
+  [/^UZT (\d+)'$/, m => "SUPPL $1'".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))]
+  );
+})();
