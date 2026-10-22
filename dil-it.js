@@ -7496,3 +7496,7 @@ Object.assign(window.I18N.it, {
   [/^UZT (\d+)'$/, m => "SUPPL $1'".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))]
   );
 })();
+/* ─── 778 · Toplu antrenman bildirimi ─── */
+window.I18N_PATTERNS.it.unshift(
+  [/^(\d+) antrenmanın bitti\. Puanlarını topla!$/, m => "$1 allenamenti sono finiti. Raccogli i punti!".replace(/\$(\d)/g, (_, n) => m[+n])]
+);

@@ -7923,3 +7923,7 @@ Object.assign(window.I18N.en, {
   [/^UZT (\d+)'$/, m => "ET $1'".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))]
   );
 })();
+/* ─── 778 · Toplu antrenman bildirimi ─── */
+window.I18N_PATTERNS.en.unshift(
+  [/^(\d+) antrenmanın bitti\. Puanlarını topla!$/, m => "$1 trainings are done. Collect your points!".replace(/\$(\d)/g, (_, n) => m[+n])]
+);

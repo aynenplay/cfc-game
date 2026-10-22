@@ -7530,3 +7530,7 @@ Object.assign(window.I18N.ru, {
   [/^UZT (\d+)'$/, m => "ДВ $1'".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))]
   );
 })();
+/* ─── 778 · Toplu antrenman bildirimi ─── */
+window.I18N_PATTERNS.ru.unshift(
+  [/^(\d+) antrenmanın bitti\. Puanlarını topla!$/, m => "Тренировок завершено: $1. Забери очки!".replace(/\$(\d)/g, (_, n) => m[+n])]
+);
