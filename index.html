@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '769';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '770';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -25635,7 +25635,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-22-haber-769';
+const APP_BUILD = '2026-10-22-sohbet-770';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -44487,6 +44487,7 @@ function _buildRosterFromPlayers(playersList, countryCode) {
       avatar_id: p.avatar_id || null,
       gender: p.gender || null,
       contract: (p.user_team_data && typeof p.user_team_data === 'object' && p.user_team_data.contract) || null,   // 698
+      joinedAt: (p.user_team_data && typeof p.user_team_data === 'object' && Number(p.user_team_data.joinedAt)) || null,   // 770
       role: isMe ? 'user' : (p.role || 'member'),
       isUser: isMe,                     // Maç motoru için tutarlı flag
       isBot: !!p.is_bot,
@@ -50325,7 +50326,7 @@ function _teamChatAppendMsg(area, m, isMe) {
   if (isMe) {
     msg.textContent = modFiltre(m.message);
   } else {
-    msg.innerHTML = '<div class="chat-sender">' + _teamChatEscape(sender) + (time ? ' · ' + time : '') + '</div>' + _teamChatEscape(modFiltre(m.message));
+    msg.innerHTML = '<div class="chat-sender" style="color:' + _sohbetRenkVer(area, m.user_id || sender) + '">' + _teamChatEscape(sender) + (time ? ' · ' + time : '') + '</div>' + _teamChatEscape(modFiltre(m.message));
     if (m.user_id) {
       msg.classList.add('mod-bt');
       _modBasiliTut(msg, () => modMenuAc(_modKayit({ tur: 'sohbet', hedef: m.user_id, ad: sender, icerikId: m.created_at, icerik: m.message })));
@@ -50334,6 +50335,28 @@ function _teamChatAppendMsg(area, m, isMe) {
   area.appendChild(msg);
 }
 
+// 770 — sohbette oyuncu adı rengi. Her oyuncu kimliğine göre bir renk ister; o renk bu sohbette
+//   alınmışsa sıradaki boş renge geçer. Takım sohbetinde dağıtım katılış sırasıyla yapılır.
+const _SOHBET_AD_RENK = ['#ff6b6b', '#4dd8e6', '#ffa94d', '#b18cff', '#ff7bc5', '#5c9dff', '#d9a679', '#ffd166'];   // birbirinden kolay ayrılan 8 renk
+function _sohbetHash(s) { let h = 2166136261; for (const ch of String(s || '')) { h ^= ch.codePointAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+function _sohbetRenkVer(area, anahtar) {
+  const N = _SOHBET_AD_RENK.length;
+  const r = area._adRenk || (area._adRenk = { harita: new Map(), dolu: new Set() });
+  if (r.harita.has(anahtar)) return r.harita.get(anahtar);
+  if (r.dolu.size >= N) r.dolu.clear();
+  let i = _sohbetHash(anahtar) % N;
+  while (r.dolu.has(i)) i = (i + 1) % N;
+  r.dolu.add(i); r.harita.set(anahtar, _SOHBET_AD_RENK[i]);
+  return _SOHBET_AD_RENK[i];
+}
+// Takım sohbeti: kadrodaki gerçek oyuncular katılış sırasıyla (yoksa forma numarası) renk alır
+function _sohbetTakimRenkleri(area) {
+  area._adRenk = null;
+  if (typeof ROSTER_DATA === 'undefined' || !Array.isArray(ROSTER_DATA)) return;
+  ROSTER_DATA.filter(p => p && !p.isBot && p.userId)
+    .sort((a, b) => (a.joinedAt || 9e15) - (b.joinedAt || 9e15) || (a.num || 999) - (b.num || 999) || String(a.userId).localeCompare(String(b.userId)))
+    .forEach(p => _sohbetRenkVer(area, p.userId));
+}
 function _teamChatEscape(s) {
   return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
@@ -50356,6 +50379,7 @@ async function _teamChatLoadAndRender() {
     if (error) { console.warn('[team_chat] load hata:', error); return; }
     const myId = (typeof authUser !== 'undefined' && authUser) ? authUser.id : null;
     area.innerHTML = '';
+    _sohbetTakimRenkleri(area);   // 770
     // Sondan başlayıp (en yeni) tersine işle: ekrana en eski üstte, yeni altta gelsin
     const msgs = (data || []).slice().reverse();
     for (const m of msgs) {
@@ -56394,6 +56418,7 @@ async function _ntChatYukleVeCiz() {
     if (error) { console.warn('[nt_chat] okuma hata:', error.message || error); return; }
     const myId = (typeof authUser !== 'undefined' && authUser) ? authUser.id : null;
     area.innerHTML = '';
+    area._adRenk = null;   // 770
     const msgs = (data || []).slice().reverse();
     if (!msgs.length) {
       area.innerHTML = '<div style="padding:18px 10px;text-align:center;color:var(--text3);font-size:11.5px">'
