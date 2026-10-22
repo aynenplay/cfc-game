@@ -7459,3 +7459,19 @@ Object.assign(window.I18N.it, {
 Object.assign(window.I18N.it, {
   "Milli": "Naz."
 });
+/* ─── 773 · CSC News: milli takıma çağrılanlar ─── */
+Object.assign(window.I18N.it, {
+  "Milli takım kadrosu": "Convocati della Nazionale",
+  "Milli takımlar": "Nazionali"
+});
+(function () {
+  const _ad = x => (x != null && Object.prototype.hasOwnProperty.call(window.I18N.it, x)) ? window.I18N.it[x] : x;
+  window.I18N_PATTERNS.it.unshift(
+  [/^(.+) ve (.+) milli takıma çağrıldı$/, m => "Convocazione in Nazionale per $1 e $2".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+), (.+) milli takımına çağrıldı$/, m => "$2 convoca $1".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+) milli takıma çağrıldı$/, m => "Convocazione in Nazionale per $1".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^Milli takıma (\d+) yeni isim$/, m => "$1 volti nuovi in Nazionale".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^Milli takımlara (\d+) yeni isim$/, m => "$1 volti nuovi nelle Nazionali".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+) milli takımına (\d+) yeni isim$/, m => "$2 volti nuovi nella Nazionale ($1)".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))]
+  );
+})();

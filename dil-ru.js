@@ -7493,3 +7493,19 @@ Object.assign(window.I18N.ru, {
 Object.assign(window.I18N.ru, {
   "Milli": "Сборн."
 });
+/* ─── 773 · CSC News: milli takıma çağrılanlar ─── */
+Object.assign(window.I18N.ru, {
+  "Milli takım kadrosu": "Состав сборной",
+  "Milli takımlar": "Сборные"
+});
+(function () {
+  const _ad = x => (x != null && Object.prototype.hasOwnProperty.call(window.I18N.ru, x)) ? window.I18N.ru[x] : x;
+  window.I18N_PATTERNS.ru.unshift(
+  [/^(.+) ve (.+) milli takıma çağrıldı$/, m => "$1 и $2 — вызов в сборную".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+), (.+) milli takımına çağrıldı$/, m => "$1 — вызов в сборную ($2)".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+) milli takıma çağrıldı$/, m => "$1 — вызов в сборную".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^Milli takıma (\d+) yeni isim$/, m => "В сборной новые имена: $1".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^Milli takımlara (\d+) yeni isim$/, m => "В сборных новые имена: $1".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+) milli takımına (\d+) yeni isim$/, m => "Сборная ($1): новые имена — $2".replace(/\$(\d)/g, (_, n) => _ad(m[+n]))]
+  );
+})();
