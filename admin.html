@@ -2120,7 +2120,7 @@ const CHEV = '<svg class="chev" viewBox="0 0 24 24" width="13" height="13" fill=
 function buildNav() {
   const mapped = new Set();
   NAV.forEach(c => c.tables.forEach(t => mapped.add(t)));
-  ['profiles','user_player','user_wallet','teams','team_data','team_chat','players','federation_state','site_ayar'].forEach(t => mapped.add(t)); // konsolide sayfalar
+  ['profiles','user_player','user_wallet','teams','team_data','team_chat','players','federation_state','site_ayar','admin_kullanici','admin_uyruk_sayim'].forEach(t => mapped.add(t)); // konsolide sayfalar
   const cats = NAV.slice();
   const others = Object.keys(META).filter(t => !mapped.has(t)).sort();
   if (others.length) cats.push({ cat:'DİĞER', tables:others });
@@ -2608,10 +2608,10 @@ async function delRow(row) {
 }
 
 // ===== KULLANICILAR — tek sayfa (profil + oyuncu + cüzdan) =====
-let USTATE={ offset:0, limit:30, search:'', searchCol:'', sekme:'liste' };
+let USTATE={ offset:0, limit:20, search:'', searchCol:'', sekme:'liste' };
 // Oyundaki 32 ülke (federasyon ülkeleri)
 const OYUN_CC=new Set(['AL','AT','AZ','BE','BG','CH','CZ','DE','DK','EN','ES','FI','FR','GR','HR','HU','IE','IL','IT','KZ','NL','NO','PL','PT','RO','RS','RU','SC','SE','SK','TR','UA']);
-let UDATA={ all:[], rows:[], count:0, plMap:{}, pMap:{}, wMap:{}, pLoaded:false };
+let UDATA={ all:[], rows:[], count:0, plMap:{}, pMap:{}, wMap:{}, pLoaded:false, tum:false, uyruk:null };
 const uEsc = v => (v==null?'':String(v)).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const uUid = p => p.user_id || p.id;
 function uTextCols(){
@@ -2620,43 +2620,51 @@ function uTextCols(){
   return pref.length?pref:(cols.length?cols:['email']);
 }
 async function openUsers(){
-  CUR='__users__'; USTATE={ offset:0, limit:30, search:'', searchCol:'', sekme:'liste' }; UDATA.pLoaded=false; UDATA.sozlesme=null; UDATA.silinen=null; AK_SEC=null; AK_OFS=0;
+  CUR='__users__'; USTATE={ offset:0, limit:20, search:'', searchCol:'', sekme:'liste' }; UDATA.pLoaded=false; UDATA.sozlesme=null; UDATA.silinen=null; AK_SEC=null; AK_OFS=0;
   $('dashBtn').classList.remove('active');
   $('nav').querySelectorAll('.sub').forEach(b=>b.classList.toggle('active', b.dataset.t==='__users__'));
   const act=$('nav').querySelector('.sub.active'); if(act) act.closest('.cat').classList.add('open');
   document.body.classList.remove('navopen');
   await loadUsers();
 }
-function uApplyFilter(){
-  const q=(USTATE.search||'').trim().toLowerCase();
-  if(q && q.length>=2){
-    const rows=UDATA.all.filter(p=>(((p.name||'')+' '+(p.username||'')).toLowerCase().indexOf(q)>=0));
-    UDATA.count=rows.length; UDATA.rows=rows.slice(0,300);
-  } else {
-    UDATA.count=UDATA.all.length; UDATA.rows=UDATA.all.slice(USTATE.offset, USTATE.offset+USTATE.limit);
-  }
-}
+// 775 — Liste sunucudan sayfa sayfa: en yeni kayıt üstte, 20'şer; profil + oyuncu + oyuncu verisi + cüzdan + e-posta tek istekte.
+//   Arama sunucuda (isim, kullanıcı adı, e-posta; en az 2 harf). pLoaded=false → tüm kullanıcı verisi ve uyruk sayımı tazelenir.
+let _uIstek=0;
 async function loadUsers(){
   if(!$('uList')) $('main').innerHTML='<div class="msg">Yükleniyor…</div>';
+  const istek=++_uIstek;
   try{
-    if(!UDATA.pLoaded){
-      const [pf,pl,up,wl]=await Promise.all([
-        apiTum({ table:'profiles', orderBy:'id', orderDir:'asc' }),
-        apiTum({ table:'players', orderBy:'user_id', orderDir:'asc' }, _gercekBitti).catch(()=>({rows:[]})),
-        apiTum({ table:'user_player', orderBy:'user_id', orderDir:'asc' }).catch(()=>({rows:[]})),
-        apiTum({ table:'user_wallet', orderBy:'user_id', orderDir:'asc' }).catch(()=>({rows:[]}))
-      ]);
-      UDATA.all=pf.rows||[];
-      const ep=await api('eposta',{}).catch(()=>null);
-      if(ep&&ep.eposta) UDATA.all.forEach(p=>{ const e=ep.eposta[uUid(p)]; if(e) p.email=e; });
-      UDATA.plMap={}; (pl.rows||[]).forEach(x=>{ if(x.user_id!=null) UDATA.plMap[x.user_id]=x; });
-      UDATA.pMap={};  (up.rows||[]).forEach(x=>{ if(x.user_id!=null) UDATA.pMap[x.user_id]=x; });
-      UDATA.wMap={};  (wl.rows||[]).forEach(x=>{ if(x.user_id!=null) UDATA.wMap[x.user_id]=x; });
-      UDATA.pLoaded=true;
-    }
-    uApplyFilter();
+    if(!UDATA.pLoaded){ UDATA.tum=false; UDATA.uyruk=null; UDATA.pLoaded=true; }
+    const q=(USTATE.search||'').trim();
+    const [r,uy]=await Promise.all([
+      api('list', Object.assign({ table:'admin_kullanici', orderBy:'created_at', orderDir:'desc', limit:USTATE.limit, offset:USTATE.offset }, q.length>=2?{ search:q, searchCol:'ara' }:{})),
+      UDATA.uyruk?null:api('list',{ table:'admin_uyruk_sayim', orderBy:'n', orderDir:'desc', limit:1000, sayim:'yok' }).catch(()=>null)
+    ]);
+    if(istek!==_uIstek) return;   // yazarken gelen eski cevap yenisini ezmesin
+    if(uy) UDATA.uyruk=uy.rows||[];
+    UDATA.count=r.count||0;
+    UDATA.rows=(r.rows||[]).map(x=>{
+      const p=x.p||{}, id=uUid(p);
+      if(x.email) p.email=x.email;
+      if(x.pl) UDATA.plMap[id]=x.pl; if(x.up) UDATA.pMap[id]=x.up; if(x.w) UDATA.wMap[id]=x.w;
+      return p;
+    });
     if($('uList') && $('uSval')) uPaintList(); else renderUsers();
-  }catch(e){ $('main').innerHTML='<div class="msg err">'+uEsc(e.message)+'</div>'; }
+  }catch(e){ if(istek===_uIstek) $('main').innerHTML='<div class="msg err">'+uEsc(e.message)+'</div>'; }
+}
+// Kaptanlar / Aktiflik / Engelliler: bütün kullanıcılar ve oyuncu kayıtları (yalnız bu sekmeler açılınca)
+let _uTumYuk=null;
+function uTumYukle(){
+  if(_uTumYuk) return _uTumYuk;
+  _uTumYuk=Promise.all([
+    apiTum({ table:'profiles', orderBy:'id', orderDir:'asc' }),
+    apiTum({ table:'players', orderBy:'user_id', orderDir:'asc' }, _gercekBitti).catch(()=>({rows:[]}))
+  ]).then(([pf,pl])=>{
+    UDATA.all=pf.rows||[];
+    (pl.rows||[]).forEach(x=>{ if(x.user_id!=null) UDATA.plMap[x.user_id]=x; });
+    UDATA.tum=true;
+  }).finally(()=>{ _uTumYuk=null; });
+  return _uTumYuk;
 }
 function uPlayerBits(pl, up){
   if(!pl && !up) return null;
@@ -2774,7 +2782,7 @@ function renderUsers(){
       <h2>Kullanıcılar</h2>
       <span class="cnt" id="uCnt">${UDATA.count} kullanıcı</span>
       <div class="sp"></div>
-      <input id="uSval" placeholder="İsim / kullanıcı adı (en az 2 harf)…" value="${uEsc(USTATE.search)}" autocomplete="off">
+      <input id="uSval" placeholder="İsim / kullanıcı adı / e-posta (en az 2 harf)…" value="${uEsc(USTATE.search)}" autocomplete="off">
     </div>`;
   $('main').innerHTML = head + `<div class="u-sek fadein" id="uSek"><button data-s="liste">Liste</button><button data-s="uyruk">Uyruklar</button><button data-s="kaptan">Kaptanlar</button><button data-s="aktif">Aktiflik</button><button data-s="silinen">Silinenler</button><button data-s="engel">Engellenenler</button></div>`
     + `<div class="u-oz fadein" id="uOz"></div><div class="u-list fadein" id="uList"></div><div id="uPage"></div><div class="u-rk fadein" id="uRk"></div><div class="fadein" id="uEk"></div>`;
@@ -2795,7 +2803,7 @@ function uPaintList(){
   const totalPages=Math.max(1,Math.ceil(UDATA.count/USTATE.limit));
   const curPage=Math.floor(USTATE.offset/USTATE.limit)+1;
   const pg=$('uPage');
-  if(pg) pg.innerHTML = (!USTATE.search && UDATA.rows.length) ? `
+  if(pg) pg.innerHTML = (UDATA.rows.length && totalPages>1) ? `
     <div class="page">
       <button class="btn" id="uPrev" ${USTATE.offset<=0?'disabled':''}>‹ Önceki</button>
       <span class="cnt">${curPage} / ${totalPages}</span>
@@ -2813,9 +2821,9 @@ function uPaintList(){
 // Uyruk özeti (32 ülke / harici) + uyruk sıralaması — tüm kullanıcılar üzerinden
 function uUyrukCiz(){
   const oz=$('uOz'), rk=$('uRk'); if(!oz||!rk) return;
-  const say={}; let oyun=0;
-  UDATA.all.forEach(p=>{ const cc=uCountry(p).cc; if(!cc) return; say[cc]=(say[cc]||0)+1; if(OYUN_CC.has(cc)) oyun++; });
-  const top=UDATA.all.length, haric=top-oyun, yuz=n=>top?Math.round(n/top*100):0;
+  const say={}; let oyun=0, top=0;
+  (UDATA.uyruk||[]).forEach(x=>{ const n=Number(x.n)||0, cc=String(x.cc||'').toUpperCase(); top+=n; if(!cc) return; say[cc]=(say[cc]||0)+n; if(OYUN_CC.has(cc)) oyun+=n; });
+  const haric=top-oyun, yuz=n=>top?Math.round(n/top*100):0;
   const satir=(cls,ad,n)=>`<div class="s ${cls}"><div class="l"><i></i>${ad}</div><div class="n">${n}</div><div class="p">%${yuz(n)}</div><div class="bar"><b style="width:${yuz(n)}%"></b></div></div>`;
   oz.innerHTML=satir('u-yes','32 ülke uyruklu',oyun)+satir('u-mav','Harici uyruk',haric);
   const L=Object.keys(say).map(cc=>({ cc, n:say[cc], ad:CC_NAME[cc]||cc })).sort((a,b)=>b.n-a.n||a.ad.localeCompare(b.ad,'tr'));
@@ -2831,6 +2839,11 @@ function uSekme(t){
   $('uRk').style.display=(t==='uyruk')?'':'none';
   $('uOz').style.display=(t==='liste'||t==='uyruk')?'':'none';
   const ek=$('uEk'); ek.style.display=(t==='kaptan'||t==='aktif'||t==='silinen'||t==='engel')?'':'none';
+  if((t==='kaptan'||t==='aktif'||t==='engel') && !UDATA.tum){
+    ek.innerHTML='<div class="msg">Yükleniyor…</div>';
+    uTumYukle().then(()=>{ if(USTATE.sekme===t && CUR==='__users__') uSekme(t); }).catch(e=>{ if(USTATE.sekme===t) ek.innerHTML='<div class="msg err">'+uEsc(e.message)+'</div>'; });
+    return;
+  }
   if(t==='kaptan') uKaptanCiz(); else if(t==='aktif') uAktifCiz(); else if(t==='silinen') uSilinenCiz(); else if(t==='engel') uEngelCiz();
 }
 
@@ -2887,7 +2900,7 @@ function _akSatir(x, ek){
 function _akTikla(kap){
   kap.querySelectorAll('.ak-r[data-ara]').forEach(r=>r.onclick=()=>{
     const v=r.dataset.ara, inp=$('uSval'); if(inp) inp.value=v;
-    USTATE.search=v; USTATE.offset=0; uApplyFilter(); uPaintList(); uSekme('liste');
+    USTATE.search=v; USTATE.offset=0; USTATE.sekme='liste'; loadUsers();
   });
 }
 function _akOz(satirlar, top){
@@ -3042,7 +3055,7 @@ let _uSearchT=null;
 function uOnSearch(){
   const v=$('uSval').value.trim();
   clearTimeout(_uSearchT);
-  _uSearchT=setTimeout(()=>{ USTATE.search=v; USTATE.offset=0; if(v) USTATE.sekme='liste'; uApplyFilter(); uPaintList(); }, 110);
+  _uSearchT=setTimeout(()=>{ const a=v.length>=2?v:''; if(a===USTATE.search) return; USTATE.search=a; USTATE.offset=0; if(a) USTATE.sekme='liste'; loadUsers(); }, 300);
 }
 
 function uAction(act,i){
@@ -3811,8 +3824,8 @@ async function edKaydet(){
       $('edKaydet').disabled=true; $('edKaydet').textContent='Siliniyor…';
       try{ await hesapSil(id); }
       catch(e){ $('edKaydet').disabled=false; $('edKaydet').textContent='Hesabı Sil'; throw e; }
-      UDATA.all=UDATA.all.filter(x=>x!==ED.p); delete UDATA.plMap[id]; delete UDATA.pMap[id]; delete UDATA.wMap[id]; UDATA.silinen=null;
-      uApplyFilter();
+      delete UDATA.plMap[id]; delete UDATA.pMap[id]; delete UDATA.wMap[id]; UDATA.silinen=null;
+      UDATA.pLoaded=false; await loadUsers();
     }
     $('edModal').style.display='none'; ED=null; uPaintList();
   }catch(e){ $('edErr').textContent=e.message; }
@@ -4056,7 +4069,7 @@ async function savePlayerModal(){
     if(PMX.iade.length){ await api('stok_iade',{ items:PMX.iade }); PMX.iade=[]; }
     if(up) Object.assign(up, vals);
     if(pl){ Object.assign(pl, pv); if(yeni&&yeni.overall!=null) pl.overall=yeni.overall; }
-    $('playerModal').style.display='none'; uApplyFilter(); uPaintList();
+    $('playerModal').style.display='none'; uPaintList();
   }catch(e){ $('pmErr').textContent=e.message; }
   finally{ $('pmSave').disabled=false; }
 }
