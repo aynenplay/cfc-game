@@ -7518,3 +7518,7 @@ Object.assign(window.I18N.pt, {
   [/^(.+), (.+) karşısında (\d+)–(\d+) yenildi$/, m => "$1 perde $3–$4 com $2".replace('{T}', (T[m[3]] || m[3])).replace(/\$(\d)/g, (_, n) => _ad(m[+n]))]
   );
 })();
+/* ─── 784 · Beğeni ─── */
+Object.assign(window.I18N.pt, {
+  "Biraz yavaş, birazdan tekrar dene": "Mais devagar, tenta novamente daqui a pouco"
+});

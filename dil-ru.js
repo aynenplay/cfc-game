@@ -7558,3 +7558,7 @@ Object.assign(window.I18N.ru, {
   [/^(.+), (.+) karşısında (\d+)–(\d+) yenildi$/, m => "$1 уступил $2 со счётом $3–$4".replace('{T}', (T[m[3]] || m[3])).replace(/\$(\d)/g, (_, n) => _ad(m[+n]))]
   );
 })();
+/* ─── 784 · Beğeni ─── */
+Object.assign(window.I18N.ru, {
+  "Biraz yavaş, birazdan tekrar dene": "Помедленнее, попробуй чуть позже"
+});

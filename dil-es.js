@@ -7526,3 +7526,7 @@ Object.assign(window.I18N.es, {
   [/^(.+), (.+) karşısında (\d+)–(\d+) yenildi$/, m => "$1 cae $3–$4 ante $2".replace('{T}', (T[m[3]] || m[3])).replace(/\$(\d)/g, (_, n) => _ad(m[+n]))]
   );
 })();
+/* ─── 784 · Beğeni ─── */
+Object.assign(window.I18N.es, {
+  "Biraz yavaş, birazdan tekrar dene": "Más despacio, inténtalo de nuevo en un momento"
+});

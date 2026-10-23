@@ -7586,3 +7586,7 @@ Object.assign(window.I18N.fr, {
   [/^(.+), (.+) karşısında (\d+)–(\d+) yenildi$/, m => "$1 s'incline $3–$4 face à $2".replace('{T}', (T[m[3]] || m[3])).replace(/\$(\d)/g, (_, n) => _ad(m[+n]))]
   );
 })();
+/* ─── 784 · Beğeni ─── */
+Object.assign(window.I18N.fr, {
+  "Biraz yavaş, birazdan tekrar dene": "Doucement, réessaie dans un instant"
+});
