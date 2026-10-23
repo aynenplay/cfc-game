@@ -7562,3 +7562,27 @@ Object.assign(window.I18N.fr, {
 window.I18N_PATTERNS.fr.unshift(
   [/^(\d+) antrenmanın bitti\. Puanlarını topla!$/, m => "$1 entraînements sont terminés. Récupère tes points !".replace(/\$(\d)/g, (_, n) => m[+n])]
 );
+/* ─── 782 · CSC News maç haberleri ─── */
+Object.assign(window.I18N.fr, {
+  "İLK MAÇ": "ALLER",
+  "İlk maç": "Aller",
+  "Rövanş": "Retour"
+});
+(function () {
+  const _ad = x => (x != null && Object.prototype.hasOwnProperty.call(window.I18N.fr, x)) ? window.I18N.fr[x] : x;
+  const T = {"son 32 ilk": "en seizièmes aller", "son 16 ilk": "en huitièmes aller", "çeyrek final ilk": "en quart de finale aller", "yarı final ilk": "en demi-finale aller", "grup": "en phase de groupes"};
+  window.I18N_PATTERNS.fr.unshift(
+  [/^Lider (.+), (.+) karşısında (\d+)–(\d+) yenildi$/, m => "Le leader $1 s'incline $3–$4 face à $2".replace('{T}', (T[m[3]] || m[3])).replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^Lider (.+), (.+) ile (\d+)–(\d+) berabere kaldı$/, m => "Le leader $1 tenu en échec $3–$4 par $2".replace('{T}', (T[m[3]] || m[3])).replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^Zirve maçında (.+), (.+) karşısında (\d+)–(\d+) kazandı$/, m => "Choc au sommet : $1 bat $2 $3–$4".replace('{T}', (T[m[3]] || m[3])).replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^Zirve maçında (.+) ile (.+) (\d+)–(\d+) berabere$/, m => "Choc au sommet : $1 et $2 se neutralisent $3–$4".replace('{T}', (T[m[3]] || m[3])).replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^Sürpriz sonuç: (.+), (.+) karşısında (\d+)–(\d+) kazandı$/, m => "Surprise : $1 bat $2 $3–$4".replace('{T}', (T[m[3]] || m[3])).replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+), (.+) karşısında (\d+)–(\d+) farklı kazandı$/, m => "$1 écrase $2 $3–$4".replace('{T}', (T[m[3]] || m[3])).replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+), (son 32 ilk|son 16 ilk|çeyrek final ilk|yarı final ilk|grup) maçında (.+) karşısında (\d+)–(\d+) kazandı$/, m => "$1 bat $3 $4–$5 {T}".replace('{T}', (T[m[2]] || m[2])).replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+), (son 32 ilk|son 16 ilk|çeyrek final ilk|yarı final ilk|grup) maçında (.+) karşısında (\d+)–(\d+) yenildi$/, m => "$1 s'incline $4–$5 face à $3 {T}".replace('{T}', (T[m[2]] || m[2])).replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+) ile (.+), (son 32 ilk|son 16 ilk|çeyrek final ilk|yarı final ilk|grup) maçında (\d+)–(\d+) berabere kaldı$/, m => "$1 et $2 font match nul $4–$5 {T}".replace('{T}', (T[m[3]] || m[3])).replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+) ile (.+) (\d+)–(\d+) berabere kaldı$/, m => "$1 et $2 font match nul $3–$4".replace('{T}', (T[m[3]] || m[3])).replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+), (.+) karşısında (\d+)–(\d+) kazandı$/, m => "$1 bat $2 $3–$4".replace('{T}', (T[m[3]] || m[3])).replace(/\$(\d)/g, (_, n) => _ad(m[+n]))],
+  [/^(.+), (.+) karşısında (\d+)–(\d+) yenildi$/, m => "$1 s'incline $3–$4 face à $2".replace('{T}', (T[m[3]] || m[3])).replace(/\$(\d)/g, (_, n) => _ad(m[+n]))]
+  );
+})();

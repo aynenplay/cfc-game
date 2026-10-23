@@ -100,7 +100,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '781';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '782';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -17028,7 +17028,7 @@ body.drawer-open .hb-btn span:nth-child(3){transform:translateY(-6px) rotate(-45
 .cn-skor-t b{font:800 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.6px;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .cn-skor-s{position:relative;font:900 34px/1 'Barlow Condensed',sans-serif;color:#fff;letter-spacing:1px;padding:6px 14px;border-radius:10px;background:rgba(6,11,20,.62);
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
-.cn-skor-s i{position:absolute;left:50%;top:100%;transform:translate(-50%,5px);font:800 10px/1 'Barlow Condensed',sans-serif;font-style:normal;letter-spacing:1px;color:#fbbf24}
+.cn-skor-s i{position:absolute;left:50%;top:100%;transform:translate(-50%,5px);font:800 10px/1 'Barlow Condensed',sans-serif;font-style:normal;letter-spacing:1px;color:#fbbf24;white-space:nowrap}
 .cn-skor-t .cn-kisa{width:56px;height:56px;font-size:18px}
 .cn-bos-bay{width:56px;height:40px;border-radius:6px;background:rgba(255,255,255,.08)}
 .cn-skor-t img[src^="data:image"]{border-radius:6px}
@@ -25718,7 +25718,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-22-haber-781';
+const APP_BUILD = '2026-10-23-haber-782';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -41090,6 +41090,7 @@ function _cnHaber(h) {
       git: `_cnTakimAc('${h.cc}', ${_cnAdJs(h.tk)})`
     };
   }
+  if (h.t === 'mac') return _cnMacHaber(h);
   if (h.t === 'fedbaskan' || h.t === 'fedsecim') {
     const ulusal = _cnSekme === 'ulusal', ulke = _ulkeAdi(h.cc);
     const b = h.t === 'fedbaskan'
@@ -41106,6 +41107,50 @@ function _cnHaber(h) {
     };
   }
   return null;
+}
+// 782 — Maç haberi (haber masası yazar). h: { k, f, ilk, rov (rövanş saati) | cc, tier, n: ['lider','zirve','surpriz','fark','alt'], lider, yt,
+//   ev, dep, evcc, depcc, hs, as, z }. Haber kimin ağzından: ulusalda kendi takımı, ligde lider (puan kaybı) ya da kazanan.
+const _CN_MAC_TUR = { r32: 'son 32 ilk', r16: 'son 16 ilk', qf: 'çeyrek final ilk', sf: 'yarı final ilk', group: 'grup' };
+function _cnMacTaraf(h) {   // [takım, rakip, takımın ülkesi, rakibin ülkesi, attığı, yediği]
+  const cc = _cnUlkeKod, ulusal = _cnSekme === 'ulusal', n = h.n || [];
+  const ev = [h.ev, h.dep, h.evcc || h.cc, h.depcc || h.cc, h.hs, h.as], dep = [h.dep, h.ev, h.depcc || h.cc, h.evcc || h.cc, h.as, h.hs];
+  if (h.k) {
+    if (ulusal && h.evcc === cc) return ev;
+    if (ulusal && h.depcc === cc) return dep;
+  } else if (n.includes('lider') && h.lider) return h.lider === h.dep ? dep : ev;
+  else if (n.length === 1 && n[0] === 'alt' && h.yt) return h.yt === h.dep ? dep : ev;
+  return h.as > h.hs ? dep : ev;
+}
+function _cnMacHaber(h) {
+  const [a, b, acc, , s1, s2] = _cnMacTaraf(h), n = h.n || [], ber = s1 === s2, skor = `${s1}–${s2}`, sonuc = s1 > s2 ? 'kazandı' : 'yenildi';
+  const ulusal = _cnSekme === 'ulusal';
+  const skorMs = (ek) => `<div class="cn-skor"><span class="cn-skor-t">${_cnLogo(h.ev, h.evcc || h.cc, '')}<b>${_cnEsc(h.ev)}</b></span><span class="cn-skor-s">${h.hs}–${h.as}${ek || ''}</span><span class="cn-skor-t">${_cnLogo(h.dep, h.depcc || h.cc, '')}<b>${_cnEsc(h.dep)}</b></span></div>`;
+  if (h.k) {
+    const tur = _CN_MAC_TUR[h.f] || 'grup';
+    return {
+      k: 'turnuva',
+      b: ber ? `${h.ev} ile ${h.dep}, ${tur} maçında ${h.hs}–${h.as} berabere kaldı` : `${a}, ${tur} maçında ${b} karşısında ${skor} ${sonuc}`,
+      a: h.ilk && h.rov ? `<span>Rövanş</span> <b class="cn-sk-b">${_cnCmSaat(Number(h.rov))}</b>` : `<span>${_CN_KUPA_AD[h.k]}</span> · <span>${_CN_TUR_AD[h.f] || ''}</span>`,
+      m: `<span>${_CN_KUPA_AD[h.k]}</span> · <span>${_CN_TUR_AD[h.f] || ''}</span>`,
+      r: `<span class="cn-res cn-res-lg" style="--t1:${_cnRenk(a)}">${_cnLogo(a, acc, 'cn-lg')}<span class="cn-rozet-kupa cnk-${_CN_KUPA_IMG[h.k]}"></span></span>`,
+      ms: skorMs(h.ilk ? '<i>İLK MAÇ</i>' : ''),
+      bg: { kupa: _CN_KUPA_IMG[h.k] },
+      git: `_cnTurnuvaAc('${h.k}','${h.f}')`
+    };
+  }
+  let b2;
+  if (n.includes('lider')) b2 = ber ? `Lider ${a}, ${b} ile ${skor} berabere kaldı` : `Lider ${a}, ${b} karşısında ${skor} yenildi`;
+  else if (n.includes('zirve')) b2 = ber ? `Zirve maçında ${h.ev} ile ${h.dep} ${h.hs}–${h.as} berabere` : `Zirve maçında ${a}, ${b} karşısında ${skor} kazandı`;
+  else if (n.includes('surpriz')) b2 = `Sürpriz sonuç: ${a}, ${b} karşısında ${skor} kazandı`;
+  else if (n.includes('fark')) b2 = `${a}, ${b} karşısında ${skor} farklı kazandı`;
+  else b2 = ber ? `${h.ev} ile ${h.dep} ${h.hs}–${h.as} berabere kaldı` : `${a}, ${b} karşısında ${skor} ${sonuc}`;
+  const lig = _cnLigAd(h.cc, h.tier || 1), yer = ulusal ? `<span>${_cnEsc(lig)}</span>` : `<span>${_cnEsc(_ulkeAdi(h.cc))}</span> · <span>${_cnEsc(lig)}</span>`;
+  return {
+    k: 'lig', b: b2, a: yer, m: yer,
+    r: `<span class="cn-res cn-res-lg" style="--t1:${_cnRenk(a)}">${_cnLogo(a, h.cc, 'cn-lg')}${_banKalkanImg((h.tier || 1) - 1, 28, 'cn-kal')}</span>`,
+    ms: skorMs(''),
+    bg: { stad: 1 }, git: `_cnTakimAc('${h.cc}', ${_cnAdJs(a)})`
+  };
 }
 function _cnMilliAd() { return _cnUlkeKod ? _ulkeAdi(_cnUlkeKod) : null; }
 function _cnTurnuvaAc(k, f) {
@@ -41124,13 +41169,14 @@ function _cnTakimAc(cc, ad) {
 function _cnListeAc() { showPage('transfers', findNavBtn('transfers')); tfTab('sale'); }
 // 753 — manşet önem sırası: kupa > tur (final … play-off) > kupa ağırlığı (CHM > ELI > CON)
 const _CN_FAZ_ONEM = { playoff: 1, playoff2: 2, group: 2, r32: 3, r16: 4, qf: 5, sf: 6, final: 7 };
-function _cnOnem(h) { return (h.t === 'kupa' ? 100 : 0) + (_CN_FAZ_ONEM[h.f] || 0) * 10 + ({ champ: 3, elite: 2, conv: 1, enc: 3 }[h.k] || 0); }
+function _cnOnem(h) { return (h.t === 'kupa' ? 100 : 0) + (_CN_FAZ_ONEM[h.f] || 0) * 10 + ({ champ: 3, elite: 2, conv: 1, enc: 3 }[h.k] || 0) - (h.t === 'mac' ? 5 : 0); }
 // 754 — Haber ömrü: aynı konuda yeni haber gelince eskisi kalkar (Ankara çeyrek finalde → Ankara yarı finalde).
 // Konu: [kimlik (görülmüşse eski), işaret (bundan eskileri eskitir)]
 function _cnKonu(h) {
   const t = h.t, kt = x => (h.k === 'enc' ? 'mi:' : 'k:' + h.k + ':') + x;
   if (t === 'ko' || t === 'kupa') return [[kt(h.w), kt(h.l)], ['es:' + h.k]];
   if (t === 'eslesme') return [['es:' + h.k], []];
+  if (t === 'mac') return h.k ? [[kt(h.ev), kt(h.dep)], ['es:' + h.k]] : [['lm:' + h.cc + ':' + h.ev, 'lm:' + h.cc + ':' + h.dep], []];   // 782
   if (t === 'milli') return [['mi:' + h.ev, 'mi:' + h.dep], []];
   if (t === 'transfer' || t === 'imza') return [['tr:' + h.ad], []];
   if (t === 'alim' || t === 'satis') return [['cl:' + h.tk], []];
@@ -41346,6 +41392,11 @@ function _cnAvrupaSlayt(av) {
   return `<article class="cn-manset kp cnb-${_CN_KUPA_IMG[ust.h.k]}" onclick="_cnKaydirSakla();${ust.x.git}"><span class="cn-ms-kupa cnk-${_CN_KUPA_IMG[ust.h.k]}"></span>
       <div class="cn-ms-ust">${_cnEtk(ust.x.k)}<span class="cn-ms-m"><span>Avrupa kupaları</span></span></div>
       <div class="cn-av">${av.map(({ h }) => {
+        if (h.t === 'mac') {   // 782 — ilk maç / grup maçı
+          const [tk, , cc, , s1, s2] = _cnMacTaraf(h);
+          return `<div class="cn-av-s"><span class="cnk cnk-${_CN_KUPA_IMG[h.k]}"></span>${_cnLogo(tk, cc, '')}<b data-noi18n>${_cnEsc(tk)}</b><em class="yz">${h.ilk ? 'İlk maç' : 'Grup'}</em>
+          <span class="cn-av-sk">${s1}–${s2}</span></div>`;
+        }
         const veda = h.t === 'ko' && ulusal && h.lcc === _cnUlkeKod && h.wcc !== _cnUlkeKod;
         const tk = veda ? h.l : h.w, cc = veda ? h.lcc : h.wcc;
         const [durum, sinif] = h.t === 'kupa' ? ['Şampiyon', 'ap'] : veda ? ['Elendi', 'kr'] : [_cnBuyukHarf(_CN_SONRAKI[_cnSonrakiTur(h.k, h.f)] || ''), 'yz'];
@@ -41765,7 +41816,9 @@ function _cnCiz() {
   }
   // Manşet sırası (önem): özel haber (kulüp satın alma) · milli takım · Avrupa (en önemli 2–3 haber tek tabloda) · lig · alt ligler · istatistik · röportajlar
   // 769 — manşette yalnız son 24 saatin haberleri; aynı konuda yeni haber gelince eskisi kalkar
-  const guncel = _cnGuncel(liste), yeni = o => o.h.z > birGun;
+  const guncel = _cnGuncel(liste), yeni = o => o.h.z > birGun, onIki = simdi - 12 * 36e5;
+  // 782 — maç haberi manşette 12 saat; ligde yalnız liderin puan kaybı ve zirve maçı
+  const ligMac = guncel.filter(o => o.h.t === 'mac' && !o.h.k && (o.h.tier || 1) === 1 && o.h.z > onIki && (o.h.n || []).some(x => x === 'lider' || x === 'zirve'))[0];
   const kul = new Set(), sl = [];
   const ropKisi = new Set(_cnRop.map(o => o.r.ad + '|' + o.r.yt));
   const ropMu = o => (o.h.t === 'transfer' || o.h.t === 'imza') && ropKisi.has(o.h.ad + '|' + o.h.yt);
@@ -41783,12 +41836,13 @@ function _cnCiz() {
   const mc = (Array.isArray(ek.mc) ? ek.mc : []).filter(m => m && m.cc && taze(m.z)).sort((a, b) => b.z - a.z);
   const mcY = mc.filter(m => m.z > birGun);
   if (mcY.length) sl.push(_cnCagriSlayt(mcY));
-  const av = onemli(guncel.filter(o => (o.h.t === 'ko' || o.h.t === 'kupa') && o.h.k !== 'enc' && yeni(o))).slice(0, 3);
+  const av = onemli(guncel.filter(o => ((o.h.t === 'ko' || o.h.t === 'kupa') && o.h.k !== 'enc' && yeni(o)) || (o.h.t === 'mac' && o.h.k && o.h.z > onIki))).slice(0, 3);
   if (av.length) { sl.push(av.length > 1 ? _cnAvrupaSlayt(av) : _cnMansetHtml(av[0].h, av[0].x)); av.forEach(o => kul.add(o)); }
   if (ulusal) {
     const l = guncel.find(o => (o.h.t === 'lider' || o.h.t === 'ligsamp') && yeni(o));
     if (l) { sl.push(_cnMansetHtml(l.h, l.x)); kul.add(l); }
   } else if (ek.lig && ek.lig.z > birGun) sl.push(_cnLigSlayt(ek.lig, true));
+  if (ligMac) { sl.push(_cnMansetHtml(ligMac.h, ligMac.x)); kul.add(ligMac); }
   if (ulusal && ek.alt && ek.alt.z > birGun) sl.push(_cnLigSlayt(ek.alt, false));
   const kral = _cnKralVeri();
   if (kral) sl.push(_cnKralSlayt(kral));
@@ -41800,6 +41854,7 @@ function _cnCiz() {
   for (const o of guncel) {
     if (kul.has(o)) continue;
     const t = o.h.t;
+    if (t === 'mac') { const hed = o.h.k ? G.avrupa : G.lig; if (hed.filter(x => x.h.t === 'mac').length < 6) hed.push(o); continue; }   // 782
     if (t === 'ko' || t === 'kupa' || t === 'eslesme') (o.h.k === 'enc' ? G.milli : G.avrupa).push(o);
     else if (t === 'milli') G.milli.push(o);
     else if (t === 'lider' || t === 'ligsamp' || t === 'seri') G.lig.push(o);
@@ -41817,7 +41872,7 @@ function _cnCiz() {
   const bolum = (ad, renk, ic) => ic ? `<section class="cn-bol"><div class="cn-bl" style="--b:${renk}"><h2>${ad}</h2></div>${ic}</section>` : '';
   const govde = (ulusal && ek.ss && taze(ek.ss.z) ? bolum('SEZON SONU', _CN_KAT.sezon[1], _cnSezonSonuHtml(ek.ss)) : '')
     + bolum('AVRUPA', '#60a5fa', haberler(G.avrupa))
-    + (ulusal ? bolum(_cnEsc(_cnLigAd(_cnUlkeKod, 1)), '#22d3ee', haberler(G.lig)) : '')
+    + bolum(ulusal ? _cnEsc(_cnLigAd(_cnUlkeKod, 1)) : 'LİGLER', '#22d3ee', haberler(G.lig))
     + bolum('MİLLİ TAKIM', '#f87171', (ulusal && kura && !kuraSl ? _cnKuraKart(kura) : '') + haberler(G.milli))
     + bolum('TRANSFER', '#22c55e', haberler(G.transfer))
     + _cnListeHtml(blok.l)
