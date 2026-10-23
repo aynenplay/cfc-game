@@ -7522,3 +7522,9 @@ Object.assign(window.I18N.pt, {
 Object.assign(window.I18N.pt, {
   "Biraz yavaş, birazdan tekrar dene": "Mais devagar, tenta novamente daqui a pouco"
 });
+/* ─── 787 · CSC News federasyon ─── */
+Object.assign(window.I18N.pt, {
+  "Federasyon seçimleri başladı": "Começaram as eleições das federações",
+  "ADAY": "CANDIDATOS",
+  "ÜLKE": "PAÍSES"
+});
