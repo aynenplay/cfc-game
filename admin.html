@@ -511,6 +511,7 @@
   .hn-kay{ justify-self:end; font-family:var(--disp); font-size:13px; font-weight:900; color:#ff6b81; }
   .hn-oz .s.hn-gir{ border-top:1px dashed rgba(255,255,255,.12); }
   .hn-oz .s.hn-gir+.s.hn-gir{ border-top:1px solid rgba(255,255,255,.05); }
+  .hn-oz .s.hn-gir.hn-grp{ border-top:1px dashed rgba(255,255,255,.12); }
   .hn-ulke{ display:flex; align-items:center; gap:9px; padding:10px 0 6px; border-bottom:1px solid rgba(255,255,255,.05); }
   .hn-ulke .bay{ font-size:22px; line-height:1; }
   .hn-ulke b{ font-family:var(--disp); font-size:16px; font-weight:900; }
@@ -903,6 +904,16 @@
   .fbkim button{ background:none; padding:0; color:var(--txt); font-family:var(--body); font-weight:700; font-size:13px; letter-spacing:0; text-align:left; }
   .fbkim button:hover{ color:var(--gold); }
   .fbkim small{ color:var(--dim); font-size:11.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .fbkim .fbanon{ color:var(--txt); font-weight:700; font-size:13px; }
+  .fbgir{ display:flex; flex-direction:column; gap:6px; margin:2px 0 8px; padding:9px 11px; border-radius:10px; background:var(--panel2); border:1px solid var(--line); }
+  .fbgir .r{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; }
+  .fbgir .r > span{ color:var(--dim); font-size:11.5px; min-width:118px; }
+  .fbgir .r b{ color:var(--txt); }
+  .fbgir .r em{ color:var(--dim); font-style:normal; }
+  .fbgir .hs{ display:flex; flex-wrap:wrap; gap:6px; }
+  .fbhs{ display:inline-flex; align-items:center; gap:5px; padding:4px 9px; border-radius:999px; background:rgba(74,158,255,.12); border:1px solid rgba(74,158,255,.35); color:#8cc2ff; font-weight:700; font-size:12.5px; }
+  .fbhs small{ color:var(--dim); font-weight:600; font-size:11px; }
+  .fbhs:hover{ color:var(--gold); border-color:var(--gold); }
   .fbsk{ display:grid; grid-template-columns:auto 1fr; gap:4px 12px; font-size:13px; line-height:1.45; }
   .fbsk dt{ color:var(--dim); font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.4px; padding-top:2px; }
   .fbsk dd{ margin:0; color:var(--txt); word-break:break-word; }
@@ -1417,6 +1428,7 @@ function fbSikayet(m){
   return `<dl class="fbsk">${al.Sebep?`<dt>Sebep</dt><dd>${_fbEsc(al.Sebep)}</dd>`:''}${al['Tür']?`<dt>Nerede</dt><dd>${_fbEsc(al['Tür'])}</dd>`:''}${kim?`<dt>Kim</dt><dd>${kimH}</dd>`:''}${al['İçerik']?`<dt>İçerik</dt><dd><q>${_fbEsc(al['İçerik'])}</q></dd>`:''}</dl>`;
 }
 function fbKimHtml(f){
+  if (!f.user_id) return `<span class="fbkim"><span class="ilk">?</span><b class="fbanon">Anonim</b><small>Giriş ekranı</small></span>`;   // 803
   const o = (FB_OYUNCU && FB_OYUNCU[f.user_id]) || null;
   const ad = (o && o.name) || f.username || (f.user_id ? String(f.user_id).slice(0,8) : 'bilinmiyor');
   const av = o && o.avatar_id ? avSrc(o.avatar_id) : '';
@@ -1430,6 +1442,17 @@ function fbKonusmaHtml(th){
   return th.map(e => e.k==='oyuncu'
     ? `<div class="fboy"><b>Oyuncunun cevabı:</b> ${_fbEsc(e.m)}${e.t?`<span class="t">${_fbTime(e.t)}</span>`:''}</div>`
     : `<div class="fbreply"><b>Cevabın:</b> ${_fbEsc(e.m)}${e.t?`<span class="t">${_fbTime(e.t)} · oyuncunun gelen kutusuna iletildi</span>`:''}</div>`).join('');
+}
+// 803 — giriş ekranı talebi: Ad Soyad · bu ada kayıtlı hesaplar (dokununca Kullanıcılar'da aranır) · sorun
+function fbGirisTalebi(f){
+  const m = String(f.message||'');
+  if (f.user_id || !m.startsWith('[Giriş ekranı]\n')) return '';
+  const sat = m.split('\n'), ad = (sat[1]||'').replace(/^Ad Soyad:\s*/, ''), hs = (sat[2]||'').replace(/^Bu ada kayıtlı hesap:\s*/, '');
+  const metin = sat.slice(3).join('\n').replace(/^\n+/, '');
+  const hesap = hs && hs !== 'yok' ? hs.split(' · ').map(h => { const k = h.replace(/^@/, '').replace(/ \((Google|Apple)\)$/, ''); const g = (h.match(/\((Google|Apple)\)$/)||[])[1];
+      return `<button class="fbhs" data-fbu="${_fbEsc(k)}">@${_fbEsc(k)}${g?`<small>${g}</small>`:''}</button>`; }).join('') : '<em>bulunamadı</em>';
+  return `<div class="fbgir"><div class="r"><span>Ad Soyad</span><b>${_fbEsc(ad)}</b></div><div class="r"><span>Bu ada kayıtlı hesap</span><div class="hs">${hesap}</div></div></div>
+    <div class="msg">${_fbEsc(metin)}</div>`;
 }
 function fbItemHtml(f){
   const t = FB_TYPES[f.type] || { label:f.type||'?', color:'#8a93a3' };
@@ -1446,7 +1469,7 @@ function fbItemHtml(f){
       <span class="fbstat ${st}">${FB_STATUS[st]||st}</span>
       <span class="when">${_fbTime(f.created_at)}</span>
     </div>
-    ${fbSikayet(f.message) || `<div class="msg">${_fbEsc(f.message)}</div>`}
+    ${fbSikayet(f.message) || fbGirisTalebi(f) || `<div class="msg">${_fbEsc(f.message)}</div>`}
     ${f.reply && (!acik || FB_EK || th.length) ? `<div class="fbreply"><b>Cevabın:</b> ${_fbEsc(f.reply)}${f.replied_at?`<span class="t">${_fbTime(f.replied_at)} · oyuncunun gelen kutusuna iletildi</span>`:''}</div>` : ''}
     ${fbKonusmaHtml(gor)}
     ${acik ? `<div class="fbcvp"><textarea id="fbCvpMetin" maxlength="4000" placeholder="${FB_EK ? 'Ek mesajın…' : 'Oyuncuya cevabın…'}">${_fbEsc(cvpMetin)}</textarea>
@@ -1455,8 +1478,8 @@ function fbItemHtml(f){
       ${fbKimHtml(f)}
       <span class="acts">
         ${fbSikayetHedef(f.message) ? `<button class="btn islem" data-fbi="${f.id}">İşlem Yap</button>` : ''}
-        ${acik ? '' : `<button class="btn green" data-fbr="${f.id}">${cvpEtiket}</button>`}
-        ${acik || cvpEtiket !== 'Cevabı Düzenle' ? '' : `<button class="btn green" data-fbek="${f.id}">Ek Mesaj</button>`}
+        ${acik || !f.user_id ? '' : `<button class="btn green" data-fbr="${f.id}">${cvpEtiket}</button>`}
+        ${acik || !f.user_id || cvpEtiket !== 'Cevabı Düzenle' ? '' : `<button class="btn green" data-fbek="${f.id}">Ek Mesaj</button>`}
         ${st!=='okundu'?`<button class="btn" data-fbs="okundu" data-id="${f.id}">Okundu</button>`:''}
         ${st!=='cozuldu'?`<button class="btn gold" data-fbs="cozuldu" data-id="${f.id}">Çözüldü</button>`:''}
         <button class="btn red" data-fbd="${f.id}">Sil</button>
@@ -2803,6 +2826,7 @@ const OYUN_CC=new Set(['AL','AT','AZ','BE','BG','CH','CZ','DE','DK','EN','ES','F
 let UDATA={ all:[], rows:[], count:0, plMap:{}, pMap:{}, wMap:{}, pLoaded:false, tum:false, uyruk:null };
 const uEsc = v => (v==null?'':String(v)).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const uUid = p => p.user_id || p.id;
+const uEposta = e => (e && !/@oyuncu\.citysoccer\.club$/i.test(e)) ? e : '';   // 803 — kullanıcı adıyla açılan hesabın gizli adresi
 function uTextCols(){
   const cols = ((META.profiles&&META.profiles.columns)||[]).filter(c=>['text','character varying','uuid'].includes(c.type)).map(c=>c.name);
   const pref = ['display_name','username','name','email'].filter(c=>cols.includes(c));
@@ -2925,7 +2949,7 @@ function uCardsHTML(){
         <div class="u-av">${avS?`<img src="${avS}" alt="">`:uEsc(init)}${flag?`<span class="flag">${flag}</span>`:''}</div>
         <div class="u-info">
           <div class="u-name">${uEsc(realName)}${ban?` <span class="u-banbadge">⛔ ENGELLİ</span>`:''}${gizli?` <span class="u-gizlibadge">OYUNDA GİZLİ</span>`:''}</div>
-          <div class="u-mail">${uname?('@'+uEsc(uname)):''}${p.email?` · ${uEsc(p.email)}`:''}</div>
+          <div class="u-mail">${uname?('@'+uEsc(uname)):''}${uEposta(p.email)?` · ${uEsc(p.email)}`:''}</div>
           <div class="u-meta"><span>${teamFlag}<b>${uEsc(team)}</b>${hasTeam&&roleRaw?` <span class="u-rolebadge">${uEsc(roleTR)}</span>`:''}</span>${flag?`<span>${flag} ${uEsc(ctry.name)}</span>`:''}${joined?`<span>${uEsc(joined)}</span>`:''}</div>
         </div>
         ${ovrTag}
@@ -2943,7 +2967,7 @@ function uCardsHTML(){
           <div class="u-f u-fe" data-e="mevki" data-i="${i}"><div class="l">Mevki</div><div class="v">${uEsc(posTxt)}</div></div>
           <div class="u-f u-fe" data-e="avatar" data-i="${i}"><div class="l">Avatar</div><div class="v">${avS?`<img src="${avS}" alt="">`:''}${_pl.avatar_id?(((AV_SEC.find(a=>a.id===_pl.avatar_id)||{}).c==='F')?'Kadın':'Erkek'):'—'}</div></div>
           <div class="u-f"><div class="l">User ID</div><div class="v">${uEsc(String(id||'—'))}</div></div>
-          <div class="u-f"><div class="l">E-posta</div><div class="v">${uEsc(p.email||'—')}</div></div>
+          <div class="u-f"><div class="l">E-posta</div><div class="v">${uEsc(uEposta(p.email)||'—')}</div></div>
           ${ban?`<div class="u-f" style="border-color:rgba(226,59,90,.4)"><div class="l" style="color:var(--red)">Engel Bitiş</div><div class="v">${ban.perm?'Süresiz':ban.until.toLocaleDateString('tr')}</div></div>`:''}
         </div>
         ${playerSec}
@@ -3097,13 +3121,15 @@ function uSekme(t){
 /* 790 — KAYIT HUNİSİ
    Hesabı olmayan cihazların kayıt adımları; cihaz ilk açılış gününe, ülkesine ve platformuna göre bir kez sayılır. */
 const HUNI = { k:'bugun', bas:null, bit:null, pf:'tum', ym:'tum', cc:null, veri:null, yuk:null };
-const HUNI_ADIM = [['acilis','Açılış','u-gri'],['kayit','Kayıt Ol','u-mav'],['adim1','E-posta · şifre','u-mav'],['adim2','Ad · uyruk · yaş','u-mav'],
+// 803 — kullanıcı adıyla kayıt: 1) Kayıt sekmesi 2) "Kayıt Ol" düğmesi (ya da Google) 3) kullanıcı adı · şifre · bilgiler 4) avatar 5) mevki 6) hesap
+const HUNI_ADIM = [['acilis','Açılış','u-gri'],['kayit','Kayıt sekmesi','u-mav'],['adim1','Kayıt Ol','u-mav'],['adim2','Kullanıcı adı · bilgiler','u-mav'],
   ['adim3','Avatar','u-mav'],['gonder','Mevki','u-mav'],['hesap','Hesap açıldı','u-yes']];
 const HUNI_PF = [['tum','Tümü'],['android','Android'],['ios','iOS'],['web','Web']];
-const HUNI_KOL = [['acilis','Açılış'],['kayit','Kayıt'],['adim1','E-posta'],['sosyal','Google'],['adim2','Bilgi'],['adim3','Avatar'],['hesap','Hesap']];
-// 799 — kayıt yöntemi: cihaz Google/Apple adımı attıysa o, yoksa e-posta (798 öncesi kayıtlar e-posta sayılır)
-const HUNI_YM = [['tum','Tümü'],['eposta','E-posta'],['google','Google'],['apple','Apple']];
-const HUNI_UC = { tum:'E-posta · şifre / Google', eposta:'E-posta · şifre', google:'Google hesabı', apple:'Apple hesabı' };
+const HUNI_KOL = [['acilis','Açılış'],['kayit','Kayıt'],['adim1','K. adı'],['sosyal','Google'],['adim2','Bilgi'],['adim3','Avatar'],['hesap','Hesap']];
+// 799 — kayıt yöntemi: cihaz Google/Apple adımı attıysa o, yoksa kullanıcı adı (803; huni 803'te sıfırlandı)
+const HUNI_YM = [['tum','Tümü'],['kad','Kullanıcı adı'],['google','Google'],['apple','Apple']];
+const HUNI_UC = { tum:'Kayıt Ol / Google', kad:'Kayıt Ol', google:'Google hesabı', apple:'Apple hesabı' };
+const HUNI_IKI = { tum:'Kullanıcı adı · bilgiler', kad:'Kullanıcı adı · şifre · bilgiler', google:'Kullanıcı adı · bilgiler', apple:'Kullanıcı adı · bilgiler' };
 // 3. adım: e-posta/şifreyi geçen ya da Google/Apple ile devam eden cihaz (ikisini de yapan bir kez)
 const huniUc=R=>R.reduce((t,x)=>t+(x.adim1y!=null?(Number(x.adim1y)||0):(Number(x.adim1)||0)+(Number(x.sosyal)||0)),0);
 function huniAra(k){
@@ -3134,7 +3160,7 @@ function huniSuz(k, pf, cc, ym){
   if(a ? (!V.tam && V.bas>a[0]) : !V.tam) return null;
   ym=ym||HUNI.ym;
   const uy=x=>{ const g=String(x.gun).slice(0,10); return (!a || (g>=a[0] && g<=a[1])) && (pf==='tum' || x.platform===pf) && (!cc || x.ulke===cc)
-    && (ym==='tum' || (x.yontem||'eposta')===ym); };
+    && (ym==='tum' || (x.yontem||'kad')===ym); };
   return { R:V.rows.filter(uy), H:V.hata.filter(uy) };
 }
 const huniTop=(R, adim)=>R.reduce((t,x)=>t+(Number(x[adim])||0),0);
@@ -3179,9 +3205,14 @@ function huniCiz(){
   let onc=null;
   const sat=(cls,ad,n,kay,ek)=>`<div class="s ${cls}${ek||''}"><div class="l"><i></i>${ad}</div><div class="n">${n}</div><div class="p">%${yuz(n)}</div><span class="hn-kay">${kay}</span><div class="bar"><b style="width:${yuz(n)}%"></b></div></div>`;
   oz.innerHTML=(HUNI.cc?`<div class="hn-ulke"><span class="bay">${ccFlag(HUNI.cc)}</span><b>${uEsc(CC_NAME[HUNI.cc]||HUNI.cc)}</b><button id="hnCcX" title="Tüm ülkeler">✕</button></div>`:'')
-    + HUNI_ADIM.map(([k,ad,cls])=>{ const uc=k==='adim1', n=uc?huniUc(R):huniTop(R,k), kay=onc>0&&n<onc?'−%'+Math.round((onc-n)/onc*100):''; onc=n; return sat(cls,uc?HUNI_UC[HUNI.ym]:ad,n,kay); }).join('')
-    + (HUNI.ym==='tum'||HUNI.ym==='eposta'?sat('u-gri','E-posta ile giriş',huniTop(R,'giris'),'',' hn-gir'):'')
-    + (HUNI.ym!=='eposta'?sat('u-gri',HUNI.ym==='apple'?'Apple ile giriş':'Google ile giriş',huniTop(R,'sosyal_giris'),'',' hn-gir'):'');
+    + HUNI_ADIM.map(([k,ad,cls])=>{ const uc=k==='adim1', n=uc?huniUc(R):huniTop(R,k), kay=onc>0&&n<onc?'−%'+Math.round((onc-n)/onc*100):''; onc=n; return sat(cls,uc?HUNI_UC[HUNI.ym]:k==='adim2'?HUNI_IKI[HUNI.ym]:ad,n,kay); }).join('')
+    // 803 — kullanıcı adı alınmış uyarısı · önerilen adla devam
+    + sat('u-gri','Alınmış kullanıcı adı uyarısı',huniTop(R,'kad_uyari'),'',' hn-gir')
+    + sat('u-gri','Önerilen adla devam',huniTop(R,'kad_oneri'),'',' hn-gir')
+    // giriş tarafı
+    + (HUNI.ym==='tum'||HUNI.ym==='kad'?sat('u-gri','Kullanıcı adı / e-posta ile giriş',huniTop(R,'giris'),'',' hn-gir hn-grp'):'')
+    + (HUNI.ym!=='kad'?sat('u-gri',HUNI.ym==='apple'?'Apple ile giriş':'Google ile giriş',huniTop(R,'sosyal_giris'),'',' hn-gir'+(HUNI.ym==='tum'?'':' hn-grp')):'')
+    + (HUNI.ym==='tum'||HUNI.ym==='kad'?sat('u-gri','Şifremi unuttum',huniTop(R,'sifre'),'',' hn-gir')+sat('u-gri','Giriş ekranından destek talebi',huniTop(R,'destek'),'',' hn-gir'):'');
   const x=$('hnCcX'); if(x) x.onclick=()=>{ HUNI.cc=null; huniCiz(); };
   // Ülkeler (seçili ülke vurgulanır, tıklayınca huni o ülkeye süzülür)
   const R0=HUNI.cc?huniSuz(HUNI.k,HUNI.pf,null).R:R, U={};
@@ -4038,7 +4069,7 @@ function edAc(tur,i){
   $('edKaydet').className=(tur==='sil')?'btn red':'btn green';
   $('edKaydet').textContent=(tur==='sil')?'Hesabı Sil':'Kaydet';
   $('edKaydet').disabled=(tur==='sil');
-  if(tur==='profil'){ $('edAlt').innerHTML=uEsc(p.email||''); edProfilCiz(); }
+  if(tur==='profil'){ $('edAlt').innerHTML=uEsc(uEposta(p.email)); edProfilCiz(); }
   if(tur==='sil'){ $('edAlt').innerHTML=''; edSilCiz(); }
   if(tur==='mevki'){ ED.sec=String(pl.sub_pos||'').toUpperCase()||null; $('edAlt').innerHTML='Şu an: <b>'+uEsc(edMevkiYazi(pl))+'</b>. Yan mevkiyi seç; ana mevki ona göre ayarlanır. Yetenekler korunur.'; edMevkiCiz(); }
   if(tur==='avatar'){ ED.sec=pl.avatar_id||null; const a=AV_SEC.find(x=>x.id===ED.sec); ED.cins=a?a.c:'M'; $('edAlt').innerHTML='Şu an: <b>'+uEsc(pl.avatar_id||'avatar yok')+'</b>'; edAvatarCiz(); }
