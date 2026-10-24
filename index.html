@@ -25741,7 +25741,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-24-serbest-bot-788';
+const APP_BUILD = '2026-10-24-kimlik-789';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -43285,6 +43285,35 @@ async function _takimVerisiTazele() {
 //   657 — profil (ad, uyruk, engel), enerji, yetenek, kupa, ekipman ve destek cevabı da tazelenir.
 //   Art arda gelen yayınlar tek tazelemede birleşir; en sık 5 sn'de bir.
 let _ynSon = 0, _ynZaman = null;
+// 789 — uyruk değişti: milli takım havuzu, kadro ve rol önbellekleri yeniden okunur (eski ülkenin forması / kadrosu kalmaz)
+function _ntUyrukSifirla() {
+  try {
+    if (typeof _ntPoolCache !== 'undefined') for (const k in _ntPoolCache) delete _ntPoolCache[k];
+    if (typeof _ntPoolT !== 'undefined') for (const k in _ntPoolT) delete _ntPoolT[k];
+    if (typeof _ntSquadLoaded !== 'undefined') for (const k in _ntSquadLoaded) delete _ntSquadLoaded[k];
+    if (typeof NT_ROSTER_DATA !== 'undefined') { NT_ROSTER_DATA = []; _ntCachedCC = null; }
+  } catch (e) {}
+}
+// 789 — arka plandayken yönetim bildirimi kaçmış olabilir: dönünce ad, uyruk, mevki ve avatar sunucuyla karşılaştırılır
+let _kmGizlendi = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { _kmGizlendi = Date.now(); return; }
+  if (_kmGizlendi && Date.now() - _kmGizlendi > 120000) { _kmGizlendi = 0; _kimlikKontrol(); }
+});
+async function _kimlikKontrol() {
+  try {
+    const uid = authUser && authUser.id;
+    if (!uid || !window.sb) return;
+    const [{ data: pr }, { data: p }] = await Promise.all([
+      window.sb.from('profiles').select('name, nationality').eq('id', uid).maybeSingle(),
+      window.sb.from('players').select('pos, pos_group, sub_pos, avatar_id').eq('user_id', uid).maybeSingle()
+    ]);
+    const fark = (pr && ((pr.name && pr.name !== authUser.name) || (pr.nationality && pr.nationality !== authUser.nationality)))
+      || (p && (((p.pos_group || p.pos) && (p.pos_group || p.pos) !== authUser.position) || (p.sub_pos || '') !== (authUser.subPos || '')
+                || (p.avatar_id && p.avatar_id !== authUser.avatarId)));
+    if (fark) _yonetimIste();
+  } catch (e) {}
+}
 function _yonetimIste() {
   if (_ynZaman) return;
   _ynZaman = setTimeout(() => { _ynZaman = null; _ynSon = Date.now(); _yonetimTazele(); }, Math.max(400, 5000 - (Date.now() - _ynSon)));
@@ -43302,7 +43331,7 @@ async function _yonetimTazele() {
     if (_bt && !isNaN(_bt) && _bt > new Date()) { _hesapEngelCikis(); return; }
     if (pr.name) authUser.name = pr.name;
     if (pr.username) authUser.username = pr.username;
-    if (pr.nationality) authUser.nationality = pr.nationality;
+    if (pr.nationality && pr.nationality !== authUser.nationality) { authUser.nationality = pr.nationality; _ntUyrukSifirla(); }   // 789
   }
   const _sk = upx && upx.skills;
   if (_sk && typeof _sk === 'object' && ['GK', 'DEF', 'MID', 'FWD'].every(k => _sk[k] && Object.keys(_sk[k]).length > 0)) {
@@ -91209,6 +91238,25 @@ function _rosterCurrentSig(){
     return ROSTER_DATA.length + '|' + ROSTER_DATA.filter(p=>p && !p.isBot && p.userId).map(p=>p.userId).sort().join(',');
   }catch(e){ return ''; }
 }
+// 789 — takım arkadaşının (ya da kendimin) adı, mevkisi, uyruğu, avatarı değişince kadro kaydı yerinde güncellenir; diziliş korunur
+function _kadroKimlikEsitle(rows) {
+  if (typeof ROSTER_DATA === 'undefined' || !Array.isArray(ROSTER_DATA) || !_userTeam) return false;
+  const POSGRP = (typeof POS_GROUP !== 'undefined') ? POS_GROUP : {};
+  const byId = new Map(ROSTER_DATA.filter(p => p && p.id).map(p => [p.id, p]));
+  let degisti = false, ben = false;
+  for (const r of rows) {
+    const p = r && !r.is_bot ? byId.get(r.id) : null;
+    if (!p) continue;
+    const yeni = { name: r.name, pos: r.pos, posGroup: r.pos_group || POSGRP[r.pos] || 'MID', subPos: r.sub_pos || null,
+                   nationality: r.nationality || _userTeam.countryCode, nation: r.nation || '🏳️', avatar_id: r.avatar_id || null };
+    for (const k in yeni) if (p[k] !== yeni[k]) { p[k] = yeni[k]; degisti = true; if (p.isUser) ben = true; }
+  }
+  if (!degisti) return false;
+  if (typeof recalcAllPlayerOveralls === 'function') recalcAllPlayerOveralls();
+  _teamRosterCache[_userTeam.countryCode + ':' + _userTeam.teamName] = ROSTER_DATA.slice();
+  if (ben && typeof oyKartTazele === 'function') oyKartTazele();
+  return true;
+}
 async function _rosterLiveSyncTick(){
   try { if (typeof window.rtBindTeamChannels === 'function') window.rtBindTeamChannels(); } catch(e) {}
   // 🆕 ÖLÇEK: kadro senkronu 12 sn'de bir çalışıyordu. Kadronun göründüğü sayfalar
@@ -91228,13 +91276,15 @@ async function _rosterLiveSyncTick(){
   if (!window.sb) return;
   try{
     const { data, error } = await window.sb.from('players')
-      .select('user_id, is_bot')
+      .select('id, user_id, is_bot, name, pos, pos_group, sub_pos, nationality, nation, avatar_id')   // 789 — kimlik alanları
       .eq('country_code', _userTeam.countryCode)
       .eq('team_name', _userTeam.teamName);
     if (error || !Array.isArray(data)) return;
     const sig = data.length + '|' + data.filter(p=>p && !p.is_bot && p.user_id).map(p=>p.user_id).sort().join(',');
     if (sig !== _rosterCurrentSig()){
       _kadroUyelikEsitle(true);   // 768 — değişti → yalnız yeni gelenler okunur, diziliş korunur
+    } else if (_kadroKimlikEsitle(data)) {
+      _kadroCiz();   // 789 — ad / mevki / uyruk / avatar değişti: yerinde güncellendi
     }
   }catch(e){}
 }
@@ -105602,7 +105652,7 @@ function _oyVeri() {
   const lvl = (me && me.level) || 0;
   return {
     kod, ad: u.name || 'Oyuncu', ovr: me ? getPlayerMainOverall(me) : calcOverall(pos, lvls),
-    bayrak: (me && me.nation) || ccToFlag(u.nationality), ulke: _uyrukUlke(u.nationality).name || u.nationality || '',
+    bayrak: u.nationality ? ccToFlag(u.nationality) : ((me && me.nation) || '🏳️'), ulke: _uyrukUlke(u.nationality).name || u.nationality || '',
     alt, grup: subPosGroupOf(alt), yet, no: tk && me && me.num != null ? String(me.num) : '',
     takim: tk ? tk.teamName : '', logo: tk ? teamLogoUrl({ name: tk.teamName, countryCode: tk.countryCode }) : null,
     ..._oyForma(tk, me, alt), setGoster: !!tk || _oyMilliUye(),   // 771
