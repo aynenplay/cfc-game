@@ -25748,7 +25748,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-24-kayit-793';
+const APP_BUILD = '2026-10-24-google-795';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -43748,6 +43748,11 @@ function authInit(){
             window.sb.from('players').select('pos, pos_group, sub_pos, avatar_id, gender, level, xp, overall, gizli').eq('user_id', userId).maybeSingle()
           ]);
           const prof = profRes.data;
+          if (!plrRes.data && !prof && _sosyalSaglayici(sess.session.user)) {   // 795 — Google/Apple ile girip kaydı tamamlamamış
+            const _a = document.getElementById('auth-screen'); if (_a) _a.classList.remove('hidden');
+            _regSosyalBasla(_sosyalBilgi(sess.session.user));
+            return;
+          }
           if (prof && prof.ban_until) { const _bt = new Date(prof.ban_until); if (!isNaN(_bt) && _bt > new Date()) { _hesapEngelCikis(); return; } }
           const uplayer = upRes.data;
           try { if (uplayer && typeof enjDurumAyarla === 'function') enjDurumAyarla(uplayer.enerji); } catch(e) {}   // 760
@@ -44076,7 +44081,8 @@ function _regKadOner() {
 }
 function _regKadElle() { const k = document.getElementById('regUsername'); if (k && k.value !== _regKadOneri) _regKadOneri = ''; }
 // 793 — Google (Android/web) · Apple (iOS). Bağlantı kurulunca SOSYAL_ACIK açılır.
-const SOSYAL_ACIK = { google: false, apple: false };
+const SOSYAL_ACIK = { google: true, apple: false };
+const GOOGLE_WEB_ID = '21573587371-lsa5v2r0bo4idr28c5o133aivspmu8ok.apps.googleusercontent.com';   // 795 — Google Cloud › Supabase Web istemcisi
 let _regMod = 'eposta', _regSosyalSaglayici = '';
 function _sosyalPlatform() {
   try { const p = window.Capacitor && typeof Capacitor.getPlatform === 'function' && Capacitor.getPlatform(); if (p === 'ios' || p === 'android') return p; } catch (e) {}
@@ -44084,9 +44090,14 @@ function _sosyalPlatform() {
 }
 function _sosyalKur() {
   const a = document.getElementById('auth-screen'); if (!a) return;
-  const sag = _sosyalPlatform() === 'ios' ? 'apple' : 'google';
-  if (SOSYAL_ACIK[sag]) a.dataset.sosyal = sag; else delete a.dataset.sosyal;
+  const pl = _sosyalPlatform(), sag = pl === 'ios' ? 'apple' : 'google';
+  if (SOSYAL_ACIK[sag] && (pl === 'web' || _sosyalEklenti())) a.dataset.sosyal = sag; else delete a.dataset.sosyal;
 }
+function _sosyalEklenti() {   // 795 — eski uygulama sürümünde yerel giriş eklentisi yok
+  try { return !!(window.Capacitor && typeof Capacitor.isPluginAvailable === 'function' && Capacitor.isPluginAvailable('SocialLogin')); } catch (e) { return false; }
+}
+function _sosyalSaglayici(u) { const p = u && u.app_metadata && u.app_metadata.provider; return (p === 'google' || p === 'apple') ? p : ''; }
+function _sosyalBilgi(u) { const m = (u && u.user_metadata) || {}; return { saglayici: _sosyalSaglayici(u), ad: m.full_name || m.name || '', eposta: (u && u.email) || '' }; }
 // Sağlayıcıdan dönen hesapla kayıt tamamlama: ad hazır, kullanıcı adı önerilir, e-posta/şifre adımı atlanır
 function _regSosyalBasla(b) {
   _regMod = 'sosyal'; _regSosyalSaglayici = (b && b.saglayici) || 'google';
@@ -44104,16 +44115,96 @@ function _regSosyalBasla(b) {
     c.style.display = 'flex';
   }
   regCurrentStep = 0;
-  huni('sosyal', _regSosyalSaglayici);
   regNextStep(1);
 }
 function _regSosyalIptal() {
+  const sag = _regSosyalSaglayici;
   _regMod = 'eposta'; _regSosyalSaglayici = '';
   const c = document.getElementById('regSosyal'); if (c) c.style.display = 'none';
   regNextStep(0);
+  try { if (window.sb) window.sb.auth.signOut({ scope: 'local' }); } catch (e) {}
+  try { if (sag && _sosyalEklenti()) Capacitor.Plugins.SocialLogin.logout({ provider: sag }).catch(() => {}); } catch (e) {}
 }
-function _regSosyalTamamla() {   // bağlantı adımında sunucuya yazılacak
-  authShowMsg('error', 'Şimdilik e-posta ile giriş yapabilirsin.');
+// 795 — kayıt formu tamamlandı: oyuncu hesabı sunucuda e-postalı kayıtla aynı tetikle açılır
+async function _regSosyalTamamla() {
+  const name = document.getElementById('regName').value.trim();
+  const username = document.getElementById('regUsername').value.trim();
+  const nationality = document.getElementById('regNationality').value;
+  const age = document.getElementById('regAge').value;
+  if (name.length < 2 || name.length > 32) { authShowMsg('error','Ad 2-32 karakter olmalı.'); return; }
+  if (!/^[\p{L} .'-]+$/u.test(name)) { authShowMsg('error','Ad yalnızca harf, boşluk, tire ve kesme işareti içerebilir.'); return; }
+  if (username.length < 3 || username.length > 20 || !/^[\p{L}\p{N}._-]+$/u.test(username)) {
+    authShowMsg('error','Kullanıcı adı 3-20 karakter olmalı; harf, rakam, nokta, alt çizgi ve tire içerebilir.'); return;
+  }
+  if (!window.sb) { authShowMsg('error','Supabase bağlantısı yok. Sayfayı yenile.'); return; }
+  authShowMsg('success','Hesabınız oluşturuluyor...');
+  huni('gonder', '', { uyruk: nationality });
+  try {
+    const { data: kad, error } = await window.sb.rpc('kayit_tamamla', { p_bilgi: {
+      name, username, nationality, age, gender: _regCinsiyet,
+      position: selectedPos, sub_pos: selectedSubPos, avatar_id: _regSelectedAvatar } });
+    if (error) { authShowMsg('error','Kayıt hatası: ' + error.message); return; }
+    huni('hesap', '', { uyruk: nationality });
+    const { data: oturum } = await window.sb.auth.getSession();
+    const u = oturum && oturum.session && oturum.session.user;
+    if (!u) { authShowMsg('error','Kayıt başarısız.'); return; }
+    authUser = {
+      id: u.id, email: u.email || '', username: kad || username, name, nationality, age, gender: _regCinsiyet,
+      position: selectedPos, subPos: selectedSubPos, avatarId: _regSelectedAvatar
+    };
+    _regMod = 'eposta';
+    _kayitBitti(kad || username);
+  } catch (e) {
+    authShowMsg('error','Beklenmeyen hata: ' + (e.message || e));
+  }
+}
+// 795 — Google ile giriş. Oyuncusu olan hesap: oyun açılır; yeni hesap: kayıt formu (e-posta/şifre adımı yok)
+let _sosyalMesgul = false;
+async function _sosyalGoogle() {
+  if (_sosyalMesgul) return;
+  if (!window.sb) { authShowMsg('error','Supabase bağlantısı yok. Sayfayı yenile.'); return; }
+  if (_sosyalPlatform() === 'web') {
+    const { error } = await window.sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname } });
+    if (error) authShowMsg('error', 'Giriş hatası: ' + error.message);
+    return;
+  }
+  if (!_sosyalEklenti()) return;
+  _sosyalMesgul = true;
+  try {
+    const SL = Capacitor.Plugins.SocialLogin;
+    await SL.initialize({ google: { webClientId: GOOGLE_WEB_ID } });
+    const hex = (b) => Array.from(new Uint8Array(b), x => x.toString(16).padStart(2, '0')).join('');
+    const ham = hex(crypto.getRandomValues(new Uint8Array(24)));
+    const ozet = hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ham)));
+    const r = await SL.login({ provider: 'google', options: { scopes: ['email', 'profile'], nonce: ozet } });
+    const g = (r && r.result) || {};
+    if (!g.idToken) { authShowMsg('error','Giriş başarısız (kullanıcı yok)'); return; }
+    authShowMsg('success','Giriş yapılıyor...');
+    const { data, error } = await window.sb.auth.signInWithIdToken({ provider: 'google', token: g.idToken, nonce: ham });
+    if (error) { authShowMsg('error','Giriş hatası: ' + error.message); return; }
+    const pr = g.profile || {};
+    await _sosyalSonra(data.user, { saglayici: 'google', ad: pr.name || _sosyalBilgi(data.user).ad, eposta: pr.email || data.user.email || '' });
+  } catch (e) {
+    const m = String((e && (e.message || e.code)) || e || '');
+    if (!/cancel/i.test(m)) authShowMsg('error','Giriş hatası: ' + m);
+  } finally {
+    _sosyalMesgul = false;
+  }
+}
+async function _sosyalSonra(user, bilgi) {
+  const { data: plr } = await window.sb.from('players').select('user_id').eq('user_id', user.id).maybeSingle();
+  if (!plr) { authShowMsg('', ''); _regSosyalBasla(bilgi); return; }
+  huni('giris'); try { localStorage.setItem('csc_huni_giris', '1'); } catch (e) {}
+  const { data: _eng } = await window.sb.from('profiles').select('ban_until, ban_reason').eq('id', user.id).maybeSingle();
+  const _bt = _eng && _eng.ban_until ? new Date(_eng.ban_until) : null;
+  if (_bt && !isNaN(_bt) && _bt > new Date()) {
+    try { await window.sb.auth.signOut({ scope: 'local' }); } catch (e) {}
+    authShowMsg('error', _hesapEngelMetni(_bt, _eng.ban_reason));
+    return;
+  }
+  authShowMsg('success', 'Giriş başarılı, oyun yükleniyor…');
+  try { sessionStorage.setItem('cft_girisYeni', '1'); } catch (e) {}
+  setTimeout(() => { try { location.reload(); } catch (e) {} }, 150);
 }
 (function _kayitIlkAcilis() {
   const kur = () => {
@@ -44789,38 +44880,44 @@ function doRegister(){
         return;
       }
 
-      _userTeam = null;
-      if(typeof userTeamSave === 'function') userTeamSave();
-
-      try{
-        localStorage.removeItem('cft_treasury');
-        localStorage.removeItem('cft_treasury_log');
-        localStorage.removeItem('cft_wallet');
-        localStorage.removeItem('cft_wallet_log');
-        localStorage.removeItem('cft_tr_energy');
-      }catch(e){}
-
-      if(typeof syncUserToRoster === 'function') syncUserToRoster();
-
-      authShowMsg('success','Hoşgeldin ' + username + '!');
-      setTimeout(() => osAc('kayit', () => {
-        hideAuthScreen();
-        updateTopbarFromUser();
-        if(typeof trsSyncHeader === 'function') trsSyncHeader();
-        if(typeof syncEnergyDisplay === 'function') syncEnergyDisplay();
-        if(typeof renderRoster === 'function') renderRoster('all');
-        if(typeof updateHero === 'function') updateHero();
-        window._presenceYaz(true).then(fetchOnlineStats);
-        setTimeout(tntBaslat, 900);
-        setTimeout(() => { if (typeof rhBaslat === 'function') rhBaslat(); }, 2500);   // 663
-      }), 500);
+      _kayitBitti(username);
     } catch(e){
       authShowMsg('error','Beklenmeyen hata: ' + (e.message || e));
     }
   })();
 }
 
+// 795 — kayıt sonrası oyuna giriş (e-posta ve Google kaydında ortak)
+function _kayitBitti(username) {
+  _userTeam = null;
+  if(typeof userTeamSave === 'function') userTeamSave();
+
+  try{
+    localStorage.removeItem('cft_treasury');
+    localStorage.removeItem('cft_treasury_log');
+    localStorage.removeItem('cft_wallet');
+    localStorage.removeItem('cft_wallet_log');
+    localStorage.removeItem('cft_tr_energy');
+  }catch(e){}
+
+  if(typeof syncUserToRoster === 'function') syncUserToRoster();
+
+  authShowMsg('success','Hoşgeldin ' + username + '!');
+  setTimeout(() => osAc('kayit', () => {
+    hideAuthScreen();
+    updateTopbarFromUser();
+    if(typeof trsSyncHeader === 'function') trsSyncHeader();
+    if(typeof syncEnergyDisplay === 'function') syncEnergyDisplay();
+    if(typeof renderRoster === 'function') renderRoster('all');
+    if(typeof updateHero === 'function') updateHero();
+    window._presenceYaz(true).then(fetchOnlineStats);
+    setTimeout(tntBaslat, 900);
+    setTimeout(() => { if (typeof rhBaslat === 'function') rhBaslat(); }, 2500);   // 663
+  }), 500);
+}
+
 function authSocial(provider){
+  if (provider === 'google') { _sosyalGoogle(); return; }   // 795
   // 🆕 Google / Apple ile giriş şimdilik KAPALI. Butonlar gizlendi
   //    (silinmedi), bu koruma da yanlışlıkla çağrılmaya karşı.
   //    Yeniden açmak için: bu bloğu ve HTML'deki iki
