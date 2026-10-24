@@ -25741,7 +25741,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-24-kimlik-789';
+const APP_BUILD = '2026-10-24-kayit-hunisi-790';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -44029,7 +44029,48 @@ function _authYenidenCiz(){
   }catch(e){}
 }
 
+// ═══ 790 — KAYIT HUNİSİ: hesabı olmayan cihazın kayıt adımları (anonim; aynı adım bir cihazda bir kez) ═══
+const _HUNI_ANAHTAR = 'csc_huni';   // 'cft_' ile başlamamalı (ilk açılış dil seçimi)
+const _huniGiden = new Set();
+function _huniCihaz() {
+  try {
+    let k = localStorage.getItem(_HUNI_ANAHTAR);
+    if (!k || !/^[0-9a-f-]{36}$/i.test(k)) {
+      k = (window.crypto && typeof crypto.randomUUID === 'function') ? crypto.randomUUID()
+        : 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, () => Math.floor(Math.random() * 16).toString(16));
+      localStorage.setItem(_HUNI_ANAHTAR, k);
+    }
+    return k;
+  } catch (e) { return null; }
+}
+function huni(adim, ayrinti, ek, dene) {
+  try {
+    const anahtar = adim + '|' + (ayrinti || '');
+    if (_huniGiden.has(anahtar)) return;
+    if (!window.sb) { if ((dene || 0) < 10) setTimeout(() => huni(adim, ayrinti, ek, (dene || 0) + 1), 1500); return; }
+    const id = _huniCihaz(); if (!id) return;
+    _huniGiden.add(anahtar);
+    let tz = ''; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
+    const platform = (window.Capacitor && typeof window.Capacitor.getPlatform === 'function') ? window.Capacitor.getPlatform() : 'web';
+    window.sb.rpc('huni_yaz', { p_cihaz: id, p_adim: adim, p_bilgi: {
+      ayrinti: String(ayrinti || '').replace(/\S+@\S+/g, '•').slice(0, 120), platform, dil: navigator.language || '',
+      oyun_dili: (typeof i18nLang === 'function' && i18nLang()) || '', tz, uyruk: (ek && ek.uyruk) || '' } }).then(() => {}, () => {});
+  } catch (e) {}
+}
+// Giriş ekranı açıldı (oturum yok) → açılış
+(function _huniAcilisIzle() {
+  const kur = () => {
+    try { if (localStorage.getItem('csc_huni_giris')) { localStorage.removeItem('csc_huni_giris'); huni('giris'); } } catch (e) {}
+    const a = document.getElementById('auth-screen'); if (!a) return;
+    const bak = () => { if (!a.classList.contains('hidden') && !(window.authUser && authUser.id)) huni('acilis'); };
+    try { new MutationObserver(bak).observe(a, { attributes: true, attributeFilter: ['class'] }); } catch (e) {}
+    bak();
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', kur); else kur();
+})();
+
 function authSwitchTab(tab){
+  if (tab === 'register') huni('kayit');   // 790
   authCurrentTab = tab;
   document.getElementById('tabLogin').classList.toggle('active', tab==='login');
   document.getElementById('tabRegister').classList.toggle('active', tab==='register');
@@ -44040,6 +44081,7 @@ function authSwitchTab(tab){
 }
 
 function authShowMsg(type, text){
+  if (type === 'error' && text) huni('hata', (authCurrentTab === 'login' ? 'Giriş · ' : '') + text);   // 790
   const el = document.getElementById('authMsg');
   el.className = 'auth-msg' + (type?' '+type+' show':'');
   el.textContent = text;
@@ -44387,6 +44429,7 @@ function regNextStep(step){
     }
   }
   authShowMsg('','');
+  if (step > regCurrentStep) huni('adim' + step);   // 790 — 1: e-posta/şifre · 2: bilgiler · 3: avatar geçti
   regCurrentStep = step;
   ['regStep0','regStep1','regStep2','regStep3'].forEach((id,i)=>{
     const el = document.getElementById(id);
@@ -44447,6 +44490,7 @@ function doLogin(){
       const { data, error } = await window.sb.auth.signInWithPassword({ email, password: pw });
       if(error){ authShowMsg('error', 'Giriş hatası: ' + error.message); return; }
       if(!data.user){ authShowMsg('error','Giriş başarısız (kullanıcı yok)'); return; }
+      huni('giris'); try { localStorage.setItem('csc_huni_giris', '1'); } catch (e) {}   // 790 — sayfa hemen yenileniyor: gitmezse yenilenince yazılır
       // 719 — engelli hesap
       const { data: _eng } = await window.sb.from('profiles').select('ban_until, ban_reason').eq('id', data.user.id).maybeSingle();
       const _bt = _eng && _eng.ban_until ? new Date(_eng.ban_until) : null;
@@ -44608,6 +44652,7 @@ function doRegister(){
   }
 
   authShowMsg('success','Hesabınız oluşturuluyor...');
+  huni('gonder', '', { uyruk: nationality });   // 790
 
   (async () => {
     try {
@@ -44622,6 +44667,7 @@ function doRegister(){
       });
       if(error){ authShowMsg('error','Kayıt hatası: ' + error.message); return; }
       if(!data.user){ authShowMsg('error','Kayıt başarısız.'); return; }
+      huni('hesap', '', { uyruk: nationality });   // 790
 
       authUser = {
         id: data.user.id,
