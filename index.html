@@ -25741,7 +25741,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-23-federasyon-787';
+const APP_BUILD = '2026-10-24-serbest-bot-788';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -79655,6 +79655,7 @@ async function saveTfList(list) {
 let _tfFilter   = 'all';
 let _tfSearch   = '';
 let _tfTab      = 'free';  // 626 — 'free' (Serbest, ilk sekme) | 'sale' (Satış Listesinde)
+let _tfFaNo = 0, _tfBotOnb = null;   // 788 — son istek numarası · bot listesi (30 sn)
 let _tfTarget   = null;   // teklif verilen kayıt
 let _tfListTarget = null; // satışa çıkarılacak oyuncu
 let _tfListFee  = 500000;
@@ -79751,11 +79752,14 @@ function tfRender() {
 
 // Serbest oyuncular: takımsız GERÇEK kullanıcılar + takımdan çıkmış botlar (bot üretilmez;
 //   liste players tablosundaki takımı olmayan satırlardır)
-async function _tfSerbestListe(){
+async function _tfSerbestListe(sadeceBot){
   const agents = [];
   if (window.sb) {
     try {
-      const _faQ = (kol) => window.sb.from('players').select(kol)
+      const _faQ = (kol) => sadeceBot
+        ? window.sb.from('players').select(kol).is('team_name', null).eq('is_bot', true)   // 788 — yalnız botlar
+            .order('overall', { ascending: false }).limit(1000)
+        : window.sb.from('players').select(kol)
         .is('team_name', null)
         .order('is_bot', { ascending: true })   // 🆕 takımsız GERÇEK kullanıcılar listenin başında
         .order('overall', { ascending: false })
@@ -79800,7 +79804,11 @@ async function renderFreeAgentList(){
   const el = document.getElementById('tfList');
   if(!el) return;
   const sub = document.getElementById('tfSubtitle');
-  const tum = await _tfSerbestListe();
+  const botMod = _tfSira.free === 'bot', no = ++_tfFaNo;
+  let tum;
+  if (botMod && _tfBotOnb && Date.now() - _tfBotOnb.t < 30000) tum = _tfBotOnb.l;   // 788 — arama/mevki değişince yeniden çekme
+  else { tum = await _tfSerbestListe(botMod); if (botMod) _tfBotOnb = { t: Date.now(), l: tum }; }
+  if (no !== _tfFaNo) return;   // bu arada başka liste istendiyse eski cevap yazılmasın
   _tfSay('free', tum.length);
   window._tfFreeAgentsCache = tum;
   window._tfFaLast = tum;
@@ -79852,6 +79860,7 @@ async function tfHireFreeAgent(agentId){
     return;
   }
   const sbId = String(agentId).slice(3);
+  _tfBotOnb = null;   // 788 — alınan bot listeden düşsün
 
   // Tesis seviyesine bağlı dinamik kadro sınırı
   const maxRoster = (typeof getMaxRosterSize === 'function') ? getMaxRosterSize() : 15;
@@ -104383,6 +104392,7 @@ const _MG_IKON = {
   ucuz: '<svg viewBox="0 0 24 24" fill="none" stroke="#00e676" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v15M6 13l6 6 6-6"/></svg>',
   pahali: '<svg viewBox="0 0 24 24" fill="none" stroke="#ff7043" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V5M6 11l6-6 6 6"/></svg>',
   yeni: '<svg viewBox="0 0 24 24" fill="none" stroke="#29b6f6" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
+  bot: '<svg viewBox="0 0 24 24" fill="none" stroke="#b0bec5" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 8V5M3 12.5v3M21 12.5v3"/><circle cx="12" cy="4" r="1.3" fill="#b0bec5" stroke="none"/><circle cx="9.3" cy="13.2" r="1.4" fill="#b0bec5" stroke="none"/><circle cx="14.7" cy="13.2" r="1.4" fill="#b0bec5" stroke="none"/></svg>',
   x: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>',
   tik: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'
 };
@@ -104649,15 +104659,18 @@ function mgTakimAl(alt, i) {
 // ── Transfer › Serbest / Satış Listesinde (tek satırlık liste) ─────────
 const _tfSira = { sale: 'yeni', free: 'guc' };
 const _TF_SIRA = _MG_SIRA.filter(o => o.v === 'guc' || o.v === 'yeni');
+// 788 — Serbest: "Bot" seçilince yalnız serbest botlar listelenir (ayrıca çekilir, 200 sınırına takılmaz)
+const _TF_SIRA_SER = [..._TF_SIRA, { v: 'bot', ad: 'Bot', ikon: _MG_IKON.bot }];
+const _tfSiraSecenek = () => _tfTab === 'free' ? _TF_SIRA_SER : _TF_SIRA;
 function tfSiraSec(v) { _tfSira[_tfTab] = v; tfRender(); }
-function tfSiraAc() { mgSecimAc('Sırala', _TF_SIRA, _tfSira[_tfTab], tfSiraSec); }
+function tfSiraAc() { mgSecimAc('Sırala', _tfSiraSecenek(), _tfSira[_tfTab], tfSiraSec); }
 const _tfSay = (tab, n) => { const b = document.getElementById('tfSay-' + tab); if (b) b.textContent = (n == null ? '' : n); };
 function _tfKontrolYansit() {
   document.querySelectorAll('#page-transfers .tf-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === _tfTab));
   const not = document.getElementById('tfNot');
   if (not) not.textContent = _tfTab === 'free' ? 'Takımı olmayan oyuncular — oyuncuya teklif sunulur, botu kaptan doğrudan alır.' : 'Takımların transfer listesine koyduğu oyuncular — bonservis teklifiyle alınır.';
   const s = document.getElementById('tfSiraAd');
-  if (s) s.innerHTML = `<b>${_TF_SIRA.find(o => o.v === _tfSira[_tfTab]).ad}</b>`;
+  if (s) s.innerHTML = `<b>${(_tfSiraSecenek().find(o => o.v === _tfSira[_tfTab]) || _TF_SIRA[0]).ad}</b>`;
 }
 const _tfOvrRenk = (v) => v >= 80 ? '#ffd600' : v >= 70 ? 'var(--accent)' : 'var(--accent2)';
 const _tfAltSinif = (alt) => ({ GK: 'gk', DEF: 'def', MID: 'mid', FWD: 'fwd' })[SUBPOS_GROUP[alt] || 'MID'];
