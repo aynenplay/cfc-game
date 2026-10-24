@@ -4613,6 +4613,9 @@ body.auth-kbd-lock #auth-screen{ justify-content:flex-start !important }
   content:'';flex:1;height:1px;background:var(--border);
 }
 
+/* 797 — kapalı katmanlarda sonsuz animasyon durur (görünüm değişmez, açılınca kaldığı yerden döner) */
+#kickoff-overlay:not(.active),#kickoff-overlay:not(.active) *,#kickoff-overlay:not(.active)::before,
+.kick-confirm-overlay:not(.open) *,.tr-done-notif:not(.show) *,.item-sold-notif:not(.show) *,.app-notif:not(.show) *{animation-play-state:paused !important}
 /* 793 — sosyal giriş platforma göre; mevki seçimi */
 #auth-screen .social-btn{display:none}
 #auth-screen[data-sosyal=google] .social-btn.google,#auth-screen[data-sosyal=apple] .social-btn.apple{display:flex}
@@ -25748,7 +25751,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-24-google-796';
+const APP_BUILD = '2026-10-24-hiz-797';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -44889,6 +44892,11 @@ function doRegister(){
 
 // 795 — kayıt sonrası oyuna giriş (e-posta ve Google kaydında ortak)
 function _kayitBitti(username) {
+  if (window._oturumKapandi) {   // 797
+    authShowMsg('success','Hoşgeldin ' + username + '!');
+    setTimeout(() => { try { location.reload(); } catch (e) {} }, 300);
+    return;
+  }
   _userTeam = null;
   if(typeof userTeamSave === 'function') userTeamSave();
 
@@ -45053,6 +45061,7 @@ function doLogoutConfirmed(){
   _userTeam = null;
   selectedPos = null;
   regCurrentStep = 0;
+  window._oturumKapandi = true;   // 797
 
   // Açık drawer/modal varsa kapat
   try{ document.body.classList.remove('drawer-open'); }catch(e){}
@@ -50646,7 +50655,10 @@ async function _bgnYukle() {
       const parca = grup[tur].slice(i, i + 100);
       try {
         const { data, error } = await window.sb.rpc('begeni_al', { p_tur: tur, p_hedefler: parca });
-        if (error || !data) continue;
+        if (error || !data) {   // 797
+          parca.forEach(id => { const k = tur + ':' + id, o = _bgnOnb[k]; if (!(o && o.bekle)) _bgnOnb[k] = { n: o ? o.n : 0, ben: !!(o && o.ben), at: Date.now() }; });
+          continue;
+        }
         parca.forEach(id => {
           const k = tur + ':' + id, v = data[id] || [0, false], o = _bgnOnb[k];
           if (o && o.bekle) return;
@@ -60608,7 +60620,7 @@ async function fetchOnlineStats() {
       .gte('last_seen', fiveMinAgo)
       .order('last_seen', { ascending: false })
       .limit(200);
-    if (error) { console.warn('[online] hata:', error.message); return; }
+    if (error) { console.warn('[online] hata:', error.message); if (total) { _onlineCache.total = total; updateHomePlayersCounter(); } _onlineTekrar(); return; }
     // Profillerden username + avatar_id çek
     let enriched = list || [];
     if (enriched.length > 0) {
@@ -60632,7 +60644,15 @@ async function fetchOnlineStats() {
       ts: Date.now()
     };
     if (typeof updateHomePlayersCounter === 'function') updateHomePlayersCounter();
-  } catch(e) { console.warn('[online] hata:', e); }
+    if (!total) _onlineTekrar(); else _onlineDeneme = 0;
+  } catch(e) { console.warn('[online] hata:', e); _onlineTekrar(); }
+}
+// 797 — açılışta istek düşerse sayaç 0'da kalmasın (5, 10, 15 … sn sonra, en çok 6 kez)
+let _onlineDeneme = 0, _onlineTekrarT = null;
+function _onlineTekrar() {
+  if (_onlineTekrarT || _onlineDeneme >= 6) return;
+  _onlineDeneme++;
+  _onlineTekrarT = setTimeout(() => { _onlineTekrarT = null; fetchOnlineStats(); }, 5000 * _onlineDeneme);
 }
 
 function updateHomePlayersCounter() {
@@ -99565,7 +99585,15 @@ html[lang="en"] .tbm-country-card.user-country::after { content:'⭐ Your Countr
   function planla(){ if(bekle) return; bekle = setTimeout(function(){ bekle = null; tara(); }, 250); }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', planla);
   else planla();
-  try{ new MutationObserver(planla).observe(document.body, { childList:true, subtree:true }); }catch(e){}
+  function gerekli(ml){   // 797
+    for(var j=0;j<ml.length;j++){
+      var r = ml[j], t = r.target;
+      if(t && t.nodeType === 1 && t.closest && t.closest('.bayrak-ch')) return true;
+      for(var k=0;k<r.addedNodes.length;k++){ var tx = r.addedNodes[k].textContent; if(tx && tx.indexOf(CH) >= 0) return true; }
+    }
+    return false;
+  }
+  try{ new MutationObserver(function(ml){ if(gerekli(ml)) planla(); }).observe(document.body, { childList:true, subtree:true }); }catch(e){}
   window._bayrakChTara = tara;
 })();
 </script>
@@ -102363,7 +102391,7 @@ const _enjAz = (s) => s.bitis - Date.now() < 864e5;
 const _enjSureBar = (s) => `<div class="enj-bar sure${_enjAz(s) ? ' az' : ''}"><i style="width:${_enjOran(s.bitis)}%"></i></div>`;
 
 // ── Durum (sunucu: user_player.enerji) — { sure: {id, bitis, y}, yetenek: {...}, xp: {...} } ──
-let ENJ_DURUM = {}, _enjYuklendi = false, _enjYukleniyor = null, _enjKatalogAlindi = false;
+let ENJ_DURUM = {}, _enjYuklendi = false, _enjYukleniyor = null, _enjKatalogAlindi = false, _enjSonDeneme = 0;
 function enjDurumAyarla(e) {
   ENJ_DURUM = (e && typeof e === 'object') ? e : {};
   _enjYuklendi = true;
@@ -102380,6 +102408,8 @@ async function enjYukle(zorla) {
   const durumGerek = !!zorla || !_enjYuklendi, katalogGerek = !!zorla || !_enjKatalogAlindi;
   if (!durumGerek && !katalogGerek) return;
   if (_enjYukleniyor) return _enjYukleniyor;
+  if (!zorla && Date.now() - _enjSonDeneme < 20000) return;   // 797 — başarısız denemeden sonra 20 sn bekle
+  _enjSonDeneme = Date.now();
   _enjYukleniyor = (async () => {
     if (durumGerek) {
       try {
