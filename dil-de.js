@@ -5905,3 +5905,46 @@ Object.assign(window.I18N.de, {
   "Güncelleme": "Update",
   "Bilgilendirme": "Info"
 });
+/* ─── 803 · Kullanıcı adıyla kayıt / giriş · e-posta ekle · giriş ekranı destek ─── */
+Object.assign(window.I18N.de, {
+  "Kullanıcı Adı veya E-posta": "Benutzername oder E-Mail",
+  "kullaniciadi": "benutzername",
+  "veya": "oder",
+  "Bu kullanıcı adı alınmış": "Dieser Benutzername ist vergeben",
+  "{k} daha önce alınmış.": "{k} ist bereits vergeben.",
+  "{k} ile devam edebilir ya da düzenleyebilirsin.": "Du kannst mit {k} fortfahren oder ihn ändern.",
+  "Başka bir kullanıcı adı yaz.": "Wähle einen anderen Benutzernamen.",
+  "{k} ile devam et": "Weiter mit {k}",
+  "Düzenle": "Ändern",
+  "Kullanıcı adı ve şifre gerekli.": "Benutzername und Passwort erforderlich.",
+  "Bu hesap Google ile açılmış. \"Google ile Giriş Yap\"a bas.": "Dieses Konto wurde mit Google erstellt. Tippe auf \"Mit Google anmelden\".",
+  "Çok fazla deneme yapıldı. Birkaç dakika sonra tekrar dene.": "Zu viele Versuche. Versuche es in ein paar Minuten erneut.",
+  "Kullanıcı adı veya şifre hatalı.": "Benutzername oder Passwort falsch.",
+  "Bağlantı hatası. Tekrar dene.": "Verbindungsfehler. Versuche es erneut.",
+  "Kullanıcı adı / e-posta veya şifre hatalı.": "Benutzername / E-Mail oder Passwort falsch.",
+  "E-posta adresin henüz onaylanmadı.": "Deine E-Mail-Adresse wurde noch nicht bestätigt.",
+  "Bu e-posta ile zaten bir hesap var. Giriş Yap sekmesinden gir.": "Mit dieser E-Mail gibt es bereits ein Konto. Melde dich im Tab Anmelden an.",
+  "Ad ve kullanıcı adı gerekli.": "Name und Benutzername erforderlich.",
+  "E-posta ekle": "E-Mail hinzufügen",
+  "E-postanı değiştir": "E-Mail ändern",
+  "Şifreni unutursan sıfırlama bağlantısı bu adrese gelir.": "Wenn du dein Passwort vergisst, kommt der Link zum Zurücksetzen an diese Adresse.",
+  "Bu e-posta başka bir hesapta kullanılıyor.": "Diese E-Mail wird von einem anderen Konto verwendet.",
+  "E-posta kaydedildi.": "E-Mail gespeichert.",
+  "Ekle ›": "Hinzufügen ›",
+  "Hesap oluşturuldu ama oyuncu kaydın hazırlanamadı. Birkaç saniye sonra aynı kullanıcı adıyla GİRİŞ YAP. Sorun sürerse destekle iletişime geç.": "Dein Konto wurde erstellt, aber dein Spielerprofil konnte nicht vorbereitet werden. MELDE DICH in ein paar Sekunden mit demselben Benutzernamen AN. Wenn das Problem bleibt, kontaktiere den Support.",
+  "Sıfırlama bağlantısı hesabına eklediğin e-postaya gönderilir. E-posta adresini yazıp tekrar bas. E-posta eklemediysen Destek'ten bize yaz.": "Der Link zum Zurücksetzen wird an die E-Mail gesendet, die du deinem Konto hinzugefügt hast. Gib diese E-Mail-Adresse ein und tippe erneut. Wenn du keine E-Mail hinzugefügt hast, schreib uns über Support.",
+  "Bu e-posta bir hesaba ekliyse sıfırlama bağlantısı gönderildi. Gelen kutunu ve spam klasörünü kontrol et.": "Wenn diese E-Mail mit einem Konto verknüpft ist, wurde ein Link zum Zurücksetzen gesendet. Prüfe deinen Posteingang und Spam-Ordner.",
+  "Hesabına giremiyorsan yaz, ekibimiz ilgilensin.": "Du kommst nicht in dein Konto? Schreib uns, unser Team hilft dir.",
+  "Sorununu yaz": "Beschreibe dein Problem",
+  "Adını ve soyadını yaz.": "Gib deinen Vor- und Nachnamen ein.",
+  "Sorununu biraz daha ayrıntılı yaz.": "Beschreibe dein Problem bitte etwas genauer.",
+  "Çok fazla talep gönderildi. Daha sonra tekrar dene.": "Zu viele Anfragen gesendet. Versuche es später erneut.",
+  "Gönderilemedi. Bağlantını kontrol edip tekrar dene.": "Senden fehlgeschlagen. Prüfe deine Verbindung und versuche es erneut.",
+  "Talebin iletildi": "Anfrage gesendet",
+  "Ekibimiz en kısa sürede ilgilenecek.": "Unser Team kümmert sich so schnell wie möglich darum."
+});
+window.I18N_PATTERNS.de.push(
+  [/^Giriş hatası: (.+)$/, m => "Anmeldefehler: " + (window.I18N.de[m[1]] || m[1])],
+  [/^Kayıt hatası: (.+)$/, m => "Registrierungsfehler: " + (window.I18N.de[m[1]] || m[1])],
+  [/^(\S+@\S+) adresine bir onay bağlantısı gönderildi\. Bağlantıya basınca e-postan kaydedilir\.$/, "Ein Bestätigungslink wurde an $1 gesendet. Sobald du darauf tippst, wird deine E-Mail gespeichert."]
+);

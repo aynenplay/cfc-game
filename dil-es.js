@@ -7545,3 +7545,46 @@ Object.assign(window.I18N.es, {
   "Güncelleme": "Actualización",
   "Bilgilendirme": "Información"
 });
+/* ─── 803 · Kullanıcı adıyla kayıt / giriş · e-posta ekle · giriş ekranı destek ─── */
+Object.assign(window.I18N.es, {
+  "Kullanıcı Adı veya E-posta": "Usuario o correo electrónico",
+  "kullaniciadi": "usuario",
+  "veya": "o",
+  "Bu kullanıcı adı alınmış": "Este nombre de usuario está ocupado",
+  "{k} daha önce alınmış.": "{k} ya está ocupado.",
+  "{k} ile devam edebilir ya da düzenleyebilirsin.": "Puedes continuar con {k} o editarlo.",
+  "Başka bir kullanıcı adı yaz.": "Elige otro nombre de usuario.",
+  "{k} ile devam et": "Continuar con {k}",
+  "Düzenle": "Editar",
+  "Kullanıcı adı ve şifre gerekli.": "Se requieren usuario y contraseña.",
+  "Bu hesap Google ile açılmış. \"Google ile Giriş Yap\"a bas.": "Esta cuenta se creó con Google. Toca \"Iniciar sesión con Google\".",
+  "Çok fazla deneme yapıldı. Birkaç dakika sonra tekrar dene.": "Demasiados intentos. Vuelve a intentarlo en unos minutos.",
+  "Kullanıcı adı veya şifre hatalı.": "Usuario o contraseña incorrectos.",
+  "Bağlantı hatası. Tekrar dene.": "Error de conexión. Inténtalo de nuevo.",
+  "Kullanıcı adı / e-posta veya şifre hatalı.": "Usuario / correo o contraseña incorrectos.",
+  "E-posta adresin henüz onaylanmadı.": "Tu correo electrónico aún no está confirmado.",
+  "Bu e-posta ile zaten bir hesap var. Giriş Yap sekmesinden gir.": "Ya existe una cuenta con este correo. Entra desde la pestaña Iniciar sesión.",
+  "Ad ve kullanıcı adı gerekli.": "Se requieren nombre y usuario.",
+  "E-posta ekle": "Añadir correo",
+  "E-postanı değiştir": "Cambiar tu correo",
+  "Şifreni unutursan sıfırlama bağlantısı bu adrese gelir.": "Si olvidas tu contraseña, el enlace para restablecerla llegará a esta dirección.",
+  "Bu e-posta başka bir hesapta kullanılıyor.": "Este correo lo usa otra cuenta.",
+  "E-posta kaydedildi.": "Correo guardado.",
+  "Ekle ›": "Añadir ›",
+  "Hesap oluşturuldu ama oyuncu kaydın hazırlanamadı. Birkaç saniye sonra aynı kullanıcı adıyla GİRİŞ YAP. Sorun sürerse destekle iletişime geç.": "Tu cuenta se creó, pero no se pudo preparar tu perfil de jugador. INICIA SESIÓN con el mismo usuario en unos segundos. Si el problema continúa, contacta con soporte.",
+  "Sıfırlama bağlantısı hesabına eklediğin e-postaya gönderilir. E-posta adresini yazıp tekrar bas. E-posta eklemediysen Destek'ten bize yaz.": "El enlace para restablecer se envía al correo que añadiste a tu cuenta. Escribe ese correo y vuelve a tocar. Si no añadiste un correo, escríbenos desde Soporte.",
+  "Bu e-posta bir hesaba ekliyse sıfırlama bağlantısı gönderildi. Gelen kutunu ve spam klasörünü kontrol et.": "Si este correo está vinculado a una cuenta, se ha enviado un enlace para restablecer. Revisa tu bandeja de entrada y la carpeta de spam.",
+  "Hesabına giremiyorsan yaz, ekibimiz ilgilensin.": "¿No puedes entrar en tu cuenta? Escríbenos y nuestro equipo te ayudará.",
+  "Sorununu yaz": "Describe tu problema",
+  "Adını ve soyadını yaz.": "Escribe tu nombre y apellido.",
+  "Sorununu biraz daha ayrıntılı yaz.": "Describe tu problema con un poco más de detalle.",
+  "Çok fazla talep gönderildi. Daha sonra tekrar dene.": "Se enviaron demasiadas solicitudes. Inténtalo más tarde.",
+  "Gönderilemedi. Bağlantını kontrol edip tekrar dene.": "No se pudo enviar. Revisa tu conexión e inténtalo de nuevo.",
+  "Talebin iletildi": "Solicitud enviada",
+  "Ekibimiz en kısa sürede ilgilenecek.": "Nuestro equipo lo revisará lo antes posible."
+});
+window.I18N_PATTERNS.es.push(
+  [/^Giriş hatası: (.+)$/, m => "Error de inicio de sesión: " + (window.I18N.es[m[1]] || m[1])],
+  [/^Kayıt hatası: (.+)$/, m => "Error de registro: " + (window.I18N.es[m[1]] || m[1])],
+  [/^(\S+@\S+) adresine bir onay bağlantısı gönderildi\. Bağlantıya basınca e-postan kaydedilir\.$/, "Se ha enviado un enlace de confirmación a $1. Tu correo se guarda al tocar el enlace."]
+);

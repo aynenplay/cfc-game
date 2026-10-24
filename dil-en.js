@@ -7970,3 +7970,46 @@ Object.assign(window.I18N.en, {
   "Güncelleme": "Update",
   "Bilgilendirme": "Info"
 });
+/* ─── 803 · Kullanıcı adıyla kayıt / giriş · e-posta ekle · giriş ekranı destek ─── */
+Object.assign(window.I18N.en, {
+  "Kullanıcı Adı veya E-posta": "Username or E-mail",
+  "kullaniciadi": "username",
+  "veya": "or",
+  "Bu kullanıcı adı alınmış": "This username is taken",
+  "{k} daha önce alınmış.": "{k} is already taken.",
+  "{k} ile devam edebilir ya da düzenleyebilirsin.": "You can continue with {k} or edit it.",
+  "Başka bir kullanıcı adı yaz.": "Choose another username.",
+  "{k} ile devam et": "Continue with {k}",
+  "Düzenle": "Edit",
+  "Kullanıcı adı ve şifre gerekli.": "Username and password are required.",
+  "Bu hesap Google ile açılmış. \"Google ile Giriş Yap\"a bas.": "This account was created with Google. Tap \"Sign in with Google\".",
+  "Çok fazla deneme yapıldı. Birkaç dakika sonra tekrar dene.": "Too many attempts. Try again in a few minutes.",
+  "Kullanıcı adı veya şifre hatalı.": "Wrong username or password.",
+  "Bağlantı hatası. Tekrar dene.": "Connection error. Try again.",
+  "Kullanıcı adı / e-posta veya şifre hatalı.": "Wrong username / e-mail or password.",
+  "E-posta adresin henüz onaylanmadı.": "Your e-mail address hasn't been confirmed yet.",
+  "Bu e-posta ile zaten bir hesap var. Giriş Yap sekmesinden gir.": "There is already an account with this e-mail. Log in from the Log in tab.",
+  "Ad ve kullanıcı adı gerekli.": "Name and username are required.",
+  "E-posta ekle": "Add e-mail",
+  "E-postanı değiştir": "Change your e-mail",
+  "Şifreni unutursan sıfırlama bağlantısı bu adrese gelir.": "If you forget your password, the reset link will be sent to this address.",
+  "Bu e-posta başka bir hesapta kullanılıyor.": "This e-mail is used by another account.",
+  "E-posta kaydedildi.": "E-mail saved.",
+  "Ekle ›": "Add ›",
+  "Hesap oluşturuldu ama oyuncu kaydın hazırlanamadı. Birkaç saniye sonra aynı kullanıcı adıyla GİRİŞ YAP. Sorun sürerse destekle iletişime geç.": "Your account was created but your player profile couldn't be prepared. LOG IN with the same username in a few seconds. If the problem continues, contact support.",
+  "Sıfırlama bağlantısı hesabına eklediğin e-postaya gönderilir. E-posta adresini yazıp tekrar bas. E-posta eklemediysen Destek'ten bize yaz.": "The reset link is sent to the e-mail you added to your account. Enter that e-mail address and tap again. If you didn't add an e-mail, write to us via Support.",
+  "Bu e-posta bir hesaba ekliyse sıfırlama bağlantısı gönderildi. Gelen kutunu ve spam klasörünü kontrol et.": "If this e-mail is linked to an account, a reset link has been sent. Check your inbox and spam folder.",
+  "Hesabına giremiyorsan yaz, ekibimiz ilgilensin.": "Can't get into your account? Write to us and our team will help.",
+  "Sorununu yaz": "Describe your problem",
+  "Adını ve soyadını yaz.": "Enter your first and last name.",
+  "Sorununu biraz daha ayrıntılı yaz.": "Please describe your problem in a bit more detail.",
+  "Çok fazla talep gönderildi. Daha sonra tekrar dene.": "Too many requests sent. Try again later.",
+  "Gönderilemedi. Bağlantını kontrol edip tekrar dene.": "Couldn't send. Check your connection and try again.",
+  "Talebin iletildi": "Request sent",
+  "Ekibimiz en kısa sürede ilgilenecek.": "Our team will look into it as soon as possible."
+});
+window.I18N_PATTERNS.en.push(
+  [/^Giriş hatası: (.+)$/, m => "Login error: " + (window.I18N.en[m[1]] || m[1])],
+  [/^Kayıt hatası: (.+)$/, m => "Sign-up error: " + (window.I18N.en[m[1]] || m[1])],
+  [/^(\S+@\S+) adresine bir onay bağlantısı gönderildi\. Bağlantıya basınca e-postan kaydedilir\.$/, "A confirmation link has been sent to $1. Your e-mail is saved once you tap the link."]
+);

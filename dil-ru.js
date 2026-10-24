@@ -7577,3 +7577,46 @@ Object.assign(window.I18N.ru, {
   "Güncelleme": "Обновление",
   "Bilgilendirme": "Информация"
 });
+/* ─── 803 · Kullanıcı adıyla kayıt / giriş · e-posta ekle · giriş ekranı destek ─── */
+Object.assign(window.I18N.ru, {
+  "Kullanıcı Adı veya E-posta": "Имя пользователя или эл. почта",
+  "kullaniciadi": "username",
+  "veya": "или",
+  "Bu kullanıcı adı alınmış": "Это имя пользователя занято",
+  "{k} daha önce alınmış.": "{k} уже занято.",
+  "{k} ile devam edebilir ya da düzenleyebilirsin.": "Можешь продолжить с {k} или изменить его.",
+  "Başka bir kullanıcı adı yaz.": "Выбери другое имя пользователя.",
+  "{k} ile devam et": "Продолжить с {k}",
+  "Düzenle": "Изменить",
+  "Kullanıcı adı ve şifre gerekli.": "Нужны имя пользователя и пароль.",
+  "Bu hesap Google ile açılmış. \"Google ile Giriş Yap\"a bas.": "Этот аккаунт создан через Google. Нажми «Войти через Google».",
+  "Çok fazla deneme yapıldı. Birkaç dakika sonra tekrar dene.": "Слишком много попыток. Попробуй через несколько минут.",
+  "Kullanıcı adı veya şifre hatalı.": "Неверное имя пользователя или пароль.",
+  "Bağlantı hatası. Tekrar dene.": "Ошибка соединения. Попробуй ещё раз.",
+  "Kullanıcı adı / e-posta veya şifre hatalı.": "Неверное имя пользователя / эл. почта или пароль.",
+  "E-posta adresin henüz onaylanmadı.": "Твоя эл. почта ещё не подтверждена.",
+  "Bu e-posta ile zaten bir hesap var. Giriş Yap sekmesinden gir.": "Аккаунт с этой эл. почтой уже есть. Войди на вкладке «Войти».",
+  "Ad ve kullanıcı adı gerekli.": "Нужны имя и имя пользователя.",
+  "E-posta ekle": "Добавить эл. почту",
+  "E-postanı değiştir": "Изменить эл. почту",
+  "Şifreni unutursan sıfırlama bağlantısı bu adrese gelir.": "Если забудешь пароль, ссылка для сброса придёт на этот адрес.",
+  "Bu e-posta başka bir hesapta kullanılıyor.": "Эта эл. почта уже используется другим аккаунтом.",
+  "E-posta kaydedildi.": "Эл. почта сохранена.",
+  "Ekle ›": "Добавить ›",
+  "Hesap oluşturuldu ama oyuncu kaydın hazırlanamadı. Birkaç saniye sonra aynı kullanıcı adıyla GİRİŞ YAP. Sorun sürerse destekle iletişime geç.": "Аккаунт создан, но профиль игрока подготовить не удалось. ВОЙДИ с тем же именем пользователя через несколько секунд. Если проблема останется, напиши в поддержку.",
+  "Sıfırlama bağlantısı hesabına eklediğin e-postaya gönderilir. E-posta adresini yazıp tekrar bas. E-posta eklemediysen Destek'ten bize yaz.": "Ссылка для сброса отправляется на эл. почту, добавленную в аккаунт. Введи этот адрес и нажми ещё раз. Если ты не добавлял почту, напиши нам через «Поддержку».",
+  "Bu e-posta bir hesaba ekliyse sıfırlama bağlantısı gönderildi. Gelen kutunu ve spam klasörünü kontrol et.": "Если эта эл. почта привязана к аккаунту, ссылка для сброса отправлена. Проверь входящие и папку «Спам».",
+  "Hesabına giremiyorsan yaz, ekibimiz ilgilensin.": "Не можешь войти в аккаунт? Напиши нам, и наша команда поможет.",
+  "Sorununu yaz": "Опиши проблему",
+  "Adını ve soyadını yaz.": "Введи имя и фамилию.",
+  "Sorununu biraz daha ayrıntılı yaz.": "Опиши проблему чуть подробнее.",
+  "Çok fazla talep gönderildi. Daha sonra tekrar dene.": "Отправлено слишком много запросов. Попробуй позже.",
+  "Gönderilemedi. Bağlantını kontrol edip tekrar dene.": "Не удалось отправить. Проверь соединение и попробуй ещё раз.",
+  "Talebin iletildi": "Запрос отправлен",
+  "Ekibimiz en kısa sürede ilgilenecek.": "Наша команда займётся этим как можно скорее."
+});
+window.I18N_PATTERNS.ru.push(
+  [/^Giriş hatası: (.+)$/, m => "Ошибка входа: " + (window.I18N.ru[m[1]] || m[1])],
+  [/^Kayıt hatası: (.+)$/, m => "Ошибка регистрации: " + (window.I18N.ru[m[1]] || m[1])],
+  [/^(\S+@\S+) adresine bir onay bağlantısı gönderildi\. Bağlantıya basınca e-postan kaydedilir\.$/, "Ссылка для подтверждения отправлена на $1. Почта сохранится, когда ты нажмёшь на ссылку."]
+);
