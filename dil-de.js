@@ -5896,3 +5896,12 @@ Object.assign(window.I18N.de, {
   "ADAY": "KANDIDATEN",
   "ÜLKE": "LÄNDER"
 });
+/* ─── 800 · Yönetim mesajı konuları ─── */
+Object.assign(window.I18N.de, {
+  "Uyarı": "Warnung",
+  "İkaz": "Verwarnung",
+  "Tebrik": "Glückwunsch",
+  "Kampanya": "Aktion",
+  "Güncelleme": "Update",
+  "Bilgilendirme": "Info"
+});

@@ -101,7 +101,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '787';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '800';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -25755,7 +25755,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-24-hiz-798';
+const APP_BUILD = '2026-10-24-mesaj-800';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -44820,6 +44820,7 @@ function doLogin(){
 }
 
 function doRegister(){
+  if (typeof authUser !== 'undefined' && authUser && authUser.id) return;   // 800 — hesap açıldı (ikinci basış)
   // ═══════════════════════════════════════════════════════════════════
   // SUPABASE REGISTER — auth.users + profiles trigger
   // ═══════════════════════════════════════════════════════════════════
@@ -48224,7 +48225,7 @@ async function duyuruTara() {
   try {
     if (!window.sb || typeof sysMsg !== 'function') return;
     const { data } = await window.sb.from('broadcasts')
-      .select('id,hedef,hedef_deger,baslik,govde,gonderen,created_at')
+      .select('id,hedef,hedef_deger,baslik,govde,gonderen,created_at,konu')
       .eq('aktif', true).order('created_at', { ascending: false }).limit(30);
     if (!data || !data.length) return;
 
@@ -48237,10 +48238,12 @@ async function duyuruTara() {
       if (b.hedef === 'all') bana = true;
       else if (b.hedef === 'country') bana = !!b.hedef_deger && (b.hedef_deger === uyruk || b.hedef_deger === ulke);
       else if (b.hedef === 'team')    bana = !!b.hedef_deger && (b.hedef_deger === takim);
+      else if (b.hedef === 'uyruk')   bana = !!b.hedef_deger && !!uyruk && String(b.hedef_deger).toUpperCase() === String(uyruk).toUpperCase();   // 800
+      else if (b.hedef === 'takim')   bana = !!b.hedef_deger && !!takim && b.hedef_deger === (ulke + '|' + takim);
       if (!bana) return;
       sysMsg({
         id: 'yayin_' + b.id,
-        from: b.gonderen || '📢 Yönetim', avatar: '📢', kind: 'duyuru',
+        from: b.konu ? 'CSC' : (b.gonderen || '📢 Yönetim'), avatar: '📢', kind: b.konu ? 'yonetim' : 'duyuru', konu: b.konu || undefined,
         subject: b.baslik || 'Duyuru',
         body: b.govde || '',
       });
@@ -48248,6 +48251,13 @@ async function duyuruTara() {
   } catch(e) {}
 }
 window.duyuruTara = duyuruTara;
+// 800 — uygulamaya dönünce yeni toplu mesajlar (en çok 5 dakikada bir)
+let _duyuruDonus = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || Date.now() - _duyuruDonus < 300000) return;
+  _duyuruDonus = Date.now();
+  duyuruTara();
+});
 
 // ── Takımdan ayrıl onayı ──
 // ══════════════════════════════════════════════════════════════
@@ -73708,6 +73718,7 @@ function _pushAc(tip, alt){
   else if (tip === 'yaris') goToRaceTab(alt === 'rating' || alt === 'penalti' ? alt : 'train');
   else if (tip === 'duello') git('entertainment');
   else if (tip === 'maas') inboxOpen();
+  else if (tip === 'yonetim') { Promise.resolve(typeof duyuruTara === 'function' ? duyuruTara() : null).catch(() => {}).then(() => inboxOpen()); }
   else if (tip === 'takipci') {
     git('cfc-media');
     setTimeout(() => { cfcMdTab('profile', document.querySelector('.cfcmd-tab[data-cfcmd-tab="profile"]')); cfcMdOpenFollows('followers'); }, 200);
@@ -81551,7 +81562,8 @@ function sysMsg(o) {
       ts: Date.now(),
       read: false,
       thread: [],
-      ach: Array.isArray(o.ach) && o.ach.length ? o.ach.slice(0, 40) : undefined   // 759 — başarım kimlikleri (detay kartı)
+      ach: Array.isArray(o.ach) && o.ach.length ? o.ach.slice(0, 40) : undefined,   // 759 — başarım kimlikleri (detay kartı)
+      konu: o.konu || undefined   // 800 — yönetim mesajı konusu
     });
     saveInboxMsgs(msgs);
     _sysSentAdd(id);
@@ -101248,6 +101260,7 @@ function _dzDegisBildir(degis, milli) {
 .gk-pil{flex-shrink:0;font:800 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.3px;padding:4px 7px;border-radius:7px;white-space:nowrap}
 .gk-pil.art{color:var(--gkFin);background:rgba(70,209,122,.12)}
 .gk-pil.eks{color:var(--gkKot);background:rgba(255,90,90,.12)}
+.gk-pil.kz{color:var(--k);background:color-mix(in srgb,var(--k) 14%,transparent);font-size:11.5px;letter-spacing:.9px;text-transform:uppercase;padding:4px 7px 3px}
 .gk-pil.G{color:#06210f;background:var(--gkFin)}.gk-pil.B{color:#1a1400;background:var(--gkKul)}.gk-pil.M{color:#fff;background:var(--gkKot)}
 .gk-nokta{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px rgba(0,230,118,.6);flex-shrink:0}
 #inboxMsgList .inbox-msg-meta{display:none}
@@ -101401,6 +101414,11 @@ function _dzDegisBildir(degis, milli) {
    mesajlar kendi metinlerinden çözülür, çözülemeyen düz karbon kartta kalır.
    ═══════════════════════════════════════════════════════════════════ */
 const GK_IK = {
+  ikaz: '<path d="M8.2 3h7.6L21 8.2v7.6L15.8 21H8.2L3 15.8V8.2z"/><path d="M12 7.5v5.5M12 16.3v.3"/>',
+  kampanya: '<path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.3 8.3a1.4 1.4 0 0 1 0 2l-6.8 6.8a1.4 1.4 0 0 1-2 0z"/><circle cx="8" cy="8" r="1.6"/>',
+  etkinlik: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><path d="M12 12l1.1 2.2 2.4.3-1.7 1.7.4 2.4-2.2-1.2-2.2 1.2.4-2.4-1.7-1.7 2.4-.3z"/>',
+  guncelleme: '<path d="M19.5 12a7.5 7.5 0 0 1-13 5.1M4.5 12a7.5 7.5 0 0 1 13-5.1"/><path d="M17.8 3.2v3.9h-3.9M6.2 20.8v-3.9h3.9"/>',
+  bilgi: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.6v.3"/>',
   cuzdan: '<path d="M3.5 7.5h14a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3h-11a3 3 0 0 1-3-3z"/><path d="M3.5 7.5l11-3.2v3.2"/><circle cx="16.3" cy="13.5" r="1.2"/>',
   kasa: '<path d="M3 9.5l9-5.5 9 5.5"/><path d="M5.5 10v7.5M9.8 10v7.5M14.2 10v7.5M18.5 10v7.5"/><path d="M3 20h18"/>',
   top: '<circle cx="12" cy="12" r="9"/><path d="M12 7.2l3.6 2.6-1.4 4.3H9.8L8.4 9.8z"/><path d="M12 3v4.2M20.6 9.4l-5 .4M3.4 9.4l5 .4M6.6 19.2l3.2-5.1M17.4 19.2l-3.2-5.1"/>',
@@ -101456,6 +101474,11 @@ const GK_TUR = {
   gunluk: ['kul', 'hediye'], basarim: ['kul', 'madalya'], yaris: ['kul', 'madalya'],
   duyuru: ['duy', 'duyuru'], destek: ['duy', 'destek'],
 };
+// 800 — CSC yönetim mesajı: konu → [etiket, renk, ikon]
+const GK_KONU = { uyari: ['Uyarı', '#ffb020', 'uyari'], ikaz: ['İkaz', '#ff5a5a', 'ikaz'], tebrik: ['Tebrik', '#ffd54f', 'yildiz'],
+  kampanya: ['Kampanya', '#2ec36b', 'kampanya'], duyuru: ['Duyuru', '#42a5f5', 'duyuru'], etkinlik: ['Etkinlik', '#b388ff', 'etkinlik'],
+  guncelleme: ['Güncelleme', '#26c6da', 'guncelleme'], bilgi: ['Bilgilendirme', '#90a4ae', 'bilgi'] };
+const _gkKonu = (m) => (m && m.sysKind === 'yonetim' && GK_KONU[m.konu]) ? GK_KONU[m.konu] : null;
 function _gkTur(m) {
   if (!m) return { kat: 'duy', ikon: 'duyuru' };
   if (m.type === 'chat') return { kat: 'soh', ikon: 'sohbet' };
@@ -101464,6 +101487,8 @@ function _gkTur(m) {
   if (m.type === 'contract_renewal' || m.type === 'contract_renewal_request') return { kat: 'kul', ikon: 'belge' };
   if (m.type === 'friendly_response') return { kat: 'mac', ikon: 'top' };
   if (m.trnData) return { kat: 'mac', ikon: 'kupa' };
+  const kz = _gkKonu(m);
+  if (kz) return { kat: 'duy', ikon: kz[2], kind: 'yonetim', renk: kz[1], konu: kz[0] };
   let k = m.sysKind;
   if ((!k || k === 'genel') && /^salary_/.test(String(m.id))) k = 'maas';
   if ((!k || k === 'genel') && /^lgprize_/.test(String(m.id))) k = 'lig_odulu';
@@ -101545,9 +101570,11 @@ function _gkTas(m, tr) {
       ic = v || (m.fromAvatar || '👤'); cls += ' gk-av';
     }
   } catch (e) {}
-  return `<div class="${cls}">${ic}</div>`;
+  return `<div class="${cls}"${tr.renk ? ` style="--k:${tr.renk}"` : ''}>${ic}</div>`;
 }
 function _gkPil(m) {
+  const kz = _gkKonu(m);
+  if (kz) return `<span class="gk-pil kz" style="--k:${kz[1]}">${kz[0]}</span>`;
   const f = _gkFis(m);
   if (f) {
     if (typeof f.tutar === 'number' && f.tutar) return `<span class="gk-pil ${f.tutar > 0 ? 'art' : 'eks'}" data-noi18n>${_gkPara(f.tutar, f.para, true)}</span>`;
@@ -101579,7 +101606,7 @@ function _gkListeHtml(liste) {
     const kim = m.sent ? ('↗ ' + _gkAd(m.toName || m.to || 'Alıcı')) : _gkAd(m.from || '—');
     const oz = _gkE(modFiltre(m.subject || String(m.body || '').substring(0, 60)));
     h += `<div class="inbox-swipe" data-id="${_gkE(m.id)}">
-      <div class="inbox-msg-row gk-satir kt-${tr.kot ? 'kot' : tr.kat} ${m.read ? '' : 'unread'}" onclick="inboxOpenMsg('${safeId}')">
+      <div class="inbox-msg-row gk-satir kt-${tr.kot ? 'kot' : tr.kat} ${m.read ? '' : 'unread'}"${tr.renk ? ` style="--k:${tr.renk}"` : ''} onclick="inboxOpenMsg('${safeId}')">
         ${_gkTas(m, tr)}
         <div class="gk-ic"><div class="gk-s1"><b ${m.type === 'chat' ? 'data-noi18n' : ''}>${kim}</b><time data-noi18n>${_gkSaat(m.ts)}</time></div>
           <div class="gk-s2"><span class="gk-oz" ${m.type === 'chat' ? 'data-noi18n' : ''}>${oz}</span>${_gkPil(m)}${m.read ? '' : '<i class="gk-nokta"></i>'}</div></div>
@@ -101704,7 +101731,7 @@ function _gkSistemKart(m) {
   let metin = _gkMetin(m.body);
   const ba = _gkBasarimListe(m);
   if (ba) { const i = metin.indexOf('</p>'); metin = i >= 0 ? metin.slice(0, i + 4) + ba + metin.slice(i + 4) : ba + metin; }
-  return `<div class="gk-kart kt-${tr.kot ? 'kot' : tr.kat}"><div class="gk-ku">${_gkTas(m, tr)}<div><h3>${GK_KAT[tr.kat] || 'Sistem'}</h3><small>${_gkAd(m.from || '')}</small></div></div>`
+  return `<div class="gk-kart kt-${tr.kot ? 'kot' : tr.kat}"${tr.renk ? ` style="--k:${tr.renk}"` : ''}><div class="gk-ku">${_gkTas(m, tr)}<div><h3>${tr.konu || GK_KAT[tr.kat] || 'Sistem'}</h3><small>${_gkAd(m.from || '')}</small></div></div>`
     + `<div class="gk-metin">${metin}</div></div>`;
 }
 

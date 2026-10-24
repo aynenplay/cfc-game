@@ -7568,3 +7568,12 @@ Object.assign(window.I18N.ru, {
   "ADAY": "КАНДИДАТОВ",
   "ÜLKE": "СТРАН"
 });
+/* ─── 800 · Yönetim mesajı konuları ─── */
+Object.assign(window.I18N.ru, {
+  "Uyarı": "Предупреждение",
+  "İkaz": "Выговор",
+  "Tebrik": "Поздравление",
+  "Kampanya": "Акция",
+  "Güncelleme": "Обновление",
+  "Bilgilendirme": "Информация"
+});

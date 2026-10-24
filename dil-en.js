@@ -7961,3 +7961,12 @@ Object.assign(window.I18N.en, {
   "ADAY": "CANDIDATES",
   "ÜLKE": "COUNTRIES"
 });
+/* ─── 800 · Yönetim mesajı konuları ─── */
+Object.assign(window.I18N.en, {
+  "Uyarı": "Warning",
+  "İkaz": "Final warning",
+  "Tebrik": "Congratulations",
+  "Kampanya": "Offer",
+  "Güncelleme": "Update",
+  "Bilgilendirme": "Info"
+});

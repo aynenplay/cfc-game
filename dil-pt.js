@@ -7528,3 +7528,12 @@ Object.assign(window.I18N.pt, {
   "ADAY": "CANDIDATOS",
   "ÜLKE": "PAÍSES"
 });
+/* ─── 800 · Yönetim mesajı konuları ─── */
+Object.assign(window.I18N.pt, {
+  "Uyarı": "Aviso",
+  "İkaz": "Advertência",
+  "Tebrik": "Parabéns",
+  "Kampanya": "Oferta",
+  "Güncelleme": "Atualização",
+  "Bilgilendirme": "Informação"
+});
