@@ -25795,7 +25795,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-25-haberkupa-804';
+const APP_BUILD = '2026-10-25-olcum-806';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -44112,9 +44112,9 @@ function huni(adim, ayrinti, ek, dene) {
     _huniGiden.add(anahtar);
     let tz = ''; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
     const platform = (window.Capacitor && typeof window.Capacitor.getPlatform === 'function') ? window.Capacitor.getPlatform() : 'web';
-    window.sb.rpc('huni_yaz', { p_cihaz: id, p_adim: adim, p_bilgi: {
+    return window.sb.rpc('huni_yaz', { p_cihaz: id, p_adim: adim, p_bilgi: {
       ayrinti: String(ayrinti || '').replace(/\S+@\S+/g, '•').slice(0, 120), platform, dil: navigator.language || '',
-      oyun_dili: (typeof i18nLang === 'function' && i18nLang()) || '', tz, uyruk: (ek && ek.uyruk) || '' } }).then(() => {}, () => {});
+      oyun_dili: (typeof i18nLang === 'function' && i18nLang()) || '', tz, uyruk: (ek && ek.uyruk) || '' } }).then(r => !(r && r.error), () => false);   // 806 — sonuç döner
   } catch (e) {}
 }
 // 792 — kullanıcı adı önerisi: kullanıcı elle yazmadıkça addan türetilir (sunucu çakışmada kendisi ayırır)
@@ -44322,8 +44322,35 @@ async function _sosyalSonra(user, bilgi) {
   }, 40000);
 })();
 // Giriş ekranı açıldı (oturum yok) → açılış
+// 806 — kayıt / giriş ekranında: arka (uygulama arka plana geçti) · don (geri döndü) · odak (ekranın üstünde pencere ya da
+//   uygulama değişimi). Ayrıntıda o anki ekran: 'giris' · 'kayit 0..3' (Google ile kayıtta ' google'). Gidemezse sonraki açılışta gider.
+function _huniBaglam() {
+  try { return authCurrentTab === 'login' ? 'giris' : 'kayit ' + regCurrentStep + (_regMod === 'sosyal' ? ' google' : ''); } catch (e) { return ''; }
+}
+function _huniAuthAcik() { const a = document.getElementById('auth-screen'); return !!(a && !a.classList.contains('hidden') && !(window.authUser && authUser.id)); }
+let _huniArkaBaglam = null;
+document.addEventListener('visibilitychange', () => {
+  try {
+    if (document.hidden) {
+      if (!_huniAuthAcik()) return;
+      const b = _huniArkaBaglam = _huniBaglam();
+      try { localStorage.setItem('csc_huni_arka', b); } catch (e) {}
+      const pr = huni('arka', b);
+      if (pr && pr.then) pr.then(ok => { if (ok) { try { localStorage.removeItem('csc_huni_arka'); } catch (e) {} } });
+    } else if (_huniArkaBaglam !== null) { huni('don', _huniArkaBaglam); _huniArkaBaglam = null; }
+  } catch (e) {}
+});
+window.addEventListener('blur', () => {
+  try {
+    if (document.hidden || !_huniAuthAcik()) return;
+    const ae = document.activeElement;
+    if (ae && ae.tagName === 'SELECT') return;   // uyruk / yaş seçim listesi açıldı
+    huni('odak', _huniBaglam());
+  } catch (e) {}
+});
 (function _huniAcilisIzle() {
   const kur = () => {
+    try { const _a = localStorage.getItem('csc_huni_arka'); if (_a !== null) { localStorage.removeItem('csc_huni_arka'); huni('arka', _a); } } catch (e) {}   // 806
     try { const _g = localStorage.getItem('csc_huni_giris'); if (_g) { localStorage.removeItem('csc_huni_giris'); huni(/^(google|apple)_giris$/.test(_g) ? _g : 'giris'); } } catch (e) {}
     const a = document.getElementById('auth-screen'); if (!a) return;
     const bak = () => { if (!a.classList.contains('hidden') && !(window.authUser && authUser.id)) huni('acilis'); };
