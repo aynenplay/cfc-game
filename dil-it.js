@@ -7616,3 +7616,10 @@ Object.assign(window.I18N.it, {
   "Önerilen": "Suggeriti",
   "Sonuç yok": "Nessun risultato"
 });
+/* ─── 821 · Milli takım sıralaması ─── */
+Object.assign(window.I18N.it, {
+  "Başarı Puanı": "Punti successo",
+  "🌐 Milli Takım Sıralaması — kadronun yetenek ortalaması": "🌐 Classifica nazionali — abilità media della rosa",
+  "Milli Takımlar": "Nazionali",
+  "Ülkeler": "Paesi"
+});

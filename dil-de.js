@@ -5978,3 +5978,10 @@ Object.assign(window.I18N.de, {
   "Önerilen": "Vorgeschlagen",
   "Sonuç yok": "Keine Ergebnisse"
 });
+/* ─── 821 · Milli takım sıralaması ─── */
+Object.assign(window.I18N.de, {
+  "Başarı Puanı": "Erfolgspunkte",
+  "🌐 Milli Takım Sıralaması — kadronun yetenek ortalaması": "🌐 Nationalmannschafts-Rangliste — durchschnittliche Fähigkeit des Kaders",
+  "Milli Takımlar": "Nationalmannschaften",
+  "Ülkeler": "Länder"
+});

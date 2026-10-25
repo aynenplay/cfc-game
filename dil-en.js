@@ -8043,3 +8043,10 @@ Object.assign(window.I18N.en, {
   "Önerilen": "Suggested",
   "Sonuç yok": "No results"
 });
+/* ─── 821 · Milli takım sıralaması ─── */
+Object.assign(window.I18N.en, {
+  "Başarı Puanı": "Success Points",
+  "🌐 Milli Takım Sıralaması — kadronun yetenek ortalaması": "🌐 National Team Ranking — squad average skill",
+  "Milli Takımlar": "National Teams",
+  "Ülkeler": "Countries"
+});

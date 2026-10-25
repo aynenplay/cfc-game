@@ -7650,3 +7650,10 @@ Object.assign(window.I18N.ru, {
   "Önerilen": "Рекомендуемые",
   "Sonuç yok": "Ничего не найдено"
 });
+/* ─── 821 · Milli takım sıralaması ─── */
+Object.assign(window.I18N.ru, {
+  "Başarı Puanı": "Очки успеха",
+  "🌐 Milli Takım Sıralaması — kadronun yetenek ortalaması": "🌐 Рейтинг сборных — средний навык состава",
+  "Milli Takımlar": "Сборные",
+  "Ülkeler": "Страны"
+});
