@@ -7580,3 +7580,9 @@ window.I18N_PATTERNS.pt.push(
   [/^Kayıt hatası: (.+)$/, m => "Erro no cadastro: " + (window.I18N.pt[m[1]] || m[1])],
   [/^(\S+@\S+) adresine bir onay bağlantısı gönderildi\. Bağlantıya basınca e-postan kaydedilir\.$/, "Um link de confirmação foi enviado para $1. Seu e-mail é salvo ao tocar no link."]
 );
+/* ─── 809 · Kampanyalar ─── */
+Object.assign(window.I18N.pt, {
+  "indirim": "de desconto",
+  "Kampanyada": "Em oferta",
+  "Kampanya sona erdi": "Oferta encerrada"
+});

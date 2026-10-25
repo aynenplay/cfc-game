@@ -101,7 +101,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '803';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '809';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -25511,8 +25511,10 @@ body.pd-acik{overflow:hidden}
       <div class="mg-alt">
         <button class="a-ser" data-alt="takim-sistem" onclick="takimlarTab('takim-sistem')"><i></i><span>Serbest</span><b id="mgSay-takim-sistem" data-noi18n></b></button>
         <button class="a-sat" data-alt="teams" onclick="takimlarTab('teams')"><i></i><span>Satış Listesinde</span><b id="mgSay-teams" data-noi18n></b></button>
+        <button class="a-kmp kapali" data-alt="takim-kampanya" onclick="takimlarTab('takim-kampanya')"><i></i><span>Kampanyada</span><b id="mgSay-takim-kampanya" data-noi18n>0</b></button>
       </div>
       <div id="tk-takim-sistem" style="display:none"></div>
+      <div id="tk-takim-kampanya" style="display:none"></div>
       <div id="tk-teams" style="display:none"></div>
     </div>
   </div>
@@ -25795,7 +25797,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-25-olcum-806';
+const APP_BUILD = '2026-10-25-kampanya-809';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -46151,7 +46153,7 @@ function tbmRenderCountryGrid() {
     c.leagues.forEach((lg, tierIdx) => {
       lg.teams.forEach(t => {
         teamCount++;
-        const price = calcTeamPrice(t.pop, t.rating, tierIdx);
+        const price = kmpFiyat('takim', calcTeamPrice(t.pop, t.rating, tierIdx));
         if(price < cheapest) cheapest = price;
         if(price > mostExpensive) mostExpensive = price;
       });
@@ -46218,7 +46220,7 @@ function tbmRenderCountryHeader() {
   c.leagues.forEach((lg, tierIdx) => {
     totalTeams += lg.teams.length;
     lg.teams.forEach(t => {
-      const p = calcTeamPrice(t.pop, t.rating, tierIdx);
+      const p = kmpFiyat('takim', calcTeamPrice(t.pop, t.rating, tierIdx));
       if(p < cheapest) cheapest = p;
       if(p > mostExpensive) mostExpensive = p;
     });
@@ -46284,7 +46286,7 @@ function tbmRenderList() {
     lg.teams.forEach(t => {
       const _sahip = _realCaptainsCache[_tbmSelectedCountry + ':' + t.name];
       if (_sahip && _sahip.captainUserId) return;
-      const price = calcTeamPrice(t.pop, t.rating, tierIdx);
+      const price = kmpFiyat('takim', calcTeamPrice(t.pop, t.rating, tierIdx));
       teams.push({
         countryCode: _tbmSelectedCountry,
         countryName: country.name,
@@ -46376,7 +46378,7 @@ function tbmShowBuyConfirm(countryCode, tierIdx, teamName) {
   const team = lg.teams.find(t => t.name === teamName);
   if(!team) return;
 
-  const price = calcTeamPrice(team.pop, team.rating, tierIdx);
+  const liste = calcTeamPrice(team.pop, team.rating, tierIdx), price = kmpFiyat('takim', liste);
   _tbmBuyTarget = {
     countryCode, tierIdx, teamName, price,
     teamRating: team.rating,
@@ -46396,7 +46398,7 @@ function tbmShowBuyConfirm(countryCode, tierIdx, teamName) {
     tur: 'sistem', cc: countryCode, takim: teamName, ulke: country.name, onay: confirmTeamBuy,
     satirlar: [['Lig', lg.name], ['Şehir Nüfusu', popLabel], ['Takım Gücü', `★ ${team.rating}/100`],
                ['Mevcut Bütçe', '…', 'yesil', 'szKasa'], ['Senin Rolün', 'Kaptan', 'altin']],
-    fiyat: price, eksik: price - myBudget,
+    fiyat: price, eski: liste > price ? liste : 0, eksik: price - myBudget,
     sonra: `Satın aldıktan sonra bütçen: <b data-noi18n>${(myBudget - price).toLocaleString('tr')}</b> ${_SZ_ELMAS}`,
     satici: 'Sistem', saticiImza: 'CSC',
   });
@@ -46442,11 +46444,13 @@ async function _tsaGuncelle() {
   const tn = misafir ? _viewingTeam.teamRef.name : (_userTeam && _userTeam.teamName);
   if (!cc || !tn || !window.sb || (misafir ? userHasTeam() : _userTeam.role === 'captain')) return;
   const d = await _tsaDurum(cc, tn);
+  if (d && d.tur === 'sistem') await kmpYukle();
   if (sira !== _tsaSira || !d || (d.satici && authUser && d.satici === authUser.id)) return;
   const bas = document.querySelector('#team-roster .team-hero-bar .thb-head');
   if (!bas) return;
   _tsaHedef = Object.assign({ cc, tn }, d);
-  bas.insertAdjacentHTML('beforeend', `<button class="tsa tsa-a" type="button" onclick="ksoAc()"><span class="ip"></span><span class="kart">${_TSA_TAC}<b>TAKIMI AL</b></span></button>`);
+  const y = d.tur === 'sistem' ? kmpYuzde('takim') : 0;   // 809 — kampanyada indirim rozeti
+  bas.insertAdjacentHTML('beforeend', `<button class="tsa tsa-a" type="button" onclick="ksoAc()"><span class="ip"></span><span class="kart">${_TSA_TAC}<b>TAKIMI AL</b>${y ? `<i class="tsa-kmp" data-noi18n>−${_kmpYz(y)}</i>` : ''}</span></button>`);
 }
 function _tsaSifirla() {
   for (const k in _tsaOnb) delete _tsaOnb[k];
@@ -46465,7 +46469,7 @@ const _KSO_SAHA = '<svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejo
 function ksoAc() {
   const h = _tsaHedef, k = h && _tsaTakim(h.cc, h.tn);
   if (!k) return;
-  const fiyat = h.tur === 'ilan' ? h.fiyat : calcTeamPrice(k.t.pop, k.t.rating, k.tier);
+  const liste = h.tur === 'ilan' ? h.fiyat : calcTeamPrice(k.t.pop, k.t.rating, k.tier), fiyat = h.tur === 'ilan' ? h.fiyat : kmpFiyat('takim', liste);
   const bakiye = wlGetData().dia || 0;
   const eksik = fiyat - bakiye;
   const U = i => `<svg viewBox="0 0 24 24"><use href="#${i}"/></svg>`;
@@ -46488,8 +46492,8 @@ function ksoAc() {
       <div class="kso-ad"></div><div class="kso-lig"></div></div>
     <div class="kso-bas"><b>KAPTAN SEN OL</b><span>Takımı sen yönet</span></div>
     <div class="kso-yt">${yetki.map(([s, a, b]) => `<div class="kso-y">${s}<b>${a}</b><small>${b}</small></div>`).join('')}</div>
-    <div class="kso-ilk">${U('ic-bolt')}İlk satın alan kaptan olur</div>
-    <div class="kso-fy"><div><small>FİYAT</small><em>${E}${fiyat.toLocaleString('tr')}</em></div><i></i><div class="${eksik > 0 ? 'yok' : 'var'}"><small>BAKİYEN</small><em>${E}${bakiye.toLocaleString('tr')}</em></div></div>
+    <div class="kso-ilk">${U('ic-bolt')}İlk satın alan kaptan olur</div>${h.tur === 'sistem' ? kmpBantHtml('takim') : ''}
+    <div class="kso-fy"><div><small>FİYAT</small><em>${fiyat < liste ? `<s class="kmp-s">${liste.toLocaleString('tr')}</s>` : ''}${E}${fiyat.toLocaleString('tr')}</em></div><i></i><div class="${eksik > 0 ? 'yok' : 'var'}"><small>BAKİYEN</small><em>${E}${bakiye.toLocaleString('tr')}</em></div></div>
     ${eksik > 0
       ? `<button class="kso-al" type="button" onclick="ksoElmas()">${E}ELMAS AL</button><div class="kso-eks">${eksik.toLocaleString('tr')} elmas eksik</div>`
       : `<button class="kso-al" type="button" onclick="ksoAl()">${_TSA_TAC}TAKIMI AL</button>`}
@@ -46576,7 +46580,7 @@ function _szCiz() {
     <div class="szk-meta">${_escapeHtml(o.ulke)}</div>
     <div class="szk-bilgi">${satir}</div>
     <div class="szk-mad"><h4>Maddeler</h4><ol>${_SZ_MADDE.map((m, i) => `<li><i>${i + 1}</i><span data-noi18n>${_szYaz(m)}</span></li>`).join('')}</ol></div>
-    ${mevcut ? '' : `<div class="szk-bedel"><span>Toplam Bedel</span><b data-noi18n>${_SZ_ELMAS}${o.fiyat.toLocaleString('tr')}</b></div><div class="szk-sonra">${o.sonra}</div>`}
+    ${mevcut ? '' : `<div class="szk-bedel"><span>Toplam Bedel</span><b data-noi18n>${o.eski ? `<s class="kmp-s">${o.eski.toLocaleString('tr')}</s>` : ''}${_SZ_ELMAS}${o.fiyat.toLocaleString('tr')}</b></div><div class="szk-sonra">${o.sonra}</div>`}
     <div class="szk-imza">
       <div><em>Satıcı</em><div class="alan"><span class="el" data-noi18n>${_escapeHtml(o.saticiImza)}</span></div><small${o.tur === 'ilan' ? ' data-noi18n' : ''}>${_escapeHtml(o.satici)}</small></div>
       <div><em>Alıcı</em><div class="alan">${imzali ? `<span class="el yaz" data-noi18n>${ben}</span>` : '<span class="bos">İmza</span>'}</div><small data-noi18n>${ben}</small>${imzali ? '<div class="szk-muhur">İmzalandı</div>' : ''}</div>
@@ -48436,6 +48440,7 @@ async function duyuruTara() {
     const uyruk = (typeof getUserNationalityCC === 'function') ? getUserNationalityCC() : null;
     const takim = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.teamName : null;
     const ulke  = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam.countryCode : null;
+    if (data.some(b => b.konu === 'kampanya')) await kmpYukle();   // 809
 
     data.forEach(b => {
       let bana = false;
@@ -48445,6 +48450,7 @@ async function duyuruTara() {
       else if (b.hedef === 'uyruk')   bana = !!b.hedef_deger && !!uyruk && String(b.hedef_deger).toUpperCase() === String(uyruk).toUpperCase();   // 800
       else if (b.hedef === 'takim')   bana = !!b.hedef_deger && !!takim && b.hedef_deger === (ulke + '|' + takim);
       if (!bana) return;
+      if (b.konu === 'kampanya' && (!_kmpTs || !_kmp.some(k => k.mesaj === 'yayin_' + b.id))) return;   // 809 — biten kampanyanın mesajı düşmez
       sysMsg({
         id: 'yayin_' + b.id,
         from: b.konu ? 'CSC' : (b.gonderen || '📢 Yönetim'), avatar: '📢', kind: b.konu ? 'yonetim' : 'duyuru', konu: b.konu || undefined,
@@ -73143,6 +73149,90 @@ function initMarketListings() {
 //   Eski sekme adları (items / market) alt sekmeyi doğrudan açar. 628 — Takımlar kendi sayfasında.
 const _MG_UST = { items: 'ekipman', market: 'ekipman' };
 const _mgSonAlt = { ekipman: 'items', takimlar: 'takim-sistem' };
+// ═══ 809 · Kampanyalar ═══
+let _kmp = [], _kmpTs = 0, _kmpYuk = null;
+const KMP_URUNLER = ['takim', 'ekipman', 'saglik', 'enerji'];
+const KMP_ETIKET = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.3 8.3a1.4 1.4 0 0 1 0 2l-6.8 6.8a1.4 1.4 0 0 1-2 0z"/><circle cx="8" cy="8" r="1.6"/></svg>';
+const KMP_IK = {
+  takim: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.2l7.5 2.9v5.6c0 4.5-3.1 8-7.5 9.3-4.4-1.3-7.5-4.8-7.5-9.3V6.1z"/><path d="M8.7 10.4l1.6 1.4 1.7-2.5 1.7 2.5 1.6-1.4-.7 4H9.4z"/></svg>',
+  ekipman: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 7.2h5.6l1.7 4.2 7.2 2.3c1.5.5 2.5 1.6 2.5 3v.8h-17z"/><path d="M3.5 17.5h17M7.2 17.5v2.2M11.4 17.5v2.2M15.6 17.5v2.2"/></svg>',
+  saglik: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="7" width="17" height="12.5" rx="2.5"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M12 10.3v6M9 13.3h6"/></svg>',
+  enerji: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.2 2.8 5.4 13.4h5.9l-1 7.8 7.8-10.6h-5.9z"/></svg>' };
+const KMP_GIT = {
+  takim: ['Takımlar', () => { _mgSonAlt.takimlar = 'takim-kampanya'; _gkGit('takimlar'); }],
+  ekipman: ['Ekipman', () => _gkGit('shop', () => shopTab('items'))],
+  saglik: ['Sağlık', () => _gkGit('shop', () => shopTab('saglik'))],
+  enerji: ['Enerji', () => _gkGit('shop', () => shopTab('enerji'))] };
+function kmpYukle(zorla) {
+  if (!window.sb) return Promise.resolve(false);
+  if (!zorla && Date.now() - _kmpTs < 120000) return Promise.resolve(false);
+  if (_kmpYuk) return _kmpYuk;
+  _kmpYuk = window.sb.rpc('kampanyalarim').then(({ data, error }) => {
+    if (error) return false;
+    const yeni = (Array.isArray(data) ? data : []).map(k => ({ id: k.id, mesaj: k.mesaj, urunler: k.urunler || [], yuzde: Number(k.yuzde) || 0, bitisMs: new Date(k.bitis).getTime() }));
+    const degisti = JSON.stringify(yeni) !== JSON.stringify(_kmp);
+    _kmp = yeni; _kmpTs = Date.now();
+    return degisti;
+  }).catch(() => false).finally(() => { _kmpYuk = null; });
+  return _kmpYuk;
+}
+function kmpEn(urun) { const n = Date.now(); let en = null; for (const k of _kmp) if (k.bitisMs > n && k.urunler.includes(urun) && (!en || k.yuzde > en.yuzde)) en = k; return en; }
+function kmpYuzde(urun) { const k = kmpEn(urun); return k ? k.yuzde : 0; }
+function kmpFiyat(urun, f) { const y = kmpYuzde(urun); return y ? Math.max(1, Math.round(Number(f) * (100 - y) / 100)) : Number(f); }
+function kmpEski(urun, f) { return kmpYuzde(urun) ? `<s class="kmp-s">${Number(f).toLocaleString('tr')}</s>` : ''; }
+function _kmpYz(n) { return (typeof _i18nLang !== 'undefined' && _i18nLang && _i18nLang !== 'tr') ? `${n}%` : `%${n}`; }
+function _kmpKalan(b) { return `<span class="kmp-kl">${ENJ_IK.saat}<span data-noi18n data-kmp-bitis="${b}">${enjKalanYazi(b)}</span></span>`; }
+function kmpBantHtml(urun) {
+  const k = kmpEn(urun); if (!k) return '';
+  return `<div class="kmp-bant"><span class="kmp-bant-ik">${KMP_ETIKET}</span>`
+    + `<div class="kmp-bant-m"><small>Kampanya</small><b><span data-noi18n>${_kmpYz(k.yuzde)}</span> <span>indirim</span></b></div>${_kmpKalan(k.bitisMs)}</div>`;
+}
+function kmpBantKoy(kapId, urun) {
+  const kap = document.getElementById(kapId); if (!kap) return;
+  const eski = kap.querySelector(':scope > .kmp-bant'); if (eski) eski.remove();
+  const h = kmpBantHtml(urun); if (h) kap.insertAdjacentHTML('afterbegin', h);
+}
+function kmpSekmeler() {
+  const yaz = (el, urun) => {
+    if (!el) return;
+    let r = el.querySelector('.kmp-sek'); const y = kmpYuzde(urun);
+    if (!y) { if (r) r.remove(); return; }
+    if (!r) { r = document.createElement('sup'); r.className = 'kmp-sek'; r.setAttribute('data-noi18n', ''); el.appendChild(r); }
+    r.textContent = '−' + _kmpYz(y);
+  };
+  yaz(document.querySelector('#page-shop .shop-tab[data-sekme="saglik"]'), 'saglik');
+  yaz(document.querySelector('#page-shop .shop-tab[data-sekme="enerji"]'), 'enerji');
+  yaz(document.querySelector('#page-shop .shop-tab[data-sekme="ekipman"]'), 'ekipman');
+  yaz(document.querySelector('#page-shop .mg-alt button[data-alt="items"]'), 'ekipman');
+  const kb = document.querySelector('#page-takimlar .mg-alt button[data-alt="takim-kampanya"]');
+  if (kb) { const y = kmpYuzde('takim'); kb.classList.toggle('kapali', !y); if (!y) _mgSay('takim-kampanya', 0); yaz(kb, 'takim'); }
+}
+function kmpGit(u) { const g = KMP_GIT[u]; if (g) g[1](); }
+function kmpMesajKart(m) {
+  const id = String(m.id), e = _gkE(id);
+  if (!_kmpTs) {
+    kmpYukle().then(() => { const el = [...document.querySelectorAll('[data-kmp-mk]')].find(x => x.dataset.kmpMk === id); if (el && _kmpTs) el.outerHTML = kmpMesajKart(m); });
+    return `<div class="kmp-mk bos" data-kmp-mk="${e}"></div>`;
+  }
+  const k = _kmp.find(x => x.mesaj === id && x.bitisMs > Date.now());
+  if (!k) return `<div class="kmp-mk bitti" data-kmp-mk="${e}"><span>Kampanya sona erdi</span></div>`;
+  const u = KMP_URUNLER.filter(x => k.urunler.includes(x));
+  return `<div class="kmp-mk" data-kmp-mk="${e}"><div class="kmp-mk-u"><span class="kmp-rz" data-noi18n>−${_kmpYz(k.yuzde)}</span><span class="kmp-mk-t">indirim</span>${_kmpKalan(k.bitisMs)}</div>`
+    + `<div class="kmp-mk-g" style="grid-template-columns:repeat(${u.length},1fr)">${u.map(x => `<button type="button" onclick="kmpGit('${x}')">${KMP_IK[x]}<span>${KMP_GIT[x][0]}</span></button>`).join('')}</div></div>`;
+}
+function kmpYenidenCiz() {
+  kmpSekmeler();
+  const sh = document.getElementById('page-shop'), tk = document.getElementById('page-takimlar');
+  if (sh && sh.classList.contains('active')) { const a = sh.querySelector('.shop-tab.active'); if (a) shopTab(a.dataset.sekme); }
+  if (tk && tk.classList.contains('active') && typeof takimlarTab === 'function') takimlarTab(_mgSonAlt.takimlar);
+}
+// kalan süre yarım dakikada bir; biten kampanya fiyatlardan kalkar
+setInterval(() => {
+  if (document.hidden || !_kmp.length) return;
+  document.querySelectorAll('[data-kmp-bitis]').forEach(el => { el.textContent = enjKalanYazi(Number(el.dataset.kmpBitis)); });
+  if (_kmp.some(k => k.bitisMs <= Date.now())) { _kmp = _kmp.filter(k => k.bitisMs > Date.now()); kmpYenidenCiz(); }
+}, 30000);
+
 function shopTab(name) {
   const ust = _MG_UST[name] || name;
   const alt = _MG_UST[name] ? name : _mgSonAlt[ust];
@@ -73157,6 +73247,8 @@ function shopTab(name) {
   if (ust === 'ekipman') { _mgSay('items', SHOP_ITEMS.length); _mgSay('market', _marketListings.filter(l => l && l.listed).length); }
   if (alt === 'items')   renderShopItems();
   if (alt === 'market')  renderMarket();
+  kmpSekmeler();
+  kmpYukle().then(d => { if (d) shopTab(name); });
   // Diamond bakiye
   const dEl = document.getElementById('shopDiamondBal');
   if(dEl) { const _dd = document.getElementById('diamond-display'); dEl.textContent = (_dd && (_dd.dataset.tam || _dd.textContent)) || '0'; }
@@ -74597,6 +74689,7 @@ function renderShopItems() {
 
   const grid = document.getElementById('itemGrid');
   if(!grid) return;
+  kmpBantKoy('shop-items', 'ekipman');
   const _katItems = _shopItemFilter==='all' ? SHOP_ITEMS : SHOP_ITEMS.filter(i=>i.cat===_shopItemFilter);
   // 🆕 555 — nadirlik filtresi (kategori ile birlikte çalışır) + her seçenekte kaç item olduğu
   const rarEl = document.getElementById('itemRarRow');
@@ -74634,7 +74727,7 @@ function renderShopItems() {
       </div>
       <div class="shc-alt">
         <div class="shc-stat"><span>${(item.stats||[''])[0]}</span>${ek>0?` <em>+${ek}</em>`:''}</div>
-        <div class="shc-btn">${owned ? '✓ Sahipsin' : outOfStock ? 'Stok Yok' : '💎 ' + item.price}</div>
+        <div class="shc-btn${!owned && !outOfStock && kmpYuzde('ekipman') ? ' kmp' : ''}">${owned ? '✓ Sahipsin' : outOfStock ? 'Stok Yok' : kmpEski('ekipman', item.price) + '💎 ' + kmpFiyat('ekipman', item.price)}</div>
       </div>
     </div>`;
   }).join('');
@@ -74694,7 +74787,7 @@ function openShopBuyModal(itemId) {
   }
 
   // Modal aç
-  _buyTarget = {itemId, fromShop:true, price:item.price, seller:'Mağaza', itemName:item.name};
+  _buyTarget = {itemId, fromShop:true, price:kmpFiyat('ekipman', item.price), seller:'Mağaza', itemName:item.name};
   const r = (typeof RARITY_CFG !== 'undefined' ? RARITY_CFG[item.rarity] : null) || {color:'#5fb8ff', label:item.rarity};
   const iconEl = document.getElementById('buyModalIcon');
   const nameEl = document.getElementById('buyModalName');
@@ -74720,12 +74813,12 @@ function openShopBuyModal(itemId) {
   if(sellerEl) sellerEl.textContent = `Mağaza · ${r.label}`;
   // 🆕 554: ⚡ ayrı düğümde → "Karar Verme +6%" deseni çeviride tutar
   if(statsEl) statsEl.innerHTML = item.stats.map(s=>`<div class="buy-stat">⚡ <span>${s}</span></div>`).join('');
-  if(priceEl) priceEl.textContent = item.price.toLocaleString('tr');
+  if(priceEl) priceEl.innerHTML = kmpEski('ekipman', item.price) + _buyTarget.price.toLocaleString('tr');
   if(rarityBar) rarityBar.style.setProperty('--rarity-color', r.color);
 
   // 🆕 Bakiye göster — CÜZDANDAN (user_wallet)
   const bal = (typeof wlGetData === 'function') ? (wlGetData().dia || 0) : 0;
-  const after = bal - item.price;
+  const after = bal - _buyTarget.price;
   if(balEl) {
     if(after < 0) {
       balEl.classList.add('insufficient');
@@ -101936,7 +102029,7 @@ function _gkSistemKart(m) {
   const ba = _gkBasarimListe(m);
   if (ba) { const i = metin.indexOf('</p>'); metin = i >= 0 ? metin.slice(0, i + 4) + ba + metin.slice(i + 4) : ba + metin; }
   return `<div class="gk-kart kt-${tr.kot ? 'kot' : tr.kat}"${tr.renk ? ` style="--k:${tr.renk}"` : ''}><div class="gk-ku">${_gkTas(m, tr)}<div><h3>${tr.konu || GK_KAT[tr.kat] || 'Sistem'}</h3><small>${_gkAd(m.from || '')}</small></div></div>`
-    + `<div class="gk-metin">${metin}</div></div>`;
+    + `<div class="gk-metin">${metin}</div>${m.konu === 'kampanya' ? kmpMesajKart(m) : ''}</div>`;
 }
 
 // ── Kâğıt fiş ──
@@ -102073,6 +102166,57 @@ function _gkOzelGovde(m, bas, body) {
 }
 
 </script>
+<style id="kmp-css">
+/* 809 · Kampanyalar — şerit, sekme rozeti, indirimli fiyat, kampanya mesajı */
+.kmp-bant{display:flex;align-items:center;gap:10px;margin:2px 10px 10px;padding:8px 10px 8px 8px;border-radius:13px;
+  background:linear-gradient(95deg,rgba(255,61,90,.2),rgba(255,61,90,.05) 70%);border:1px solid rgba(255,61,90,.45);box-shadow:0 4px 14px rgba(216,27,72,.12)}
+.kmp-bant-ik{flex:none;width:36px;height:36px;border-radius:11px;display:grid;place-items:center;color:#fff;background:linear-gradient(180deg,#ff3d5a,#d81b48);box-shadow:0 3px 10px rgba(216,27,72,.4)}
+.kmp-bant-ik svg{width:20px;height:20px}
+.kmp-bant-m{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.kmp-bant-m small{font:800 9.5px/1 'Barlow Condensed',sans-serif;letter-spacing:1.2px;text-transform:uppercase;color:#ff8fa0}
+.kmp-bant-m b{font:900 19px/1 'Barlow Condensed',sans-serif;color:#fff;letter-spacing:.3px}
+.kmp-kl{flex:none;display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 9px;border-radius:9px;background:rgba(0,0,0,.32);color:#ffd2d9;font:800 13px/1 'Barlow Condensed',sans-serif}
+.kmp-kl svg{width:13px;height:13px}
+.shop-tab,.mg-alt button{position:relative}
+.kmp-sek{position:absolute;top:3px;right:3px;font:900 9.5px/1 'Barlow Condensed',sans-serif;letter-spacing:.2px;color:#fff;padding:2px 4px 1px;border-radius:5px;vertical-align:baseline;
+  background:linear-gradient(180deg,#ff3d5a,#d81b48);box-shadow:0 1px 4px rgba(216,27,72,.45);pointer-events:none}
+.mg-alt .kmp-sek{top:-7px;right:7px}
+.kmp-s{text-decoration:line-through;text-decoration-thickness:1.5px;opacity:.6;font-weight:700;margin-right:4px}
+.shc-btn.kmp{background:linear-gradient(180deg,#ff4864,#d01c46);color:#fff}
+.shc-btn.kmp .kmp-s{opacity:.7;font-size:11.5px}
+.kon-ct-fiyat.kmp{color:#fff;background:rgba(255,61,90,.14);border-color:rgba(255,61,90,.45)}
+.kon-ct-fiyat.kmp .kmp-s{font-size:12px}
+.enj-al.kmp{border-color:rgba(255,61,90,.5);background:rgba(255,61,90,.13);color:#ff9fad}
+.enj-al.kmp .kmp-s{font-size:11px}
+.mg-fiyat.kmp{flex-direction:column;gap:1px;height:auto;min-height:30px;padding:3px 7px}
+.mg-fiyat.dia.kmp{color:#fff;background:linear-gradient(180deg,#ff4864,#d01c46);box-shadow:inset 0 1px 0 rgba(255,255,255,.22)}
+.mg-fiyat.kmp s{font-size:10px;line-height:1;opacity:.7;text-decoration-thickness:1.5px}
+.mg-fiyat.kmp span{display:flex;align-items:center;gap:3px;line-height:1}
+.mg-fiyat.kmp.kilit{color:#c8ced8;background:#1a1f27;box-shadow:inset 0 0 0 1px rgba(255,61,90,.4)}
+.mg-det-fiyat .kmp-s,.szk-bedel .kmp-s{font-size:.7em}
+.kmp-mk{margin-top:12px;padding:10px;border-radius:12px;background:rgba(255,61,90,.08);border:1px solid rgba(255,61,90,.35)}
+.kmp-mk.bos{display:none}
+.gk-kart .kmp-mk{margin:2px 16px 16px}
+.kmp-mk.bitti{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.1);text-align:center;font:800 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.6px;text-transform:uppercase;color:var(--text2);padding:12px}
+.kmp-mk-u{display:flex;align-items:center;gap:7px}
+.kmp-rz{font:900 17px/1 'Barlow Condensed',sans-serif;color:#fff;padding:4px 7px 3px;border-radius:8px;background:linear-gradient(180deg,#ff3d5a,#d81b48)}
+.kmp-mk-t{flex:1;font:800 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.6px;text-transform:uppercase;color:#ff9fad}
+.kmp-mk-g{display:grid;gap:6px;margin-top:10px}
+.kmp-mk-g button{display:flex;align-items:center;justify-content:center;gap:5px;height:36px;min-width:0;padding:0 4px;border-radius:10px;border:0;cursor:pointer;
+  background:linear-gradient(180deg,#ff4864,#d01c46);color:#fff;font:900 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.2px}
+.kmp-mk-g button svg{flex:none;width:16px;height:16px}
+.kmp-mk-g button span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#page-takimlar .mg-alt{grid-template-columns:repeat(3,1fr)}
+#page-takimlar .mg-alt button{flex-direction:column;justify-content:space-between;gap:5px;padding:8px 4px 7px;font-size:12px;letter-spacing:.3px;white-space:normal;line-height:1.05;text-align:center}
+#page-takimlar .mg-alt button span{flex:1;display:flex;align-items:center;justify-content:center}
+#page-takimlar .mg-alt button i{position:absolute;top:7px;left:7px;width:6px;height:6px}
+.mg-alt button.a-kmp i{background:#ff3d5a}
+.mg-alt button.a-kmp.on{background:rgba(255,61,90,.12);color:#ff7a8f;box-shadow:inset 0 0 0 1px rgba(255,61,90,.35)}
+.mg-alt button.a-kmp.kapali{opacity:.38;pointer-events:none}
+.tsa-kmp{display:block;margin-top:4px;padding:2px 5px 1px;border-radius:5px;background:linear-gradient(180deg,#ff3d5a,#d81b48);color:#fff;font:900 11px/1 'Barlow Condensed',sans-serif;font-style:normal;letter-spacing:.3px;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+.kso .kmp-bant{margin:10px 14px 0}
+.kso-fy em .kmp-s{font-size:13px;color:#8b90a0;opacity:1}
+</style>
 <style id="kon-css">
 /* ═══════════════════════════════════════════════════════════════════
    580 · KONDİSYON + SAĞLIK KİTİ
@@ -102754,9 +102898,9 @@ function enjMagazaCiz() {
         <div class="enj-art" onclick="enjBilgi('${u.id}')">${enjGorsel(u.id)}</div>
         <div class="enj-ad">${u.model}</div>
         <div class="enj-etki"><b data-noi18n>${enjEtki(u)}</b><span>${ENJ_TUR[t].etki}</span></div>
-        <button type="button" class="enj-al" onclick="enjAlOnay('${u.id}')">${ak ? `<span class="enj-al-uz" title="Uzat">${ENJ_IK.uzat}</span>` : ''}<span data-noi18n>💎 ${u.fiyat}</span></button>
+        <button type="button" class="enj-al${kmpYuzde('enerji') ? ' kmp' : ''}" onclick="enjAlOnay('${u.id}')">${ak ? `<span class="enj-al-uz" title="Uzat">${ENJ_IK.uzat}</span>` : ''}<span data-noi18n>${kmpEski('enerji', u.fiyat)}💎 ${kmpFiyat('enerji', u.fiyat)}</span></button>
       </div>`; }).join('')}</div>`; }).join('');
-  el.innerHTML = `<div class="enj-mz-ust">${ust}</div>${blok}
+  el.innerHTML = `${kmpBantHtml('enerji')}<div class="enj-mz-ust">${ust}</div>${blok}
     <div class="enj-kural">
       <div class="enj-kr"><span class="enj-kr-ik">${ENJ_IK.takvim}</span><div><b>7 gün geçerli</b><small>Süre dolunca ürün slottan kalkar, etkisi de biter</small></div></div>
       <div class="enj-kr"><span class="enj-kr-ik">${ENJ_IK.hemen}</span><div><b>Alınca hemen takılır</b><small>Süre, yetenek ve XP slotları aynı antrenmanda birlikte çalışır</small></div></div>
@@ -102779,7 +102923,7 @@ function enjAlOnay(id) {
   const bitis = (ayni ? Number(s.bitis) : Date.now()) + ENJ_MS;
   const sinir = ayni && bitis - Date.now() > 28 * 864e5;
   const bakiye = (typeof trsGetBalance === 'function') ? (Number(trsGetBalance('dia')) || 0) : 0;
-  const yeter = bakiye >= u.fiyat;
+  const fy = kmpFiyat('enerji', u.fiyat), yeter = bakiye >= fy;
   const not = sinir ? `<span>En fazla 4 hafta ileriye uzatabilirsin</span>`
     : ayni ? `<span>Aktif ürünün süresi 7 gün uzar</span>`
     : es ? `<span>Mevcut ürün slottan kalkar, kalan süresi silinir</span><span class="enj-not-alt"><b>${es.model}</b> · <span data-noi18n>${enjKalanYazi(s.bitis)}</span></span>`
@@ -102798,8 +102942,8 @@ function enjAlOnay(id) {
     </div>
     <div class="enj-dg-q">Değiştirmek istediğine emin misin?</div>
     <div class="kon-md-tb">
-      <div><span>Fiyat</span><b class="dia" data-noi18n>💎 ${u.fiyat}</b></div>
-      <div><span>Elmasın</span><b data-noi18n>${_enjNf(bakiye)} <i>→</i> <em class="${yeter ? '' : 'kot'}">${_enjNf(bakiye - u.fiyat)}</em> 💎</b></div>
+      <div><span>Fiyat</span><b class="dia" data-noi18n>${kmpEski('enerji', u.fiyat)}💎 ${fy}</b></div>
+      <div><span>Elmasın</span><b data-noi18n>${_enjNf(bakiye)} <i>→</i> <em class="${yeter ? '' : 'kot'}">${_enjNf(bakiye - fy)}</em> 💎</b></div>
       <div><span>Yeni bitiş</span><b data-noi18n>${_enjTarih(bitis)}</b></div>
     </div>
     <div class="kon-md-not enj-uyari"><span>Eski enerjinin etkisi ve kalan süresi biter</span></div>
@@ -102816,8 +102960,8 @@ function enjAlOnay(id) {
     <div class="kon-md-k"><span>${ENJ_TUR[u.tur].ad}</span> · <em class="enj-md-e" data-noi18n>${enjEtki(u)}</em> <span>${ENJ_TUR[u.tur].etki}</span></div>
     <div class="enj-md-sure">${ENJ_IK.takvim}<div><b>7 günlük ürün</b><small><span>${ayni ? 'Yeni bitiş' : 'Bitiş'}</span> <span data-noi18n>${_enjTarih(bitis)}</span></small></div></div>
     <div class="kon-md-tb">
-      <div><span>Fiyat</span><b class="dia" data-noi18n>💎 ${u.fiyat}</b></div>
-      <div><span>Elmasın</span><b data-noi18n>${_enjNf(bakiye)} <i>→</i> <em class="${yeter ? '' : 'kot'}">${_enjNf(bakiye - u.fiyat)}</em> 💎</b></div>
+      <div><span>Fiyat</span><b class="dia" data-noi18n>${kmpEski('enerji', u.fiyat)}💎 ${fy}</b></div>
+      <div><span>Elmasın</span><b data-noi18n>${_enjNf(bakiye)} <i>→</i> <em class="${yeter ? '' : 'kot'}">${_enjNf(bakiye - fy)}</em> 💎</b></div>
     </div>
     <div class="kon-md-not${(es && !ayni) || sinir ? ' enj-uyari' : ''}">${not}</div>
     <div class="kon-md-bt"><button type="button" class="vz" onclick="document.getElementById('enjOnay').classList.remove('acik')">Vazgeç</button>
@@ -102983,10 +103127,10 @@ function konMagazaCiz() {
       <div><small>Kit stoğu</small><b>${konCanta('std', 20)} <span data-noi18n>${sg ? sg.kit : '–'}</span></b></div>
       <div><small>Bugün</small><b data-noi18n>${sg ? sg.bugun : 0}/${sg ? sg.limit : KON_LIMIT}</b></div>
     </div>` : `<div class="kon-uy"><span>Sağlık çantası takım için alınır · önce bir takıma katıl</span></div>`;
-  sgEl.innerHTML = ust + `
+  sgEl.innerHTML = kmpBantHtml('saglik') + ust + `
     <div class="shop-section-note"><span>🩹 Sağlık kiti yorgun bir oyuncuyu anında +40 kondisyon dinlendirir. Çantayı kaptan takım kasasındaki elmasla alır, kitler takım deposuna eklenir. Kaptan ve yardımcılar kullanır.</span></div>
     <div class="kon-mz-grid">${KON_CANTALAR.map((c, i) => {
-      const kb = c.fiyat / c.kit;
+      const fy = kmpFiyat('saglik', c.fiyat), kb = fy / c.kit;
       const btn = !takim ? '<span>Takım gerekli</span>' : kap ? '<span>Kasadan al</span>' : '<span>🔒 Yalnız kaptan</span>';
       return `<div class="kon-ct${c.best ? ' best' : ''}${kap && takim ? '' : ' kilit'}">
         ${c.etiket ? `<div class="dp-tag">${c.etiket}</div>` : ''}
@@ -102995,7 +103139,7 @@ function konMagazaCiz() {
         <div class="kon-ct-ad">${c.ad}</div>
         <div class="kon-ct-kit"><span data-noi18n>${c.kit}</span><small>kit</small></div>
         <div class="kon-ct-bir"><span data-noi18n>${_konOnd(kb)} 💎</span> <span>/ kit</span></div>
-        <div class="kon-ct-fiyat" data-noi18n>💎 ${_konNf(c.fiyat)}</div>
+        <div class="kon-ct-fiyat${fy < c.fiyat ? ' kmp' : ''}" data-noi18n>${kmpEski('saglik', c.fiyat)}💎 ${_konNf(fy)}</div>
         <button type="button" class="kon-ct-btn" ${kap && takim ? `onclick="konOnayAc(${i})"` : 'disabled'}>${btn}</button>
       </div>`; }).join('')}</div>
     <div class="kon-mz-kural">
@@ -103011,7 +103155,7 @@ function konOnayAc(i) {
   const c = KON_CANTALAR[i]; if (!c) return;
   const kasa = (typeof trsTreasuryDiaBalance === 'function') ? trsTreasuryDiaBalance() : 0;
   const sg = konSaglik();
-  const yeter = kasa >= c.fiyat;
+  const fy = kmpFiyat('saglik', c.fiyat), yeter = kasa >= fy;
   let ov = document.getElementById('konOnay');
   if (!ov) {
     ov = document.createElement('div'); ov.id = 'konOnay'; ov.className = 'kon-ov kon-orta';
@@ -103025,8 +103169,8 @@ function konOnayAc(i) {
     <div class="kon-md-t">${c.ad}</div>
     <div class="kon-md-k"><span data-noi18n>${c.kit}</span> <span>sağlık kiti</span>${c.ind ? ` · <em data-noi18n>−${_konYuzde(c.ind)}</em>` : ''}</div>
     <div class="kon-md-tb">
-      <div><span>Fiyat</span><b class="dia" data-noi18n>💎 ${_konNf(c.fiyat)}</b></div>
-      <div><span>Takım kasası</span><b data-noi18n>${_konNf(kasa)} <i>→</i> <em class="${yeter ? '' : 'kot'}">${_konNf(kasa - c.fiyat)}</em> 💎</b></div>
+      <div><span>Fiyat</span><b class="dia" data-noi18n>${kmpEski('saglik', c.fiyat)}💎 ${_konNf(fy)}</b></div>
+      <div><span>Takım kasası</span><b data-noi18n>${_konNf(kasa)} <i>→</i> <em class="${yeter ? '' : 'kot'}">${_konNf(kasa - fy)}</em> 💎</b></div>
       <div><span>Kit stoğu</span><b data-noi18n>${sg ? sg.kit : '–'} <i>→</i> <em class="y">${sg ? sg.kit + c.kit : '+' + c.kit}</em></b></div>
     </div>
     <div class="kon-md-not"><span>${yeter ? 'Takım kasasından ödenir · kasa kaydına ve gelen kutusuna fiş düşer' : 'Takım kasasında yeterli elmas yok · üyeler kasaya bağış yapabilir'}</span></div>
@@ -105071,7 +105215,7 @@ function _mgSistemListe() {
     const c = _cftGetCountry(cc); if (!c) continue;
     c.leagues.forEach((lg, tier) => (lg.teams || []).forEach(t => {
       if (_mgSahipli.has(cc + ':' + t.name)) return;
-      out.push({ cc, ad: t.name, tier, lig: lg.name, ulke: c.name, bayrak: c.flag, team: t, guc: _mgGuc(cc, t), fiyat: calcTeamPrice(t.pop, t.rating, tier), nufus: t.pop || 0 });
+      out.push({ cc, ad: t.name, tier, lig: lg.name, ulke: c.name, bayrak: c.flag, team: t, guc: _mgGuc(cc, t), fiyat: kmpFiyat('takim', calcTeamPrice(t.pop, t.rating, tier)), eski: calcTeamPrice(t.pop, t.rating, tier), nufus: t.pop || 0 });
     }));
   }
   return out;
@@ -105111,7 +105255,7 @@ function _mgTakimKabuk(alt) {
 function mgTakimFiltre(k, v) {
   if (k === 'butce') _mgT.butce = !_mgT.butce; else _mgT[k] = v;
   _mgT.sayi = 30;
-  ['takim-sistem', 'teams'].forEach(a => { const kutu = document.getElementById('tk-' + a); if (kutu && kutu.dataset.kuruldu) _mgTakimFiltreYansit(kutu); });
+  ['takim-sistem', 'teams', 'takim-kampanya'].forEach(a => { const kutu = document.getElementById('tk-' + a); if (kutu && kutu.dataset.kuruldu) _mgTakimFiltreYansit(kutu); });
   _mgTakimGovde(_mgSonAlt.takimlar);
 }
 const _mgLigAd = (i) => { const c = _mgT.cc !== 'all' && _cftGetCountry(_mgT.cc); return (c && c.leagues[i] && c.leagues[i].name) || _MG_TIER[i]; };
@@ -105156,8 +105300,9 @@ function _mgTakimFiltreYansit(kutu) {
 function _mgTakimSatir(x, i, alt) {
   const ilan = alt === 'teams', kilit = !x.benim && userHasTeam();
   const o = _mgOzet[x.cc + ':' + x.ad];
-  const fiyat = kilit ? `<button class="mg-fiyat kilit">${_mgKilitSvg}${x.fiyat.toLocaleString('tr')}</button>`
-    : `<button class="mg-fiyat dia${_mgElmas() < x.fiyat && !x.benim ? ' yetmez' : ''}">💎 ${x.fiyat.toLocaleString('tr')}</button>`;
+  const ind = !ilan && x.eski > x.fiyat, es = ind ? `<s>${x.eski.toLocaleString('tr')}</s>` : '';
+  const fiyat = kilit ? `<button class="mg-fiyat kilit${ind ? ' kmp' : ''}">${es}${ind ? '<span>' : ''}${_mgKilitSvg}${x.fiyat.toLocaleString('tr')}${ind ? '</span>' : ''}</button>`
+    : `<button class="mg-fiyat dia${ind ? ' kmp' : ''}${_mgElmas() < x.fiyat && !x.benim ? ' yetmez' : ''}">${es}${ind ? '<span>' : ''}💎 ${x.fiyat.toLocaleString('tr')}${ind ? '</span>' : ''}</button>`;
   const kay = x.benim ? '<span class="mg-kay sen">Senin</span>' : ilan ? `<span class="mg-kay ilan">İlan</span><em class="gen-ic" data-noi18n>${_mgE(x.satici)}</em>` : '<span class="mg-kay sis gen-ic">Sistem</span>';
   const tes = o ? _mgTesisOrt(o) : 0;
   return `<div class="mg-sat${ilan ? ' ilan' : ''}${x.benim ? ' benim' : ''}" onclick="mgTakimDetay('${alt}',${i})">
@@ -105183,12 +105328,13 @@ async function _mgTakimGovde(alt) {
   }
   const tum = ilan ? _mgIlanListe() : _mgSistemListe();
   _mgSay(alt, tum.length);
+  if (!ilan) _mgSay('takim-kampanya', kmpYuzde('takim') ? tum.length : 0);
   const liste = _mgTakimSuz(tum, ilan);
   const gor = liste.slice(0, _mgT.sayi);
   _mgListe[alt] = gor;
   if (!tum.length) { g.innerHTML = `<div class="mg-bos">${ilan ? 'Şu anda satışta takım yok.' : 'Şu anda kaptanı bot olan takım yok.'}</div>`; return; }
   if (!gor.length) { g.innerHTML = '<div class="mg-bos">Bu filtrede takım yok.</div>'; return; }
-  g.innerHTML = `<div class="mg-tablo takim"><div class="mg-bas"><span>Takım</span><span class="mg-gen sol">Lig</span><span class="mg-gen sol">Ülke</span><span>Güç</span><span>Kadro</span><span>Tesis</span><span>Kasa</span><span>Fiyat</span></div>
+  g.innerHTML = (ilan ? '' : kmpBantHtml('takim')) + `<div class="mg-tablo takim"><div class="mg-bas"><span>Takım</span><span class="mg-gen sol">Lig</span><span class="mg-gen sol">Ülke</span><span>Güç</span><span>Kadro</span><span>Tesis</span><span>Kasa</span><span>Fiyat</span></div>
     ${gor.map((x, i) => _mgTakimSatir(x, i, alt)).join('')}</div>
     <div class="mg-dip"><span>${gor.length} / ${liste.length} takım gösteriliyor</span>${liste.length > gor.length ? '<button onclick="mgTakimDaha()">Daha fazla</button>' : ''}</div>`;
   if (await _mgOzetYukle(gor) && _mgListe[alt] === gor) g.querySelector('.mg-tablo').innerHTML = g.querySelector('.mg-bas').outerHTML + gor.map((x, i) => _mgTakimSatir(x, i, alt)).join('');
@@ -105196,11 +105342,20 @@ async function _mgTakimGovde(alt) {
 function mgTakimDaha() { _mgT.sayi += 30; _mgTakimGovde(_mgSonAlt.takimlar); }
 
 function takimlarTab(alt) {
+  if (alt === 'takim-kampanya' && !kmpYuzde('takim')) alt = 'takim-sistem';   // 809 — kampanya yoksa Kampanyada sekmesi kapalı
   _mgSonAlt.takimlar = alt;
   document.querySelectorAll('#page-takimlar .mg-alt button').forEach(b => b.classList.toggle('on', b.dataset.alt === alt));
-  ['takim-sistem', 'teams'].forEach(a => { document.getElementById('tk-' + a).style.display = a === alt ? 'block' : 'none'; });
-  if (alt === 'teams') renderTeamMarket(); else mgSistemTakimlar();
+  ['takim-sistem', 'teams', 'takim-kampanya'].forEach(a => { document.getElementById('tk-' + a).style.display = a === alt ? 'block' : 'none'; });
+  if (alt === 'teams') renderTeamMarket(); else if (alt === 'takim-kampanya') mgKampanyaTakimlar(); else mgSistemTakimlar();
   _mgSay('teams', tmGetListings().length);
+  kmpSekmeler();
+  kmpYukle().then(d => { if (d && _mgSonAlt.takimlar === alt) takimlarTab(alt); });
+}
+function mgKampanyaTakimlar() {   // 809 — Kampanyada: indirimli sistem takımları
+  const kutu = _mgTakimKabuk('takim-kampanya'); if (!kutu) return;
+  if (_mgT.sira === 'yeni') _mgT.sira = 'guc';
+  _mgTakimFiltreYansit(kutu);
+  _mgTakimGovde('takim-kampanya');
 }
 function mgSistemTakimlar() {
   const kutu = _mgTakimKabuk('takim-sistem'); if (!kutu) return;
@@ -105238,7 +105393,7 @@ async function mgTakimDetay(alt, i) {
       <div><b>${nuf}</b><em>Şehir nüfusu</em></div>
       <div><b>${ekoKapasite(o.t.stadium).toLocaleString('tr')}</b><em>Stadyum kapasitesi</em></div></div>
     <div class="mg-det-tes"><h4>Tesisler</h4><ul>${fac.map(f => { const v = Math.max(1, Number(o.t[f.id]) || 1); return `<li><span>${f.name}</span><b>Sv. ${v}</b><i style="--d:${v / 10}"></i></li>`; }).join('')}</ul></div>
-    <div class="mg-det-fiyat"><span>${ilan ? 'İlan fiyatı' : 'Fiyat · kaptan olarak katılırsın'}</span><b>💎 ${x.fiyat.toLocaleString('tr')}</b></div>
+    <div class="mg-det-fiyat"><span>${ilan ? 'İlan fiyatı' : 'Fiyat · kaptan olarak katılırsın'}</span><b>${!ilan && x.eski > x.fiyat ? `<s class="kmp-s">${x.eski.toLocaleString('tr')}</s>` : ''}💎 ${x.fiyat.toLocaleString('tr')}</b></div>
     ${kilit ? `<div class="mg-det-not">🔒 Zaten bir takımdasın (${_mgE(_userTeam.teamName)}). Takım satın almak için önce takımından ayrılmalısın.</div>`
       : eksik > 0 ? `<div class="mg-det-not sari">${eksik.toLocaleString('tr')} 💎 daha gerekli.</div>` : ''}
     <div class="mg-det-btn"><button class="vaz" onclick="mgDetKapat()">Kapat</button>
@@ -106851,7 +107006,7 @@ function hmKaydirGec() {
         if (bot === null || bot !== (k === 'takim_teklif')) return false;
       }
       v.cc = ut.countryCode; v.takim = ut.teamName; v.tierIdx = tb.tierIdx; v.team = tb.team;
-      if (k === 'takim_teklif') v.fiyat = (typeof calcTeamPrice === 'function') ? calcTeamPrice(tb.team.pop, tb.team.rating, tb.tierIdx) : 0;
+      if (k === 'takim_teklif') v.fiyat = (typeof calcTeamPrice === 'function') ? kmpFiyat('takim', calcTeamPrice(tb.team.pop, tb.team.rating, tb.tierIdx)) : 0;
       return v;
     }
     if (k === 'takim_bul') return (typeof userHasTeam === 'function' && !userHasTeam()) ? v : false;

@@ -7620,3 +7620,9 @@ window.I18N_PATTERNS.ru.push(
   [/^Kayıt hatası: (.+)$/, m => "Ошибка регистрации: " + (window.I18N.ru[m[1]] || m[1])],
   [/^(\S+@\S+) adresine bir onay bağlantısı gönderildi\. Bağlantıya basınca e-postan kaydedilir\.$/, "Ссылка для подтверждения отправлена на $1. Почта сохранится, когда ты нажмёшь на ссылку."]
 );
+/* ─── 809 · Kampanyalar ─── */
+Object.assign(window.I18N.ru, {
+  "indirim": "скидка",
+  "Kampanyada": "По акции",
+  "Kampanya sona erdi": "Акция завершена"
+});

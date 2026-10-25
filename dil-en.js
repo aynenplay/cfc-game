@@ -8013,3 +8013,9 @@ window.I18N_PATTERNS.en.push(
   [/^Kayıt hatası: (.+)$/, m => "Sign-up error: " + (window.I18N.en[m[1]] || m[1])],
   [/^(\S+@\S+) adresine bir onay bağlantısı gönderildi\. Bağlantıya basınca e-postan kaydedilir\.$/, "A confirmation link has been sent to $1. Your e-mail is saved once you tap the link."]
 );
+/* ─── 809 · Kampanyalar ─── */
+Object.assign(window.I18N.en, {
+  "indirim": "off",
+  "Kampanyada": "On sale",
+  "Kampanya sona erdi": "Offer ended"
+});

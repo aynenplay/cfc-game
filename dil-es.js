@@ -7588,3 +7588,9 @@ window.I18N_PATTERNS.es.push(
   [/^Kayıt hatası: (.+)$/, m => "Error de registro: " + (window.I18N.es[m[1]] || m[1])],
   [/^(\S+@\S+) adresine bir onay bağlantısı gönderildi\. Bağlantıya basınca e-postan kaydedilir\.$/, "Se ha enviado un enlace de confirmación a $1. Tu correo se guarda al tocar el enlace."]
 );
+/* ─── 809 · Kampanyalar ─── */
+Object.assign(window.I18N.es, {
+  "indirim": "de descuento",
+  "Kampanyada": "En oferta",
+  "Kampanya sona erdi": "Oferta terminada"
+});
