@@ -5973,3 +5973,8 @@ Object.assign(window.I18N.de, {
   "Her kelime en az 2 harf": "Mindestens 2 Buchstaben pro Wort",
   "Uyruk seç": "Wähle eine Nationalität"
 });
+/* ─── 812 · Uyruk seçimi ─── */
+Object.assign(window.I18N.de, {
+  "Önerilen": "Vorgeschlagen",
+  "Sonuç yok": "Keine Ergebnisse"
+});

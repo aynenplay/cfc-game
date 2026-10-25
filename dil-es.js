@@ -7613,3 +7613,8 @@ Object.assign(window.I18N.es, {
   "Her kelime en az 2 harf": "Al menos 2 letras por palabra",
   "Uyruk seç": "Elige una nacionalidad"
 });
+/* ─── 812 · Uyruk seçimi ─── */
+Object.assign(window.I18N.es, {
+  "Önerilen": "Sugeridos",
+  "Sonuç yok": "Sin resultados"
+});

@@ -7645,3 +7645,8 @@ Object.assign(window.I18N.ru, {
   "Her kelime en az 2 harf": "Минимум 2 буквы в слове",
   "Uyruk seç": "Выбери гражданство"
 });
+/* ─── 812 · Uyruk seçimi ─── */
+Object.assign(window.I18N.ru, {
+  "Önerilen": "Рекомендуемые",
+  "Sonuç yok": "Ничего не найдено"
+});
