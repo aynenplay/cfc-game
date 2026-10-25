@@ -329,6 +329,10 @@ window._i18nSozlukYukle = function(dil, bitti){
     var ok = false; function hazir(){ if (ok) return; ok = true; acilis.classList.add('resim'); window._olcAcilisResim = Math.round(performance.now()); }
     try { var r = new Image(); r.onload = r.onerror = hazir; r.src = 'medya/acilis-resim.0a302b2b.webp'; if (r.complete) hazir(); } catch(e) { hazir(); }
     setTimeout(hazir, 2500);
+    // 816 — yazı tipleri resim indikten sonra istenir (en geç 6 sn)
+    function geldi(){ if (window._aclResimGeldi) return; window._aclResimGeldi = 1; if (window._fontErken) window._fontErken(); }
+    try { r.addEventListener('load', geldi); r.addEventListener('error', geldi); if (r.complete) geldi(); } catch(e) { geldi(); }
+    setTimeout(geldi, 6000);
   })();
   setTimeout(yerliKapat, 8000);
   // Açılış, oyun hazır olduğunda ve animasyon sonuna kadar (yazıdaki parıltı) oynadığında kapanır
@@ -348,7 +352,24 @@ window._i18nSozlukYukle = function(dil, bitti){
   window._acilisBitir = function(){ hazir = true; kapatDene(); };
 })();
 </script>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@300;400;500;600;700;800;900&family=Russo+One&family=Caveat:wght@700&family=Playfair+Display:wght@800&display=swap" rel="stylesheet">
+<script>
+// 816 — açılışta kullanılan yazı tipleri erkenden istenir: ilk büyük yerleşim gerçek yazı tipiyle yapılır, sonradan bütün sayfa yeniden yerleşmez.
+//   Yalnız açılışta zaten inen ağırlıklar. Örnek metinde Türkçe harf var: latin ve latin-ext parçaları birlikte iner.
+window._fontErken = function(){
+  try {
+    var f = document.fonts; if (!f || !f.load || !window._aclResimGeldi) return;
+    var o = 'AaĞğİıŞşÇçÖöÜü';
+    if (window._fontCss && !window._fontB) {
+      window._fontB = 1;
+      ['500','600','700','800'].forEach(function(w){ f.load(w + ' 16px Barlow', o).catch(function(){}); });
+      ['700','800','900'].forEach(function(w){ f.load(w + ' 16px "Barlow Condensed"', o).catch(function(){}); });
+    }
+    var by = document.getElementById('bayrakFontu');
+    if (by && by.sheet && !window._fontBy) { window._fontBy = 1; f.load('16px "Twemoji Country Flags"', '\uD83C\uDDF9\uD83C\uDDF7').catch(function(){}); }
+  } catch(e) {}
+};
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@300;400;500;600;700;800;900&family=Russo+One&family=Caveat:wght@700&family=Playfair+Display:wght@800&display=swap" rel="stylesheet" onload="window._fontCss=1;window._fontErken&&window._fontErken()">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Saira:wght@600;800&family=Saira+Condensed:wght@700;800&family=Montserrat:wght@700;800;900&family=Titillium+Web:wght@700&display=swap" rel="stylesheet">
 <!-- ══ ULKE BAYRAKLARI · WINDOWS DUZELTMESI ═════════════════════════
      Windows'ta bayrak emojisi icin font YOKTUR. Karakter dogru gider
@@ -388,6 +409,7 @@ window._i18nSozlukYukle = function(dil, bitti){
    veriliyor (aşağıdaki betik), yanındaki ülke adı etkilenmiyor. */
 .bayrak-ch{ transform:scaleX(1.379); transform-origin:center center }
 </style>
+<script>window._fontErken && window._fontErken();</script>
 
 <style>
 :root{
@@ -25875,7 +25897,7 @@ body.pd-acik{overflow:hidden}
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2026-10-25-medya-815';
+const APP_BUILD = '2026-10-25-acilis-816';
 
 // 🆕 Surumu Ayarlar > Uygulama altinda goster (hangi dosyanin yuklu
 //    oldugunu telefondan dogrulayabilmek icin).
@@ -87222,7 +87244,7 @@ function _hdrSigdirHepsi() {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', kur); else kur();
   let _t = null;
   window.addEventListener('resize', () => { clearTimeout(_t); _t = setTimeout(_hdrSigdirHepsi, 150); });
-  try { document.fonts && document.fonts.ready.then(_hdrSigdirHepsi); } catch(e) {}
+  try { if (document.fonts) requestAnimationFrame(() => { try { document.fonts.ready.then(_hdrSigdirHepsi); } catch (e) {} }); } catch(e) {}   // 816
 })();
 
 function _wlParseNum(txt) {
@@ -106382,6 +106404,31 @@ const _OY_IK = {
   yildiz: '<svg viewBox="0 0 24 24"><path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9Z"/></svg>',
 };
 let _oyKr = null, _oySahneImza = '', _oyCalisiyor = false, _oyTekrar = false;
+// 816 — kart resmi (canvas) ağır iş: açılış ekranı sürerken çizilmez, açılış kalkınca boşta çizilir (en geç 15 sn)
+let _oySahneSerbest = false, _oySahneBekliyor = false;
+function _oyAcilisSurer() {
+  if (_oySahneSerbest) return false;
+  const sp = document.getElementById('splash');
+  if (sp && !sp.classList.contains('hide')) return true;
+  _oySahneSerbest = true; return false;
+}
+function _oySahneSonra() {
+  if (_oySahneBekliyor) return;
+  _oySahneBekliyor = true;
+  const sp = document.getElementById('splash');
+  let tamam = false, mo = null, zt = 0;
+  const git = () => {
+    if (tamam) return;
+    tamam = true; _oySahneSerbest = true;
+    try { if (mo) mo.disconnect(); } catch (e) {}
+    clearTimeout(zt);
+    const calis = () => { _oySahneBekliyor = false; oyKartTazele(); };
+    if (window.requestIdleCallback) requestIdleCallback(calis, { timeout: 800 }); else setTimeout(calis, 200);
+  };
+  if (!sp || sp.classList.contains('hide')) { git(); return; }
+  try { mo = new MutationObserver(() => { if (sp.classList.contains('hide')) git(); }); mo.observe(sp, { attributes: true, attributeFilter: ['class'] }); } catch (e) {}
+  zt = setTimeout(git, 15000);
+}
 let _oySet = 'A';   // 715 — Ev (A) / Dep (B) · 771 — Milli (M)
 let _oySetElle = false;   // 771 — oyuncu seçtiyse oturum boyunca o kalır; seçmediyse sıradaki maça göre
 function _oyTakimVar() { return !!(typeof userHasTeam === 'function' && userHasTeam() && _userTeam); }
@@ -106611,7 +106658,10 @@ async function oyKartTazele() {
     const gogus = v.gogusCc ? await _oyBayrakArma(v.gogusCc) : v.gogus;
     const sahne = { kod: v.kod, kit: v.kit, no: v.kit ? v.formaNo : '', logo: v.kit ? gogus : null, numRenk: v.kit ? _oyNoRenk(v.kit) : null, asili: v.kit ? v.asili : null };
     const imza = JSON.stringify(sahne);
-    if (imza !== _oySahneImza && await _oySahneCiz(document.getElementById('oyKartSahne'), sahne)) _oySahneImza = imza;
+    if (imza !== _oySahneImza) {
+      if (_oyAcilisSurer()) _oySahneSonra();   // 816
+      else if (await _oySahneCiz(document.getElementById('oyKartSahne'), sahne)) _oySahneImza = imza;
+    }
     if (window.sb && (!_oyKr || Date.now() - _oyKr.t >= 300000)) {
       await _oyKariyer();
       v.kr = _oyKr; _oyCiz(v);
