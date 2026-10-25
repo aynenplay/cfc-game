@@ -7626,3 +7626,22 @@ Object.assign(window.I18N.ru, {
   "Kampanyada": "По акции",
   "Kampanya sona erdi": "Акция завершена"
 });
+/* ─── 810 · Kayıt akışı ─── */
+Object.assign(window.I18N.ru, {
+  "Hesabını Oluştur": "Создай аккаунт",
+  "Avatarını Seç": "Выбери аватар",
+  "Mevkini Seç": "Выбери позицию",
+  "Futbolcu Kartın": "Твоя карточка игрока",
+  "Zaten bir hesabım var": "У меня уже есть аккаунт",
+  "Futbolcu İsmi": "Имя игрока",
+  "Futbolcu ismin": "Имя твоего игрока",
+  "Kullanıcı adı yaz": "Введи имя пользователя",
+  "En az 3 karakter": "Минимум 3 символа",
+  "Yalnız harf, rakam ve . _ -": "Только буквы, цифры и . _ -",
+  "Şifre çok uzun": "Пароль слишком длинный",
+  "Futbolcu ismini yaz": "Введи имя игрока",
+  "Yalnız harf kullan": "Только буквы",
+  "En fazla 3 kelime": "Не больше 3 слов",
+  "Her kelime en az 2 harf": "Минимум 2 буквы в слове",
+  "Uyruk seç": "Выбери гражданство"
+});

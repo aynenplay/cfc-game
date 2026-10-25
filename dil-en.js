@@ -8019,3 +8019,22 @@ Object.assign(window.I18N.en, {
   "Kampanyada": "On sale",
   "Kampanya sona erdi": "Offer ended"
 });
+/* ─── 810 · Kayıt akışı ─── */
+Object.assign(window.I18N.en, {
+  "Hesabını Oluştur": "Create Your Account",
+  "Avatarını Seç": "Choose Your Avatar",
+  "Mevkini Seç": "Choose Your Position",
+  "Futbolcu Kartın": "Your Player Card",
+  "Zaten bir hesabım var": "I already have an account",
+  "Futbolcu İsmi": "Player Name",
+  "Futbolcu ismin": "Your player name",
+  "Kullanıcı adı yaz": "Enter a username",
+  "En az 3 karakter": "At least 3 characters",
+  "Yalnız harf, rakam ve . _ -": "Letters, numbers and . _ - only",
+  "Şifre çok uzun": "Password is too long",
+  "Futbolcu ismini yaz": "Enter your player name",
+  "Yalnız harf kullan": "Use letters only",
+  "En fazla 3 kelime": "Up to 3 words",
+  "Her kelime en az 2 harf": "At least 2 letters per word",
+  "Uyruk seç": "Choose a nationality"
+});

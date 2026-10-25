@@ -7654,3 +7654,22 @@ Object.assign(window.I18N.fr, {
   "Kampanyada": "En promo",
   "Kampanya sona erdi": "Offre terminée"
 });
+/* ─── 810 · Kayıt akışı ─── */
+Object.assign(window.I18N.fr, {
+  "Hesabını Oluştur": "Crée ton compte",
+  "Avatarını Seç": "Choisis ton avatar",
+  "Mevkini Seç": "Choisis ton poste",
+  "Futbolcu Kartın": "Ta carte joueur",
+  "Zaten bir hesabım var": "J’ai déjà un compte",
+  "Futbolcu İsmi": "Nom du joueur",
+  "Futbolcu ismin": "Ton nom de joueur",
+  "Kullanıcı adı yaz": "Saisis un nom d’utilisateur",
+  "En az 3 karakter": "Au moins 3 caractères",
+  "Yalnız harf, rakam ve . _ -": "Lettres, chiffres et . _ - uniquement",
+  "Şifre çok uzun": "Mot de passe trop long",
+  "Futbolcu ismini yaz": "Saisis ton nom de joueur",
+  "Yalnız harf kullan": "Lettres uniquement",
+  "En fazla 3 kelime": "3 mots maximum",
+  "Her kelime en az 2 harf": "Au moins 2 lettres par mot",
+  "Uyruk seç": "Choisis une nationalité"
+});
