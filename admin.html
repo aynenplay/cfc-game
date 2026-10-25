@@ -3342,14 +3342,14 @@ function huniYukle(bas){
     .finally(()=>{ HUNI.yuk=null; });
   return HUNI.yuk;
 }
-// Seçilen dönem / platform / ülke: { R: huni satırları, H: hata satırları } · null: henüz okunmadı
+// Seçilen dönem / platform / ülke: { R: yeni cihaz satırları, E: eski oyuncu girişleri (813), H: hata satırları } · null: henüz okunmadı
 function huniSuz(k, pf, cc, ym){
   const V=HUNI.veri, a=huniAra(k); if(!V) return null;
   if(a ? (!V.tam && V.bas>a[0]) : !V.tam) return null;
   ym=ym||HUNI.ym;
-  const uy=x=>{ const g=String(x.gun).slice(0,10); return (!a || (g>=a[0] && g<=a[1])) && (pf==='tum' || x.platform===pf) && (!cc || x.ulke===cc)
-    && (ym==='tum' || (x.yontem||'kad')===ym); };
-  return { R:V.rows.filter(uy), H:V.hata.filter(uy) };
+  const dn=x=>{ const g=String(x.gun).slice(0,10); return (!a || (g>=a[0] && g<=a[1])) && (pf==='tum' || x.platform===pf) && (!cc || x.ulke===cc); };
+  const uy=x=>x.yontem!=='eski' && dn(x) && (ym==='tum' || (x.yontem||'kad')===ym);
+  return { R:V.rows.filter(uy), E:V.rows.filter(x=>x.yontem==='eski' && dn(x)), H:V.hata.filter(uy) };
 }
 const huniTop=(R, adim)=>R.reduce((t,x)=>t+(Number(x[adim])||0),0);
 async function openHuni(){
@@ -3385,7 +3385,7 @@ function huniCiz(){
   if(db) db.onchange=()=>{ if(db.value){ HUNI.bas=db.value; huniYenile(); } };
   if(dt) dt.onchange=()=>{ if(dt.value){ HUNI.bit=dt.value; huniYenile(); } };
   const oz=$('hnOz'), tb=$('hnTb'), ht=$('hnHt');
-  const S=huniSuz(HUNI.k,HUNI.pf,HUNI.cc), R=S&&S.R;
+  const S=huniSuz(HUNI.k,HUNI.pf,HUNI.cc), R=S&&S.R, GR=S?R.concat(S.E||[]):null;   // 813 — giriş satırları eski oyuncuları da sayar
   if(!S){ oz.innerHTML='<div class="msg">Yükleniyor…</div>'; tb.innerHTML=''; ht.style.display=$('hnHtB').style.display='none'; $('hnCnt').textContent=''; return; }
   // Huni
   const ac=huniTop(R,'acilis'), yuz=n=>ac?Math.round(n/ac*100):0;
@@ -3398,9 +3398,9 @@ function huniCiz(){
     + sat('u-gri','Alınmış kullanıcı adı uyarısı',huniTop(R,'kad_uyari'),'',' hn-gir')
     + sat('u-gri','Önerilen adla devam',huniTop(R,'kad_oneri'),'',' hn-gir')
     // giriş tarafı
-    + (HUNI.ym==='tum'||HUNI.ym==='kad'?sat('u-gri','Kullanıcı adı / e-posta ile giriş',huniTop(R,'giris'),'',' hn-gir hn-grp'):'')
-    + (HUNI.ym!=='kad'?sat('u-gri',HUNI.ym==='apple'?'Apple ile giriş':'Google ile giriş',huniTop(R,'sosyal_giris'),'',' hn-gir'+(HUNI.ym==='tum'?'':' hn-grp')):'')
-    + (HUNI.ym==='tum'||HUNI.ym==='kad'?sat('u-gri','Şifremi unuttum',huniTop(R,'sifre'),'',' hn-gir')+sat('u-gri','Giriş ekranından destek talebi',huniTop(R,'destek'),'',' hn-gir'):'');
+    + (HUNI.ym==='tum'||HUNI.ym==='kad'?sat('u-gri','Kullanıcı adı / e-posta ile giriş',huniTop(GR,'giris'),'',' hn-gir hn-grp'):'')
+    + (HUNI.ym!=='kad'?sat('u-gri',HUNI.ym==='apple'?'Apple ile giriş':'Google ile giriş',huniTop(GR,'sosyal_giris'),'',' hn-gir'+(HUNI.ym==='tum'?'':' hn-grp')):'')
+    + (HUNI.ym==='tum'||HUNI.ym==='kad'?sat('u-gri','Şifremi unuttum',huniTop(GR,'sifre'),'',' hn-gir')+sat('u-gri','Giriş ekranından destek talebi',huniTop(GR,'destek'),'',' hn-gir'):'');
   const x=$('hnCcX'); if(x) x.onclick=()=>{ HUNI.cc=null; huniCiz(); };
   // Ülkeler (seçili ülke vurgulanır, tıklayınca huni o ülkeye süzülür)
   const R0=HUNI.cc?huniSuz(HUNI.k,HUNI.pf,null).R:R, U={};
