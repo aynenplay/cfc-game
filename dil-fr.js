@@ -7685,3 +7685,12 @@ Object.assign(window.I18N.fr, {
   "Milli Takımlar": "Équipes nationales",
   "Ülkeler": "Pays"
 });
+/* ─── 822 · Sıralamalar ─── */
+Object.assign(window.I18N.fr, {
+  "En İyi 50 Oyuncu — yetenek puanına göre": "Top 50 joueurs — par note de compétences",
+  "En İyi 50 Oyuncu — seviye (level) sırasıyla": "Top 50 des joueurs — par niveau",
+  "En İyi 50 Takım — küresel sıralama": "Top 50 équipes — classement mondial",
+  "Milli Takım Sıralaması — EURO National Cup performansı": "Classement des équipes nationales — performance en EURO National Cup",
+  "Milli Takım Sıralaması — kadronun yetenek ortalaması": "Classement des sélections — compétence moyenne de l’effectif",
+  "Ülke Puanı — 1. ve 2. kademe + Avrupa kupaları · son 5 sezon": "Coefficient pays — 1re & 2e division + coupes d'Europe · 5 dernières saisons"
+});

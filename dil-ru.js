@@ -7657,3 +7657,12 @@ Object.assign(window.I18N.ru, {
   "Milli Takımlar": "Сборные",
   "Ülkeler": "Страны"
 });
+/* ─── 822 · Sıralamalar ─── */
+Object.assign(window.I18N.ru, {
+  "En İyi 50 Oyuncu — yetenek puanına göre": "Топ-50 игроков — по рейтингу навыков",
+  "En İyi 50 Oyuncu — seviye (level) sırasıyla": "Топ-50 игроков — по уровню",
+  "En İyi 50 Takım — küresel sıralama": "Топ-50 команд — мировой рейтинг",
+  "Milli Takım Sıralaması — EURO National Cup performansı": "Рейтинг сборных — выступление в EURO National Cup",
+  "Milli Takım Sıralaması — kadronun yetenek ortalaması": "Рейтинг сборных — средний навык состава",
+  "Ülke Puanı — 1. ve 2. kademe + Avrupa kupaları · son 5 sezon": "Коэффициент страны — 1-й и 2-й дивизионы + еврокубки · последние 5 сезонов"
+});
