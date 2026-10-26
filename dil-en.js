@@ -8067,3 +8067,12 @@ Object.assign(window.I18N.en, {
 window.I18N_PATTERNS.en.push(
   [/^(.+?) federasyon başkanlığına atandın\. 🏛️$/, m => 'You were appointed president of the ' + (typeof window.T === 'function' ? window.T(m[1]) : m[1]) + ' federation. 🏛️']
 );
+/* ─── 828 · Katılma isteği: ilk karar geçerli (kaptan + yardımcılar) ─── */
+Object.assign(window.I18N.en, {
+  "Zaten Onaylandı": "Already Approved",
+  "Zaten Reddedildi": "Already Declined",
+  "Bu isteğe başka bir yönetici karar verdi.": "Another manager has already decided on this request."
+});
+window.I18N_PATTERNS.en.push(
+  [/^(.+?) senden önce karar verdi\.$/, '$1 decided before you.']
+);

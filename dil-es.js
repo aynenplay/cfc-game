@@ -7642,3 +7642,12 @@ Object.assign(window.I18N.es, {
 window.I18N_PATTERNS.es.push(
   [/^(.+?) federasyon başkanlığına atandın\. 🏛️$/, m => 'Has sido nombrado presidente de la federación de ' + (typeof window.T === 'function' ? window.T(m[1]) : m[1]) + '. 🏛️']
 );
+/* ─── 828 · Katılma isteği: ilk karar geçerli (kaptan + yardımcılar) ─── */
+Object.assign(window.I18N.es, {
+  "Zaten Onaylandı": "Ya aprobada",
+  "Zaten Reddedildi": "Ya rechazada",
+  "Bu isteğe başka bir yönetici karar verdi.": "Otro directivo ya decidió sobre esta solicitud."
+});
+window.I18N_PATTERNS.es.push(
+  [/^(.+?) senden önce karar verdi\.$/, '$1 decidió antes que tú.']
+);

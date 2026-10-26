@@ -7674,3 +7674,12 @@ Object.assign(window.I18N.ru, {
 window.I18N_PATTERNS.ru.push(
   [/^(.+?) federasyon başkanlığına atandın\. 🏛️$/, m => 'Тебя назначили президентом федерации: ' + (typeof window.T === 'function' ? window.T(m[1]) : m[1]) + '. 🏛️']
 );
+/* ─── 828 · Katılma isteği: ilk karar geçerli (kaptan + yardımcılar) ─── */
+Object.assign(window.I18N.ru, {
+  "Zaten Onaylandı": "Уже одобрено",
+  "Zaten Reddedildi": "Уже отклонено",
+  "Bu isteğe başka bir yönetici karar verdi.": "Другой руководитель уже принял решение по этой заявке."
+});
+window.I18N_PATTERNS.ru.push(
+  [/^(.+?) senden önce karar verdi\.$/, '$1 принял решение раньше тебя.']
+);
