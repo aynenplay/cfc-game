@@ -781,6 +781,8 @@
   .kmp-tkp em{ font-style:normal; font-family:var(--disp); font-size:11.5px; font-weight:900; color:#5fd3ff; }
   .kmp-tkt{ height:30px; padding:0 10px; border-radius:9px; border:1px solid var(--line); background:transparent; color:var(--dim); font-size:12px; font-weight:700; }
   .kmp-tkt:hover{ color:#fff; border-color:var(--goldln); }
+  .kmp-tkp.kmp-tkd{ padding-right:9px; border-style:dashed; background:transparent; }
+  .kmp-tkp.kmp-tkd b{ color:#ffd54f; }
   .tk-lig .kmp-tum{ margin-left:auto; color:#ffd54f; border-color:rgba(255,213,79,.45); background:rgba(255,213,79,.06); }
   .tk-lig .kmp-tum:hover:not(:disabled){ color:#fff; border-color:#ffd54f; }
   .tk-lig .kmp-tum.kal{ color:#ff8ea3; border-color:rgba(226,59,90,.45); background:rgba(226,59,90,.06); }
@@ -4911,8 +4913,8 @@ function kpAyrinti(r){
       <div class="tk-say"><span>Başladı <b>${kmpTarih(r.baslangic)}</b></span><span>${d==='dur'?'Durduruldu':'Bitiş'} <b>${kmpTarih(d==='dur'?r.durduruldu:r.bitis)}</b></span>
         <span>Mesaj giden <b>${tkN(r.alici).toLocaleString('tr')}</b></span><span>Verilen indirim <b>${tkElmas(tkN(r.indirim))}</b></span></div>
       <div class="kmp-msj"><i class="ms-tas" style="--c:#2ec36b">${msIk('kampanya')}</i><div><b>${uEsc(r.baslik)}</b><p>${uEsc(r.govde)}</p></div></div>
-      ${(r.takimlar||[]).length?`<div class="tk-ac-b">Kampanyalı takımlar</div><div class="kmp-tks">${r.takimlar.map(k=>{ const cc=String(k).split('|')[0], n=tkN((r.takim_satis||{})[k]);
-        return `<span class="kmp-tkp${n?' sat':''}">${ccFlag(cc)}<b>${uEsc(String(k).split('|').slice(1).join('|'))}</b>${n?`<em>${n} satış</em>`:''}</span>`; }).join('')}</div>`:''}
+      ${(r.takimlar||[]).length?`<div class="tk-ac-b">Kampanyalı takımlar</div><div class="kmp-tks">${(r.takimlar.length>30?r.takimlar.slice().sort((a,b)=>tkN((r.takim_satis||{})[b])-tkN((r.takim_satis||{})[a])):r.takimlar).slice(0,30).map(k=>{ const cc=String(k).split('|')[0], n=tkN((r.takim_satis||{})[k]);
+        return `<span class="kmp-tkp${n?' sat':''}">${ccFlag(cc)}<b>${uEsc(String(k).split('|').slice(1).join('|'))}</b>${n?`<em>${n} satış</em>`:''}</span>`; }).join('')}${r.takimlar.length>30?`<span class="kmp-tkp kmp-tkd"><b>+${(r.takimlar.length-30).toLocaleString('tr')} takım</b></span>`:''}</div>`:''}
       <div class="tk-ac-b">Ürünlere göre</div>
       <div class="kmp-us" style="grid-template-columns:repeat(${u.length||1},1fr)">${u.map(k=>{ const [,ad,c]=kmpUrun(k), x=us[k]||{};
         return `<div class="kmp-u" style="--c:${c}"><i>${kmpIk(k)}</i><b>${ad}</b><span><em>${tkN(x.n)}</em> satış</span><span class="c">${tkElmas(tkN(x.ciro))}</span></div>`; }).join('')}</div>
@@ -4993,7 +4995,7 @@ function kfCiz(){
   kfTkCiz(); kfKimeCiz(); kfMetin();
 }
 // 811 — kampanyalı takımlar: tümü ya da seçilenler (sistemden satıştaki takımlar)
-const KMP_TK_EN = 200;
+const KMP_TK_EN = 5000;   // 835 — eskiden 200
 function kfTkCiz(){
   const kap=$('kfTkKap'), el=$('kfTk'); if(!kap||!el) return;
   const ac=KF.urun.includes('takim'); kap.style.display=ac?'':'none';
@@ -5024,7 +5026,8 @@ function kfTkParca(){
   if(!sec) return;
   const S=$('kfTkS');
   if(S){ S.style.display=KF.tk.length?'':'none';
-    S.innerHTML=KF.tk.map(t=>`<span class="kmp-tkp">${ccFlag(t.cc)}<b>${uEsc(t.tk)}</b><button data-x="${uEsc(t.k)}" title="Çıkar">✕</button></span>`).join('')
+    S.innerHTML=KF.tk.slice(0,30).map(t=>`<span class="kmp-tkp">${ccFlag(t.cc)}<b>${uEsc(t.tk)}</b><button data-x="${uEsc(t.k)}" title="Çıkar">✕</button></span>`).join('')
+      + (KF.tk.length>30?`<span class="kmp-tkp kmp-tkd"><b>+${(KF.tk.length-30).toLocaleString('tr')} takım</b></span>`:'')
       + (KF.tk.length>1?'<button class="kmp-tkt" id="kfTkTemiz">Temizle</button>':''); }
   const c=$('kfTkCc');
   if(c && !c.dataset.dolu && Object.keys(KF.tUlke).length){
@@ -5074,27 +5077,35 @@ async function kfTkGetir(bastan){
 }
 const kfTkSecili=()=>KF.urun.includes('takim') && KF.tkMod==='sec';
 // 833 — süzgeçteki takımların hepsi yüklendi ve seçili mi
-const kfTkHepsi=()=>!!(KF && !KF.tYuk && KF.tToplam && KF.tRows.length>=KF.tToplam && KF.tRows.every(t=>KF.tk.some(x=>x.k===t.k)));
+const kfTkImza=()=>[KF.tq, KF.tcc, KF.tlig].join('|');
+const kfTkHepsi=()=>{
+  if(!KF) return false;
+  const T=KF.tTumSec;
+  if(T && T.imza===kfTkImza() && T.keys.length){ const S=new Set(KF.tk.map(x=>x.k)); return T.keys.every(k=>S.has(k)); }
+  return !!(!KF.tYuk && KF.tToplam && KF.tRows.length>=KF.tToplam && KF.tRows.every(t=>KF.tk.some(x=>x.k===t.k)));
+};
 function kfTkKaldir(){
-  const S=new Set(KF.tRows.map(t=>t.k)); KF.tk=KF.tk.filter(x=>!S.has(x.k));
+  const T=KF.tTumSec, S=new Set((T && T.imza===kfTkImza() ? T.keys : KF.tRows.map(t=>t.k))); KF.tk=KF.tk.filter(x=>!S.has(x.k)); KF.tTumSec=null;
   $('kfHata').textContent=''; kfTkParca(); kfMetin();
 }
 // Süzgeçteki (ülke · lig · arama) bütün takımları seçer; en fazla KMP_TK_EN
 async function kfTkTumu(){
   if(!KF || KF.tTumYuk) return;
+  if(!KF.tq && !KF.tcc && !KF.tlig){ KF.tkMod='tum'; KF.tk=[]; $('kfHata').textContent=''; kfTkCiz(); kfMetin(); return; }   // 835
   KF.tTumYuk=true; kfTkParca();
   let tasti=false;
   try{
-    const sec=new Set(KF.tk.map(x=>x.k)), yeni=[];
-    for(let off=0, top=Infinity; off<top && off<1000 && KF.tk.length+yeni.length<KMP_TK_EN; off+=100){
+    const sec=new Set(KF.tk.map(x=>x.k)), yeni=[], hepsi=[];
+    for(let off=0, top=Infinity; off<top && off<KMP_TK_EN && KF.tk.length+yeni.length<KMP_TK_EN; off+=100){
       const d=await fbRpc('admin_takim_liste',{ p_f:'satista', p_lig:KF.tlig, p_cc:KF.tcc, p_q:KF.tq, p_ccq:tkCcq(KF.tq), p_sira:'gercek', p_artan:false,
         p_limit:100, p_offset:off, p_ozet:false });
       const r=(d&&d.rows)||[]; top=tkN(d&&d.toplam);
-      r.forEach(t=>{ if(!sec.has(t.k)){ sec.add(t.k); yeni.push(t); } });
+      r.forEach(t=>{ hepsi.push(t.k); if(!sec.has(t.k)){ sec.add(t.k); yeni.push(t); } });
       if(!r.length) break;
     }
     const yer=KMP_TK_EN-KF.tk.length; tasti=yeni.length>yer;
     yeni.slice(0, Math.max(0,yer)).forEach(t=>KF.tk.push({ k:t.k, cc:t.cc, tk:t.tk, fiyat:tkN(t.sistem_fiyat) }));
+    KF.tTumSec=tasti?null:{ imza:kfTkImza(), keys:hepsi };
     $('kfHata').textContent=tasti?'En fazla '+KMP_TK_EN+' takım seçilebilir.':'';
   }catch(e){ $('kfHata').textContent=e.message; }
   finally{ if(KF){ KF.tTumYuk=false; const L=$('kfTkL'), st=L?L.scrollTop:0; kfTkParca(); if(L) L.scrollTop=st; kfMetin(); } }
@@ -5144,8 +5155,6 @@ function kfAra(v){
 }
 function kfMetin(){
   if(!KF || !$('kfBaslik')) return;
-  const [ob]=kfOneri();
-  if(!KF.elB) $('kfBaslik').value=ob;
   $('kfUz').textContent=$('kfGovde').value.length+' / 1000';
   const bit=kfBitis();
   $('kfBit').textContent=bit?'Bitiş '+kmpTarih(bit):'';
@@ -5185,7 +5194,7 @@ async function kmpBaslat(){
   }catch(e){
     const M={ yetki_yok:'Yönetici yetkisi gerekiyor.', oyuncu_yok:'Oyuncu bulunamadı.', hedef_gecersiz:'Hedef geçersiz.', urun_gecersiz:'Ürün geçersiz.',
       yuzde_gecersiz:'İndirim %5 ile %90 arasında olmalı.', sure_gecersiz:'Süre 1 saat ile 30 gün arasında olmalı.', baslik_kisa:'Başlık en az 3 karakter.', mesaj_kisa:'Mesaj en az 5 karakter.',
-      takim_gecersiz:'Takım seçimi geçersiz.', takim_yok:'Seçilen takım bulunamadı.', takim_cok:'En fazla 200 takım seçilebilir.' };
+      takim_gecersiz:'Takım seçimi geçersiz.', takim_yok:'Seçilen takım bulunamadı.', takim_cok:'En fazla 5.000 takım seçilebilir.' };
     const k=Object.keys(M).find(x=>String(e.message||'').indexOf(x)!==-1);
     btn.disabled=false; btn.textContent='Kampanyayı Başlat'; gos('Başlatılamadı: '+(k?M[k]:e.message));
   }
