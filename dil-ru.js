@@ -7666,3 +7666,11 @@ Object.assign(window.I18N.ru, {
   "Milli Takım Sıralaması — kadronun yetenek ortalaması": "Рейтинг сборных — средний навык состава",
   "Ülke Puanı — 1. ve 2. kademe + Avrupa kupaları · son 5 sezon": "Коэффициент страны — 1-й и 2-й дивизионы + еврокубки · последние 5 сезонов"
 });
+/* ─── 824 · Federasyon başkanı ataması (yönetim) ─── */
+Object.assign(window.I18N.ru, {
+  "Federasyon Başkanı Oldun": "Ты президент федерации",
+  "• Bir sonraki seçime kadar görevdesin.": "• Ты остаёшься на посту до следующих выборов."
+});
+window.I18N_PATTERNS.ru.push(
+  [/^(.+?) federasyon başkanlığına atandın\. 🏛️$/, m => 'Тебя назначили президентом федерации: ' + (typeof window.T === 'function' ? window.T(m[1]) : m[1]) + '. 🏛️']
+);

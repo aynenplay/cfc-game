@@ -7632,3 +7632,11 @@ Object.assign(window.I18N.it, {
   "Milli Takım Sıralaması — kadronun yetenek ortalaması": "Classifica nazionali — abilità media della rosa",
   "Ülke Puanı — 1. ve 2. kademe + Avrupa kupaları · son 5 sezon": "Coefficiente nazionale — 1ª e 2ª divisione + coppe europee · ultime 5 stagioni"
 });
+/* ─── 824 · Federasyon başkanı ataması (yönetim) ─── */
+Object.assign(window.I18N.it, {
+  "Federasyon Başkanı Oldun": "Sei Presidente della Federazione",
+  "• Bir sonraki seçime kadar görevdesin.": "• Resti in carica fino alle prossime elezioni."
+});
+window.I18N_PATTERNS.it.push(
+  [/^(.+?) federasyon başkanlığına atandın\. 🏛️$/, m => 'Sei stato nominato presidente della federazione ' + (typeof window.T === 'function' ? window.T(m[1]) : m[1]) + '. 🏛️']
+);
