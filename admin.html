@@ -4347,7 +4347,7 @@ async function fedEvents(body){
     const r=await api('list',{ table:'federation_votes', limit:40, search:cc, searchCol:'country_code', orderBy:'election_season', orderDir:'desc' });
     const rows=(r.rows||[]).filter(v=>String(v.country_code||'').toUpperCase()===cc);
     const ev=body.querySelector('[data-events]'); if(!ev) return;
-    ev.innerHTML = rows.length ? rows.slice(0,25).map(v=>`<div class="nt-pl"><span class="nm">${uEsc(v.voter_team||'?')} <span style="color:#5c6470">→</span> ${uEsc(v.candidate_team||'?')}</span><span class="ps">S${uEsc(v.election_season!=null?v.election_season:'?')}</span></div>`).join('') : '<div class="u-empty">Henüz oy/seçim olayı yok.</div>';
+    ev.innerHTML = rows.length ? rows.slice(0,25).map(v=>`<div class="nt-pl"><span class="nm">${uEsc(v.voter_team?fedKulupAd(v.voter_team,cc):'?')} <span style="color:#5c6470">→</span> ${uEsc(v.candidate_team?fedKulupAd(v.candidate_team,cc):'?')}</span><span class="ps">S${uEsc(v.election_season!=null?v.election_season:'?')}</span></div>`).join('') : '<div class="u-empty">Henüz oy/seçim olayı yok.</div>';
   }catch(e){ const ev=body.querySelector('[data-events]'); if(ev) ev.innerHTML='<div class="u-empty">Olaylar yüklenemedi.</div>'; }
 }
 function renderFeds(){
@@ -4463,8 +4463,8 @@ function ulSatir(tur,r,i){
   const S=UL[tur], g=tkN(r.gercek), c=tkN(r.cevrimici), mg=tkN(r.milli_gercek);
   const ilk=tur==='nt'&&i<3&&!S.artan&&S.sira==='milli'?' g'+(i+1):'';
   const kisi = r.baskan_gercek
-    ? `<span class="tk-kp g"><b>${uEsc(r.baskan_ad)}</b><small>${r.baskan_kullanici||!r.baskan_takim?'Gerçek':'Gerçek · '+uEsc(r.baskan_takim)}</small></span>`
-    : `<span class="tk-kp"><b>${uEsc(r.baskan_takim||'—')}</b><small>${r.baskan_takim?'Bot':'Boş'}</small></span>`;
+    ? `<span class="tk-kp g"><b>${uEsc(r.baskan_ad)}</b><small>${r.baskan_kullanici||!r.baskan_takim?'Gerçek':'Gerçek · '+uEsc(fedKulupAd(r.baskan_takim,r.cc))}</small></span>`
+    : `<span class="tk-kp"><b>${uEsc(r.baskan_takim?fedKulupAd(r.baskan_takim,r.cc):'—')}</b><small>${r.baskan_takim?'Bot':'Boş'}</small></span>`;
   const ms=`<button class="tk-ms" data-ms="${uEsc(r.cc)}"${g?'':' disabled'} title="${uEsc(ulAd(r))} oyuncularına mesaj">${TK_MS_IK}</button>`;
   const ad=`<span class="ul-bay">${ccFlag(r.cc)}</span>`;
   if(tur==='nt') return `<div class="r tk-r ul-r" data-cc="${uEsc(r.cc)}"><span class="rk${ilk}">${i+1}</span>${ad}`
@@ -4491,7 +4491,7 @@ function ntAyrintiHtml(r){
 function fedAyrintiHtml(r){
   const g=tkN(r.gercek);
   return `<div class="tk-ac" data-cc="${uEsc(r.cc)}" data-loaded="0">
-      <div class="tk-say"><span>Gerçek kaptan <b data-kaptan-say>${tkN(r.kaptan)}</b></span><span>Başkan <b>${uEsc(r.baskan_ad||'—')}</b></span><span>Kulübü <b>${uEsc(r.baskan_takim||'—')}</b></span><span>Gerçek oyunculu kulüp <b>${tkN(r.kulup_gercek)} / ${tkN(r.kulup)}</b></span></div>
+      <div class="tk-say"><span>Gerçek kaptan <b data-kaptan-say>${tkN(r.kaptan)}</b></span><span>Başkan <b>${uEsc(r.baskan_ad||'—')}</b></span><span>Kulübü <b>${uEsc(r.baskan_takim?fedKulupAd(r.baskan_takim,r.cc):'—')}</b></span><span>Gerçek oyunculu kulüp <b>${tkN(r.kulup_gercek)} / ${tkN(r.kulup)}</b></span></div>
       <div class="tk-ac-b">Gerçek kaptanlar</div><div class="ul-kpl" data-kaptan>${tkN(r.kaptan)?'<div class="msg">Yükleniyor…</div>':'<div class="msg">Gerçek kaptan yok.</div>'}</div>
       <div class="tk-ac-b">Adaylar ve oylar${r.sezon!=null?' · Sezon '+uEsc(r.sezon):''}</div><div class="ul-aday" data-aday>${tkN(r.aday)?'<div class="msg">Yükleniyor…</div>':'<div class="msg">Aday yok.</div>'}</div>
       <div class="tk-ac-b">Son oylar</div><div class="nt-sq ul-sq" data-events><div class="msg">Yükleniyor…</div></div>
@@ -4517,10 +4517,13 @@ async function ulAyrinti(tur, ac, r){
     const top=Object.values(say).reduce((a,b)=>a+b,0)||1;
     const L=adaylar.map(a=>({ a:String(a&&a.name||a), n:say[String(a&&a.name||a)]||0 })).sort((x,y)=>y.n-x.n);
     const el=ac.querySelector('[data-aday]'); if(!el) return;
-    el.innerHTML=L.length?L.map(x=>`<div class="ul-a"><span class="tk-lg">${tkLogo(r.cc,x.a)}</span><b>${uEsc(x.a)}</b><span class="ul-bar"><i style="width:${Math.round(x.n/top*100)}%"></i></span><em>${x.n}</em></div>`).join('')
+    el.innerHTML=L.length?L.map(x=>`<div class="ul-a"><span class="tk-lg">${tkLogo(fedAnahtar(x.a,r.cc).cc,fedAnahtar(x.a,r.cc).ad)}</span><b>${uEsc(fedKulupAd(x.a,r.cc))}</b><span class="ul-bar"><i style="width:${Math.round(x.n/top*100)}%"></i></span><em>${x.n}</em></div>`).join('')
       : '<div class="msg">Aday yok.</div>';
   }catch(e){ const el=ac.querySelector('[data-aday]'); if(el) el.innerHTML='<div class="msg err">'+uEsc(e.message)+'</div>'; }
 }
+// 825 — federasyon kulüp anahtarı: yurt içi kulüp adıyla, başka ülkedeki kulüp 'IT|Sondrio' (kaptan kendi uyruğunun federasyonunda)
+function fedAnahtar(k, cc){ const m=/^([A-Z]{2,3})\|(.+)$/.exec(String(k||'')); return m?{ ad:m[2], cc:m[1], dis:true }:{ ad:String(k||''), cc, dis:false }; }
+function fedKulupAd(k, cc){ const x=fedAnahtar(k, cc); return x.dis ? ccFlag(x.cc)+' '+x.ad : x.ad; }
 // 824 — Federasyonun gerçek kaptanları; "Başkan yap" kulübü başkan yapar (seçimi kazanmış gibi), bir sonraki seçime kadar
 async function fedKaptanlar(ac, r){
   const el=ac.querySelector('[data-kaptan]'); if(!el) return;
@@ -4529,8 +4532,8 @@ async function fedKaptanlar(ac, r){
   catch(e){ el.innerHTML='<div class="msg err">'+uEsc(e.message)+'</div>'; return; }
   const say=ac.querySelector('[data-kaptan-say]'); if(say) say.textContent=L.length;
   if(!L.length){ el.innerHTML='<div class="msg">Gerçek kaptan yok.</div>'; return; }
-  el.innerHTML=L.map((k,i)=>`<div class="ul-k${k.baskan?' bk':''}"><span class="tk-lg">${tkLogo(r.cc,k.takim)}</span>`
-    + `<span class="ad"><b>${uEsc(k.ad||'—')}</b><small><i style="background:${TIERC[k.lig]||'#8a93a3'}"></i>${uEsc(k.takim||'—')}${k.lig?' · '+uEsc(k.lig)+'. Lig':''}</small></span>`
+  el.innerHTML=L.map((k,i)=>`<div class="ul-k${k.baskan?' bk':''}"><span class="tk-lg">${tkLogo(k.ulke||r.cc,k.takim)}</span>`
+    + `<span class="ad"><b>${uEsc(k.ad||'—')}</b><small><i style="background:${TIERC[k.lig]||'#8a93a3'}"></i>${k.ulke&&k.ulke!==r.cc?ccFlag(k.ulke)+' ':''}${uEsc(k.takim||'—')}${k.lig?' · '+uEsc(k.lig)+'. Lig':''}</small></span>`
     + `<span class="son">${k.son?_cvGecen(_cvMs(k.son)):'—'}</span>`
     + (k.baskan?'<span class="ul-bk">Başkan</span>':`<button class="u-act edit" data-ata="${i}">Başkan yap</button>`)+'</div>').join('');
   el.querySelectorAll('[data-ata]').forEach(b=>b.onclick=async ev=>{
