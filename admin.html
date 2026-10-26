@@ -781,6 +781,11 @@
   .kmp-tkp em{ font-style:normal; font-family:var(--disp); font-size:11.5px; font-weight:900; color:#5fd3ff; }
   .kmp-tkt{ height:30px; padding:0 10px; border-radius:9px; border:1px solid var(--line); background:transparent; color:var(--dim); font-size:12px; font-weight:700; }
   .kmp-tkt:hover{ color:#fff; border-color:var(--goldln); }
+  .tk-lig .kmp-tum{ margin-left:auto; color:#ffd54f; border-color:rgba(255,213,79,.45); background:rgba(255,213,79,.06); }
+  .tk-lig .kmp-tum:hover:not(:disabled){ color:#fff; border-color:#ffd54f; }
+  .tk-lig .kmp-tum.kal{ color:#ff8ea3; border-color:rgba(226,59,90,.45); background:rgba(226,59,90,.06); }
+  .tk-lig .kmp-tum:disabled{ opacity:.55; }
+  .tk-lig .kmp-tum em{ font-style:normal; font-family:var(--disp); font-size:12px; font-weight:900; padding:1px 6px; border-radius:6px; background:rgba(255,255,255,.08); color:inherit; }
   .kmp-tkl{ max-height:330px; overflow:auto; display:flex; flex-direction:column; gap:5px; padding-right:2px; }
   .kmp-tkl .msg{ padding:12px; }
   .kmp-tkr{ display:grid; grid-template-columns:18px 30px minmax(0,1fr) auto; align-items:center; gap:10px; padding:7px 10px; border-radius:10px; background:var(--panel2); border:1px solid var(--line); cursor:pointer; flex-shrink:0; }
@@ -5028,8 +5033,11 @@ function kfTkParca(){
     c.dataset.dolu='1';
   }
   const lg=$('kfTkLig');
-  if(lg){ lg.innerHTML=`<button class="${KF.tlig?'':'on'}" data-l="0">Tüm ligler</button>`+KF.tLig.map(l=>`<button class="${KF.tlig===l?'on':''}" data-l="${l}"><i style="background:${TIERC[l]||'#8a93a3'}"></i>${l}. Lig</button>`).join('');
-    lg.querySelectorAll('[data-l]').forEach(x=>x.onclick=()=>{ KF.tlig=+x.dataset.l; kfTkGetir(true); kfTkParca(); }); }
+  if(lg){ const hepsi=kfTkHepsi();
+    lg.innerHTML=`<button class="${KF.tlig?'':'on'}" data-l="0">Tüm ligler</button>`+KF.tLig.map(l=>`<button class="${KF.tlig===l?'on':''}" data-l="${l}"><i style="background:${TIERC[l]||'#8a93a3'}"></i>${l}. Lig</button>`).join('')
+      + `<button class="kmp-tum${hepsi?' kal':''}" id="kfTkTum"${KF.tTumYuk||(!KF.tToplam&&!hepsi)?' disabled':''}>${KF.tTumYuk?'Seçiliyor…':hepsi?'Seçimi kaldır':'Tümünü seç'}${!KF.tTumYuk&&KF.tToplam?`<em>${tkN(KF.tToplam).toLocaleString('tr')}</em>`:''}</button>`;
+    lg.querySelectorAll('[data-l]').forEach(x=>x.onclick=()=>{ KF.tlig=+x.dataset.l; kfTkGetir(true); kfTkParca(); });
+    $('kfTkTum').onclick=()=>{ if(kfTkHepsi()) kfTkKaldir(); else kfTkTumu(); }; }
   const L=$('kfTkL');
   if(L){ const y=KF.tY=KF.yuzde;
     L.innerHTML=KF.tRows.map(t=>{ const on=KF.tk.some(x=>x.k===t.k), f=tkN(t.sistem_fiyat);
@@ -5065,6 +5073,32 @@ async function kfTkGetir(bastan){
   finally{ if(KF && seq===KF.tSeq){ KF.tYuk=false; const L=$('kfTkL'), st=L?L.scrollTop:0; kfTkParca(); if(L && !bastan) L.scrollTop=st; } }
 }
 const kfTkSecili=()=>KF.urun.includes('takim') && KF.tkMod==='sec';
+// 833 — süzgeçteki takımların hepsi yüklendi ve seçili mi
+const kfTkHepsi=()=>!!(KF && !KF.tYuk && KF.tToplam && KF.tRows.length>=KF.tToplam && KF.tRows.every(t=>KF.tk.some(x=>x.k===t.k)));
+function kfTkKaldir(){
+  const S=new Set(KF.tRows.map(t=>t.k)); KF.tk=KF.tk.filter(x=>!S.has(x.k));
+  $('kfHata').textContent=''; kfTkParca(); kfMetin();
+}
+// Süzgeçteki (ülke · lig · arama) bütün takımları seçer; en fazla KMP_TK_EN
+async function kfTkTumu(){
+  if(!KF || KF.tTumYuk) return;
+  KF.tTumYuk=true; kfTkParca();
+  let tasti=false;
+  try{
+    const sec=new Set(KF.tk.map(x=>x.k)), yeni=[];
+    for(let off=0, top=Infinity; off<top && off<1000 && KF.tk.length+yeni.length<KMP_TK_EN; off+=100){
+      const d=await fbRpc('admin_takim_liste',{ p_f:'satista', p_lig:KF.tlig, p_cc:KF.tcc, p_q:KF.tq, p_ccq:tkCcq(KF.tq), p_sira:'gercek', p_artan:false,
+        p_limit:100, p_offset:off, p_ozet:false });
+      const r=(d&&d.rows)||[]; top=tkN(d&&d.toplam);
+      r.forEach(t=>{ if(!sec.has(t.k)){ sec.add(t.k); yeni.push(t); } });
+      if(!r.length) break;
+    }
+    const yer=KMP_TK_EN-KF.tk.length; tasti=yeni.length>yer;
+    yeni.slice(0, Math.max(0,yer)).forEach(t=>KF.tk.push({ k:t.k, cc:t.cc, tk:t.tk, fiyat:tkN(t.sistem_fiyat) }));
+    $('kfHata').textContent=tasti?'En fazla '+KMP_TK_EN+' takım seçilebilir.':'';
+  }catch(e){ $('kfHata').textContent=e.message; }
+  finally{ if(KF){ KF.tTumYuk=false; const L=$('kfTkL'), st=L?L.scrollTop:0; kfTkParca(); if(L) L.scrollTop=st; kfMetin(); } }
+}
 function kfKimeCiz(){
   const H=MS.hedef, k=$('kfKime'); if(!k) return;
   const cip=([h,ad])=>{ const n=!H?'…':h==='tekil'?(KF.kisi?1:'—'):h==='tum'?H.tum:(H[h].length||'—');
@@ -5110,9 +5144,8 @@ function kfAra(v){
 }
 function kfMetin(){
   if(!KF || !$('kfBaslik')) return;
-  const [ob,og]=kfOneri();
+  const [ob]=kfOneri();
   if(!KF.elB) $('kfBaslik').value=ob;
-  if(!KF.elG) $('kfGovde').value=og;
   $('kfUz').textContent=$('kfGovde').value.length+' / 1000';
   const bit=kfBitis();
   $('kfBit').textContent=bit?'Bitiş '+kmpTarih(bit):'';
