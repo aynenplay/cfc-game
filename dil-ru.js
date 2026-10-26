@@ -7796,3 +7796,35 @@ Object.assign(window.I18N.ru, {
 Object.assign(window.I18N.ru, {
   "Elmas düşülemedi, antrenman bitirilmedi.": "Не удалось списать алмазы — тренировка не завершена."
 });
+/* ─── 838 · Sezon sonu: şampiyonluk kutlamaları, gol kralları, kupa finali ─── */
+Object.assign(window.I18N.ru, {
+  "ŞAMPİYONLAR": "ЧЕМПИОНЫ",
+  "Taraftarlar kutlamalar için sokaklara döküldü.": "Болельщики высыпали на улицы праздновать.",
+  "Kupa töreninde kaptan kupayı havaya kaldırdı.": "Капитан поднял трофей над головой на церемонии.",
+  "Şehirde kutlamalar sabaha kadar sürdü.": "Празднования в городе продолжались до утра.",
+  "Soyunma odasında şampanyalar patladı.": "В раздевалке хлопали пробки от шампанского.",
+  "Takım gelecek sezon bir üst ligde mücadele edecek.": "В следующем сезоне команда сыграет дивизионом выше.",
+  "Süper liglerde şampiyonlar belli oldu": "Определились чемпионы высших лиг",
+  "Gol kralları": "Лучшие бомбардиры",
+  "Süper ligler": "Высшие лиги",
+  "BU AKŞAM": "СЕГОДНЯ ВЕЧЕРОМ"
+});
+(function () {
+  const _ad = x => (x != null && Object.prototype.hasOwnProperty.call(window.I18N.ru, x)) ? window.I18N.ru[x] : x;
+  const _ru = (n, f) => { n = Math.abs(+n) || 0; const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? f[0] : a >= 2 && a <= 4 && (b < 12 || b > 14) ? f[1] : f[2]; };
+  window.I18N_PATTERNS.ru = window.I18N_PATTERNS.ru || [];
+  window.I18N_PATTERNS.ru.unshift(
+    [/^(.+) sezonu yenilgisiz tamamladı\.$/, m => _ad(m[1]) + " провёл сезон без поражений."],
+    [/^(.+) ligi (\d+) puan farkla domine etti\.$/, m => _ad(m[1]) + " доминировал в лиге: отрыв — " + _ad(m[2]) + " " + _ru(m[2], ["очко", "очка", "очков"]) + "."],
+    [/^(.+) sezonu (.+) takımının (\d+) puan önünde bitirdi\.$/, m => _ad(m[1]) + " завершил сезон, опередив «" + _ad(m[2]) + "» на " + _ad(m[3]) + " " + _ru(m[3], ["очко", "очка", "очков"]) + "."],
+    [/^(.+), nefes kesen yarışı (\d+) puan farkla kazandı\.$/, m => _ad(m[1]) + " выиграл захватывающую гонку с отрывом в " + _ad(m[2]) + " " + _ru(m[2], ["очко", "очка", "очков"]) + "."],
+    [/^(.+), (.+) ile eşit puanda averajla şampiyon oldu\.$/, m => _ad(m[1]) + " стал чемпионом по разнице мячей при равенстве очков с «" + _ad(m[2]) + "»."],
+    [/^(.+), (.+) şampiyonu oldu$/, m => _ad(m[1]) + " — чемпион: " + _ad(m[2])],
+    [/^(.+) gol kralı oldu$/, m => _ad(m[1]) + " — лучший бомбардир"],
+    [/^(.+), (\d+) golle Avrupa'nın en golcüsü$/, m => _ad(m[1]) + " — лучший бомбардир Европы: " + _ad(m[2]) + " " + _ru(m[2], ["гол", "гола", "голов"])],
+    [/^(Championship|Elite|Convergence|EURO Cup) finali bu akşam$/, m => "Финал " + _ad(m[1]) + " — сегодня вечером"],
+    [/^(Championship|Elite|Convergence|EURO Cup) finali bugün$/, m => "Финал " + _ad(m[1]) + " — сегодня"],
+    [/^(Championship|Elite|Convergence|EURO Cup) finali yarın$/, m => "Финал " + _ad(m[1]) + " — завтра"],
+    [/^(Championship|Elite|Convergence|EURO Cup) finalinde heyecan sürüyor$/, m => "Финал " + _ad(m[1]) + " в разгаре"]
+  );
+})();

@@ -7824,3 +7824,35 @@ Object.assign(window.I18N.fr, {
 Object.assign(window.I18N.fr, {
   "Elmas düşülemedi, antrenman bitirilmedi.": "Les diamants n'ont pas pu être débités ; l'entraînement n'a pas été terminé."
 });
+/* ─── 838 · Sezon sonu: şampiyonluk kutlamaları, gol kralları, kupa finali ─── */
+Object.assign(window.I18N.fr, {
+  "ŞAMPİYONLAR": "CHAMPIONS",
+  "Taraftarlar kutlamalar için sokaklara döküldü.": "Les supporters ont envahi les rues pour faire la fête.",
+  "Kupa töreninde kaptan kupayı havaya kaldırdı.": "Le capitaine a soulevé le trophée lors de la cérémonie.",
+  "Şehirde kutlamalar sabaha kadar sürdü.": "La fête a duré jusqu’au matin dans la ville.",
+  "Soyunma odasında şampanyalar patladı.": "Le champagne a coulé dans le vestiaire.",
+  "Takım gelecek sezon bir üst ligde mücadele edecek.": "L’équipe évoluera une division au-dessus la saison prochaine.",
+  "Süper liglerde şampiyonlar belli oldu": "Les champions des championnats majeurs sont connus",
+  "Gol kralları": "Meilleurs buteurs",
+  "Süper ligler": "Championnats majeurs",
+  "BU AKŞAM": "CE SOIR"
+});
+(function () {
+  const _ad = x => (x != null && Object.prototype.hasOwnProperty.call(window.I18N.fr, x)) ? window.I18N.fr[x] : x;
+  const _ru = (n, f) => { n = Math.abs(+n) || 0; const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? f[0] : a >= 2 && a <= 4 && (b < 12 || b > 14) ? f[1] : f[2]; };
+  window.I18N_PATTERNS.fr = window.I18N_PATTERNS.fr || [];
+  window.I18N_PATTERNS.fr.unshift(
+    [/^(.+) sezonu yenilgisiz tamamladı\.$/, m => _ad(m[1]) + " a terminé la saison invaincu."],
+    [/^(.+) ligi (\d+) puan farkla domine etti\.$/, m => _ad(m[1]) + " a dominé le championnat avec " + _ad(m[2]) + " points d’avance."],
+    [/^(.+) sezonu (.+) takımının (\d+) puan önünde bitirdi\.$/, m => _ad(m[1]) + " a terminé la saison avec " + _ad(m[3]) + " points d’avance sur " + _ad(m[2]) + "."],
+    [/^(.+), nefes kesen yarışı (\d+) puan farkla kazandı\.$/, m => _ad(m[1]) + " a remporté une course au titre haletante avec " + _ad(m[2]) + " " + (+m[2] === 1 ? "point" : "points") + " d’avance."],
+    [/^(.+), (.+) ile eşit puanda averajla şampiyon oldu\.$/, m => _ad(m[1]) + " a été sacré à la différence de buts, à égalité de points avec " + _ad(m[2]) + "."],
+    [/^(.+), (.+) şampiyonu oldu$/, m => _ad(m[1]) + " remporte le titre en " + _ad(m[2])],
+    [/^(.+) gol kralı oldu$/, m => _ad(m[1]) + " sacré meilleur buteur"],
+    [/^(.+), (\d+) golle Avrupa'nın en golcüsü$/, m => _ad(m[1]) + ", meilleur buteur d’Europe avec " + _ad(m[2]) + " buts"],
+    [/^(Championship|Elite|Convergence|EURO Cup) finali bu akşam$/, m => "La finale de la " + _ad(m[1]) + ", c’est ce soir"],
+    [/^(Championship|Elite|Convergence|EURO Cup) finali bugün$/, m => "La finale de la " + _ad(m[1]) + ", c’est aujourd’hui"],
+    [/^(Championship|Elite|Convergence|EURO Cup) finali yarın$/, m => "La finale de la " + _ad(m[1]) + ", c’est demain"],
+    [/^(Championship|Elite|Convergence|EURO Cup) finalinde heyecan sürüyor$/, m => "La finale de la " + _ad(m[1]) + " bat son plein"]
+  );
+})();
