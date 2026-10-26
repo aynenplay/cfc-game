@@ -6120,3 +6120,7 @@ Object.assign(window.I18N.de, {
   "Saha Kurdu": "Alter Fuchs",
   "En fazla 3 mevki seçebilirsin.": "Du kannst bis zu 3 Positionen wählen."
 });
+/* ─── 837 · Antrenman: Hemen Bitir ─── */
+Object.assign(window.I18N.de, {
+  "Elmas düşülemedi, antrenman bitirilmedi.": "Diamanten konnten nicht abgebucht werden; das Training wurde nicht beendet."
+});

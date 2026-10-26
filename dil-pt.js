@@ -7752,3 +7752,7 @@ Object.assign(window.I18N.pt, {
   "Saha Kurdu": "Raposa velha",
   "En fazla 3 mevki seçebilirsin.": "Você pode escolher até 3 posições."
 });
+/* ─── 837 · Antrenman: Hemen Bitir ─── */
+Object.assign(window.I18N.pt, {
+  "Elmas düşülemedi, antrenman bitirilmedi.": "Não foi possível cobrar os diamantes; o treino não foi concluído."
+});

@@ -7792,3 +7792,7 @@ Object.assign(window.I18N.ru, {
   "Saha Kurdu": "Старый лис",
   "En fazla 3 mevki seçebilirsin.": "Можно выбрать до 3 позиций."
 });
+/* ─── 837 · Antrenman: Hemen Bitir ─── */
+Object.assign(window.I18N.ru, {
+  "Elmas düşülemedi, antrenman bitirilmedi.": "Не удалось списать алмазы — тренировка не завершена."
+});

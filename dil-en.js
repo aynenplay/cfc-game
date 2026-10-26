@@ -8185,3 +8185,7 @@ Object.assign(window.I18N.en, {
   "Saha Kurdu": "Old Fox",
   "En fazla 3 mevki seçebilirsin.": "You can pick up to 3 positions."
 });
+/* ─── 837 · Antrenman: Hemen Bitir ─── */
+Object.assign(window.I18N.en, {
+  "Elmas düşülemedi, antrenman bitirilmedi.": "Diamonds couldn't be charged; the training wasn't finished."
+});
