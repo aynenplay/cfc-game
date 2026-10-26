@@ -7776,3 +7776,19 @@ window.I18N_PATTERNS.ru.push(
   [/^Scout transferi: (.+?) · (.+)$/, 'Трансфер скаута: $1 · $2'],
   [/^Scout transferi iadesi: (.+)$/, 'Возврат за трансфер скаута: $1']
 );
+/* ─── 830 · Scout: aranan yapı ve ünvanlar ─── */
+Object.assign(window.I18N.ru, {
+  "Aranan yapı": "Тип игрока",
+  "Gelecek Vaat Eden": "Перспективный",
+  "Yetenekli": "Талантливый",
+  "Tecrübeli": "Опытный",
+  "Umut Vaat Eden": "Надежда",
+  "Potansiyel Yıldız": "Восходящая звезда",
+  "Wonderkid": "Вундеркинд",
+  "Teknisyen": "Техничный",
+  "Maestro": "Маэстро",
+  "Fenomen": "Феномен",
+  "Kıdemli": "Бывалый",
+  "Saha Kurdu": "Старый лис",
+  "En fazla 3 mevki seçebilirsin.": "Можно выбрать до 3 позиций."
+});

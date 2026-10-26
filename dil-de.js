@@ -6104,3 +6104,19 @@ window.I18N_PATTERNS.de.push(
   [/^Scout transferi: (.+?) · (.+)$/, 'Scout-Transfer: $1 · $2'],
   [/^Scout transferi iadesi: (.+)$/, 'Scout-Transfer-Erstattung: $1']
 );
+/* ─── 830 · Scout: aranan yapı ve ünvanlar ─── */
+Object.assign(window.I18N.de, {
+  "Aranan yapı": "Spielertyp",
+  "Gelecek Vaat Eden": "Vielversprechend",
+  "Yetenekli": "Talentiert",
+  "Tecrübeli": "Erfahren",
+  "Umut Vaat Eden": "Hoffnungsträger",
+  "Potansiyel Yıldız": "Kommender Star",
+  "Wonderkid": "Wunderkind",
+  "Teknisyen": "Techniker",
+  "Maestro": "Maestro",
+  "Fenomen": "Phänomen",
+  "Kıdemli": "Routinier",
+  "Saha Kurdu": "Alter Fuchs",
+  "En fazla 3 mevki seçebilirsin.": "Du kannst bis zu 3 Positionen wählen."
+});
