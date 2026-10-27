@@ -7828,3 +7828,49 @@ Object.assign(window.I18N.ru, {
     [/^(Championship|Elite|Convergence|EURO Cup) finalinde heyecan sürüyor$/, m => "Финал " + _ad(m[1]) + " в разгаре"]
   );
 })();
+/* ─── 842 · Hediye gönderme ve canlı maç tepkileri ─── */
+Object.assign(window.I18N.ru, {
+  "Hediye Gönder": "Отправить подарок",
+  "Hediyeler": "Подарки",
+  "Elmas Al": "Купить алмазы",
+  "Tepki": "Реакции",
+  "Henüz hediye yok": "Подарков пока нет",
+  "Yüklenemedi": "Не удалось загрузить",
+  "Hediye gönderilemedi": "Не удалось отправить подарок",
+  "Kendine hediye gönderemezsin": "Нельзя отправить подарок самому себе",
+  "Bu oyuncuya hediye gönderilemez": "Этому игроку нельзя отправить подарок",
+  "Canlı maçta tribüne tepki gönder. Kalp herkese ücretsiz.": "Отправляй реакции на трибуны во время матчей. Сердце — бесплатно для всех.",
+  "Sende·tepki": "Куплено",
+  "Sıradan": "Обычный",
+  "Nadir": "Редкий",
+  "Epik": "Эпический",
+  "Efsanevi": "Легендарный",
+  "Gül": "Роза",
+  "Kahve": "Кофе",
+  "Armut": "Груша",
+  "Bira": "Пиво",
+  "Tavuk But": "Куриная ножка",
+  "Saksafon": "Саксофон",
+  "Cep Telefonu": "Телефон",
+  "At": "Лошадь",
+  "Araba": "Машина",
+  "Uçak": "Самолёт",
+  "Kalp": "Сердце",
+  "Alkış": "Аплодисменты",
+  "Davul": "Барабан",
+  "Borazan": "Дудка",
+  "Kahkaha": "Хохот",
+  "Nanik": "Дразнилка",
+  "Sinir": "Ярость",
+  "Kusma": "Тошнит",
+  "Kaka": "Какашка"
+});
+(function () {
+  const _ad = x => (x != null && Object.prototype.hasOwnProperty.call(window.I18N.ru, x)) ? window.I18N.ru[x] : x;
+  window.I18N_PATTERNS.ru = window.I18N_PATTERNS.ru || [];
+  window.I18N_PATTERNS.ru.unshift(
+    [/^sana (.+) gönderdi$/, m => "отправил(а) тебе: " + _ad(m[1])],
+    [/^(.+) gönderdin$/, m => "Ты отправил(а): " + _ad(m[1])],
+    [/^(.+) tepkisi artık sende$/, m => "Реакция «" + _ad(m[1]) + "» теперь твоя"]
+  );
+})();

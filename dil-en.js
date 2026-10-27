@@ -8221,3 +8221,49 @@ Object.assign(window.I18N.en, {
     [/^(Championship|Elite|Convergence|EURO Cup) finalinde heyecan sürüyor$/, m => "The " + _ad(m[1]) + " final is under way"]
   );
 })();
+/* ─── 842 · Hediye gönderme ve canlı maç tepkileri ─── */
+Object.assign(window.I18N.en, {
+  "Hediye Gönder": "Send Gift",
+  "Hediyeler": "Gifts",
+  "Elmas Al": "Get Diamonds",
+  "Tepki": "Reactions",
+  "Henüz hediye yok": "No gifts yet",
+  "Yüklenemedi": "Could not load",
+  "Hediye gönderilemedi": "Gift could not be sent",
+  "Kendine hediye gönderemezsin": "You can’t send a gift to yourself",
+  "Bu oyuncuya hediye gönderilemez": "Gifts can’t be sent to this player",
+  "Canlı maçta tribüne tepki gönder. Kalp herkese ücretsiz.": "Send reactions to the stands during live matches. The heart is free for everyone.",
+  "Sende·tepki": "Owned",
+  "Sıradan": "Common",
+  "Nadir": "Rare",
+  "Epik": "Epic",
+  "Efsanevi": "Legendary",
+  "Gül": "Rose",
+  "Kahve": "Coffee",
+  "Armut": "Pear",
+  "Bira": "Beer",
+  "Tavuk But": "Chicken Leg",
+  "Saksafon": "Saxophone",
+  "Cep Telefonu": "Mobile Phone",
+  "At": "Horse",
+  "Araba": "Car",
+  "Uçak": "Plane",
+  "Kalp": "Heart",
+  "Alkış": "Applause",
+  "Davul": "Drum",
+  "Borazan": "Horn",
+  "Kahkaha": "LOL",
+  "Nanik": "Tease",
+  "Sinir": "Rage",
+  "Kusma": "Puke",
+  "Kaka": "Poop"
+});
+(function () {
+  const _ad = x => (x != null && Object.prototype.hasOwnProperty.call(window.I18N.en, x)) ? window.I18N.en[x] : x;
+  window.I18N_PATTERNS.en = window.I18N_PATTERNS.en || [];
+  window.I18N_PATTERNS.en.unshift(
+    [/^sana (.+) gönderdi$/, m => "sent you: " + _ad(m[1])],
+    [/^(.+) gönderdin$/, m => "You sent: " + _ad(m[1])],
+    [/^(.+) tepkisi artık sende$/, m => "The " + _ad(m[1]) + " reaction is now yours"]
+  );
+})();

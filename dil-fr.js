@@ -7856,3 +7856,49 @@ Object.assign(window.I18N.fr, {
     [/^(Championship|Elite|Convergence|EURO Cup) finalinde heyecan sürüyor$/, m => "La finale de la " + _ad(m[1]) + " bat son plein"]
   );
 })();
+/* ─── 842 · Hediye gönderme ve canlı maç tepkileri ─── */
+Object.assign(window.I18N.fr, {
+  "Hediye Gönder": "Envoyer un cadeau",
+  "Hediyeler": "Cadeaux",
+  "Elmas Al": "Obtenir des diamants",
+  "Tepki": "Réactions",
+  "Henüz hediye yok": "Pas encore de cadeaux",
+  "Yüklenemedi": "Chargement impossible",
+  "Hediye gönderilemedi": "Impossible d’envoyer le cadeau",
+  "Kendine hediye gönderemezsin": "Tu ne peux pas t’envoyer un cadeau",
+  "Bu oyuncuya hediye gönderilemez": "Impossible d’envoyer un cadeau à ce joueur",
+  "Canlı maçta tribüne tepki gönder. Kalp herkese ücretsiz.": "Envoie des réactions aux tribunes pendant les matchs en direct. Le cœur est gratuit pour tous.",
+  "Sende·tepki": "Acheté",
+  "Sıradan": "Commun",
+  "Nadir": "Rare",
+  "Epik": "Épique",
+  "Efsanevi": "Légendaire",
+  "Gül": "Rose",
+  "Kahve": "Café",
+  "Armut": "Poire",
+  "Bira": "Bière",
+  "Tavuk But": "Cuisse de poulet",
+  "Saksafon": "Saxophone",
+  "Cep Telefonu": "Portable",
+  "At": "Cheval",
+  "Araba": "Voiture",
+  "Uçak": "Avion",
+  "Kalp": "Cœur",
+  "Alkış": "Bravo",
+  "Davul": "Tambour",
+  "Borazan": "Trompette",
+  "Kahkaha": "Fou rire",
+  "Nanik": "Nargue",
+  "Sinir": "Rage",
+  "Kusma": "Vomi",
+  "Kaka": "Caca"
+});
+(function () {
+  const _ad = x => (x != null && Object.prototype.hasOwnProperty.call(window.I18N.fr, x)) ? window.I18N.fr[x] : x;
+  window.I18N_PATTERNS.fr = window.I18N_PATTERNS.fr || [];
+  window.I18N_PATTERNS.fr.unshift(
+    [/^sana (.+) gönderdi$/, m => "t’a envoyé : " + _ad(m[1])],
+    [/^(.+) gönderdin$/, m => "Tu as envoyé : " + _ad(m[1])],
+    [/^(.+) tepkisi artık sende$/, m => "La réaction « " + _ad(m[1]) + " » est à toi"]
+  );
+})();

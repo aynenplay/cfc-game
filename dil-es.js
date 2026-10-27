@@ -7796,3 +7796,49 @@ Object.assign(window.I18N.es, {
     [/^(Championship|Elite|Convergence|EURO Cup) finalinde heyecan sürüyor$/, m => "Se juega la final de la " + _ad(m[1])]
   );
 })();
+/* ─── 842 · Hediye gönderme ve canlı maç tepkileri ─── */
+Object.assign(window.I18N.es, {
+  "Hediye Gönder": "Enviar regalo",
+  "Hediyeler": "Regalos",
+  "Elmas Al": "Conseguir diamantes",
+  "Tepki": "Reacciones",
+  "Henüz hediye yok": "Aún no hay regalos",
+  "Yüklenemedi": "No se pudo cargar",
+  "Hediye gönderilemedi": "No se pudo enviar el regalo",
+  "Kendine hediye gönderemezsin": "No puedes enviarte un regalo a ti mismo",
+  "Bu oyuncuya hediye gönderilemez": "No se pueden enviar regalos a este jugador",
+  "Canlı maçta tribüne tepki gönder. Kalp herkese ücretsiz.": "Envía reacciones a la grada en los partidos en directo. El corazón es gratis para todos.",
+  "Sende·tepki": "Comprado",
+  "Sıradan": "Común",
+  "Nadir": "Raro",
+  "Epik": "Épico",
+  "Efsanevi": "Legendario",
+  "Gül": "Rosa",
+  "Kahve": "Café",
+  "Armut": "Pera",
+  "Bira": "Cerveza",
+  "Tavuk But": "Muslo de pollo",
+  "Saksafon": "Saxofón",
+  "Cep Telefonu": "Móvil",
+  "At": "Caballo",
+  "Araba": "Coche",
+  "Uçak": "Avión",
+  "Kalp": "Corazón",
+  "Alkış": "Aplausos",
+  "Davul": "Tambor",
+  "Borazan": "Corneta",
+  "Kahkaha": "Carcajada",
+  "Nanik": "Burla",
+  "Sinir": "Furia",
+  "Kusma": "Vómito",
+  "Kaka": "Caca"
+});
+(function () {
+  const _ad = x => (x != null && Object.prototype.hasOwnProperty.call(window.I18N.es, x)) ? window.I18N.es[x] : x;
+  window.I18N_PATTERNS.es = window.I18N_PATTERNS.es || [];
+  window.I18N_PATTERNS.es.unshift(
+    [/^sana (.+) gönderdi$/, m => "te envió: " + _ad(m[1])],
+    [/^(.+) gönderdin$/, m => "Enviaste: " + _ad(m[1])],
+    [/^(.+) tepkisi artık sende$/, m => "La reacción «" + _ad(m[1]) + "» ya es tuya"]
+  );
+})();
