@@ -7927,3 +7927,16 @@ Object.assign(window.I18N.ru, {
     [/^✅ (.+) Seviye (\d+)! \(-(\S+) 💎 \+ (€\S+) kasadan\)$/, m => "✅ " + _ad(m[1]) + ": уровень " + m[2] + "! (-" + m[3] + " 💎 + " + m[4] + " из казны)"]
   );
 })();
+/* ─── 846 · Sözleşmesiz üyeye kişisel teklif ─── */
+Object.assign(window.I18N.ru, {
+  "Durum: 📄 Sözleşmesiz (takımınla sözleşmen yok)": "Статус: 📄 Без контракта (у тебя нет контракта с командой)",
+  "Kulüp onayı gerekmiyor — kabul edersen sözleşme imzalanır ve takımından ayrılırsın.": "Согласие клуба не требуется — если примешь, контракт будет подписан и ты покинешь команду.",
+  "❌ Teklif gönderilemedi": "❌ Не удалось отправить предложение",
+  "Oyuncularını tutmak için onlara sözleşme yapabilirsin.": "Заключай контракты с игроками, чтобы удержать их."
+});
+window.I18N_PATTERNS.ru = window.I18N_PATTERNS.ru || [];
+window.I18N_PATTERNS.ru.unshift(
+    [/^(.+?) adlı sözleşmesiz oyuncuya kişisel teklif gönderdin\.$/, "Ты отправил личное предложение игроку без контракта $1."],
+    [/^(.+?) Takımdan Ayrıldı$/, "$1 покинул команду"],
+    [/^(.+?) sözleşmesi olmadığı için (.+?) takımının transfer teklifini kabul etti ve kadrodan ayrıldı\.$/, "$1 был без контракта, принял трансферное предложение от $2 и покинул состав."]
+);

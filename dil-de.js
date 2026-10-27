@@ -6255,3 +6255,16 @@ Object.assign(window.I18N.de, {
     [/^✅ (.+) Seviye (\d+)! \(-(\S+) 💎 \+ (€\S+) kasadan\)$/, m => "✅ " + _ad(m[1]) + " Stufe " + m[2] + "! (-" + m[3] + " 💎 + " + m[4] + " aus der Kasse)"]
   );
 })();
+/* ─── 846 · Sözleşmesiz üyeye kişisel teklif ─── */
+Object.assign(window.I18N.de, {
+  "Durum: 📄 Sözleşmesiz (takımınla sözleşmen yok)": "Status: 📄 Vertragslos (kein Vertrag mit deinem Team)",
+  "Kulüp onayı gerekmiyor — kabul edersen sözleşme imzalanır ve takımından ayrılırsın.": "Keine Vereinszustimmung nötig — wenn du annimmst, wird der Vertrag unterschrieben und du verlässt dein Team.",
+  "❌ Teklif gönderilemedi": "❌ Das Angebot konnte nicht gesendet werden",
+  "Oyuncularını tutmak için onlara sözleşme yapabilirsin.": "Gib deinen Spielern Verträge, um sie zu halten."
+});
+window.I18N_PATTERNS.de = window.I18N_PATTERNS.de || [];
+window.I18N_PATTERNS.de.unshift(
+    [/^(.+?) adlı sözleşmesiz oyuncuya kişisel teklif gönderdin\.$/, "Du hast dem vertragslosen Spieler $1 ein persönliches Angebot gesendet."],
+    [/^(.+?) Takımdan Ayrıldı$/, "$1 hat das Team verlassen"],
+    [/^(.+?) sözleşmesi olmadığı için (.+?) takımının transfer teklifini kabul etti ve kadrodan ayrıldı\.$/, "$1 hatte keinen Vertrag, hat das Transferangebot von $2 angenommen und den Kader verlassen."]
+);
