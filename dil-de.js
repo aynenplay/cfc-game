@@ -6202,3 +6202,56 @@ Object.assign(window.I18N.de, {
     [/^(.+) tepkisi artık sende$/, m => "Die Reaktion „" + _ad(m[1]) + "“ gehört jetzt dir"]
   );
 })();
+/* ─── 845 · Takım kitleri, moral, tesis euro, takas ─── */
+Object.assign(window.I18N.de, {
+  "Moral": "Moral",
+  "İyileştir": "Heilen",
+  "Moral ver": "Moral stärken",
+  "1 kit = sakatlık süresi −10 saat": "1 Kit = Verletzungsdauer −10 Std.",
+  "1 kit = +10 kondisyon": "1 Kit = +10 Kondition",
+  "1 kit = +10 moral": "1 Kit = +10 Moral",
+  "Sakat oyuncuyu süre beklemeden iyileştirir": "Heilt verletzte Spieler ohne Wartezeit",
+  "Yorgun oyuncuyu dinlendirir": "Erholt müde Spieler",
+  "Kaybeden takımın moralini toplar": "Baut die Moral nach Niederlagen wieder auf",
+  "İstekli": "Motiviert",
+  "Durgun": "Lustlos",
+  "Moralsiz": "Demoralisiert",
+  "Sakat oyuncu yok": "Keine verletzten Spieler",
+  "Tüm oyuncular dinç": "Alle Spieler sind fit",
+  "Tüm oyuncuların morali tam": "Die Moral aller Spieler ist voll",
+  "Kit kalmadı": "Keine Kits mehr",
+  "Kit al": "Kits kaufen",
+  "Maç sürerken kit kullanılamaz": "Kits sind während eines Spiels nicht nutzbar",
+  "Oyuncu zaten dolu": "Spieler ist bereits voll",
+  "Oyuncu sakat değil": "Spieler ist nicht verletzt",
+  "Kit kullanılamadı": "Kit konnte nicht verwendet werden",
+  "Kitler takım için alınır · önce bir takıma katıl": "Kits werden für ein Team gekauft · tritt zuerst einem Team bei",
+  "Kondisyon kiti": "Konditions-Kit",
+  "Moral kiti": "Moral-Kit",
+  "Kitleri kaptan ve yardımcılar alır": "Kits kaufen der Kapitän und die Vize-Kapitäne",
+  "sakatlık": "Verletzung",
+  "kondisyon": "Kondition",
+  "moral": "Moral",
+  "Takım kasasında yeterli euro yok": "Nicht genug Euro in der Teamkasse",
+  "Kit alınamadı": "Kits konnten nicht gekauft werden",
+  "Takım kiti alındı": "Team-Kits gekauft",
+  "Kitler takıma eklendi.": "Die Kits wurden dem Team hinzugefügt.",
+  "Takım kiti": "Team-Kit",
+  "Kitler takımın · Tesis sayfasından kullanılır.": "Die Kits gehören dem Team · Nutzung auf der Seite Anlagen.",
+  "Takas et": "Tauschen",
+  "Elmas al": "Mehr holen",
+  "Takas": "Tausch",
+  "Takas yapılamadı": "Tausch fehlgeschlagen",
+  "Takas edildi": "Getauscht",
+  "Kasada yeterli elmas veya euro yok": "Nicht genug Diamanten oder Euro in der Kasse",
+  "T.D.": "TR",
+  "Sağlık kiti": "Medizin-Kit"
+});
+(function () {
+  const _ad = x => (x != null && Object.prototype.hasOwnProperty.call(window.I18N.de, x)) ? window.I18N.de[x] : x;
+  window.I18N_PATTERNS.de = window.I18N_PATTERNS.de || [];
+  window.I18N_PATTERNS.de.unshift(
+    [/^✅ (.+) Seviye (\d+)! \(-(\S+) 💎 \+ (€\S+) kasadan\) ⚡\+(\d+) bonus enerji takıma eklendi!$/, m => "✅ " + _ad(m[1]) + " Stufe " + m[2] + "! (-" + m[3] + " 💎 + " + m[4] + " aus der Kasse) ⚡+" + m[5] + " Bonusenergie für das Team!"],
+    [/^✅ (.+) Seviye (\d+)! \(-(\S+) 💎 \+ (€\S+) kasadan\)$/, m => "✅ " + _ad(m[1]) + " Stufe " + m[2] + "! (-" + m[3] + " 💎 + " + m[4] + " aus der Kasse)"]
+  );
+})();

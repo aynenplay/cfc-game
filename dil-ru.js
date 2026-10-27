@@ -7874,3 +7874,56 @@ Object.assign(window.I18N.ru, {
     [/^(.+) tepkisi artık sende$/, m => "Реакция «" + _ad(m[1]) + "» теперь твоя"]
   );
 })();
+/* ─── 845 · Takım kitleri, moral, tesis euro, takas ─── */
+Object.assign(window.I18N.ru, {
+  "Moral": "Мораль",
+  "İyileştir": "Вылечить",
+  "Moral ver": "Поднять мораль",
+  "1 kit = sakatlık süresi −10 saat": "1 набор = травма −10 ч",
+  "1 kit = +10 kondisyon": "1 набор = +10 к форме",
+  "1 kit = +10 moral": "1 набор = +10 к морали",
+  "Sakat oyuncuyu süre beklemeden iyileştirir": "Лечит травмированного игрока без ожидания",
+  "Yorgun oyuncuyu dinlendirir": "Восстанавливает уставшего игрока",
+  "Kaybeden takımın moralini toplar": "Поднимает мораль после поражений",
+  "İstekli": "Мотивирован",
+  "Durgun": "Вялый",
+  "Moralsiz": "Подавлен",
+  "Sakat oyuncu yok": "Травмированных игроков нет",
+  "Tüm oyuncular dinç": "Все игроки свежи",
+  "Tüm oyuncuların morali tam": "У всех игроков полная мораль",
+  "Kit kalmadı": "Наборы закончились",
+  "Kit al": "Купить наборы",
+  "Maç sürerken kit kullanılamaz": "Наборы нельзя использовать во время матча",
+  "Oyuncu zaten dolu": "У игрока уже максимум",
+  "Oyuncu sakat değil": "Игрок не травмирован",
+  "Kit kullanılamadı": "Не удалось использовать набор",
+  "Kitler takım için alınır · önce bir takıma katıl": "Наборы покупаются для команды · сначала вступи в команду",
+  "Kondisyon kiti": "Набор формы",
+  "Moral kiti": "Набор морали",
+  "Kitleri kaptan ve yardımcılar alır": "Наборы покупают капитан и вице-капитаны",
+  "sakatlık": "травма",
+  "kondisyon": "форма",
+  "moral": "мораль",
+  "Takım kasasında yeterli euro yok": "В казне команды недостаточно евро",
+  "Kit alınamadı": "Не удалось купить наборы",
+  "Takım kiti alındı": "Наборы команды куплены",
+  "Kitler takıma eklendi.": "Наборы добавлены команде.",
+  "Takım kiti": "Набор команды",
+  "Kitler takımın · Tesis sayfasından kullanılır.": "Наборы принадлежат команде · используются в разделе «Инфраструктура».",
+  "Takas et": "Обменять",
+  "Elmas al": "Купить",
+  "Takas": "Обмен",
+  "Takas yapılamadı": "Обмен не удался",
+  "Takas edildi": "Обменено",
+  "Kasada yeterli elmas veya euro yok": "В казне недостаточно алмазов или евро",
+  "T.D.": "ТР",
+  "Sağlık kiti": "Медицинский набор"
+});
+(function () {
+  const _ad = x => (x != null && Object.prototype.hasOwnProperty.call(window.I18N.ru, x)) ? window.I18N.ru[x] : x;
+  window.I18N_PATTERNS.ru = window.I18N_PATTERNS.ru || [];
+  window.I18N_PATTERNS.ru.unshift(
+    [/^✅ (.+) Seviye (\d+)! \(-(\S+) 💎 \+ (€\S+) kasadan\) ⚡\+(\d+) bonus enerji takıma eklendi!$/, m => "✅ " + _ad(m[1]) + ": уровень " + m[2] + "! (-" + m[3] + " 💎 + " + m[4] + " из казны) ⚡+" + m[5] + " бонусной энергии команде!"],
+    [/^✅ (.+) Seviye (\d+)! \(-(\S+) 💎 \+ (€\S+) kasadan\)$/, m => "✅ " + _ad(m[1]) + ": уровень " + m[2] + "! (-" + m[3] + " 💎 + " + m[4] + " из казны)"]
+  );
+})();

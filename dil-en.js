@@ -8267,3 +8267,56 @@ Object.assign(window.I18N.en, {
     [/^(.+) tepkisi artık sende$/, m => "The " + _ad(m[1]) + " reaction is now yours"]
   );
 })();
+/* ─── 845 · Takım kitleri, moral, tesis euro, takas ─── */
+Object.assign(window.I18N.en, {
+  "Moral": "Morale",
+  "İyileştir": "Heal",
+  "Moral ver": "Boost morale",
+  "1 kit = sakatlık süresi −10 saat": "1 kit = injury time −10 h",
+  "1 kit = +10 kondisyon": "1 kit = +10 fitness",
+  "1 kit = +10 moral": "1 kit = +10 morale",
+  "Sakat oyuncuyu süre beklemeden iyileştirir": "Heals an injured player without waiting",
+  "Yorgun oyuncuyu dinlendirir": "Rests a tired player",
+  "Kaybeden takımın moralini toplar": "Lifts the team’s morale after defeats",
+  "İstekli": "Motivated",
+  "Durgun": "Flat",
+  "Moralsiz": "Demoralised",
+  "Sakat oyuncu yok": "No injured players",
+  "Tüm oyuncular dinç": "All players are fresh",
+  "Tüm oyuncuların morali tam": "Everyone’s morale is full",
+  "Kit kalmadı": "No kits left",
+  "Kit al": "Buy kits",
+  "Maç sürerken kit kullanılamaz": "Kits can’t be used during a match",
+  "Oyuncu zaten dolu": "Player is already full",
+  "Oyuncu sakat değil": "Player is not injured",
+  "Kit kullanılamadı": "Kit could not be used",
+  "Kitler takım için alınır · önce bir takıma katıl": "Kits are bought for a team · join a team first",
+  "Kondisyon kiti": "Fitness kit",
+  "Moral kiti": "Morale kit",
+  "Kitleri kaptan ve yardımcılar alır": "Kits are bought by the captain and vice-captains",
+  "sakatlık": "injury",
+  "kondisyon": "fitness",
+  "moral": "morale",
+  "Takım kasasında yeterli euro yok": "Not enough euros in the team treasury",
+  "Kit alınamadı": "Kits could not be bought",
+  "Takım kiti alındı": "Team kits bought",
+  "Kitler takıma eklendi.": "The kits were added to the team.",
+  "Takım kiti": "Team kit",
+  "Kitler takımın · Tesis sayfasından kullanılır.": "Kits belong to the team · used from the Facilities page.",
+  "Takas et": "Exchange",
+  "Elmas al": "Get more",
+  "Takas": "Exchange",
+  "Takas yapılamadı": "Exchange failed",
+  "Takas edildi": "Exchanged",
+  "Kasada yeterli elmas veya euro yok": "Not enough diamonds or euros in the treasury",
+  "T.D.": "MGR",
+  "Sağlık kiti": "Medical kit"
+});
+(function () {
+  const _ad = x => (x != null && Object.prototype.hasOwnProperty.call(window.I18N.en, x)) ? window.I18N.en[x] : x;
+  window.I18N_PATTERNS.en = window.I18N_PATTERNS.en || [];
+  window.I18N_PATTERNS.en.unshift(
+    [/^✅ (.+) Seviye (\d+)! \(-(\S+) 💎 \+ (€\S+) kasadan\) ⚡\+(\d+) bonus enerji takıma eklendi!$/, m => "✅ " + _ad(m[1]) + " Level " + m[2] + "! (-" + m[3] + " 💎 + " + m[4] + " from the treasury) ⚡+" + m[5] + " bonus energy added to the team!"],
+    [/^✅ (.+) Seviye (\d+)! \(-(\S+) 💎 \+ (€\S+) kasadan\)$/, m => "✅ " + _ad(m[1]) + " Level " + m[2] + "! (-" + m[3] + " 💎 + " + m[4] + " from the treasury)"]
+  );
+})();
