@@ -7964,3 +7964,12 @@ Object.assign(window.I18N.es, {
   "Penaltı düellosu ve FİSKE iki oyuncu arasında oynanan, beceri temalı mini oyunlardır. Katılım ücreti yalnızca oyun içi sanal para (€) ile ödenir ve oyuna gider; düellodan para ödülü kazanılmaz. Haftalık Düello Ustası sıralamasında yalnızca oyun içi 💎 ödülü verilir. Gerçek para ile oynanmaz ve gerçek para karşılığı yoktur.": "El duelo de penaltis y FİSKE son minijuegos de habilidad entre dos jugadores. La tarifa de participación se paga solo con moneda virtual del juego (€) y va al juego; un duelo no da premios en dinero. En la clasificación semanal Maestro del duelo solo se otorgan 💎 del juego. No se juega con dinero real y no tiene valor en dinero real.",
   "Çevrim içi bir oyuncuya meydan oku: sırayla şut çek, kalede kal. Kazandıkça haftalık **Düello Ustası** yarışında yüksel.": "Reta a un jugador en línea: tirad y parad por turnos. Cada victoria te sube en la carrera semanal **Maestro del duelo**."
 });
+/* ─── 851 · Stadyum ve federasyon adlarında ülke adı da çevrilir ("İspanya Stadyumu", "İspanya Futbol Federasyonu") ─── */
+(function () {
+  const _ad = x => (x != null && Object.prototype.hasOwnProperty.call(window.I18N.es, x)) ? window.I18N.es[x] : x;
+  const _stad = x => 'Estadio ' + x, _fed = x => 'Federación de Fútbol de ' + x;
+  window.I18N_PATTERNS.es.unshift(
+    [/^(📍\s*)?(.+) Stadyumu$/u, m => (m[1] || '') + _stad(_ad(m[2]))],
+    [/^(.+) Futbol Federasyonu$/, m => _fed(_ad(m[1]))]
+  );
+})();
