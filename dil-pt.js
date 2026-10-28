@@ -7965,3 +7965,7 @@ Object.assign(window.I18N.pt, {
     [/^(.+) Futbol Federasyonu$/, m => _fed(_ad(m[1]))]
   );
 })();
+/* ─── 853 · Canlı maç › Taktik › Diziliş ─── */
+Object.assign(window.I18N.pt, {
+  "ÇIKTI": "SAIU"
+});

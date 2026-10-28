@@ -6333,3 +6333,7 @@ Object.assign(window.I18N.de, {
     [/^(.+) Futbol Federasyonu$/, m => _fed(_ad(m[1]))]
   );
 })();
+/* ─── 853 · Canlı maç › Taktik › Diziliş ─── */
+Object.assign(window.I18N.de, {
+  "ÇIKTI": "RAUS"
+});
