@@ -8074,3 +8074,34 @@ window.I18N_PATTERNS.ru.unshift(
   [/^(.+?) Sözleşmesiz Kaldı$/, "$1 остался без контракта"],
   [/^2 maaş taksiti ödenemediği için (.+?) ile sözleşme düştü\.$/, "Из-за 2 невыплаченных частей зарплаты контракт с $1 расторгнут."]
 );
+
+/* ─── 859 · Kadro sözleşme yazısı, sözleşme formu (Sözleşme Öner / Katılma İsteği), € imza parası ─── */
+Object.assign(window.I18N.ru, {
+  "Sözleşme süresince takımda kalırsın.": "Ты остаёшься в команде на весь срок контракта.",
+  "İstediğin zaman ayrılabilirsin.": "Ты можешь уйти в любой момент.",
+  "Bu takım sözleşmesiz oyuncu almıyor.": "Эта команда не берёт игроков без контракта.",
+  "Sezonluk maaş": "Зарплата за сезон",
+  "Sistem belirler": "Определяет система",
+  "isteğe bağlı": "по желанию",
+  "Euro": "Евро",
+  "Kaptan onaylarsa takım kasasından cüzdanına geçer.": "Если капитан одобрит, сумма перейдёт из казны команды в твой кошелёк.",
+  "Oyuncu kabul ederse takım kasasından cüzdanına geçer.": "Если игрок согласится, сумма перейдёт из казны команды в его кошелёк.",
+  "Evet, gönder": "Да, отправить",
+  "Bitiş sezonu": "Последний сезон",
+  "Bitiş tarihi": "Дата окончания",
+  "Tür": "Тип",
+  "İmza Talebi €": "Запрос бонуса €",
+  "Sözleşmesiz katılır; istediği zaman ayrılabilir.": "Вступает без контракта; может уйти в любой момент.",
+  "✅ Onaylandı — Takıma katıldı": "✅ Одобрено — вступил в команду",
+  "• Tür: Sözleşmeli": "• Тип: с контрактом",
+  "• Tür: Sözleşmesiz": "• Тип: без контракта",
+  "Kaptan veya yardımcı kaptan onaylarsa takıma katılacaksın. Yanıt geldiğinde bilgilendirileceksin.": "Если капитан или вице-капитан одобрит, ты вступишь в команду. Ты получишь уведомление, когда придёт ответ.",
+  "İmza Parası € (oyuncuya)": "Подписной бонус € (игроку)",
+  "Sözleşmeli Takım": "Команда только с контрактом",
+  "Hata": "Ошибка"
+});
+window.I18N_PATTERNS.ru.unshift(
+  [/^Sözleşme süresince \((\d+) sezon\) kaptan seni çıkarmadıkça takımdan ayrılamazsın\.$/, "Весь срок контракта ($1 сез.) ты не сможешь покинуть команду, если капитан тебя не отпустит."],
+  [/^(\d+)\. Sezon$/, "Сезон $1"],
+  [/^• İmza parası: ([\d.]+) €$/, "• Подписной бонус: $1 €"]
+);

@@ -8040,3 +8040,34 @@ window.I18N_PATTERNS.it.unshift(
   [/^(.+?) Sözleşmesiz Kaldı$/, "$1 è rimasto senza contratto"],
   [/^2 maaş taksiti ödenemediği için (.+?) ile sözleşme düştü\.$/, "Poiché non è stato possibile pagare 2 rate dello stipendio, il contratto con $1 è decaduto."]
 );
+
+/* ─── 859 · Kadro sözleşme yazısı, sözleşme formu (Sözleşme Öner / Katılma İsteği), € imza parası ─── */
+Object.assign(window.I18N.it, {
+  "Sözleşme süresince takımda kalırsın.": "Resti in squadra per tutta la durata del contratto.",
+  "İstediğin zaman ayrılabilirsin.": "Puoi andartene quando vuoi.",
+  "Bu takım sözleşmesiz oyuncu almıyor.": "Questa squadra non accetta giocatori senza contratto.",
+  "Sezonluk maaş": "Stipendio stagionale",
+  "Sistem belirler": "Lo stabilisce il sistema",
+  "isteğe bağlı": "facoltativo",
+  "Euro": "Euro",
+  "Kaptan onaylarsa takım kasasından cüzdanına geçer.": "Se il capitano approva, passa dalla cassa della squadra al tuo portafoglio.",
+  "Oyuncu kabul ederse takım kasasından cüzdanına geçer.": "Se il giocatore accetta, passa dalla cassa della squadra al suo portafoglio.",
+  "Evet, gönder": "Sì, invia",
+  "Bitiş sezonu": "Ultima stagione",
+  "Bitiş tarihi": "Data di scadenza",
+  "Tür": "Tipo",
+  "İmza Talebi €": "Richiesta firma €",
+  "Sözleşmesiz katılır; istediği zaman ayrılabilir.": "Entra senza contratto; può andarsene quando vuole.",
+  "✅ Onaylandı — Takıma katıldı": "✅ Approvato — è entrato in squadra",
+  "• Tür: Sözleşmeli": "• Tipo: sotto contratto",
+  "• Tür: Sözleşmesiz": "• Tipo: senza contratto",
+  "Kaptan veya yardımcı kaptan onaylarsa takıma katılacaksın. Yanıt geldiğinde bilgilendirileceksin.": "Se il capitano o il vice capitano approva, entrerai in squadra. Riceverai una notifica quando risponderanno.",
+  "İmza Parası € (oyuncuya)": "Bonus alla firma € (al giocatore)",
+  "Sözleşmeli Takım": "Squadra solo con contratto",
+  "Hata": "Errore"
+});
+window.I18N_PATTERNS.it.unshift(
+  [/^Sözleşme süresince \((\d+) sezon\) kaptan seni çıkarmadıkça takımdan ayrılamazsın\.$/, "Per tutta la durata del contratto ($1 stagioni) non potrai lasciare la squadra, a meno che il capitano non ti svincoli."],
+  [/^(\d+)\. Sezon$/, "Stagione $1"],
+  [/^• İmza parası: ([\d.]+) €$/, "• Bonus alla firma: $1 €"]
+);
