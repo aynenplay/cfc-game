@@ -26020,8 +26020,8 @@ body.pd-acik{overflow:hidden}
   </div>
 </div>
 
-<script src="js/oyun.278e7b14.js"></script>
-<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.278e7b14.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
+<script src="js/oyun.7f9cf500.js"></script>
+<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.7f9cf500.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
 
 <nav id="bottomnav">
   <button class="nav-btn active" onclick="showPage('home',this)"><div class="nav-icon">🏠</div><div class="nav-label">Menü</div></button>
@@ -34369,17 +34369,41 @@ function _dzYedekBaslik(k) {
 
 // ── Saha boyu: kartlar üst üste binmesin diye formasyona göre yükseklik ──
 const _dzSonBoy = {};
-// 853 — kartların HİÇBİR formasyonda üst üste binmeyeceği tek yükseklik (eskiden formasyona göre değişiyordu)
+// 855 — saha boyu her formasyonda aynı: eski 4-3-3 boyu (853'te en uzun formasyona göre sabitlenmişti, ekrana sığmıyordu)
 function _dzSabitBoy(W, kw, kh) {
+  const sl = (typeof FORMATIONS !== 'undefined' && FORMATIONS['4-3-3']) || [];
   let gerek = 0;
-  for (const f of Object.keys(FORMATIONS)) {
-    const sl = FORMATIONS[f];
-    for (let a = 0; a < sl.length; a++) for (let b = a + 1; b < sl.length; b++) {
-      const dx = Math.abs(sl[a].x - sl[b].x) / 100 * W, dy = Math.abs(sl[a].y - sl[b].y) / 100;
-      if (dx < kw - 2 && dy > 0.04) gerek = Math.max(gerek, kh / dy);
-    }
+  for (let a = 0; a < sl.length; a++) for (let b = a + 1; b < sl.length; b++) {
+    const dx = Math.abs(sl[a].x - sl[b].x) / 100 * W, dy = Math.abs(sl[a].y - sl[b].y) / 100;
+    if (dx < kw - 2 && dy > 0.04) gerek = Math.max(gerek, kh / dy);
   }
   return Math.round(W * Math.max(1.32, Math.min(1.72, gerek / W || 0)));
+}
+// 855 — sabit boylu sahada sıkışık formasyonlarda (4-1-2-1-2, 3-4-2-1) kartlar üst üste binmesin: yalnız ekrandaki
+//   dikey yer hafifçe açılır (formasyon verisi ve yuvalar aynı kalır; 4-3-3 gibi sığanlarda hiçbir şey değişmez)
+function _dzYerAc(oyEl, W, H, kw, kh) {
+  if (!oyEl || !W || !H) return;
+  const P = [...oyEl.querySelectorAll('.fpn')].filter(el => /%$/.test(el.style.top) && /%$/.test(el.style.left)).map(el => {
+    if (el.dataset.y0 == null) el.dataset.y0 = parseFloat(el.style.top);
+    return { el, x: parseFloat(el.style.left) / 100 * W, y: Number(el.dataset.y0) / 100 * H };
+  }).filter(p => isFinite(p.x) && isFinite(p.y));
+  const ust = kh / 2 + 2, alt = H - kh / 2 - 2;
+  for (let it = 0; it < 40; it++) {
+    let degisti = false;
+    for (let a = 0; a < P.length; a++) for (let b = a + 1; b < P.length; b++) {
+      const A = P[a], B = P[b];
+      if (Math.abs(A.x - B.x) >= kw - 2) continue;
+      const d = Math.abs(A.y - B.y);
+      if (d < 0.04 * H) continue;            // aynı hat: yan yana
+      const eksik = kh - d;
+      if (eksik <= 0.5) continue;
+      const u = A.y < B.y ? A : B, l = u === A ? B : A;
+      u.y -= eksik / 2; l.y += eksik / 2; degisti = true;
+    }
+    for (const p of P) p.y = Math.max(ust, Math.min(alt, p.y));
+    if (!degisti) break;
+  }
+  for (const p of P) { const t = (p.y / H * 100).toFixed(2) + '%'; if (p.el.style.top !== t) p.el.style.top = t; }
 }
 function _dzSahaBoy(k) {
   k = k || 'klub';
@@ -34399,6 +34423,7 @@ function _dzSahaBoy(k) {
     saha.style.height = H + 'px';
   }
   _dzCizgiler(saha, W, H, K.oy);
+  _dzYerAc(document.getElementById(K.oy), W, H, kw, kh);   // 855
 }
 // Saha çizgileri (yarı saha: üstte orta çizgi yayı, altta ceza sahası) — daire bozulmasın diye gerçek oranla
 function _dzCizgiler(saha, W, H, oyId) {
@@ -38193,13 +38218,15 @@ function planYaz(hedef, kaynak) {
     mzBoy(saha);
     mzOzet(T, sl);
   }
-  // Saha boyu: TÜM formasyonlarda kartlar üst üste binmeyecek sabit yükseklik (formasyon değişince boy oynamaz)
+  // Saha boyu: eski 4-3-3 boyunda sabit (formasyon değişince boy oynamaz)
   function mzBoy(saha) {
     const W = saha.clientWidth; if (!W) return;
     const kart = saha.querySelector('.fpn:not(.fpn-empty) .fpn-circle');
-    const H = (typeof _dzSabitBoy === 'function') ? _dzSabitBoy(W, kart ? kart.offsetWidth : 66, (kart ? kart.offsetHeight : 76) + 10) : Math.round(W * 1.5);
+    const kw = kart ? kart.offsetWidth : 66, kh = (kart ? kart.offsetHeight : 76) + 10;
+    const H = (typeof _dzSabitBoy === 'function') ? _dzSabitBoy(W, kw, kh) : Math.round(W * 1.5);
     if (saha._mzH !== H) { saha._mzH = H; saha.style.height = H + 'px'; }
     if (typeof _dzCizgiler === 'function') _dzCizgiler(saha, W, H, 'mzOy');
+    if (typeof _dzYerAc === 'function') _dzYerAc(document.getElementById('mzOy'), W, H, kw + 12, kh);   // 855 — kartın sağ üstündeki puan rozeti de sayılır
   }
   // İlk 11 ortalaması + hat güçleri (Takımım'daki gibi; kırmızı kart görenin yuvası sayılmaz)
   function mzOzet(T, sl) {
