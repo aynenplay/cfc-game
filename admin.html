@@ -381,6 +381,16 @@
   .fbitem .acts{ margin-left:auto; display:flex; gap:6px; }
   .fbitem .acts .btn{ padding:5px 11px; font-size:12.5px; }
   .fbempty{ color:var(--dim); padding:16px 4px; }
+  /* 867 · Şüpheli işlemler */
+  .nvb{ display:inline-block; min-width:18px; margin-left:7px; padding:1px 6px; border-radius:9px; background:var(--red); color:#fff;
+    font-family:var(--disp); font-weight:800; font-size:11px; line-height:16px; text-align:center; }
+  .nvb:empty{ display:none; }
+  .sp-item .top b.sp-ad{ font-family:var(--disp); font-weight:800; font-size:15px; }
+  .sp-kurallar{ display:flex; flex-direction:column; gap:6px; }
+  .sp-k{ display:grid; grid-template-columns:minmax(150px,230px) 1fr; gap:10px; align-items:baseline; padding:7px 10px; border-radius:8px; background:rgba(255,255,255,.03); }
+  .sp-k b{ font-family:var(--disp); font-weight:800; font-size:13px; }
+  .sp-k span{ color:var(--dim); font-size:13px; line-height:1.45; }
+  @media (max-width:640px){ .sp-k{ grid-template-columns:1fr; gap:2px; } }
   .fbsetup{ background-image:var(--carbon); border:1px solid var(--goldln); border-radius:10px; padding:16px; color:var(--dim); line-height:1.6; }
   .fbsetup b{ color:var(--gold); font-family:var(--disp); }
   .fbsetup code{ font-family:var(--mono); color:var(--txt); background:#1b1f27; padding:1px 6px; border-radius:5px; }
@@ -2629,6 +2639,7 @@ async function rkSil(id){
 // Sol menü — akordeon (ana başlık → tablolar)
 const NAV = [
   { cat:'KULLANICILAR',   tables:['__users__','__players__','__huni__','feedback'] },
+  { cat:'GÜVENLİK',       tables:['__supheli__'] },   // 867
   { cat:'TAKIMLAR',       tables:['__clubs__','__nts__','__feds__'] },
   { cat:'LİGLER',         tables:['__ligler__'] },
   { cat:'TURNUVALAR',     tables:['__turnuva__','tournament_state'] },
@@ -2653,7 +2664,7 @@ const VIRT = { '__users__':'Kullanıcılar', '__players__':'Oyuncular', '__huni_
   '__ops__':'Operasyon', '__season__':'Sezon & Takvim', '__economy__':'Ekonomi Özeti',
   '__duyuru__':'Mesaj Gönder', '__ligler__':'Lig Tabloları', '__turnuva__':'Turnuva Durumu',
   '__fikstur__':'Günlük Fikstür', '__antrenman__':'Antrenman Yarışı', '__medya__':'Gönderi Denetimi',
-  '__reklam__':'Reklam Yönetimi',
+  '__reklam__':'Reklam Yönetimi', '__supheli__':'Şüpheli İşlemler',
   '__baglanti__':'Mağaza Bağlantıları',
   '__odeme__':'Elmas Satışları', '__kampanya__':'Kampanyalar',
   '__tr_oyuncu__':'Oyuncu İlanları', '__tr_takim__':'Takım İlanları', '__tr_esya__':'Eşya İlanları', '__scout__':'Scout' };
@@ -2662,7 +2673,7 @@ const CHEV = '<svg class="chev" viewBox="0 0 24 24" width="13" height="13" fill=
 function buildNav() {
   const mapped = new Set();
   NAV.forEach(c => c.tables.forEach(t => mapped.add(t)));
-  ['profiles','user_player','user_wallet','teams','team_data','team_chat','players','federation_state','site_ayar','admin_kullanici','admin_uyruk_sayim','kayit_huni','admin_kayit_huni','admin_kayit_huni_hata','yonetim_mesaj','admin_mesaj_hedef','kampanya','kampanya_satis','kayit_huni_yedek_799','lider_puan_onb','lider_puan_onb_zaman','transfer_listings','player_transfer_listings','item_listings','scout_rapor','scout_gunluk','scout_basari'].forEach(t => mapped.add(t)); // konsolide sayfalar
+  ['profiles','user_player','user_wallet','teams','team_data','team_chat','players','federation_state','site_ayar','admin_kullanici','admin_uyruk_sayim','kayit_huni','admin_kayit_huni','admin_kayit_huni_hata','yonetim_mesaj','admin_mesaj_hedef','kampanya','kampanya_satis','kayit_huni_yedek_799','lider_puan_onb','lider_puan_onb_zaman','transfer_listings','player_transfer_listings','item_listings','scout_rapor','scout_gunluk','scout_basari','admin_supheli','supheli_inceleme'].forEach(t => mapped.add(t)); // konsolide sayfalar
   const cats = NAV.slice();
   const others = Object.keys(META).filter(t => !mapped.has(t)).sort();
   if (others.length) cats.push({ cat:'DİĞER', tables:others });
@@ -2670,10 +2681,11 @@ function buildNav() {
   $('nav').innerHTML = cats.map(c => {
     const tabs = c.tables.filter(t => VIRT[t] || META[t]);
     const subs = tabs.length
-      ? tabs.map(t => `<button class="sub" data-t="${t}">${VIRT[t]||tableLabel(t)}</button>`).join('')
+      ? tabs.map(t => `<button class="sub" data-t="${t}">${VIRT[t]||tableLabel(t)}${t==='__supheli__'?'<span class="nvb" id="spSay"></span>':''}</button>`).join('')
       : '<div class="soon">Yakında</div>';
-    return `<div class="cat"><button class="cathead"><span>${c.cat}</span>${CHEV}</button><div class="subwrap">${subs}</div></div>`;
+    return `<div class="cat"><button class="cathead"><span>${c.cat}${c.cat==='GÜVENLİK'?'<span class="nvb" id="spSayK"></span>':''}</span>${CHEV}</button><div class="subwrap">${subs}</div></div>`;
   }).join('');
+  supheliSay();   // 867
 
   $('nav').querySelectorAll('.cathead').forEach(h => h.onclick = () => h.parentElement.classList.toggle('open'));
   $('nav').querySelectorAll('.sub').forEach(b => b.onclick = () => { const t=b.dataset.t;
@@ -2687,6 +2699,7 @@ function buildNav() {
     else if(t==='__season__') openSeason();
     else if(t==='__economy__') openEconomy();
     else if(t==='__duyuru__') openMesaj();
+    else if(t==='__supheli__') openSupheli();   // 867
     else if(t==='__kampanya__') openKampanya();
     else if(t==='__ligler__') openLeagues();
     else if(t==='__turnuva__') openTournaments();
@@ -5879,6 +5892,70 @@ function _opSatir(ic, ad, alt, sag) {
     <div class="opsat-s">${sag||''}</div></div>`;
 }
 const _opBaslikMini = (t) => `<div class="opbas">${t}</div>`;
+// ═══ 867 · Şüpheli işlemler — admin_supheli görünümü (son 72 saat, kurallar SQL'de) ═══
+let SP = { rows:[], f:'tum' };
+let _spZaman = null;
+async function supheliSay(){
+  clearTimeout(_spZaman); _spZaman = setTimeout(supheliSay, 300000);
+  try{
+    const r = await api('list', { table:'admin_supheli', cols:'user_id', limit:1000, sayim:'yok' });
+    const n = new Set((r.rows||[]).map(x=>x.user_id)).size;
+    ['spSay','spSayK'].forEach(id=>{ const e=$(id); if(e) e.textContent = n ? String(n) : ''; });
+  }catch(e){}
+}
+const SP_SEV = { yuksek:['Yüksek','var(--red)','rgba(226,59,90,.16)'], orta:['Orta','var(--gold)','rgba(255,213,79,.14)'] };
+function _spYas(acilis){
+  const t = Date.now() - new Date(acilis).getTime(); if(!isFinite(t)) return '';
+  const sa = Math.floor(t/3600000); return sa < 1 ? Math.max(1, Math.floor(t/60000))+' dk' : sa < 48 ? sa+' saat' : Math.floor(sa/24)+' gün';
+}
+async function openSupheli(){
+  _opTemizle();
+  $('dashBtn').classList.remove('active');
+  $('nav').querySelectorAll('.sub').forEach(b => b.classList.toggle('active', b.dataset.t === '__supheli__'));
+  const act = $('nav').querySelector('.sub.active'); if (act) act.closest('.cat').classList.add('open');
+  document.body.classList.remove('navopen');
+  $('main').innerHTML = _opBaslik('Şüpheli İşlemler','yükleniyor…') + '<div id="spAlan" class="fbsayfa fadein"><div class="fbempty">Yükleniyor…</div></div>';
+  try{
+    const r = await api('list', { table:'admin_supheli', orderBy:'son', orderDir:'desc', limit:1000, sayim:'yok' });
+    SP.rows = r.rows || [];
+  }catch(e){
+    $('spAlan').innerHTML = '<div class="fbsetup"><b>Şüpheli işlem panosu kurulmadı.</b><br>Supabase SQL editöründe <code>csc-867.sql</code>\'i çalıştır.</div>';
+    $('main').querySelector('.titlebox .cnt').textContent = ''; return;
+  }
+  spCiz();
+}
+function spCiz(){
+  const alan = $('spAlan'); if(!alan) return;
+  const G = new Map();
+  SP.rows.forEach(r=>{ if(!G.has(r.user_id)) G.set(r.user_id, []); G.get(r.user_id).push(r); });
+  const kisiler = [...G.values()].map(L=>({ L, sev: L.some(x=>x.seviye==='yuksek')?'yuksek':'orta', son: L.reduce((m,x)=>x.son>m?x.son:m, '') }))
+    .sort((a,b)=> (a.sev===b.sev?0:a.sev==='yuksek'?-1:1) || (b.son>a.son?1:-1));
+  const say = { tum:kisiler.length, yuksek:kisiler.filter(k=>k.sev==='yuksek').length, orta:kisiler.filter(k=>k.sev==='orta').length };
+  const liste = kisiler.filter(k=>SP.f==='tum' || k.sev===SP.f);
+  const chip=(k,ad)=>`<button class="chip ${SP.f===k?'active':''}" data-spf="${k}">${ad} (${say[k]})</button>`;
+  $('main').querySelector('.titlebox .cnt').textContent = say.tum ? say.tum+' kişi · son 72 saat' : 'son 72 saat';
+  alan.innerHTML = `<div class="fbhead">${chip('tum','Tümü')}${chip('yuksek','Yüksek')}${chip('orta','Orta')}</div>`
+    + (liste.length ? `<div class="fblist">${liste.map(k=>{
+        const a=k.L[0], [sAd,sRenk,sZemin]=SP_SEV[k.sev];
+        const kim = '@'+_fbEsc(a.username||'?') + (a.takim?' · '+_fbEsc(a.takim):' · Takımsız') + ' · hesap '+_spYas(a.acilis);
+        return `<div class="fbitem sp-item" style="border-left-color:${sRenk}">
+          <div class="top"><span class="fbbadge" style="background:${sZemin};color:${sRenk}">${sAd}</span><b class="sp-ad">${_fbEsc(a.oyuncu||a.username||'?')}</b><span class="fbstat">${kim}</span><span class="when">${_fbTime(k.son)}</span></div>
+          <div class="sp-kurallar">${k.L.map(x=>`<div class="sp-k"><b style="color:${SP_SEV[x.seviye]?SP_SEV[x.seviye][1]:'var(--txt)'}">${_fbEsc(x.baslik)}</b><span>${_fbEsc(x.ayrinti||'')}</span></div>`).join('')}</div>
+          <div class="foot"><div class="acts"><button class="btn" data-spu="${_fbEsc(a.oyuncu||a.username||'')}">Kullanıcıyı Aç</button><button class="btn green" data-spi="${a.user_id}">İncelendi</button></div></div>
+        </div>`; }).join('')}</div>`
+      : '<div class="fbempty">Şüpheli işlem yok.</div>');
+  alan.querySelectorAll('[data-spf]').forEach(b=>b.onclick=()=>{ SP.f=b.dataset.spf; spCiz(); });
+  alan.querySelectorAll('[data-spu]').forEach(b=>b.onclick=async()=>{ const ad=b.dataset.spu; await openUsers(); const i=$('uSval'); if(i){ i.value=ad; uOnSearch(); } });
+  alan.querySelectorAll('[data-spi]').forEach(b=>b.onclick=async()=>{
+    const uid=b.dataset.spi, L=SP.rows.filter(x=>x.user_id===uid);
+    b.disabled=true; b.textContent='…';
+    try{
+      await api('insert', { table:'supheli_inceleme', values: L.map(x=>({ user_id:uid, kural:x.kural })) });
+      SP.rows=SP.rows.filter(x=>x.user_id!==uid); spCiz(); supheliSay();
+    }catch(e){ b.disabled=false; b.textContent='İncelendi'; alert('Kaydedilemedi: '+e.message); }
+  });
+}
+
 function _opTemizle() {
   CUR = null;
   $('dashBtn').classList.remove('active');
