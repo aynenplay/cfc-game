@@ -8102,3 +8102,12 @@ Object.assign(window.I18N.it, {
 window.I18N_PATTERNS.it.unshift(
   [/^Lig (\d+)\. hafta$/, "Campionato · Giornata $1"]
 );
+
+/* ─── 863 · Ekipman alımı seviye sınırı, pazar ilanı en düşük fiyat ─── */
+window.I18N_PATTERNS.it.unshift(
+  [/^Seviye (\d+) Gerekli$/, "Richiesto livello $1"],
+  [/^Ekipman satın almak için (\d+)\. seviyeye ulaşmalısın\. Şu anki seviyen: (\d+)\.$/, "Devi raggiungere il livello $1 per acquistare equipaggiamento. Il tuo livello attuale: $2."],
+  [/^(❌ )?Ekipman satın almak için (\d+)\. seviyeye ulaşmalısın\.$/, "$1Devi raggiungere il livello $2 per acquistare equipaggiamento."],
+  [/^Satış Fiyatı \(en az (\d+) 💎\)$/, "Prezzo di vendita (min. $1 💎)"],
+  [/^(❌ )?En düşük fiyat (\d+) 💎\.$/, "$1Il prezzo minimo è $2 💎."]
+);

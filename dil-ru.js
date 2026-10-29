@@ -8136,3 +8136,12 @@ Object.assign(window.I18N.ru, {
 window.I18N_PATTERNS.ru.unshift(
   [/^Lig (\d+)\. hafta$/, "Лига · $1-й тур"]
 );
+
+/* ─── 863 · Ekipman alımı seviye sınırı, pazar ilanı en düşük fiyat ─── */
+window.I18N_PATTERNS.ru.unshift(
+  [/^Seviye (\d+) Gerekli$/, "Требуется уровень $1"],
+  [/^Ekipman satın almak için (\d+)\. seviyeye ulaşmalısın\. Şu anki seviyen: (\d+)\.$/, "Чтобы покупать экипировку, нужно достичь $1-го уровня. Твой текущий уровень: $2."],
+  [/^(❌ )?Ekipman satın almak için (\d+)\. seviyeye ulaşmalısın\.$/, "$1Чтобы покупать экипировку, нужно достичь $2-го уровня."],
+  [/^Satış Fiyatı \(en az (\d+) 💎\)$/, "Цена продажи (мин. $1 💎)"],
+  [/^(❌ )?En düşük fiyat (\d+) 💎\.$/, "$1Минимальная цена — $2 💎."]
+);
