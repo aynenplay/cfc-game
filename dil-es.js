@@ -8073,3 +8073,24 @@ window.I18N_PATTERNS.es.unshift(
   [/^(\d+)\. Sezon$/, "Temporada $1"],
   [/^• İmza parası: ([\d.]+) €$/, "• Prima de fichaje: $1 €"]
 );
+
+/* ─── 860 · Yardımcı kaptan yetkileri, bekleyen sözleşme teklifi (geri çekme) ─── */
+Object.assign(window.I18N.es, {
+  "Mevcut teklif var": "Oferta pendiente",
+  "Teklifi Geri Çek": "Retirar oferta",
+  "Teklif geri çekildi.": "Oferta retirada.",
+  "Teklif artık beklemede değil.": "La oferta ya no está pendiente.",
+  "Teklif geri çekilemedi.": "No se pudo retirar la oferta.",
+  "↩️ Teklif geri çekildi": "↩️ Oferta retirada",
+  "Kulüp bu teklifi geri çekti.": "El club ha retirado esta oferta.",
+  "🔒 Sadece kaptan ve yardımcı kaptanlar oyuncu kovabilir.": "🔒 Solo el capitán y los vicecapitanes pueden expulsar jugadores.",
+  "🔒 Yardımcı kaptan yalnız üyeleri kovabilir.": "🔒 Un vicecapitán solo puede expulsar a miembros.",
+  "Yardımcı Yetkileri": "Poderes del vicecapitán",
+  "Bu talebe karar verme yetkin yok.": "No tienes permiso para decidir sobre esta solicitud.",
+  "Sözleşme süresi": "Duración del contrato",
+  "✅ Onaylandı": "✅ Aprobado"
+});
+window.I18N_PATTERNS.es.unshift(
+  [/^Yardımcı kaptan (.+?) sözleşme yenileme talebini ONAYLADI\.$/, "El vicecapitán $1 APROBÓ tu solicitud de renovación de contrato."],
+  [/^Yardımcı kaptan (.+?) sözleşme yenileme talebini REDDETTİ\.$/, "El vicecapitán $1 RECHAZÓ tu solicitud de renovación de contrato."]
+);

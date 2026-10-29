@@ -101,7 +101,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '859';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '860';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -26124,8 +26124,8 @@ body.pd-acik{overflow:hidden}
   </div>
 </div>
 
-<script src="js/oyun.1d77280c.js"></script>
-<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.1d77280c.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
+<script src="js/oyun.8782fecc.js"></script>
+<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.8782fecc.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
 
 <nav id="bottomnav">
   <button class="nav-btn active" onclick="showPage('home',this)"><div class="nav-icon">🏠</div><div class="nav-label">Menü</div></button>
@@ -39152,10 +39152,12 @@ async function tfSatinAlOnayla() {
 
 // ── Sözleşme öner (kaptan → sözleşmesiz üye) ───────────────────────
 function sozlesmeOnerAc(num) {
-  if (typeof _userTeam === 'undefined' || !_userTeam || _userTeam.role !== 'captain' || (typeof _viewingTeam !== 'undefined' && _viewingTeam)) return;
+  if (typeof _userTeam === 'undefined' || !_userTeam || !['captain', 'vice'].includes(_userTeam.role) || (typeof _viewingTeam !== 'undefined' && _viewingTeam)) return;   // 860
   const p = (Array.isArray(ROSTER_DATA) ? ROSTER_DATA : []).find(x => x && x.num === num);
-  if (!p || p.isBot || p.role === 'captain' || p.role === 'user') return;
+  if (!p || p.isBot || p.role === 'captain' || p.role === 'user' || !_k860Yonetici(p)) return;
   if (sozlesmeAktifMi(p.contract)) { rosterToast('Oyuncunun sözleşmesi zaten var.', 'err'); return; }
+  const _bek = _k860Bekleyen(p);   // 860 — bekleyen teklif varsa yeni form yerine teklif penceresi
+  if (_bek) return _k860TeklifAc(p, _bek);
   return _sfOnerAc(p);   // 859 — yeni sözleşme formu
 }
 function _tfSozKip() {
@@ -39208,9 +39210,10 @@ function _k859SozYazi(p, tur) {
     _K859_P[k] = { p, c };
     return `<span class="k-yz var tik" onclick="event.stopPropagation();sozBilgiAc('${k}',this)"><span>Sözleşmeli</span>${_K859_OK}</span>`;
   }
-  const oner = tur === 'ben' && !benim && typeof _userTeam !== 'undefined' && _userTeam && _userTeam.role === 'captain'
+  const oner = tur === 'ben' && !benim && _k860Yonetici(p)   // 860 — kaptan; yardımcı kaptan yalnız üyelere
     && !(typeof _viewingTeam !== 'undefined' && _viewingTeam);
-  return `<span class="k-yz yok${oner ? ' tik' : ''}"${oner ? ` onclick="event.stopPropagation();sozlesmeOnerAc(${Number(p.num)})"` : ''}><span>Sözleşmesiz</span>${oner ? _K859_OK : ''}</span>`;
+  const bek = oner && !!_k860Bekleyen(p);   // 860 — bekleyen sözleşme teklifi: sarı
+  return `<span class="k-yz yok${oner ? ' tik' : ''}${bek ? ' bek' : ''}"${oner ? ` data-pid="${_sfEsc(p.id)}" onclick="event.stopPropagation();sozlesmeOnerAc(${Number(p.num)})"` : ''}><span>Sözleşmesiz</span>${oner ? _K859_OK : ''}</span>`;
 }
 function sozBilgiAc(k, el) {
   const x = _K859_P[k]; if (!x || !x.p || !sozlesmeAktifMi(x.c)) return;
@@ -39237,6 +39240,104 @@ function sozBilgiAc(k, el) {
 }
 function sozBilgiKapat() { const ov = document.getElementById('sozOv'); if (ov) ov.classList.remove('acik'); }
 
+// ═════════ 860 · Bekleyen sözleşme teklifleri (kaptan + yardımcılar) ═════════
+//   Kadroda bekleyen teklifli oyuncunun "Sözleşmesiz" yazısı sarı; dokununca teklif penceresi + Teklifi Geri Çek.
+//   Yardımcı kaptanın yetkisi yalnız üyeler üzerinde.
+function _k860Yonetici(p) {
+  if (typeof _userTeam === 'undefined' || !_userTeam) return false;
+  if (_userTeam.role === 'captain') return true;
+  return _userTeam.role === 'vice' && !!p && p.role !== 'vice' && p.role !== 'captain';
+}
+const _K860 = { t: 0, takim: '', liste: {}, yuk: null };
+function _k860Anahtar() { return (typeof _userTeam !== 'undefined' && _userTeam) ? (_userTeam.countryCode + ':' + _userTeam.teamName) : ''; }
+function _k860Bekleyen(p) {
+  if (!p || p.id == null || _K860.takim !== _k860Anahtar()) return null;
+  return _K860.liste[String(p.id)] || null;
+}
+function _k860Yukle(zorla) {
+  if (typeof _userTeam === 'undefined' || !_userTeam || !['captain', 'vice'].includes(_userTeam.role)) return Promise.resolve();
+  const an = _k860Anahtar();
+  if (!zorla && _K860.takim === an && Date.now() - _K860.t < 20000) return Promise.resolve();
+  if (_K860.yuk) return _K860.yuk;
+  _K860.yuk = (async () => {
+    let r = null;
+    try { r = await edgeCall('sozlesme_teklifleri', {}, { body: {} }); } catch (e) {}
+    const d = r && r.data;
+    if (d && d.ok && Array.isArray(d.teklifler) && _k860Anahtar() === an) {
+      const L = {};
+      d.teklifler.forEach(x => { if (x && x.oyuncu != null) L[String(x.oyuncu)] = x; });
+      _K860.liste = L; _K860.takim = an; _K860.t = Date.now();
+      _k860Boya();
+    }
+  })().finally(() => { _K860.yuk = null; });
+  return _K860.yuk;
+}
+function _k860Boya() {
+  const an = _k860Anahtar();
+  document.querySelectorAll('#rosterList .k-yz.yok[data-pid]').forEach(el => {
+    el.classList.toggle('bek', _K860.takim === an && !!_K860.liste[el.dataset.pid]);
+  });
+}
+function _k860TeklifAc(p, t) {
+  let ov = document.getElementById('sozTeklifOv');
+  if (!ov) {
+    ov = document.createElement('div'); ov.id = 'sozTeklifOv'; ov.className = 'kd-ov';
+    ov.addEventListener('click', e => { if (e.target === ov) _k860Kapat(); });
+    document.body.appendChild(ov);
+  }
+  let av = _sfEsc(p.avatar || '⭐');
+  try { if (p.avatar_id && typeof getAvatarEmoji === 'function') av = getAvatarEmoji(p.avatar_id, p.pos) || av; } catch (e) {}
+  const poz = ((typeof subPosOf === 'function') ? subPosOf(p) : '') || p.pos || '';
+  const i2 = n => String(n).padStart(2, '0');
+  let tarih = '';
+  try { if (t.tarih) { const d = new Date(t.tarih); if (!isNaN(d)) tarih = i2(d.getDate()) + '/' + i2(d.getMonth() + 1) + '/' + d.getFullYear(); } } catch (e) {}
+  const imza = [t.imza > 0 ? `<span data-noi18n>${_sfTr(t.imza)}</span>${_SF_IK.elmas}` : '', t.eur > 0 ? `<span data-noi18n>${_sfTr(t.eur)} €</span>` : '']
+    .filter(Boolean).join('<span data-noi18n>+</span>') || '<span>Yok</span>';
+  const alt = [t.gonderen ? `<span data-noi18n>${_sfEsc(t.gonderen)}</span>` : '', tarih ? `<span data-noi18n>${tarih}</span>` : ''].filter(Boolean).join(' · ');
+  ov.innerHTML = '<div class="kd-md" role="dialog" aria-modal="true">'
+    + '<div class="kd-hd"><div class="futc-av">' + av + '</div><div class="kd-t"><b data-noi18n>' + _sfEsc(p.name) + '</b>'
+    + '<span><span data-noi18n>' + _sfEsc(poz) + '</span> · <span>Sv.' + (Number(p.level) || 0) + '</span></span></div>'
+    + '<button type="button" class="kd-x" onclick="_k860Kapat()" aria-label="Kapat">✕</button></div>'
+    + '<div class="kd-bd">'
+    + '<div class="kd-dr bek"><div class="kd-ic">' + _SF_IK.saat + '</div><div class="kd-tx"><b>Mevcut teklif var</b>' + (alt ? '<span>' + alt + '</span>' : '') + '</div></div>'
+    + '<div class="kd-dr soz"><div class="kd-ic">' + _SF_IK.belge + '</div><div class="kd-tx"><b><span data-noi18n>' + (Number(t.sure) || 1) + '</span> <span>sezon</span>'
+    + (t.bitis ? ' · <span>' + Number(t.bitis) + '. sezon sonu</span>' : '') + '</b><span>Sözleşme süresi</span></div></div>'
+    + '<div class="kd-dr soz"><div class="kd-ic">' + _SF_IK.imzaKalem + '</div><div class="kd-tx"><b class="k860-imza">' + imza + '</b><span>İmza parası</span></div></div>'
+    + '</div><div class="kd-ft k860-ft"><button type="button" onclick="_k860Kapat()">Kapat</button>'
+    + '<button type="button" class="geri" data-msg="' + _sfEsc(t.msg) + '" data-pid="' + _sfEsc(p.id) + '" onclick="_k860GeriCek(this)">Teklifi Geri Çek</button></div></div>';
+  ov.classList.add('acik');
+}
+function _k860Kapat() { const ov = document.getElementById('sozTeklifOv'); if (ov) ov.classList.remove('acik'); }
+async function _k860GeriCek(b) {
+  if (!b || b.disabled) return;
+  const msg = b.dataset.msg, pid = b.dataset.pid;
+  b.disabled = true;
+  let r = null;
+  try { r = await edgeCall('sozlesme_geri_cek', {}, { body: { msg } }); } catch (e) {}
+  b.disabled = false;
+  const d = r && r.data;
+  if (!r || !r.ok || !d || d.error) {
+    if (d && d.error === 'teklif_bekliyor_degil') {
+      delete _K860.liste[pid]; _k860Boya(); _k860Kapat();
+      rosterToast('Teklif artık beklemede değil.', 'err');
+      return;
+    }
+    rosterToast(_tf854Hata(d, 'Teklif geri çekilemedi.'), 'err');
+    return;
+  }
+  delete _K860.liste[pid]; _k860Boya(); _k860Kapat();
+  rosterToast('Teklif geri çekildi.', 'ok');
+}
+// Takımın yardımcı kaptanları (gerçek oyuncular) — yenileme talebi ve kulübe gelen resmi teklif onlara da gider
+async function _k860Yardimcilar(cc, tn) {
+  if (!window.sb || !cc || !tn) return [];
+  try {
+    const { data } = await window.sb.from('players').select('user_id').eq('country_code', cc).eq('team_name', tn)
+      .eq('role', 'vice').eq('is_bot', false).not('user_id', 'is', null);
+    return (data || []).map(x => x.user_id).filter(Boolean);
+  } catch (e) { return []; }
+}
+
 // ═════════ 859 · Sözleşme formu: Sözleşme Öner (kaptan) · Katılma İsteği (sözleşmeli / sözleşmesiz) ═════════
 const _SF_IK = {
   x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
@@ -39246,7 +39347,9 @@ const _SF_IK = {
   yok: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M3 3l18 18"/></svg>',
   imza: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M8 16.5c1-1.6 1.8-1.8 2-.6.2 1.1 1 .8 1.7-.3.6-.9 1.1-.7 1.1.3"/></svg>',
   elmas: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#ic-diamond"/></svg>',
-  para: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#ic-money"/></svg>'
+  para: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#ic-money"/></svg>',
+  saat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
+  imzaKalem: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18c2.5-3 4-3.5 4.5-1.5.4 1.8 2 1.3 3.3-.6 1.1-1.6 2.1-1.4 2.2.3"/><path d="M15.5 4.5l4 4L12 16l-4.5 1 1-4.5z"/></svg>'
 };
 const _SF_UST = { dia: 100000, eur: 500000000 };   // sunucudaki tavanlar
 let _sf = null;   // { tip: 'oner'|'katil', tur: 'var'|'yok', sure, maas, sadeceSoz, p, cc, tn, kaptan, dia, eur }
@@ -39402,7 +39505,19 @@ async function _sfSozlesmeGonder() {
   try { r = await edgeCall('sozlesme_oner', {}, { body: { oyuncu: p.id, sure: s.sure, imza: s.dia || 0, eur: s.eur || 0 } }); } catch (e) {}
   window._sfGonderiliyor = false; if (b) b.disabled = false;
   const d = r && r.data;
-  if (!r || !r.ok || !d || d.error) { tfShowToast('❌ ' + _tf854Hata(d, 'Sözleşme teklifi gönderilemedi.'), 'var(--red)'); return; }
+  if (!r || !r.ok || !d || d.error) {
+    if (d && d.error === 'teklif_bekliyor') {   // 860 — zaten bekleyen teklif var: onu göster
+      await _k860Yukle(true);
+      const t = _k860Bekleyen(p);
+      if (t) { sfKapat(); _k860TeklifAc(p, t); return; }
+    }
+    tfShowToast('❌ ' + _tf854Hata(d, 'Sözleşme teklifi gönderilemedi.'), 'var(--red)'); return;
+  }
+  // 860 — kadroda hemen sarı
+  if (_K860.takim !== _k860Anahtar()) { _K860.takim = _k860Anahtar(); _K860.liste = {}; _K860.t = 0; }
+  _K860.liste[String(p.id)] = { msg: d.msgId, oyuncu: p.id, ad: p.name, sure: s.sure, bitis: d.bitis || null, imza: s.dia || 0, eur: s.eur || 0,
+    gonderen: d.gonderen || ((typeof authUser !== 'undefined' && authUser && authUser.name) || ''), tarih: new Date().toISOString() };
+  _k860Boya();
   sfKapat();
   tfShowToast('📋 Sözleşme teklifi gönderildi', 'var(--accent2)');
 }
@@ -39418,6 +39533,18 @@ async function _sfSozlesmeGonder() {
 .kB .futc-meta .k-yz.tik:active{opacity:.6}
 .kd-dr.soz .kd-ic{background:rgba(70,209,122,.16);color:#46d17a}
 .kd-dr.soz .kd-ic svg{width:17px;height:17px}
+.kB .futc-meta .k-yz.yok.bek{color:#ffca28}   /* 860 — bekleyen sözleşme teklifi */
+.kd-dr.bek{border-color:rgba(255,202,40,.4);background:rgba(255,202,40,.07)}
+.kd-dr.bek .kd-ic{background:rgba(255,202,40,.16);color:#ffca28}
+.kd-dr.bek .kd-ic svg,.kd-dr.soz .kd-ic svg{width:17px;height:17px}
+.kd-dr.bek .kd-tx b{color:#ffca28}
+.kd-dr.soz .kd-tx b span,.kd-dr.bek .kd-tx b span,.kd-dr.bek .kd-tx > span span{display:inline;font:inherit;color:inherit;margin:0}
+.kd-tx b.k860-imza{display:inline-flex;align-items:center;gap:4px}
+.kd-tx b.k860-imza span{display:inline;font-size:inherit;color:inherit;margin:0}
+.kd-tx b.k860-imza svg{width:14px;height:14px}
+.kd-ft.k860-ft{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.kd-ft.k860-ft button.geri{border-color:rgba(239,83,80,.45);background:rgba(239,83,80,.14);color:#ff8a80}
+.kd-ft.k860-ft button:disabled{opacity:.55}
 /* ═════════ 859 · Sözleşme formu (alttan açılır, sayfadan taşmaz) ═════════ */
 .sf-ov{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9999;display:none;align-items:flex-end;justify-content:center}
 .sf-ov.acik{display:flex}
@@ -43008,6 +43135,7 @@ function k845Kadro(list) {
       + `<div class="kb-bil"><div class="kb-ust">${ad.outerHTML}${zil ? zil.outerHTML : ''}</div>${meta.outerHTML}${k3}</div>${sag.outerHTML}`;
     r.dataset.kb = '1';
   });
+  try { if (list.querySelector('.k-yz.yok[data-pid]')) _k860Yukle(); } catch (e) {}   // 860
 }
 
 // ── Kancalar ──

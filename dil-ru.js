@@ -8105,3 +8105,24 @@ window.I18N_PATTERNS.ru.unshift(
   [/^(\d+)\. Sezon$/, "Сезон $1"],
   [/^• İmza parası: ([\d.]+) €$/, "• Подписной бонус: $1 €"]
 );
+
+/* ─── 860 · Yardımcı kaptan yetkileri, bekleyen sözleşme teklifi (geri çekme) ─── */
+Object.assign(window.I18N.ru, {
+  "Mevcut teklif var": "Есть активное предложение",
+  "Teklifi Geri Çek": "Отозвать предложение",
+  "Teklif geri çekildi.": "Предложение отозвано.",
+  "Teklif artık beklemede değil.": "Предложение больше не ожидает ответа.",
+  "Teklif geri çekilemedi.": "Не удалось отозвать предложение.",
+  "↩️ Teklif geri çekildi": "↩️ Предложение отозвано",
+  "Kulüp bu teklifi geri çekti.": "Клуб отозвал это предложение.",
+  "🔒 Sadece kaptan ve yardımcı kaptanlar oyuncu kovabilir.": "🔒 Исключать игроков могут только капитан и вице-капитаны.",
+  "🔒 Yardımcı kaptan yalnız üyeleri kovabilir.": "🔒 Вице-капитан может исключать только участников.",
+  "Yardımcı Yetkileri": "Полномочия вице-капитана",
+  "Bu talebe karar verme yetkin yok.": "У тебя нет прав решать по этому запросу.",
+  "Sözleşme süresi": "Срок контракта",
+  "✅ Onaylandı": "✅ Одобрено"
+});
+window.I18N_PATTERNS.ru.unshift(
+  [/^Yardımcı kaptan (.+?) sözleşme yenileme talebini ONAYLADI\.$/, "Вице-капитан $1 ОДОБРИЛ твой запрос на продление контракта."],
+  [/^Yardımcı kaptan (.+?) sözleşme yenileme talebini REDDETTİ\.$/, "Вице-капитан $1 ОТКЛОНИЛ твой запрос на продление контракта."]
+);

@@ -8498,3 +8498,24 @@ window.I18N_PATTERNS.en.unshift(
   [/^(\d+)\. Sezon$/, "Season $1"],
   [/^• İmza parası: ([\d.]+) €$/, "• Signing fee: $1 €"]
 );
+
+/* ─── 860 · Yardımcı kaptan yetkileri, bekleyen sözleşme teklifi (geri çekme) ─── */
+Object.assign(window.I18N.en, {
+  "Mevcut teklif var": "Offer pending",
+  "Teklifi Geri Çek": "Withdraw Offer",
+  "Teklif geri çekildi.": "Offer withdrawn.",
+  "Teklif artık beklemede değil.": "The offer is no longer pending.",
+  "Teklif geri çekilemedi.": "The offer could not be withdrawn.",
+  "↩️ Teklif geri çekildi": "↩️ Offer withdrawn",
+  "Kulüp bu teklifi geri çekti.": "The club has withdrawn this offer.",
+  "🔒 Sadece kaptan ve yardımcı kaptanlar oyuncu kovabilir.": "🔒 Only the captain and assistant captains can remove players.",
+  "🔒 Yardımcı kaptan yalnız üyeleri kovabilir.": "🔒 An assistant captain can only remove members.",
+  "Yardımcı Yetkileri": "Assistant Powers",
+  "Bu talebe karar verme yetkin yok.": "You do not have permission to decide on this request.",
+  "Sözleşme süresi": "Contract length",
+  "✅ Onaylandı": "✅ Approved"
+});
+window.I18N_PATTERNS.en.unshift(
+  [/^Yardımcı kaptan (.+?) sözleşme yenileme talebini ONAYLADI\.$/, "Assistant captain $1 APPROVED your contract renewal request."],
+  [/^Yardımcı kaptan (.+?) sözleşme yenileme talebini REDDETTİ\.$/, "Assistant captain $1 DECLINED your contract renewal request."]
+);
