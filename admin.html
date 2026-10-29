@@ -385,6 +385,7 @@
   .nvb{ display:inline-block; min-width:18px; margin-left:7px; padding:1px 6px; border-radius:9px; background:var(--red); color:#fff;
     font-family:var(--disp); font-weight:800; font-size:11px; line-height:16px; text-align:center; }
   .nvb:empty{ display:none; }
+  .cat.guv > .cathead, .cat.guv.open > .cathead{ color:var(--red); }
   .sp-item .top b.sp-ad{ font-family:var(--disp); font-weight:800; font-size:15px; }
   .sp-kurallar{ display:flex; flex-direction:column; gap:6px; }
   .sp-k{ display:grid; grid-template-columns:minmax(150px,230px) 1fr; gap:10px; align-items:baseline; padding:7px 10px; border-radius:8px; background:rgba(255,255,255,.03); }
@@ -2638,8 +2639,8 @@ async function rkSil(id){
 
 // Sol menü — akordeon (ana başlık → tablolar)
 const NAV = [
+  { cat:'GÜVENLİK',       tables:['__supheli__'] },   // 867 · 868 — Özet'in hemen altında, kırmızı
   { cat:'KULLANICILAR',   tables:['__users__','__players__','__huni__','feedback'] },
-  { cat:'GÜVENLİK',       tables:['__supheli__'] },   // 867
   { cat:'TAKIMLAR',       tables:['__clubs__','__nts__','__feds__'] },
   { cat:'LİGLER',         tables:['__ligler__'] },
   { cat:'TURNUVALAR',     tables:['__turnuva__','tournament_state'] },
@@ -2683,7 +2684,7 @@ function buildNav() {
     const subs = tabs.length
       ? tabs.map(t => `<button class="sub" data-t="${t}">${VIRT[t]||tableLabel(t)}${t==='__supheli__'?'<span class="nvb" id="spSay"></span>':''}</button>`).join('')
       : '<div class="soon">Yakında</div>';
-    return `<div class="cat"><button class="cathead"><span>${c.cat}${c.cat==='GÜVENLİK'?'<span class="nvb" id="spSayK"></span>':''}</span>${CHEV}</button><div class="subwrap">${subs}</div></div>`;
+    return `<div class="cat${c.cat==='GÜVENLİK'?' guv':''}"><button class="cathead"><span>${c.cat}${c.cat==='GÜVENLİK'?'<span class="nvb" id="spSayK"></span>':''}</span>${CHEV}</button><div class="subwrap">${subs}</div></div>`;
   }).join('');
   supheliSay();   // 867
 
@@ -5893,7 +5894,7 @@ function _opSatir(ic, ad, alt, sag) {
 }
 const _opBaslikMini = (t) => `<div class="opbas">${t}</div>`;
 // ═══ 867 · Şüpheli işlemler — admin_supheli görünümü (son 72 saat, kurallar SQL'de) ═══
-let SP = { rows:[], f:'tum' };
+let SP = { rows:[], f:'tum', sekme:'aktif', arsiv:[] };   // 868 — arsiv: İncelendi kayıtları
 let _spZaman = null;
 async function supheliSay(){
   clearTimeout(_spZaman); _spZaman = setTimeout(supheliSay, 300000);
@@ -5916,8 +5917,11 @@ async function openSupheli(){
   document.body.classList.remove('navopen');
   $('main').innerHTML = _opBaslik('Şüpheli İşlemler','yükleniyor…') + '<div id="spAlan" class="fbsayfa fadein"><div class="fbempty">Yükleniyor…</div></div>';
   try{
-    const r = await api('list', { table:'admin_supheli', orderBy:'son', orderDir:'desc', limit:1000, sayim:'yok' });
-    SP.rows = r.rows || [];
+    const [r, a] = await Promise.all([
+      api('list', { table:'admin_supheli', orderBy:'son', orderDir:'desc', limit:1000, sayim:'yok' }),
+      api('list', { table:'supheli_inceleme', orderBy:'incelendi_at', orderDir:'desc', limit:1000, sayim:'yok' }).catch(()=>({ rows:[] }))
+    ]);
+    SP.rows = r.rows || []; SP.arsiv = a.rows || [];
   }catch(e){
     $('spAlan').innerHTML = '<div class="fbsetup"><b>Şüpheli işlem panosu kurulmadı.</b><br>Supabase SQL editöründe <code>csc-867.sql</code>\'i çalıştır.</div>';
     $('main').querySelector('.titlebox .cnt').textContent = ''; return;
@@ -5933,8 +5937,25 @@ function spCiz(){
   const say = { tum:kisiler.length, yuksek:kisiler.filter(k=>k.sev==='yuksek').length, orta:kisiler.filter(k=>k.sev==='orta').length };
   const liste = kisiler.filter(k=>SP.f==='tum' || k.sev===SP.f);
   const chip=(k,ad)=>`<button class="chip ${SP.f===k?'active':''}" data-spf="${k}">${ad} (${say[k]})</button>`;
+  // 868 — İncelendi arşivi: aynı anda incelenen kayıtlar tek kart
+  const AG = new Map();
+  SP.arsiv.forEach(x=>{ const k=x.user_id+'|'+x.incelendi_at; if(!AG.has(k)) AG.set(k, []); AG.get(k).push(x); });
+  const arsiv = [...AG.values()];
+  const sekme=(k,ad,n)=>`<button class="${SP.sekme===k?'on':''}" data-sps="${k}">${ad}<b>${n}</b></button>`;
   $('main').querySelector('.titlebox .cnt').textContent = say.tum ? say.tum+' kişi · son 72 saat' : 'son 72 saat';
-  alan.innerHTML = `<div class="fbhead">${chip('tum','Tümü')}${chip('yuksek','Yüksek')}${chip('orta','Orta')}</div>`
+  const bas = `<div class="fbhead"><div class="fbsekme" style="margin-left:0">${sekme('aktif','Aktif',say.tum)}${sekme('arsiv','İncelendi',arsiv.length)}</div>`
+    + (SP.sekme==='aktif' ? `<span class="ayrac"></span>${chip('tum','Tümü')}${chip('yuksek','Yüksek')}${chip('orta','Orta')}` : '') + `</div>`;
+  if (SP.sekme==='arsiv') {
+    alan.innerHTML = bas + (arsiv.length ? `<div class="fblist">${arsiv.map(L=>{
+        const a=L[0], k=a.kayit||{}, sev=L.some(x=>(x.kayit||{}).seviye==='yuksek')?'yuksek':'orta', [sAd,sRenk,sZemin]=SP_SEV[sev];
+        const kim = '@'+_fbEsc(k.username||'?') + (k.takim?' · '+_fbEsc(k.takim):' · Takımsız');
+        return `<div class="fbitem sp-item" style="border-left-color:var(--line);opacity:.86">
+          <div class="top"><span class="fbbadge" style="background:${sZemin};color:${sRenk}">${sAd}</span><b class="sp-ad">${_fbEsc(k.oyuncu||k.username||'?')}</b><span class="fbstat">${kim}</span><span class="when">İncelendi · ${_fbTime(a.incelendi_at)}</span></div>
+          <div class="sp-kurallar">${L.map(x=>{ const y=x.kayit||{}; return `<div class="sp-k"><b style="color:var(--dim)">${_fbEsc(y.baslik||x.kural)}</b><span>${_fbEsc(y.ayrinti||'')}</span></div>`; }).join('')}</div>
+          <div class="foot"><div class="acts"><button class="btn" data-spu="${_fbEsc(k.oyuncu||k.username||'')}">Kullanıcıyı Aç</button><button class="btn" data-spg="${a.user_id}|${a.incelendi_at}">Geri Al</button></div></div>
+        </div>`; }).join('')}</div>` : '<div class="fbempty">İncelenen kayıt yok.</div>');
+  } else
+  alan.innerHTML = bas
     + (liste.length ? `<div class="fblist">${liste.map(k=>{
         const a=k.L[0], [sAd,sRenk,sZemin]=SP_SEV[k.sev];
         const kim = '@'+_fbEsc(a.username||'?') + (a.takim?' · '+_fbEsc(a.takim):' · Takımsız') + ' · hesap '+_spYas(a.acilis);
@@ -5945,13 +5966,23 @@ function spCiz(){
         </div>`; }).join('')}</div>`
       : '<div class="fbempty">Şüpheli işlem yok.</div>');
   alan.querySelectorAll('[data-spf]').forEach(b=>b.onclick=()=>{ SP.f=b.dataset.spf; spCiz(); });
+  alan.querySelectorAll('[data-sps]').forEach(b=>b.onclick=()=>{ SP.sekme=b.dataset.sps; spCiz(); });
+  alan.querySelectorAll('[data-spg]').forEach(b=>b.onclick=async()=>{   // 868 — arşivden geri al: kayıt yeniden aktif listeye düşer
+    const [uid, zm] = b.dataset.spg.split('|');
+    b.disabled=true; b.textContent='…';
+    try{ await api('delete', { table:'supheli_inceleme', pk:{ user_id:uid, incelendi_at:zm } }); await openSupheli(); SP.sekme='arsiv'; spCiz(); supheliSay(); }
+    catch(e){ b.disabled=false; b.textContent='Geri Al'; alert('Geri alınamadı: '+e.message); }
+  });
   alan.querySelectorAll('[data-spu]').forEach(b=>b.onclick=async()=>{ const ad=b.dataset.spu; await openUsers(); const i=$('uSval'); if(i){ i.value=ad; uOnSearch(); } });
   alan.querySelectorAll('[data-spi]').forEach(b=>b.onclick=async()=>{
     const uid=b.dataset.spi, L=SP.rows.filter(x=>x.user_id===uid);
     b.disabled=true; b.textContent='…';
     try{
-      await api('insert', { table:'supheli_inceleme', values: L.map(x=>({ user_id:uid, kural:x.kural })) });
-      SP.rows=SP.rows.filter(x=>x.user_id!==uid); spCiz(); supheliSay();
+      const zm = new Date().toISOString();   // 868 — aynı anda incelenenler arşivde tek kart; kural ayrıntısı saklanır
+      const yeni = L.map(x=>({ user_id:uid, kural:x.kural, incelendi_at:zm,
+        kayit:{ baslik:x.baslik, ayrinti:x.ayrinti, seviye:x.seviye, miktar:x.miktar, son:x.son, oyuncu:x.oyuncu, username:x.username, takim:x.takim } }));
+      await api('insert', { table:'supheli_inceleme', values: yeni });
+      SP.rows=SP.rows.filter(x=>x.user_id!==uid); SP.arsiv=yeni.concat(SP.arsiv); spCiz(); supheliSay();
     }catch(e){ b.disabled=false; b.textContent='İncelendi'; alert('Kaydedilemedi: '+e.message); }
   });
 }
