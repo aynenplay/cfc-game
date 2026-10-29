@@ -13,7 +13,7 @@
   var uygulama = !!window.Capacitor || (!sosyal && (/; wv\)/.test(ua)
     || (/iPhone|iPad|iPod|Macintosh/.test(ua) && /AppleWebKit/.test(ua) && !/Safari\//.test(ua))));
   var giris = /access_token=|type=recovery|error_description=/.test(h) || /[?&](code|token_hash)=/.test(q);
-  if (!uygulama && !giris && localStorage.getItem('csc_web_oyna') !== '1') location.replace('/karsilama.html');
+  if (!uygulama && !giris && localStorage.getItem('csc_web_oyna') !== '1') { window._csc645 = 1; location.replace('/karsilama.html'); }
 })();
 </script>
 <!-- ═══ 🌍 AÇILIŞ PERDESİ (i18n) ═══
@@ -108,6 +108,7 @@ window._i18nPerdeAc = function(){
     var e = document.getElementById('i18n-perde');
     if (e && e.parentNode) e.parentNode.removeChild(e);
     document.documentElement.removeAttribute('data-i18n-bekliyor');
+    if (window._ekranDurt) window._ekranDurt();   // 856
   } catch(e) {}
 };
 
@@ -167,9 +168,112 @@ window._i18nSozlukYukle = function(dil, bitti){
         var e = document.getElementById('i18n-perde');
         if (e && e.parentNode) e.parentNode.removeChild(e);
         document.documentElement.removeAttribute('data-i18n-bekliyor');
+        if (window._ekranDurt) window._ekranDurt();   // 856
       } catch(e3) {}
     }, 6000);
   } catch(e) {}
+})();
+</script>
+<script>
+/* 856 — AÇILIŞ ÖLÇÜMÜ: oyun hiç açılmasa bile (ana kod inmese, çalışmasa ya da açılış ekranında takılsa) kayıt hunisine haber gider.
+   baslat: oturumu olmayan cihaz uygulamayı açtı · ekran: açılış ekranı kalktı (kaç sn'de) · takildi: açılış ekranı 15/40 sn'de hâlâ
+   duruyor ya da o ekrandayken uygulamadan çıkıldı (hangi aşamada, WebView sürümü, ilk hata). Ekranda hiçbir şey göstermez.
+   Ayrıca açılış ekranı / dil perdesi kalkınca ekran yeniden boyanır: bazı Android WebView'larda alan dokunulana dek siyah kalıyor. */
+(function () {
+  if (window._csc645) return;
+  var ADRES = 'https://fkmpkfhikhludkgrzvtd.supabase.co/rest/v1/rpc/huni_yaz', ANAHTAR = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZrbXBrZmhpa2hsdWRrZ3J6dnRkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5Mjg0NTYsImV4cCI6MjA5NDUwNDQ1Nn0.iYfX_1spn8n3A7Z7B_3eajweKFFUvZwOL0Q6IDS7TyM';
+  var T0 = Date.now(), hata = [], cikti = false;
+  window._acAsama = 'html';
+  function sn() { return Math.round((Date.now() - T0) / 1000); }
+  function oku(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function yaz(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function cihaz() {
+    var k = oku('csc_huni');
+    if (!k || !/^[0-9a-f-]{36}$/i.test(k)) {
+      k = 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, function () { return Math.floor(Math.random() * 16).toString(16); });
+      yaz('csc_huni', k);
+      if (oku('csc_huni') !== k) return null;
+    }
+    return k;
+  }
+  function oturumVar() {
+    try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && /^sb-.*-auth-token/.test(k)) return true; } } catch (e) {}
+    return /access_token=|refresh_token=/.test(location.hash) || /[?&](code|token_hash)=/.test(location.search);
+  }
+  var yeni = !oturumVar();
+  var platform = 'web';
+  try { var p = window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform(); if (p === 'ios' || p === 'android') platform = p; } catch (e) {}
+  var ua = String(navigator.userAgent || '');
+  var surum = (ua.match(/Chrome\/(\d+)/) || [])[1] ? 'c' + ua.match(/Chrome\/(\d+)/)[1] : ((ua.match(/OS (\d+)_/) || [])[1] ? 'ios' + ua.match(/OS (\d+)_/)[1] : '');
+  function gonder(adim, ayrinti, sonra, cikarken) {
+    try {
+      var id = cihaz(); if (!id) return;
+      var tz = ''; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
+      var govde = JSON.stringify({ p_cihaz: id, p_adim: adim, p_bilgi: { ayrinti: String(ayrinti || '').slice(0, 120), platform: platform,
+        dil: navigator.language || '', oyun_dili: oku('cft_language') || '', tz: tz } });
+      if (cikarken && window.fetch) {
+        fetch(ADRES, { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json', apikey: ANAHTAR, Authorization: 'Bearer ' + ANAHTAR }, body: govde })
+          .then(function (r) { if (sonra && r.ok) sonra(); }, function () {});
+        return;
+      }
+      var x = new XMLHttpRequest();
+      x.open('POST', ADRES, true);
+      x.setRequestHeader('Content-Type', 'application/json');
+      x.setRequestHeader('apikey', ANAHTAR);
+      x.setRequestHeader('Authorization', 'Bearer ' + ANAHTAR);
+      x.onload = function () { if (sonra && x.status >= 200 && x.status < 300) sonra(); };
+      x.send(govde);
+    } catch (e) {}
+  }
+  // Betik inmedi / çalışmadı → ilk hatalar (resim hataları sayılmaz)
+  window.addEventListener('error', function (e) {
+    try {
+      var m = '', t = e && e.target;
+      if (t && t !== window && t.tagName) { if (t.tagName === 'SCRIPT') m = 'inmedi ' + String(t.src || '').split('/').pop().split('?')[0]; }
+      else if (e) m = String(e.message || '').replace(/^Uncaught /, '').slice(0, 70);
+      if (m && hata.length < 3 && hata.indexOf(m) < 0) hata.push(m);
+    } catch (x) {}
+  }, true);
+  function kapandi() { return !!window._olcAcilisKapandi; }
+  function rapor(neden, cikarken) {
+    if (kapandi()) return;
+    var ayr = [neden, window._acAsama || '?', window._acJs ? '' : 'ana kod yok', surum, hata[0] || ''];
+    var a = []; for (var i = 0; i < ayr.length; i++) if (ayr[i]) a.push(ayr[i]);
+    gonder('takildi', a.join(' · '), null, cikarken);
+  }
+  if (yeni) gonder('baslat', [surum, navigator.deviceMemory ? navigator.deviceMemory + 'GB' : ''].join(' ').replace(/^ | $/g, ''));
+  setTimeout(function () { rapor('15 sn'); }, 15000);
+  setTimeout(function () { rapor('40 sn'); }, 40000);
+  function gizlendi() {
+    if (cikti || kapandi()) return;
+    cikti = true;
+    var s = sn();
+    rapor('çıktı ' + (s < 10 ? '<10' : s < 20 ? '10-20' : s < 40 ? '20-40' : '40+') + ' sn', true);
+  }
+  document.addEventListener('visibilitychange', function () { if (document.hidden) gizlendi(); });
+  window.addEventListener('pagehide', gizlendi);
+  // Ekranı yeniden boyamaya zorla (görünüm değişmez)
+  function durt() {
+    try {
+      var d = document.documentElement;
+      var bir = function () {
+        try {
+          d.style.opacity = '0.999';
+          (window.requestAnimationFrame || setTimeout)(function () { d.style.opacity = ''; });
+          if (typeof window._authYenidenCiz === 'function') window._authYenidenCiz();
+        } catch (e) {}
+      };
+      bir(); setTimeout(bir, 300); setTimeout(bir, 1200);
+    } catch (e) {}
+  }
+  window._ekranDurt = durt;
+  // Açılış ekranı kalktı
+  window._acEkran = function () {
+    durt();
+    if (!yeni || oku('csc_ac_ekran')) return;
+    var s = sn();
+    gonder('ekran', s < 5 ? '0-5 sn' : s < 10 ? '5-10 sn' : s < 20 ? '10-20 sn' : s < 40 ? '20-40 sn' : '40+ sn', function () { yaz('csc_ac_ekran', '1'); });
+  };
 })();
 </script>
 <!-- ═══ HATA YAKALAYICI — yalnız hata ayıklama modunda (localStorage cft_debug = '1') ═══
@@ -341,7 +445,7 @@ window._i18nSozlukYukle = function(dil, bitti){
     gidiyor = true;
     setTimeout(function(){
       acilis.classList.add('cikis');
-      setTimeout(function(){ acilis.classList.add('hide'); window._olcAcilisKapandi = Math.round(performance.now()); }, 700);
+      setTimeout(function(){ acilis.classList.add('hide'); window._olcAcilisKapandi = Math.round(performance.now()); try { if (window._acEkran) window._acEkran(); } catch(e) {} }, 700);
     }, 250);
   }
   function animasyonBitti(){ bitti = true; kapatDene(); }
@@ -26020,8 +26124,8 @@ body.pd-acik{overflow:hidden}
   </div>
 </div>
 
-<script src="js/oyun.7f9cf500.js"></script>
-<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.7f9cf500.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
+<script src="js/oyun.261103c9.js"></script>
+<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.261103c9.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
 
 <nav id="bottomnav">
   <button class="nav-btn active" onclick="showPage('home',this)"><div class="nav-icon">🏠</div><div class="nav-label">Menü</div></button>
