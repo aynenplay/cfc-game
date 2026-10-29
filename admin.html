@@ -480,6 +480,9 @@
   .ms-kisi small{ display:block; margin-top:2px; font-size:12px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .ms-kisi button{ width:30px; height:30px; border-radius:9px; border:1px solid var(--line); background:var(--panel); color:var(--dim); }
   .ms-yok{ padding:10px 2px; font-size:13px; color:var(--dim); }
+  .ms-secili{ display:flex; flex-direction:column; gap:6px; margin-bottom:8px; }
+  .ms-secili .ms-kisi+.ms-kisi{ margin-top:0; }
+  .ms-kisi.ekli{ opacity:.45; cursor:default; }
   .ms-on{ display:grid !important; grid-template-columns:1fr 1fr; gap:10px; }
   .ms-bn,.ms-gk{ border-radius:14px; padding:11px 12px; min-width:0; }
   .ms-bn{ background:#22262e; }
@@ -6117,11 +6120,11 @@ const MS_IK = {
   bilgi:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.6v.3"/>' };
 const msIk=(k,c)=>`<svg class="ms-i${c?' '+c:''}" viewBox="0 0 24 24">${MS_IK[k]||MS_IK.duyuru}</svg>`;
 const MS_HEDEF = [['tekil','Tekil'],['uyruk','Uyruk'],['takim','Takım'],['tum','Tümü']];
-let MS = { h:'tekil', konu:'uyari', kisi:null, uyruk:'', takim:'', bul:[], hedef:null, gecmis:[] };
+let MS = { h:'tekil', konu:'uyari', kisiler:[], uyruk:'', takim:'', bul:[], hedef:null, gecmis:[] };   // 865 — tekil: birden çok kişi
 const msKonu=k=>MS_KONU.find(x=>x[0]===k)||MS_KONU[0];
 function msSay(){
   const H=MS.hedef||{ tum:0, uyruk:[], takim:[] };
-  if(MS.h==='tekil') return MS.kisi?1:0;
+  if(MS.h==='tekil') return MS.kisiler.length;
   if(MS.h==='tum') return H.tum;
   const L=MS.h==='uyruk'?H.uyruk:H.takim, x=L.find(r=>r.deger===(MS.h==='uyruk'?MS.uyruk:MS.takim));
   return x?x.n:0;
@@ -6156,12 +6159,12 @@ async function openMesaj(){
 }
 function msCiz(){
   const H=MS.hedef, k=$('msKime'); if(!k) return;
-  const cip=([h,ad])=>{ const n=!H?'…':h==='tekil'?(MS.kisi?1:'—'):h==='tum'?H.tum:(H[h].length||'—');
+  const cip=([h,ad])=>{ const n=!H?'…':h==='tekil'?(MS.kisiler.length||'—'):h==='tum'?H.tum:(H[h].length||'—');
     return `<button class="ak-cip u-mav${MS.h===h?' on':''}" data-h="${h}"><em>${n}</em><span>${ad}</span></button>`; };
   let alt='';
-  if(MS.h==='tekil'){
-    alt = MS.kisi ? `<div class="ms-kisi on"><span class="bay">${ccFlag(MS.kisi.cc)}</span><div><b>${uEsc(MS.kisi.ad)}</b><small>@${uEsc(MS.kisi.kad||'')}${MS.kisi.takim?' · '+uEsc(MS.kisi.takim):' · Takımsız'}</small></div><button id="msKisiX" title="Değiştir">✕</button></div>`
-      : `<input id="msAra" class="bcinp" placeholder="Kullanıcı adı, ad veya e-posta" autocomplete="off"><div id="msBul">${msBulHtml()}</div>`;
+  if(MS.h==='tekil'){   // 865 — seçilenler üstte (✕ ile çıkar), arama hep açık: istenildiği kadar kişi eklenir
+    alt = (MS.kisiler.length ? `<div class="ms-secili">${MS.kisiler.map((p,i)=>`<div class="ms-kisi on"><span class="bay">${ccFlag(p.cc)}</span><div><b>${uEsc(p.ad)}</b><small>@${uEsc(p.kad||'')}${p.takim?' · '+uEsc(p.takim):' · Takımsız'}</small></div><button data-x="${i}" title="Çıkar">✕</button></div>`).join('')}</div>` : '')
+      + `<input id="msAra" class="bcinp" placeholder="Kullanıcı adı, ad veya e-posta" autocomplete="off"><div id="msBul">${msBulHtml()}</div>`;
   } else if(MS.h!=='tum' && H){
     const L=H[MS.h], sec=MS.h==='uyruk'?MS.uyruk:MS.takim;
     alt=`<select id="msSec" class="bcinp">${L.map(r=>{ const ad=MS.h==='uyruk'?(CC_NAME[r.deger]||r.deger):String(r.deger).split('|').slice(1).join('|');
@@ -6170,7 +6173,7 @@ function msCiz(){
   k.innerHTML=`<div class="ak-cips">${MS_HEDEF.map(cip).join('')}</div>${alt}`;
   k.querySelectorAll('[data-h]').forEach(b=>b.onclick=()=>{ MS.h=b.dataset.h; msCiz(); const a=$('msAra'); if(a) a.focus(); });
   const sec=$('msSec'); if(sec) sec.onchange=()=>{ if(MS.h==='uyruk') MS.uyruk=sec.value; else MS.takim=sec.value; msCiz(); };
-  const x=$('msKisiX'); if(x) x.onclick=()=>{ MS.kisi=null; MS.bul=[]; msCiz(); const a=$('msAra'); if(a) a.focus(); };
+  k.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>{ MS.kisiler.splice(Number(b.dataset.x),1); msCiz(); });   // 865
   const ara=$('msAra'); if(ara){ ara.oninput=()=>msAra(ara.value); }
   msBulBagla();
   $('msKonu').innerHTML=MS_KONU.map(([kk,ad,c])=>`<button class="ak-cip${MS.konu===kk?' on':''}" style="--c:${c}" data-k="${kk}">${msIk(kk)}<span>${ad}</span></button>`).join('');
@@ -6180,11 +6183,13 @@ function msCiz(){
   msOnCiz();
 }
 function msBulHtml(){
-  return MS.bul.map((r,i)=>`<div class="ms-kisi" data-i="${i}"><span class="bay">${ccFlag(r.cc)}</span><div><b>${uEsc(r.ad)}</b><small>@${uEsc(r.kad||'')}${r.takim?' · '+uEsc(r.takim):' · Takımsız'}</small></div></div>`).join('');
+  return MS.bul.map((r,i)=>`<div class="ms-kisi${MS.kisiler.some(p=>p.id===r.id)?' ekli':''}" data-i="${i}"><span class="bay">${ccFlag(r.cc)}</span><div><b>${uEsc(r.ad)}</b><small>@${uEsc(r.kad||'')}${r.takim?' · '+uEsc(r.takim):' · Takımsız'}</small></div></div>`).join('');
 }
 function msBulBagla(){
   const b=$('msBul'); if(!b) return;
-  b.querySelectorAll('[data-i]').forEach(el=>el.onclick=()=>{ MS.kisi=MS.bul[Number(el.dataset.i)]; MS.bul=[]; msCiz(); });
+  b.querySelectorAll('[data-i]').forEach(el=>el.onclick=()=>{   // 865 — listeye ekle, arama temizlenir
+    const p=MS.bul[Number(el.dataset.i)]; if(p && !MS.kisiler.some(x=>x.id===p.id)) MS.kisiler.push(p);
+    MS.bul=[]; msCiz(); const a=$('msAra'); if(a) a.focus(); });
 }
 let _msAraT=null, _msAraNo=0;
 function msAra(v){
@@ -6212,18 +6217,31 @@ function msOnCiz(){
 async function msGonder(){
   const hata=$('msHata'), gos=m=>{ hata.textContent=m; };
   const baslik=String($('msBaslik').value||'').trim(), govde=String($('msGovde').value||'').trim();
-  if(MS.h==='tekil' && !MS.kisi) return gos('Oyuncu seç.');
+  if(MS.h==='tekil' && !MS.kisiler.length) return gos('Oyuncu seç.');
   if(baslik.length<3) return gos('Başlık en az 3 karakter.');
   if(govde.length<5) return gos('Mesaj en az 5 karakter.');
   const n=msSay(); if(!n) return gos('Gönderilecek oyuncu yok.');
-  const deger=MS.h==='tekil'?MS.kisi.id:MS.h==='uyruk'?MS.uyruk:MS.h==='takim'?MS.takim:null;
-  const kime=MS.h==='tekil'?MS.kisi.ad:MS.h==='tum'?'tüm oyunculara':(n+' oyuncuya');
+  const deger=MS.h==='uyruk'?MS.uyruk:MS.h==='takim'?MS.takim:null;
+  const kime=MS.h==='tekil'?(n===1?MS.kisiler[0].ad:n+' kişiye'):MS.h==='tum'?'tüm oyunculara':(n+' oyuncuya');
   if(!confirm(msKonu(MS.konu)[1]+' · '+kime+' gönderilsin mi?')) return;
   gos('');
   const btn=$('msGonder'); btn.disabled=true; btn.textContent='Gönderiliyor…';
   try{
-    await fbRpc('yonetim_mesaj_gonder',{ p_hedef:MS.h, p_deger:deger, p_konu:MS.konu, p_baslik:baslik, p_govde:govde });
-    btn.textContent='✓ Gönderildi'; $('msBaslik').value=''; $('msGovde').value=''; $('msUz').textContent='0 / 1000'; msOnCiz();
+    if(MS.h==='tekil'){   // 865 — her seçilene ayrı tekil mesaj; gidemeyenler listede kalır
+      const kalan=[]; let ilkHata=null;
+      for(let i=0;i<MS.kisiler.length;i++){
+        const p=MS.kisiler[i]; btn.textContent='Gönderiliyor… '+(i+1)+'/'+MS.kisiler.length;
+        try{ await fbRpc('yonetim_mesaj_gonder',{ p_hedef:'tekil', p_deger:p.id, p_konu:MS.konu, p_baslik:baslik, p_govde:govde }); }
+        catch(e){ kalan.push(p); if(!ilkHata) ilkHata=e; }
+      }
+      MS.kisiler=kalan; msCiz();
+      if(kalan.length){ if(kalan.length===n) throw ilkHata; gos((n-kalan.length)+' kişiye gitti · '+kalan.length+' kişiye gidemedi (listede kaldı)'); }
+    } else {
+      await fbRpc('yonetim_mesaj_gonder',{ p_hedef:MS.h, p_deger:deger, p_konu:MS.konu, p_baslik:baslik, p_govde:govde });
+    }
+    btn.textContent='✓ Gönderildi';
+    if(!(MS.h==='tekil' && MS.kisiler.length)){ $('msBaslik').value=''; $('msGovde').value=''; $('msUz').textContent='0 / 1000'; }
+    msOnCiz();
     try{ MS.gecmis=(await api('list',{ table:'yonetim_mesaj', orderBy:'zaman', orderDir:'desc', limit:20 })).rows||[]; msGecCiz(); }catch(e){}
     setTimeout(()=>{ btn.disabled=false; btn.textContent='Gönder'; }, 1500);
   }catch(e){
