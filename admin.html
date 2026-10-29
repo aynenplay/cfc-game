@@ -150,6 +150,8 @@
   /* ── ELMAS SATIŞLARI ── */
   .od-ust{ display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:13px; }
   .od-not{ font-size:11px; color:var(--dim); margin-top:3px; }
+  .od-tarih{ display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:8px; max-width:330px; }
+  .od-tarih .bcinp{ width:100%; min-width:0; height:34px; box-sizing:border-box; color-scheme:dark; }
   .od-sw{ display:inline-flex; align-items:center; gap:7px; font-size:12px; color:var(--dim); cursor:pointer; user-select:none; }
   .od-sw input{ width:15px; height:15px; accent-color:var(--accent); cursor:pointer; }
   .od-tablo{ border:1px solid var(--line); border-radius:12px; overflow-x:auto; margin-top:12px; }
@@ -1536,7 +1538,7 @@ function openDash(){
         const gecerli = kayit.filter(x => x.status !== 'refunded');
         const ciro    = gecerli.reduce((t,x)=>t+_odTl(x),0);
         const elmas   = gecerli.reduce((t,x)=>t+(Number(x.dia)||0),0);
-        const donemAd = (OD_DONEM.find(x=>x.k===OD_SECILI)||{}).ad || '';
+        const donemAd = _odDonemAd();
         const el = $('num-payments');
         if (el) {
           el.textContent = _odPara(ciro);
@@ -1893,9 +1895,11 @@ const OD_DONEM = [
   { k:'hafta', ad:'Bu Hafta' },
   { k:'ay',    ad:'Bu Ay'    },
   { k:'yil',   ad:'Bu Yıl'   },
-  { k:'tumu',  ad:'Tümü'     }
+  { k:'tumu',  ad:'Tümü'     },
+  { k:'ozel',  ad:'Özel'     }
 ];
 let OD_SECILI  = 'ay';
+let OD_BAS = null, OD_BIT = null;   // 858 — özel dönem: 'YYYY-MM-DD' (İstanbul günü, ikisi dahil)
 let OD_LISTE   = [];      // payments satırları
 let OD_ISIM    = {};      // user_id -> {ad, takim}
 let OD_KISI    = null;    // açık olan alıcı (null = liste)
@@ -1911,6 +1915,18 @@ function _odBaslangic(k){
   if (k === 'ay')  return new Date(d.getFullYear(), d.getMonth(), 1).getTime();
   if (k === 'yil') return new Date(d.getFullYear(), 0, 1).getTime();
   return 0;
+}
+// 858 — özel dönem sınırları (İstanbul günü; bitiş günü dahil). Varsayılan: bu ay (ayın 1'i → bugün)
+function _odOzel(){
+  if (!OD_BAS) { OD_BIT = uIstGun(); OD_BAS = OD_BIT.slice(0, 8) + '01'; }
+  return OD_BAS <= OD_BIT ? [OD_BAS, OD_BIT] : [OD_BIT, OD_BAS];
+}
+const _odGunMs = g => new Date(g + 'T00:00:00+03:00').getTime();
+const _odGunYaz = g => g.slice(8, 10) + '.' + g.slice(5, 7) + '.' + g.slice(0, 4);
+function _odDonemAd(){
+  if (OD_SECILI !== 'ozel') return (OD_DONEM.find(d => d.k === OD_SECILI) || {}).ad || '';
+  const [a, b] = _odOzel();
+  return a === b ? _odGunYaz(a) : _odGunYaz(a) + ' – ' + _odGunYaz(b);
 }
 function _odMs(t){ if(!t) return 0; const x = new Date(t).getTime(); return isNaN(x) ? 0 : x; }
 function _odTarih(t){
@@ -1936,10 +1952,10 @@ async function _odVeriCek(){
 }
 
 function _odSuzulmus(){
-  const bas = _odBaslangic(OD_SECILI);
-  return OD_LISTE.filter(x =>
-    _odMs(x.created_at) >= bas && (OD_TEST || x.sandbox !== true)
-  );
+  let bas = _odBaslangic(OD_SECILI), bit = Infinity;
+  if (OD_SECILI === 'ozel') { const [a, b] = _odOzel(); bas = _odGunMs(a); bit = _odGunMs(b) + 86400000; }   // 858
+  return OD_LISTE.filter(x => { const t = _odMs(x.created_at);
+    return t >= bas && t < bit && (OD_TEST || x.sandbox !== true); });
 }
 
 async function openPayments(){
@@ -1987,14 +2003,16 @@ function odCiz(){
     k.son = Math.max(k.son, _odMs(x.created_at));
   });
   const liste = Object.values(kisi).sort((a,b)=> b.ciro - a.ciro);
-  const donemAd = (OD_DONEM.find(d=>d.k===OD_SECILI)||{}).ad || '';
+  const donemAd = _odDonemAd();
 
   $('main').innerHTML = _opBaslik('Elmas Satışları', kayit.length + ' işlem · ' + liste.length + ' alıcı')
     + '<div class="bcbox fadein" style="padding:14px 15px">'
       + '<div class="od-ust">'
         + '<div><div class="rk-sure-btns" id="odBtns">'
           + OD_DONEM.map(d=>`<button data-k="${d.k}" class="${d.k===OD_SECILI?'on':''}">${d.ad}</button>`).join('')
-        + '</div><div class="od-not">Seçili dönem: <b>' + donemAd + '</b></div></div>'
+        + '</div>' + (OD_SECILI === 'ozel' ? (() => { const [a, b] = _odOzel(), m = uIstGun();
+            return `<div class="od-tarih"><input type="date" class="bcinp" id="odBas" value="${a}" max="${m}"><input type="date" class="bcinp" id="odBit" value="${b}" max="${m}"></div>`; })() : '')
+        + '<div class="od-not">Seçili dönem: <b>' + donemAd + '</b></div></div>'
         + '<label class="od-sw"><input type="checkbox" id="odTest"' + (OD_TEST?' checked':'') + '>'
         + 'Test (sandbox) kayıtlarını da göster</label>'
       + '</div>'
@@ -2029,6 +2047,9 @@ function odCiz(){
 
   const b = $('odBtns');
   if (b) b.querySelectorAll('button').forEach(x => x.onclick = () => { OD_SECILI = x.dataset.k; odCiz(); });
+  const ob = $('odBas'), oz = $('odBit');   // 858
+  if (ob) ob.onchange = () => { if (ob.value) { OD_BAS = ob.value; odCiz(); } };
+  if (oz) oz.onchange = () => { if (oz.value) { OD_BIT = oz.value; odCiz(); } };
   const t = $('odTest');
   if (t) t.onchange = () => { OD_TEST = t.checked; odCiz(); };
 }
@@ -2043,7 +2064,7 @@ function odKisiCiz(){
   const gecerli = kayit.filter(x => x.status !== 'refunded');
   const ciro  = gecerli.reduce((t,x)=>t+_odTl(x),0);
   const elmas = gecerli.reduce((t,x)=>t+(Number(x.dia)||0),0);
-  const donemAd = (OD_DONEM.find(d=>d.k===OD_SECILI)||{}).ad || '';
+  const donemAd = _odDonemAd();
 
   $('main').innerHTML = _opBaslik(bilgi.ad || OD_KISI.slice(0,8), (bilgi.takim||'') + ' · ' + donemAd)
     + '<div style="display:flex;gap:8px;margin-bottom:14px">'
