@@ -8086,3 +8086,13 @@ window.I18N_PATTERNS.pt.unshift(
   [/^Yardımcı kaptan (.+?) sözleşme yenileme talebini ONAYLADI\.$/, "O vice-capitão $1 APROVOU seu pedido de renovação de contrato."],
   [/^Yardımcı kaptan (.+?) sözleşme yenileme talebini REDDETTİ\.$/, "O vice-capitão $1 RECUSOU seu pedido de renovação de contrato."]
 );
+
+/* ─── 861 · Ana sayfa kartı: maç yokken (yeni sezon / lig haftası), takımsız oyuncu sloganları ─── */
+Object.assign(window.I18N.pt, {
+  "Yeni sezon": "Nova temporada",
+  "Takımın sahibi ol, kuralları sen koy.": "Seja o dono do time e dite as regras.",
+  "Kadroya katıl, hemen sahaya çık.": "Entre num elenco e vá logo a campo."
+});
+window.I18N_PATTERNS.pt.unshift(
+  [/^Lig (\d+)\. hafta$/, "Liga · Rodada $1"]
+);
