@@ -6473,3 +6473,13 @@ window.I18N_PATTERNS.de.unshift(
   [/^Satış Fiyatı \(en az (\d+) 💎\)$/, "Verkaufspreis (mind. $1 💎)"],
   [/^(❌ )?En düşük fiyat (\d+) 💎\.$/, "$1Mindestpreis: $2 💎."]
 );
+
+/* ─── 864 · Takım değişikliği cezası (24 saat) ─── */
+Object.assign(window.I18N.de, {
+  "Takım değişikliği cezası": "Teamwechsel-Sperre",
+  "Takım değişikliği cezası · resmi maçlarda oynayamaz": "Teamwechsel-Sperre · darf keine Pflichtspiele bestreiten"
+});
+window.I18N_PATTERNS.de.unshift(
+  [/^(.+?) takımından ayrılmak istediğine emin misin\?\s+İstediğin zaman tekrar bir takıma katılabilirsin veya satın alabilirsin\.\s+Ayrıldıktan sonra 24 saat resmi maçlarda oynayamazsın\.$/, "Willst du $1 wirklich verlassen?\n\nDu kannst jederzeit wieder einem Team beitreten oder eins kaufen.\n\nNach dem Verlassen darfst du 24 Stunden lang keine Pflichtspiele bestreiten."],
+  [/^🟪 (.+?) takım değişikliği cezalı — (.+?) sonra oynayabilir$/, "🟪 $1 hat eine Teamwechsel-Sperre — darf in $2 wieder spielen"]
+);

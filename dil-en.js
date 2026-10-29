@@ -8538,3 +8538,13 @@ window.I18N_PATTERNS.en.unshift(
   [/^Satış Fiyatı \(en az (\d+) 💎\)$/, "Sale Price (min. $1 💎)"],
   [/^(❌ )?En düşük fiyat (\d+) 💎\.$/, "$1Minimum price is $2 💎."]
 );
+
+/* ─── 864 · Takım değişikliği cezası (24 saat) ─── */
+Object.assign(window.I18N.en, {
+  "Takım değişikliği cezası": "Team change ban",
+  "Takım değişikliği cezası · resmi maçlarda oynayamaz": "Team change ban · cannot play official matches"
+});
+window.I18N_PATTERNS.en.unshift(
+  [/^(.+?) takımından ayrılmak istediğine emin misin\?\s+İstediğin zaman tekrar bir takıma katılabilirsin veya satın alabilirsin\.\s+Ayrıldıktan sonra 24 saat resmi maçlarda oynayamazsın\.$/, "Are you sure you want to leave $1?\n\nYou can join or buy a team again at any time.\n\nAfter leaving, you can’t play official matches for 24 hours."],
+  [/^🟪 (.+?) takım değişikliği cezalı — (.+?) sonra oynayabilir$/, "🟪 $1 has a team change ban — can play in $2"]
+);

@@ -8145,3 +8145,13 @@ window.I18N_PATTERNS.ru.unshift(
   [/^Satış Fiyatı \(en az (\d+) 💎\)$/, "Цена продажи (мин. $1 💎)"],
   [/^(❌ )?En düşük fiyat (\d+) 💎\.$/, "$1Минимальная цена — $2 💎."]
 );
+
+/* ─── 864 · Takım değişikliği cezası (24 saat) ─── */
+Object.assign(window.I18N.ru, {
+  "Takım değişikliği cezası": "Дисквалификация за смену команды",
+  "Takım değişikliği cezası · resmi maçlarda oynayamaz": "Дисквалификация за смену команды · не может играть в официальных матчах"
+});
+window.I18N_PATTERNS.ru.unshift(
+  [/^(.+?) takımından ayrılmak istediğine emin misin\?\s+İstediğin zaman tekrar bir takıma katılabilirsin veya satın alabilirsin\.\s+Ayrıldıktan sonra 24 saat resmi maçlarda oynayamazsın\.$/, "Точно хочешь покинуть $1?\n\nТы можешь в любое время вступить в команду или купить её.\n\nПосле ухода ты не сможешь играть в официальных матчах 24 часа."],
+  [/^🟪 (.+?) takım değişikliği cezalı — (.+?) sonra oynayabilir$/, "🟪 $1 дисквалифицирован за смену команды — сможет играть через $2"]
+);
