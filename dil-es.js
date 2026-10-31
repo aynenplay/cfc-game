@@ -8123,3 +8123,12 @@ window.I18N_PATTERNS.es.unshift(
   [/^(.+?) takımından ayrılmak istediğine emin misin\?\s+İstediğin zaman tekrar bir takıma katılabilirsin veya satın alabilirsin\.\s+Ayrıldıktan sonra 24 saat resmi maçlarda oynayamazsın\.$/, "¿Seguro que quieres dejar $1?\n\nPuedes unirte a un equipo o comprar uno en cualquier momento.\n\nTras salir, no podrás jugar partidos oficiales durante 24 horas."],
   [/^🟪 (.+?) takım değişikliği cezalı — (.+?) sonra oynayabilir$/, "🟪 $1 tiene sanción por cambio de equipo — podrá jugar en $2"]
 );
+
+/* ─── 878 · Ayarlar › E-posta ─── */
+Object.assign(window.I18N.es, {
+  "Ekle": "Añadir",
+  "Bu e-posta adresi geçerli değil. Kontrol edip tekrar yaz.": "Esta dirección de correo no es válida. Revísala e inténtalo de nuevo.",
+  "Bunu mu demek istedin?": "¿Quisiste decir esto?",
+  "Şu an e-posta gönderilemiyor. Daha sonra tekrar dene.": "Ahora mismo no se pueden enviar correos. Inténtalo más tarde.",
+  "Bu zaten kayıtlı e-postan.": "Este ya es tu correo guardado."
+});

@@ -8155,3 +8155,12 @@ window.I18N_PATTERNS.ru.unshift(
   [/^(.+?) takımından ayrılmak istediğine emin misin\?\s+İstediğin zaman tekrar bir takıma katılabilirsin veya satın alabilirsin\.\s+Ayrıldıktan sonra 24 saat resmi maçlarda oynayamazsın\.$/, "Точно хочешь покинуть $1?\n\nТы можешь в любое время вступить в команду или купить её.\n\nПосле ухода ты не сможешь играть в официальных матчах 24 часа."],
   [/^🟪 (.+?) takım değişikliği cezalı — (.+?) sonra oynayabilir$/, "🟪 $1 дисквалифицирован за смену команды — сможет играть через $2"]
 );
+
+/* ─── 878 · Ayarlar › E-posta ─── */
+Object.assign(window.I18N.ru, {
+  "Ekle": "Добавить",
+  "Bu e-posta adresi geçerli değil. Kontrol edip tekrar yaz.": "Этот адрес эл. почты недействителен. Проверь его и попробуй снова.",
+  "Bunu mu demek istedin?": "Ты имел в виду это?",
+  "Şu an e-posta gönderilemiyor. Daha sonra tekrar dene.": "Сейчас нельзя отправить письмо. Попробуй позже.",
+  "Bu zaten kayıtlı e-postan.": "Это уже твоя сохранённая эл. почта."
+});
