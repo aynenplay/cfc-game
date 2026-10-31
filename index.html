@@ -101,7 +101,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '878';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '889';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -26108,8 +26108,8 @@ body.pd-acik{overflow:hidden}
   </div>
 </div>
 
-<script src="js/oyun.1496043f.js"></script>
-<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.1496043f.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
+<script src="js/oyun.cdd1d109.js"></script>
+<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.cdd1d109.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
 
 <nav id="bottomnav">
   <button class="nav-btn active" onclick="showPage('home',this)"><div class="nav-icon">🏠</div><div class="nav-label">Menü</div></button>
@@ -39342,7 +39342,7 @@ const _SF_IK = {
   imzaKalem: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18c2.5-3 4-3.5 4.5-1.5.4 1.8 2 1.3 3.3-.6 1.1-1.6 2.1-1.4 2.2.3"/><path d="M15.5 4.5l4 4L12 16l-4.5 1 1-4.5z"/></svg>'
 };
 const _SF_UST = { dia: 100000, eur: 500000000 };   // sunucudaki tavanlar
-let _sf = null;   // { tip: 'oner'|'katil', tur: 'var'|'yok', sure, maas, sadeceSoz, p, cc, tn, kaptan, dia, eur }
+let _sf = null;   // { tip: 'oner'|'katil'|'teklif', tur: 'var'|'yok', sure, maas, sadeceSoz, p, cc, tn, kaptan, dia, eur, ucret, takim, sozlu, bosta, kapali }
 const _sfTr = n => Number(n || 0).toLocaleString('tr-TR');
 const _sfK = v => v >= 1e6 ? (v / 1e6).toFixed(2) + 'M €' : v >= 1e3 ? Math.round(v / 1e3) + 'K €' : v + ' €';
 const _sfEsc = x => String(x == null ? '' : x).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -39374,7 +39374,7 @@ function _sfCiz() {
     ov.addEventListener('click', e => { if (e.target === ov) sfKapat(); });
     document.body.appendChild(ov);
   }
-  const katil = s.tip === 'katil';
+  const katil = s.tip === 'katil', teklif = s.tip === 'teklif';   // 889 — teklif: kaptan / yardımcı → oyuncu
   let kim;
   if (katil) {
     const fl = (typeof ccToFlag === 'function') ? ccToFlag(s.cc) : '', lig = _sfLig(s.cc, s.tn);
@@ -39388,24 +39388,28 @@ function _sfCiz() {
     let av = p.avatar || '⭐';
     try { if (typeof getAvatarEmoji === 'function') av = getAvatarEmoji(p.avatar_id, p.pos) || av; } catch (e) {}
     const mevki = ((typeof subPosOf === 'function') ? subPosOf(p) : '') || ((typeof POS_LABEL !== 'undefined' && POS_LABEL[p.pos]) || p.pos || '');
+    const cip = (teklif && s.sozlu) ? `<span class="sf-cip var">${_SF_IK.belge}<span>Sözleşmeli</span></span>`
+      : `<span class="sf-cip yok">${_SF_IK.yok}<span>${teklif && s.bosta ? 'Boşta' : 'Sözleşmesiz'}</span></span>`;
     kim = `<div class="sf-kim"><div class="sf-av">${av}</div><div class="sf-kt"><b data-noi18n>${_sfEsc(p.name)}</b>`
-      + `<span><span data-noi18n>${_sfEsc(mevki)}</span> · <em style="color:${renk}" data-noi18n>${ovr}</em>${p.nation ? ` · <span data-noi18n>${p.nation}</span>` : ''}</span></div>`
-      + `<span class="sf-cip yok">${_SF_IK.yok}<span>Sözleşmesiz</span></span></div>`;
+      + `<span><span data-noi18n>${_sfEsc(mevki)}</span> · <em style="color:${renk}" data-noi18n>${ovr}</em>${p.nation ? ` · <span data-noi18n>${p.nation}</span>` : ''}${teklif && s.takim ? ` · <span data-noi18n>${_sfEsc(s.takim)}</span>` : ''}</span></div>`
+      + `${cip}</div>`;
   }
-  const tur = katil ? `<div class="sf-tur">
+  const pen = (teklif && s.kapali) ? `<div class="sf-not uyari sf-pen">${_sfEsc(_sfT('Transfer dönemi kapalı. Sözleşmeli oyuncu yalnız transfer günlerinde alınabilir (16–18 ve 34–40. gün).'))}</div>` : '';
+  const bon = (teklif && s.ucret > 0) ? `<div class="sf-maas sf-bon"><div><b>Bonservis</b><span><span>Satıcı takım kasasına</span> · <span>Sistem belirler</span></span></div><div><strong data-noi18n>${_sfK(s.ucret)}</strong></div></div>` : '';
+  const tur = (katil || teklif) ? `<div class="sf-tur">
       <button type="button" data-t="var" onclick="sfTur('var')">${_SF_IK.belge}<span>Sözleşmeli</span></button>
       <button type="button" data-t="yok" onclick="sfTur('yok')"${s.sadeceSoz ? ' disabled' : ''}>${_SF_IK.serbest}<span>Sözleşmesiz</span></button></div>
     <div class="sf-not" id="sfNot"></div>` : '';
   const g = (id, ik, et, ph, eur) => `<div class="sf-g">${ik}<label><small>${et}</small><input id="${id}" type="text" inputmode="numeric" autocomplete="off" placeholder="${ph}" oninput="sfGir(this,${eur ? 1 : 0})"></label></div>`;
   ov.innerHTML = `<div class="sf" role="dialog" aria-modal="true">
     <div class="sf-tut"></div>
-    <div class="sf-bas"><h3>${katil ? 'Katılma İsteği' : 'Sözleşme Öner'}</h3><button type="button" class="sf-x" onclick="sfKapat()" aria-label="Kapat">${_SF_IK.x}</button></div>
-    <div class="sf-govde">${kim}${tur}
+    <div class="sf-bas"><h3>${katil ? 'Katılma İsteği' : teklif ? 'Teklif Sun' : 'Sözleşme Öner'}</h3><button type="button" class="sf-x" onclick="sfKapat()" aria-label="Kapat">${_SF_IK.x}</button></div>
+    <div class="sf-govde">${kim}${pen}${tur}
       <div class="sf-blok" data-soz>
         <div class="sf-et"><span>Sözleşme Süresi</span></div>
         <div class="sf-sure">${[1, 2, 3, 4].map(n => `<button type="button" data-n="${n}" onclick="sfSure(${n})"><b data-noi18n>${n}</b><span>sezon</span></button>`).join('')}</div>
         <div class="sf-bitis"><span>Bitiş</span>: <b id="sfBitis"></b></div>
-      </div>
+      </div>${bon}
       <div class="sf-maas"><div><b>Sezonluk maaş</b><span>Sistem belirler</span></div><div><strong data-noi18n>${_sfK(s.maas)}</strong><span><span data-noi18n>4 × ${_sfK(Math.round(s.maas / 4))}</span> · <span>taksit</span></span></div></div>
       <div class="sf-blok" data-soz>
         <div class="sf-et"><span>İmza parası</span><i>isteğe bağlı</i></div>
@@ -39416,17 +39420,19 @@ function _sfCiz() {
     <div class="sf-alt"><button type="button" class="vz" onclick="sfKapat()">Vazgeç</button><button type="button" class="gn" id="sfGonder" onclick="sfGonder()">${katil ? 'İsteği Gönder' : 'Teklifi Gönder'}</button></div>
   </div>`;
   sfSure(s.sure); sfTur(s.tur);
+  if (teklif && s.kapali) { const gb = document.getElementById('sfGonder'); if (gb) gb.disabled = true; }   // 889
   ov.classList.add('acik');
 }
 function sfKapat() {
   _sfOnayKapat();
   const ov = document.getElementById('sfOv'); if (ov) ov.classList.remove('acik');
   if (_sf && _sf.tip === 'katil') _jrwtTarget = null;
+  if (_sf && _sf.tip === 'teklif') _tfTarget = null;   // 889
   _sf = null;
 }
 function sfTur(t) {
   const s = _sf; if (!s) return;
-  if (t === 'yok' && (s.tip !== 'katil' || s.sadeceSoz)) t = 'var';
+  if (t === 'yok' && ((s.tip !== 'katil' && s.tip !== 'teklif') || s.sadeceSoz)) t = 'var';
   s.tur = t;
   const ov = document.getElementById('sfOv'); if (!ov) return;
   ov.querySelectorAll('.sf-tur button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
@@ -39435,7 +39441,9 @@ function sfTur(t) {
   const not = document.getElementById('sfNot');
   if (not) {
     not.className = 'sf-not' + (s.sadeceSoz ? ' uyari' : '');
-    not.textContent = _sfT(s.sadeceSoz ? 'Bu takım sözleşmesiz oyuncu almıyor.' : t === 'yok' ? 'İstediğin zaman ayrılabilirsin.' : 'Sözleşme süresince takımda kalırsın.');
+    not.textContent = _sfT(s.sadeceSoz ? 'Bu takım sözleşmesiz oyuncu almıyor.'
+      : s.tip === 'teklif' ? (t === 'yok' ? 'İstediği zaman ayrılabilir.' : 'Sözleşme süresince takımda kalır.')
+      : t === 'yok' ? 'İstediğin zaman ayrılabilirsin.' : 'Sözleşme süresince takımda kalırsın.');
   }
 }
 function sfSure(n) {
@@ -39449,6 +39457,7 @@ function sfGonder() {
   const s = _sf; if (!s) return;
   s.dia = s.tur === 'yok' ? 0 : Math.min(_SF_UST.dia, _sfDeger('sfDia'));
   s.eur = s.tur === 'yok' ? 0 : Math.min(_SF_UST.eur, _sfDeger('sfEur'));
+  if (s.tip === 'teklif') return _sfTeklifGonder();   // 889
   if (s.tip === 'oner') return _sfSozlesmeGonder();
   if (s.tur === 'var') return _sfOnayAc();   // sözleşmeli: önce "emin misin?"
   return _sfIstekGonder();
@@ -39482,6 +39491,25 @@ async function _sfIstekGonder() {
   window._sfGonderiliyor = true; if (b) b.disabled = true;
   try { await submitJoinRequestWithTerms(); }
   finally { window._sfGonderiliyor = false; if (b) b.disabled = false; }
+}
+// 889 — Teklif Sun: hesaplar eski akıştan (bonservis, maaş, transfer dönemi), form katılma isteğiyle aynı
+function _sfTeklifAc(player, ctx) {
+  ctx = ctx || {};
+  _tfTarget = null;
+  _tfOpenOfferDirect0(player, ctx);
+  const m = document.getElementById('tfOfferModal'); if (m) m.classList.remove('open');
+  const t = _tfTarget; if (!t) return;
+  t._sfTeklif = true;
+  const sozlu = !(t._contractStatus === 'free' || t._contractStatus === 'none');
+  const pencere = (typeof isTransferWindowOpen === 'function') ? isTransferWindowOpen() : true;
+  _sf = { tip: 'teklif', tur: 'var', sure: 1, maas: Number(t._seasonSalary) || 0, p: player, ucret: sozlu ? (Number(t.fee) || 0) : 0,
+          takim: (ctx.teamName && ctx.teamName !== 'Serbest') ? ctx.teamName : '', sozlu, bosta: t._contractStatus === 'free', kapali: sozlu && !pencere };
+  _sfCiz();
+}
+async function _sfTeklifGonder() {
+  const s = _sf; if (!s || !_tfTarget) return;
+  if (s.kapali) { tfShowToast('⛔ Transfer dönemi kapalı', 'var(--red)'); return; }
+  await tfConfirmOffer();
 }
 function _sfOnerAc(p) {
   _sf = { tip: 'oner', tur: 'var', sure: 1, maas: (typeof getSystemPlayerSalary === 'function' ? Number(getSystemPlayerSalary(p)) : 0) || 0, p };
@@ -39564,6 +39592,8 @@ async function _sfSozlesmeGonder() {
 .sf-cip{flex:none;display:inline-flex;align-items:center;gap:5px;padding:6px 9px;border-radius:8px;font:800 12.5px/1 Twemoji Country Flags,'Barlow Condensed',sans-serif;letter-spacing:.5px}
 .sf-cip svg{width:13px;height:13px}
 .sf-cip.yok{color:#ff5a5f;background:rgba(255,90,95,.09);border:1px solid rgba(255,90,95,.3)}
+.sf-cip.var{color:#46d17a;background:rgba(70,209,122,.09);border:1px solid rgba(70,209,122,.3)}
+.sf-pen{margin:12px 4px 0}
 .sf-et{display:flex;align-items:baseline;justify-content:space-between;margin:16px 2px 8px;font:800 11px/1 Twemoji Country Flags,'Barlow Condensed',sans-serif;letter-spacing:2px;text-transform:uppercase;color:#7a8095}
 .sf-et i{font-style:normal;letter-spacing:.4px;text-transform:none;font-weight:700;color:#5d6375}
 .sf-tur{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}

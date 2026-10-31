@@ -8122,5 +8122,10 @@ Object.assign(window.I18N.pt, {
   "Bu e-posta adresi geçerli değil. Kontrol edip tekrar yaz.": "Este endereço de e-mail não é válido. Verifique e tente novamente.",
   "Bunu mu demek istedin?": "Você quis dizer isto?",
   "Şu an e-posta gönderilemiyor. Daha sonra tekrar dene.": "Não é possível enviar e-mails agora. Tente novamente mais tarde.",
-  "Bu zaten kayıtlı e-postan.": "Este já é o seu e-mail salvo."
+  "Bu zaten kayıtlı e-postan.": "Este já é o seu e-mail salvo.",
+  "Teklifi Gönder": "Enviar oferta",
+  "Sözleşme süresince takımda kalır.": "Fica na equipe durante todo o contrato.",
+  "İstediği zaman ayrılabilir.": "Pode sair quando quiser.",
+  "Transfer dönemi kapalı. Sözleşmeli oyuncu yalnız transfer günlerinde alınabilir (16–18 ve 34–40. gün).": "A janela de transferências está fechada. Jogadores com contrato só podem ser contratados nos dias de transferência (dias 16–18 e 34–40).",
+  "Satıcı takım kasasına": "Para o caixa do clube vendedor"
 });

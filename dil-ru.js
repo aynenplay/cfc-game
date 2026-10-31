@@ -8162,5 +8162,10 @@ Object.assign(window.I18N.ru, {
   "Bu e-posta adresi geçerli değil. Kontrol edip tekrar yaz.": "Этот адрес эл. почты недействителен. Проверь его и попробуй снова.",
   "Bunu mu demek istedin?": "Ты имел в виду это?",
   "Şu an e-posta gönderilemiyor. Daha sonra tekrar dene.": "Сейчас нельзя отправить письмо. Попробуй позже.",
-  "Bu zaten kayıtlı e-postan.": "Это уже твоя сохранённая эл. почта."
+  "Bu zaten kayıtlı e-postan.": "Это уже твоя сохранённая эл. почта.",
+  "Teklifi Gönder": "Отправить предложение",
+  "Sözleşme süresince takımda kalır.": "Остаётся в команде на весь срок контракта.",
+  "İstediği zaman ayrılabilir.": "Может уйти в любой момент.",
+  "Transfer dönemi kapalı. Sözleşmeli oyuncu yalnız transfer günlerinde alınabilir (16–18 ve 34–40. gün).": "Трансферное окно закрыто. Игроков с контрактом можно подписать только в трансферные дни (дни 16–18 и 34–40).",
+  "Satıcı takım kasasına": "В кассу клуба-продавца"
 });
