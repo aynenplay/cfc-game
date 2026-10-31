@@ -6495,5 +6495,6 @@ Object.assign(window.I18N.de, {
   "Sözleşme süresince takımda kalır.": "Bleibt für die Vertragslaufzeit im Team.",
   "İstediği zaman ayrılabilir.": "Kann jederzeit gehen.",
   "Transfer dönemi kapalı. Sözleşmeli oyuncu yalnız transfer günlerinde alınabilir (16–18 ve 34–40. gün).": "Das Transferfenster ist geschlossen. Spieler mit Vertrag können nur an Transfertagen verpflichtet werden (Tag 16–18 und 34–40).",
-  "Satıcı takım kasasına": "In die Kasse des abgebenden Vereins"
+  "Satıcı takım kasasına": "In die Kasse des abgebenden Vereins",
+  "Onay bağlantısı yeni adresine gönderildi.": "Ein Bestätigungslink wurde an deine neue Adresse gesendet."
 });

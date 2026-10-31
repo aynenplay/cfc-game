@@ -8560,5 +8560,6 @@ Object.assign(window.I18N.en, {
   "Sözleşme süresince takımda kalır.": "Stays with the team for the length of the contract.",
   "İstediği zaman ayrılabilir.": "Can leave at any time.",
   "Transfer dönemi kapalı. Sözleşmeli oyuncu yalnız transfer günlerinde alınabilir (16–18 ve 34–40. gün).": "The transfer window is closed. Contracted players can only be signed on transfer days (days 16–18 and 34–40).",
-  "Satıcı takım kasasına": "To the selling club's treasury"
+  "Satıcı takım kasasına": "To the selling club's treasury",
+  "Onay bağlantısı yeni adresine gönderildi.": "A confirmation link has been sent to your new address."
 });

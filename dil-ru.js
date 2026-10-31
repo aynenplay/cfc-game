@@ -8167,5 +8167,6 @@ Object.assign(window.I18N.ru, {
   "Sözleşme süresince takımda kalır.": "Остаётся в команде на весь срок контракта.",
   "İstediği zaman ayrılabilir.": "Может уйти в любой момент.",
   "Transfer dönemi kapalı. Sözleşmeli oyuncu yalnız transfer günlerinde alınabilir (16–18 ve 34–40. gün).": "Трансферное окно закрыто. Игроков с контрактом можно подписать только в трансферные дни (дни 16–18 и 34–40).",
-  "Satıcı takım kasasına": "В кассу клуба-продавца"
+  "Satıcı takım kasasına": "В кассу клуба-продавца",
+  "Onay bağlantısı yeni adresine gönderildi.": "Ссылка для подтверждения отправлена на твой новый адрес."
 });

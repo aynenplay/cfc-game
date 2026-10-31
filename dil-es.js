@@ -8135,5 +8135,6 @@ Object.assign(window.I18N.es, {
   "Sözleşme süresince takımda kalır.": "Se queda en el equipo durante todo el contrato.",
   "İstediği zaman ayrılabilir.": "Puede irse cuando quiera.",
   "Transfer dönemi kapalı. Sözleşmeli oyuncu yalnız transfer günlerinde alınabilir (16–18 ve 34–40. gün).": "El mercado de fichajes está cerrado. Los jugadores con contrato solo se pueden fichar en días de fichajes (días 16–18 y 34–40).",
-  "Satıcı takım kasasına": "A la caja del club vendedor"
+  "Satıcı takım kasasına": "A la caja del club vendedor",
+  "Onay bağlantısı yeni adresine gönderildi.": "Se ha enviado un enlace de confirmación a tu nueva dirección."
 });
