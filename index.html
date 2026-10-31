@@ -26110,8 +26110,8 @@ body.pd-acik{overflow:hidden}
   </div>
 </div>
 
-<script src="js/oyun.fb731643.js"></script>
-<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.fb731643.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
+<script src="js/oyun.987b2486.js"></script>
+<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.987b2486.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
 
 <nav id="bottomnav">
   <button class="nav-btn active" onclick="showPage('home',this)"><div class="nav-icon">🏠</div><div class="nav-label">Menü</div></button>
@@ -34183,6 +34183,9 @@ function _gmFmOnizle(f) {
 :is(#team-formation,#nt-formation,#tacSub-lineup).dz .fpn-circle.dz-kap .fpn-name:after,:is(#team-formation,#nt-formation,#tacSub-lineup).dz .bench-card.dz-kap .bench-card-name:after{content:' ©';color:var(--gold)}
 :is(#team-formation,#nt-formation,#tacSub-lineup).dz .fpn-kd,:is(#team-formation,#nt-formation,#tacSub-lineup).dz .bench-card-kd{grid-area:kd;height:4px;margin-top:4px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden}
 :is(#team-formation,#nt-formation,#tacSub-lineup).dz .fpn-kd i,:is(#team-formation,#nt-formation,#tacSub-lineup).dz .bench-card-kd i{display:block;height:100%;border-radius:99px}
+#tacSub-lineup.dz .mz-kdv .mz-iz{bottom:-14px}
+:is(#team-formation,#nt-formation,#tacSub-lineup).dz .dz-kds{display:flex;gap:2px;background:none;border-radius:0;overflow:visible}
+:is(#team-formation,#nt-formation,#tacSub-lineup).dz .dz-kds i{flex:1;height:100%;border-radius:2px;background:rgba(255,255,255,.12)}
 :is(#team-formation,#nt-formation,#tacSub-lineup).dz .fpn-uyari{position:absolute;top:-7px;left:-7px;z-index:6;width:17px;height:17px;border-radius:50%;background:#ff9800;color:#1a1000;
   font:900 11px/17px 'Barlow Condensed',sans-serif;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.5);pointer-events:none}
 :is(#team-formation,#nt-formation,#tacSub-lineup).dz .fpn-status,:is(#team-formation,#nt-formation,#tacSub-lineup).dz .bench-card-status{top:-8px !important;right:-6px !important;left:auto !important;font-size:13px}
@@ -34371,12 +34374,92 @@ function _dzKondisyon(p) {
   const s = p && p.stamina;
   return (typeof s === 'number' && isFinite(s)) ? Math.max(0, Math.min(100, Math.round(s))) : null;
 }
-function _dzKdHtml(p, sinif) {
-  const k = _dzKondisyon(p);
+function _dzKdHtml(p, sinif) { return _dzKdSeg(_dzKondisyon(p), sinif); }
+// 891 — kondisyon 5 parça (her parça %20): Takımım, Milli Takım ve canlı maç aynı görünüm
+function _dzKdSeg(k, sinif) {
   if (k == null) return '';
   const r = k >= 70 ? '#46d17a' : k >= 50 ? '#ffd166' : '#ff5a5a';
-  return `<div class="${sinif}"><i style="width:${k}%;background:${r}"></i></div>`;
+  const n = Math.max(k > 0 ? 1 : 0, Math.min(5, Math.ceil(k / 20)));
+  let h = '';
+  for (let i = 0; i < 5; i++) h += i < n ? `<i style="background:${r}"></i>` : '<i></i>';
+  return `<div class="${sinif} dz-kds">${h}</div>`;
 }
+// ═══ 891 · MEVKİ OVR BALONCUĞU — diziliş kartına tek dokunuş (Takımım, Milli Takım, canlı maç) ═══
+//   Kartın hemen üstünde küçük bilgi baloncuğu: oyuncunun 4 hat değeri (oyuncu sayfasındaki 4 hatla aynı hesap).
+//   Üstte yer yoksa kartın altında açılır. Başka yere dokununca, sayfa kayınca ya da aynı karta yeniden dokununca kapanır.
+let _moSon = 0, _moAcilis = 0, _moKart = null, _moAnah = '', _moKapanan = '', _moKapandi = 0;
+const _MO_GRUP = [['GK', 'Kaleci'], ['DEF', 'Defans'], ['MID', 'Orta Saha'], ['FWD', 'Forvet']];
+function moAc(p, slotSub, own, kart) {
+  if (!p) return;
+  const t0 = Date.now();
+  if (t0 - _moSon < 450) return;                                    // aynı dokunuşun ikinci tetiklemesi (dokunuş + tıklama)
+  const anah = (p.id != null ? p.id : '') + '|' + p.num + '|' + p.name;
+  if (anah === _moKapanan && t0 - _moKapandi < 600) return;          // açıkken aynı karta dokunuldu: yalnız kapansın
+  _moSon = t0;
+  let b = document.getElementById('moBal');
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'moBal'; b.className = 'mo';
+    document.body.appendChild(b);
+    const kapat = (e) => {
+      if (!b.classList.contains('acik') || Date.now() - _moAcilis < 400) return;   // açan dokunuşun hayalet tıklaması sayılmaz
+      const h = e && e.target;
+      if (h && h.closest && h.closest('#moBal')) return;
+      if (e && e.type === 'scroll' && h !== document && !(h && h.nodeType === 1 && _moKart && h.contains(_moKart))) return;   // yalnız kartı taşıyan sayfa kayınca
+      if (e && e.type !== 'scroll' && _moKart && h && h.nodeType === 1 && _moKart.contains(h)) { _moKapanan = _moAnah; _moKapandi = Date.now(); }
+      moKapat();
+    };
+    document.addEventListener('touchstart', kapat, { capture: true, passive: true });
+    document.addEventListener('mousedown', kapat, true);
+    document.addEventListener('scroll', kapat, true);
+    window.addEventListener('resize', kapat);
+  }
+  const alt = own || ((typeof subPosOf === 'function') ? subPosOf(p) : 'CM');
+  const anaG = (typeof subPosGroupOf === 'function') ? subPosGroupOf(alt) : 'MID';
+  const sat = _MO_GRUP.map(([g, et]) => {
+    let v = 0;
+    try { v = getPlayerEffectiveRating(p, g); } catch (e) { v = Number(p.overall) || 0; }
+    v = Math.max(1, Math.min(99, Math.round(v) || 1));
+    return `<div class="mo-sat mo-${g}${g === anaG ? ' ana' : ''}"><span>${et}</span><span><i class="mo-cb"><b style="width:${v}%"></b></i></span><span>${v}</span></div>`;
+  }).join('');
+  b.innerHTML = `<div class="mo-tb">${sat}</div><i class="mo-ok"></i>`;
+  _moKart = kart || null; _moAnah = anah; _moAcilis = Date.now();
+  b.classList.remove('alt');
+  b.style.visibility = 'hidden';
+  b.classList.add('acik');
+  const yerles = () => {                                             // dil çevirisi yerleştikten sonra ölçülür
+    if (!b.classList.contains('acik')) return;
+    const hd = kart ? (kart.querySelector('.fpn-circle') || kart) : null;
+    const r = hd && hd.getBoundingClientRect();
+    const bw = b.offsetWidth, bh = b.offsetHeight, W = window.innerWidth, H = window.innerHeight;
+    let x, y, ust = true, ox;
+    if (r && r.width) {
+      const cx = r.left + r.width / 2;
+      x = Math.max(8, Math.min(W - bw - 8, cx - bw / 2));
+      y = r.top - bh - 9;
+      if (y < 8) { y = r.bottom + 9; ust = false; }
+      ox = Math.max(14, Math.min(bw - 14, cx - x));
+    } else { x = (W - bw) / 2; y = (H - bh) / 2; ox = bw / 2; }
+    b.style.left = Math.round(x) + 'px'; b.style.top = Math.round(y) + 'px';
+    b.style.setProperty('--ox', Math.round(ox) + 'px');
+    b.classList.toggle('alt', !ust);
+    b.style.visibility = '';
+  };
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(yerles); else yerles();
+}
+function moKapat() { const b = document.getElementById('moBal'); if (b) b.classList.remove('acik'); _moKart = null; }
+// Yedek kartına tek dokunuş (Takımım + Milli Takım). Sürükleme tıklama üretmez; ✕ (kadrodan çıkar) hariç.
+document.addEventListener('click', (e) => {
+  const kart = e.target && e.target.closest ? e.target.closest('#benchList .bench-card, #nt-benchList .bench-card') : null;
+  if (!kart || kart.classList.contains('bench-card-empty') || e.target.closest('.bench-card-remove')) return;
+  const nt = String(kart.id || '').indexOf('nt-bench_') === 0;
+  const i = parseInt(String(kart.id || '').replace(nt ? 'nt-bench_' : 'bench_', ''), 10);
+  if (!isFinite(i)) return;
+  let p = null;
+  try { p = nt ? (Array.isArray(_ntCurrentSubs) ? _ntCurrentSubs[i] : null) : (Array.isArray(benchPlayers) ? benchPlayers[i] : null); } catch (_) {}
+  if (p) moAc(p, null, null, kart);
+});
+
 function _dzKaptanMi(p, benMi) {
   if (!p) return false;
   if (p.role === 'captain') return true;
@@ -38196,6 +38279,25 @@ function planYaz(hedef, kaynak) {
     return m;
   }
 
+  // 891 — maç içi kondisyon: başlama kondisyonu − 28 × (oynadığı dk / 90) × strateji × dayanıklılık × maç tipi
+  //   (sunucunun maç sonunda yazdığı düşüşle aynı formül; yedekte bekleyen dinç kalır)
+  function mzKd(p, o) {
+    const k0 = Number(p && p.kondisyon);
+    if (!p || p.kondisyon == null || !isFinite(k0)) return null;
+    const simdi = Math.max(0, Math.min(90, Math.floor((MS && (MS._displayMin || MS.minute)) || 0)));
+    const gir = (o.ev && o.ev.gir != null) ? o.ev.gir : 0;
+    const dk = o.yedek ? (o.cikti != null ? Math.max(0, o.cikti - gir) : 0) : Math.max(0, simdi - gir);
+    let fit = 1;
+    try {
+      const pl = planCevir(milli() ? _ntActiveStrategy : activeStrategy);
+      fit = (pl.savunma === 'Yüksek pres' ? 0.90 : pl.savunma === 'Alçak blok' ? 1.04 : 1) * (pl.tempo === 'Hızlı' ? 0.94 : pl.tempo === 'Sabırlı' ? 1.03 : 1);
+    } catch (e) {}
+    const stF = Math.max(0.75, Math.min(1.25, 1 / fit));
+    const dy = Number(p.abilities && p.abilities.MID && p.abilities.MID.dayanikli);
+    const dyF = Math.max(0.8, Math.min(1.2, 1 - ((isFinite(dy) ? dy : 50) - 50) / 245));
+    const tipF = (MS && MS._isFriendly) ? 0.5 : 1;
+    return Math.max(0, Math.min(100, Math.round(k0 - 28 * (dk / 90) * stF * dyF * tipF)));
+  }
   function kartIc(p, o) {
     const r = mzKayit(p) || {};
     const q = { ...r, ...p, avatar_id: r.avatar_id || p.avatar_id, nation: p.nation || r.nation };
@@ -38208,6 +38310,8 @@ function planYaz(hedef, kaynak) {
     const kisa = ad.length > 1 ? ad[0] + ' ' + ad.slice(1).map(w => w.charAt(0).toUpperCase() + '.').join(' ') : ad[0];
     const sinif = [o.yedek ? 'bench-card' : 'fpn-circle', pcls, (typeof getOvrTier === 'function') ? getOvrTier(ovr) : ''];
     if (benMi) sinif.push(o.yedek ? 'dz-ben' : 'is-user');
+    const kd = mzKd(p, o);   // 891 — canlı kondisyon
+    if (kd != null) sinif.push('mz-kdv');
     if (dis) sinif.push('dz-dis');
     try { if (milli() ? _ntKaptanMi(q) : _dzKaptanMi(q, benMi)) sinif.push('dz-kap'); } catch (e) {}
     const bas = o.yedek ? 'bench-card' : 'fpn';
@@ -38226,6 +38330,7 @@ function planYaz(hedef, kaynak) {
       <div class="${bas}-bottom"><div class="${bas}-pos">${E(own)}</div></div>
       ${iz.length ? `<div class="mz-iz">${iz.join('')}</div>` : ''}
       ${dis ? '<span class="fpn-uyari">!</span>' : ''}${rt}${o.sakat ? `<span class="mz-sk">${ICON.sakat}</span>` : ''}
+      ${(typeof _dzKdSeg === 'function') ? _dzKdSeg(kd, bas + '-kd') : ''}
     </div>`;
   }
 
@@ -38392,6 +38497,12 @@ function planYaz(hedef, kaynak) {
     if (d.g) d.g.remove();
     d.el.classList.remove('dz-surukleniyor');
     if (d.hedef) d.hedef.classList.remove('drop-hover');
+    if (!d.basladi && birak && typeof moAc === 'function') {   // 891 — sürüklemeden tek dokunuş: mevki OVR'leri
+      const T = takim(), sl = T ? FORMATIONS[mzF(T)] : null;
+      const oy = d.tip === 's' ? (T && T.players[d.k]) : (T && T.benchPlayers[d.i]);
+      if (oy) { const q = Object.assign({}, mzKayit(oy) || {}, oy); moAc(q, d.tip === 's' && sl && sl[oy._slotIdx] ? sl[oy._slotIdx].s : null, kendiAlt(q), d.el); }
+      return;
+    }
     if (!d.basladi || !birak) return;
     const h = d.hedef;
     if (!h) {   // geçersiz yere bırakıldı: neden olmadığı söylenir
@@ -39606,6 +39717,28 @@ async function _sfSozlesmeGonder() {
 .sf-tur button:disabled{opacity:.35;cursor:not-allowed}
 .sf-not{margin:8px 4px 0;font-size:12px;line-height:1.4;color:#8b90a0;text-align:center}
 .sf-not.uyari{color:#ef8a6a}
+/* ═════════ 891 · Mevki OVR baloncuğu (karta tek dokunuş, kartın hemen üstünde) ═════════ */
+.mo{position:fixed;left:0;top:0;z-index:100000;display:none;padding:4px;border-radius:12px;background:linear-gradient(180deg,#202631,#161a22);
+  border:1px solid rgba(255,255,255,.16);box-shadow:0 10px 24px rgba(0,0,0,.6);font-family:'Barlow',sans-serif}
+.mo.acik{display:block;animation:moGir .14s ease-out}
+.mo.alt.acik{animation-name:moGirA}
+@keyframes moGir{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+@keyframes moGirA{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
+.mo-GK{--r:#ffd166;--rb:rgba(255,209,102,.15)} .mo-DEF{--r:#66b3ff;--rb:rgba(102,179,255,.15)} .mo-MID{--r:#46d17a;--rb:rgba(70,209,122,.15)} .mo-FWD{--r:#ff8c66;--rb:rgba(255,140,102,.15)}
+.mo-tb{display:table;border-collapse:separate;border-spacing:0 1px}
+.mo-sat{display:table-row}
+.mo-sat > span{display:table-cell;vertical-align:middle;padding:3.5px 0;white-space:nowrap}
+.mo-sat > span:first-child{padding-left:6px;border-radius:7px 0 0 7px;font:700 11px/1 'Barlow',sans-serif;color:#aeb3c2}
+.mo-sat > span:nth-child(2){padding:3.5px 6px}
+.mo-sat > span:last-child{padding-right:6px;border-radius:0 7px 7px 0;min-width:15px;text-align:right;font:900 14px/1 'Barlow Condensed',sans-serif;color:#e8eaf0}
+.mo-cb{display:block;width:24px;height:4px;border-radius:99px;background:rgba(255,255,255,.1);overflow:hidden}
+.mo-cb b{display:block;height:100%;border-radius:99px;background:var(--r);opacity:.6}
+.mo-sat.ana > span{background:var(--rb)}
+.mo-sat.ana > span:first-child,.mo-sat.ana > span:last-child{color:var(--r)}
+.mo-sat.ana .mo-cb b{opacity:1}
+.mo-ok{position:absolute;left:var(--ox,50%);bottom:-6px;width:10px;height:10px;margin-left:-5px;transform:rotate(45deg);background:#161a22;
+  border-right:1px solid rgba(255,255,255,.16);border-bottom:1px solid rgba(255,255,255,.16)}
+.mo.alt .mo-ok{bottom:auto;top:-6px;background:#202631;border:0;border-left:1px solid rgba(255,255,255,.16);border-top:1px solid rgba(255,255,255,.16)}
 .sf-sure{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .sf-sure button{height:50px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
 .sf-sure b{font:900 20px/1 Twemoji Country Flags,'Barlow Condensed',sans-serif;color:#e8eaf0}
