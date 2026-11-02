@@ -8168,5 +8168,27 @@ Object.assign(window.I18N.ru, {
   "İstediği zaman ayrılabilir.": "Может уйти в любой момент.",
   "Transfer dönemi kapalı. Sözleşmeli oyuncu yalnız transfer günlerinde alınabilir (16–18 ve 34–40. gün).": "Трансферное окно закрыто. Игроков с контрактом можно подписать только в трансферные дни (дни 16–18 и 34–40).",
   "Satıcı takım kasasına": "В кассу клуба-продавца",
-  "Onay bağlantısı yeni adresine gönderildi.": "Ссылка для подтверждения отправлена на твой новый адрес."
+  "Onay bağlantısı yeni adresine gönderildi.": "Ссылка для подтверждения отправлена на твой новый адрес.",
+  // 894 — oyun tarzı
+  "Oyun Tarzı": "Стиль игры",
+  "Sakin": "Хладнокровный",
+  "Agresif": "Агрессивный",
+  "Teknik": "Технический",
+  "Yüksek Tempo": "Высокий темп",
+  "Güçlü": "Мощный",
+  "Baskı altında karar": "Решения под давлением",
+  "Faul riski": "Риск фола",
+  "Sakatlık riski": "Риск травмы",
+  "Yorulma": "Усталость",
+  "Kilit pas / asist": "Ключевой пас / ассист",
+  "İlk dokunuş": "Первое касание",
+  "İkili mücadele": "Единоборства",
+  "Topsuz koşu / kontra": "Рывки / контратаки",
+  "Şut fırsatı": "Шансы на удар",
+  "Maç içi yorulma": "Усталость в матче",
+  "Maç sonrası yorgunluk": "Усталость после матча",
+  "Topu koruma": "Укрывание мяча",
+  "Patlayıcı hız / çalım": "Ускорение / дриблинг",
+  "Bir sonraki maçtan itibaren geçerli olur": "Действует со следующего матча",
+  "Oyun tarzı kaydedildi": "Стиль игры сохранён"
 });

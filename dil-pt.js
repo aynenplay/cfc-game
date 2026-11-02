@@ -8128,5 +8128,27 @@ Object.assign(window.I18N.pt, {
   "İstediği zaman ayrılabilir.": "Pode sair quando quiser.",
   "Transfer dönemi kapalı. Sözleşmeli oyuncu yalnız transfer günlerinde alınabilir (16–18 ve 34–40. gün).": "A janela de transferências está fechada. Jogadores com contrato só podem ser contratados nos dias de transferência (dias 16–18 e 34–40).",
   "Satıcı takım kasasına": "Para o caixa do clube vendedor",
-  "Onay bağlantısı yeni adresine gönderildi.": "Um link de confirmação foi enviado para o seu novo endereço."
+  "Onay bağlantısı yeni adresine gönderildi.": "Um link de confirmação foi enviado para o seu novo endereço.",
+  // 894 — oyun tarzı
+  "Oyun Tarzı": "Estilo de jogo",
+  "Sakin": "Sereno",
+  "Agresif": "Agressivo",
+  "Teknik": "Técnico",
+  "Yüksek Tempo": "Ritmo alto",
+  "Güçlü": "Potente",
+  "Baskı altında karar": "Decisão sob pressão",
+  "Faul riski": "Risco de falta",
+  "Sakatlık riski": "Risco de lesão",
+  "Yorulma": "Fadiga",
+  "Kilit pas / asist": "Passe decisivo / assistência",
+  "İlk dokunuş": "Primeiro toque",
+  "İkili mücadele": "Duelos",
+  "Topsuz koşu / kontra": "Desmarques / contra-ataques",
+  "Şut fırsatı": "Chances de finalização",
+  "Maç içi yorulma": "Fadiga na partida",
+  "Maç sonrası yorgunluk": "Fadiga pós-jogo",
+  "Topu koruma": "Proteção de bola",
+  "Patlayıcı hız / çalım": "Aceleração / drible",
+  "Bir sonraki maçtan itibaren geçerli olur": "Vale a partir da próxima partida",
+  "Oyun tarzı kaydedildi": "Estilo de jogo salvo"
 });
