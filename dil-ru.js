@@ -8273,3 +8273,20 @@ window.I18N_PATTERNS.ru.unshift(
 window.I18N_PATTERNS.ru.unshift(
   [/^• Kalan maaşın ([\d.]+) € takım kasasından ödendi\.$/, "• Оставшаяся зарплата $1 € выплачена из казны команды."]
 );
+
+/* 903 — enerji paketi */
+Object.assign(window.I18N.ru, {
+  "Enerji Paketi": "Пакет энергии",
+  "Günlük enerjine eklenir": "Добавляется к дневной энергии",
+  "Doldu": "Лимит",
+  "Enerjin": "Твоя энергия",
+  "Bugünlük hakkın doldu": "Дневной лимит исчерпан"
+});
+window.I18N_PATTERNS.ru.unshift(
+  [/^1 paket$/, "1 пакет"],
+  [/^5 paket$/, "5 пакетов"],
+  [/^(\d+) paket$/, "$1 пакета"],
+  [/^\+(\d+) Enerji$/, "+$1 энергии"],
+  [/^\+(\d+) enerji eklendi$/, "Добавлено +$1 энергии"],
+  [/^Günlük hak ve kalan enerji (.+) sonra yenilenir$/, "Дневной лимит и остаток энергии обновятся через $1"]
+);

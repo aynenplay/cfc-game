@@ -8241,3 +8241,19 @@ window.I18N_PATTERNS.es.unshift(
 window.I18N_PATTERNS.es.unshift(
   [/^• Kalan maaşın ([\d.]+) € takım kasasından ödendi\.$/, "• Tu salario pendiente de $1 € se pagó de la caja del equipo."]
 );
+
+/* 903 — enerji paketi */
+Object.assign(window.I18N.es, {
+  "Enerji Paketi": "Paquete de energía",
+  "Günlük enerjine eklenir": "Se suma a tu energía diaria",
+  "Doldu": "Completo",
+  "Enerjin": "Tu energía",
+  "Bugünlük hakkın doldu": "Límite diario alcanzado"
+});
+window.I18N_PATTERNS.es.unshift(
+  [/^1 paket$/, "1 paquete"],
+  [/^(\d+) paket$/, "$1 paquetes"],
+  [/^\+(\d+) Enerji$/, "+$1 de energía"],
+  [/^\+(\d+) enerji eklendi$/, "+$1 de energía añadida"],
+  [/^Günlük hak ve kalan enerji (.+) sonra yenilenir$/, "El límite diario y la energía restante se reinician en $1"]
+);
