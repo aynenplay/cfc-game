@@ -8190,5 +8190,7 @@ Object.assign(window.I18N.ru, {
   "Topu koruma": "Укрывание мяча",
   "Patlayıcı hız / çalım": "Ускорение / дриблинг",
   "Bir sonraki maçtan itibaren geçerli olur": "Действует со следующего матча",
-  "Oyun tarzı kaydedildi": "Стиль игры сохранён"
+  "Oyun tarzı kaydedildi": "Стиль игры сохранён",
+  // 896 — CSC News yeni sezon
+  "YENİ SEZON": "НОВЫЙ СЕЗОН"
 });

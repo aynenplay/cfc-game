@@ -8150,5 +8150,7 @@ Object.assign(window.I18N.pt, {
   "Topu koruma": "Proteção de bola",
   "Patlayıcı hız / çalım": "Aceleração / drible",
   "Bir sonraki maçtan itibaren geçerli olur": "Vale a partir da próxima partida",
-  "Oyun tarzı kaydedildi": "Estilo de jogo salvo"
+  "Oyun tarzı kaydedildi": "Estilo de jogo salvo",
+  // 896 — CSC News yeni sezon
+  "YENİ SEZON": "NOVA TEMPORADA"
 });
