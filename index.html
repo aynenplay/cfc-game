@@ -103,7 +103,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '896';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '900';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -25868,14 +25868,16 @@ body.pd-acik{overflow:hidden}
       </button>
     </div>
     <div class="tk-ic">
-      <div class="mg-alt">
+      <div class="mg-alt aa4">
         <button class="a-ser" data-alt="takim-sistem" onclick="takimlarTab('takim-sistem')"><i></i><span>Serbest</span><b id="mgSay-takim-sistem" data-noi18n></b></button>
         <button class="a-sat" data-alt="teams" onclick="takimlarTab('teams')"><i></i><span>Satış Listesinde</span><b id="mgSay-teams" data-noi18n></b></button>
         <button class="a-kmp kapali" data-alt="takim-kampanya" onclick="takimlarTab('takim-kampanya')"><i></i><span>Kampanyada</span><b id="mgSay-takim-kampanya" data-noi18n>0</b></button>
+        <button class="a-aa kapali" data-alt="acik-artirma" onclick="takimlarTab('acik-artirma')"><i></i><span>Açık Artırma</span><b id="mgSay-acik-artirma" data-noi18n>0</b></button>
       </div>
       <div id="tk-takim-sistem" style="display:none"></div>
       <div id="tk-takim-kampanya" style="display:none"></div>
       <div id="tk-teams" style="display:none"></div>
+      <div id="tk-acik-artirma" style="display:none"></div>
     </div>
   </div>
 
@@ -26154,8 +26156,8 @@ body.pd-acik{overflow:hidden}
   </div>
 </div>
 
-<script src="js/oyun.3f775a9a.js"></script>
-<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.3f775a9a.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
+<script src="js/oyun.f387a302.js"></script>
+<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.f387a302.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
 
 <nav id="bottomnav">
   <button class="nav-btn active" onclick="showPage('home',this)"><div class="nav-icon">🏠</div><div class="nav-label">Menü</div></button>
@@ -38877,6 +38879,7 @@ function _mgSistemListe() {
     const c = _cftGetCountry(cc); if (!c) continue;
     c.leagues.forEach((lg, tier) => (lg.teams || []).forEach(t => {
       if (_mgSahipli.has(cc + ':' + t.name)) return;
+      if (aaTakimda(cc, t.name)) return;   // 900 — açık artırmada
       out.push({ cc, ad: t.name, tier, lig: lg.name, ulke: c.name, bayrak: c.flag, team: t, guc: _mgGuc(cc, t), fiyat: kmpFiyat('takim', calcTeamPrice(t.pop, t.rating, tier), cc + '|' + t.name), eski: calcTeamPrice(t.pop, t.rating, tier), nufus: t.pop || 0 });
     }));
   }
@@ -39006,10 +39009,12 @@ function mgTakimDaha() { _mgT.sayi += 30; _mgTakimGovde(_mgSonAlt.takimlar); }
 
 function takimlarTab(alt) {
   if (alt === 'takim-kampanya' && !kmpVar('takim')) alt = 'takim-sistem';   // 809 — kampanya yoksa Kampanyada sekmesi kapalı
+  if (alt === 'acik-artirma' && !aaVar()) alt = 'takim-sistem';   // 900 — açık artırma yoksa sekme kapalı
   _mgSonAlt.takimlar = alt;
   document.querySelectorAll('#page-takimlar .mg-alt button').forEach(b => b.classList.toggle('on', b.dataset.alt === alt));
-  ['takim-sistem', 'teams', 'takim-kampanya'].forEach(a => { document.getElementById('tk-' + a).style.display = a === alt ? 'block' : 'none'; });
-  if (alt === 'teams') renderTeamMarket(); else if (alt === 'takim-kampanya') mgKampanyaTakimlar(); else mgSistemTakimlar();
+  ['takim-sistem', 'teams', 'takim-kampanya', 'acik-artirma'].forEach(a => { document.getElementById('tk-' + a).style.display = a === alt ? 'block' : 'none'; });
+  if (alt === 'teams') renderTeamMarket(); else if (alt === 'takim-kampanya') mgKampanyaTakimlar(); else if (alt === 'acik-artirma') aaListeCiz(); else mgSistemTakimlar();
+  aaYukle(AA.kirli);   // 900
   _mgSay('teams', tmGetListings().length);
   kmpSekmeler();
   kmpYukle().then(d => { if (d && _mgSonAlt.takimlar === alt) takimlarTab(alt); });
@@ -42100,6 +42105,119 @@ function hmKaydirGec() {
 @media (prefers-reduced-motion: reduce){.bp-mod,.bp-mod *,.bp-mod::before,.bp-kart,.bp-kart *,.bp-kart::after,.bp-al::after{animation:none!important}}
 </style>
 <style id="cn-css">
+/* 900 — açık artırma: tokmak · CSC News şeridi · Takımlar › Açık Artırma · teklif penceresi */
+.aa-tok{display:block;overflow:visible}
+.aa-tok .tk-g{transform-origin:7px 38px;animation:aaVur 2.2s cubic-bezier(.5,0,.6,1) infinite}
+.aa-tok .tk-k{opacity:0;animation:aaKivilcim 2.2s linear infinite}
+@keyframes aaVur{0%{transform:rotate(-34deg)}30%{transform:rotate(-40deg)}41%{transform:rotate(1deg)}47%{transform:rotate(-7deg)}53%{transform:rotate(0)}72%{transform:rotate(0)}100%{transform:rotate(-34deg)}}
+@keyframes aaKivilcim{0%,40%{opacity:0}43%{opacity:1}58%{opacity:0}100%{opacity:0}}
+.aa-serit{position:relative;display:flex;align-items:center;gap:11px;margin:14px 14px 0;padding:9px 12px 9px 10px;border-radius:14px;cursor:pointer;overflow:hidden;
+  background:linear-gradient(100deg,#1d1534 0%,#151a28 58%,#131822 100%);border:1px solid rgba(176,133,255,.5);animation:aaParla 2.2s ease-in-out infinite}
+.aa-serit::after{content:"";position:absolute;top:0;bottom:0;left:-40%;width:30%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.09),transparent);transform:skewX(-18deg);animation:aaParilti 3.6s ease-in-out infinite;pointer-events:none}
+@keyframes aaParla{0%,100%{box-shadow:0 0 0 0 rgba(176,133,255,0),0 6px 16px -10px rgba(0,0,0,.7)}45%{box-shadow:0 0 16px 0 rgba(176,133,255,.38),0 6px 16px -10px rgba(0,0,0,.7)}}
+@keyframes aaParilti{0%,55%{left:-40%}100%{left:130%}}
+.aa-serit .aa-tok-k{flex:none;width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:radial-gradient(circle at 50% 60%,rgba(176,133,255,.28),rgba(176,133,255,.06) 70%);border:1px solid rgba(176,133,255,.3)}
+.aa-serit .aa-tok{width:42px;height:42px;margin-top:-4px}
+.aa-s-orta{flex:1;min-width:0}
+.aa-s-ust{display:flex;align-items:center;gap:6px;font:900 11px/1 'Barlow Condensed',sans-serif;letter-spacing:1.6px;color:#c9b2ff;text-transform:uppercase}
+.aa-s-ust em{font-style:normal;margin-left:auto;padding:2px 6px;border-radius:6px;background:rgba(176,133,255,.16);color:#e0d4ff;letter-spacing:.6px}
+.aa-canli{width:7px;height:7px;border-radius:50%;flex:none;background:#ff3d5a;box-shadow:0 0 0 0 rgba(255,61,90,.6);animation:aaCanli 1.4s ease-out infinite}
+@keyframes aaCanli{0%{box-shadow:0 0 0 0 rgba(255,61,90,.6)}100%{box-shadow:0 0 0 8px rgba(255,61,90,0)}}
+.aa-s-tk{position:relative;height:22px;margin-top:5px}
+.aa-s-tk > div{position:absolute;inset:0;display:flex;align-items:center;gap:7px;opacity:0;transform:translateY(6px);transition:opacity .45s,transform .45s}
+.aa-s-tk > div.on{opacity:1;transform:none}
+.aa-s-tk .mg-rozet{width:22px;height:22px;font-size:8px;flex:none}
+.aa-s-tk b{font:900 17px/1 'Barlow Condensed',sans-serif;color:#fff;letter-spacing:.3px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aa-s-tk .bay{font:14px 'Twemoji Country Flags',sans-serif}
+.aa-s-sag{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.aa-sayac{font:800 16px/1 'Roboto Mono','Barlow Condensed',monospace;color:#fff;letter-spacing:.5px}
+.aa-sayac.acil{color:#ff6b81}
+.aa-s-tek{display:flex;align-items:center;gap:3px;font:900 13px/1 'Barlow Condensed',sans-serif;color:#7fdcff}
+.aa-dia{width:13px;height:13px;flex:none}
+.aa-serit .aa-ok{flex:none;margin-left:-2px;font:700 20px/1 'Barlow',sans-serif;color:#8f7bc4}
+.aa-noktalar{position:absolute;left:50%;bottom:4px;transform:translateX(-50%);display:flex;gap:4px}
+.aa-noktalar i{width:4px;height:4px;border-radius:2px;background:rgba(201,178,255,.3);transition:width .3s,background .3s}
+.aa-noktalar i.on{width:10px;background:#c9b2ff}
+#page-takimlar .mg-alt.aa4{grid-template-columns:repeat(4,1fr)}
+.mg-alt button.a-aa i{background:#b085ff}
+.mg-alt button.a-aa.on{background:rgba(176,133,255,.13);color:#c9b2ff;box-shadow:inset 0 0 0 1px rgba(176,133,255,.4)}
+.mg-alt button.a-aa.kapali{opacity:.38;pointer-events:none}
+.mg-alt button.a-aa .aa-sek-tok{position:absolute;top:-9px;right:-3px;width:24px;height:24px;pointer-events:none;filter:drop-shadow(0 1px 0 #0d0f13)}
+.mg-alt button.a-aa .aa-sek-tok .aa-tok{width:24px;height:24px}
+.aa-liste{display:flex;flex-direction:column;gap:10px;margin:4px 10px 80px}
+.mg-uyari.aa-uyari{margin:0 10px 10px}
+.aa-kart{position:relative;padding:12px;border-radius:15px;background:linear-gradient(180deg,#171c27,#12161e);border:1px solid #252b36;cursor:pointer}
+.aa-kart.acil{border-color:rgba(255,107,129,.45)}
+.aa-kart.onde{border-color:rgba(0,230,118,.45)}
+.aa-k-ust{display:flex;align-items:center;gap:10px}
+.aa-k-ust .mg-rozet{width:44px;height:44px;font-size:13px;flex:none}
+.aa-k-ad{flex:1;min-width:0}
+.aa-k-ad b{display:block;font:900 19px/1 'Barlow Condensed',sans-serif;color:#fff;letter-spacing:.3px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aa-k-ad small{display:flex;align-items:center;gap:5px;margin-top:5px;font:600 11.5px 'Twemoji Country Flags','Barlow',sans-serif;color:#9aa3b2}
+.aa-pil{flex:none;display:flex;align-items:center;gap:5px;padding:4px 8px;border-radius:8px;font:900 10.5px/1 'Barlow Condensed',sans-serif;letter-spacing:1px;text-transform:uppercase;background:rgba(255,61,90,.12);color:#ff8a9c;border:1px solid rgba(255,61,90,.3)}
+.aa-pil.onde{background:rgba(0,230,118,.1);color:#5ef0a0;border-color:rgba(0,230,118,.32)}
+.aa-pil.gecildi{background:rgba(255,167,38,.1);color:#ffcc80;border-color:rgba(255,167,38,.32)}
+.aa-k-sure{display:flex;align-items:center;gap:10px;margin-top:11px}
+.aa-k-sure .aa-sayac{font-size:20px;min-width:96px}
+.aa-k-bar{flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.07);overflow:hidden}
+.aa-k-bar i{display:block;height:100%;width:calc(var(--p)*100%);border-radius:3px;background:linear-gradient(90deg,#7c4dff,#b085ff)}
+.aa-kart.acil .aa-k-bar i{background:linear-gradient(90deg,#ff3d5a,#ff8a9c)}
+.aa-k-izg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:11px}
+.aa-k-izg div{padding:8px 6px 7px;border-radius:10px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.06);text-align:center}
+.aa-k-izg div.on{background:rgba(176,133,255,.08);border-color:rgba(176,133,255,.3)}
+.aa-k-izg em{display:block;font:800 9px/1 'Barlow Condensed',sans-serif;font-style:normal;letter-spacing:.9px;color:#7d8596;text-transform:uppercase}
+.aa-k-izg b{display:flex;align-items:center;justify-content:center;gap:3px;margin-top:5px;font:900 17px/1 'Barlow Condensed',sans-serif;color:#fff}
+.aa-k-izg div.on b{color:#e0d4ff}
+.aa-k-alt{display:flex;align-items:center;gap:10px;margin-top:11px}
+.aa-avs{flex:1;min-width:0;display:flex;align-items:center}
+.aa-av{width:28px;height:28px;border-radius:50%;overflow:hidden;display:grid;place-items:center;flex:none;background:#222937;border:2px solid #12161e;font-size:14px}
+.aa-av img{width:100%;height:100%;object-fit:cover}
+.aa-avs .aa-av + .aa-av{margin-left:-8px}
+.aa-avs .aa-av:first-child{border-color:#b085ff}
+.aa-avs > span{margin-left:8px;font:600 11.5px/1.2 'Barlow',sans-serif;color:#9aa3b2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aa-avs .aa-onde{display:flex;align-items:center;gap:4px;min-width:0;color:#e8edf5;font-weight:700}
+.aa-avs .aa-onde svg{width:14px;height:14px;flex:none}
+.aa-avs .aa-onde b{overflow:hidden;text-overflow:ellipsis;font-weight:700}
+.aa-bos-tk{color:#7d8596}
+.aa-k-btn{flex:none;height:36px;padding:0 16px;border:0;border-radius:11px;cursor:pointer;font:900 13.5px/1 'Barlow Condensed',sans-serif;letter-spacing:1px;text-transform:uppercase;color:#fff;background:linear-gradient(180deg,#9b6dff,#6f3fe0)}
+.aa-k-btn.kilit{background:rgba(255,255,255,.06);color:#8a93a3;border:1px solid rgba(255,255,255,.1)}
+.aa-k-btn.onde{background:rgba(0,230,118,.12);color:#5ef0a0;border:1px solid rgba(0,230,118,.35)}
+.aa-d-ozet{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px}
+.aa-d-ozet div{padding:8px 4px 7px;border-radius:10px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.06);text-align:center}
+.aa-d-ozet b{display:block;font:900 16px/1 'Barlow Condensed',sans-serif;color:#fff}
+.aa-d-ozet em{display:block;margin-top:4px;font:800 8.5px/1 'Barlow Condensed',sans-serif;font-style:normal;letter-spacing:.8px;color:#7d8596;text-transform:uppercase}
+.aa-d-sure{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;padding:11px 12px;border-radius:12px;background:rgba(176,133,255,.07);border:1px solid rgba(176,133,255,.28)}
+.aa-d-sure > span{font:800 10.5px 'Barlow Condensed',sans-serif;letter-spacing:1px;color:#c9b2ff;text-transform:uppercase}
+.aa-d-sure .aa-sayac{font-size:24px}
+.aa-d-bar{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.06)}
+.aa-d-bar i{display:block;height:100%;width:calc(var(--p)*100%);background:linear-gradient(90deg,#7c4dff,#b085ff)}
+.aa-d-bas{display:flex;align-items:center;justify-content:space-between;margin:14px 2px 7px;font:800 10.5px 'Barlow Condensed',sans-serif;letter-spacing:1px;color:#7d8596;text-transform:uppercase}
+.aa-d-bas b{color:#9aa3b2;letter-spacing:.4px}
+.aa-tek{display:flex;flex-direction:column;gap:5px}
+.aa-tek-s{display:grid;grid-template-columns:22px 30px 1fr auto;align-items:center;gap:8px;padding:7px 10px;border-radius:11px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06)}
+.aa-tek-s.ilk{background:linear-gradient(90deg,rgba(176,133,255,.16),rgba(176,133,255,.04));border-color:rgba(176,133,255,.42)}
+.aa-tek-s.ben{box-shadow:inset 3px 0 0 #00e676}
+.aa-tek-s .no{font:900 13px 'Barlow Condensed',sans-serif;color:#7d8596;text-align:center}
+.aa-tek-s .no svg{width:16px;height:16px;display:block;margin:auto}
+.aa-tek-s .aa-av{width:30px;height:30px;border:0}
+.aa-tek-s .kim{min-width:0}
+.aa-tek-s .kim b{display:block;font:700 13.5px/1.1 'Twemoji Country Flags','Barlow',sans-serif;color:#e8edf5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aa-tek-s .kim small{display:block;margin-top:2px;font:600 10.5px 'Barlow',sans-serif;color:#7d8596}
+.aa-tek-s .tut{display:flex;align-items:center;gap:3px;font:900 16px/1 'Barlow Condensed',sans-serif;color:#fff}
+.aa-tek-s:not(.ilk) .tut{color:#9aa3b2;font-size:15px}
+.aa-tek-bos{padding:14px;border-radius:11px;text-align:center;font:600 12px 'Barlow',sans-serif;color:#7d8596;background:rgba(255,255,255,.03);border:1px dashed rgba(255,255,255,.1)}
+.aa-ver{margin-top:12px;padding:12px;border-radius:13px;background:#10151d;border:1px solid #252b36}
+.aa-ver-ust{display:flex;align-items:center;justify-content:space-between;font:800 10.5px 'Barlow Condensed',sans-serif;letter-spacing:1px;color:#7d8596;text-transform:uppercase}
+.aa-ver-ust span{display:flex;align-items:center;gap:4px;letter-spacing:.3px;color:#cfd6e2;font-size:12.5px}
+.aa-adim{display:grid;grid-template-columns:46px 1fr 46px;gap:8px;margin-top:9px}
+.aa-adim button{height:46px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#e8edf5;font:700 22px/1 'Barlow',sans-serif;cursor:pointer}
+.aa-adim div{display:flex;align-items:center;justify-content:center;gap:6px;border-radius:12px;background:rgba(176,133,255,.08);border:1px solid rgba(176,133,255,.35);font:900 24px/1 'Barlow Condensed',sans-serif;color:#fff}
+.aa-adim div .aa-dia{width:19px;height:19px}
+.aa-hizli{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:7px}
+.aa-hizli button{height:30px;border-radius:9px;border:1px solid rgba(176,133,255,.25);background:rgba(176,133,255,.06);color:#c9b2ff;font:800 12.5px/1 'Barlow Condensed',sans-serif;letter-spacing:.6px;cursor:pointer}
+.aa-ver-not{margin-top:8px;font:600 11px/1.35 'Barlow',sans-serif;color:#7d8596;text-align:center}
+.mg-det-btn .al.aa-al{background:linear-gradient(180deg,#a47bff,#6f3fe0);color:#fff}
+.mg-det-btn .al.aa-al[disabled]{background:rgba(255,255,255,.06);color:#7d8596}
 /* 897 — federasyon seçimi sandık bildirimi: kâğıt sandığa düşer, sandık titrer · düğmede yeşil parıltı */
 .fs-sandik{position:absolute;top:-15px;right:-10px;width:36px;height:36px;z-index:3;pointer-events:none;
   filter:drop-shadow(0 0 5px rgba(70,209,122,.75)) drop-shadow(0 1px 0 #0d0f13);transform-origin:50% 92%;animation:fsTitre 2.4s ease-in-out infinite}
