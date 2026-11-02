@@ -8228,3 +8228,8 @@ window.I18N_PATTERNS.pt.unshift(
   [/^Oyuna girmediğin için açık artırmaya çıkan (.+?) takımını (.+?) aldı ve yeni kaptan oldu\.$/, "$1 foi a leilão porque você não entrava; $2 venceu e é o novo capitão."],
   [/^• Takımda üye olarak kalmaya devam ediyorsun\.$/, "• Você continua no time como membro."]
 );
+
+/* 901 — kalan maaş */
+window.I18N_PATTERNS.pt.unshift(
+  [/^• Kalan maaşın ([\d.]+) € takım kasasından ödendi\.$/, "• Seu salário restante de $1 € foi pago pelo caixa do time."]
+);

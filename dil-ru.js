@@ -8268,3 +8268,8 @@ window.I18N_PATTERNS.ru.unshift(
   [/^Oyuna girmediğin için açık artırmaya çıkan (.+?) takımını (.+?) aldı ve yeni kaptan oldu\.$/, "$1 выставили на аукцион, потому что ты не заходил; её выиграл $2 и стал новым капитаном."],
   [/^• Takımda üye olarak kalmaya devam ediyorsun\.$/, "• Ты остаёшься в команде как участник."]
 );
+
+/* 901 — kalan maaş */
+window.I18N_PATTERNS.ru.unshift(
+  [/^• Kalan maaşın ([\d.]+) € takım kasasından ödendi\.$/, "• Оставшаяся зарплата $1 € выплачена из казны команды."]
+);
