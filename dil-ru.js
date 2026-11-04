@@ -8307,3 +8307,18 @@ window.I18N_PATTERNS.ru.unshift(
   [/^(\d+) Diamond$/, "$1 алмазов"],
   [/^Yetersiz Diamond! Mevki değişimi (\d+) 💎\.$/, "Недостаточно алмазов! Смена позиции стоит $1 💎."]
 );
+
+/* 910 — takım adı uzantısı */
+Object.assign(window.I18N.ru, {
+  "Takım Adı": "Название команды",
+  "Takım adı": "Название команды",
+  "Şu anki ad:": "Текущее название:",
+  "Kelime": "Слово",
+  "Kısaltma": "Аббревиатура",
+  "İlk seçim ücretsiz": "Первый выбор бесплатно",
+  "kasadan": "из казны",
+  "✅ Takım adı güncellendi": "✅ Название команды обновлено",
+  "❌ Takım kasasında yeterli Diamond yok.": "❌ В казне команды недостаточно алмазов.",
+  "⚠️ Takım adını yalnız kaptan değiştirebilir.": "⚠️ Только капитан может изменить название команды.",
+  "❌ Kaydedilemedi, tekrar dene.": "❌ Не удалось сохранить, попробуй ещё раз."
+});

@@ -6634,3 +6634,18 @@ window.I18N_PATTERNS.de.unshift(
   [/^(\d+) Diamond$/, "$1 Diamanten"],
   [/^Yetersiz Diamond! Mevki değişimi (\d+) 💎\.$/, "Nicht genug Diamanten! Ein Positionswechsel kostet $1 💎."]
 );
+
+/* 910 — takım adı uzantısı */
+Object.assign(window.I18N.de, {
+  "Takım Adı": "Teamname",
+  "Takım adı": "Teamname",
+  "Şu anki ad:": "Aktueller Name:",
+  "Kelime": "Wort",
+  "Kısaltma": "Kürzel",
+  "İlk seçim ücretsiz": "Erste Wahl kostenlos",
+  "kasadan": "aus der Kasse",
+  "✅ Takım adı güncellendi": "✅ Teamname aktualisiert",
+  "❌ Takım kasasında yeterli Diamond yok.": "❌ Nicht genug Diamanten in der Teamkasse.",
+  "⚠️ Takım adını yalnız kaptan değiştirebilir.": "⚠️ Nur der Kapitän kann den Teamnamen ändern.",
+  "❌ Kaydedilemedi, tekrar dene.": "❌ Speichern fehlgeschlagen, versuch es erneut."
+});
