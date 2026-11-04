@@ -8349,3 +8349,9 @@ window.I18N_PATTERNS.ru.unshift(
   [/^Kaptanlık Puanı — \+(\d+)$/, "Очки капитана — +$1"],
   [/^Kaptanlık Puanı · (.+)$/, "Очки капитана · $1"]
 );
+
+/* 912 — kupa müzesi + kaptanlık puanı bilgisi */
+Object.assign(window.I18N.ru, {
+  "KUPA MÜZESİ": "МУЗЕЙ ТРОФЕЕВ",
+  "Her yarışta ilk 100 sıraya kaptanlık puanı verilir: birinci 100, ikinci 90, üçüncü 80, dördüncü 70 … yüzüncü 10 puan alır. Üç yarışın puanı toplanır, haftada en fazla 300.": "В каждой гонке очки капитана получают первые 100: 1-е место — 100, 2-е — 90, 3-е — 80, 4-е — 70 … 100-е — 10 очков. Очки трёх гонок суммируются, максимум 300 в неделю."
+});

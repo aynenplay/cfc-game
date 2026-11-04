@@ -8316,3 +8316,9 @@ window.I18N_PATTERNS.es.unshift(
   [/^Kaptanlık Puanı — \+(\d+)$/, "Puntos de capitán — +$1"],
   [/^Kaptanlık Puanı · (.+)$/, "Puntos de capitán · $1"]
 );
+
+/* 912 — kupa müzesi + kaptanlık puanı bilgisi */
+Object.assign(window.I18N.es, {
+  "KUPA MÜZESİ": "MUSEO DE TROFEOS",
+  "Her yarışta ilk 100 sıraya kaptanlık puanı verilir: birinci 100, ikinci 90, üçüncü 80, dördüncü 70 … yüzüncü 10 puan alır. Üç yarışın puanı toplanır, haftada en fazla 300.": "En cada carrera los 100 primeros ganan puntos de capitán: el 1.º recibe 100, el 2.º 90, el 3.º 80, el 4.º 70 … el 100.º 10 puntos. Se suman las tres carreras, hasta 300 por semana."
+});

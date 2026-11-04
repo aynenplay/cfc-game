@@ -8741,3 +8741,9 @@ window.I18N_PATTERNS.en.unshift(
   [/^Kaptanlık Puanı — \+(\d+)$/, "Captain Points — +$1"],
   [/^Kaptanlık Puanı · (.+)$/, "Captain Points · $1"]
 );
+
+/* 912 — kupa müzesi + kaptanlık puanı bilgisi */
+Object.assign(window.I18N.en, {
+  "KUPA MÜZESİ": "TROPHY MUSEUM",
+  "Her yarışta ilk 100 sıraya kaptanlık puanı verilir: birinci 100, ikinci 90, üçüncü 80, dördüncü 70 … yüzüncü 10 puan alır. Üç yarışın puanı toplanır, haftada en fazla 300.": "In each race the top 100 earn captain points: 1st gets 100, 2nd 90, 3rd 80, 4th 70 … 100th 10 points. The three races add up, up to 300 a week."
+});
