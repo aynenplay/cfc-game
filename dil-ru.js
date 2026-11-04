@@ -8322,3 +8322,30 @@ Object.assign(window.I18N.ru, {
   "⚠️ Takım adını yalnız kaptan değiştirebilir.": "⚠️ Только капитан может изменить название команды.",
   "❌ Kaydedilemedi, tekrar dene.": "❌ Не удалось сохранить, попробуй ещё раз."
 });
+
+/* 911 — Kaptanlık Puanı */
+Object.assign(window.I18N.ru, {
+  "Kaptanlık Puanı": "Очки капитана",
+  "KAPTANLIK PUANI": "ОЧКИ КАПИТАНА",
+  "Kaptanlık puanı": "Очки капитана",
+  "Kaptanlık puanın": "Твои очки капитана",
+  "Ödeme:": "Оплата:",
+  "Bu gece sıfırlanır": "Обнулится этой ночью",
+  "Sezon sonunda sıfırlanır.": "Обнуляется в конце сезона.",
+  "Hesaba eklendi": "Зачислено",
+  "Ödenen elmas ve kaptanlık puanı iade edilmez.": "Оплаченные алмазы и очки капитана не возвращаются.",
+  "Haftalık yarışlar": "Еженедельные гонки",
+  "Sezon sonu sıfırlama": "Обнуление в конце сезона",
+  "Takım satın alma (sistem)": "Покупка команды (система)",
+  "Haftalık yarışlardan kaptanlık puanı kazandın.": "Ты заработал очки капитана в еженедельных гонках.",
+  "Her yarışta sıralamadaki yerine göre 100 puana kadar kaptanlık puanı kazanırsın; birinci 100 alır. Üç yarışın puanı toplanır, haftada en fazla 300.": "В каждой гонке ты получаешь до 100 очков капитана в зависимости от места; первое место — 100. Очки трёх гонок суммируются, максимум 300 в неделю.",
+  "Puan yarış bitince kendiliğinden hesabına yazılır.": "Очки начисляются автоматически после окончания гонки.",
+  "Sistemin yönettiği takımları alırken 1 puan 1 elmas yerine geçer; yetmeyen kısım elmasla tamamlanır.": "При покупке команд под управлением системы 1 очко равно 1 алмазу; недостающее оплачивается алмазами.",
+  "Kullanılmayan kaptanlık puanları sezonun 40. günü bitince, yeni sezon başlarken sıfırlanır.": "Неиспользованные очки капитана обнуляются по окончании 40-го дня сезона, с началом нового сезона."
+});
+window.I18N_PATTERNS.ru.unshift(
+  [/^Sezon sonunda sıfırlanır · (\d+) gün$/, "Обнулится в конце сезона · дней: $1"],
+  [/^Bakiye ([\d.]+)$/, "Баланс $1"],
+  [/^Kaptanlık Puanı — \+(\d+)$/, "Очки капитана — +$1"],
+  [/^Kaptanlık Puanı · (.+)$/, "Очки капитана · $1"]
+);

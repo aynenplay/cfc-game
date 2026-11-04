@@ -6649,3 +6649,30 @@ Object.assign(window.I18N.de, {
   "⚠️ Takım adını yalnız kaptan değiştirebilir.": "⚠️ Nur der Kapitän kann den Teamnamen ändern.",
   "❌ Kaydedilemedi, tekrar dene.": "❌ Speichern fehlgeschlagen, versuch es erneut."
 });
+
+/* 911 — Kaptanlık Puanı */
+Object.assign(window.I18N.de, {
+  "Kaptanlık Puanı": "Kapitänspunkte",
+  "KAPTANLIK PUANI": "KAPITÄNSPUNKTE",
+  "Kaptanlık puanı": "Kapitänspunkte",
+  "Kaptanlık puanın": "Deine Kapitänspunkte",
+  "Ödeme:": "Zahlung:",
+  "Bu gece sıfırlanır": "Wird heute Nacht zurückgesetzt",
+  "Sezon sonunda sıfırlanır.": "Wird am Saisonende zurückgesetzt.",
+  "Hesaba eklendi": "Gutgeschrieben",
+  "Ödenen elmas ve kaptanlık puanı iade edilmez.": "Gezahlte Diamanten und Kapitänspunkte werden nicht erstattet.",
+  "Haftalık yarışlar": "Wöchentliche Rennen",
+  "Sezon sonu sıfırlama": "Zurücksetzung zum Saisonende",
+  "Takım satın alma (sistem)": "Teamkauf (System)",
+  "Haftalık yarışlardan kaptanlık puanı kazandın.": "Du hast in den Wochenrennen Kapitänspunkte verdient.",
+  "Her yarışta sıralamadaki yerine göre 100 puana kadar kaptanlık puanı kazanırsın; birinci 100 alır. Üç yarışın puanı toplanır, haftada en fazla 300.": "In jedem Rennen bekommst du je nach Platz bis zu 100 Kapitänspunkte; Platz 1 erhält 100. Die drei Rennen werden addiert, höchstens 300 pro Woche.",
+  "Puan yarış bitince kendiliğinden hesabına yazılır.": "Die Punkte werden nach dem Rennen automatisch gutgeschrieben.",
+  "Sistemin yönettiği takımları alırken 1 puan 1 elmas yerine geçer; yetmeyen kısım elmasla tamamlanır.": "Beim Kauf systemgeführter Teams zählt 1 Punkt wie 1 Diamant; der Rest wird mit Diamanten bezahlt.",
+  "Kullanılmayan kaptanlık puanları sezonun 40. günü bitince, yeni sezon başlarken sıfırlanır.": "Nicht genutzte Kapitänspunkte werden nach Tag 40 der Saison zurückgesetzt, wenn die neue Saison beginnt."
+});
+window.I18N_PATTERNS.de.unshift(
+  [/^Sezon sonunda sıfırlanır · (\d+) gün$/, "Zurücksetzung zum Saisonende · $1 Tage"],
+  [/^Bakiye ([\d.]+)$/, "Guthaben $1"],
+  [/^Kaptanlık Puanı — \+(\d+)$/, "Kapitänspunkte — +$1"],
+  [/^Kaptanlık Puanı · (.+)$/, "Kapitänspunkte · $1"]
+);

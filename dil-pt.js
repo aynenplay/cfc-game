@@ -8281,3 +8281,30 @@ Object.assign(window.I18N.pt, {
   "⚠️ Takım adını yalnız kaptan değiştirebilir.": "⚠️ Só o capitão pode mudar o nome da equipe.",
   "❌ Kaydedilemedi, tekrar dene.": "❌ Não foi possível salvar, tente novamente."
 });
+
+/* 911 — Kaptanlık Puanı */
+Object.assign(window.I18N.pt, {
+  "Kaptanlık Puanı": "Pontos de capitão",
+  "KAPTANLIK PUANI": "PONTOS DE CAPITÃO",
+  "Kaptanlık puanı": "Pontos de capitão",
+  "Kaptanlık puanın": "Seus pontos de capitão",
+  "Ödeme:": "Pagamento:",
+  "Bu gece sıfırlanır": "Zera esta noite",
+  "Sezon sonunda sıfırlanır.": "Zera no fim da temporada.",
+  "Hesaba eklendi": "Adicionado à conta",
+  "Ödenen elmas ve kaptanlık puanı iade edilmez.": "Diamantes e pontos de capitão pagos não são reembolsados.",
+  "Haftalık yarışlar": "Corridas semanais",
+  "Sezon sonu sıfırlama": "Zeragem de fim de temporada",
+  "Takım satın alma (sistem)": "Compra de equipe (sistema)",
+  "Haftalık yarışlardan kaptanlık puanı kazandın.": "Você ganhou pontos de capitão nas corridas semanais.",
+  "Her yarışta sıralamadaki yerine göre 100 puana kadar kaptanlık puanı kazanırsın; birinci 100 alır. Üç yarışın puanı toplanır, haftada en fazla 300.": "Em cada corrida você ganha até 100 pontos de capitão conforme sua posição; o primeiro recebe 100. As três corridas se somam, até 300 por semana.",
+  "Puan yarış bitince kendiliğinden hesabına yazılır.": "Os pontos são creditados automaticamente ao fim da corrida.",
+  "Sistemin yönettiği takımları alırken 1 puan 1 elmas yerine geçer; yetmeyen kısım elmasla tamamlanır.": "Ao comprar equipes geridas pelo sistema, 1 ponto vale 1 diamante; o que faltar é pago com diamantes.",
+  "Kullanılmayan kaptanlık puanları sezonun 40. günü bitince, yeni sezon başlarken sıfırlanır.": "Os pontos de capitão não usados zeram ao fim do 40º dia da temporada, quando começa a nova."
+});
+window.I18N_PATTERNS.pt.unshift(
+  [/^Sezon sonunda sıfırlanır · (\d+) gün$/, "Zera no fim da temporada · $1 dias"],
+  [/^Bakiye ([\d.]+)$/, "Saldo $1"],
+  [/^Kaptanlık Puanı — \+(\d+)$/, "Pontos de capitão — +$1"],
+  [/^Kaptanlık Puanı · (.+)$/, "Pontos de capitão · $1"]
+);

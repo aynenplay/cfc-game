@@ -8349,3 +8349,30 @@ Object.assign(window.I18N.fr, {
   "⚠️ Takım adını yalnız kaptan değiştirebilir.": "⚠️ Seul le capitaine peut changer le nom de l'équipe.",
   "❌ Kaydedilemedi, tekrar dene.": "❌ Échec de l'enregistrement, réessaie."
 });
+
+/* 911 — Kaptanlık Puanı */
+Object.assign(window.I18N.fr, {
+  "Kaptanlık Puanı": "Points de capitaine",
+  "KAPTANLIK PUANI": "POINTS DE CAPITAINE",
+  "Kaptanlık puanı": "Points de capitaine",
+  "Kaptanlık puanın": "Tes points de capitaine",
+  "Ödeme:": "Paiement :",
+  "Bu gece sıfırlanır": "Remis à zéro cette nuit",
+  "Sezon sonunda sıfırlanır.": "Remis à zéro en fin de saison.",
+  "Hesaba eklendi": "Ajouté au compte",
+  "Ödenen elmas ve kaptanlık puanı iade edilmez.": "Les diamants et points de capitaine payés ne sont pas remboursés.",
+  "Haftalık yarışlar": "Courses hebdomadaires",
+  "Sezon sonu sıfırlama": "Remise à zéro de fin de saison",
+  "Takım satın alma (sistem)": "Achat d'équipe (système)",
+  "Haftalık yarışlardan kaptanlık puanı kazandın.": "Tu as gagné des points de capitaine dans les courses hebdomadaires.",
+  "Her yarışta sıralamadaki yerine göre 100 puana kadar kaptanlık puanı kazanırsın; birinci 100 alır. Üç yarışın puanı toplanır, haftada en fazla 300.": "Dans chaque course, tu gagnes jusqu'à 100 points de capitaine selon ton classement ; le premier en reçoit 100. Les trois courses s'additionnent, 300 maximum par semaine.",
+  "Puan yarış bitince kendiliğinden hesabına yazılır.": "Les points sont crédités automatiquement à la fin de la course.",
+  "Sistemin yönettiği takımları alırken 1 puan 1 elmas yerine geçer; yetmeyen kısım elmasla tamamlanır.": "Pour l'achat d'équipes gérées par le système, 1 point vaut 1 diamant ; le reste est payé en diamants.",
+  "Kullanılmayan kaptanlık puanları sezonun 40. günü bitince, yeni sezon başlarken sıfırlanır.": "Les points de capitaine inutilisés sont remis à zéro à la fin du 40e jour de la saison, au début de la nouvelle."
+});
+window.I18N_PATTERNS.fr.unshift(
+  [/^Sezon sonunda sıfırlanır · (\d+) gün$/, "Remis à zéro en fin de saison · $1 j"],
+  [/^Bakiye ([\d.]+)$/, "Solde $1"],
+  [/^Kaptanlık Puanı — \+(\d+)$/, "Points de capitaine — +$1"],
+  [/^Kaptanlık Puanı · (.+)$/, "Points de capitaine · $1"]
+);

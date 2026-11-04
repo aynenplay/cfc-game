@@ -8714,3 +8714,30 @@ Object.assign(window.I18N.en, {
   "⚠️ Takım adını yalnız kaptan değiştirebilir.": "⚠️ Only the captain can change the team name.",
   "❌ Kaydedilemedi, tekrar dene.": "❌ Couldn't save, try again."
 });
+
+/* 911 — Kaptanlık Puanı */
+Object.assign(window.I18N.en, {
+  "Kaptanlık Puanı": "Captain Points",
+  "KAPTANLIK PUANI": "CAPTAIN POINTS",
+  "Kaptanlık puanı": "Captain points",
+  "Kaptanlık puanın": "Your captain points",
+  "Ödeme:": "Payment:",
+  "Bu gece sıfırlanır": "Resets tonight",
+  "Sezon sonunda sıfırlanır.": "Resets at the end of the season.",
+  "Hesaba eklendi": "Added to account",
+  "Ödenen elmas ve kaptanlık puanı iade edilmez.": "Diamonds and captain points paid are non-refundable.",
+  "Haftalık yarışlar": "Weekly races",
+  "Sezon sonu sıfırlama": "Season-end reset",
+  "Takım satın alma (sistem)": "Team purchase (system)",
+  "Haftalık yarışlardan kaptanlık puanı kazandın.": "You earned captain points from the weekly races.",
+  "Her yarışta sıralamadaki yerine göre 100 puana kadar kaptanlık puanı kazanırsın; birinci 100 alır. Üç yarışın puanı toplanır, haftada en fazla 300.": "In each race you earn up to 100 captain points based on your rank; first place gets 100. The three races add up, up to 300 a week.",
+  "Puan yarış bitince kendiliğinden hesabına yazılır.": "Points are credited automatically when the race ends.",
+  "Sistemin yönettiği takımları alırken 1 puan 1 elmas yerine geçer; yetmeyen kısım elmasla tamamlanır.": "When buying system-run teams, 1 point counts as 1 diamond; any shortfall is paid in diamonds.",
+  "Kullanılmayan kaptanlık puanları sezonun 40. günü bitince, yeni sezon başlarken sıfırlanır.": "Unused captain points reset when day 40 of the season ends, as the new season starts."
+});
+window.I18N_PATTERNS.en.unshift(
+  [/^Sezon sonunda sıfırlanır · (\d+) gün$/, "Resets at season end · $1 days"],
+  [/^Bakiye ([\d.]+)$/, "Balance $1"],
+  [/^Kaptanlık Puanı — \+(\d+)$/, "Captain Points — +$1"],
+  [/^Kaptanlık Puanı · (.+)$/, "Captain Points · $1"]
+);
