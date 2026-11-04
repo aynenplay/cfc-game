@@ -8290,3 +8290,20 @@ window.I18N_PATTERNS.ru.unshift(
   [/^\+(\d+) enerji eklendi$/, "Добавлено +$1 энергии"],
   [/^Günlük hak ve kalan enerji (.+) sonra yenilenir$/, "Дневной лимит и остаток энергии обновятся через $1"]
 );
+
+/* 909 — koltuk seçimi + mevki ücreti */
+Object.assign(window.I18N.ru, {
+  "Yeni koltuk hangi mevkiye açılsın?": "Для какой позиции открыть новое место?",
+  "Açılmış koltukları düzenle": "Изменить открытые места",
+  "Koltukları Düzenle": "Изменить места",
+  "Açılan koltuk": "Открыто мест",
+  "❌ Bu mevkide koltuk sınırına ulaşıldı.": "❌ Для этой позиции достигнут лимит мест.",
+  "❌ Bu mevkide oyuncu oturan koltuk kaldırılamaz.": "❌ Нельзя убрать место, занятое игроком.",
+  "Geçiş ücreti mevki uzaklığına göre": "Стоимость зависит от удалённости позиции:",
+  ". Yeteneklerin olduğu gibi korunur.": ". Навыки сохраняются.",
+  "✅ Koltuklar güncellendi": "✅ Места обновлены"
+});
+window.I18N_PATTERNS.ru.unshift(
+  [/^(\d+) Diamond$/, "$1 алмазов"],
+  [/^Yetersiz Diamond! Mevki değişimi (\d+) 💎\.$/, "Недостаточно алмазов! Смена позиции стоит $1 💎."]
+);

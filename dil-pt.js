@@ -8249,3 +8249,20 @@ window.I18N_PATTERNS.pt.unshift(
   [/^\+(\d+) enerji eklendi$/, "+$1 de energia adicionada"],
   [/^Günlük hak ve kalan enerji (.+) sonra yenilenir$/, "O limite diário e a energia restante reiniciam em $1"]
 );
+
+/* 909 — koltuk seçimi + mevki ücreti */
+Object.assign(window.I18N.pt, {
+  "Yeni koltuk hangi mevkiye açılsın?": "Para qual posição será a nova vaga?",
+  "Açılmış koltukları düzenle": "Editar vagas desbloqueadas",
+  "Koltukları Düzenle": "Editar vagas",
+  "Açılan koltuk": "Vagas desbloqueadas",
+  "❌ Bu mevkide koltuk sınırına ulaşıldı.": "❌ Esta posição atingiu o limite de vagas.",
+  "❌ Bu mevkide oyuncu oturan koltuk kaldırılamaz.": "❌ Não é possível remover uma vaga ocupada por um jogador.",
+  "Geçiş ücreti mevki uzaklığına göre": "A taxa depende da distância entre as posições:",
+  ". Yeteneklerin olduğu gibi korunur.": ". Seus atributos permanecem como estão.",
+  "✅ Koltuklar güncellendi": "✅ Vagas atualizadas"
+});
+window.I18N_PATTERNS.pt.unshift(
+  [/^(\d+) Diamond$/, "$1 Diamantes"],
+  [/^Yetersiz Diamond! Mevki değişimi (\d+) 💎\.$/, "Diamantes insuficientes! A troca de posição custa $1 💎."]
+);
