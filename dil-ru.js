@@ -8392,3 +8392,34 @@ Object.assign(window.I18N.ru, {
   "Bu takımda yer yok, sadece satın alınabilir.": "В этой команде нет мест, её можно только купить.",
   "⛔ Bu takımda yer yok, sadece satın alınabilir.": "⛔ В этой команде нет мест, её можно только купить."
 });
+
+/* 932 — Transfer: Takım Arıyorum / Futbolcu Arıyorum ilanları, ana sayfa İlan Ver */
+Object.assign(window.I18N.ru, {
+  "Takım Arıyorum": "Ищу команду",
+  "Futbolcu Arıyorum": "Ищу игроков",
+  "Takım arayan oyuncular.": "Игроки, которые ищут команду.",
+  "Oyuncu arayan takımlar.": "Команды, которые ищут игроков.",
+  "Oyuncu ara...": "Поиск игроков...",
+  "Takım ara...": "Поиск команд...",
+  "İlan Ver": "Разместить объявление",
+  "İlanın": "Твоё объявление",
+  "Takımının ilanı": "Объявление твоей команды",
+  "Aranan": "Ищем",
+  "En az OVR": "Мин. OVR",
+  "Boş koltuk": "Свободные места",
+  "İlan yok.": "Объявлений нет.",
+  "Takım Arıyorum İlanı": "Объявление: ищу команду",
+  "Futbolcu Arıyorum İlanı": "Объявление: ищу игроков",
+  "Aranan mevki": "Нужные позиции",
+  "İlanı Yayınla": "Опубликовать",
+  "Kaptan takıma katarsa takım kasasından cüzdanına geçer.": "Если капитан возьмёт тебя, сумма перейдёт из кассы команды в твой кошелёк.",
+  "Öde ve Kat": "Оплатить и взять",
+  "İlan yayınlandı": "Объявление опубликовано",
+  "İlan kaldırıldı": "Объявление удалено",
+  "Geçersiz değer.": "Неверное значение.",
+  "Bu ilan artık yok.": "Этого объявления больше нет.",
+  "Şartı karşılamıyorsun.": "Ты не подходишь по условию.",
+  "Takım kasasında yeterli bakiye yok.": "Недостаточно средств в кассе команды.",
+  "İlan ver, takımlar seni bulsun.": "Размести объявление — команды найдут тебя.",
+  "Oyunun sosyal ağı. Paylaşım yap, oyuncuları takip et.": "Социальная сеть игры. Публикуй и подписывайся на игроков."
+});

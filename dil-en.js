@@ -8784,3 +8784,34 @@ Object.assign(window.I18N.en, {
   "Bu takımda yer yok, sadece satın alınabilir.": "There is no room in this team, it can only be bought.",
   "⛔ Bu takımda yer yok, sadece satın alınabilir.": "⛔ There is no room in this team, it can only be bought."
 });
+
+/* 932 — Transfer: Takım Arıyorum / Futbolcu Arıyorum ilanları, ana sayfa İlan Ver */
+Object.assign(window.I18N.en, {
+  "Takım Arıyorum": "Looking for a Team",
+  "Futbolcu Arıyorum": "Looking for Players",
+  "Takım arayan oyuncular.": "Players looking for a team.",
+  "Oyuncu arayan takımlar.": "Teams looking for players.",
+  "Oyuncu ara...": "Search players...",
+  "Takım ara...": "Search teams...",
+  "İlan Ver": "Post a Listing",
+  "İlanın": "Your listing",
+  "Takımının ilanı": "Your team's listing",
+  "Aranan": "Wanted",
+  "En az OVR": "Min OVR",
+  "Boş koltuk": "Open spots",
+  "İlan yok.": "No listings.",
+  "Takım Arıyorum İlanı": "Looking for a Team Listing",
+  "Futbolcu Arıyorum İlanı": "Looking for Players Listing",
+  "Aranan mevki": "Positions wanted",
+  "İlanı Yayınla": "Publish Listing",
+  "Kaptan takıma katarsa takım kasasından cüzdanına geçer.": "If a captain signs you, it is paid from the team treasury into your wallet.",
+  "Öde ve Kat": "Pay & Sign",
+  "İlan yayınlandı": "Listing published",
+  "İlan kaldırıldı": "Listing removed",
+  "Geçersiz değer.": "Invalid value.",
+  "Bu ilan artık yok.": "This listing is no longer available.",
+  "Şartı karşılamıyorsun.": "You don't meet the requirement.",
+  "Takım kasasında yeterli bakiye yok.": "Not enough funds in the team treasury.",
+  "İlan ver, takımlar seni bulsun.": "Post a listing, let teams find you.",
+  "Oyunun sosyal ağı. Paylaşım yap, oyuncuları takip et.": "The game's social network. Post and follow players."
+});

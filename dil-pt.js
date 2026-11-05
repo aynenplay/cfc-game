@@ -8351,3 +8351,34 @@ Object.assign(window.I18N.pt, {
   "Bu takımda yer yok, sadece satın alınabilir.": "Não há vaga nesta equipe, ela só pode ser comprada.",
   "⛔ Bu takımda yer yok, sadece satın alınabilir.": "⛔ Não há vaga nesta equipe, ela só pode ser comprada."
 });
+
+/* 932 — Transfer: Takım Arıyorum / Futbolcu Arıyorum ilanları, ana sayfa İlan Ver */
+Object.assign(window.I18N.pt, {
+  "Takım Arıyorum": "Procurando time",
+  "Futbolcu Arıyorum": "Procurando jogadores",
+  "Takım arayan oyuncular.": "Jogadores procurando time.",
+  "Oyuncu arayan takımlar.": "Times procurando jogadores.",
+  "Oyuncu ara...": "Buscar jogadores...",
+  "Takım ara...": "Buscar times...",
+  "İlan Ver": "Publicar anúncio",
+  "İlanın": "Seu anúncio",
+  "Takımının ilanı": "Anúncio do seu time",
+  "Aranan": "Procura",
+  "En az OVR": "OVR mín.",
+  "Boş koltuk": "Vagas livres",
+  "İlan yok.": "Nenhum anúncio.",
+  "Takım Arıyorum İlanı": "Anúncio: procurando time",
+  "Futbolcu Arıyorum İlanı": "Anúncio: procurando jogadores",
+  "Aranan mevki": "Posições procuradas",
+  "İlanı Yayınla": "Publicar anúncio",
+  "Kaptan takıma katarsa takım kasasından cüzdanına geçer.": "Se um capitão te contratar, sai do caixa do time para a sua carteira.",
+  "Öde ve Kat": "Pagar e contratar",
+  "İlan yayınlandı": "Anúncio publicado",
+  "İlan kaldırıldı": "Anúncio removido",
+  "Geçersiz değer.": "Valor inválido.",
+  "Bu ilan artık yok.": "Este anúncio não existe mais.",
+  "Şartı karşılamıyorsun.": "Você não cumpre o requisito.",
+  "Takım kasasında yeterli bakiye yok.": "Saldo insuficiente no caixa do time.",
+  "İlan ver, takımlar seni bulsun.": "Publique um anúncio e deixe os times te encontrarem.",
+  "Oyunun sosyal ağı. Paylaşım yap, oyuncuları takip et.": "A rede social do jogo. Publique e siga jogadores."
+});
