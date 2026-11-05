@@ -8353,3 +8353,9 @@ Object.assign(window.I18N.es, {
   "Şikayet Bildir": "Informar de un problema",
   "Şikayet, istek ve taleplerin admine iletilir.": "Tus quejas, peticiones y sugerencias llegan al admin."
 });
+
+/* 931 — kulüp mevki kontenjanı kalktı: dolu bot kaptanlı takım uyarısı */
+Object.assign(window.I18N.es, {
+  "Bu takımda yer yok, sadece satın alınabilir.": "No hay sitio en este equipo, solo se puede comprar.",
+  "⛔ Bu takımda yer yok, sadece satın alınabilir.": "⛔ No hay sitio en este equipo, solo se puede comprar."
+});

@@ -103,7 +103,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '923';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '931';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -26218,8 +26218,8 @@ body.pd-acik{overflow:hidden}
   </div>
 </div>
 
-<script src="js/oyun.d4784d40.js"></script>
-<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.d4784d40.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
+<script src="js/oyun.dc9d5b56.js"></script>
+<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.dc9d5b56.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
 
 <nav id="bottomnav">
   <button class="nav-btn active" onclick="showPage('home',this)"><div class="nav-icon">🏠</div><div class="nav-label">Menü</div></button>
@@ -37050,7 +37050,7 @@ function konFisEkle(d, once) {
     return '<div class="mk-sec" id="facModalSira">' + kutuIc(lvl) + '</div>';
   }
   window._mkSec = (g) => { secim = g; kutuTazele(secLvl); };
-  window._mkSecilen = () => (secLvl && document.getElementById('facModalSira') ? secim : null);
+  window._mkSecilen = () => null;   // 931 — koltuk seçimi kalktı, geliştirme yalnız kapasiteyi artırır
   window._mkDagYaz = (d, lvl) => { const [cc, ad] = benimTakim(); if (cc && ad && d) dagOnb[cc + ':' + ad] = { d, lvl: sv(lvl), t: Date.now() }; heroCiz(); };
 
   // ── Açılmış koltukları düzenle (kaptan / yardımcı) · 909 ──
@@ -37136,29 +37136,31 @@ function konFisEkle(d, once) {
   }
 
   window._mkFormalar = formalar;
-  window._mkKulupCiz = kulupCiz;
-  window._mkSiraKutu = siraKutu;
-  window._mkAcilanMetin = acilanMetin;
+  // 931 — kulüp takımlarında mevki kontenjanı kalktı (milli takım aynen): hero'da forma satırı, tesiste koltuk seçimi,
+  //   teklifte mevki engeli yok
+  window._mkKulupCiz = (hero) => { if (hero) hero.querySelectorAll('.thb-line-bars .thb-bar.mk').forEach(b => { b.classList.remove('mk'); b.querySelectorAll('.thk').forEach(k => k.remove()); }); };
+  window._mkSiraKutu = () => '';
+  window._mkAcilanMetin = () => '';
   window._mevkiDoluMetin = doluMetin;
-  window._mkTeklifEngel = teklifEngel;
-  // 768 — başvuru öncesi (sunucunun katılma kuralıyla aynı): gerçek oyuncu sınırı 14 + seviye; oyuncunun mevkisi doluysa
-  //   ve o mevkide yer açacak bot yoksa mevki dolu
+  window._mkTeklifEngel = () => null;
+  // 768 — başvuru öncesi (sunucunun katılma kuralıyla aynı): gerçek oyuncu sınırı 14 + seviye · 931 — mevki engeli yok
   window._mkBasvuruEngel = async function (cc, tn) {
     if (!window.sb || typeof authUser === 'undefined' || !authUser || !authUser.id) return null;
-    const [k, t, b, kd] = await Promise.all([
-      window.sb.from('players').select('pos_group, pos, is_bot, user_id').eq('country_code', cc).eq('team_name', tn),
-      window.sb.from('team_data').select('data').eq('country_code', cc).eq('team_name', tn).eq('data_key', 'facilities').maybeSingle(),
-      window.sb.from('players').select('pos_group, pos').eq('user_id', authUser.id).maybeSingle(),
-      window.sb.rpc('kapasite_koltuklari', { p_cc: cc, p_team: tn })]);   // 909
+    const [k, t] = await Promise.all([
+      window.sb.from('players').select('is_bot, user_id').eq('country_code', cc).eq('team_name', tn),
+      window.sb.from('team_data').select('data').eq('country_code', cc).eq('team_name', tn).eq('data_key', 'facilities').maybeSingle()]);
     const kadro = k && k.data;
     if (!Array.isArray(kadro) || !kadro.length) return null;
     const lvl = sv(t && t.data && t.data.data && t.data.data.capacity);
     const gercek = kadro.filter(p => p && !p.is_bot && p.user_id).length;
     if (gercek >= 14 + lvl) return { tur: 'kadro', gercek, sinir: 14 + lvl };
-    const g = grup(b && b.data);
-    const ayni = kadro.filter(p => grup(p) === g);
-    if (b && b.data && ayni.length >= acikSay(g, lvl, kd && !kd.error ? kd.data : null) && !ayni.some(p => p.is_bot)) return { tur: 'mevki', metin: DOLU_METIN[g] };
     return null;
+  };
+  // 931 — bot kaptanlı takım dolu; yer açacak bot ya da 14 gündür oyuna girmeyen oyuncu yoksa takım yalnız satın alınabilir
+  window._mkSadeceSatin = async function (cc, tn) {
+    if (!window.sb || !cc || !tn) return false;
+    try { const { data, error } = await window.sb.rpc('katilim_yer_durumu', { p_cc: cc, p_team: tn }); return !error && data === 'sadece_satin'; }
+    catch (e) { return false; }
   };
 
   // Tesis seviyeleri sunucudan gelince hero yeniden çizilir
