@@ -8382,3 +8382,23 @@ Object.assign(window.I18N.fr, {
   "KUPA MÜZESİ": "MUSÉE DES TROPHÉES",
   "Her yarışta ilk 100 sıraya kaptanlık puanı verilir: birinci 100, ikinci 90, üçüncü 80, dördüncü 70 … yüzüncü 10 puan alır. Üç yarışın puanı toplanır, haftada en fazla 300.": "Dans chaque course, les 100 premiers gagnent des points de capitaine : le 1er reçoit 100, le 2e 90, le 3e 80, le 4e 70 … le 100e 10 points. Les trois courses s'additionnent, 300 maximum par semaine."
 });
+
+/* 913 — kaptanlar sıralaması */
+Object.assign(window.I18N.fr, {
+  "Kaptanlar": "Capitaines",
+  "KAPTANLAR": "CAPITAINES",
+  "Liderler ve kupalar": "Leaders et trophées",
+  "Kaptan Puanı": "Score de capitaine",
+  "Kupa Sayısı": "Trophées",
+  "kupa": "trophées",
+  "En İyi 100 Kaptan — kaptanken kazanılanlar": "Top 100 capitaines — obtenu en tant que capitaine",
+  "Henüz sıralamada kaptan yok": "Aucun capitaine classé pour l'instant",
+  "Kaptan Sıralaması — Kurallar": "Classement des capitaines — Règles",
+  "Lig Sıralaması — Kurallar": "Classement des ligues — Règles",
+  "Kaptanlık yarışı": "Course des capitaines",
+  "Championship · EURO": "Championship · EURO",
+  "Kaptanken (milli takımda teknik direktörken) kazanılanlar kariyer boyunca birikir; takım değişince silinmez.": "Tout ce qui est gagné en tant que capitaine (ou sélectionneur) s'additionne sur la carrière et reste acquis en changeant d'équipe.",
+  "Avrupa kupalarında ve EURO'da Son 32, Son 16, Çeyrek Final, Yarı Final ve Final'e her çıkış, o kupanın bir galibiyeti kadar puan verir.": "Dans les coupes d'Europe et l'EURO, chaque qualification pour les 16es, 8es, quarts, demies et la finale vaut une victoire dans cette coupe.",
+  "Kaptanken kazanılan kaptanlık puanının onda biri eklenir.": "Un dixième des points de capitaine gagnés en tant que capitaine est ajouté.",
+  "Hazırlık maçları sayılmaz. Sıralama 30 dakikada bir güncellenir.": "Les matchs amicaux ne comptent pas. Le classement est mis à jour toutes les 30 minutes."
+});

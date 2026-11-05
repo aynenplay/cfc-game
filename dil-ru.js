@@ -8355,3 +8355,23 @@ Object.assign(window.I18N.ru, {
   "KUPA MÜZESİ": "МУЗЕЙ ТРОФЕЕВ",
   "Her yarışta ilk 100 sıraya kaptanlık puanı verilir: birinci 100, ikinci 90, üçüncü 80, dördüncü 70 … yüzüncü 10 puan alır. Üç yarışın puanı toplanır, haftada en fazla 300.": "В каждой гонке очки капитана получают первые 100: 1-е место — 100, 2-е — 90, 3-е — 80, 4-е — 70 … 100-е — 10 очков. Очки трёх гонок суммируются, максимум 300 в неделю."
 });
+
+/* 913 — kaptanlar sıralaması */
+Object.assign(window.I18N.ru, {
+  "Kaptanlar": "Капитаны",
+  "KAPTANLAR": "КАПИТАНЫ",
+  "Liderler ve kupalar": "Лидеры и трофеи",
+  "Kaptan Puanı": "Рейтинг капитана",
+  "Kupa Sayısı": "Трофеи",
+  "kupa": "трофеи",
+  "En İyi 100 Kaptan — kaptanken kazanılanlar": "Топ-100 капитанов — заработано на посту капитана",
+  "Henüz sıralamada kaptan yok": "Пока нет капитанов в рейтинге",
+  "Kaptan Sıralaması — Kurallar": "Рейтинг капитанов — правила",
+  "Lig Sıralaması — Kurallar": "Рейтинг лиг — правила",
+  "Kaptanlık yarışı": "Гонка капитанов",
+  "Championship · EURO": "Championship · EURO",
+  "Kaptanken (milli takımda teknik direktörken) kazanılanlar kariyer boyunca birikir; takım değişince silinmez.": "Всё, что заработано на посту капитана (или главного тренера сборной), копится за карьеру и сохраняется при смене команды.",
+  "Avrupa kupalarında ve EURO'da Son 32, Son 16, Çeyrek Final, Yarı Final ve Final'e her çıkış, o kupanın bir galibiyeti kadar puan verir.": "В еврокубках и на EURO каждый выход в 1/16, 1/8, 1/4, полуфинал и финал стоит как одна победа в этом турнире.",
+  "Kaptanken kazanılan kaptanlık puanının onda biri eklenir.": "Добавляется десятая часть очков капитана, заработанных на посту капитана.",
+  "Hazırlık maçları sayılmaz. Sıralama 30 dakikada bir güncellenir.": "Товарищеские матчи не учитываются. Рейтинг обновляется каждые 30 минут."
+});

@@ -8747,3 +8747,23 @@ Object.assign(window.I18N.en, {
   "KUPA MÜZESİ": "TROPHY MUSEUM",
   "Her yarışta ilk 100 sıraya kaptanlık puanı verilir: birinci 100, ikinci 90, üçüncü 80, dördüncü 70 … yüzüncü 10 puan alır. Üç yarışın puanı toplanır, haftada en fazla 300.": "In each race the top 100 earn captain points: 1st gets 100, 2nd 90, 3rd 80, 4th 70 … 100th 10 points. The three races add up, up to 300 a week."
 });
+
+/* 913 — kaptanlar sıralaması */
+Object.assign(window.I18N.en, {
+  "Kaptanlar": "Captains",
+  "KAPTANLAR": "CAPTAINS",
+  "Liderler ve kupalar": "Leaders and trophies",
+  "Kaptan Puanı": "Captain Score",
+  "Kupa Sayısı": "Trophies",
+  "kupa": "trophies",
+  "En İyi 100 Kaptan — kaptanken kazanılanlar": "Top 100 Captains — earned while captain",
+  "Henüz sıralamada kaptan yok": "No captains ranked yet",
+  "Kaptan Sıralaması — Kurallar": "Captain Ranking — Rules",
+  "Lig Sıralaması — Kurallar": "League Ranking — Rules",
+  "Kaptanlık yarışı": "Captaincy race",
+  "Championship · EURO": "Championship · EURO",
+  "Kaptanken (milli takımda teknik direktörken) kazanılanlar kariyer boyunca birikir; takım değişince silinmez.": "Everything earned as captain (or as national team head coach) adds up over the career and is kept when you change teams.",
+  "Avrupa kupalarında ve EURO'da Son 32, Son 16, Çeyrek Final, Yarı Final ve Final'e her çıkış, o kupanın bir galibiyeti kadar puan verir.": "In European cups and the EURO, every advance to the Round of 32, Round of 16, quarter-final, semi-final and final is worth one win in that cup.",
+  "Kaptanken kazanılan kaptanlık puanının onda biri eklenir.": "One tenth of the captain points earned while captain is added.",
+  "Hazırlık maçları sayılmaz. Sıralama 30 dakikada bir güncellenir.": "Friendlies don't count. The ranking updates every 30 minutes."
+});
