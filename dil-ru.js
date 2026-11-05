@@ -8380,3 +8380,9 @@ Object.assign(window.I18N.ru, {
 Object.assign(window.I18N.ru, {
   "Pro görevler oyunun en büyük zaferleri — şampiyonluklar ve milli takım. Tek seferlik, kalıcı.": "Про-задания — главные достижения игры: чемпионские титулы и сборная. Разовые и навсегда."
 });
+
+/* 923 — Ayarlar: emojisiz düğme adı, kısaltılmış destek notu */
+Object.assign(window.I18N.ru, {
+  "Şikayet Bildir": "Сообщить о проблеме",
+  "Şikayet, istek ve taleplerin admine iletilir.": "Жалобы, просьбы и предложения передаются администратору."
+});

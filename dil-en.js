@@ -8772,3 +8772,9 @@ Object.assign(window.I18N.en, {
 Object.assign(window.I18N.en, {
   "Pro görevler oyunun en büyük zaferleri — şampiyonluklar ve milli takım. Tek seferlik, kalıcı.": "Pro missions are the game’s biggest achievements — titles and the national team. One-off and permanent."
 });
+
+/* 923 — Ayarlar: emojisiz düğme adı, kısaltılmış destek notu */
+Object.assign(window.I18N.en, {
+  "Şikayet Bildir": "Report a Problem",
+  "Şikayet, istek ve taleplerin admine iletilir.": "Your complaints, requests and suggestions go to the admin."
+});
