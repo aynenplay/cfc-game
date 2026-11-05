@@ -8767,3 +8767,8 @@ Object.assign(window.I18N.en, {
   "Kaptanken kazanılan kaptanlık puanının onda biri eklenir.": "One tenth of the captain points earned while captain is added.",
   "Hazırlık maçları sayılmaz. Sıralama 30 dakikada bir güncellenir.": "Friendlies don't count. The ranking updates every 30 minutes."
 });
+
+/* 917 — Pro görevler notu (emojisiz) */
+Object.assign(window.I18N.en, {
+  "Pro görevler oyunun en büyük zaferleri — şampiyonluklar ve milli takım. Tek seferlik, kalıcı.": "Pro missions are the game’s biggest achievements — titles and the national team. One-off and permanent."
+});

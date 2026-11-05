@@ -8375,3 +8375,8 @@ Object.assign(window.I18N.ru, {
   "Kaptanken kazanılan kaptanlık puanının onda biri eklenir.": "Добавляется десятая часть очков капитана, заработанных на посту капитана.",
   "Hazırlık maçları sayılmaz. Sıralama 30 dakikada bir güncellenir.": "Товарищеские матчи не учитываются. Рейтинг обновляется каждые 30 минут."
 });
+
+/* 917 — Pro görevler notu (emojisiz) */
+Object.assign(window.I18N.ru, {
+  "Pro görevler oyunun en büyük zaferleri — şampiyonluklar ve milli takım. Tek seferlik, kalıcı.": "Про-задания — главные достижения игры: чемпионские титулы и сборная. Разовые и навсегда."
+});

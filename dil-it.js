@@ -8340,3 +8340,8 @@ Object.assign(window.I18N.it, {
   "Kaptanken kazanılan kaptanlık puanının onda biri eklenir.": "Si aggiunge un decimo dei punti capitano guadagnati da capitano.",
   "Hazırlık maçları sayılmaz. Sıralama 30 dakikada bir güncellenir.": "Le amichevoli non contano. La classifica si aggiorna ogni 30 minuti."
 });
+
+/* 917 — Pro görevler notu (emojisiz) */
+Object.assign(window.I18N.it, {
+  "Pro görevler oyunun en büyük zaferleri — şampiyonluklar ve milli takım. Tek seferlik, kalıcı.": "Le missioni Pro sono le imprese più grandi del gioco — titoli e Nazionale. Una tantum e permanenti."
+});
