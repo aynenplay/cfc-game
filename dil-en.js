@@ -8851,3 +8851,6 @@ Object.assign(window.I18N.en, {
   "İyileşene kadar maçlarda oynayamazsın": "You can’t play until you recover",
   "Haftalık yarışlarda sıran, kaptanlık puanın ve elmas ödülün.": "Your rank, captaincy points and diamond reward in the weekly races."
 });
+
+// 939 — Sonuçlar sayfası (emojisiz metinler)
+Object.assign(window.I18N.en, { "Ülke Seç": "Choose Country", "Klasman Seç": "Choose Division", "Turnuva Seç": "Choose Tournament", "Oyuncu Reytingleri": "Player Ratings", "Canlı Olaylar": "Live Events", "Henüz önemli olay yok": "No key events yet", "Devre arası — oyuncular dinleniyor.": "Half time — the players are resting.", "Maç başlamayı bekliyor...": "Waiting for kick-off...", "Maç yeni başladı, takımlar tempoyu yakalıyor.": "The match has just started; the teams are finding their rhythm.", "İlk yarı — temkin ve gözlem dönemi.": "First half — a cautious, watchful spell.", "İlk yarı sonu yaklaşıyor, baskılar artıyor.": "The end of the first half is near and the pressure is building.", "İkinci yarı — taktiksel hamleler yapılıyor.": "Second half — tactical moves are being made.", "Son düzlük — her saniye değerli.": "The final stretch — every second counts.", "Önceki gün": "Previous day", "Sonraki gün": "Next day" });

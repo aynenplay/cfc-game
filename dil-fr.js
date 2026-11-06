@@ -8486,3 +8486,6 @@ Object.assign(window.I18N.fr, {
   "İyileşene kadar maçlarda oynayamazsın": "Tu ne peux pas jouer avant d’être rétabli",
   "Haftalık yarışlarda sıran, kaptanlık puanın ve elmas ödülün.": "Ton classement, tes points de capitaine et ta récompense en diamants dans les courses hebdo."
 });
+
+// 939 — Sonuçlar sayfası (emojisiz metinler)
+Object.assign(window.I18N.fr, { "Ülke Seç": "Choisir un pays", "Klasman Seç": "Choisir la division", "Turnuva Seç": "Choisir le tournoi", "Oyuncu Reytingleri": "Notes des joueurs", "Canlı Olaylar": "Événements en direct", "Henüz önemli olay yok": "Aucun fait marquant pour l'instant", "Devre arası — oyuncular dinleniyor.": "Mi-temps — les joueurs se reposent.", "Maç başlamayı bekliyor...": "En attente du coup d'envoi...", "Maç yeni başladı, takımlar tempoyu yakalıyor.": "Le match vient de commencer, les équipes trouvent leur rythme.", "İlk yarı — temkin ve gözlem dönemi.": "Première mi-temps — une période prudente d'observation.", "İlk yarı sonu yaklaşıyor, baskılar artıyor.": "La fin de la première mi-temps approche, la pression monte.", "İkinci yarı — taktiksel hamleler yapılıyor.": "Seconde mi-temps — place aux ajustements tactiques.", "Son düzlük — her saniye değerli.": "Dernière ligne droite — chaque seconde compte.", "Önceki gün": "Jour précédent", "Sonraki gün": "Jour suivant" });

@@ -8459,3 +8459,6 @@ Object.assign(window.I18N.ru, {
   "İyileşene kadar maçlarda oynayamazsın": "Ты не можешь играть до выздоровления",
   "Haftalık yarışlarda sıran, kaptanlık puanın ve elmas ödülün.": "Твоё место, капитанские очки и награда алмазами в еженедельных гонках."
 });
+
+// 939 — Sonuçlar sayfası (emojisiz metinler)
+Object.assign(window.I18N.ru, { "Ülke Seç": "Выбрать страну", "Klasman Seç": "Выбери дивизион", "Turnuva Seç": "Выбери турнир", "Oyuncu Reytingleri": "Оценки игроков", "Canlı Olaylar": "События в эфире", "Henüz önemli olay yok": "Пока нет ключевых событий", "Devre arası — oyuncular dinleniyor.": "Перерыв — игроки отдыхают.", "Maç başlamayı bekliyor...": "Ожидание начала матча...", "Maç yeni başladı, takımlar tempoyu yakalıyor.": "Матч только начался, команды входят в ритм.", "İlk yarı — temkin ve gözlem dönemi.": "Первый тайм — команды осторожно присматриваются.", "İlk yarı sonu yaklaşıyor, baskılar artıyor.": "Первый тайм подходит к концу, давление растёт.", "İkinci yarı — taktiksel hamleler yapılıyor.": "Второй тайм — идут тактические перестроения.", "Son düzlük — her saniye değerli.": "Финишная прямая — каждая секунда на счету.", "Önceki gün": "Предыдущий день", "Sonraki gün": "Следующий день" });
