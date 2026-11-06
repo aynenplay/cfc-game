@@ -1523,6 +1523,17 @@ tbody tr:hover td{ background:rgba(255,255,255,.03); }
 @media (max-width:1179px){ .u-sag{ display:none !important; } }
 .u-f .v, .u-mail{ font-family:var(--body); }
 .u-oz .s{ min-width:0; }
+/* 941e — net kâr sütunları */
+.od-rap table{ min-width:1060px; }
+.od-rap td.ks b{ color:#ff8a97; }
+.od-rap td.ks small{ white-space:nowrap; }
+.od-rap thead th.nk{ color:var(--accent); }
+.od-rap td.nk{ font-family:var(--disp); font-size:16px; font-weight:800; color:var(--accent); letter-spacing:-.1px; }
+.od-rap td.yz em{ display:inline-block; min-width:52px; padding:3px 8px; border-radius:8px; font-style:normal; font-size:12px; font-weight:700;
+  background:rgba(0,230,118,.12); color:var(--accent); text-align:center; }
+.od-rap tfoot td.ks b{ color:#ff8a97; }
+.od-rap tfoot td.nk{ color:var(--gold); font-size:18px; }
+.od-rap tfoot td.yz em{ background:rgba(255,213,79,.14); color:var(--gold); }
 @media (max-width:760px){
   .u-oz{ padding:11px 12px; }
   .u-oz .s + .s{ padding-left:10px; margin-left:10px; }
@@ -2155,7 +2166,7 @@ async function fbDelete(id){
 
 
 /* ═══════════════════════════════════════════════════════════════════
-   ELMAS SATIŞLARI — Google Play · App Store · Xsolla ödeme raporu
+   ELMAS SATIŞLARI — Google Play · App Store ödeme raporu
 
    Kaynak: `payments` tablosu. Her satır bir ödeme.
    654 — tutarlar TL: müşterinin ödediği tutar (vergi dahil) ve ödeme gününün kuruyla TL karşılığı
@@ -2212,7 +2223,7 @@ function _odTarih(t){
   catch(e){ return '—'; }
 }
 function _odPara(n){ return (Number(n)||0).toLocaleString('tr', { minimumFractionDigits:2, maximumFractionDigits:2 }) + ' TL'; }
-const OD_KAYNAK = [ ['google_play','Google Play'], ['apple','App Store'], ['xsolla','Xsolla'] ];
+const OD_KAYNAK = [ ['google_play','Google Play'], ['apple','App Store'] ];   // 941f — yalnız Google Play ve App Store
 function _odKaynakAd(k){ const x = OD_KAYNAK.find(a => a[0] === k); return x ? x[1] : (k || '—'); }
 function _odTl(x){ return (x.tl != null) ? Number(x.tl) || 0 : 0; }
 
@@ -2221,7 +2232,7 @@ async function _odVeriCek(){
     apiTum({ table:'payments', orderBy:'created_at', orderDir:'desc' }),
     apiTum({ table:'players', orderBy:'user_id', orderDir:'asc', cols:'user_id,name,team_name', sayim:'yok' }, _gercekBitti).catch(()=>({rows:[]}))
   ]);
-  OD_LISTE = pay.rows || [];
+  OD_LISTE = (pay.rows || []).filter(x => x.provider === 'google_play' || x.provider === 'apple');   // 941f — yalnız mağaza ödemeleri
   OD_ISIM = {};
   (pl.rows||[]).forEach(x => {
     if (x && x.user_id) OD_ISIM[x.user_id] = { ad: x.name || '(isimsiz)', takim: x.team_name || '' };
@@ -2278,31 +2289,67 @@ function _odAyPopCiz(){
 }
 function _odAyDisTik(e){ const k = $('odAy'); if (OD_AYAC && k && !k.contains(e.target)) { OD_AYAC = false; k.classList.remove('acik'); } }
 document.addEventListener('mousedown', _odAyDisTik);
+// ══ 941e — NET KÂR: ciro (KDV dahil) → KDV (alıcının ülkesi) → mağaza payı %15 → banka vergisi %15 (20/B) → net ══
+//   Google'ın kazanç raporuyla birebir değil: Google kendi kurunu ve ABD Pasifik saatini kullanır (~%1 fark olabilir).
+const OD_KDV = { TR:20, IT:22, ES:21, DE:19, FR:20, NL:21, BE:21, PT:23, AT:20, IE:23, GR:24, FI:25.5, SE:25, DK:25, NO:25, CH:8.1,
+  PL:23, CZ:21, SK:23, HU:27, RO:21, BG:20, HR:25, SI:22, LT:21, LV:21, EE:24, LU:17, CY:19, MT:18, GB:20, RS:20, AL:20,
+  UA:20, RU:22, AZ:18, KZ:16, IL:18, US:0 };
+const OD_PARA_ULKE = { TRY:'TR', PLN:'PL', RON:'RO', UAH:'UA', AZN:'AZ', BGN:'BG', HUF:'HU', CZK:'CZ', SEK:'SE', NOK:'NO', DKK:'DK',
+  CHF:'CH', GBP:'GB', RUB:'RU', KZT:'KZ', ILS:'IL', RSD:'RS', ALL:'AL', USD:'US' };
+const OD_A3 = { TUR:'TR', ITA:'IT', ESP:'ES', DEU:'DE', FRA:'FR', NLD:'NL', BEL:'BE', PRT:'PT', AUT:'AT', IRL:'IE', GRC:'GR', FIN:'FI',
+  SWE:'SE', DNK:'DK', NOR:'NO', CHE:'CH', POL:'PL', CZE:'CZ', SVK:'SK', HUN:'HU', ROU:'RO', BGR:'BG', HRV:'HR', SVN:'SI', LTU:'LT',
+  LVA:'LV', EST:'EE', LUX:'LU', CYP:'CY', MLT:'MT', GBR:'GB', SRB:'RS', ALB:'AL', UKR:'UA', RUS:'RU', AZE:'AZ', KAZ:'KZ', ISR:'IL', USA:'US' };
+const OD_MAGAZA_PAY = 0.15, OD_STOPAJ = 0.15;
+function _odHam(x){ let r = x.raw; if (typeof r === 'string') { try { r = JSON.parse(r); } catch (e) { r = null; } } return r || {}; }
+function _odUlke(x){
+  const r = _odHam(x);
+  let u = String(r.regionCode || '').toUpperCase();
+  if (!u && r.storefront) u = OD_A3[String(r.storefront).toUpperCase()] || '';
+  if (!u) u = OD_PARA_ULKE[String(x.para_birimi || '').toUpperCase()] || '';
+  return u;
+}
+function _odKdvOran(x){ const u = _odUlke(x); return (u && OD_KDV[u] != null) ? OD_KDV[u] / 100 : (String(x.para_birimi || '').toUpperCase() === 'EUR' ? 0.21 : 0.20); }
+function _odKesTop(d, x){
+  const tl = _odTl(x), kdv = tl - tl / (1 + _odKdvOran(x)), kom = (tl - kdv) * OD_MAGAZA_PAY, vergi = (tl - kdv - kom) * OD_STOPAJ;
+  const k = d._k = d._k || { kdv:0, kom:0, vergi:0, net:0 };
+  k.kdv += kdv; k.kom += kom; k.vergi += vergi; k.net += tl - kdv - kom - vergi;
+}
+function _odKesEkle(T, k){ if (k) { T.kdv += k.kdv; T.kom += k.kom; T.vergi += k.vergi; T.net += k.net; } }
+const _odEksi = v => '−' + _odPara(v);
+function _odKesHucre(k, n, tl){
+  if (!n || !k) return '<td class="ks"><i>—</i></td><td class="ks"><i>—</i></td><td class="nk"><i>—</i></td><td class="yz"><i>—</i></td>';
+  const yz = tl ? (k.net / tl * 100) : 0;
+  return `<td class="ks"><b>${_odEksi(k.kdv + k.kom)}</b><small>KDV ${_odPara(k.kdv)} · Pay ${_odPara(k.kom)}</small></td>`
+    + `<td class="ks"><b>${_odEksi(k.vergi)}</b></td><td class="nk">${_odPara(k.net)}</td>`
+    + `<td class="yz"><em>%${yz.toLocaleString('tr', { minimumFractionDigits:1, maximumFractionDigits:1 })}</em></td>`;
+}
+const OD_KES_BAS = '<th>Mağaza Kesintisi<span>KDV · Komisyon %15</span></th><th>Banka Vergisi<span>Stopaj %15</span></th><th class="nk">Net Kâr</th><th>Kâr %</th>';
+
 function odRaporCiz(){
   const bugun = uIstGun(), veri = _odVeriAylari();
   if (!OD_RAY || !veri.has(OD_RAY)) OD_RAY = bugun.slice(0, 7);
   const ym = OD_RAY, y = +ym.slice(0, 4), m = +ym.slice(5, 7), gunSay = new Date(Date.UTC(y, m, 0)).getUTCDate();
   const kay = _odKayit();
-  const kaynak = OD_KAYNAK.filter(([k]) => k !== 'xsolla' || kay.some(x => x.provider === 'xsolla' && uIstGun(_odMs(x.created_at)).startsWith(ym)));
+  const kaynak = OD_KAYNAK;
   const G = {};
   kay.forEach(x => {
     const g = uIstGun(_odMs(x.created_at)); if (!g.startsWith(ym)) return;
     const d = G[g] = G[g] || {};
     const c = d[x.provider] = d[x.provider] || { n:0, tl:0 };
-    c.n++; c.tl += _odTl(x);
+    c.n++; c.tl += _odTl(x); _odKesTop(d, x);   // 941e
   });
   const top = {}; kaynak.forEach(([k]) => top[k] = { n:0, tl:0 });
   const hucre = c => c && c.n ? `<b>${_odPara(c.tl)}</b><small>${c.n} sipariş</small>` : '<i>—</i>';
-  let satir = '', tN = 0, tTl = 0;
+  let satir = '', tN = 0, tTl = 0; const T = { kdv:0, kom:0, vergi:0, net:0 };   // 941e
   for (let i = 1; i <= gunSay; i++) {
     const g = ym + '-' + String(i).padStart(2, '0'), d = G[g] || {};
     if (g > bugun) break;   // gelmemiş günler gösterilmez; ay ilerledikçe eklenir
     let n = 0, tl = 0;
     const hc = kaynak.map(([k]) => { const c = d[k]; if (c) { n += c.n; tl += c.tl; top[k].n += c.n; top[k].tl += c.tl; } return `<td>${hucre(c)}</td>`; }).join('');
-    tN += n; tTl += tl;
+    tN += n; tTl += tl; _odKesEkle(T, d._k);   // 941e
     const gd = OD_GUNAD[new Date(Date.UTC(y, m - 1, i)).getUTCDay()];
     satir += `<tr class="${g === bugun ? 'bg' : ''}"><th>${i} ${OD_AYAD[m - 1].slice(0, 3)} <span>${gd}</span></th>${hc}`
-      + `<td class="sn">${n || '<i>—</i>'}</td><td class="tc">${n ? _odPara(tl) : '<i>—</i>'}</td></tr>`;
+      + `<td class="sn">${n || '<i>—</i>'}</td><td class="tc">${n ? _odPara(tl) : '<i>—</i>'}</td>${_odKesHucre(d._k, n, tl)}</tr>`;
   }
   $('main').innerHTML = _opBaslik('Elmas Satışları', _odAyAd(ym) + ' · ' + tN + ' sipariş')
     + '<div class="bcbox fadein" style="padding:14px 15px">'
@@ -2318,10 +2365,10 @@ function odRaporCiz(){
       + '</div>'
       + '<div class="od-rap"><table><thead><tr><th>Tarih</th>'
         + kaynak.map(([, ad]) => `<th>${ad}<span>Ciro · Sipariş</span></th>`).join('')
-        + '<th class="sn">T. Sipariş</th><th class="tc">Toplam Ciro</th></tr></thead>'
+        + '<th class="sn">T. Sipariş</th><th class="tc">Toplam Ciro</th>' + OD_KES_BAS + '</tr></thead>'
         + '<tbody>' + satir + '</tbody>'
         + '<tfoot><tr><th>Toplam</th>' + kaynak.map(([k]) => `<td>${hucre(top[k])}</td>`).join('')
-        + `<td class="sn">${tN}</td><td class="tc">${_odPara(tTl)}</td></tr></tfoot></table></div>`
+        + `<td class="sn">${tN}</td><td class="tc">${_odPara(tTl)}</td>${_odKesHucre(T, tN, tTl)}</tr></tfoot></table></div>`
     + '</div>';
   const b = $('odBtns');
   if (b) b.querySelectorAll('button').forEach(x => x.onclick = () => { OD_SECILI = x.dataset.k; odCiz(); });
@@ -2345,24 +2392,24 @@ function odAylikCiz(){
   const bugun = uIstGun(), buAy = bugun.slice(0, 7), yillar = _odYillar();
   if (!OD_YIL || yillar.indexOf(OD_YIL) < 0) OD_YIL = +bugun.slice(0, 4);
   const yl = OD_YIL, kay = _odKayit();
-  const kaynak = OD_KAYNAK.filter(([k]) => k !== 'xsolla' || kay.some(x => x.provider === 'xsolla' && uIstGun(_odMs(x.created_at)).startsWith(yl + '-')));
+  const kaynak = OD_KAYNAK;
   const A = {};
   kay.forEach(x => {
     const g = uIstGun(_odMs(x.created_at)); if (!g.startsWith(yl + '-')) return;
     const d = A[g.slice(0, 7)] = A[g.slice(0, 7)] || {};
     const c = d[x.provider] = d[x.provider] || { n:0, tl:0 };
-    c.n++; c.tl += _odTl(x);
+    c.n++; c.tl += _odTl(x); _odKesTop(d, x);   // 941e
   });
   const top = {}; kaynak.forEach(([k]) => top[k] = { n:0, tl:0 });
   const hucre = c => c && c.n ? `<b>${_odPara(c.tl)}</b><small>${c.n} sipariş</small>` : '<i>—</i>';
-  let satir = '', tN = 0, tTl = 0;
+  let satir = '', tN = 0, tTl = 0; const T = { kdv:0, kom:0, vergi:0, net:0 };   // 941e
   for (let i = 1; i <= 12; i++) {
     const ym = yl + '-' + String(i).padStart(2, '0'), d = A[ym] || {}, gelecek = ym > buAy;
     let n = 0, tl = 0;
     const hc = kaynak.map(([k]) => { const c = d[k]; if (c) { n += c.n; tl += c.tl; top[k].n += c.n; top[k].tl += c.tl; } return `<td>${gelecek ? '' : hucre(c)}</td>`; }).join('');
-    tN += n; tTl += tl;
+    tN += n; tTl += tl; _odKesEkle(T, d._k);   // 941e
     satir += `<tr class="${gelecek ? 'gl' : 'ay'}${ym === buAy ? ' bg' : ''}"${gelecek ? '' : ` data-ay="${ym}"`}><th>${OD_AYAD[i - 1]}${ym === buAy ? '<em>Bu ay</em>' : ''}</th>${hc}`
-      + `<td class="sn">${gelecek ? '' : (n || '<i>—</i>')}</td><td class="tc">${gelecek ? '' : (n ? _odPara(tl) : '<i>—</i>')}</td></tr>`;
+      + `<td class="sn">${gelecek ? '' : (n || '<i>—</i>')}</td><td class="tc">${gelecek ? '' : (n ? _odPara(tl) : '<i>—</i>')}</td>${gelecek ? '<td></td><td></td><td></td><td></td>' : _odKesHucre(d._k, n, tl)}</tr>`;
   }
   $('main').innerHTML = _opBaslik('Elmas Satışları', yl + ' · ' + tN + ' sipariş')
     + '<div class="bcbox fadein" style="padding:14px 15px">'
@@ -2378,10 +2425,10 @@ function odAylikCiz(){
       + '</div>'
       + '<div class="od-rap od-aylik"><table><thead><tr><th>Ay</th>'
         + kaynak.map(([, ad]) => `<th>${ad}<span>Ciro · Sipariş</span></th>`).join('')
-        + '<th class="sn">T. Sipariş</th><th class="tc">Toplam Ciro</th></tr></thead>'
+        + '<th class="sn">T. Sipariş</th><th class="tc">Toplam Ciro</th>' + OD_KES_BAS + '</tr></thead>'
         + '<tbody>' + satir + '</tbody>'
         + `<tfoot><tr><th>${yl} toplam</th>` + kaynak.map(([k]) => `<td>${hucre(top[k])}</td>`).join('')
-        + `<td class="sn">${tN}</td><td class="tc">${_odPara(tTl)}</td></tr></tfoot></table></div>`
+        + `<td class="sn">${tN}</td><td class="tc">${_odPara(tTl)}</td>${_odKesHucre(T, tN, tTl)}</tr></tfoot></table></div>`
     + '</div>';
   const b = $('odBtns');
   if (b) b.querySelectorAll('button').forEach(x => x.onclick = () => { OD_SECILI = x.dataset.k; odCiz(); });
@@ -2464,7 +2511,7 @@ function odCiz(){
         : '<div class="opnot">Bu dönemde satış yok.</div>')
     + '<div class="opnot">Bir alıcıya dokun → tarih, saat, kaynak, paket ve işlem numarasıyla '
       + 'tüm ödemelerini gör. İşlem numarasına tıklayınca panoya kopyalanır — '
-      + 'Google Play Console, App Store Connect ya da Xsolla panelinde arattığında dekonta ulaşırsın.</div>';
+      + 'Google Play Console ya da App Store Connect\'te arattığında dekonta ulaşırsın.</div>';
 
   const b = $('odBtns');
   if (b) b.querySelectorAll('button').forEach(x => x.onclick = () => { OD_SECILI = x.dataset.k; odCiz(); });
