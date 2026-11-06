@@ -178,6 +178,17 @@
   .od-ay-alt{ display:flex; align-items:center; justify-content:space-between; margin-top:10px; padding-top:9px; border-top:1px solid var(--line); }
   .od-ay-alt span{ font-size:11.5px; color:var(--dim); }
   .od-ay-alt button{ padding:2px 0; background:transparent; color:var(--gold); font-size:13px; font-weight:800; }
+  /* 941 — AYLIK RAPOR */
+  .od-yil-pop{ display:none; position:absolute; top:calc(100% + 8px); right:0; z-index:20; width:190px; padding:6px; border-radius:14px;
+    background:var(--panel2); border:1px solid var(--line); box-shadow:0 18px 44px -12px rgba(0,0,0,.8); }
+  .od-ay.acik .od-yil-pop{ display:block; }
+  .od-yil-pop button{ display:flex; align-items:center; justify-content:space-between; width:100%; height:40px; padding:0 12px; background:transparent; color:var(--txt); font-family:var(--disp); font-size:17px; font-weight:800; }
+  .od-yil-pop button:hover:not(.on){ background:rgba(255,255,255,.05); }
+  .od-yil-pop button.on{ color:var(--gold); }
+  .od-yil-pop svg{ width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:2.6; stroke-linecap:round; stroke-linejoin:round; }
+  .od-aylik tbody tr.ay{ cursor:pointer; }
+  .od-aylik tbody th em{ display:inline-block; margin-left:9px; padding:2px 7px; border-radius:6px; background:rgba(46,195,107,.14); color:var(--accent); font-family:var(--body); font-size:10.5px; font-style:normal; font-weight:700; vertical-align:2px; }
+  .od-aylik tbody tr.gl th{ color:#4a505b; }
   .od-rap{ overflow-x:auto; border:1px solid var(--line); border-radius:12px; }
   .od-rap table{ width:100%; min-width:620px; border-collapse:collapse; font-size:13px; }
   .od-rap th, .od-rap td{ padding:8px 14px; border-bottom:1px solid var(--line); border-right:0; text-align:right; white-space:nowrap; max-width:none; overflow:visible; font-family:var(--body); color:var(--txt); background:transparent; text-transform:none; }
@@ -2008,8 +2019,10 @@ const OD_DONEM = [
   { k:'yil',   ad:'Bu Yıl'   },
   { k:'tumu',  ad:'Tümü'     },
   { k:'ozel',  ad:'Özel'     },
-  { k:'rapor', ad:'RAPOR'    }   // 940 — ayın gün gün satış tablosu
+  { k:'rapor', ad:'RAPOR'    },  // 940 — ayın gün gün satış tablosu
+  { k:'aylik', ad:'AYLIK RAPOR' } // 941 — yılın ay ay satış tablosu
 ];
+let OD_YIL = null, OD_YILAC = false;   // 941 — aylık raporda seçili yıl · yıl seçici açık mı
 let OD_SECILI  = 'bugun';
 let OD_RAY = null;                 // 940 — raporda seçili ay 'YYYY-MM' (null = bu ay)
 let OD_BAS = null, OD_BIT = null;   // 858 — özel dönem: 'YYYY-MM-DD' (İstanbul günü, ikisi dahil)
@@ -2144,7 +2157,7 @@ function odRaporCiz(){
     + '<div class="bcbox fadein" style="padding:14px 15px">'
       + '<div class="od-ust">'
         + '<div><div class="rk-sure-btns" id="odBtns">'
-          + OD_DONEM.map(d=>`<button data-k="${d.k}" class="${d.k===OD_SECILI?'on':''}${d.k==='rapor'?' od-rp':''}">${d.ad}</button>`).join('')
+          + OD_DONEM.map(d=>`<button data-k="${d.k}" class="${d.k===OD_SECILI?'on':''}${(d.k==='rapor'||d.k==='aylik')?' od-rp':''}">${d.ad}</button>`).join('')
         + '</div></div>'
         + '<div class="od-sag"><div class="od-ay' + (OD_AYAC ? ' acik' : '') + '" id="odAy"><span>Ay seçin</span>'
           + `<button type="button" class="od-ay-btn" id="odAyBtn">${_odAyAd(ym)}<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>`
@@ -2168,9 +2181,71 @@ function odRaporCiz(){
   if (t) t.onchange = () => { OD_TEST = t.checked; odCiz(); };
 }
 
+// ══ 941 — AYLIK RAPOR: seçilen yılın her ayı (İstanbul günü) · kaynak başına ciro ve sipariş · yıl toplamı ══
+//   Sayım kuralı RAPOR ile aynı (iade yok, test kutusu işaretli değilse test yok). Bir aya dokununca o ayın RAPOR'u açılır.
+function _odYillar(){
+  const v = new Set([+uIstGun().slice(0, 4)]);
+  _odKayit().forEach(x => v.add(+uIstGun(_odMs(x.created_at)).slice(0, 4)));
+  return [...v].sort((a, b) => b - a);
+}
+function _odYilDisTik(e){ const k = $('odYil'); if (OD_YILAC && k && !k.contains(e.target)) { OD_YILAC = false; k.classList.remove('acik'); } }
+document.addEventListener('mousedown', _odYilDisTik);
+function odAylikCiz(){
+  const bugun = uIstGun(), buAy = bugun.slice(0, 7), yillar = _odYillar();
+  if (!OD_YIL || yillar.indexOf(OD_YIL) < 0) OD_YIL = +bugun.slice(0, 4);
+  const yl = OD_YIL, kay = _odKayit();
+  const kaynak = OD_KAYNAK.filter(([k]) => k !== 'xsolla' || kay.some(x => x.provider === 'xsolla' && uIstGun(_odMs(x.created_at)).startsWith(yl + '-')));
+  const A = {};
+  kay.forEach(x => {
+    const g = uIstGun(_odMs(x.created_at)); if (!g.startsWith(yl + '-')) return;
+    const d = A[g.slice(0, 7)] = A[g.slice(0, 7)] || {};
+    const c = d[x.provider] = d[x.provider] || { n:0, tl:0 };
+    c.n++; c.tl += _odTl(x);
+  });
+  const top = {}; kaynak.forEach(([k]) => top[k] = { n:0, tl:0 });
+  const hucre = c => c && c.n ? `<b>${_odPara(c.tl)}</b><small>${c.n} sipariş</small>` : '<i>—</i>';
+  let satir = '', tN = 0, tTl = 0;
+  for (let i = 1; i <= 12; i++) {
+    const ym = yl + '-' + String(i).padStart(2, '0'), d = A[ym] || {}, gelecek = ym > buAy;
+    let n = 0, tl = 0;
+    const hc = kaynak.map(([k]) => { const c = d[k]; if (c) { n += c.n; tl += c.tl; top[k].n += c.n; top[k].tl += c.tl; } return `<td>${gelecek ? '' : hucre(c)}</td>`; }).join('');
+    tN += n; tTl += tl;
+    satir += `<tr class="${gelecek ? 'gl' : 'ay'}${ym === buAy ? ' bg' : ''}"${gelecek ? '' : ` data-ay="${ym}"`}><th>${OD_AYAD[i - 1]}${ym === buAy ? '<em>Bu ay</em>' : ''}</th>${hc}`
+      + `<td class="sn">${gelecek ? '' : (n || '<i>—</i>')}</td><td class="tc">${gelecek ? '' : (n ? _odPara(tl) : '<i>—</i>')}</td></tr>`;
+  }
+  $('main').innerHTML = _opBaslik('Elmas Satışları', yl + ' · ' + tN + ' sipariş')
+    + '<div class="bcbox fadein" style="padding:14px 15px">'
+      + '<div class="od-ust">'
+        + '<div><div class="rk-sure-btns" id="odBtns">'
+          + OD_DONEM.map(d=>`<button data-k="${d.k}" class="${d.k===OD_SECILI?'on':''}${(d.k==='rapor'||d.k==='aylik')?' od-rp':''}">${d.ad}</button>`).join('')
+        + '</div></div>'
+        + '<div class="od-sag"><div class="od-ay' + (OD_YILAC ? ' acik' : '') + '" id="odYil"><span>Yıl seçin</span>'
+          + `<button type="button" class="od-ay-btn" id="odYilBtn">${yl}<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>`
+          + '<div class="od-yil-pop">' + yillar.map(y => `<button type="button" data-y="${y}" class="${y === yl ? 'on' : ''}">${y}${y === yl ? '<svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>' : ''}</button>`).join('') + '</div></div>'
+        + '<label class="od-sw"><input type="checkbox" id="odTest"' + (OD_TEST?' checked':'') + '>'
+        + 'Test (sandbox) kayıtlarını da göster</label></div>'
+      + '</div>'
+      + '<div class="od-rap od-aylik"><table><thead><tr><th>Ay</th>'
+        + kaynak.map(([, ad]) => `<th>${ad}<span>Ciro · Sipariş</span></th>`).join('')
+        + '<th class="sn">T. Sipariş</th><th class="tc">Toplam Ciro</th></tr></thead>'
+        + '<tbody>' + satir + '</tbody>'
+        + `<tfoot><tr><th>${yl} toplam</th>` + kaynak.map(([k]) => `<td>${hucre(top[k])}</td>`).join('')
+        + `<td class="sn">${tN}</td><td class="tc">${_odPara(tTl)}</td></tr></tfoot></table></div>`
+    + '</div>';
+  const b = $('odBtns');
+  if (b) b.querySelectorAll('button').forEach(x => x.onclick = () => { OD_SECILI = x.dataset.k; odCiz(); });
+  const yb = $('odYilBtn');
+  if (yb) yb.onclick = () => { OD_YILAC = !OD_YILAC; $('odYil').classList.toggle('acik', OD_YILAC); };
+  document.querySelectorAll('#odYil [data-y]').forEach(x => x.onclick = () => { OD_YIL = +x.dataset.y; OD_YILAC = false; odCiz(); });
+  document.querySelectorAll('.od-aylik tr[data-ay]').forEach(x => x.onclick = () => { OD_RAY = x.dataset.ay; OD_SECILI = 'rapor'; odCiz(); });
+  const t = $('odTest');
+  if (t) t.onchange = () => { OD_TEST = t.checked; odCiz(); };
+}
+
 function odCiz(){
   if (OD_KISI) return odKisiCiz();
   if (OD_SECILI === 'rapor') return odRaporCiz();   // 940
+  if (OD_SECILI === 'aylik') return odAylikCiz();   // 941
 
   const kayit  = _odSuzulmus();
   const gecerli = kayit.filter(x => x.status !== 'refunded');
@@ -2204,7 +2279,7 @@ function odCiz(){
     + '<div class="bcbox fadein" style="padding:14px 15px">'
       + '<div class="od-ust">'
         + '<div><div class="rk-sure-btns" id="odBtns">'
-          + OD_DONEM.map(d=>`<button data-k="${d.k}" class="${d.k===OD_SECILI?'on':''}${d.k==='rapor'?' od-rp':''}">${d.ad}</button>`).join('')
+          + OD_DONEM.map(d=>`<button data-k="${d.k}" class="${d.k===OD_SECILI?'on':''}${(d.k==='rapor'||d.k==='aylik')?' od-rp':''}">${d.ad}</button>`).join('')
         + '</div>' + (OD_SECILI === 'ozel' ? (() => { const [a, b] = _odOzel(), m = uIstGun();
             return `<div class="od-tarih"><input type="date" class="bcinp" id="odBas" value="${a}" max="${m}"><input type="date" class="bcinp" id="odBit" value="${b}" max="${m}"></div>`; })() : '')
         + '<div class="od-not">Seçili dönem: <b>' + donemAd + '</b></div></div>'
