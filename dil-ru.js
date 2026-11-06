@@ -8439,3 +8439,10 @@ Object.assign(window.I18N.ru, {
   "Profil": "Профиль"
 });
 window.I18N_PATTERNS.ru.push([/^(\d+) yorumun tümünü gör$/, "Все комментарии ($1)"]);
+
+/* 934e — takım kasasına bağış 10. seviyeden itibaren */
+Object.assign(window.I18N.ru, {
+  "Bağış için 10. seviye gerekli.": "Для пожертвования нужен 10-й уровень.",
+  "10. seviye gerekli": "Нужен 10-й уровень",
+  "Oyuncular cüzdanından kasaya € ve elmas koyar": "Игроки вносят € и алмазы в кассу из своего кошелька"
+});

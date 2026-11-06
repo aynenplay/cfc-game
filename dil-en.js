@@ -8831,3 +8831,10 @@ Object.assign(window.I18N.en, {
   "Profil": "Profile"
 });
 window.I18N_PATTERNS.en.push([/^(\d+) yorumun tümünü gör$/, "View all $1 comments"]);
+
+/* 934e — takım kasasına bağış 10. seviyeden itibaren */
+Object.assign(window.I18N.en, {
+  "Bağış için 10. seviye gerekli.": "Level 10 is required to donate.",
+  "10. seviye gerekli": "Level 10 required",
+  "Oyuncular cüzdanından kasaya € ve elmas koyar": "Players put € and diamonds into the treasury from their wallet"
+});
