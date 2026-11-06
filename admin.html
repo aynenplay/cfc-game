@@ -1525,8 +1525,13 @@ tbody tr:hover td{ background:rgba(255,255,255,.03); }
 .u-oz .s{ min-width:0; }
 /* 941e — net kâr sütunları */
 .od-rap table{ min-width:1060px; }
+.od-rap th, .od-rap td{ padding:8px 9px; }
+.od-rap thead th{ white-space:normal; font-size:11.5px; letter-spacing:.5px; }
+.od-rap thead th span{ white-space:nowrap; letter-spacing:.4px; }
+.od-rap td.ks small{ white-space:normal; }
+.od-rap td.ks small span{ white-space:nowrap; }
+.od-rap td.tk b{ font-size:15px; }
 .od-rap td.ks b{ color:#ff8a97; }
-.od-rap td.ks small{ white-space:nowrap; }
 .od-rap thead th.nk{ color:var(--accent); }
 .od-rap td.nk{ font-family:var(--disp); font-size:16px; font-weight:800; color:var(--accent); letter-spacing:-.1px; }
 .od-rap td.yz em{ display:inline-block; min-width:52px; padding:3px 8px; border-radius:8px; font-style:normal; font-size:12px; font-weight:700;
@@ -2309,21 +2314,42 @@ function _odUlke(x){
   return u;
 }
 function _odKdvOran(x){ const u = _odUlke(x); return (u && OD_KDV[u] != null) ? OD_KDV[u] / 100 : (String(x.para_birimi || '').toUpperCase() === 'EUR' ? 0.21 : 0.20); }
-function _odKesTop(d, x){
-  const tl = _odTl(x), kdv = tl - tl / (1 + _odKdvOran(x)), kom = (tl - kdv) * OD_MAGAZA_PAY, vergi = (tl - kdv - kom) * OD_STOPAJ;
-  const k = d._k = d._k || { kdv:0, kom:0, vergi:0, net:0 };
-  k.kdv += kdv; k.kom += kom; k.vergi += vergi; k.net += tl - kdv - kom - vergi;
+// 941g — kesinti mağazaya göre ayrı (Google · App Store), Mağaza Kesintisi ikisinin toplamı, sonra Banka Kesintisi (%15 stopaj).
+//   App Store Türkiye satışı: Apple KDV'den sonra dijital hizmet vergisini (DHV) de keser — KDV hariç tutar üzerinden.
+function _odDhv(x){
+  if (x.provider !== 'apple' || _odUlke(x) !== 'TR') return 0;
+  const y = new Date(_odMs(x.created_at)).getUTCFullYear();
+  return y >= 2027 ? 0.025 : (y === 2026 ? 0.05 : 0.075);
 }
-function _odKesEkle(T, k){ if (k) { T.kdv += k.kdv; T.kom += k.kom; T.vergi += k.vergi; T.net += k.net; } }
+const _odKesBos = () => ({ google_play:{ kdv:0, dhv:0, kom:0, n:0 }, apple:{ kdv:0, dhv:0, kom:0, n:0 }, vergi:0, net:0 });
+function _odKesTop(d, x){
+  const m = x.provider === 'apple' ? 'apple' : 'google_play';
+  const tl = _odTl(x), kdv = tl - tl / (1 + _odKdvOran(x)), dhv = (tl - kdv) * _odDhv(x),
+        kom = (tl - kdv - dhv) * OD_MAGAZA_PAY, vergi = (tl - kdv - dhv - kom) * OD_STOPAJ;
+  const k = d._k = d._k || _odKesBos(), a = k[m];
+  a.kdv += kdv; a.dhv += dhv; a.kom += kom; a.n++; k.vergi += vergi; k.net += tl - kdv - dhv - kom - vergi;
+}
+function _odKesEkle(T, k){
+  if (!k) return;
+  ['google_play', 'apple'].forEach(m => { const a = T[m], b = k[m]; a.kdv += b.kdv; a.dhv += b.dhv; a.kom += b.kom; a.n += b.n; });
+  T.vergi += k.vergi; T.net += k.net;
+}
 const _odEksi = v => '−' + _odPara(v);
+const _odSayi = v => (Number(v) || 0).toLocaleString('tr', { minimumFractionDigits:2, maximumFractionDigits:2 });
+function _odMagKes(a){
+  if (!a.n) return '<td class="ks"><i>—</i></td>';
+  return `<td class="ks"><b>${_odEksi(a.kdv + a.dhv + a.kom)}</b><small><span>KDV ${_odSayi(a.kdv)}</span>${a.dhv >= 0.005 ? ' · <span>DHV ' + _odSayi(a.dhv) + '</span>' : ''} · <span>Pay ${_odSayi(a.kom)}</span></small></td>`;
+}
 function _odKesHucre(k, n, tl){
-  if (!n || !k) return '<td class="ks"><i>—</i></td><td class="ks"><i>—</i></td><td class="nk"><i>—</i></td><td class="yz"><i>—</i></td>';
+  if (!n || !k) return '<td class="ks"><i>—</i></td>'.repeat(4) + '<td class="nk"><i>—</i></td><td class="yz"><i>—</i></td>';
+  const g = k.google_play, a = k.apple, mag = g.kdv + g.dhv + g.kom + a.kdv + a.dhv + a.kom;
   const yz = tl ? (k.net / tl * 100) : 0;
-  return `<td class="ks"><b>${_odEksi(k.kdv + k.kom)}</b><small>KDV ${_odPara(k.kdv)} · Pay ${_odPara(k.kom)}</small></td>`
-    + `<td class="ks"><b>${_odEksi(k.vergi)}</b></td><td class="nk">${_odPara(k.net)}</td>`
+  return _odMagKes(g) + _odMagKes(a)
+    + `<td class="ks tk"><b>${_odEksi(mag)}</b></td><td class="ks"><b>${_odEksi(k.vergi)}</b></td><td class="nk">${_odPara(k.net)}</td>`
     + `<td class="yz"><em>%${yz.toLocaleString('tr', { minimumFractionDigits:1, maximumFractionDigits:1 })}</em></td>`;
 }
-const OD_KES_BAS = '<th>Mağaza Kesintisi<span>KDV · Komisyon %15</span></th><th>Banka Vergisi<span>Stopaj %15</span></th><th class="nk">Net Kâr</th><th>Kâr %</th>';
+const OD_KES_BAS = '<th>Google Kesintisi<span>KDV · Pay %15</span></th><th>App Store Kesintisi<span>KDV · DHV · Pay %15</span></th>'
+  + '<th>Mağaza Kesintisi<span>Toplam</span></th><th>Banka Kesintisi<span>Stopaj %15</span></th><th class="nk">Net Kâr</th><th>Kâr %</th>';
 
 function odRaporCiz(){
   const bugun = uIstGun(), veri = _odVeriAylari();
@@ -2340,7 +2366,7 @@ function odRaporCiz(){
   });
   const top = {}; kaynak.forEach(([k]) => top[k] = { n:0, tl:0 });
   const hucre = c => c && c.n ? `<b>${_odPara(c.tl)}</b><small>${c.n} sipariş</small>` : '<i>—</i>';
-  let satir = '', tN = 0, tTl = 0; const T = { kdv:0, kom:0, vergi:0, net:0 };   // 941e
+  let satir = '', tN = 0, tTl = 0; const T = _odKesBos();   // 941e · 941g
   for (let i = 1; i <= gunSay; i++) {
     const g = ym + '-' + String(i).padStart(2, '0'), d = G[g] || {};
     if (g > bugun) break;   // gelmemiş günler gösterilmez; ay ilerledikçe eklenir
@@ -2402,14 +2428,14 @@ function odAylikCiz(){
   });
   const top = {}; kaynak.forEach(([k]) => top[k] = { n:0, tl:0 });
   const hucre = c => c && c.n ? `<b>${_odPara(c.tl)}</b><small>${c.n} sipariş</small>` : '<i>—</i>';
-  let satir = '', tN = 0, tTl = 0; const T = { kdv:0, kom:0, vergi:0, net:0 };   // 941e
+  let satir = '', tN = 0, tTl = 0; const T = _odKesBos();   // 941e · 941g
   for (let i = 1; i <= 12; i++) {
     const ym = yl + '-' + String(i).padStart(2, '0'), d = A[ym] || {}, gelecek = ym > buAy;
     let n = 0, tl = 0;
     const hc = kaynak.map(([k]) => { const c = d[k]; if (c) { n += c.n; tl += c.tl; top[k].n += c.n; top[k].tl += c.tl; } return `<td>${gelecek ? '' : hucre(c)}</td>`; }).join('');
     tN += n; tTl += tl; _odKesEkle(T, d._k);   // 941e
     satir += `<tr class="${gelecek ? 'gl' : 'ay'}${ym === buAy ? ' bg' : ''}"${gelecek ? '' : ` data-ay="${ym}"`}><th>${OD_AYAD[i - 1]}${ym === buAy ? '<em>Bu ay</em>' : ''}</th>${hc}`
-      + `<td class="sn">${gelecek ? '' : (n || '<i>—</i>')}</td><td class="tc">${gelecek ? '' : (n ? _odPara(tl) : '<i>—</i>')}</td>${gelecek ? '<td></td><td></td><td></td><td></td>' : _odKesHucre(d._k, n, tl)}</tr>`;
+      + `<td class="sn">${gelecek ? '' : (n || '<i>—</i>')}</td><td class="tc">${gelecek ? '' : (n ? _odPara(tl) : '<i>—</i>')}</td>${gelecek ? '<td></td>'.repeat(6) : _odKesHucre(d._k, n, tl)}</tr>`;
   }
   $('main').innerHTML = _opBaslik('Elmas Satışları', yl + ' · ' + tN + ' sipariş')
     + '<div class="bcbox fadein" style="padding:14px 15px">'
