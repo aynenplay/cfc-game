@@ -6773,3 +6773,16 @@ Object.assign(window.I18N.de, {
   "10. seviye gerekli": "Level 10 erforderlich",
   "Oyuncular cüzdanından kasaya € ve elmas koyar": "Spieler zahlen € und Diamanten aus ihrer Geldbörse in die Kasse ein"
 });
+
+/* 937 — gelen kutusu: haftalık yarışlar ve maç sonu tek mesaj */
+Object.assign(window.I18N.de, {
+  "Sonuçlandı": "Beendet",
+  "Katılmadın": "Nicht teilgenommen",
+  "Elmas ödülü": "Diamantenbelohnung",
+  "Haftalık Yarışlar": "Wochenrennen",
+  "Haftalık yarışlar sonuçlandı": "Die Wochenrennen sind beendet",
+  "Bir sonraki lig maçında oynayamazsın": "Du darfst im nächsten Ligaspiel nicht spielen",
+  "Bir sonraki milli maçta oynayamazsın": "Du darfst im nächsten Länderspiel nicht spielen",
+  "İyileşene kadar maçlarda oynayamazsın": "Du kannst bis zur Genesung nicht spielen",
+  "Haftalık yarışlarda sıran, kaptanlık puanın ve elmas ödülün.": "Deine Platzierung, Kapitänspunkte und Diamantenbelohnung in den Wochenrennen."
+});

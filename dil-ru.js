@@ -8446,3 +8446,16 @@ Object.assign(window.I18N.ru, {
   "10. seviye gerekli": "Нужен 10-й уровень",
   "Oyuncular cüzdanından kasaya € ve elmas koyar": "Игроки вносят € и алмазы в кассу из своего кошелька"
 });
+
+/* 937 — gelen kutusu: haftalık yarışlar ve maç sonu tek mesaj */
+Object.assign(window.I18N.ru, {
+  "Sonuçlandı": "Завершено",
+  "Katılmadın": "Не участвовал",
+  "Elmas ödülü": "Награда алмазами",
+  "Haftalık Yarışlar": "Еженедельные гонки",
+  "Haftalık yarışlar sonuçlandı": "Еженедельные гонки завершены",
+  "Bir sonraki lig maçında oynayamazsın": "Ты пропускаешь следующий матч лиги",
+  "Bir sonraki milli maçta oynayamazsın": "Ты пропускаешь следующий матч сборной",
+  "İyileşene kadar maçlarda oynayamazsın": "Ты не можешь играть до выздоровления",
+  "Haftalık yarışlarda sıran, kaptanlık puanın ve elmas ödülün.": "Твоё место, капитанские очки и награда алмазами в еженедельных гонках."
+});

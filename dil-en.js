@@ -8838,3 +8838,16 @@ Object.assign(window.I18N.en, {
   "10. seviye gerekli": "Level 10 required",
   "Oyuncular cüzdanından kasaya € ve elmas koyar": "Players put € and diamonds into the treasury from their wallet"
 });
+
+/* 937 — gelen kutusu: haftalık yarışlar ve maç sonu tek mesaj */
+Object.assign(window.I18N.en, {
+  "Sonuçlandı": "Finished",
+  "Katılmadın": "Did not take part",
+  "Elmas ödülü": "Diamond reward",
+  "Haftalık Yarışlar": "Weekly Races",
+  "Haftalık yarışlar sonuçlandı": "Weekly races are over",
+  "Bir sonraki lig maçında oynayamazsın": "You can’t play in the next league match",
+  "Bir sonraki milli maçta oynayamazsın": "You can’t play in the next national-team match",
+  "İyileşene kadar maçlarda oynayamazsın": "You can’t play until you recover",
+  "Haftalık yarışlarda sıran, kaptanlık puanın ve elmas ödülün.": "Your rank, captaincy points and diamond reward in the weekly races."
+});
