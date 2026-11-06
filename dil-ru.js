@@ -8423,3 +8423,19 @@ Object.assign(window.I18N.ru, {
   "İlan ver, takımlar seni bulsun.": "Размести объявление — команды найдут тебя.",
   "Oyunun sosyal ağı. Paylaşım yap, oyuncuları takip et.": "Социальная сеть игры. Публикуй и подписывайся на игроков."
 });
+
+/* 934 — CSC Media: yorumlar, ⋯ menü Profil, paylaşım kutusu */
+Object.assign(window.I18N.ru, {
+  "Aklından ne geçiyor?": "Что у тебя нового?",
+  "Yorumlar": "Комментарии",
+  "Henüz yorum yok.": "Комментариев пока нет.",
+  "Yorum ekle…": "Добавить комментарий…",
+  "Bu gönderiye zaten yorum yaptın.": "Ты уже комментировал эту публикацию.",
+  "Yorum gönderilemedi": "Не удалось отправить комментарий",
+  "Yorum silinemedi": "Не удалось удалить комментарий",
+  "Yorumu şikayet et": "Пожаловаться на комментарий",
+  "Yorumu sil": "Удалить комментарий",
+  "Bağlantı hatası": "Ошибка соединения",
+  "Profil": "Профиль"
+});
+window.I18N_PATTERNS.ru.push([/^(\d+) yorumun tümünü gör$/, "Все комментарии ($1)"]);
