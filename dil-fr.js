@@ -8656,3 +8656,10 @@ Object.assign(window.I18N.fr, {
   "20. yetenek · çalışılabilir": "20e talent · disponible",
   "20. yetenek çalışılıyor": "20e talent en cours"
 });
+
+/* 945 — Mevki Değiştir: ek mevki */
+Object.assign(window.I18N.fr, {
+  "Sadece komşu mevkiye geçebilirsin.": "Tu ne peux passer qu’à un poste voisin.",
+  "Bu mevkiye şu an çalışıyorsun.": "Tu travailles ce poste en ce moment.",
+  "Mevkin değiştirildi.": "Ton poste a été changé."
+});

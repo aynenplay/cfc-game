@@ -6956,3 +6956,10 @@ Object.assign(window.I18N.de, {
   "20. yetenek · çalışılabilir": "20. Fähigkeit · trainierbar",
   "20. yetenek çalışılıyor": "20. Fähigkeit im Training"
 });
+
+/* 945 — Mevki Değiştir: ek mevki */
+Object.assign(window.I18N.de, {
+  "Sadece komşu mevkiye geçebilirsin.": "Du kannst nur auf eine benachbarte Position wechseln.",
+  "Bu mevkiye şu an çalışıyorsun.": "Du trainierst diese Position gerade.",
+  "Mevkin değiştirildi.": "Deine Position wurde geändert."
+});

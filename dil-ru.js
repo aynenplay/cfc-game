@@ -8629,3 +8629,10 @@ Object.assign(window.I18N.ru, {
   "20. yetenek · çalışılabilir": "20-й навык · доступен",
   "20. yetenek çalışılıyor": "20-й навык тренируется"
 });
+
+/* 945 — Mevki Değiştir: ek mevki */
+Object.assign(window.I18N.ru, {
+  "Sadece komşu mevkiye geçebilirsin.": "Можно перейти только на соседнюю позицию.",
+  "Bu mevkiye şu an çalışıyorsun.": "Ты сейчас тренируешь эту позицию.",
+  "Mevkin değiştirildi.": "Твоя позиция изменена."
+});
