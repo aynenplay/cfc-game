@@ -2119,14 +2119,10 @@ async function loadFeedback(){
   const area = $('fbArea'); if(!area) return;
   if (!FB_DATA.length || !area.innerHTML) area.innerHTML = '<div class="fbempty">Yükleniyor…</div>';   // 941k — yenilerken liste yanıp sönmez
   try {
-    const [r, pl, pf] = await Promise.all([
-      api('list', { table:'feedback', orderBy:'created_at', orderDir:'desc', limit:100 }),
-      FB_OYUNCU ? null : apiTum({ table:'players', orderBy:'user_id', orderDir:'asc' }, _gercekBitti).catch(()=>null),
-      apiTum({ table:'profiles', orderBy:'id', orderDir:'asc' }).catch(()=>null)
-    ]);
-    if (pl) { FB_OYUNCU = {}; (pl.rows||[]).forEach(x=>{ if(x.user_id) FB_OYUNCU[x.user_id]=x; }); }
-    if (pf) FB_PROFIL = pf.rows || [];
+    const r = await api('list', { table:'feedback', orderBy:'created_at', orderDir:'desc', limit:100, sayim:'yok' });
     FB_DATA = r.rows || [];
+    try { await _fbKisiYukle(FB_DATA); } catch(e) {}   // 941u — yalnız listedekiler
+    if (CUR !== 'feedback' || !$('fbArea')) return;
     renderFeedback(); fbYeniSay();   // 941k
   } catch(e) {
     area.innerHTML = `<div class="fbhead"><h2>Geri Bildirimler</h2></div>
@@ -2135,6 +2131,40 @@ async function loadFeedback(){
   }
 }
 
+// 941u — talep yazanların ve şikayet edilenlerin adı/avatarı: yalnız listedeki kişiler, tek istekte; bir kez gelen tekrar istenmez
+let FB_KIM = {}, _fbKisiRpcYok = false, _fbProfilTam = false;
+const _fbUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const _fbOy = uid => (uid && (FB_KIM[uid] || (FB_OYUNCU && FB_OYUNCU[uid]))) || null;
+const _fbUn = v => String(v||'').replace(/^@+/,'').toLowerCase();
+async function _fbKisiYukle(rows){
+  const P = FB_PROFIL || [], ids = new Set(), adlar = new Set();
+  rows.forEach(f => {
+    if (f.user_id && _fbUuid.test(String(f.user_id)) && !(f.user_id in FB_KIM) && !(FB_OYUNCU && FB_OYUNCU[f.user_id])) ids.add(String(f.user_id));
+    const h = fbSikayetHedef(f.message); if (!h) return;
+    const k = h.match(/^user:(.+)$/i);
+    if (k) { const ad = _fbUn(k[1]); if (ad && !P.some(p => _fbUn(p.username) === ad)) adlar.add(ad); }
+    else if (_fbUuid.test(h) && !P.some(p => p.id === h)) ids.add(h);
+  });
+  if (!ids.size && !adlar.size) return;
+  if (!_fbKisiRpcYok) {
+    try {
+      const d = await fbRpc('admin_fb_kisiler', { p_uids:[...ids], p_unames:[...adlar] });
+      Object.assign(FB_KIM, (d && d.o) || {});
+      ids.forEach(id => { if (!(id in FB_KIM)) FB_KIM[id] = null; });
+      ((d && d.p) || []).forEach(p => { if (!P.some(x => x.id === p.id)) P.push(p); });
+      FB_PROFIL = P; return;
+    } catch(e) { if (!/could not find the function|schema cache|does not exist/i.test(String(e.message))) throw e; _fbKisiRpcYok = true; }
+  }
+  // SQL henüz çalıştırılmadıysa: eski yol — ama yalnız gereken sütunlar, sayım yok ve oturumda bir kez
+  const sut = (t, L) => { const c = ((META[t] && META[t].columns) || []).map(x => x.name); return c.length ? L.filter(x => c.includes(x)).join(',') : undefined; };
+  const [pl, pf] = await Promise.all([
+    FB_OYUNCU ? null : apiTum({ table:'players', orderBy:'user_id', orderDir:'asc', sayim:'yok',
+      cols:sut('players', ['user_id','name','avatar_id','team_name','country_code','nationality']) }, _gercekBitti).catch(() => null),
+    (_fbProfilTam || !rows.some(f => fbSikayetHedef(f.message))) ? null : apiTum({ table:'profiles', orderBy:'id', orderDir:'asc', sayim:'yok' }).catch(() => null)
+  ]);
+  if (pl) { FB_OYUNCU = {}; (pl.rows||[]).forEach(x => { if (x.user_id) FB_OYUNCU[x.user_id] = x; }); }
+  if (pf) { FB_PROFIL = pf.rows || []; _fbProfilTam = true; }
+}
 const _fbEsc = (s) => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
 const _fbTime = (ts) => { try{ return new Date(ts).toLocaleString('tr',{ day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }); }catch(e){ return ts||''; } };
 
@@ -2168,7 +2198,7 @@ async function fbIslem(id){
   $('isModal').style.display='flex';
 }
 function isKimHtml(){
-  const hp=IS.hp, o=(FB_OYUNCU && FB_OYUNCU[uUid(hp)])||null;
+  const hp=IS.hp, o=_fbOy(uUid(hp));   // 941u
   const ad=(o&&o.name)||hp.name||hp.username||'—', av=o&&o.avatar_id?avSrc(o.avatar_id):'';
   return `<div class="is-kim">${av?`<img src="${av}" alt="">`:`<span class="ilk">${_fbEsc((String(ad).trim()[0]||'?').toUpperCase())}</span>`}`
     + `<div><b>${_fbEsc(ad)}</b><small>@${_fbEsc(hp.username||'')} · ${o&&o.nationality?ccFlag(o.nationality)+' ':''}${_fbEsc((o&&o.team_name)||'Takımsız')}</small></div></div>`;
@@ -2229,7 +2259,7 @@ function fbSikayet(m){
 }
 function fbKimHtml(f){
   if (!f.user_id) return `<span class="fbkim"><span class="ilk">?</span><b class="fbanon">Anonim</b><small>Giriş ekranı</small></span>`;   // 803
-  const o = (FB_OYUNCU && FB_OYUNCU[f.user_id]) || null;
+  const o = _fbOy(f.user_id);   // 941u
   const ad = (o && o.name) || f.username || (f.user_id ? String(f.user_id).slice(0,8) : 'bilinmiyor');
   const av = o && o.avatar_id ? avSrc(o.avatar_id) : '';
   const takim = o && o.team_name ? o.team_name : '';
