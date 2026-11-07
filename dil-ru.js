@@ -8636,3 +8636,14 @@ Object.assign(window.I18N.ru, {
   "Bu mevkiye şu an çalışıyorsun.": "Ты сейчас тренируешь эту позицию.",
   "Mevkin değiştirildi.": "Твоя позиция изменена."
 });
+
+/* 947 — tek çalışma · çalışmayı iptal et */
+Object.assign(window.I18N.ru, {
+  "Çalışmayı iptal et": "Отменить тренировку",
+  "İptal ederseniz tüm çalışma kaybolur, geri alınamaz.": "При отмене весь прогресс будет потерян без возможности восстановления.",
+  "Çalışma iptal edildi.": "Тренировка отменена.",
+  "Çalışma iptal edilemedi.": "Не удалось отменить тренировку.",
+  "Önce başladığın mevkiyi bitir ya da iptal et.": "Сначала заверши или отмени начатую позицию.",
+  "Önce başladığın yeteneği bitir ya da iptal et.": "Сначала заверши или отмени начатую способность.",
+  "Kilitli": "Заблокировано"
+});

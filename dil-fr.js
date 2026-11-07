@@ -8663,3 +8663,14 @@ Object.assign(window.I18N.fr, {
   "Bu mevkiye şu an çalışıyorsun.": "Tu travailles ce poste en ce moment.",
   "Mevkin değiştirildi.": "Ton poste a été changé."
 });
+
+/* 947 — tek çalışma · çalışmayı iptal et */
+Object.assign(window.I18N.fr, {
+  "Çalışmayı iptal et": "Annuler l’entraînement",
+  "İptal ederseniz tüm çalışma kaybolur, geri alınamaz.": "Si tu annules, toute la progression est perdue et ne peut pas être récupérée.",
+  "Çalışma iptal edildi.": "Entraînement annulé.",
+  "Çalışma iptal edilemedi.": "Impossible d’annuler l’entraînement.",
+  "Önce başladığın mevkiyi bitir ya da iptal et.": "Termine ou annule d’abord le poste commencé.",
+  "Önce başladığın yeteneği bitir ya da iptal et.": "Termine ou annule d’abord la compétence commencée.",
+  "Kilitli": "Verrouillé"
+});

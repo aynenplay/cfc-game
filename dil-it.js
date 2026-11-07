@@ -8601,3 +8601,14 @@ Object.assign(window.I18N.it, {
   "Bu mevkiye şu an çalışıyorsun.": "Stai allenando questo ruolo proprio ora.",
   "Mevkin değiştirildi.": "Il tuo ruolo è stato cambiato."
 });
+
+/* 947 — tek çalışma · çalışmayı iptal et */
+Object.assign(window.I18N.it, {
+  "Çalışmayı iptal et": "Annulla allenamento",
+  "İptal ederseniz tüm çalışma kaybolur, geri alınamaz.": "Se annulli, tutti i progressi vanno persi e non si possono recuperare.",
+  "Çalışma iptal edildi.": "Allenamento annullato.",
+  "Çalışma iptal edilemedi.": "Impossibile annullare l’allenamento.",
+  "Önce başladığın mevkiyi bitir ya da iptal et.": "Prima completa o annulla il ruolo che hai iniziato.",
+  "Önce başladığın yeteneği bitir ya da iptal et.": "Prima completa o annulla l’abilità che hai iniziato.",
+  "Kilitli": "Bloccato"
+});

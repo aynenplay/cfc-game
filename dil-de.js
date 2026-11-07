@@ -6963,3 +6963,14 @@ Object.assign(window.I18N.de, {
   "Bu mevkiye şu an çalışıyorsun.": "Du trainierst diese Position gerade.",
   "Mevkin değiştirildi.": "Deine Position wurde geändert."
 });
+
+/* 947 — tek çalışma · çalışmayı iptal et */
+Object.assign(window.I18N.de, {
+  "Çalışmayı iptal et": "Training abbrechen",
+  "İptal ederseniz tüm çalışma kaybolur, geri alınamaz.": "Wenn du abbrichst, geht der gesamte Fortschritt verloren und kann nicht rückgängig gemacht werden.",
+  "Çalışma iptal edildi.": "Training abgebrochen.",
+  "Çalışma iptal edilemedi.": "Training konnte nicht abgebrochen werden.",
+  "Önce başladığın mevkiyi bitir ya da iptal et.": "Beende oder brich zuerst die begonnene Position ab.",
+  "Önce başladığın yeteneği bitir ya da iptal et.": "Beende oder brich zuerst die begonnene Fähigkeit ab.",
+  "Kilitli": "Gesperrt"
+});
