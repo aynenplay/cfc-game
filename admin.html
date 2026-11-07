@@ -1896,6 +1896,23 @@ tbody tr:hover td{ background:rgba(255,255,255,.03); }
   .ek-ayr{ display:none; }
   .du-dr{ grid-template-columns:100px minmax(0,1fr) 52px; }
 }
+/* 941x — kaynak tabloları sığsın: ad sütunu kalan yeri alır, uzun ad kısalır, sayı sütunları hep görünür */
+.ek-tb.ek-kt td.ad{ width:100%; max-width:0; overflow:hidden; text-overflow:ellipsis; }
+.ek-tb.ek-kt td.r, .ek-tb.ek-kt th.r{ width:1%; }
+/* 941y — Cüzdanlar: bilgisayarda liste ve panel ayrı kayar, kaydırma birinden ötekine geçmez */
+@media (min-width:1180px){
+  .w-izg{ grid-template-rows:minmax(0,1fr); align-items:stretch; }
+  .w-izg > .w-sol{ min-height:0; overflow:auto; overscroll-behavior:contain; padding-right:6px; }
+  .w-izg > .w-sag{ position:static; min-height:0; max-height:none; overflow:auto; overscroll-behavior:contain; }
+}
+.w-dt > .backbtn{ flex-shrink:0; }
+/* 941z — Özet › ekonomi özeti: üstteki kartlarla aynı ızgara (4 sütun, 12px aralık, 16px köşe) */
+.oz-ek{ margin-top:12px; }
+.oz-ek .ek-ust{ border-radius:16px; }
+.oz-ek .ek-ust b{ font-family:var(--disp); font-size:17px; font-weight:900; letter-spacing:.4px; }
+.oz-ek .ek-tl{ gap:12px; margin-bottom:0; }
+.oz-ek .ek-t{ border-radius:16px; padding:14px 16px; }
+#ozEkTl.yuk{ opacity:.55; transition:opacity .15s; }
 </style>
 </head>
 <body>
@@ -2157,9 +2174,11 @@ function openDash(){
   $('main').innerHTML = `<div class="ms-ust-sat fadein"><div class="ms-kisa ms-ust" id="msKisa"></div><div class="ms-kisa ynl-kap"><button class="btn blue ynl" title="Sayfayı yenile" onclick="ynlBas(this)"><svg viewBox="0 0 24 24"><path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/><path d="M20.5 4v5h-5"/></svg><span>Yenile</span></button></div></div>
     <div id="cvArea" class="fadein"></div>
     <div class="cardgrid ozet4 fadein">${DASH.map(d=>`<div class="card" data-t="${d.t}"><div class="num" id="num-${d.t}">…</div><div class="lbl">${d.label}</div></div>`).join('')}</div>
+    <div class="oz-ek fadein" id="ozEk"></div>
     `;   // 941k — geri bildirimler Özet'te değil · 941p — Mesaj Gönder en üstte
   cvBasla();
   msKisaCiz();
+  OZ_EK.donem='bugun'; ozEkCiz();   // 941z
   $('main').querySelectorAll('.card').forEach(b=>b.onclick=()=>{ const t=b.dataset.t; if(t==='profiles') openUsers(); else if(t==='teams') openClubs(); else if(t==='players') openPlayers(); else if(t==='ads') openAds(); else if(t==='payments') openPayments(); else if(t==='user_wallet') openWallets(); else if(t==='achievement_defs') openBasari(); else if(t==='duello') openDuello(); else if(t==='yaris_odul_kayit') openYaris(); else openTable(t); });
   DASH.forEach(async d=>{
     // Reklam kartı toplam kayıt değil, O AN YAYINDA olan reklam sayısını gösterir
@@ -2232,6 +2251,30 @@ async function msKisaCiz(){
   };
   ciz(null); k.onclick=openMesaj;
   try{ const r=await api('list',{ table:'yonetim_mesaj', orderBy:'zaman', orderDir:'desc', limit:1 }); if($('msKisa')) ciz((r.rows||[])[0]||null); }catch(e){}
+}
+
+// 941z — Özet › en altta ekonomi özeti (cüzdan hareketleri): Bugün · Bu Ay · Tümü
+const OZ_EK_DONEM=[['bugun','Bugün'],['buay','Bu Ay'],['tumu','Tümü']];
+let OZ_EK={ donem:'bugun', istek:0 };
+async function ozEkCiz(){
+  const k=$('ozEk'); if(!k) return;
+  const a=_ekAralik(OZ_EK.donem), istek=++OZ_EK.istek, eski=$('ozEkTl');
+  k.innerHTML=`<div class="ek-ust"><b>Ekonomi</b><span class="ek-d">${_ekAralikYazi(a)}</span><div class="sp"></div>
+      <div class="ek-cips">${OZ_EK_DONEM.map(([d,x])=>`<button class="chip ${OZ_EK.donem===d?'active':''}" data-oe="${d}">${x}</button>`).join('')}</div></div>
+    <div class="ek-tl ek-ayir" id="ozEkTl">${eski?eski.innerHTML:['Elmas Giren','Elmas Harcanan','Euro Giren','Euro Harcanan'].map((l,i)=>_ekTile(l,'…','&nbsp;',['m','k','y','k'][i])).join('')}</div>`;
+  if(eski) $('ozEkTl').classList.add('yuk');
+  k.onclick=e=>{ const b=e.target.closest('[data-oe]'); if(b && b.dataset.oe!==OZ_EK.donem){ OZ_EK.donem=b.dataset.oe; ozEkCiz(); } };
+  try{
+    const v=await fbRpc('admin_ekonomi_ozet',{ p_bas:a.bas, p_bit:a.bit, p_adim:a.adim });
+    const t=$('ozEkTl'); if(istek!==OZ_EK.istek || !t) return;
+    const d=(v&&v.donem)||{}, netD=(Number(d.dg)||0)-(Number(d.dc)||0), netE=(Number(d.eg)||0)-(Number(d.ec)||0);
+    const nt=(n,birim)=>'net '+(n>0?'+':n<0?'−':'')+_ekS(Math.abs(n))+birim;
+    t.classList.remove('yuk');
+    t.innerHTML=_ekTile('Elmas Giren', '+'+_ekS(d.dg), nt(netD,''), 'm')
+      +_ekTile('Elmas Harcanan', '−'+_ekS(d.dc), _ekS(d.harcayan)+' oyuncu harcadı', 'k')
+      +_ekTile('Euro Giren', '+'+_ekS(d.eg)+' €', nt(netE,' €'), 'y')
+      +_ekTile('Euro Harcanan', '−'+_ekS(d.ec)+' €', _ekS(d.kisi)+' oyuncunun hareketi var', 'k');
+  }catch(e){ const t=$('ozEkTl'); if(istek===OZ_EK.istek && t){ t.classList.remove('yuk'); t.innerHTML='<div class="ek-bos">'+uEsc(_ekHata(e))+'</div>'; } }
 }
 
 // 941v — Yenile: admin sayfası baştan yüklenir (yeni sürüm + güncel veriler); oturum açık kalır
@@ -4860,7 +4903,7 @@ function wRender(){
       <button class="btn green" id="wEkle">+ Ekle</button>
     </div>
     <div class="w-izg fadein">
-      <div class="w-sol">
+      <div class="w-sol" id="wSol">
         <div class="w-sira" id="wSira"></div>
         <div class="u-list" id="wList"><div class="msg">Yükleniyor…</div></div>
         <div class="w-son" id="wSon"></div>
@@ -4878,9 +4921,7 @@ function wRender(){
     $('wSira').querySelectorAll('[data-s]').forEach(x=>x.classList.toggle('active', x===b)); wListeYukle(true); });
   $('wList').onclick=e=>{ const c=e.target.closest('.w-kart'); if(c) wSec(c.dataset.uid); };
   $('wSag').onclick=wSagTik;
-  if(_wGoz) _wGoz.disconnect();
-  _wGoz=new IntersectionObserver(es=>{ if(es.some(x=>x.isIntersecting)) wListeYukle(false); }, { rootMargin:'0px 0px 500px 0px' });
-  _wGoz.observe($('wSon'));
+  _wOlc(); _wGozKur();   // 941y
 }
 function _ekHata(e){
   const m=String((e&&e.message)||e||'');
@@ -4901,7 +4942,7 @@ async function wListeYukle(sifir){
     else l.insertAdjacentHTML('beforeend', yeni.map(wKartHTML).join(''));
     const c=$('wCnt'); if(c) c.textContent=_ekS(WL.toplam)+(WSTATE.search?' sonuç':' cüzdan');
     wSonCiz();
-    requestAnimationFrame(()=>{ const s=$('wSon'); if(s && !WL.bitti && s.getBoundingClientRect().top<innerHeight+500) wListeYukle(false); });
+    requestAnimationFrame(()=>{ const s=$('wSon'), k=_uGenis()&&$('wSol'); if(s && !WL.bitti && s.getBoundingClientRect().top<(k?k.getBoundingClientRect().bottom:innerHeight)+500) wListeYukle(false); });
   }catch(e){
     if(istek!==WL.istek) return; WL.yuk=false; WL.bitti=true;
     const l=$('wList'); if(l && !WL.rows.length) l.innerHTML='<div class="msg err">'+uEsc(_ekHata(e))+'</div>';
@@ -4934,7 +4975,26 @@ function wSec(uid){
   wHareketYukle(uid, true);
   WHR.kaydir=!_uGenis();   // telefonda hareketler gelince panele kaydırılır
 }
+// 941y — bilgisayarda Cüzdanlar ekranı pencereye sığar; liste ve panel kendi içinde kayar
+function _wOlc(){
+  const iz=document.querySelector('.w-izg'), m=$('main'); if(!iz||!m) return;
+  if(!_uGenis()){ iz.style.height=''; return; }
+  const ust=iz.getBoundingClientRect().top-m.getBoundingClientRect().top+m.scrollTop, alt=parseFloat(getComputedStyle(m).paddingBottom)||0;
+  iz.style.height=Math.max(320, m.clientHeight-ust-alt)+'px';
+}
+function _wGozKur(){
+  if(_wGoz) _wGoz.disconnect(); const s=$('wSon'); if(!s) return;
+  _wGoz=new IntersectionObserver(es=>{ if(es.some(x=>x.isIntersecting)) wListeYukle(false); }, { root:_uGenis()?$('wSol'):null, rootMargin:'0px 0px 500px 0px' });
+  _wGoz.observe(s);
+}
+let _wOlcZ=null;
+addEventListener('resize', ()=>{ if(CUR!=='__wallets__') return; clearTimeout(_wOlcZ); _wOlcZ=setTimeout(_wOlc, 120); });
+_uMq.addEventListener('change', ()=>{ if(CUR!=='__wallets__') return; _wOlc(); _wGozKur(); if(WSEC) wHareketCiz(); });
+// 941y — rapordaki listeden oyuncuya girilince "Geri" aynı yere döndürür
+function _wKonum(){ const s=$('wSag'), m=$('main'); return { st:s?s.scrollTop:0, ms:m?m.scrollTop:0, ws:scrollY }; }
+function _wKonumaDon(k){ if(!k) return; requestAnimationFrame(()=>{ const s=$('wSag'), m=$('main'); if(s) s.scrollTop=k.st; if(m) m.scrollTop=k.ms; scrollTo(0, k.ws); }); }
 function wGenel(){
+  WRP.donus=null;
   WSEC=null; WHR.uid=null; if(_wHrGoz){ _wHrGoz.disconnect(); _wHrGoz=null; }
   document.querySelectorAll('#wList .w-kart.on').forEach(c=>c.classList.remove('on'));
   wRaporCiz(); if(!WRP.veri) wRaporYukle();
@@ -4943,7 +5003,7 @@ function wSagTik(e){
   const ac=e.target.closest('.w-ac'); if(ac){ WRP.acik=!WRP.acik; const s=$('wSag'); if(s) s.classList.toggle('kapali', !WRP.acik); return; }
   const d=e.target.closest('[data-wd]'); if(d){ if(WRP.donem!==d.dataset.wd){ WRP.donem=d.dataset.wd; wRaporYukle(); } return; }
   const g=e.target.closest('[data-wg]'); if(g){ WRP.gr=g.dataset.wg; wRaporCiz(); return; }
-  const u=e.target.closest('[data-wu]'); if(u){ wSec(u.dataset.wu); return; }
+  const u=e.target.closest('[data-wu]'); if(u){ const k=WSEC?WRP.donus:_wKonum(); wSec(u.dataset.wu); WRP.donus=WSEC?k:null; if(WSEC) wHareketCiz(); return; }
   const t=e.target.closest('[data-wt]'); if(t){ if(WHR.tur!==t.dataset.wt){ WHR.tur=t.dataset.wt; wHareketYukle(WSEC, true, true); } return; }
   const a=e.target.closest('[data-wa]'); if(a){ wIslem(a.dataset.wa, WSEC); return; }
   const f=e.target.closest('.ek-t.ed'); if(f){ wDegerDuzenle(f); return; }
@@ -4962,11 +5022,22 @@ async function wRaporYukle(){
     const s2=$('wSag'); if(s2 && !WSEC){ s2.classList.remove('yuk'); s2.innerHTML='<div class="msg err">'+uEsc(_ekHata(e))+'</div>'; }
   }
 }
+// 941x — antrenman yetenekleri tek satır
+const _wKayAd = k => /^Antrenman:\s/.test(String(k||'')) ? 'Antrenman açma' : k;
+function _wKayGrup(L){
+  const m=new Map();
+  (L||[]).forEach(x=>{ const k=_wKayAd(x.k), o=m.get(k);
+    if(!o){ m.set(k, Object.assign({}, x, { k })); return; }
+    ['dg','dc','eg','ec','n'].forEach(f=>{ o[f]=(Number(o[f])||0)+(Number(x[f])||0); });
+    if(x.son && (!o.son || x.son>o.son)) o.son=x.son; });
+  return [...m.values()];
+}
 function _wKaynakTablo(L, g, h, birim){
+  L=_wKayGrup(L);
   const S=L.filter(x=>(Number(x[g])||0)>0||(Number(x[h])||0)>0).sort((a,b)=>(b[g]+b[h])-(a[g]+a[h]));
   if(!S.length) return '<div class="ek-bos">Bu dönemde hareket yok.</div>';
   const tg=S.reduce((t,x)=>t+(Number(x[g])||0),0), th=S.reduce((t,x)=>t+(Number(x[h])||0),0);
-  return `<table class="ek-tb"><thead><tr><th>Kaynak</th><th class="r">Giren</th><th class="r">Harcanan</th></tr></thead><tbody>
+  return `<table class="ek-tb ek-kt"><thead><tr><th>Kaynak</th><th class="r">Giren</th><th class="r">Harcanan</th></tr></thead><tbody>
     ${S.map(x=>`<tr><td class="ad">${uEsc(x.k)}</td><td class="r ek-y">${x[g]?'+'+_ekS(x[g])+birim:'—'}</td><td class="r ek-k">${x[h]?'−'+_ekS(x[h])+birim:'—'}</td></tr>`).join('')}
     <tr class="tp"><td>Toplam</td><td class="r ek-y">+${_ekS(tg)}${birim}</td><td class="r ek-k">−${_ekS(th)}${birim}</td></tr></tbody></table>`;
 }
@@ -5066,17 +5137,17 @@ function wHareketCiz(){
   const s=$('wSag'); if(!s||!WSEC) return;
   s.classList.remove('yuk', 'kapali');
   const v=WHR.veri; if(!v){ s.innerHTML='<div class="msg">Yükleniyor…</div>'; return; }
-  const k=v.kim||{}, w=v.w||{}, oz=v.ozet||{}, st=v.satis||{}, L=v.kaynak||[];
+  const k=v.kim||{}, w=v.w||{}, oz=v.ozet||{}, st=v.satis||{}, L=_wKayGrup(v.kaynak||[]);   // 941x
   const ad=k.ad||k.un||'(isimsiz)', av=k.av?avSrc(k.av):'', fl=k.cc?ccFlag(k.cc):'';
   const gir=L.filter(x=>x.dg>0||x.eg>0).sort((a,b)=>(b.dg-a.dg)||(b.eg-a.eg)), cik=L.filter(x=>x.dc>0||x.ec>0).sort((a,b)=>(b.dc-a.dc)||(b.ec-a.ec));
-  const tablo=(S,dk,ek,is)=>S.length?`<table class="ek-tb"><thead><tr><th>Kaynak</th><th class="r">Elmas</th><th class="r">Euro</th><th class="r">İşlem</th></tr></thead><tbody>
+  const tablo=(S,dk,ek,is)=>S.length?`<table class="ek-tb ek-kt"><thead><tr><th>Kaynak</th><th class="r">Elmas</th><th class="r">Euro</th><th class="r">İşlem</th></tr></thead><tbody>
       ${S.map(x=>`<tr><td class="ad">${uEsc(x.k)}</td><td class="r ${x[dk]?(is>0?'ek-y':'ek-k'):'ek-d'}">${x[dk]?(is>0?'+':'−')+_ekS(x[dk]):'—'}</td>
         <td class="r ${x[ek]?(is>0?'ek-y':'ek-k'):'ek-d'}">${x[ek]?(is>0?'+':'−')+_ekS(x[ek])+' €':'—'}</td><td class="r ek-d">${_ekS(x.n)}</td></tr>`).join('')}</tbody></table>`
     :'<div class="ek-bos">Yok.</div>';
   const ilk=oz.ilk?new Date(oz.ilk).toLocaleDateString('tr'):'';
   const kalem=`<i class="kl">${EK_IK.kalem}</i>`;
   s.innerHTML=`
-    <div class="w-dt">
+    <div class="w-dt">${WRP.donus?'<button class="backbtn" data-wa="geri">‹ Geri</button>':''}
       <div class="u-av">${av?`<img src="${av}" alt="">`:uEsc((String(ad).trim()[0]||'?').toUpperCase())}${fl?`<span class="flag">${fl}</span>`:''}</div>
       <div class="u-info">
         <div class="u-name">${uEsc(ad)}${k.ban?' <span class="u-banbadge">ENGELLİ</span>':''}</div>
@@ -5147,6 +5218,7 @@ function wDegerDuzenle(cell){
 }
 async function wIslem(act, uid){
   if(act==='genel'){ wGenel(); return; }
+  if(act==='geri'){ const k=WRP.donus; wGenel(); _wKonumaDon(k); return; }
   const v=WHR.veri, w=v&&v.w, k=(v&&v.kim)||{}; if(!uid) return;
   if(act==='ac'){ await openUsers(); const i=$('uSval'); if(i){ i.value=k.un||k.ad||''; uOnSearch(); } return; }
   if(!w){ alert('Bu kullanıcının cüzdan kaydı yok.'); return; }
