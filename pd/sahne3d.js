@@ -867,11 +867,12 @@ window.Sahne3D = (() => {
   // ── kurulum ──
   function kur(kapsayici) {
     kap = kapsayici;
-    renderer = new T.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    const hafif = document.documentElement.classList.contains('hafif');   // 951 — zayıf telefon: gölgesiz, kenar yumuşatmasız, 1x
+    renderer = new T.WebGLRenderer({ antialias: !hafif, powerPreference: hafif ? 'low-power' : 'default' });
+    renderer.setPixelRatio(hafif ? 1 : Math.min(2, window.devicePixelRatio || 1));
     renderer.outputEncoding = T.sRGBEncoding;
     renderer.toneMapping = T.ACESFilmicToneMapping; renderer.toneMappingExposure = .95;
-    renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap;
+    renderer.shadowMap.enabled = !hafif; renderer.shadowMap.type = T.PCFSoftShadowMap;
     kap.prepend(renderer.domElement);
     scene = new T.Scene();
     scene.background = new T.Color('#06080c');
