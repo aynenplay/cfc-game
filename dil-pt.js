@@ -8606,3 +8606,27 @@ Object.assign(window.I18N.pt, {
   "Önce başladığın yeteneği bitir ya da iptal et.": "Primeiro termine ou cancele a habilidade que você começou.",
   "Kilitli": "Bloqueado"
 });
+
+/* 946 · 948 — maç akışı sahası */
+Object.assign(window.I18N.pt, {
+  "Blokladı": "Bloqueou",
+  "Büyük fırsat": "Grande chance",
+  "Dışarı": "Para fora",
+  "Faul kazandı": "Sofreu falta",
+  "Frikik Golü": "Gol de falta",
+  "Kafa Golü": "Gol de cabeça",
+  "Kilit pas": "Passe decisivo",
+  "Korner Golü": "Gol de escanteio",
+  "Kritik müdahale": "Desarme crucial",
+  "Müthiş kurtarış": "Grande defesa",
+  "Ofsayt · gol iptal": "Impedimento · gol anulado",
+  "Oyun dışı": "Expulso",
+  "Pas arası": "Interceptação",
+  "Penaltı Golü": "Gol de pênalti",
+  "Penaltı kurtardı!": "Pênalti defendido!",
+  "Senin golün": "Seu gol",
+  "Top kaptı": "Roubou a bola",
+  "Uzaklaştırdı": "Afastou",
+  "Uzaktan Gol": "Gol de longe",
+  "İkiliyi kazandı": "Ganhou o duelo"
+});

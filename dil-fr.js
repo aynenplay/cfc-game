@@ -8674,3 +8674,27 @@ Object.assign(window.I18N.fr, {
   "Önce başladığın yeteneği bitir ya da iptal et.": "Termine ou annule d’abord la compétence commencée.",
   "Kilitli": "Verrouillé"
 });
+
+/* 946 · 948 — maç akışı sahası */
+Object.assign(window.I18N.fr, {
+  "Blokladı": "Contré",
+  "Büyük fırsat": "Grosse occasion",
+  "Dışarı": "À côté",
+  "Faul kazandı": "Faute obtenue",
+  "Frikik Golü": "But sur coup franc",
+  "Kafa Golü": "But de la tête",
+  "Kilit pas": "Passe décisive",
+  "Korner Golü": "But sur corner",
+  "Kritik müdahale": "Tacle décisif",
+  "Müthiş kurtarış": "Arrêt magnifique",
+  "Ofsayt · gol iptal": "Hors-jeu · but refusé",
+  "Oyun dışı": "Expulsé",
+  "Pas arası": "Interception",
+  "Penaltı Golü": "But sur penalty",
+  "Penaltı kurtardı!": "Penalty arrêté !",
+  "Senin golün": "Ton but",
+  "Top kaptı": "Ballon récupéré",
+  "Uzaklaştırdı": "Dégagé",
+  "Uzaktan Gol": "But de loin",
+  "İkiliyi kazandı": "Duel gagné"
+});

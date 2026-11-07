@@ -8647,3 +8647,27 @@ Object.assign(window.I18N.ru, {
   "Önce başladığın yeteneği bitir ya da iptal et.": "Сначала заверши или отмени начатую способность.",
   "Kilitli": "Заблокировано"
 });
+
+/* 946 · 948 — maç akışı sahası */
+Object.assign(window.I18N.ru, {
+  "Blokladı": "Заблокировал",
+  "Büyük fırsat": "Голевой момент",
+  "Dışarı": "Мимо",
+  "Faul kazandı": "Заработал фол",
+  "Frikik Golü": "Гол со штрафного",
+  "Kafa Golü": "Гол головой",
+  "Kilit pas": "Ключевой пас",
+  "Korner Golü": "Гол после углового",
+  "Kritik müdahale": "Решающий отбор",
+  "Müthiş kurtarış": "Отличный сейв",
+  "Ofsayt · gol iptal": "Офсайд · гол отменён",
+  "Oyun dışı": "Удалён",
+  "Pas arası": "Перехват",
+  "Penaltı Golü": "Гол с пенальти",
+  "Penaltı kurtardı!": "Пенальти отражён!",
+  "Senin golün": "Твой гол",
+  "Top kaptı": "Отобрал мяч",
+  "Uzaklaştırdı": "Выбил",
+  "Uzaktan Gol": "Гол издали",
+  "İkiliyi kazandı": "Выиграл единоборство"
+});
