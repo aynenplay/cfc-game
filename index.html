@@ -26244,8 +26244,8 @@ body.pd-acik{overflow:hidden}
   </div>
 </div>
 
-<script src="js/oyun.135ed763.js"></script>
-<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.135ed763.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
+<script src="js/oyun.74338e72.js"></script>
+<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.74338e72.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
 
 <nav id="bottomnav">
   <button class="nav-btn active" onclick="showPage('home',this)"><div class="nav-icon">🏠</div><div class="nav-label">Menü</div></button>
@@ -38370,7 +38370,33 @@ body.tk-canli #page-team #team-formation #formationLockNote{display:none !import
       && (r.status === 'running' || (r.status === 'scheduled' && Date.parse(r.kickoff_at) <= simdi))
       && !bitti(r)) || null;
   }
-  async function kontrol() {
+  // 956 — periyodik turda (kilit yokken) maç önbelleğinde takımın [şimdi−60 dk, şimdi+30 sn] aralığında başlayan ve
+  //   sunucunun en son "etkin maç yok" dediği andan sonra başlamış maçı yoksa sorgu atılmaz. Girişteki kontrol hep sorar.
+  const _bosOnay = { kulup: {}, milli: {} };
+  function adayVar(adlar, milli) {
+    try {
+      const bk = (typeof _matchStateCache !== 'undefined' && _matchStateCache && _matchStateCache.byKey) || null;
+      const sc = window._msScope || {};
+      if (!bk || !sc.coreAt) return true;
+      if (!milli) {
+        const ut = (typeof _userTeam !== 'undefined') ? _userTeam : null;
+        if (!ut || !ut.countryCode || !sc.countries || !sc.countries[sc.season + '|' + ut.countryCode]) return true;
+      }
+      const simdi = Date.now(), alt = simdi - 60 * 60000, ust = simdi + 30000;
+      const onay = _bosOnay[milli ? 'milli' : 'kulup'][adlar.join('|')] || 0;
+      for (const k in bk) {
+        const m = bk[k];
+        if (!m || m.status === 'finished') continue;
+        if ((m.tournament_key === 'enc') !== !!milli) continue;
+        if (adlar.indexOf(m.home) < 0 && adlar.indexOf(m.away) < 0) continue;
+        const t = Date.parse(m.matchDateTime || '');
+        if (!(t >= alt && t <= ust) || t <= onay) continue;
+        return true;
+      }
+      return false;
+    } catch (e) { return true; }
+  }
+  async function kontrol(periyodik) {
     if (!window.sb || kontrolde) return;
     kontrolde = true;
     const simdi = Date.now();
@@ -38383,14 +38409,22 @@ body.tk-canli #page-team #team-formation #formationLockNote{display:none !import
     let kulup = K.kulup, milli = K.milli;
     try {
       const ut = (typeof _userTeam !== 'undefined') ? _userTeam : null;
-      if (ut && ut.teamName) { const { data, error } = await q(ut.teamName); if (!error) kulup = sec(data, false); }
+      if (ut && ut.teamName) {
+        if (periyodik === true && !K.kulup && !adayVar([ut.teamName], false)) kulup = null;   // 956
+        else { const t0 = Date.now(); const { data, error } = await q(ut.teamName); if (!error) { kulup = sec(data, false); if (!kulup) _bosOnay.kulup[ut.teamName] = t0; } }
+      }
       else kulup = null;
     } catch (e) {}
     try {
       const cc = (typeof ntActiveCountry === 'function') ? ntActiveCountry() : null;
       if (cc && typeof ntRol === 'function' && ntRol(cc) && typeof _ntUlkeAdi === 'function') {
-        const { data, error } = await q(_ntUlkeAdi(cc));
-        if (!error) { milli = sec(data, true); if (milli) milli.cc = cc; }
+        const _ad = _ntUlkeAdi(cc), _adlar = [_ad, cc].filter(Boolean);
+        if (periyodik === true && !K.milli && !adayVar(_adlar, true)) milli = null;   // 956
+        else {
+          const t0 = Date.now();
+          const { data, error } = await q(_ad);
+          if (!error) { milli = sec(data, true); if (milli) milli.cc = cc; else _bosOnay.milli[_adlar.join('|')] = t0; }
+        }
       } else milli = null;
     } catch (e) {}
     kontrolde = false;
@@ -38455,7 +38489,7 @@ body.tk-canli #page-team #team-formation #formationLockNote{display:none !import
   sar('_finalizeMatch', null, () => macTaktikModuKapat());
   setInterval(() => {
     if (document.hidden) return;
-    if (K.kulup || K.milli || sayfaAcik('page-team') || sayfaAcik('page-national')) kontrol();
+    if (K.kulup || K.milli || sayfaAcik('page-team') || sayfaAcik('page-national')) kontrol(true);   // 956 — periyodik tur
   }, 15000);
 
   window.macTaktikModuAc = macTaktikModuAc;
@@ -40099,23 +40133,34 @@ const _tf854Hata = (d, yedek) => (d && _TF854_HATA[d.error]) || ((typeof _mevkiD
 
 // ── Satış listesi: canlı ──────────────────────────────────────────
 let _tfIlanKanal = null, _tfIlanT = 0, _tfIlanKirli = false, _tfIlanYuk = null;
+let _tfIlanKanalOk = false, _tfIlanAboneT = 0, _tfIlanAt = 0, _tfIlanSurum = 0;   // 956 — kanal sağlığı, son abonelik, son güvenilir okuma (başlangıç anı), değişiklik sayacı
 function _tfSayfaAcik() { const pg = document.getElementById('page-transfers'); return !!(pg && pg.classList.contains('active')); }
 function _tfIlanKanalAc() {
   if (_tfIlanKanal || !window.sb || typeof window.sb.channel !== 'function') return;
   try {
     _tfIlanKanal = window.sb.channel('csc-ilan')
       .on('broadcast', { event: 'ilan' }, () => {
-        if (!_tfSayfaAcik() || document.hidden) { _tfIlanKirli = true; return; }
+        _tfIlanKirli = true; _tfIlanSurum++;   // 956 — liste değişti (açıkken de işaretlenir: zorunlu okuma bunu görür)
+        if (!_tfSayfaAcik() || document.hidden) return;
         clearTimeout(_tfIlanT); _tfIlanT = setTimeout(() => _tfIlanTazele(true), 400 + Math.random() * 900);
       })
-      .subscribe(st => { if (st === 'SUBSCRIBED' && _tfSayfaAcik()) _tfIlanTazele(true); });
+      .subscribe(st => {
+        // 956 — bağlanınca yalnız kirliyse okunur; kopunca kaçan yayınlar olabilir → kirli
+        if (st === 'SUBSCRIBED') { _tfIlanKanalOk = true; _tfIlanAboneT = Date.now(); if (_tfIlanKirli && _tfSayfaAcik()) _tfIlanTazele(true); }
+        else { _tfIlanKanalOk = false; _tfIlanKirli = true; }
+      });
   } catch (e) { _tfIlanKanal = null; }
 }
 function _tfIlanTazele(zorla) {
+  // 956 — kanal bağlı, liste temiz ve abonelikten sonra okunmuş, 5 dk'dan tazeyse sayfa / sekme açılışında yeniden okunmaz
+  if (zorla && _tfIlanKanalOk && !_tfIlanKirli && Array.isArray(_tfListCache) && _tfIlanAt && _tfIlanAt >= _tfIlanAboneT && Date.now() - _tfIlanAt < 300000) zorla = false;
   if (!zorla && !_tfIlanKirli) return Promise.resolve(_tfListCache);
   if (_tfIlanYuk) return _tfIlanYuk;
+  const _bas = Date.now(), _sr = _tfIlanSurum;
   _tfIlanYuk = _tfListLoadFromServer().then(arr => {
-    _tfListCache = arr; _tfIlanKirli = false;
+    _tfListCache = arr;
+    if (_tfIlanSurum === _sr) _tfIlanKirli = false;   // 956 — okuma sürerken yeni değişiklik geldiyse kirli kalır
+    _tfIlanAt = (Array.isArray(arr) && arr.length) ? _bas : 0;   // 956 — boş sonuç (hata olabilir) güvenilir sayılmaz
     if (_tfSayfaAcik() && typeof tfRender === 'function') tfRender();
     return arr;
   }).catch(() => _tfListCache).finally(() => { _tfIlanYuk = null; });
@@ -41892,8 +41937,39 @@ function _oyBaslikSigdir(goster) {
   return true;
 }
 // Kariyer sayıları + kupalar (players satırı ve oyuncu_kupalari; 5 dk önbellek)
+// 956 — kart ekranda değilken (kaydırıcının öbür sayfası, başka sayfa, arka plan) eski değerler kalır; kart görününce tazelenir
+function _oyKartGorunur956() {
+  try {
+    const el = document.getElementById('oyKart');
+    if (!el || document.hidden) return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && r.right > 1 && r.left < window.innerWidth - 1 && r.bottom > 0 && r.top < window.innerHeight;
+  } catch (e) { return true; }
+}
+function _oyKartGozle956() {
+  if (window._oyKrIO956 || typeof IntersectionObserver === 'undefined') return;
+  const el = document.getElementById('oyKart'); if (!el) return;
+  window._oyKrIO956 = new IntersectionObserver((es) => {
+    if (!es.some(e => e.isIntersecting) || document.hidden) return;
+    if (_oyKr && Date.now() - _oyKr.t >= 300000 && !_oyZ) { try { oyKartTazele(); } catch (e) {} }
+  });
+  window._oyKrIO956.observe(el);
+}
 async function _oyKariyer() {
   if (_oyKr && Date.now() - _oyKr.t < 300000) return _oyKr;
+  if (_oyKr && typeof IntersectionObserver !== 'undefined' && !_oyKartGorunur956()) { _oyKartGozle956(); return _oyKr; }   // 956
+  // 956 — takımlıysa sayılar 5 dk içinde çekilmiş kadrodaki kendi satırından (players sorgusu yok; kupalar aynen)
+  try {
+    const _rr = window._rr956, ut = (typeof _userTeam !== 'undefined') ? _userTeam : null;
+    const me = (_rr && _rr.ok && ut && _rr.a === ut.countryCode + ':' + ut.teamName && Date.now() - _rr.bas < 300000 && Array.isArray(ROSTER_DATA))
+      ? ROSTER_DATA.find(p => p && p.isUser && p.id && p.motmTotal !== undefined) : null;
+    if (me) {
+      const row = { id: me.id, matches_played: me.matchesPlayed, goals_total: me.goalsTotal, assists_total: me.assistsTotal, motm_total: me.motmTotal };
+      const kupa = await _pmkKupalar(me.id);
+      _oyKr = { t: _rr.bas, row, kupa: kupa || (_oyKr && _oyKr.kupa) || [] };
+      return _oyKr;
+    }
+  } catch (e) {}
   const { data, error } = await window.sb.from('players').select('id, matches_played, goals_total, assists_total, motm_total')
     .eq('user_id', authUser.id).eq('is_bot', false).maybeSingle();
   if (error || !data) { _oyKr = Object.assign(_oyKr || { row: null, kupa: [] }, { t: Date.now() }); return _oyKr; }
@@ -42664,15 +42740,25 @@ function hmKaydirGec() {
   // Takımın kaptanı bot mu (sunucudan; 5 dk önbellek). Okunamazsa null.
   async function kaptanBot(cc, tn) {
     const a = cc + '|' + tn, o = R.kaptan[a];
-    if (o && Date.now() - o.t < 300000) return o.bot;
+    // 956 — kendi takımının kadrosu 5 dk içinde çekildiyse kaptan bilgisi oradan (sorgu yok); sorgu sonucu oturum boyunca
+    //   (kadro yeniden çekilince buradan tazelenir), hata 5 dk hatırlanır
+    try {
+      const rr = window._rr956, ut = (typeof _userTeam !== 'undefined') ? _userTeam : null;
+      if (rr && rr.ok && Array.isArray(rr.kaptanlar) && rr.a === cc + ':' + tn && Date.now() - rr.bas < 300000 && ut && ut.countryCode === cc && ut.teamName === tn) {
+        const bot = !rr.kaptanlar.some(p => p && !p.is_bot && p.user_id);
+        R.kaptan[a] = { bot, t: Date.now(), kalici: true };
+        return bot;
+      }
+    } catch (e) {}
+    if (o && (o.kalici || Date.now() - o.t < 300000)) return o.bot;
     try {
       const { data, error } = await window.sb.from('players').select('is_bot,user_id')
         .eq('country_code', cc).eq('team_name', tn).eq('role', 'captain').limit(3);
-      if (error || !Array.isArray(data)) return null;
+      if (error || !Array.isArray(data)) { R.kaptan[a] = { bot: null, t: Date.now() }; return null; }   // 956
       const bot = !data.some(p => p && !p.is_bot && p.user_id);
-      R.kaptan[a] = { bot, t: Date.now() };
+      R.kaptan[a] = { bot, t: Date.now(), kalici: true };   // 956
       return bot;
-    } catch (e) { return null; }
+    } catch (e) { R.kaptan[a] = { bot: null, t: Date.now() }; return null; }   // 956
   }
 
   // Engel: pencere açılmaz. serbest = sohbet/özel mesaj gibi kendi katmanının üstünde açılabilenler.
@@ -42719,13 +42805,24 @@ function hmKaydirGec() {
     if (k === 'takim_bul') return (typeof userHasTeam === 'function' && !userHasTeam()) ? v : false;
     if (k === 'federasyon') {
       if (!ut || ut.role !== 'captain' || !ut.countryCode || typeof _loadFedStateFromServer !== 'function') return false;
+      if (R.fedHayir) return false;   // 956 — bu oturumda koşul tutmadı (seçim açık / aday / başkan): federasyon yeniden yüklenmez
       const _uy = ((typeof authUser !== 'undefined' && authUser) || window.authUser || {}).nationality;   // 825 — kendi uyruğunun federasyonu
       const _fcc = _uy ? String(_uy).toUpperCase() : String(ut.countryCode).toUpperCase();
       if (!_cftGetCountry(_fcc)) return false;
       let st = null;
-      try { st = await _loadFedStateFromServer(_fcc); } catch (e) {}
-      if (!st || st.electionPhase === 'open' || st.userCandidacy) return false;
-      try { if (typeof fedUserRole === 'function' && fedUserRole(_fcc) === 'president') return false; } catch (e) {}
+      try {   // 956 — 15 dk'dan taze federasyon verisi varsa sunucuya gidilmez
+        const _ft = (typeof _fedStateT !== 'undefined' && _fedStateT[_fcc]) || 0;
+        const _hr = (typeof _fedStateRaw !== 'undefined') ? _fedStateRaw[_fcc] : null;
+        if (_hr && typeof _fedStateLoaded !== 'undefined' && _fedStateLoaded[_fcc] && Date.now() - _ft < 15 * 60000 && typeof _fedMapState === 'function') st = _fedMapState(_fcc, _hr.row, _hr.oy);
+        else st = await _loadFedStateFromServer(_fcc);
+      } catch (e) {}
+      if (!st) return false;
+      if (st.electionPhase === 'open' || st.userCandidacy) { R.fedHayir = true; return false; }   // 956
+      try {   // fedUserRole(_fcc) === 'president' ile aynı (fedLoad'un arka plan yüklemesi olmadan)
+        const _bid = ((typeof authUser !== 'undefined' && authUser) || window.authUser || {}).id;
+        const _me = (typeof fedGetUserMember === 'function') ? fedGetUserMember(_fcc) : null;
+        if ((st.vekilUid && _bid && _bid === st.vekilUid) || (_me && st.serverPresidentId && st.serverPresidentId === _me.id)) { R.fedHayir = true; return false; }
+      } catch (e) {}
       return v;
     }
     if (k === 'milli') {
@@ -45133,7 +45230,8 @@ html .page:not(#page-home)>.hm-title-box .cal-close-btn{top:50% !important;right
     if (A.rt || !window.sb || typeof window.sb.channel !== 'function') return;
     A.rt = true;
     let zam = null;
-    const tetik = () => { clearTimeout(zam); zam = setTimeout(() => { if (sayfaAcik()) { yukle('oyuncu', true); yukle('takim', true); } else { A.t.oyuncu = 0; A.t.takim = 0; } }, 700); };
+    // 956 — değişiklikte iki liste de bayat; Transfer açıksa yalnız görünen liste (diğer sekmelerde sayılar için bir tanesi) hemen okunur
+    const tetik = () => { clearTimeout(zam); zam = setTimeout(() => { A.t.oyuncu = 0; A.t.takim = 0; if (sayfaAcik()) yukle(sekmeAcik() ? tur() : sayTur(), true); }, 700); };
     try {
       window.sb.channel('rt-arayis')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'arayis_oyuncu' }, tetik)
@@ -45141,7 +45239,15 @@ html .page:not(#page-home)>.hm-title-box .cal-close-btn{top:50% !important;right
         .subscribe();
     } catch (e) { console.warn('[arayis] anlık abonelik', e); }
   }
-  window._aryTazele = function (zorla) { rtKur(); return Promise.all([yukle('oyuncu', zorla), yukle('takim', zorla)]); };
+  // 956 — Takım/Futbolcu Arıyorum sekmesi açıkken yalnız o sekmenin listesi; diğer sekmelerde yalnız sayılar gerekir:
+  //   her yanıt iki sayıyı da taşır (data.say) → tek istek (takımsıza Futbolcu Arıyorum, diğerlerine Takım Arıyorum listesi)
+  const sayTur = () => takimsiz() ? 'takim' : 'oyuncu';
+  window._aryTazele = function (zorla) {
+    rtKur();
+    if (sekmeAcik() && sayfaAcik()) return yukle(tur(), zorla);
+    if (!zorla && ['oyuncu', 'takim'].some(t => A[t] && Date.now() - A.t[t] < 20000)) return Promise.resolve();
+    return yukle(sayTur(), zorla);
+  };
 
   // ── Kartlar ──
   function oyuncuKart(p, mod, i) {   // mod: kat | yok | ben

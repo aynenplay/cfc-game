@@ -9,6 +9,7 @@ window.Sahne3D = (() => {
   const KALE_G = 7.32, KALE_Y = 2.44, CATI_D = 1.0, TABAN_D = 2.2;
   const BOLGE_X = [-2.44, 0, 2.44];
   let renderer, scene, camera, kap, top, kaleci, ag, zaman = 0, son = performance.now();
+  let calisiyor = false, gorunur = false;   // 956 — döngü açık mı · kap görünür mü (ResizeObserver günceller)
   const animler = [];
 
   // ── yardımcılar ──
@@ -950,9 +951,17 @@ window.Sahne3D = (() => {
     LOGO.src = yol('csc-logo.webp');
     top = topYap(); scene.add(top); topSifirla();
 
-    new ResizeObserver(boyut).observe(kap); boyut();
-    renderer.setAnimationLoop(dongu);
+    // 956 — görünürlük her karede offsetParent okunarak değil, boyut değişiminde (gizlenince / açılınca) güncellenir;
+    //   katman kapalıyken döngü durur (eskiden kurulduktan sonra oturum boyunca 60/sn dönüyordu)
+    gorunur = !!kap.offsetParent;
+    new ResizeObserver(gozlem).observe(kap); boyut();
+    if (gorunur) devam();
   }
+  function gozlem() { gorunur = !!kap.offsetParent; if (gorunur) devam(); else dur(); boyut(); }
+  function dur() { if (!renderer || !calisiyor) return; renderer.setAnimationLoop(null); calisiyor = false; }
+  function devam() { if (!renderer || calisiyor) return; son = performance.now(); renderer.setAnimationLoop(dongu); calisiyor = true; }
+  // sahneye iş verilince (atış / sıfırlama / ışık) görünürlük bir kez yerinde sorulur: gözlemci geç kalsa da kare akar
+  function uyan() { if (!renderer) return; gorunur = !!kap.offsetParent; if (gorunur) devam(); }
   function boyut() {
     const w = kap.clientWidth, h = kap.clientHeight; if (!w || !h) return;
     renderer.setSize(w, h, false); if (ag && ag.userData.serit) seritBoyut(); renderer.domElement.style.width = '100%'; renderer.domElement.style.height = '100%';
@@ -990,7 +999,7 @@ window.Sahne3D = (() => {
   async function ileri(sn) { elle = true; for (let t = 0; t < sn; t += 1 / 60) { adim(1 / 60); for (let k = 0; k < 8; k++) await null; } renderer.render(scene, camera); }
   function dongu() {
     const simdi = performance.now(), dt = Math.min(.05, (simdi - son) / 1000); son = simdi;
-    if (!kap.offsetParent) return;
+    if (!gorunur) return;   // 956 — bayrak (eskiden her karede offsetParent → zorunlu yerleşim)
     if (elle) { renderer.render(scene, camera); return; }
     zaman += dt; isikGuncelle(dt); atmosferGuncelle(dt); fizikAdim(dt);
     for (let i = animler.length - 1; i >= 0; i--) {
@@ -1003,12 +1012,14 @@ window.Sahne3D = (() => {
 
   // ── atış ──
   function sifirla() {
+    uyan();   // 956
     animler.length = 0; fileSifirla();
     konumX = 0; poz('hazir', 'hazir', 1); topSifirla();
     isik.hedef = null; secimBekliyor = true;
   }
   // 699 — kacis: kaçan penaltı ('direk' = direğe/üst direğe çarpar, 'aut' = auta/üstten dışarı); yoksa eski davranış
   async function atis(bolge, dalis, gol, kacis) {
+    uyan();   // 956
     isik.hedef = null; secimBekliyor = false;
     const hedefY = !gol && bolge !== 1 ? .9 + Math.random() * .35 : (bolge === 1 ? 1.15 + Math.random() * .6 : .7 + Math.random() * 1.1);
     const hedef = new T.Vector3(BOLGE_X[bolge] + (Math.random() - .5) * .5, hedefY, 0);
@@ -1052,5 +1063,5 @@ window.Sahne3D = (() => {
       await oynat(.55, () => {});
     }
   }
-  return { kur, atis, sifirla, bolgeYerlestir, ileri, isikla: (b, r) => { if (b != null) secimBekliyor = false; isikla(b, r); }, kaleciTakim, serbest: () => { elle = false; } };
+  return { kur, dur, devam, uyan, atis, sifirla, bolgeYerlestir, ileri, isikla: (b, r) => { uyan(); if (b != null) secimBekliyor = false; isikla(b, r); }, kaleciTakim, serbest: () => { elle = false; } };
 })();
