@@ -26235,8 +26235,8 @@ body.pd-acik{overflow:hidden}
   </div>
 </div>
 
-<script src="js/oyun.8a83cbae.js"></script>
-<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.8a83cbae.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
+<script src="js/oyun.1cb5dfab.js"></script>
+<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.1cb5dfab.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
 
 <nav id="bottomnav">
   <button class="nav-btn active" onclick="showPage('home',this)"><div class="nav-icon">🏠</div><div class="nav-label">Menü</div></button>
@@ -34252,7 +34252,36 @@ async function _mgOzetYukle(satirlar) {
 const _mgTesisOrt = (o) => { const ids = (typeof FAC_DATA !== 'undefined') ? FAC_DATA.map(f => f.id) : []; return ids.length ? ids.reduce((a, id) => a + Math.max(1, Number(o.t[id]) || 1), 0) / ids.length : 1; };
 const _mgGuc = (cc, t) => { const v = (typeof _teamPowerFromPlayers === 'function') ? _teamPowerFromPlayers(cc, t.name, t.rank) : 0; return Math.round(v || t.rating || 0); };
 
+// 958 — Takımlar › Sistem listesi (~5000 takım × güç + fiyat + kampanya + açık artırma taraması) her filtre, sekme ve
+//   yeniden çizimde baştan kuruluyordu. Kaynaklar aynıyken saklanan liste kopyalanır: takım DB, sahipli küme, açık artırma
+//   listesi, kampanya listesi (ve arada süresi dolan kampanya yok), güç kaynakları (güç haritası, güç önbelleği, oyuncunun
+//   antrenmandan sonra yerinde değişen kendi takımı). Bir takımın gücü kadrosundan hesaplandıysa saklanmaz.
+//   Saat geri giderse (cihaz saati değişimi) de yeniden kurulur: kampanya geçerliliği yalnız [kurulum, ilk bitiş) aralığında sabit.
+var _mgSisOnb958 = null;
+function _mgSisKendi958() {
+  try {
+    const u = (typeof _userTeam !== 'undefined' && _userTeam) ? _userTeam : null;
+    if (!u) return '';
+    const k = u.countryCode + ':' + u.teamName, m = window._teamOvrMap;
+    const e = (typeof _tmBul === 'function') ? _tmBul('ulke', u.countryCode, u.teamName) : undefined;
+    const t = e === undefined ? ((typeof _cftFindTeam === 'function') ? _cftFindTeam(u.countryCode, u.teamName) : null) : (e ? e.t : null);
+    return k + '|' + (m ? m[k] : '') + '|' + (t ? t.teamOvr + '|' + t.rating + '|' + t.pop : '');
+  } catch (e) { return null; }
+}
 function _mgSistemListe() {
+  const n = Date.now(), o = _mgSisOnb958, kendi = _mgSisKendi958();
+  if (o && kendi !== null && o.db === _cftDb && o.sahip === _mgSahipli && o.aa === AA.veri && o.kmp === _kmp && o.n <= n && n < o.kmpSon
+      && o.ovr === window._teamOvrMap && o.pc === _teamPowerCache && o.kendi === kendi) return o.liste.map(x => Object.assign({}, x));
+  const k0 = window._tpKadro958 || 0;
+  const liste = _mgSistemListe958();
+  let kmpSon = Infinity;
+  for (const k of _kmp) if (k.bitisMs > n && k.bitisMs < kmpSon) kmpSon = k.bitisMs;
+  _mgSisOnb958 = ((window._tpKadro958 || 0) === k0 && kendi !== null)
+    ? { db: _cftDb, sahip: _mgSahipli, aa: AA.veri, kmp: _kmp, n, kmpSon, ovr: window._teamOvrMap, pc: _teamPowerCache, kendi, liste: liste.map(x => Object.assign({}, x)) }
+    : null;
+  return liste;
+}
+function _mgSistemListe958() {
   const out = [];
   for (const cc of _cftGetCountryCodes()) {
     const c = _cftGetCountry(cc); if (!c) continue;
@@ -36316,7 +36345,7 @@ function _oyVarsayilanSet() {
     if (tk && typeof _matchStateCache !== 'undefined' && _matchStateCache && _matchStateCache.byKey) {
       const simdi = Date.now();
       let en = null;
-      for (const ms of Object.values(_matchStateCache.byKey)) {
+      for (const ms of ((typeof _msKova === 'function' && _msKova('takim', tk)) || Object.values(_matchStateCache.byKey))) {   // 958 — yalnız takımın maçları
         if (!ms || ms.status === 'finished' || (ms.home !== tk && ms.away !== tk)) continue;
         const t = new Date(ms.matchDateTime).getTime();
         if (!(t > simdi - 2 * 3600e3 && t < simdi + 24 * 3600e3)) continue;
