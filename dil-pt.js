@@ -8630,3 +8630,8 @@ Object.assign(window.I18N.pt, {
   "Uzaktan Gol": "Gol de longe",
   "İkiliyi kazandı": "Ganhou o duelo"
 });
+
+/* 955 — Şifremi Unuttum */
+Object.assign(window.I18N.pt, {
+  "Kayıtlı e-posta adresini gir.": "Digite seu e-mail cadastrado."
+});

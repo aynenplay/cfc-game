@@ -9063,3 +9063,8 @@ Object.assign(window.I18N.en, {
   "Uzaktan Gol": "Long-range goal",
   "İkiliyi kazandı": "Won the duel"
 });
+
+/* 955 — Şifremi Unuttum */
+Object.assign(window.I18N.en, {
+  "Kayıtlı e-posta adresini gir.": "Enter your registered e-mail address."
+});

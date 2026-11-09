@@ -6998,3 +6998,8 @@ Object.assign(window.I18N.de, {
   "Uzaktan Gol": "Fernschusstor",
   "İkiliyi kazandı": "Zweikampf gewonnen"
 });
+
+/* 955 — Şifremi Unuttum */
+Object.assign(window.I18N.de, {
+  "Kayıtlı e-posta adresini gir.": "Gib deine registrierte E-Mail-Adresse ein."
+});

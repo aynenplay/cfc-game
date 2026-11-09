@@ -4334,7 +4334,7 @@ function uCardsHTML(){
           <div class="u-f u-fe" data-e="mevki" data-i="${i}"><div class="l">Mevki</div><div class="v">${uEsc(posTxt)}</div></div>
           <div class="u-f u-fe" data-e="avatar" data-i="${i}"><div class="l">Avatar</div><div class="v">${avS?`<img src="${avS}" alt="">`:''}${_pl.avatar_id?(((AV_SEC.find(a=>a.id===_pl.avatar_id)||{}).c==='F')?'Kadın':'Erkek'):'—'}</div></div>
           <div class="u-f"><div class="l">User ID</div><div class="v">${uEsc(String(id||'—'))}</div></div>
-          <div class="u-f"><div class="l">E-posta</div><div class="v">${uEsc(uEposta(p.email)||'—')}</div></div>
+          <div class="u-f u-fe" data-e="eposta" data-i="${i}"><div class="l">E-posta</div><div class="v">${uEsc(uEposta(p.email)||'—')}</div></div>
           ${ban?`<div class="u-f" style="border-color:rgba(226,59,90,.4)"><div class="l" style="color:var(--red)">Engel Bitiş</div><div class="v">${ban.perm?'Süresiz':ban.until.toLocaleDateString('tr')}</div></div>`:''}
         </div>
         ${playerSec}
@@ -6778,11 +6778,11 @@ function edMevkiYazi(pl){
 let ED=null;
 function edAc(tur,i){
   const p=UDATA.rows[i]; if(!p) return; const id=uUid(p); const pl=UDATA.plMap[id];
-  if(!pl && tur!=='profil' && tur!=='sil'){ alert('Bu kullanıcının oyuncu kaydı yok.'); return; }
+  if(!pl && tur!=='profil' && tur!=='sil' && tur!=='eposta'){ alert('Bu kullanıcının oyuncu kaydı yok.'); return; }
   const utd=(pl&&pl.user_team_data&&typeof pl.user_team_data==='object')?pl.user_team_data:{};
   ED={ tur, p, pl, id, sec:null, cins:'M', takim:null, rol:String((pl&&pl.role)||utd.role||'member').toLowerCase() };
   if(!ED_ROL.some(o=>o[0]===ED.rol)) ED.rol='member';
-  $('edBaslik').innerHTML=({ mevki:'Mevki', avatar:'Avatar', takim:'Takım', rol:'Takımdaki Rol', profil:'Profil', sil:'Kullanıcıyı Sil' })[tur]+' — <span>'+uEsc(p.name||p.display_name||p.username||'')+'</span>';
+  $('edBaslik').innerHTML=({ mevki:'Mevki', avatar:'Avatar', takim:'Takım', rol:'Takımdaki Rol', profil:'Profil', sil:'Kullanıcıyı Sil', eposta:'E-posta' })[tur]+' — <span>'+uEsc(p.name||p.display_name||p.username||'')+'</span>';
   $('edErr').textContent='';
   $('edTakimsiz').style.display=(tur==='takim'&&pl.team_name)?'':'none';
   $('edKaydet').style.display='';
@@ -6790,6 +6790,7 @@ function edAc(tur,i){
   $('edKaydet').textContent=(tur==='sil')?'Hesabı Sil':'Kaydet';
   $('edKaydet').disabled=(tur==='sil');
   if(tur==='profil'){ $('edAlt').innerHTML=uEsc(uEposta(p.email)); edProfilCiz(); }
+  if(tur==='eposta'){ $('edAlt').innerHTML=uEposta(p.email)?'Şu an: <b>'+uEsc(p.email)+'</b>':'Şu an e-postası yok.'; edEpostaCiz(); }   // 955
   if(tur==='sil'){ $('edAlt').innerHTML=''; edSilCiz(); }
   if(tur==='mevki'){ ED.sec=String(pl.sub_pos||'').toUpperCase()||null; $('edAlt').innerHTML='Şu an: <b>'+uEsc(edMevkiYazi(pl))+'</b>. Yan mevkiyi seç; ana mevki ona göre ayarlanır. Yetenekler korunur.'; edMevkiCiz(); }
   if(tur==='avatar'){ ED.sec=pl.avatar_id||null; const a=AV_SEC.find(x=>x.id===ED.sec); ED.cins=a?a.c:'M'; $('edAlt').innerHTML='Şu an: <b>'+uEsc(pl.avatar_id||'avatar yok')+'</b>'; edAvatarCiz(); }
@@ -6797,6 +6798,15 @@ function edAc(tur,i){
   if(tur==='takim'){ $('edAlt').innerHTML='Şu an: <b>'+uEsc(pl.team_name||'Takımsız')+'</b>. Yeni takımda mevkisine uyan en zayıf botun yerini alır; eski takımda kaptansa kaptanlık devredilir.'; edTakimCiz(); }
   $('edModal').style.display='flex';
 }
+// 955 — hatalı yazılmış e-postayı düzeltme (giriş adresi değişir, onaylı sayılır; şifre ve hesap aynı kalır)
+function edEpostaCiz(){
+  $('edGovde').innerHTML='<div class="ed-form"><label class="ed-l">Yeni e-posta<input id="edEp" type="email" maxlength="80" autocomplete="off" inputmode="email" spellcheck="false"></label></div>';
+  $('edEp').value=uEposta(ED.p.email);
+  $('edEp').onkeydown=e=>{ if(e.key==='Enter') edKaydet(); };
+  setTimeout(()=>{ try{ $('edEp').focus(); }catch(e){} },50);
+}
+const ED_EP_HATA={ yetki_yok:'Bu işlem için yönetici yetkisi gerekiyor.', gecersiz:'Geçerli bir e-posta adresi yaz.', ayni:'Bu zaten kullanıcının e-postası.',
+  kullaniliyor:'Bu e-posta başka bir hesapta kullanılıyor.', hesap_yok:'Kullanıcının giriş hesabı bulunamadı.' };
 function edMevkiCiz(){
   $('edGovde').innerHTML=MAIN_POS_ADM.map(([g,ad])=>`<div class="ed-grp" style="--c:${ED_RENK[g]}"><i></i>${ad}</div>
     <div class="ed-cips">${(SUB_POS_ADM[g]||[]).map(([k,a])=>`<button class="ed-cip${ED.sec===k?' on':''}" style="--c:${ED_RENK[g]}" data-k="${k}"><b>${k}</b>${a}</button>`).join('')}</div>`).join('');
@@ -6903,6 +6913,12 @@ async function edKaydet(){
     } else if(tur==='takim'){
       if(!ED.takim){ $('edErr').textContent='Listeden bir takım seç.'; return; }
       await api('oyuncu_takim',{ user_id:id, cc:ED.takim.cc, team:ED.takim.name, role:ED.rol }); await edYenile();
+    } else if(tur==='eposta'){
+      const v=$('edEp').value.trim().toLowerCase();
+      if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)){ $('edErr').textContent=ED_EP_HATA.gecersiz; return; }
+      const d=await fbRpc('admin_eposta_duzelt',{ p_uid:id, p_eposta:v });
+      if(!d||!d.ok){ $('edErr').textContent=ED_EP_HATA[d&&d.hata]||'Kaydedilemedi.'; return; }
+      ED.p.email=d.yeni;
     } else if(tur==='profil'){
       const f=ED.form, ad=f.ad.trim(), kul=f.kul.trim().replace(/^@+/,'');
       if(ad.length<2||ad.length>32||!/^[\p{L} .'-]+$/u.test(ad)){ $('edErr').textContent='Ad 2–32 karakter; yalnız harf, boşluk, tire ve kesme işareti.'; return; }

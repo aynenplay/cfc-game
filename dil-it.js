@@ -8636,3 +8636,8 @@ Object.assign(window.I18N.it, {
   "Uzaktan Gol": "Gol dalla distanza",
   "İkiliyi kazandı": "Duello vinto"
 });
+
+/* 955 — Şifremi Unuttum */
+Object.assign(window.I18N.it, {
+  "Kayıtlı e-posta adresini gir.": "Inserisci il tuo indirizzo email registrato."
+});
