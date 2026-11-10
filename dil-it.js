@@ -8834,3 +8834,6 @@ Object.assign(window.I18N.it, {
 
 /* 968b — prim: sıradaki maçlar */
 Object.assign(window.I18N.it, { "Yaklaşan resmi maç yok": "Nessuna partita ufficiale in arrivo" });
+
+/* 969 — takım hero bar prim baloncuğu */
+Object.assign(window.I18N.it, { "Yaklaşan maçlarda prim yok": "Nessun premio per le prossime partite" });

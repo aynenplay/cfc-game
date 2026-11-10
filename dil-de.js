@@ -7204,3 +7204,6 @@ Object.assign(window.I18N.de, {
 
 /* 968b — prim: sıradaki maçlar */
 Object.assign(window.I18N.de, { "Yaklaşan resmi maç yok": "Kein anstehendes Pflichtspiel" });
+
+/* 969 — takım hero bar prim baloncuğu */
+Object.assign(window.I18N.de, { "Yaklaşan maçlarda prim yok": "Keine Prämien für die nächsten Spiele" });
