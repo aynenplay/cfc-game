@@ -8710,3 +8710,13 @@ Object.assign(window.I18N.ru, {
   "Gelir artırmak için tesisleri yükselt veya bağış topla.": "Чтобы увеличить доход, улучшай объекты или собирай пожертвования.",
   "Teklifsiz katılır.": "Вступает без предложения."
 });
+
+/* 965 — Takım sohbeti · rol satırları */
+(function () {
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.ru; if (!P) return;
+  P.unshift(
+    [/^(.+?), (.+?)'(?:y?[ıiuü]) yardımcı kaptan yaptı\.$/, "$1 назначил(а) $2 вице-капитаном."],
+    [/^(.+?), (.+?)'(?:y?[ıiuü]) yardımcılıktan aldı\.$/, "$1 снял(а) $2 с должности вице-капитана."],
+    [/^(.+?), (.+?)'(?:y?[ıiuü]) kaptan yaptı\.$/, "$1 назначил(а) $2 капитаном."]
+  );
+})();

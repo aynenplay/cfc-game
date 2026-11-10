@@ -8669,3 +8669,13 @@ Object.assign(window.I18N.pt, {
   "Gelir artırmak için tesisleri yükselt veya bağış topla.": "Para aumentar a receita, melhore as instalações ou arrecade doações.",
   "Teklifsiz katılır.": "Entra sem oferta."
 });
+
+/* 965 — Takım sohbeti · rol satırları */
+(function () {
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.pt; if (!P) return;
+  P.unshift(
+    [/^(.+?), (.+?)'(?:y?[ıiuü]) yardımcı kaptan yaptı\.$/, "$1 tornou $2 vice-capitão."],
+    [/^(.+?), (.+?)'(?:y?[ıiuü]) yardımcılıktan aldı\.$/, "$1 tirou $2 do cargo de vice-capitão."],
+    [/^(.+?), (.+?)'(?:y?[ıiuü]) kaptan yaptı\.$/, "$1 tornou $2 capitão."]
+  );
+})();
