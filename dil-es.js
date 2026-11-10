@@ -8833,3 +8833,6 @@ Object.assign(window.I18N.es, {
     [/^(.+?), (.+?) maçına prim koydu: (.+?) · (oyuna girenler|maç kadrosu|tüm kadro)\.$/, function (m) { var w = { 'galibiyete': "victoria", 'beraberliğe': "empate", 'mağlubiyete': "derrota" }, kp = {"oyuna girenler": "los que jugaron", "maç kadrosu": "convocados", "tüm kadro": "toda la plantilla"}; return "$1 puso prima para el partido contra $2: ".replace('$1', m[1]).replace('$2', m[2]) + m[3].split(', ').map(function (x) { var s = x.indexOf(' '); return (w[x.slice(0, s)] || x.slice(0, s)) + ' ' + x.slice(s + 1); }).join(', ') + ' · ' + (kp[m[4]] || m[4]) + '.'; }]
   );
 })();
+
+/* 968b — prim: sıradaki maçlar */
+Object.assign(window.I18N.es, { "Yaklaşan resmi maç yok": "No hay próximo partido oficial" });

@@ -7201,3 +7201,6 @@ Object.assign(window.I18N.de, {
     [/^(.+?), (.+?) maçına prim koydu: (.+?) · (oyuna girenler|maç kadrosu|tüm kadro)\.$/, function (m) { var w = { 'galibiyete': "Sieg", 'beraberliğe': "Remis", 'mağlubiyete': "Niederlage" }, kp = {"oyuna girenler": "eingesetzte Spieler", "maç kadrosu": "Spieltagskader", "tüm kadro": "ganzer Kader"}; return "$1 hat eine Prämie für das Spiel gegen $2 gesetzt: ".replace('$1', m[1]).replace('$2', m[2]) + m[3].split(', ').map(function (x) { var s = x.indexOf(' '); return (w[x.slice(0, s)] || x.slice(0, s)) + ' ' + x.slice(s + 1); }).join(', ') + ' · ' + (kp[m[4]] || m[4]) + '.'; }]
   );
 })();
+
+/* 968b — prim: sıradaki maçlar */
+Object.assign(window.I18N.de, { "Yaklaşan resmi maç yok": "Kein anstehendes Pflichtspiel" });
