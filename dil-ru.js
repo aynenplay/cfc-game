@@ -8685,3 +8685,13 @@ Object.assign(window.I18N.ru, {
   "Hesabın var mı?": "Есть аккаунт?",
   "Misafir": "Гость"
 });
+
+/* 961 — Takım Mesajı */
+Object.assign(window.I18N.ru, {
+  "Takım Mesajı": "Сообщение команде",
+  "Mesajını yaz…": "Напиши сообщение…",
+  "Mesaj gönderildi": "Сообщение отправлено",
+  "Bugün en fazla 5 takım mesajı gönderebilirsin.": "Можно отправить не больше 5 сообщений команде в день.",
+  "Takım mesajını yalnız kaptan ve yardımcılar gönderebilir.": "Сообщения команде могут отправлять только капитан и вице-капитаны.",
+  "Mesaj gönderilemedi. Tekrar dene.": "Не удалось отправить сообщение. Попробуй ещё раз."
+});

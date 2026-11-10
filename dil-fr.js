@@ -8712,3 +8712,13 @@ Object.assign(window.I18N.fr, {
   "Hesabın var mı?": "Déjà un compte ?",
   "Misafir": "Invité"
 });
+
+/* 961 — Takım Mesajı */
+Object.assign(window.I18N.fr, {
+  "Takım Mesajı": "Message d'équipe",
+  "Mesajını yaz…": "Écris ton message…",
+  "Mesaj gönderildi": "Message envoyé",
+  "Bugün en fazla 5 takım mesajı gönderebilirsin.": "Tu peux envoyer jusqu'à 5 messages d'équipe par jour.",
+  "Takım mesajını yalnız kaptan ve yardımcılar gönderebilir.": "Seuls le capitaine et les vice-capitaines peuvent envoyer des messages d'équipe.",
+  "Mesaj gönderilemedi. Tekrar dene.": "Le message n'a pas pu être envoyé. Réessaie."
+});

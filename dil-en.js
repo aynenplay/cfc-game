@@ -9077,3 +9077,13 @@ Object.assign(window.I18N.en, {
   "Hesabın var mı?": "Have an account?",
   "Misafir": "Guest"
 });
+
+/* 961 — Takım Mesajı */
+Object.assign(window.I18N.en, {
+  "Takım Mesajı": "Team Message",
+  "Mesajını yaz…": "Write your message…",
+  "Mesaj gönderildi": "Message sent",
+  "Bugün en fazla 5 takım mesajı gönderebilirsin.": "You can send up to 5 team messages per day.",
+  "Takım mesajını yalnız kaptan ve yardımcılar gönderebilir.": "Only the captain and vice-captains can send team messages.",
+  "Mesaj gönderilemedi. Tekrar dene.": "Message could not be sent. Try again."
+});

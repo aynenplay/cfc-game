@@ -7012,3 +7012,13 @@ Object.assign(window.I18N.de, {
   "Hesabın var mı?": "Schon ein Konto?",
   "Misafir": "Gast"
 });
+
+/* 961 — Takım Mesajı */
+Object.assign(window.I18N.de, {
+  "Takım Mesajı": "Teamnachricht",
+  "Mesajını yaz…": "Schreib deine Nachricht…",
+  "Mesaj gönderildi": "Nachricht gesendet",
+  "Bugün en fazla 5 takım mesajı gönderebilirsin.": "Du kannst pro Tag höchstens 5 Teamnachrichten senden.",
+  "Takım mesajını yalnız kaptan ve yardımcılar gönderebilir.": "Nur der Kapitän und die Vizekapitäne können Teamnachrichten senden.",
+  "Mesaj gönderilemedi. Tekrar dene.": "Nachricht konnte nicht gesendet werden. Versuch es erneut."
+});
