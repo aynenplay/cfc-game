@@ -9087,3 +9087,18 @@ Object.assign(window.I18N.en, {
   "Takım mesajını yalnız kaptan ve yardımcılar gönderebilir.": "Only the captain and vice-captains can send team messages.",
   "Mesaj gönderilemedi. Tekrar dene.": "Message could not be sent. Try again."
 });
+
+/* 963 — Sözleşme sistemi kalktı */
+Object.assign(window.I18N.en, {
+  "Önerdiği şartlar": "The terms they offer",
+  "Bu takıma hemen katılabilirsin. İstediğin zaman ayrılabilirsin (sistem maaşını alırsın).": "You can join this team right away. You can leave whenever you want (you get the system salary).",
+  "Bu takımın katılım şartlarını (min yetenek/seviye) karşılamıyorsun. Kaptan onayı için katılım isteği gönder.": "You do not meet this team's entry criteria (min skill/level). Send a join request for captain approval.",
+  "🔄 Ara Dönem": "🔄 Interim Period",
+  "Bu günlerde lig maçları oynanmaz. Kadronu güçlendirmek, sakat veya formdan düşen oyuncularını toparlamak için sezon ortasında iyi bir fırsattır.": "No league matches are played on these days. A good mid-season chance to strengthen your squad and get injured or out-of-form players back on track.",
+  "Lig sezonu sona erdi. Bu dönemde milli takımların katıldığı": "The league season is over. In this period the",
+  "Oyuncular istediği zaman katılır, ayrılır": "Players join and leave whenever they want",
+  "Artık patron sensin! Kadronu kur, takvime göz at.": "You’re the boss now! Build your squad, check the calendar.",
+  "Kasa yeterli olduğunda biriken maaşın sonraki maaş gününde ödenir.": "Once the treasury has enough funds, your owed salary is paid on the next payday.",
+  "Gelir artırmak için tesisleri yükselt veya bağış topla.": "To raise income, upgrade facilities or collect donations.",
+  "Teklifsiz katılır.": "Joins without an offer."
+});

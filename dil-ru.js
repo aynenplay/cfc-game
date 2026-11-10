@@ -8695,3 +8695,18 @@ Object.assign(window.I18N.ru, {
   "Takım mesajını yalnız kaptan ve yardımcılar gönderebilir.": "Сообщения команде могут отправлять только капитан и вице-капитаны.",
   "Mesaj gönderilemedi. Tekrar dene.": "Не удалось отправить сообщение. Попробуй ещё раз."
 });
+
+/* 963 — Sözleşme sistemi kalktı */
+Object.assign(window.I18N.ru, {
+  "Önerdiği şartlar": "Предложенные условия",
+  "Bu takıma hemen katılabilirsin. İstediğin zaman ayrılabilirsin (sistem maaşını alırsın).": "Ты можешь сразу вступить в эту команду. Уйти можно в любой момент (ты получаешь системную зарплату).",
+  "Bu takımın katılım şartlarını (min yetenek/seviye) karşılamıyorsun. Kaptan onayı için katılım isteği gönder.": "Ты не соответствуешь требованиям команды (мин. навык/уровень). Отправь заявку на одобрение капитана.",
+  "🔄 Ara Dönem": "🔄 Межсезонная пауза",
+  "Bu günlerde lig maçları oynanmaz. Kadronu güçlendirmek, sakat veya formdan düşen oyuncularını toparlamak için sezon ortasında iyi bir fırsattır.": "В эти дни матчи лиги не проводятся. Хороший момент в середине сезона, чтобы усилить состав и восстановить травмированных или игроков не в форме.",
+  "Lig sezonu sona erdi. Bu dönemde milli takımların katıldığı": "Сезон лиги завершён. В этот период сборные начинают турнир",
+  "Oyuncular istediği zaman katılır, ayrılır": "Игроки приходят и уходят, когда хотят",
+  "Artık patron sensin! Kadronu kur, takvime göz at.": "Теперь ты главный! Собери состав и загляни в календарь.",
+  "Kasa yeterli olduğunda biriken maaşın sonraki maaş gününde ödenir.": "Как только в кассе будет достаточно средств, задолженность по зарплате выплатят в следующий день выплат.",
+  "Gelir artırmak için tesisleri yükselt veya bağış topla.": "Чтобы увеличить доход, улучшай объекты или собирай пожертвования.",
+  "Teklifsiz katılır.": "Вступает без предложения."
+});

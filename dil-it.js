@@ -8660,3 +8660,18 @@ Object.assign(window.I18N.it, {
   "Takım mesajını yalnız kaptan ve yardımcılar gönderebilir.": "Solo il capitano e i vice possono inviare messaggi di squadra.",
   "Mesaj gönderilemedi. Tekrar dene.": "Impossibile inviare il messaggio. Riprova."
 });
+
+/* 963 — Sözleşme sistemi kalktı */
+Object.assign(window.I18N.it, {
+  "Önerdiği şartlar": "Condizioni proposte",
+  "Bu takıma hemen katılabilirsin. İstediğin zaman ayrılabilirsin (sistem maaşını alırsın).": "Puoi unirti subito a questa squadra. Puoi andartene quando vuoi (ricevi lo stipendio di sistema).",
+  "Bu takımın katılım şartlarını (min yetenek/seviye) karşılamıyorsun. Kaptan onayı için katılım isteği gönder.": "Non soddisfi i requisiti di ingresso di questa squadra (abilità/livello min.). Invia una richiesta per l'approvazione del capitano.",
+  "🔄 Ara Dönem": "🔄 Periodo intermedio",
+  "Bu günlerde lig maçları oynanmaz. Kadronu güçlendirmek, sakat veya formdan düşen oyuncularını toparlamak için sezon ortasında iyi bir fırsattır.": "In questi giorni non si giocano partite di campionato. Una buona occasione a metà stagione per rinforzare la rosa e recuperare i giocatori infortunati o fuori forma.",
+  "Lig sezonu sona erdi. Bu dönemde milli takımların katıldığı": "La stagione di campionato è finita. Per le nazionali inizia il torneo",
+  "Oyuncular istediği zaman katılır, ayrılır": "I giocatori entrano ed escono quando vogliono",
+  "Artık patron sensin! Kadronu kur, takvime göz at.": "Ora il capo sei tu! Costruisci la rosa e dai un'occhiata al calendario.",
+  "Kasa yeterli olduğunda biriken maaşın sonraki maaş gününde ödenir.": "Quando la cassa avrà fondi sufficienti, lo stipendio arretrato verrà pagato al prossimo giorno di paga.",
+  "Gelir artırmak için tesisleri yükselt veya bağış topla.": "Per aumentare le entrate, migliora le strutture o raccogli donazioni.",
+  "Teklifsiz katılır.": "Si unisce senza offerta."
+});
