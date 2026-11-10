@@ -9068,3 +9068,12 @@ Object.assign(window.I18N.en, {
 Object.assign(window.I18N.en, {
   "Kayıtlı e-posta adresini gir.": "Enter your registered e-mail address."
 });
+
+/* 960 — Kayıt olmadan giriş (misafir) */
+Object.assign(window.I18N.en, {
+  "Kayıt Olmadan Giriş": "Continue without signing up",
+  "Kariyerini Başlat": "Start Your Career",
+  "Hesap Oluştur": "Create Account",
+  "Hesabın var mı?": "Have an account?",
+  "Misafir": "Guest"
+});

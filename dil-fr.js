@@ -8703,3 +8703,12 @@ Object.assign(window.I18N.fr, {
 Object.assign(window.I18N.fr, {
   "Kayıtlı e-posta adresini gir.": "Saisis ton adresse e-mail enregistrée."
 });
+
+/* 960 — Kayıt olmadan giriş (misafir) */
+Object.assign(window.I18N.fr, {
+  "Kayıt Olmadan Giriş": "Entrer sans inscription",
+  "Kariyerini Başlat": "Lance ta carrière",
+  "Hesap Oluştur": "Créer un compte",
+  "Hesabın var mı?": "Déjà un compte ?",
+  "Misafir": "Invité"
+});

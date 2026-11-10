@@ -8676,3 +8676,12 @@ Object.assign(window.I18N.ru, {
 Object.assign(window.I18N.ru, {
   "Kayıtlı e-posta adresini gir.": "Введи зарегистрированный адрес эл. почты."
 });
+
+/* 960 — Kayıt olmadan giriş (misafir) */
+Object.assign(window.I18N.ru, {
+  "Kayıt Olmadan Giriş": "Войти без регистрации",
+  "Kariyerini Başlat": "Начни карьеру",
+  "Hesap Oluştur": "Создать аккаунт",
+  "Hesabın var mı?": "Есть аккаунт?",
+  "Misafir": "Гость"
+});

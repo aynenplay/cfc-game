@@ -8635,3 +8635,12 @@ Object.assign(window.I18N.pt, {
 Object.assign(window.I18N.pt, {
   "Kayıtlı e-posta adresini gir.": "Digite seu e-mail cadastrado."
 });
+
+/* 960 — Kayıt olmadan giriş (misafir) */
+Object.assign(window.I18N.pt, {
+  "Kayıt Olmadan Giriş": "Entrar sem cadastro",
+  "Kariyerini Başlat": "Comece sua carreira",
+  "Hesap Oluştur": "Criar conta",
+  "Hesabın var mı?": "Tem uma conta?",
+  "Misafir": "Convidado"
+});
