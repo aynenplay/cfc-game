@@ -9280,3 +9280,6 @@ Object.assign(window.I18N.en, { "Giriş şekli": "Entry type", "Talepsiz": "Open
 
 /* 972 — kamp: takıma yeni gelen 24 saat */
 Object.assign(window.I18N.en, { "Katılım": "Participation", "Takıma yeni katılanlar 24 saat kampa katılamaz": "New team members can't join the camp for 24 hours", "Takıma yeni katılan oyuncu 24 saat kampa katılamaz.": "A player who has just joined the team can't join the camp for 24 hours." });
+
+/* 974 — transfer: Takımlar · Futbolcular · transfer durumu · scout */
+Object.assign(window.I18N.en, {"Futbolcular": "Players", "Talep ile": "By request", "Şu an hemen girebileceğin takım yok": "No team you can join right now", "Takım bulunamadı": "No team found", "Min OVR": "Min OVR", "Min seviye": "Min level", "Talep Gönderildi": "Request Sent", "Takıma katıldı": "Added to the team", "Transfer Durumun": "Your Transfer Status", "Teklif gelirse?": "If an offer comes?", "Hemen giderim": "I would go right away", "Muhtemelen giderim": "I would probably go", "Bunu düşünürüm": "I would think about it", "Gitme ihtimalim var": "I might leave", "Çok zayıf ihtimal": "Very unlikely", "Takımımda mutluyum": "Happy at my team", "Bu seçimi senden başka kimse göremez.": "Nobody but you can see this choice.", "Kaydedildi": "Saved", "Scout'u kaptan ve yardımcılar kullanır.": "Scout is used by captains and vice-captains.", "İhtimal": "Likelihood"});
