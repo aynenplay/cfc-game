@@ -8837,3 +8837,6 @@ Object.assign(window.I18N.it, { "Yaklaşan resmi maç yok": "Nessuna partita uff
 
 /* 969 — takım hero bar prim baloncuğu */
 Object.assign(window.I18N.it, { "Yaklaşan maçlarda prim yok": "Nessun premio per le prossime partite" });
+
+/* 970 — kampa katılanlar baloncuğu */
+Object.assign(window.I18N.it, { "Kampa Katılanlar": "Partecipanti al ritiro" });

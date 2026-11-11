@@ -8872,3 +8872,6 @@ Object.assign(window.I18N.ru, { "Yaklaşan resmi maç yok": "Нет предст
 
 /* 969 — takım hero bar prim baloncuğu */
 Object.assign(window.I18N.ru, { "Yaklaşan maçlarda prim yok": "Нет премий за ближайшие матчи" });
+
+/* 970 — kampa katılanlar baloncuğu */
+Object.assign(window.I18N.ru, { "Kampa Katılanlar": "Участники сборов" });
