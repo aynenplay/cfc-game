@@ -8842,3 +8842,6 @@ Object.assign(window.I18N.es, { "Yaklaşan maçlarda prim yok": "No hay primas p
 
 /* 970 — kampa katılanlar baloncuğu */
 Object.assign(window.I18N.es, { "Kampa Katılanlar": "Participantes de la concentración" });
+
+/* 971 — Katılım Şartları: talepsiz / talepli giriş */
+Object.assign(window.I18N.es, { "Giriş şekli": "Tipo de entrada", "Talepsiz": "Abierta", "Talepli": "Con solicitud", "Oyuncular direkt katılır": "Los jugadores entran directamente", "Oyuncular katılma talebi gönderir": "Los jugadores envían una solicitud", "Minimum şartlar": "Requisitos mínimos", "Takıma Gir": "Unirse al equipo", "🚀 Takıma Gir": "🚀 Unirse al equipo", "📨 Katılma Talebi Gönder": "📨 Enviar solicitud", "Bu takıma katılma talebiyle girilir. Kaptan onaylarsa takıma katılırsın.": "A este equipo se entra con solicitud. Si el capitán la aprueba, te unes al equipo.", "✓ Kaydedildi": "✓ Guardado" });

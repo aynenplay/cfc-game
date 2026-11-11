@@ -7210,3 +7210,6 @@ Object.assign(window.I18N.de, { "Yaklaşan maçlarda prim yok": "Keine Prämien 
 
 /* 970 — kampa katılanlar baloncuğu */
 Object.assign(window.I18N.de, { "Kampa Katılanlar": "Lagerteilnehmer" });
+
+/* 971 — Katılım Şartları: talepsiz / talepli giriş */
+Object.assign(window.I18N.de, { "Giriş şekli": "Beitrittsart", "Talepsiz": "Offen", "Talepli": "Auf Anfrage", "Oyuncular direkt katılır": "Spieler treten direkt bei", "Oyuncular katılma talebi gönderir": "Spieler senden eine Beitrittsanfrage", "Minimum şartlar": "Mindestanforderungen", "Takıma Gir": "Team beitreten", "🚀 Takıma Gir": "🚀 Team beitreten", "📨 Katılma Talebi Gönder": "📨 Beitrittsanfrage senden", "Bu takıma katılma talebiyle girilir. Kaptan onaylarsa takıma katılırsın.": "Diesem Team trittst du per Beitrittsanfrage bei. Wenn der Kapitän zustimmt, bist du im Team.", "✓ Kaydedildi": "✓ Gespeichert" });

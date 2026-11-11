@@ -9274,3 +9274,6 @@ Object.assign(window.I18N.en, { "Yaklaşan maçlarda prim yok": "No bonuses for 
 
 /* 970 — kampa katılanlar baloncuğu */
 Object.assign(window.I18N.en, { "Kampa Katılanlar": "Camp Participants" });
+
+/* 971 — Katılım Şartları: talepsiz / talepli giriş */
+Object.assign(window.I18N.en, { "Giriş şekli": "Entry type", "Talepsiz": "Open", "Talepli": "By request", "Oyuncular direkt katılır": "Players join directly", "Oyuncular katılma talebi gönderir": "Players send a join request", "Minimum şartlar": "Minimum requirements", "Takıma Gir": "Join Team", "🚀 Takıma Gir": "🚀 Join Team", "📨 Katılma Talebi Gönder": "📨 Send Join Request", "Bu takıma katılma talebiyle girilir. Kaptan onaylarsa takıma katılırsın.": "This team accepts players by join request. If the captain approves, you join the team.", "✓ Kaydedildi": "✓ Saved" });

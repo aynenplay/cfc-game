@@ -8875,3 +8875,6 @@ Object.assign(window.I18N.ru, { "Yaklaşan maçlarda prim yok": "Нет прем
 
 /* 970 — kampa katılanlar baloncuğu */
 Object.assign(window.I18N.ru, { "Kampa Katılanlar": "Участники сборов" });
+
+/* 971 — Katılım Şartları: talepsiz / talepli giriş */
+Object.assign(window.I18N.ru, { "Giriş şekli": "Способ вступления", "Talepsiz": "Свободный", "Talepli": "По заявке", "Oyuncular direkt katılır": "Игроки вступают сразу", "Oyuncular katılma talebi gönderir": "Игроки отправляют заявку", "Minimum şartlar": "Минимальные требования", "Takıma Gir": "Вступить в команду", "🚀 Takıma Gir": "🚀 Вступить в команду", "📨 Katılma Talebi Gönder": "📨 Отправить заявку", "Bu takıma katılma talebiyle girilir. Kaptan onaylarsa takıma katılırsın.": "В эту команду вступают по заявке. Если капитан одобрит, ты в команде.", "✓ Kaydedildi": "✓ Сохранено" });
