@@ -8867,3 +8867,9 @@ window.I18N_PATTERNS.pt.push(
 
 /* 977 — kayıt adımları */
 Object.assign(window.I18N.pt, {"Avatar seç": "Escolha um avatar"});
+
+
+/* 978 — Takımdan Ayrıl: kalan maaş */
+window.I18N_PATTERNS.pt.unshift(
+  [/^(.+?) takımından ayrılmak istediğine emin misin\?\s+İstediğin zaman tekrar bir takıma katılabilirsin veya satın alabilirsin\.\s+Ayrıldıktan sonra 24 saat resmi maçlarda oynayamazsın\.\s+Kalan maaşın yanar\.$/, "Tem certeza de que quer sair de $1?\n\nVocê pode entrar em um time ou comprar um a qualquer momento.\n\nDepois de sair, você não poderá jogar partidas oficiais por 24 horas.\n\nVocê perde o salário restante."]
+);

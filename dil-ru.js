@@ -8908,3 +8908,9 @@ window.I18N_PATTERNS.ru.push(
 
 /* 977 — kayıt adımları */
 Object.assign(window.I18N.ru, {"Avatar seç": "Выбери аватар"});
+
+
+/* 978 — Takımdan Ayrıl: kalan maaş */
+window.I18N_PATTERNS.ru.unshift(
+  [/^(.+?) takımından ayrılmak istediğine emin misin\?\s+İstediğin zaman tekrar bir takıma katılabilirsin veya satın alabilirsin\.\s+Ayrıldıktan sonra 24 saat resmi maçlarda oynayamazsın\.\s+Kalan maaşın yanar\.$/, "Точно хочешь покинуть $1?\n\nТы можешь в любое время вступить в команду или купить её.\n\nПосле ухода ты не сможешь играть в официальных матчах 24 часа.\n\nОставшаяся зарплата сгорает."]
+);
