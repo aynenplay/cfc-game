@@ -8897,3 +8897,11 @@ window.I18N_PATTERNS.ru.push(
   [/^Teklif Reddedildi — (.+)$/, "Предложение отклонено — $1"],
   [/^(.+), (.+) için yaptığın transfer teklifini reddetti\.$/, "$1 отклонил твоё трансферное предложение для $2."]
 );
+
+/* 976 — Düello › Hızlı Eşleş (lobi) */
+Object.assign(window.I18N.ru, {"Hızlı Eşleş": "Быстрый матч", "Rakip Aranıyor": "Поиск соперника", "Rakip Bulundu": "Соперник найден", "Başlıyor": "Старт через"});
+window.I18N_PATTERNS.ru.push(
+  [/^Lobide (\d+) oyuncu$/, "В лобби: $1"],
+  [/^Lobide (\d+) oyuncu bekliyor$/, "В лобби ждут: $1"],
+  [/^Çevrimiçi (\d+)$/, "Онлайн $1"]
+);

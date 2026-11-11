@@ -8856,3 +8856,11 @@ window.I18N_PATTERNS.pt.push(
   [/^Teklif Reddedildi — (.+)$/, "Oferta recusada — $1"],
   [/^(.+), (.+) için yaptığın transfer teklifini reddetti\.$/, "$1 recusou a proposta de transferência que você fez para o $2."]
 );
+
+/* 976 — Düello › Hızlı Eşleş (lobi) */
+Object.assign(window.I18N.pt, {"Hızlı Eşleş": "Partida rápida", "Rakip Aranıyor": "Procurando adversário", "Rakip Bulundu": "Adversário encontrado", "Başlıyor": "Começa em"});
+window.I18N_PATTERNS.pt.push(
+  [/^Lobide (\d+) oyuncu$/, "$1 no lobby"],
+  [/^Lobide (\d+) oyuncu bekliyor$/, "$1 jogadores esperando no lobby"],
+  [/^Çevrimiçi (\d+)$/, "Online $1"]
+);
