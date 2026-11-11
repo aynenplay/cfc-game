@@ -8837,3 +8837,6 @@ Object.assign(window.I18N.pt, { "Kampa Katılanlar": "Participantes da concentra
 
 /* 971 — Katılım Şartları: talepsiz / talepli giriş */
 Object.assign(window.I18N.pt, { "Giriş şekli": "Tipo de entrada", "Talepsiz": "Aberta", "Talepli": "Com pedido", "Oyuncular direkt katılır": "Os jogadores entram diretamente", "Oyuncular katılma talebi gönderir": "Os jogadores enviam um pedido", "Minimum şartlar": "Requisitos mínimos", "Takıma Gir": "Entrar no time", "🚀 Takıma Gir": "🚀 Entrar no time", "📨 Katılma Talebi Gönder": "📨 Enviar pedido", "Bu takıma katılma talebiyle girilir. Kaptan onaylarsa takıma katılırsın.": "Neste time se entra por pedido. Se o capitão aprovar, você entra no time.", "✓ Kaydedildi": "✓ Salvo" });
+
+/* 972 — kamp: takıma yeni gelen 24 saat */
+Object.assign(window.I18N.pt, { "Katılım": "Participação", "Takıma yeni katılanlar 24 saat kampa katılamaz": "Novos membros não podem entrar na concentração por 24 horas", "Takıma yeni katılan oyuncu 24 saat kampa katılamaz.": "Um jogador que acabou de entrar no time não pode participar da concentração por 24 horas." });

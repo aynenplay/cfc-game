@@ -9277,3 +9277,6 @@ Object.assign(window.I18N.en, { "Kampa Katılanlar": "Camp Participants" });
 
 /* 971 — Katılım Şartları: talepsiz / talepli giriş */
 Object.assign(window.I18N.en, { "Giriş şekli": "Entry type", "Talepsiz": "Open", "Talepli": "By request", "Oyuncular direkt katılır": "Players join directly", "Oyuncular katılma talebi gönderir": "Players send a join request", "Minimum şartlar": "Minimum requirements", "Takıma Gir": "Join Team", "🚀 Takıma Gir": "🚀 Join Team", "📨 Katılma Talebi Gönder": "📨 Send Join Request", "Bu takıma katılma talebiyle girilir. Kaptan onaylarsa takıma katılırsın.": "This team accepts players by join request. If the captain approves, you join the team.", "✓ Kaydedildi": "✓ Saved" });
+
+/* 972 — kamp: takıma yeni gelen 24 saat */
+Object.assign(window.I18N.en, { "Katılım": "Participation", "Takıma yeni katılanlar 24 saat kampa katılamaz": "New team members can't join the camp for 24 hours", "Takıma yeni katılan oyuncu 24 saat kampa katılamaz.": "A player who has just joined the team can't join the camp for 24 hours." });
