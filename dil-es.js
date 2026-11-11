@@ -8857,3 +8857,10 @@ Object.assign(window.I18N.es, {"Ligini Seç": "Elige tu liga", "Kariyerine bu ü
 window.I18N_PATTERNS.es.push(
   [/^Hoş geldin (.+)! Scout ekibimiz seni keşfetti ve (.+) kadrosuna kattı\.$/, "¡Bienvenido $1! Nuestros ojeadores te descubrieron y $2 te ha fichado."]
 );
+
+/* 975d — teklif / istek 24 saat · red mesajı */
+Object.assign(window.I18N.es, {"Kalan süre": "Tiempo restante", "Süresi doldu": "Caducada", "Teklifin süresi doldu (24 saat).": "La oferta ha caducado (24 horas)."});
+window.I18N_PATTERNS.es.push(
+  [/^Teklif Reddedildi — (.+)$/, "Oferta rechazada — $1"],
+  [/^(.+), (.+) için yaptığın transfer teklifini reddetti\.$/, "$1 rechazó la oferta de traspaso que hiciste para $2."]
+);

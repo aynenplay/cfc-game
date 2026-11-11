@@ -8890,3 +8890,10 @@ Object.assign(window.I18N.ru, {"Ligini Seç": "Выбери лигу", "Kariyeri
 window.I18N_PATTERNS.ru.push(
   [/^Hoş geldin (.+)! Scout ekibimiz seni keşfetti ve (.+) kadrosuna kattı\.$/, "Добро пожаловать, $1! Наши скауты нашли тебя, и $2 подписал тебя."]
 );
+
+/* 975d — teklif / istek 24 saat · red mesajı */
+Object.assign(window.I18N.ru, {"Kalan süre": "Осталось", "Süresi doldu": "Срок истёк", "Teklifin süresi doldu (24 saat).": "Срок предложения истёк (24 часа)."});
+window.I18N_PATTERNS.ru.push(
+  [/^Teklif Reddedildi — (.+)$/, "Предложение отклонено — $1"],
+  [/^(.+), (.+) için yaptığın transfer teklifini reddetti\.$/, "$1 отклонил твоё трансферное предложение для $2."]
+);

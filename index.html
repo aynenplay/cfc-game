@@ -26349,8 +26349,8 @@ body.pd-acik{overflow:hidden}
   </div>
 </div>
 
-<script src="js/oyun.758b8e17.js"></script>
-<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.758b8e17.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
+<script src="js/oyun.0600d41e.js"></script>
+<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.0600d41e.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
 
 <nav id="bottomnav">
   <button class="nav-btn active" onclick="showPage('home',this)"><div class="nav-icon">🏠</div><div class="nav-label">Menü</div></button>
@@ -42346,6 +42346,13 @@ function k845Kadro(list) {
 /* 975 — transfer tebriği */
 .kt-baslik .kt-tk{color:var(--kt-vurgu)}
 .kt-motto{margin:4px 0 12px;font:600 13.5px/1.35 'Barlow',sans-serif;color:#c9cfdb;text-align:center}
+/* 975d — teklif / istek geri sayımı */
+.tk-sure{display:flex;align-items:center;gap:8px;margin:10px 0 2px;padding:9px 12px;border-radius:10px;background:rgba(255,213,79,.07);box-shadow:inset 0 0 0 1px rgba(255,213,79,.3);color:#ffd54f;font:700 12px/1 'Outfit',sans-serif;letter-spacing:.4px}
+.tk-sure svg,.tk-bitti svg{width:16px;height:16px;flex:none}
+.tk-sure span{color:#c9b67a;text-transform:uppercase;font-size:10.5px;letter-spacing:1.2px}
+.tk-sure b{margin-left:auto;font:800 17px/1 'Barlow Condensed',sans-serif;letter-spacing:1px;font-variant-numeric:tabular-nums;color:#ffd54f}
+.tk-bitti{display:flex;align-items:center;justify-content:center;gap:7px;margin-top:10px;padding:9px;border-radius:10px;background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);color:#9aa3b2;font:700 12px/1 'Outfit',sans-serif;letter-spacing:1px;text-transform:uppercase}
+.tk-bitti.red{background:rgba(239,83,80,.1);box-shadow:inset 0 0 0 1px rgba(239,83,80,.35);color:#ef9a9a}
 
 </style>
 <script id="kmp968">
@@ -43057,9 +43064,10 @@ const tbTeklifVar = p => {   // 975 — bu oyuncuya son 3 günde teklif gitti mi
     if (typeof _inboxCache === 'undefined' || !Array.isArray(_inboxCache)) return false;
     return _inboxCache.some(m => {
       if (!m || !m.sent || m.type !== 'transfer' || !m.transferData) return false;
-      const t = Number(String(m.id || '').replace(/\D/g, '')) || 0; if (t && Date.now() - t > 3 * 864e5) return false;
+      const t = tkTs(m); if (t && Date.now() - t > TK_OMUR) return false;   // 975d — teklif 24 saat
       const d = m.transferData;
-      return d.playerUserId ? String(d.playerUserId) === String(p.uid) : d.playerDbId ? String(d.playerDbId) === String(p.id) : d.playerName === p.ad;
+      const ayni = d.playerUserId ? String(d.playerUserId) === String(p.uid) : d.playerDbId ? String(d.playerDbId) === String(p.id) : d.playerName === p.ad;
+      return ayni && !tkRedVar(m);
     });
   } catch (e) { return false; }
 };
@@ -43085,7 +43093,7 @@ function tbYukle(zorla) {
   TB.yuk[k] = Promise.resolve(istek).then(({ data, error }) => {
     TB.yuk[k] = null;
     if (error || !data || !data.ok) return TB.D[k] || { liste: [] };
-    if (!TB.cc && data.cc) TB.cc = data.cc;
+    if (!TB.cc && data.cc) { TB.cc = data.cc; const k2 = tbAnahtar(); TB.D[k2] = data; TB.t[k2] = Date.now(); }   // 975d — sunucunun seçtiği ülke
     TB.D[k] = data; TB.t[k] = Date.now(); return data;
   }, () => { TB.yuk[k] = null; return TB.D[k] || { liste: [] }; });
   return TB.yuk[k];
@@ -43108,13 +43116,14 @@ function tbCiz() {
   } else {
     ust = `<div class="tb-seg"><button type="button" class="${TB.alt === 'serbest' ? 'on' : ''}" onclick="tbAlt('serbest')">Serbest</button><button type="button" class="${TB.alt === 'talep' ? 'on' : ''}" onclick="tbAlt('talep')">Talep ile</button></div>`;
     if (TB.alt === 'talep') ust += `<div class="mg-kont tb-kont"><label class="mg-ara"><input type="text" placeholder="Takım ara..." value="${E(TB.ara)}" oninput="tbAra(this.value)"></label><div class="mg-cipler">`
-      + tbCip('Ülke', TB.cc ? `<span data-noi18n>${tbBay(TB.cc)}</span> ${E(tbUlke(TB.cc))}` : 'Tümü', false, "tbSecim('cc')")
-      + tbCip('Klasman', TB.lig == null ? 'Tümü' : `${typeof _arKalkan === 'function' ? _arKalkan(TB.lig, 16) : ''}${E(tbLigAd(TB.cc, TB.lig))}`, TB.lig != null, "tbSecim('lig')") + '</div></div>';
+      + tbCip('Ülke', TB.cc && TB.cc !== 'ALL' ? `<span data-noi18n>${tbBay(TB.cc)}</span> ${E(tbUlke(TB.cc))}` : 'Tümü', false, "tbSecim('cc')")   // 975d — Tümü
+      + (TB.cc === 'ALL' || !TB.cc ? '<button type="button" class="mg-cip pasif"><small>Klasman</small><span>Tümü</span></button>'
+        : tbCip('Klasman', TB.lig == null ? 'Tümü' : `${typeof _arKalkan === 'function' ? _arKalkan(TB.lig, 16) : ''}${E(tbLigAd(TB.cc, TB.lig))}`, TB.lig != null, "tbSecim('lig')")) + '</div></div>';
   }
   el.innerHTML = ust + '<div id="tbListe"><div class="tf-empty ary-bos">…</div></div>';
   const k = tbAnahtar();
   if (TB.D[k]) tbListeCiz();
-  tbYukle(false).then(() => { if (tbAcik() && tbAnahtar() === k) tbListeCiz(); });
+  tbYukle(false).then(() => { if (!tbAcik()) return; if (tbAnahtar() === k) tbListeCiz(); else tbCiz(); });
 }
 function tbListeCiz() {
   const kut = document.getElementById('tbListe'); if (!kut) return;
@@ -43177,8 +43186,9 @@ window.tbSecim = function (tur) {
     const tumu = (typeof _uyListe === 'function' ? _uyListe() : []).map(x => ({ v: x.cc, ad: x.ad, ikon: `<span class="bay">${typeof ccToFlag === 'function' ? ccToFlag(x.cc) : tbBay(x.cc)}</span>` }));
     mgSecimAc(Tr('Uyruk'), [tum(typeof _MG_IKON !== 'undefined' ? _MG_IKON.dunya : '')].concat(tumu.length ? tumu : ulkeler()), TB.uyruk || '', v => { TB.uyruk = v || null; tbCiz(); });
   }
-  else if (tur === 'cc') mgSecimAc(Tr('Ülke'), ulkeler(), TB.cc || '', v => { if (v && v !== TB.cc) { TB.cc = v; TB.lig = null; tbCiz(); } });
+  else if (tur === 'cc') mgSecimAc(Tr('Ülke'), [{ v: 'ALL', ad: Tr('Tümü'), ikon: typeof _MG_IKON !== 'undefined' ? _MG_IKON.dunya : '' }].concat(ulkeler()), TB.cc || 'ALL', v => { if (v && v !== TB.cc) { TB.cc = v; TB.lig = null; tbCiz(); } });   // 975d
   else if (tur === 'lig') {
+    if (!TB.cc || TB.cc === 'ALL') return;   // 975d
     const c = _cftGetCountry(TB.cc); let lg = ((c && c.leagues) || []).slice().sort((a, b) => a.tier - b.tier);
     if (!lg.length) lg = [1, 2, 3, 4, 5, 6].map(t => ({ tier: t }));
     mgSecimAc(Tr('Klasman'), [tum(typeof _MG_IKON !== 'undefined' ? _MG_IKON.kalkan : '')].concat(lg.map(l => ({ v: l.tier, ad: l.name || tbLigAd(TB.cc, l.tier), ikon: typeof _arKalkan === 'function' ? _arKalkan(l.tier, 24) : '' }))),
@@ -43324,6 +43334,81 @@ window._kayitYerles = async function () {
   if (!window.sb) return;
   try { const { data } = await window.sb.rpc('kayit_takim_yerles', { p_cc: REG_LIG.cc || null }); window._kayitYerlesti = !!(data && data.ok); } catch (e) {}
 };
+// ═══ 975d — teklif / katılma isteği 24 saat geçerli: mesajda geri sayım · süresi dolunca düğmeler kalkar ═══
+const TK_OMUR = 24 * 3600000;
+const tkTs = m => Number(m && m.ts) || Number((String((m && m.id) || '').match(/\d{13}/) || [])[0]) || 0;
+const tkKutu = () => (typeof _inboxCache !== 'undefined' && Array.isArray(_inboxCache)) ? _inboxCache : [];
+const tkRedVar = m => {   // gönderilen teklif reddedildi mi (sunucunun gönderdiği "Teklif Reddedildi" mesajı)
+  const d = (m && m.transferData) || {}, t = tkTs(m);
+  return tkKutu().some(x => x && typeof x.id === 'string' && x.id.indexOf('tfred_') === 0 && tkTs(x) >= t
+    && (d.playerUserId ? x.id.indexOf('tfred_' + d.playerUserId + '_') === 0 : x.subject === 'Teklif Reddedildi — ' + d.playerName));
+};
+function tkDurum(m) {
+  if (!m) return null;
+  if (m.type === 'transfer' && m.transferData && m.transferData.tur !== 'sozlesme') return m.offerStatus ? null : (m.sent && tkRedVar(m)) ? 'red' : 'bekliyor';
+  if (m.type === 'join_request_incoming' && m.joinReqIncomingData) return m.offerStatus ? null : 'bekliyor';
+  if (m.type === 'join_request' && m.sent && m.joinReqData) {
+    const t = tkTs(m), r = (typeof getJoinRequests === 'function' ? getJoinRequests() : []).find(x => x && x.countryCode === m.joinReqData.countryCode
+      && x.teamName === m.joinReqData.teamName && Math.abs((Number(x.sentAt) || 0) - t) < 120000);
+    return r && (r.status === 'pending' || r.status === 'expired') ? 'bekliyor' : null;
+  }
+  return null;
+}
+const tkFmt = ms => { const s = Math.max(0, Math.floor(ms / 1000)), p = n => String(n).padStart(2, '0'); return `${p(Math.floor(s / 3600))}:${p(Math.floor(s % 3600 / 60))}:${p(s % 60)}`; };
+const TK_IK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2"/><path d="M9.5 2.5h5"/></svg>';
+let tkT = null;
+function tkSureCiz(m) {
+  const body = document.getElementById('inboxDetailBody'); if (!body) return;
+  body.querySelectorAll('.tk-sure,.tk-bitti').forEach(x => x.remove());
+  const dur = tkDurum(m), t = tkTs(m); if (!dur || !t) return;
+  const kart = body.querySelector('.inbox-transfer-card') || body, act = kart.querySelector('.inbox-tc-actions');
+  if (dur === 'red') { kart.insertAdjacentHTML('beforeend', `<div class="tk-bitti red">${sv('x')}<span>Reddedildi</span></div>`); return; }
+  const bitis = t + TK_OMUR, kalan = bitis - Date.now();
+  if (kalan <= 0) {
+    if (act) act.remove();
+    kart.insertAdjacentHTML('beforeend', `<div class="tk-bitti">${TK_IK}<span>Süresi doldu</span></div>`);
+    return;
+  }
+  const h = `<div class="tk-sure" data-bitis="${bitis}">${TK_IK}<span>Kalan süre</span><b data-noi18n>${tkFmt(kalan)}</b></div>`;
+  if (act) act.insertAdjacentHTML('beforebegin', h); else kart.insertAdjacentHTML('beforeend', h);
+  if (!tkT) tkT = setInterval(() => {
+    const el = document.querySelector('#inboxDetailBody .tk-sure');
+    if (!el) { clearInterval(tkT); tkT = null; return; }
+    const k = Number(el.dataset.bitis) - Date.now();
+    if (k > 0) { el.querySelector('b').textContent = tkFmt(k); return; }
+    clearInterval(tkT); tkT = null;
+    try { if (typeof _inboxCurrentMsg !== 'undefined' && _inboxCurrentMsg) inboxRenderDetail(_inboxCurrentMsg); } catch (e) {}
+  }, 1000);
+}
+
+// ═══ 975d — ses: uygulama arka plandan dönünce ilk dokunuş / kaydırmada müzik ve maç sesi geri gelir ═══
+const SES_OLAY = ['touchstart', 'touchend', 'pointerdown', 'pointerup', 'click', 'keydown', 'scroll'];
+let sesBekle = null;
+function sesUyandirKur() {
+  if (sesBekle) return;
+  sesBekle = function () {
+    if (typeof _cftAudioCtx === 'undefined' || !_cftAudioCtx) { sesKaldir(); return; }
+    const c = _cftAudioCtx, uykuda = c.state !== 'running';
+    const devam = () => {
+      if (c.state !== 'running') return;   // bu dokunuş yetmedi: sıradakini bekle
+      sesKaldir();
+      if (!uykuda) return;
+      try {   // kaynaklar uyurken düşmüş olabilir: çalması gerekeni yeniden başlat
+        if (typeof _cftMusicEnabled !== 'undefined' && _cftMusicEnabled && _cftMusicPlaying && typeof _muzikKanal !== 'undefined') {
+          const ad = _muzikKanal.ad; _sesDurdur(_muzikKanal, 0.2); _cftMusicPlaying = false; if (ad) _cftMusicStart();
+        }
+        if (typeof _macKanal !== 'undefined' && _macKanal.ad) { const ad = _macKanal.ad; _sesCal(_macKanal, ad); }
+      } catch (e) {}
+    };
+    if (uykuda) c.resume().then(devam, () => {}); else devam();
+  };
+  SES_OLAY.forEach(e => document.addEventListener(e, sesBekle, { capture: true, passive: true }));
+}
+function sesKaldir() { if (!sesBekle) return; SES_OLAY.forEach(e => document.removeEventListener(e, sesBekle, { capture: true })); sesBekle = null; }
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  setTimeout(() => { try { if (typeof _cftAudioCtx !== 'undefined' && _cftAudioCtx && _cftAudioCtx.state !== 'running') sesUyandirKur(); } catch (e) {} }, 400);
+});
 const benUyruk = () => { try { return String(getUserNationalityCC() || '').toUpperCase(); } catch (e) { return ''; } };
 function kur() {
   sekmeEkle();
@@ -43455,6 +43540,12 @@ function kur() {
     _aaHerYer._kmp = 1;
   }
   setInterval(() => { if (document.hidden) return; const h = document.getElementById('page-home'); if (h && h.classList.contains('active')) try { aaSayacCiz(); } catch (e) {} }, 1000);
+  // 975d — teklif / istek mesajında 24 saatlik geri sayım
+  if (typeof inboxRenderDetail === 'function' && !inboxRenderDetail._975) {
+    const o = inboxRenderDetail;
+    window.inboxRenderDetail = function (msg) { const r = o.apply(this, arguments); try { tkSureCiz(msg); } catch (e) {} return r; };
+    window.inboxRenderDetail._975 = 1;
+  }
   // 975 — kayıt: mevki sahası yatay + ilk 11 şansı · Futbolcular: teklif gidince düğme kapanır
   window.mvSahaCiz = shCiz;
   if (typeof inboxSendTransferOffer === 'function' && !inboxSendTransferOffer._975) {

@@ -8855,3 +8855,10 @@ Object.assign(window.I18N.it, {"Ligini Seç": "Scegli il tuo campionato", "Kariy
 window.I18N_PATTERNS.it.push(
   [/^Hoş geldin (.+)! Scout ekibimiz seni keşfetti ve (.+) kadrosuna kattı\.$/, "Benvenuto $1! I nostri osservatori ti hanno scoperto e $2 ti ha ingaggiato."]
 );
+
+/* 975d — teklif / istek 24 saat · red mesajı */
+Object.assign(window.I18N.it, {"Kalan süre": "Tempo rimanente", "Süresi doldu": "Scaduta", "Teklifin süresi doldu (24 saat).": "L’offerta è scaduta (24 ore)."});
+window.I18N_PATTERNS.it.push(
+  [/^Teklif Reddedildi — (.+)$/, "Offerta rifiutata — $1"],
+  [/^(.+), (.+) için yaptığın transfer teklifini reddetti\.$/, "$1 ha rifiutato l’offerta di trasferimento che hai fatto per $2."]
+);

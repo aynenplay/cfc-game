@@ -8917,3 +8917,10 @@ Object.assign(window.I18N.fr, {"Ligini Seç": "Choisis ta ligue", "Kariyerine bu
 window.I18N_PATTERNS.fr.push(
   [/^Hoş geldin (.+)! Scout ekibimiz seni keşfetti ve (.+) kadrosuna kattı\.$/, "Bienvenue $1 ! Nos recruteurs t’ont repéré et $2 t’a recruté."]
 );
+
+/* 975d — teklif / istek 24 saat · red mesajı */
+Object.assign(window.I18N.fr, {"Kalan süre": "Temps restant", "Süresi doldu": "Expirée", "Teklifin süresi doldu (24 saat).": "L’offre a expiré (24 heures)."});
+window.I18N_PATTERNS.fr.push(
+  [/^Teklif Reddedildi — (.+)$/, "Offre refusée — $1"],
+  [/^(.+), (.+) için yaptığın transfer teklifini reddetti\.$/, "$1 a refusé l’offre de transfert que tu as faite pour $2."]
+);
