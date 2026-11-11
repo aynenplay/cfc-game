@@ -8905,3 +8905,6 @@ window.I18N_PATTERNS.ru.push(
   [/^Lobide (\d+) oyuncu bekliyor$/, "В лобби ждут: $1"],
   [/^Çevrimiçi (\d+)$/, "Онлайн $1"]
 );
+
+/* 977 — kayıt adımları */
+Object.assign(window.I18N.ru, {"Avatar seç": "Выбери аватар"});

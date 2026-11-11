@@ -8870,3 +8870,6 @@ window.I18N_PATTERNS.it.push(
   [/^Lobide (\d+) oyuncu bekliyor$/, "$1 giocatori in attesa nella lobby"],
   [/^Çevrimiçi (\d+)$/, "Online $1"]
 );
+
+/* 977 — kayıt adımları */
+Object.assign(window.I18N.it, {"Avatar seç": "Scegli un avatar"});
