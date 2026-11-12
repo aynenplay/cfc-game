@@ -2930,8 +2930,8 @@ const OD_KES_BAS = '<th>Google Kesintisi<span>KDV · Pay %15</span></th><th>App 
 function _odAyOrt(ym){
   const bugun = uIstGun(), bu = bugun.slice(0, 7); ym = ym || bu;
   const y = +ym.slice(0, 4), m = +ym.slice(5, 7), son = new Date(Date.UTC(y, m, 0)).getUTCDate();
-  const gun = ym === bu ? +bugun.slice(8, 10) : (ym < bu ? son : 0);
-  let tl = 0; _odKayit().forEach(x => { if (uIstGun(_odMs(x.created_at)).startsWith(ym)) tl += _odTl(x); });
+  const gun = ym === bu ? +bugun.slice(8, 10) - 1 : (ym < bu ? son : 0);   // 986 — yalnız biten günler (bugün sayılmaz)
+  let tl = 0; _odKayit().forEach(x => { const g = uIstGun(_odMs(x.created_at)); if (g.startsWith(ym) && g < bugun) tl += _odTl(x); });
   return { tl, gun, ort: gun ? tl / gun : 0 };
 }
 function odRaporCiz(){
@@ -2949,14 +2949,14 @@ function odRaporCiz(){
   });
   const top = {}; kaynak.forEach(([k]) => top[k] = { n:0, tl:0 });
   const hucre = c => c && c.n ? `<b>${_odPara(c.tl)}</b><small>${c.n} sipariş</small>` : '<i>—</i>';
-  let satir = '', tN = 0, tTl = 0, gunN = 0; const T = _odKesBos();   // 941e · 941g · 985 gunN: gösterilen gün
+  let satir = '', tN = 0, tTl = 0, gunN = 0, ortTl = 0; const T = _odKesBos();   // 941e · 941g · 985 · 986 gunN/ortTl: biten günler (bugün ortalamaya girmez)
   for (let i = 1; i <= gunSay; i++) {
     const g = ym + '-' + String(i).padStart(2, '0'), d = G[g] || {};
     if (g > bugun) break;   // gelmemiş günler gösterilmez; ay ilerledikçe eklenir
-    gunN++;
     let n = 0, tl = 0;
     const hc = kaynak.map(([k]) => { const c = d[k]; if (c) { n += c.n; tl += c.tl; top[k].n += c.n; top[k].tl += c.tl; } return `<td>${hucre(c)}</td>`; }).join('');
     tN += n; tTl += tl; _odKesEkle(T, d._k);   // 941e
+    if (g < bugun) { gunN++; ortTl += tl; }   // 986
     const gd = OD_GUNAD[new Date(Date.UTC(y, m - 1, i)).getUTCDay()];
     satir += `<tr class="${g === bugun ? 'bg' : ''}"><th>${i} ${OD_AYAD[m - 1].slice(0, 3)} <span>${gd}</span></th>${hc}`
       + `<td class="sn">${n || '<i>—</i>'}</td><td class="tc">${n ? _odPara(tl) : '<i>—</i>'}</td>${_odKesHucre(d._k, n, tl)}</tr>`;
@@ -2978,7 +2978,7 @@ function odRaporCiz(){
         + '<th class="sn">T. Sipariş</th><th class="tc">Toplam Ciro</th>' + OD_KES_BAS + '</tr></thead>'
         + '<tbody>' + satir + '</tbody>'
         + '<tfoot><tr><th>Toplam</th>' + kaynak.map(([k]) => `<td>${hucre(top[k])}</td>`).join('')
-        + `<td class="sn">${tN}</td><td class="tc">${_odPara(tTl)}${gunN ? `<small class="od-ort">Günlük ort. ${_odPara(tTl / gunN)}</small>` : ''}</td>${_odKesHucre(T, tN, tTl)}</tr></tfoot></table></div>`
+        + `<td class="sn">${tN}</td><td class="tc">${_odPara(tTl)}${gunN ? `<small class="od-ort">Günlük ort. ${_odPara(ortTl / gunN)}</small>` : ''}</td>${_odKesHucre(T, tN, tTl)}</tr></tfoot></table></div>`
     + '</div>';
   const b = $('odBtns');
   if (b) b.querySelectorAll('button').forEach(x => x.onclick = () => { OD_SECILI = x.dataset.k; odCiz(); });
