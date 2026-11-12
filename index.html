@@ -105,7 +105,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '985';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '986';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -26340,8 +26340,8 @@ body.pd-acik{overflow:hidden}
   </div>
 </div>
 
-<script src="js/oyun.b2fee882.js"></script>
-<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.b2fee882.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
+<script src="js/oyun.91e1f78d.js"></script>
+<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.91e1f78d.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
 
 <nav id="bottomnav">
   <button class="nav-btn active" onclick="showPage('home',this)"><div class="nav-icon">🏠</div><div class="nav-label">Menü</div></button>
@@ -42516,7 +42516,11 @@ function tl(asama, ilerleme, puansiz) {
 }
 function macSatir(d) {
   if (!d.mac) return '';
-  return `<div class="tan-mac"><span>${d.milli ? 'Bugünkü milli maç' : 'Bugünkü maç'}</span><b><span data-noi18n>${E(d.mac.evAd)} – ${E(d.mac.depAd)}</span> · <span class="sa" data-noi18n>${saat(d.mac.saat)}</span></b></div>`;
+  const L = (Array.isArray(d.maclar) && d.maclar.length) ? d.maclar : [d.mac];   // 986 — düdük · logolu takımlar ortada · saat sağda
+  const lg = (ad, cc) => (typeof _cnTakimGorsel === 'function') ? _cnTakimGorsel(ad, d.milli ? null : (cc || null), !!d.milli, 'lg') : '';
+  const rz = m => { const k = d.milli ? 'natcup' : ({ champ: 'champ', elite: 'elite', conv: 'conv' })[m.tk];
+    return k ? ((typeof _cupLogoInline === 'function' && _cupLogoInline(k, 20)) || '') : ((typeof _banKalkanImg === 'function' && _banKalkanImg(Math.max(0, (Number(m.tier) || 1) - 1), 20)) || ''); };
+  return L.map(m => `<div class="tan-mac m986"><span class="ds" aria-hidden="true">${rz(m)}</span><span class="tk"><span class="e"><b data-noi18n>${E(m.evAd)}</b>${lg(m.evAd, m.cc)}</span><i>–</i><span class="d">${lg(m.depAd, m.cc)}<b data-noi18n>${E(m.depAd)}</b></span></span><span class="sa" data-noi18n>${saat(m.saat)}</span></div>`).join('');
 }
 const lbl = t => `<small style="display:block;font:600 9.5px/1 'Outfit';letter-spacing:1.3px;color:#6f7a8c;text-transform:uppercase;margin-bottom:6px">${t}</small>`;
 // ═══ 970 — KAMP kartı başı banner (başlık · durum · geri sayım · başlatan · bilgi) ═══
@@ -42528,9 +42532,12 @@ function kmpBanner(milli, st) {
       ${st ? `<span class="kb-ad">${st.ad}</span><span class="kb-alt">${st.alt}</span>` : `<span class="kb-alt tag">${milli ? 'Ülkeler ve gurur' : 'Birlikte çalış, kazan'}</span>`}</div>
     <button type="button" class="k3-bil kb-bil" onclick="kmpBilgi(${milli ? 1 : 0})" aria-label="Bilgi">${sv('bilgi')}</button></div>`;
 }
+function kmpHaftaSerit(w) {   // 986
+  return `<div class="kst"><span class="sr"><small>Sıra</small><b data-noi18n>${w.sira ? w.sira + '.' : '—'}</b></span><span><small>Kamp</small><b data-noi18n>${w.kamp || 0}/7</b></span><span><small>Puan</small><b data-noi18n>${w.puan || 0}</b></span><span class="od"><small>Ödül</small><b data-noi18n>${w.odul ? K(w.odul) : '—'}</b></span></div>`;
+}
 function kampHtml(d) {
   const milli = !!d.milli;
-  const ban = st => kmpBanner(milli, st);   // 970 — kart başı banner
+  const ban = st => kmpBanner(milli, st) + ((!milli && d.hafta) ? kmpHaftaSerit(d.hafta) : '');   // 970 — kart başı banner · 986 hafta şeridi
   let h = '';
   if (d.durum === 'yok') {
     h = `<div class="tan-k">${ban()}<div class="k3-pen bek"><b>${milli ? 'Bugün milli maç yok' : 'Bugün resmi maç yok'}</b><span></span></div>${tl(0, 0, milli)}</div>`;
@@ -42555,15 +42562,10 @@ function kampHtml(d) {
     const kat = `<div class="k3-kat">${[1, 2, 3].map(i => `<span><b data-noi18n>${say[i] || 0}</b> kişi</span>`).join('')}</div>`;
     const avl = L.length ? `<div class="tan-avl" role="button" onclick="kmpKatilanlar(${milli ? 1 : 0}, event)"><i class="kk-ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></i>${L.slice(0, 9).map(x => `<span>${av(x.av)}</span>`).join('')}${L.length > 9 ? `<span class="kmp-fazla" data-noi18n>+${L.length - 9}</span>` : ''}</div>` : '';
     let btn = '';
-    if (k.ben) btn = `<button class="tan-btn tam ok" disabled>${sv('tik')}<span>${bitti ? 'Bugünkü maçlara' : 'Kampa katıldın'}</span>${bitti ? '' : ' ·'} <span data-noi18n>${KY(k.ben)}</span></button>`;
+    if (k.ben) btn = `<div class="kmp-ok"><i>${sv('tik')}</i><span>${bitti ? 'Bugünkü maçlara' : 'Kampa katıldın'}</span><b data-noi18n>${KY(k.ben)}</b></div>`;   // 986 — ince satır
     else if (!bitti && kd && !milli && d.yeniBitis) btn = `<button class="tan-btn tam kilitli" disabled>${sv('kilit')}<span>Katılım</span> · ${gunEt(d.yeniBitis)} <span data-noi18n>${saat(d.yeniBitis)}</span></button>`;   // 972 — yeni gelen 24 saat
     else if (!bitti && kd && (!milli || d.uye)) btn = `<button class="tan-btn tam" onclick="kmpKatil(${milli ? 1 : 0}, this)"><span>Katıl</span> · <span data-noi18n>${KY(kd)}</span></button>`;
     h = `<div class="tan-k">${ban(ust)}${tl(bitti ? 4 : kd, ilerle, milli)}${kat}${avl}${btn}${macSatir(d)}</div>`;
-  }
-  if (!milli && d.hafta) {
-    const w = d.hafta;
-    h += `<div class="tan-k"><div class="tan-bas"><h4>Bu Hafta</h4>${w.sira ? `<span class="kmp-cip" style="color:#ffd54f;background:rgba(255,213,79,.08);box-shadow:inset 0 0 0 1px rgba(255,213,79,.3)"><span data-noi18n>${w.sira}.</span>&nbsp;<span>sıra</span></span>` : ''}</div>
-      <div class="ary-hucre g3" style="margin-top:11px"><div><small>Kamp</small><b data-noi18n>${w.kamp || 0}/7</b></div><div><small>Puan</small><b data-noi18n>${w.puan || 0}</b></div><div><small>Ödül</small><b style="color:#2ee59d" data-noi18n>${w.odul ? K(w.odul) : '—'}</b></div></div></div>`;
   }
   if (milli && d.yetki && Array.isArray(d.kadro) && d.kadro.length) {
     h += `<div class="tan-k"><div class="tan-bas"><h4>Milli Kadro</h4><span class="kmp-cip"><span data-noi18n>${d.kadro.filter(x => x.k).length}/${d.kadro.length}</span></span></div>
@@ -44805,6 +44807,135 @@ function kur() {
       return o.apply(this, arguments);
     };
     window.submitJoinRequestWithTerms._985 = 1; window.submitJoinRequestWithTerms._kmp = 1;
+  }
+  return true;
+}
+let _n = 0;
+const _iv = setInterval(() => { if (kur() || ++_n > 120) clearInterval(_iv); }, 500);
+})();
+</script>
+<style id="atp986-css">
+/* 986 — Takım › Kamp: Antrenman Performansı */
+.kb.atp-b .kb-t .bnt-t2{color:#ff5a5f}
+.kb.atp-b .kb-rule{background:#ff5a5f}
+.tan-k.atp .atp-l{max-height:none;overflow:visible;margin-top:10px}
+.kk-s.atp-s{grid-template-columns:16px 30px minmax(0,1fr) auto}
+.kk-s.atp-s .sr{font:800 12px/1 'Outfit',sans-serif;color:#6f7a8c;text-align:center}
+.kk-s.atp-s.r1 .sr{color:#ffd54f}.kk-s.atp-s.r2 .sr{color:#cfd8e3}.kk-s.atp-s.r3 .sr{color:#f0a066}
+.kk-s.atp-s .y{--c:#ffb547;display:inline-flex;align-items:center;gap:4px;width:74px;justify-content:center;padding:6px 0}
+.kk-s.atp-s .y svg{width:12px;height:12px;flex:none}
+.tan-k.atp .atp-tum{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;height:38px;margin-top:8px;border:0;border-radius:10px;background:rgba(255,255,255,.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);color:#cfd6e2;font:700 12.5px/1 'Outfit',sans-serif;cursor:pointer}
+.tan-k.atp .atp-tum em{font-style:normal;color:#8a93a3}
+.tan-k.atp .atp-tum svg{width:15px;height:15px}
+.tan-k.atp .k3-pen{margin-top:10px}
+/* 986 — ince tek satır hafta şeridi (Takım Kampı ve Antrenman Performansı bannerlarının altında) */
+.tan-k > .kst{display:flex;align-items:center;height:32px;margin-top:12px;padding:0 2px;border-radius:10px;background:rgba(255,255,255,.03);box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
+.kst > span{flex:1 1 auto;min-width:0;display:flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap;padding:0 4px}
+.kst > span + span{box-shadow:-1px 0 0 rgba(255,255,255,.07)}
+.kst small{font:700 9px/1.4 'Outfit',sans-serif;letter-spacing:.7px;text-transform:uppercase;color:#6f7a8c;overflow:hidden;text-overflow:ellipsis}
+.kst b{display:inline-flex;align-items:center;gap:3px;font:800 12.5px/1 'Outfit',sans-serif;color:#fff}
+.kst .sr b{color:#ffd54f}
+.kst .od b{color:#2ee59d}
+.kst svg.el{width:12px;height:12px;flex:none}
+.tan-k > .kst + .k3-tl,.tan-k > .kst + .k3-pen{margin-top:10px}
+/* 986 — bugünkü maç satırı: düdük · logolu takımlar ortada · saat sağda */
+.tan-mac.m986{display:grid;grid-template-columns:34px minmax(0,1fr) 34px;align-items:center;height:32px;padding:0 10px}
+.tan-mac.m986 + .tan-mac.m986{margin-top:6px}
+.m986 .ds{display:flex}
+.m986 .ds img{display:block;width:auto!important;height:20px!important;max-width:22px;object-fit:contain;border-radius:0!important}
+.m986 .tk{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:7px;min-width:0}
+.m986 .tk .e,.m986 .tk .d{display:flex;align-items:center;gap:6px;min-width:0}
+.m986 .tk .e{justify-content:flex-end}
+.m986 .tk b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:700 12px/1.3 'Outfit',sans-serif;color:var(--T1)}
+.m986 .tk img,.m986 .tk .cn-kisa{width:18px;height:18px;flex:none;object-fit:contain}
+.m986 .tk .cn-kisa{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;font:800 6.5px/1 'Outfit',sans-serif}
+.m986 .tk i{font-style:normal;color:#6f7a8c;font-weight:700}
+.m986 .sa{text-align:right;color:#ffd54f;font:700 12px/1 'Outfit',sans-serif}
+/* 986 — "Bugünkü maçlara +%6" ince satır */
+.tan-k .kmp-ok{display:flex;align-items:center;gap:8px;height:34px;margin-top:10px;padding:0 12px 0 8px;border-radius:10px;background:rgba(46,229,157,.06);box-shadow:inset 0 0 0 1px rgba(46,229,157,.2)}
+.kmp-ok i{display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(46,229,157,.16);color:#2ee59d}
+.kmp-ok i svg{width:12px;height:12px}
+.kmp-ok span{flex:1;font:600 12.5px/1 'Outfit',sans-serif;color:#cfd6e2}
+.kmp-ok b{font:800 13px/1 'Outfit',sans-serif;color:#2ee59d}
+</style>
+<script id="atp986-js">
+/* 986 — Takım › Kamp: ANTRENMAN PERFORMANSI (bu hafta takımda kim kaç enerji harcadı · ilk 3, Tümünü gör ile hepsi) */
+(function () {
+'use strict';
+const E = x => String(x == null ? '' : x).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const LOC = { tr: 'tr-TR', de: 'de-DE', es: 'es-ES', pt: 'pt-BR', it: 'it-IT', fr: 'fr-FR', ru: 'ru-RU' };
+const nf = n => { let d = 'tr'; try { if (typeof i18nLang === 'function') d = i18nLang(); } catch (e) {} return (Number(n) || 0).toLocaleString(LOC[d] || 'en-US'); };
+const av = id => (typeof getAvatarEmoji === 'function') ? getAvatarEmoji(id || 'h001', 'MID') : '';
+const BANT = 'medya/g957/bant-tantr.48de8015.jpg';
+const ELMAS = '<svg class="el" viewBox="0 0 24 24" aria-hidden="true"><path fill="#5ec8ff" d="M6.2 3h11.6L23 9.2 12 21.5 1 9.2 6.2 3Z"/><path fill="#bfeaff" d="M6.2 3 9.4 9.2H1L6.2 3Zm11.6 0-3.2 6.2H23L17.8 3ZM9.4 9.2h5.2L12 21.5 9.4 9.2Z" opacity=".55"/></svg>';
+const IKS = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const BILGI = IKS('<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.6" r=".9" fill="currentColor"/>'), KAPAT = IKS('<path d="M6 6l12 12M18 6L6 18"/>');
+const SIMSEK = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13.6 1.5 4 13.8h6.6l-1.1 8.7L20 10h-6.7l.3-8.5Z"/></svg>';
+const ATP = { d: null, t: 0, yuk: null, tum: false };
+
+async function veri(zorla) {
+  if (!window.sb) return null;
+  if (!zorla && ATP.d && Date.now() - ATP.t < 60000) return ATP.d;
+  if (!ATP.yuk) ATP.yuk = (async () => {
+    try { const { data, error } = await window.sb.rpc('atakim_takim_katki'); if (!error && data && data.ok) { ATP.d = data; ATP.t = Date.now(); } } catch (e) {}
+  })().finally(() => { ATP.yuk = null; });
+  await ATP.yuk;
+  return ATP.d;
+}
+function html(d) {
+  const L = (d && Array.isArray(d.oyuncular)) ? d.oyuncular : [];
+  const benId = (typeof authUser !== 'undefined' && authUser && authUser.id) || '';
+  const bas = (typeof _banBaslik === 'function') ? _banBaslik('Antrenman Performansı') : 'ANTRENMAN PERFORMANSI';
+  const gos = ATP.tum ? L : L.slice(0, 3);
+  const satir = (x, i) => `<div class="kk-s atp-s r${i + 1}${x.uid && x.uid === benId ? ' ben' : ''}"><span class="sr" data-noi18n>${i + 1}</span><span class="av">${av(x.av)}</span>
+      <span class="ad"><b data-noi18n>${E(x.ad)}</b><small><span data-noi18n>${nf(x.adet)}</span> <span>antrenman</span></small></span>
+      <span class="y">${SIMSEK}<span data-noi18n>${nf(x.enerji)}</span></span></div>`;
+  return `<div class="tan-k atp"><div class="kb atp-b"><div class="kb-bg" style="background-image:url('${BANT}')"></div>
+      <div class="kb-ic"><span class="kb-t" data-noi18n>${bas}</span><span class="kb-rule"></span><span class="kb-ad">Bu hafta</span>
+        <span class="kb-alt"><b data-noi18n>${nf(d && d.adet)}</b> <span>antrenman</span></span></div>
+      <button type="button" class="k3-bil kb-bil" onclick="atpBilgi()" aria-label="Bilgi">${BILGI}</button></div>
+    <div class="kst"><span class="sr"><small>Sıra</small><b data-noi18n>${d && d.sira ? d.sira + '.' : '—'}</b></span><span><small>Oyuncu</small><b data-noi18n>${nf(d && d.oyuncu)}/${nf(L.length)}</b></span><span><small>Enerji</small><b data-noi18n>${nf(d && d.enerji)}</b></span><span class="od"><small>Ödül</small><b data-noi18n>${d && d.elmas ? ELMAS + nf(d.elmas) : '—'}</b></span></div>
+    ${L.length ? `<div class="kk-liste atp-l">${gos.map(satir).join('')}</div>` : '<div class="k3-pen bek"><b>Bu hafta henüz antrenman yapılmadı</b><span></span></div>'}
+    ${L.length > 3 ? `<button type="button" class="atp-tum" onclick="atpTum()"><span>${ATP.tum ? 'Daha az göster' : 'Tümünü gör'}</span>${ATP.tum ? '' : ` <em data-noi18n>${L.length}</em>`}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="${ATP.tum ? 'm6 15 6-6 6 6' : 'm6 9 6 6 6-6'}"/></svg></button>` : ''}
+  </div>`;
+}
+function yerlestir() {
+  const kut = document.getElementById('team-kamp'); if (!kut) return;
+  const tan = kut.querySelector('.tan'); if (!tan || !ATP.d) return;
+  const h = html(ATP.d), eski = tan.querySelector('.tan-k.atp');
+  if (eski) { if (eski.outerHTML !== h) eski.outerHTML = h; return; }
+  tan.insertAdjacentHTML('beforeend', h);
+}
+window.atpTum = function () { ATP.tum = !ATP.tum; yerlestir(); };
+window.atpBilgi = function () {
+  let o = document.getElementById('kmpBilgiOv'); if (o) o.remove();
+  o = document.createElement('div'); o.id = 'kmpBilgiOv'; o.className = 'sf-ov acik';
+  o.addEventListener('click', e => { if (e.target === o) o.remove(); });
+  const m = [
+    'Liste, takımdaki oyuncuların bu hafta antrenmanlara harcadığı enerjiyi gösterir.',
+    'Harcanan her enerji, Antrenman Takımı yarışında takımın puanına eklenir. Takımlar toplam enerjiye göre sıralanır.',
+    'Oyuncunun yalnız takıma katıldıktan sonra yaptığı antrenmanlar sayılır; eski takımında yaptıkları orada kalır.',
+    'Haftanın ilk 100 takımı elmas ödülü kazanır. Ödülü kaptan veya yardımcılar toplar, elmaslar takım kasasına eklenir. Süresinde toplanmayan ödül iptal olur.',
+    'Birinci takım bir hafta boyunca Antrenman Takımı rozetini taşır; oyuncuları antrenmanlardan %5 fazla yetenek puanı kazanır.'
+  ];
+  o.innerHTML = `<div class="sf" role="dialog"><div class="sf-tut"></div><div class="sf-bas"><h3>Antrenman Performansı</h3><button type="button" class="sf-x" onclick="this.closest('.sf-ov').remove()">${KAPAT}</button></div>
+    <div class="sf-govde"><ul class="k3-ky">${m.map((t, i) => `<li><i data-noi18n>${i + 1}</i><span>${t}</span></li>`).join('')}</ul></div>
+    <div class="sf-alt"><button type="button" class="gn" onclick="this.closest('.sf-ov').remove()">Tamam</button></div></div>`;
+  document.body.appendChild(o);
+};
+async function ciz() {
+  const kut = document.getElementById('team-kamp');
+  if (!kut || !kut.offsetParent || (typeof _viewingTeam !== 'undefined' && _viewingTeam)) return;
+  if (ATP.d) yerlestir();
+  await veri(); yerlestir();
+}
+// Kamp sekmesi her yeniden çizildiğinde kart yeniden eklenir
+let _gz = null;
+function kur() {
+  const kut = document.getElementById('team-kamp'); if (!kut) return false;
+  if (!_gz && typeof MutationObserver === 'function') {
+    _gz = new MutationObserver(() => { const tan = kut.querySelector('.tan'); if (tan && !tan.querySelector('.tan-k.atp') && !tan.querySelector('.tan-k[style*="height:180px"]')) ciz(); });
+    _gz.observe(kut, { childList: true });
   }
   return true;
 }
