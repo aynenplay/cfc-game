@@ -105,7 +105,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '984';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '985';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -26340,8 +26340,8 @@ body.pd-acik{overflow:hidden}
   </div>
 </div>
 
-<script src="js/oyun.7831ade3.js"></script>
-<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.7831ade3.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
+<script src="js/oyun.b2fee882.js"></script>
+<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.b2fee882.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
 
 <nav id="bottomnav">
   <button class="nav-btn active" onclick="showPage('home',this)"><div class="nav-icon">🏠</div><div class="nav-label">Menü</div></button>
@@ -44740,6 +44740,76 @@ const _iv = setInterval(() => {
   if (a && !_rz) { _rz = true; setTimeout(() => rozetYukle(true), 4000); setInterval(() => rozetYukle(), 600000); }
   if ((a && b) || ++_n > 120) clearInterval(_iv);
 }, 500);
+})();
+</script>
+<script id="tk985-js">
+/* 985 — Reddedilen teklif / talep beklemesi: oyuncu teklifi reddederse aynı takım 48 saat, takım talebi reddederse oyuncu 24 saat yeniden gönderemez */
+(function () {
+'use strict';
+const benTakim = () => (typeof _userTeam !== 'undefined' && _userTeam && _userTeam.teamName) ? _userTeam : null;
+const benUid = () => (typeof authUser !== 'undefined' && authUser && authUser.id) || null;
+const SAAT = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+const UYARI = {
+  teklif: ['Teklif Gönderilemez', 'Bu oyuncu teklifinizi zaten reddetti. 48 saat boyunca tekrar teklif gönderilemez.'],
+  talep: ['Talep Gönderilemez', 'Bu takım talebini reddetti. 24 saat boyunca tekrar talep gönderemezsin.'],
+};
+async function kilitVar(tur, oyuncu, cc, takim) {
+  if (!window.sb || !oyuncu || !cc || !takim) return false;
+  try {
+    const { data, error } = await window.sb.rpc('teklif_kilit_durum', { p_tur: tur, p_oyuncu: oyuncu, p_cc: String(cc).toUpperCase(), p_team: takim });
+    return !error && !!data && data.kilit === true;
+  } catch (e) { return false; }
+}
+function uyar(tur) {
+  const u = UYARI[tur]; if (!u) return;
+  if (typeof showInfoModal === 'function') showInfoModal({ icon: SAAT, iconColor: '#ff9f43', title: u[0], subtitle: u[1], body: '' });
+  else alert(u[1]);
+}
+window.tkKilitUyar = uyar;
+
+function kur() {
+  if (typeof window.submitJoinRequestWithTerms !== 'function' || !window.submitJoinRequestWithTerms._kmp) return false;
+  try {
+    if (typeof _INBOX_HATA_TR === 'object' && !_INBOX_HATA_TR.teklif_red_kilit) {
+      _INBOX_HATA_TR.teklif_red_kilit = UYARI.teklif[1];
+      _INBOX_HATA_TR.talep_red_kilit = UYARI.talep[1];
+    }
+  } catch (e) {}
+  // Teklif Sun: aynı takımdan (kaptan ya da yardımcı) 48 saat içinde yeni teklif yok
+  if (typeof tfOpenOfferDirect === 'function' && !tfOpenOfferDirect._985) {
+    const o = tfOpenOfferDirect;
+    tfOpenOfferDirect = async function (player, ctx) {
+      const c = ctx || {}, t = benTakim(), hedef = player && (player.userId || player.user_id);
+      if ((!c._mod || c._mod === 'teklif') && t && hedef && await kilitVar('teklif', hedef, t.countryCode, t.teamName)) { uyar('teklif'); return; }
+      return o.apply(this, arguments);
+    };
+    tfOpenOfferDirect._985 = 1;
+  }
+  // Katılma talebi: aynı takıma 24 saat içinde yeni talep yok
+  if (typeof window.openJoinRequestWithTermsModal === 'function' && !window.openJoinRequestWithTermsModal._985) {
+    const o = window.openJoinRequestWithTermsModal;
+    window.openJoinRequestWithTermsModal = async function (cc, tn) {
+      if (!benTakim() && await kilitVar('talep', benUid(), cc, tn)) { uyar('talep'); return; }
+      return o.apply(this, arguments);
+    };
+    window.openJoinRequestWithTermsModal._985 = 1;
+  }
+  if (!window.submitJoinRequestWithTerms._985) {
+    const o = window.submitJoinRequestWithTerms;
+    window.submitJoinRequestWithTerms = async function () {
+      const h = (typeof _jrwtTarget !== 'undefined') ? _jrwtTarget : null;
+      if (h && await kilitVar('talep', benUid(), h.countryCode, h.teamName)) {
+        try { if (typeof closeJoinRequestWithTerms === 'function') closeJoinRequestWithTerms(); } catch (e) {}
+        uyar('talep'); return;
+      }
+      return o.apply(this, arguments);
+    };
+    window.submitJoinRequestWithTerms._985 = 1; window.submitJoinRequestWithTerms._kmp = 1;
+  }
+  return true;
+}
+let _n = 0;
+const _iv = setInterval(() => { if (kur() || ++_n > 120) clearInterval(_iv); }, 500);
 })();
 </script>
 </body>

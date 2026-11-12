@@ -8947,3 +8947,6 @@ Object.assign(window.I18N.ru, {"ANTRENMAN TAKIMI": "КОМАНДА ТРЕНИР�
     [/^Takımın Antrenman Takımı yarışını (\d+)\. sırada bitirdi\.$/, "Твоя команда заняла $1-е место в гонке «Команда тренировок»."]
   );
 })();
+
+/* 985 — Reddedilen teklif / talep beklemesi */
+Object.assign(window.I18N.ru, {"Teklif Gönderilemez": "Предложение недоступно", "Bu oyuncu teklifinizi zaten reddetti. 48 saat boyunca tekrar teklif gönderilemez.": "Этот игрок уже отклонил ваше предложение. 48 часов новое предложение отправить нельзя.", "Talep Gönderilemez": "Заявка недоступна", "Bu takım talebini reddetti. 24 saat boyunca tekrar talep gönderemezsin.": "Эта команда отклонила твою заявку. 24 часа нельзя отправить новую заявку.", "48 saat boyunca bu oyuncuya yeni teklif gönderilemez.": "48 часов этому игроку нельзя отправить новое предложение.", "Bu takıma 24 saat boyunca yeni istek gönderemezsin; başka takımlara başvurabilirsin.": "24 часа нельзя отправить этой команде новую заявку; можно подать заявку в другие команды."});

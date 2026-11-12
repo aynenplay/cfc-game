@@ -7282,3 +7282,6 @@ Object.assign(window.I18N.de, {"ANTRENMAN TAKIMI": "TRAININGSTEAM", "Takımca ç
     [/^Takımın Antrenman Takımı yarışını (\d+)\. sırada bitirdi\.$/, "Dein Team hat das Trainingsteam-Rennen auf Platz $1 beendet."]
   );
 })();
+
+/* 985 — Reddedilen teklif / talep beklemesi */
+Object.assign(window.I18N.de, {"Teklif Gönderilemez": "Angebot nicht möglich", "Bu oyuncu teklifinizi zaten reddetti. 48 saat boyunca tekrar teklif gönderilemez.": "Dieser Spieler hat euer Angebot bereits abgelehnt. 48 Stunden lang kann kein neues Angebot gesendet werden.", "Talep Gönderilemez": "Anfrage nicht möglich", "Bu takım talebini reddetti. 24 saat boyunca tekrar talep gönderemezsin.": "Dieses Team hat deine Anfrage abgelehnt. 24 Stunden lang kannst du keine neue Anfrage senden.", "48 saat boyunca bu oyuncuya yeni teklif gönderilemez.": "Diesem Spieler kann 48 Stunden lang kein neues Angebot gesendet werden.", "Bu takıma 24 saat boyunca yeni istek gönderemezsin; başka takımlara başvurabilirsin.": "Diesem Team kannst du 24 Stunden lang keine neue Anfrage senden; du kannst dich bei anderen Teams bewerben."});

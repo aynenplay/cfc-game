@@ -9346,3 +9346,6 @@ Object.assign(window.I18N.en, {"ANTRENMAN TAKIMI": "TRAINING TEAM", "Takımca ç
     [/^Takımın Antrenman Takımı yarışını (\d+)\. sırada bitirdi\.$/, "Your team finished the Training Team race in place $1."]
   );
 })();
+
+/* 985 — Reddedilen teklif / talep beklemesi */
+Object.assign(window.I18N.en, {"Teklif Gönderilemez": "Offer Not Allowed", "Bu oyuncu teklifinizi zaten reddetti. 48 saat boyunca tekrar teklif gönderilemez.": "This player has already rejected your offer. No new offer can be sent for 48 hours.", "Talep Gönderilemez": "Request Not Allowed", "Bu takım talebini reddetti. 24 saat boyunca tekrar talep gönderemezsin.": "This team rejected your request. You can't send a new request for 24 hours.", "48 saat boyunca bu oyuncuya yeni teklif gönderilemez.": "No new offer can be sent to this player for 48 hours.", "Bu takıma 24 saat boyunca yeni istek gönderemezsin; başka takımlara başvurabilirsin.": "You can't send this team a new request for 24 hours; you can apply to other teams."});
