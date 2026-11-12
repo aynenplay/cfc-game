@@ -8914,3 +8914,12 @@ Object.assign(window.I18N.ru, {"Avatar seç": "Выбери аватар"});
 window.I18N_PATTERNS.ru.unshift(
   [/^(.+?) takımından ayrılmak istediğine emin misin\?\s+İstediğin zaman tekrar bir takıma katılabilirsin veya satın alabilirsin\.\s+Ayrıldıktan sonra 24 saat resmi maçlarda oynayamazsın\.\s+Kalan maaşın yanar\.$/, "Точно хочешь покинуть $1?\n\nТы можешь в любое время вступить в команду или купить её.\n\nПосле ухода ты не сможешь играть в официальных матчах 24 часа.\n\nОставшаяся зарплата сгорает."]
 );
+
+/* 980 — sadakat */
+Object.assign(window.I18N.ru, {"Sadakat": "Верность", "Sadakat puanı": "Очки верности", "Kazandırır": "Дают очки", "Kaybettirir": "Отнимают очки", "Takımında geçen her gün": "Каждый день в команде", "Takımınla oynadığın her resmi maç": "Каждый официальный матч за команду", "Sezonu aynı takımda bitirmek": "Закончить сезон в той же команде", "Takımdan kendi isteğinle ayrılmak": "Уйти из команды по своему желанию", "10 gün dolmadan ayrılmak": "Уйти раньше 10 дней", "5'e iner": "Падает до 5", "3 günden uzun oyuna girmemek": "Не заходить в игру больше 3 дней", "−1 / gün": "−1 / день", "Maaşa sadakat primi": "Бонус верности к зарплате", "Takımlara yalnız katılma isteğiyle girer": "Вступает в команды только по заявке", "En fazla 150 puan": "Максимум 150 очков", "Sadakat primi": "Бонус верности", "⛔ Sadakatin E: takımlara yalnız katılma isteğiyle girebilirsin.": "⛔ Твоя верность E: вступать в команды можно только по заявке.", "⛔ Sadakatin E: bu takıma giremezsin. Kaptanlı bir takıma katılma isteği gönder.": "⛔ Твоя верность E: в эту команду нельзя вступить. Отправь заявку в команду с капитаном.", "Vefalı": "Верный", "Aynı takımda 1 sezon kal": "Проведи 1 сезон в одной команде", "Kulüp Efsanesi": "Легенда клуба", "Aynı takımda 5 sezon bitir": "Заверши 5 сезонов в одной команде"});
+window.I18N_PATTERNS.ru.unshift(
+  [/^(.+?) takımından ayrılmak istediğine emin misin\?\s+İstediğin zaman tekrar bir takıma katılabilirsin veya satın alabilirsin\.\s+Ayrıldıktan sonra 24 saat resmi maçlarda oynayamazsın\.\s+Kalan maaşın yanar\.\s+Sadakat puanın (\d+) → (\d+) olur\.$/, "Точно хочешь покинуть $1?\n\nТы можешь в любое время вступить в команду или купить её.\n\nПосле ухода ты не сможешь играть в официальных матчах 24 часа.\n\nОставшаяся зарплата сгорает.\n\nТвои очки верности: $2 → $3."],
+  [/^(A\+|A|B|C|D) için (\d+) puan$/, "До $1: $2 очк."],
+  [/^Aynı takımda (\d+) gün kal$/, "Проведи $1 дн. в одной команде"],
+  [/^• Sadakat primi \((.+?) · \+%(\d+)\): (.+)$/, "• Бонус верности ($1 · +$2%): $3"]
+);
