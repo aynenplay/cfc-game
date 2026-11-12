@@ -213,7 +213,19 @@
   .od-rap tfoot td b, .od-rap tfoot td.sn{ color:var(--gold); }
   .od-rap tfoot td.tc{ color:var(--gold); font-size:18px; }
   .od-rap tfoot td.tc small.od-ort{ margin-top:3px; font-size:11px; font-weight:500; letter-spacing:.2px; color:var(--dim); white-space:nowrap; }   /* 985 */
-  .card .oz-ort{ display:inline-flex; align-items:center; max-width:100%; margin-top:9px; padding:4px 10px; border-radius:999px; background:rgba(46,195,107,.1); border:1px solid rgba(46,195,107,.32); color:#8fe3b0; font-size:12px; font-weight:600; line-height:1.25; white-space:nowrap; }
+  .card[data-t="payments"]{ position:relative; container-type:inline-size; }
+  .oz-ic{ display:grid; grid-template-columns:minmax(0,1fr); grid-template-areas:"num" "lbl" "el" "alt"; column-gap:10px; align-items:center; }
+  @container (min-width:235px){ .oz-ic{ grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"num el" "lbl lbl" "alt alt"; } }
+  @container (min-width:350px){ .oz-ic{ grid-template-areas:"num el" "alt lbl"; } .oz-ic .lbl{ text-align:right; } .oz-ic .oz-alt{ margin-top:7px; } }
+  .oz-ic .num{ grid-area:num; min-width:0; }
+  .oz-ic .lbl{ grid-area:lbl; white-space:nowrap; }
+  .oz-ic .oz-el{ grid-area:el; justify-self:start; margin-top:6px; font-size:15px; font-weight:700; color:var(--txt); white-space:nowrap; }
+  @container (min-width:235px){ .oz-ic .oz-el{ justify-self:end; margin-top:0; font-size:16px; } }
+  .oz-ic .oz-alt{ grid-area:alt; display:flex; flex-wrap:wrap; align-items:center; gap:5px 7px; min-width:0; margin-top:8px; }
+  .card .oz-fark{ font-size:12px; font-weight:700; color:#8fe3b0; white-space:nowrap; }
+  .card .oz-fark.down{ color:#ff8a80; }
+  .card .oz-fark:empty{ display:none; }
+  .card .oz-ort{ display:inline-flex; align-items:center; max-width:100%; padding:4px 10px; border-radius:999px; background:rgba(46,195,107,.1); border:1px solid rgba(46,195,107,.32); color:#8fe3b0; font-size:12px; font-weight:600; line-height:1.25; white-space:nowrap; }
   .card .oz-ort svg{ width:15px; height:15px; flex:none; margin-right:5px; fill:none; stroke:currentColor; stroke-width:2.6; stroke-linecap:round; stroke-linejoin:round; }
   .card .oz-ort.down{ background:rgba(239,83,80,.1); border-color:rgba(239,83,80,.38); color:#ff8a80; }
   @media (max-width:760px){ .card .oz-ort{ white-space:normal; border-radius:10px; padding:4px 8px; font-size:11.5px; } }
@@ -2200,17 +2212,27 @@ function openDash(){
         if (el) {
           el.textContent = _odPara(ciro);
           const lbl = el.parentElement && el.parentElement.querySelector('.lbl');
-          if (lbl) lbl.textContent = 'Elmas Satışı · ' + donemAd.toLowerCase()
-            + ' · ' + _fmtSayi(elmas) + ' 💎';
-          const kart = el.parentElement, ao = _odAyOrt();   // 985 — bu ayın günlük ortalaması (RAPOR ile aynı)
-          let bl = kart.querySelector('.oz-ort');
-          if (!bl) { bl = document.createElement('span'); bl.className = 'oz-ort'; kart.appendChild(bl); }
+          // 985 — satılan elmas sağ üstte · tutarın altında grafik etiketi (bu ayın günlük ortalaması) ve ortalamadan fark
+          if (lbl) lbl.textContent = 'Elmas Satışı · ' + donemAd.toLowerCase();
+          const kart = el.parentElement, ao = _odAyOrt();
+          let ic = kart.querySelector('.oz-ic');
+          if (!ic) {
+            ic = document.createElement('div'); ic.className = 'oz-ic';
+            ic.append(el); if (lbl) ic.append(lbl);
+            ic.insertAdjacentHTML('beforeend', '<div class="oz-el"></div><div class="oz-alt"><span class="oz-ort"></span><span class="oz-fark"></span></div>');
+            kart.appendChild(ic);
+          }
+          ic.querySelector('.oz-el').textContent = _fmtSayi(elmas) + ' 💎';
+          const bl = ic.querySelector('.oz-ort'), fk = ic.querySelector('.oz-fark');
           // 985 — bugünün cirosu ayın günlük ortalamasının üstünde: yeşil yukarı · altında: kırmızı aşağı
           const yon = ao.ort > 0 ? (ciro >= ao.ort ? 'up' : 'down') : '';
           bl.className = 'oz-ort' + (yon ? ' ' + yon : '');
           bl.innerHTML = (yon === 'up' ? '<svg viewBox="0 0 24 24"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>'
                        : yon === 'down' ? '<svg viewBox="0 0 24 24"><polyline points="3 7 9 13 13 9 21 17"/><polyline points="15 17 21 17 21 11"/></svg>' : '')
-            + '<span>Günlük ort. ' + _odPara(ao.ort) + '</span>';
+            + '<span>Ort. ' + _odPara(ao.ort) + '</span>';
+          const fr = ciro - ao.ort;
+          fk.className = 'oz-fark' + (yon ? ' ' + yon : '');
+          fk.textContent = yon ? (fr >= 0 ? '+' : '−') + _odPara(Math.abs(fr)) : '';
         }
       } catch(e){
         const el = $('num-payments'); if (el) el.textContent = '—';
