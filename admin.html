@@ -212,6 +212,11 @@
   .od-rap tfoot th{ font-family:var(--disp); font-size:15px; font-weight:900; color:var(--gold); letter-spacing:.6px; text-transform:uppercase; }
   .od-rap tfoot td b, .od-rap tfoot td.sn{ color:var(--gold); }
   .od-rap tfoot td.tc{ color:var(--gold); font-size:18px; }
+  .od-rap tfoot td.tc small.od-ort{ margin-top:3px; font-size:11px; font-weight:500; letter-spacing:.2px; color:var(--dim); white-space:nowrap; }   /* 985 */
+  .card .oz-ort{ display:inline-flex; align-items:center; max-width:100%; margin-top:9px; padding:4px 10px; border-radius:999px; background:rgba(46,195,107,.1); border:1px solid rgba(46,195,107,.32); color:#8fe3b0; font-size:12px; font-weight:600; line-height:1.25; white-space:nowrap; }
+  .card .oz-ort svg{ width:15px; height:15px; flex:none; margin-right:5px; fill:none; stroke:currentColor; stroke-width:2.6; stroke-linecap:round; stroke-linejoin:round; }
+  .card .oz-ort.down{ background:rgba(239,83,80,.1); border-color:rgba(239,83,80,.38); color:#ff8a80; }
+  @media (max-width:760px){ .card .oz-ort{ white-space:normal; border-radius:10px; padding:4px 8px; font-size:11.5px; } }
   .od-tablo{ border:1px solid var(--line); border-radius:12px; overflow-x:auto; margin-top:12px; }
   .od-tablo td{ white-space:nowrap; }
   .od-tablo table{ width:100%; border-collapse:collapse; font-size:13px; }
@@ -2197,6 +2202,15 @@ function openDash(){
           const lbl = el.parentElement && el.parentElement.querySelector('.lbl');
           if (lbl) lbl.textContent = 'Elmas Satışı · ' + donemAd.toLowerCase()
             + ' · ' + _fmtSayi(elmas) + ' 💎';
+          const kart = el.parentElement, ao = _odAyOrt();   // 985 — bu ayın günlük ortalaması (RAPOR ile aynı)
+          let bl = kart.querySelector('.oz-ort');
+          if (!bl) { bl = document.createElement('span'); bl.className = 'oz-ort'; kart.appendChild(bl); }
+          // 985 — bugünün cirosu ayın günlük ortalamasının üstünde: yeşil yukarı · altında: kırmızı aşağı
+          const yon = ao.ort > 0 ? (ciro >= ao.ort ? 'up' : 'down') : '';
+          bl.className = 'oz-ort' + (yon ? ' ' + yon : '');
+          bl.innerHTML = (yon === 'up' ? '<svg viewBox="0 0 24 24"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>'
+                       : yon === 'down' ? '<svg viewBox="0 0 24 24"><polyline points="3 7 9 13 13 9 21 17"/><polyline points="15 17 21 17 21 11"/></svg>' : '')
+            + '<span>Günlük ort. ' + _odPara(ao.ort) + '</span>';
         }
       } catch(e){
         const el = $('num-payments'); if (el) el.textContent = '—';
@@ -2891,6 +2905,14 @@ function _odKesHucre(k, n, tl){
 const OD_KES_BAS = '<th>Google Kesintisi<span>KDV · Pay %15</span></th><th>App Store Kesintisi<span>KDV · DHV · Pay %15</span></th>'
   + '<th>Mağaza Kesintisi<span>Toplam</span></th><th>Banka Kesintisi<span>Stopaj %15</span></th><th class="nk">Net Kâr</th><th>Kâr %</th>';
 
+// 985 — günlük ortalama ciro: ayın gösterilen günleri (bu ayda bugün dahil bugüne kadar) · RAPOR ve Özet aynı hesap
+function _odAyOrt(ym){
+  const bugun = uIstGun(), bu = bugun.slice(0, 7); ym = ym || bu;
+  const y = +ym.slice(0, 4), m = +ym.slice(5, 7), son = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const gun = ym === bu ? +bugun.slice(8, 10) : (ym < bu ? son : 0);
+  let tl = 0; _odKayit().forEach(x => { if (uIstGun(_odMs(x.created_at)).startsWith(ym)) tl += _odTl(x); });
+  return { tl, gun, ort: gun ? tl / gun : 0 };
+}
 function odRaporCiz(){
   const bugun = uIstGun(), veri = _odVeriAylari();
   if (!OD_RAY || !veri.has(OD_RAY)) OD_RAY = bugun.slice(0, 7);
@@ -2906,10 +2928,11 @@ function odRaporCiz(){
   });
   const top = {}; kaynak.forEach(([k]) => top[k] = { n:0, tl:0 });
   const hucre = c => c && c.n ? `<b>${_odPara(c.tl)}</b><small>${c.n} sipariş</small>` : '<i>—</i>';
-  let satir = '', tN = 0, tTl = 0; const T = _odKesBos();   // 941e · 941g
+  let satir = '', tN = 0, tTl = 0, gunN = 0; const T = _odKesBos();   // 941e · 941g · 985 gunN: gösterilen gün
   for (let i = 1; i <= gunSay; i++) {
     const g = ym + '-' + String(i).padStart(2, '0'), d = G[g] || {};
     if (g > bugun) break;   // gelmemiş günler gösterilmez; ay ilerledikçe eklenir
+    gunN++;
     let n = 0, tl = 0;
     const hc = kaynak.map(([k]) => { const c = d[k]; if (c) { n += c.n; tl += c.tl; top[k].n += c.n; top[k].tl += c.tl; } return `<td>${hucre(c)}</td>`; }).join('');
     tN += n; tTl += tl; _odKesEkle(T, d._k);   // 941e
@@ -2934,7 +2957,7 @@ function odRaporCiz(){
         + '<th class="sn">T. Sipariş</th><th class="tc">Toplam Ciro</th>' + OD_KES_BAS + '</tr></thead>'
         + '<tbody>' + satir + '</tbody>'
         + '<tfoot><tr><th>Toplam</th>' + kaynak.map(([k]) => `<td>${hucre(top[k])}</td>`).join('')
-        + `<td class="sn">${tN}</td><td class="tc">${_odPara(tTl)}</td>${_odKesHucre(T, tN, tTl)}</tr></tfoot></table></div>`
+        + `<td class="sn">${tN}</td><td class="tc">${_odPara(tTl)}${gunN ? `<small class="od-ort">Günlük ort. ${_odPara(tTl / gunN)}</small>` : ''}</td>${_odKesHucre(T, tN, tTl)}</tr></tfoot></table></div>`
     + '</div>';
   const b = $('odBtns');
   if (b) b.querySelectorAll('button').forEach(x => x.onclick = () => { OD_SECILI = x.dataset.k; odCiz(); });
