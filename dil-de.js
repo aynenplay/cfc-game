@@ -7261,3 +7261,12 @@ window.I18N_PATTERNS.de.unshift(
 
 /* 980b — sadakat kartı 5. seviye */
 Object.assign(window.I18N.de, {"5. seviyede açılır": "Ab Level 5 freigeschaltet", "Sadakat Kartın Açıldı": "Deine Treuekarte ist freigeschaltet", "5. seviyeye ulaştın, sadakat kartın açıldı. Başlangıç puanın 20 (D).": "Du hast Level 5 erreicht, deine Treuekarte ist freigeschaltet. Dein Startwert ist 20 (D).", "• Takımında geçen her gün +1": "• Jeder Tag in deinem Team +1", "• Takımınla oynadığın her resmi maç +1": "• Jedes Pflichtspiel für dein Team +1", "• Sezonu aynı takımda bitirmek +10": "• Die Saison im selben Team beenden +10", "• Kendi isteğinle ayrılırsan puanın düşer; 10 gün dolmadan ayrılırsan 5'e iner.": "• Freiwilliges Verlassen senkt deine Punkte; wer vor 10 Tagen geht, fällt auf 5.", "• B ve üstünde maaşına sadakat primi eklenir.": "• Ab B gibt es einen Treuebonus aufs Gehalt.", "Kuralların tamamı için profilindeki Sadakat kutusuna dokun.": "Tippe in deinem Profil auf das Treue-Feld, um alle Regeln zu sehen."});
+
+/* 982 — Takım sohbeti · forma numarası satırı */
+(function () {
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.de; if (!P) return;
+  P.unshift(
+    [/^(.+?), (.+?)'(?:n?[ıiuü]n) forma numarasını değiştirdi: (\d+)\s→\s(\d+)$/, "$1 hat die Rückennummer von $2 geändert: $3 → $4"],
+    [/^(.+?) forma numarasını değiştirdi: (\d+)\s→\s(\d+)$/, "$1 hat die eigene Rückennummer geändert: $2 → $3"]
+  );
+})();

@@ -8893,3 +8893,12 @@ window.I18N_PATTERNS.es.unshift(
 
 /* 980b — sadakat kartı 5. seviye */
 Object.assign(window.I18N.es, {"5. seviyede açılır": "Se desbloquea en el nivel 5", "Sadakat Kartın Açıldı": "Tu tarjeta de lealtad está desbloqueada", "5. seviyeye ulaştın, sadakat kartın açıldı. Başlangıç puanın 20 (D).": "Llegaste al nivel 5 y tu tarjeta de lealtad está desbloqueada. Empiezas con 20 (D).", "• Takımında geçen her gün +1": "• Cada día en tu equipo +1", "• Takımınla oynadığın her resmi maç +1": "• Cada partido oficial con tu equipo +1", "• Sezonu aynı takımda bitirmek +10": "• Terminar la temporada en el mismo equipo +10", "• Kendi isteğinle ayrılırsan puanın düşer; 10 gün dolmadan ayrılırsan 5'e iner.": "• Si te vas por voluntad propia, tus puntos bajan; si te vas antes de 10 días, bajan a 5.", "• B ve üstünde maaşına sadakat primi eklenir.": "• Desde B, se suma una prima de lealtad a tu salario.", "Kuralların tamamı için profilindeki Sadakat kutusuna dokun.": "Toca la casilla Lealtad de tu perfil para ver todas las reglas."});
+
+/* 982 — Takım sohbeti · forma numarası satırı */
+(function () {
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.es; if (!P) return;
+  P.unshift(
+    [/^(.+?), (.+?)'(?:n?[ıiuü]n) forma numarasını değiştirdi: (\d+)\s→\s(\d+)$/, "$1 cambió el dorsal de $2: $3 → $4"],
+    [/^(.+?) forma numarasını değiştirdi: (\d+)\s→\s(\d+)$/, "$1 cambió su dorsal: $2 → $3"]
+  );
+})();

@@ -8926,3 +8926,12 @@ window.I18N_PATTERNS.ru.unshift(
 
 /* 980b — sadakat kartı 5. seviye */
 Object.assign(window.I18N.ru, {"5. seviyede açılır": "Открывается на 5 уровне", "Sadakat Kartın Açıldı": "Карта верности открыта", "5. seviyeye ulaştın, sadakat kartın açıldı. Başlangıç puanın 20 (D).": "Ты достиг 5 уровня, карта верности открыта. Стартовые очки: 20 (D).", "• Takımında geçen her gün +1": "• Каждый день в команде +1", "• Takımınla oynadığın her resmi maç +1": "• Каждый официальный матч за команду +1", "• Sezonu aynı takımda bitirmek +10": "• Закончить сезон в той же команде +10", "• Kendi isteğinle ayrılırsan puanın düşer; 10 gün dolmadan ayrılırsan 5'e iner.": "• Уход по своему желанию снижает очки; уход раньше 10 дней снижает их до 5.", "• B ve üstünde maaşına sadakat primi eklenir.": "• С уровня B к зарплате добавляется бонус верности.", "Kuralların tamamı için profilindeki Sadakat kutusuna dokun.": "Нажми на блок «Верность» в профиле, чтобы увидеть все правила."});
+
+/* 982 — Takım sohbeti · forma numarası satırı */
+(function () {
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.ru; if (!P) return;
+  P.unshift(
+    [/^(.+?), (.+?)'(?:n?[ıiuü]n) forma numarasını değiştirdi: (\d+)\s→\s(\d+)$/, "$1 изменил(а) игровой номер $2: $3 → $4"],
+    [/^(.+?) forma numarasını değiştirdi: (\d+)\s→\s(\d+)$/, "$1 изменил(а) свой игровой номер: $2 → $3"]
+  );
+})();
