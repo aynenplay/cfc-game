@@ -8882,3 +8882,6 @@ window.I18N_PATTERNS.pt.unshift(
   [/^Aynı takımda (\d+) gün kal$/, "Fique $1 dias no mesmo time"],
   [/^• Sadakat primi \((.+?) · \+%(\d+)\): (.+)$/, "• Bônus de lealdade ($1 · +$2%): $3"]
 );
+
+/* 980b — sadakat kartı 5. seviye */
+Object.assign(window.I18N.pt, {"5. seviyede açılır": "Desbloqueia no nível 5", "Sadakat Kartın Açıldı": "Seu cartão de lealdade foi desbloqueado", "5. seviyeye ulaştın, sadakat kartın açıldı. Başlangıç puanın 20 (D).": "Você chegou ao nível 5 e seu cartão de lealdade foi desbloqueado. Sua pontuação inicial é 20 (D).", "• Takımında geçen her gün +1": "• Cada dia no seu time +1", "• Takımınla oynadığın her resmi maç +1": "• Cada partida oficial pelo seu time +1", "• Sezonu aynı takımda bitirmek +10": "• Terminar a temporada no mesmo time +10", "• Kendi isteğinle ayrılırsan puanın düşer; 10 gün dolmadan ayrılırsan 5'e iner.": "• Sair por vontade própria reduz seus pontos; sair antes de 10 dias os reduz para 5.", "• B ve üstünde maaşına sadakat primi eklenir.": "• A partir de B, um bônus de lealdade é somado ao seu salário.", "Kuralların tamamı için profilindeki Sadakat kutusuna dokun.": "Toque na caixa Lealdade do seu perfil para ver todas as regras."});

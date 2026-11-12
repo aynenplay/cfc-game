@@ -7258,3 +7258,6 @@ window.I18N_PATTERNS.de.unshift(
   [/^Aynı takımda (\d+) gün kal$/, "Bleib $1 Tage im selben Team"],
   [/^• Sadakat primi \((.+?) · \+%(\d+)\): (.+)$/, "• Treuebonus ($1 · +$2 %): $3"]
 );
+
+/* 980b — sadakat kartı 5. seviye */
+Object.assign(window.I18N.de, {"5. seviyede açılır": "Ab Level 5 freigeschaltet", "Sadakat Kartın Açıldı": "Deine Treuekarte ist freigeschaltet", "5. seviyeye ulaştın, sadakat kartın açıldı. Başlangıç puanın 20 (D).": "Du hast Level 5 erreicht, deine Treuekarte ist freigeschaltet. Dein Startwert ist 20 (D).", "• Takımında geçen her gün +1": "• Jeder Tag in deinem Team +1", "• Takımınla oynadığın her resmi maç +1": "• Jedes Pflichtspiel für dein Team +1", "• Sezonu aynı takımda bitirmek +10": "• Die Saison im selben Team beenden +10", "• Kendi isteğinle ayrılırsan puanın düşer; 10 gün dolmadan ayrılırsan 5'e iner.": "• Freiwilliges Verlassen senkt deine Punkte; wer vor 10 Tagen geht, fällt auf 5.", "• B ve üstünde maaşına sadakat primi eklenir.": "• Ab B gibt es einen Treuebonus aufs Gehalt.", "Kuralların tamamı için profilindeki Sadakat kutusuna dokun.": "Tippe in deinem Profil auf das Treue-Feld, um alle Regeln zu sehen."});

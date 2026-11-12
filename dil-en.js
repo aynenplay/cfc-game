@@ -9322,3 +9322,6 @@ window.I18N_PATTERNS.en.unshift(
   [/^Aynı takımda (\d+) gün kal$/, "Stay $1 days in the same team"],
   [/^• Sadakat primi \((.+?) · \+%(\d+)\): (.+)$/, "• Loyalty bonus ($1 · +$2%): $3"]
 );
+
+/* 980b — sadakat kartı 5. seviye */
+Object.assign(window.I18N.en, {"5. seviyede açılır": "Unlocks at level 5", "Sadakat Kartın Açıldı": "Your Loyalty Card Is Unlocked", "5. seviyeye ulaştın, sadakat kartın açıldı. Başlangıç puanın 20 (D).": "You reached level 5 and your loyalty card is unlocked. Your starting score is 20 (D).", "• Takımında geçen her gün +1": "• Every day in your team +1", "• Takımınla oynadığın her resmi maç +1": "• Every official match you play for your team +1", "• Sezonu aynı takımda bitirmek +10": "• Finishing the season in the same team +10", "• Kendi isteğinle ayrılırsan puanın düşer; 10 gün dolmadan ayrılırsan 5'e iner.": "• Leaving by choice lowers your score; leaving before 10 days drops it to 5.", "• B ve üstünde maaşına sadakat primi eklenir.": "• At B and above, a loyalty bonus is added to your wages.", "Kuralların tamamı için profilindeki Sadakat kutusuna dokun.": "Tap the Loyalty box on your profile for all the rules."});
