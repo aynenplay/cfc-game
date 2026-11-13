@@ -9378,3 +9378,13 @@ window.I18N_PATTERNS.en.unshift(
   [/^2 gündür oyuna girmediğin için (.+) alt yapısındaki yerini yeni gelen bir oyuncuya bıraktın\.$/, "Because you haven't played for 2 days, you gave up your place in the $1 academy to a new arrival."],
   [/^(.+?) alt yapısından ayrılmak istediğine emin misin\?\s+Ceza yok; hemen yeni bir takıma katılabilirsin\.$/, "Are you sure you want to leave the $1 academy?\n\nNo penalty; you can join a new team right away."]
 );
+
+/* 997 — Pasif kaptan açık artırması 24 saat */
+(function () {
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.en; if (!P) return;
+  P.unshift(
+    [/^(\d+) gün üst üste oyuna girmediğin için (.+?) takımın 24 saat boyunca açık artırmaya çıktı\.$/, "You didn't log in for $1 days in a row, so your team $2 is up for auction for 24 hours."],
+    [/^Kaptan (.+?) (\d+) gün üst üste oyuna girmediği için (.+?) 24 saat boyunca açık artırmada\.$/, "Captain $1 didn't log in for $2 days in a row, so $3 is up for auction for 24 hours."],
+    [/^(\d+) gün içinde girmezsen (.+?) takımın 24 saat boyunca açık artırmaya çıkar; alan olmazsa kaptanlığın düşer\.$/, "If you don't log in within $1 days, your team $2 goes up for auction for 24 hours; if nobody wins it, you lose the captaincy."]
+  );
+})();

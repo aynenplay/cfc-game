@@ -8946,3 +8946,13 @@ window.I18N_PATTERNS.es.unshift(
   [/^2 gündür oyuna girmediğin için (.+) alt yapısındaki yerini yeni gelen bir oyuncuya bıraktın\.$/, "Como no jugaste durante 2 días, cediste tu plaza en la cantera de $1 a un recién llegado."],
   [/^(.+?) alt yapısından ayrılmak istediğine emin misin\?\s+Ceza yok; hemen yeni bir takıma katılabilirsin\.$/, "¿Seguro que quieres dejar la cantera de $1?\n\nSin sanción; puedes unirte a un nuevo equipo enseguida."]
 );
+
+/* 997 — Pasif kaptan açık artırması 24 saat */
+(function () {
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.es; if (!P) return;
+  P.unshift(
+    [/^(\d+) gün üst üste oyuna girmediğin için (.+?) takımın 24 saat boyunca açık artırmaya çıktı\.$/, "Como no entraste $1 días seguidos, tu equipo $2 está en subasta durante 24 horas."],
+    [/^Kaptan (.+?) (\d+) gün üst üste oyuna girmediği için (.+?) 24 saat boyunca açık artırmada\.$/, "El capitán $1 no entró $2 días seguidos, así que $3 está en subasta durante 24 horas."],
+    [/^(\d+) gün içinde girmezsen (.+?) takımın 24 saat boyunca açık artırmaya çıkar; alan olmazsa kaptanlığın düşer\.$/, "Si no entras en $1 días, tu equipo $2 saldrá a subasta durante 24 horas; si nadie la gana, pierdes la capitanía."]
+  );
+})();

@@ -9006,3 +9006,13 @@ window.I18N_PATTERNS.fr.unshift(
   [/^2 gündür oyuna girmediğin için (.+) alt yapısındaki yerini yeni gelen bir oyuncuya bıraktın\.$/, "Comme tu n'as pas joué pendant 2 jours, tu as laissé ta place à l'académie de $1 à un nouveau venu."],
   [/^(.+?) alt yapısından ayrılmak istediğine emin misin\?\s+Ceza yok; hemen yeni bir takıma katılabilirsin\.$/, "Veux-tu vraiment quitter l'académie de $1 ?\n\nAucune pénalité ; tu peux rejoindre une nouvelle équipe tout de suite."]
 );
+
+/* 997 — Pasif kaptan açık artırması 24 saat */
+(function () {
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.fr; if (!P) return;
+  P.unshift(
+    [/^(\d+) gün üst üste oyuna girmediğin için (.+?) takımın 24 saat boyunca açık artırmaya çıktı\.$/, "Comme tu ne t'es pas connecté pendant $1 jours d'affilée, ton équipe $2 est aux enchères pendant 24 heures."],
+    [/^Kaptan (.+?) (\d+) gün üst üste oyuna girmediği için (.+?) 24 saat boyunca açık artırmada\.$/, "Le capitaine $1 ne s'est pas connecté pendant $2 jours d'affilée : $3 est aux enchères pendant 24 heures."],
+    [/^(\d+) gün içinde girmezsen (.+?) takımın 24 saat boyunca açık artırmaya çıkar; alan olmazsa kaptanlığın düşer\.$/, "Si tu ne te connectes pas dans les $1 jours, ton équipe $2 sera mise aux enchères pendant 24 heures ; si personne ne la remporte, tu perds le brassard."]
+  );
+})();

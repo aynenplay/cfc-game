@@ -105,7 +105,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '990';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '997';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -26340,8 +26340,8 @@ body.pd-acik{overflow:hidden}
   </div>
 </div>
 
-<script src="js/oyun.db9ea89c.js"></script>
-<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.db9ea89c.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
+<script src="js/oyun.6ca9699f.js"></script>
+<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.6ca9699f.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
 
 <nav id="bottomnav">
   <button class="nav-btn active" onclick="showPage('home',this)"><div class="nav-icon">🏠</div><div class="nav-label">Menü</div></button>
@@ -40636,7 +40636,7 @@ html:not(.hafif) #hbDrawer .hb-kart .hb-item.cn-var:not(.active):first-child::be
 <style id="c950-css">
 /* 950 — Hızlı Erişim ikonlarının gölge filtresi yok (iki katlı filtre çizimi geciktiriyordu) · kaydırırken ana sayfa animasyonları bekler */
 #page-home .hm-quick-icon,#page-home .hm-quick-icon svg{filter:none !important}
-html #page-home.kayiyor *,html #page-home.kayiyor *::before,html #page-home.kayiyor *::after{animation-play-state:paused !important}   /* 957 — sınıf #page-home'da (özgüllük aynı) */
+html.hafif #page-home.kayiyor *,html.hafif #page-home.kayiyor *::before,html.hafif #page-home.kayiyor *::after{animation-play-state:paused !important}   /* 957 — sınıf #page-home'da · 997 — yalnız hafif görünümde */
 </style>
 <style id="c946-css">
 /* ── 946 · maç akışı sahası (eski atak şeridinin yerine) ── */
@@ -42803,7 +42803,7 @@ async function hmAkis() {
   _hmImza = ic + '|true';
   const bnt = (typeof _banBant === 'function') ? _banBant('kamp', 'ÇALIŞKAN TAKIM', 'Birlikte çalış, kazan',
     `<button class="bnt-go" onclick="event.stopPropagation();goToRaceTab('kamp')" title="Tam liste — Çalışkan Takım" aria-label="Çalışkan Takım tam listesi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg></button>`) : '';
-  if (!col) { col = document.createElement('div'); col.className = 'hm-race-col kamp'; pr.appendChild(col); }
+  if (!col) { col = document.createElement('div'); col.className = 'hm-race-col kamp'; const _at = pr.querySelector('.hm-race-col.atakim'); if (_at) pr.insertBefore(col, _at); else pr.appendChild(col); }   // 997 — Antrenman Takımı'ndan önce
   col.innerHTML = bnt + `<div class="hm-race-list">${ic}</div>`;
 }
 
@@ -43558,8 +43558,55 @@ function sesUyandirKur() {
 function sesKaldir() { if (!sesBekle) return; SES_OLAY.forEach(e => document.removeEventListener(e, sesBekle, { capture: true })); sesBekle = null; }
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) return;
-  setTimeout(() => { try { if (typeof _cftAudioCtx !== 'undefined' && _cftAudioCtx && _cftAudioCtx.state !== 'running') sesUyandirKur(); } catch (e) {} }, 400);
+  setTimeout(() => { try { if (window._sesIos997) return; if (typeof _cftAudioCtx !== 'undefined' && _cftAudioCtx && _cftAudioCtx.state !== 'running') sesUyandirKur(); } catch (e) {} }, 400);   // 997 — iOS'ta bağlam yenilenir
 });
+
+// ═══ 997 — iOS: uygulamadan çıkıp dönünce ses gelmiyordu. WebKit eski ses bağlamını çoğu zaman sessiz bırakıyor
+//   ("çalışıyor" görünse de). Dönüşten (ya da telefon / Siri kesintisinden) sonraki ilk dokunuşta bağlam kapatılıp
+//   yenisi kurulur; çalan müzik / maç / düello sesi yeni bağlamda sürer (çözülmüş sesler yeniden kullanılır).
+//   Gol bip'i ve bildirim tınısı bağlamları da yenilenir. Diğer cihazlarda değişiklik yok.
+window._sesIos997 = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+(function () {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!window._sesIos997 || !AC) return;
+  let yenile = false;
+  const ac = c => {   // dokunuş içinde sessiz tampon + resume (iOS kilidi)
+    try { const b = c.createBuffer(1, 1, 22050), k = c.createBufferSource(); k.buffer = b; k.connect(c.destination); k.start(0); } catch (e) {}
+    try { c.resume().catch(() => {}); } catch (e) {}
+  };
+  const kapat = c => { try { if (c && c.state !== 'closed') c.close().catch(() => {}); } catch (e) {} };
+  function yenidenKur() {
+    if (_cftAudioCtx) {
+      const calan = [];
+      [_muzikKanal, _macKanal, typeof _pdKanal !== 'undefined' ? _pdKanal : null, typeof _fkKanal !== 'undefined' ? _fkKanal : null].forEach(k => {
+        if (!k) return;
+        if (k.ad) calan.push([k, k.ad]);
+        const g = k.g, kaynak = k.kaynak; k.ad = null; k.g = null; k.kaynak = [];
+        kaynak.forEach(x => { try { x.stop(); } catch (e) {} });
+        try { if (g) g.disconnect(); } catch (e) {}
+      });
+      kapat(_cftAudioCtx);
+      _cftAudioCtx = new AC(); ac(_cftAudioCtx);
+      try { _fkTikSon = 0; } catch (e) {}
+      calan.forEach(([k, ad]) => { try { _sesCal(k, ad); } catch (e) {} });
+    }
+    if (window._resAC) { kapat(window._resAC); window._resAC = new AC(); ac(window._resAC); }
+    if (window._notifAudioCtx) {
+      kapat(window._notifAudioCtx);
+      const c = window._notifAudioCtx = new AC(); ac(c);
+      c.resume().then(() => { if (c.state !== 'running') return; c._957acik = true; if (!window._ntfUyuT) _ntfUyut(600); }).catch(() => {});
+    }
+  }
+  function dokun() {
+    const c = _cftAudioCtx;
+    if (yenile || (c && c.state === 'interrupted')) { yenile = false; try { yenidenKur(); } catch (e) {} return; }
+    if (c && c.state === 'suspended' && !document.hidden) ac(c);   // yeni bağlam bu dokunuşta açılamadıysa sıradakinde
+  }
+  ['touchend', 'click', 'keydown'].forEach(e => document.addEventListener(e, dokun, { capture: true, passive: true }));
+  let gizli = false;
+  document.addEventListener('visibilitychange', () => { if (document.hidden) gizli = true; else if (gizli) { gizli = false; yenile = true; } });
+  window.addEventListener('pageshow', e => { if (e.persisted) yenile = true; });
+})();
 // ═══ 976 — Düello › Hızlı Eşleş (lobi): bekle · eşleş · 3-2-1 · düello her zamanki gibi açılır ═══
 const LB = { oyun: null, mod: null, t0: 0, bekle: false, say: 0, sinyalT: null, saatT: null, fkSec: 0, vs: null, kuyruk: null };
 const LB_IK = { simsek: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 2 4.5 13.5H11L10 22l9-11.5h-6.5z"/></svg>',
@@ -43889,7 +43936,10 @@ function kur() {
     _aaHerYer = function () { const r = o.apply(this, arguments); try { aaSayacCiz(); } catch (e) {} return r; };
     _aaHerYer._kmp = 1;
   }
-  setInterval(() => { if (document.hidden) return; const h = document.getElementById('page-home'); if (h && h.classList.contains('active')) try { aaSayacCiz(); } catch (e) {} }, 1000);
+  let aaIlk997 = 0;   // 997 — açılışta liste hiç okunmuyordu (ana sayfa showPage'siz açılır): ana sayfa açıkken ilk okuma, olmazsa 15 sn'de bir dener
+  setInterval(() => { if (document.hidden) return; const h = document.getElementById('page-home'); if (h && h.classList.contains('active')) try {
+    if (!AA.at && !AA.yuk && window.sb && typeof authUser !== 'undefined' && authUser && authUser.id && Date.now() - aaIlk997 > 15000) { aaIlk997 = Date.now(); aaYukle(); }
+    aaSayacCiz(); } catch (e) {} }, 1000);
   // 976 — Düello: Hızlı Eşleş / Davet Et · lobi eşleşmesinde önce "Rakip Bulundu"
   if (typeof pdHubCiz === 'function' && !pdHubCiz._976) {
     const o = pdHubCiz;
@@ -44605,7 +44655,6 @@ let _hmImza = '';
 async function hmAkis() {
   const w = document.getElementById('hmEventFeed'); if (!w) return;
   const pr = w.querySelector('.hm-race-preview'); if (!pr) return;
-  if (!pr.querySelector('.hm-race-col.kamp')) return;   // Çalışkan Takım sütunundan sonra
   let col = pr.querySelector('.hm-race-col.atakim');
   const L = (await liste(5)).slice(0, 5);
   const ovr = await takimOvr(L);

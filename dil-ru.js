@@ -8979,3 +8979,13 @@ window.I18N_PATTERNS.ru.unshift(
   [/^2 gündür oyuna girmediğin için (.+) alt yapısındaki yerini yeni gelen bir oyuncuya bıraktın\.$/, "Ты не заходил 2 дня, поэтому твоё место в академии $1 занял новичок."],
   [/^(.+?) alt yapısından ayrılmak istediğine emin misin\?\s+Ceza yok; hemen yeni bir takıma katılabilirsin\.$/, "Точно хочешь покинуть академию $1?\n\nБез штрафа; можно сразу вступить в новую команду."]
 );
+
+/* 997 — Pasif kaptan açık artırması 24 saat */
+(function () {
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.ru; if (!P) return;
+  P.unshift(
+    [/^(\d+) gün üst üste oyuna girmediğin için (.+?) takımın 24 saat boyunca açık artırmaya çıktı\.$/, "Ты не заходил $1 дней подряд, поэтому твоя команда $2 выставлена на аукцион на 24 часа."],
+    [/^Kaptan (.+?) (\d+) gün üst üste oyuna girmediği için (.+?) 24 saat boyunca açık artırmada\.$/, "Капитан $1 не заходил $2 дней подряд, поэтому $3 на аукционе 24 часа."],
+    [/^(\d+) gün içinde girmezsen (.+?) takımın 24 saat boyunca açık artırmaya çıkar; alan olmazsa kaptanlığın düşer\.$/, "Если не зайдёшь в течение $1 дн., твоя команда $2 уйдёт на аукцион на 24 часа; если никто не выиграет, ты потеряешь капитанство."]
+  );
+})();
