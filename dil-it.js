@@ -8921,3 +8921,26 @@ Object.assign(window.I18N.it, {"Antrenman Performansı": "Resa in Allenamento", 
 
 /* 988 — Kaptanlar sekmesi ilk 50 */
 Object.assign(window.I18N.it, {"En İyi 50 Kaptan — kaptanken kazanılanlar": "Top 50 capitani — ottenuto da capitano"});
+
+/* 990 — Takım › Alt Yapı */
+Object.assign(window.I18N.it, {"Alt Yapı": "Giovanili", "yeni": "nuovi", "Yeni katılım yok": "Nessun nuovo arrivo", "Alt yapıda oyuncu yok": "Nessun giocatore nelle giovanili", "Alt yapıya katılış": "Nelle giovanili da", "Son giriş": "Ultimo accesso", "Son 14 gün antrenman": "Allenamenti (ultimi 14 giorni)", "A Takıma Çıkar": "Promuovi in Prima Squadra", "Alt Yapıdan Gönder": "Svincola dalle Giovanili", "Oyuna yeni katılan oyuncular gerçek kaptanlı takımlarda önce alt yapıya katılır.": "Nelle squadre con un capitano reale i nuovi giocatori iniziano nelle giovanili.", "Alt yapı oyuncusu takımın tüm haklarından yararlanır: tesisler, takım sohbeti, kamp ve haftalık yarışlar.": "I giocatori delle giovanili hanno tutti i diritti della squadra: strutture, chat di squadra, ritiro e gare settimanali.", "Kaptan ve yardımcılar oyuncuyu A takıma çıkarabilir ya da alt yapıdan gönderebilir.": "Il capitano e i vice possono promuovere un giocatore in prima squadra o svincolarlo dalle giovanili.", "Alt yapı oyuncusu maaş almaz; A takıma çıkınca maaşı başlar. İstediği zaman cezasız ayrılabilir.": "I giocatori delle giovanili non hanno stipendio; parte con la promozione. Possono andarsene quando vogliono senza penalità.", "Katıldıktan sonra 2 gün hiç girmeyen alt yapı oyuncusu, yeni gelen oyuncuya yerini bırakır.": "Un giocatore delle giovanili che non accede per 2 giorni dopo l'arrivo lascia il posto a un nuovo arrivato.", "Yabancı oyuncu kontenjanı dolu": "Quota stranieri piena", "Bu mevkide yer yok": "Nessun posto in questo ruolo", "A takıma çıkarıldı": "Promosso in prima squadra", "Alt yapıdan gönderildi": "Svincolato dalle giovanili", "Bu oyuncu alt yapıdan gönderilsin mi?": "Svincolare questo giocatore dalle giovanili?", "Alt yapıya katıldın": "Sei entrato nelle giovanili", "alt yapısına yerleştin!": "ti ha preso nelle sue giovanili!", "Kendini burada geliştirebilir veya başka takımlar arayabilirsin.": "Puoi crescere qui o cercare altre squadre.", "A takımda": "Prima squadra"});
+window.I18N_PATTERNS.it.unshift(
+  [/^(.+?) alt yapıya katıldı\. Merhaba de!$/, "$1 è entrato nelle giovanili. Salutalo!"],
+  [/^(.+?) A takıma çıktı\.$/, "$1 è stato promosso in prima squadra."],
+  [/^(.+?) alt yapıdan gönderildi\.$/, "$1 è stato svincolato dalle giovanili."],
+  [/^(.+?) alt yapıdan ayrıldı, yerini yeni gelen oyuncuya bıraktı\.$/, "$1 ha lasciato le giovanili e ha ceduto il posto a un nuovo arrivato."],
+  [/^(.+?) alt yapıdan ayrıldı\.$/, "$1 ha lasciato le giovanili."]
+);
+
+/* 990b — otomatik gelen kutusu mesajları · alt yapıdan ayrılma onayı */
+Object.assign(window.I18N.it, {"Kendini burada geliştirebilir veya başka takımlar arayabilirsin. Kaptan ve yardımcıları seni A takıma çıkarabilir; maaşın A takımda başlar.": "Puoi crescere qui o cercare altre squadre. Il capitano e i vice possono promuoverti in prima squadra; il tuo stipendio parte in prima squadra.", "• Maaşın A takımda başlar.": "• Il tuo stipendio parte in prima squadra.", "Ceza yok; hemen yeni bir takıma katılabilirsin.": "Nessuna penalità; puoi entrare subito in una nuova squadra."});
+window.I18N_PATTERNS.it.unshift(
+  [/^Alt Yapıya Katıldın — (.+)$/, "Sei Entrato nelle Giovanili — $1"],
+  [/^Hoş geldin (.+?)! Scout ekibimiz seni keşfetti ve (.+) alt yapısına yerleştirdi\.$/, "Benvenuto $1! I nostri osservatori ti hanno scoperto e ti hanno inserito nelle giovanili di $2."],
+  [/^A Takıma Çıktın — (.+)$/, "Promosso in Prima Squadra — $1"],
+  [/^Tebrikler! (.+?) seni (.+) A takımına çıkardı\.$/, "Complimenti! $1 ti ha promosso nella prima squadra di $2."],
+  [/^Alt Yapıdan Ayrıldın — (.+)$/, "Hai Lasciato le Giovanili — $1"],
+  [/^(.+) yönetimi seni alt yapıdan gönderdi\.$/, "La dirigenza di $1 ti ha svincolato dalle giovanili."],
+  [/^2 gündür oyuna girmediğin için (.+) alt yapısındaki yerini yeni gelen bir oyuncuya bıraktın\.$/, "Non avendo giocato per 2 giorni, hai lasciato il tuo posto nelle giovanili di $1 a un nuovo arrivato."],
+  [/^(.+?) alt yapısından ayrılmak istediğine emin misin\?\s+Ceza yok; hemen yeni bir takıma katılabilirsin\.$/, "Vuoi davvero lasciare le giovanili di $1?\n\nNessuna penalità; puoi entrare subito in una nuova squadra."]
+);

@@ -9355,3 +9355,26 @@ Object.assign(window.I18N.en, {"Antrenman Performansı": "Training Performance",
 
 /* 988 — Kaptanlar sekmesi ilk 50 */
 Object.assign(window.I18N.en, {"En İyi 50 Kaptan — kaptanken kazanılanlar": "Top 50 Captains — earned while captain"});
+
+/* 990 — Takım › Alt Yapı */
+Object.assign(window.I18N.en, {"Alt Yapı": "Academy", "yeni": "new", "Yeni katılım yok": "No new arrivals", "Alt yapıda oyuncu yok": "No players in the academy", "Alt yapıya katılış": "Joined academy", "Son giriş": "Last login", "Son 14 gün antrenman": "Training (last 14 days)", "A Takıma Çıkar": "Promote to First Team", "Alt Yapıdan Gönder": "Release from Academy", "Oyuna yeni katılan oyuncular gerçek kaptanlı takımlarda önce alt yapıya katılır.": "In teams with a real captain, newly joined players start in the academy.", "Alt yapı oyuncusu takımın tüm haklarından yararlanır: tesisler, takım sohbeti, kamp ve haftalık yarışlar.": "Academy players enjoy all team rights: facilities, team chat, camp and weekly races.", "Kaptan ve yardımcılar oyuncuyu A takıma çıkarabilir ya da alt yapıdan gönderebilir.": "The captain and vice-captains can promote a player to the first team or release them from the academy.", "Alt yapı oyuncusu maaş almaz; A takıma çıkınca maaşı başlar. İstediği zaman cezasız ayrılabilir.": "Academy players get no wage; it starts when they are promoted. They can leave at any time without penalty.", "Katıldıktan sonra 2 gün hiç girmeyen alt yapı oyuncusu, yeni gelen oyuncuya yerini bırakır.": "An academy player who doesn't log in for 2 days after joining gives their place to a new arrival.", "Yabancı oyuncu kontenjanı dolu": "Foreign player quota is full", "Bu mevkide yer yok": "No space in this position", "A takıma çıkarıldı": "Promoted to the first team", "Alt yapıdan gönderildi": "Released from the academy", "Bu oyuncu alt yapıdan gönderilsin mi?": "Release this player from the academy?", "Alt yapıya katıldın": "You joined the academy", "alt yapısına yerleştin!": "took you into its academy!", "Kendini burada geliştirebilir veya başka takımlar arayabilirsin.": "You can develop here or look for other teams.", "A takımda": "First team"});
+window.I18N_PATTERNS.en.unshift(
+  [/^(.+?) alt yapıya katıldı\. Merhaba de!$/, "$1 joined the academy. Say hello!"],
+  [/^(.+?) A takıma çıktı\.$/, "$1 was promoted to the first team."],
+  [/^(.+?) alt yapıdan gönderildi\.$/, "$1 was released from the academy."],
+  [/^(.+?) alt yapıdan ayrıldı, yerini yeni gelen oyuncuya bıraktı\.$/, "$1 left the academy and gave their place to a new arrival."],
+  [/^(.+?) alt yapıdan ayrıldı\.$/, "$1 left the academy."]
+);
+
+/* 990b — otomatik gelen kutusu mesajları · alt yapıdan ayrılma onayı */
+Object.assign(window.I18N.en, {"Kendini burada geliştirebilir veya başka takımlar arayabilirsin. Kaptan ve yardımcıları seni A takıma çıkarabilir; maaşın A takımda başlar.": "You can develop here or look for other teams. The captain and vice-captains can promote you to the first team; your wage starts in the first team.", "• Maaşın A takımda başlar.": "• Your wage starts in the first team.", "Ceza yok; hemen yeni bir takıma katılabilirsin.": "No penalty; you can join a new team right away."});
+window.I18N_PATTERNS.en.unshift(
+  [/^Alt Yapıya Katıldın — (.+)$/, "You Joined the Academy — $1"],
+  [/^Hoş geldin (.+?)! Scout ekibimiz seni keşfetti ve (.+) alt yapısına yerleştirdi\.$/, "Welcome $1! Our scouts discovered you and placed you in the $2 academy."],
+  [/^A Takıma Çıktın — (.+)$/, "Promoted to the First Team — $1"],
+  [/^Tebrikler! (.+?) seni (.+) A takımına çıkardı\.$/, "Congratulations! $1 promoted you to the $2 first team."],
+  [/^Alt Yapıdan Ayrıldın — (.+)$/, "You Left the Academy — $1"],
+  [/^(.+) yönetimi seni alt yapıdan gönderdi\.$/, "The $1 management released you from the academy."],
+  [/^2 gündür oyuna girmediğin için (.+) alt yapısındaki yerini yeni gelen bir oyuncuya bıraktın\.$/, "Because you haven't played for 2 days, you gave up your place in the $1 academy to a new arrival."],
+  [/^(.+?) alt yapısından ayrılmak istediğine emin misin\?\s+Ceza yok; hemen yeni bir takıma katılabilirsin\.$/, "Are you sure you want to leave the $1 academy?\n\nNo penalty; you can join a new team right away."]
+);

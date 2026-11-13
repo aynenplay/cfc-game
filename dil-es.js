@@ -8923,3 +8923,26 @@ Object.assign(window.I18N.es, {"Antrenman Performansı": "Rendimiento de Entreno
 
 /* 988 — Kaptanlar sekmesi ilk 50 */
 Object.assign(window.I18N.es, {"En İyi 50 Kaptan — kaptanken kazanılanlar": "Top 50 capitanes — logrado como capitán"});
+
+/* 990 — Takım › Alt Yapı */
+Object.assign(window.I18N.es, {"Alt Yapı": "Cantera", "yeni": "nuevos", "Yeni katılım yok": "Sin nuevas llegadas", "Alt yapıda oyuncu yok": "No hay jugadores en la cantera", "Alt yapıya katılış": "En la cantera desde", "Son giriş": "Última conexión", "Son 14 gün antrenman": "Entrenos (últimos 14 días)", "A Takıma Çıkar": "Subir al Primer Equipo", "Alt Yapıdan Gönder": "Despedir de la Cantera", "Oyuna yeni katılan oyuncular gerçek kaptanlı takımlarda önce alt yapıya katılır.": "En los equipos con capitán real, los jugadores nuevos empiezan en la cantera.", "Alt yapı oyuncusu takımın tüm haklarından yararlanır: tesisler, takım sohbeti, kamp ve haftalık yarışlar.": "Los jugadores de la cantera tienen todos los derechos del equipo: instalaciones, chat del equipo, concentración y carreras semanales.", "Kaptan ve yardımcılar oyuncuyu A takıma çıkarabilir ya da alt yapıdan gönderebilir.": "El capitán y los vicecapitanes pueden subir a un jugador al primer equipo o despedirlo de la cantera.", "Alt yapı oyuncusu maaş almaz; A takıma çıkınca maaşı başlar. İstediği zaman cezasız ayrılabilir.": "Los jugadores de la cantera no cobran sueldo; empieza al subir. Pueden irse cuando quieran sin sanción.", "Katıldıktan sonra 2 gün hiç girmeyen alt yapı oyuncusu, yeni gelen oyuncuya yerini bırakır.": "Un jugador de la cantera que no entra durante 2 días tras unirse cede su plaza a un recién llegado.", "Yabancı oyuncu kontenjanı dolu": "Cupo de extranjeros completo", "Bu mevkide yer yok": "No hay sitio en esta posición", "A takıma çıkarıldı": "Subido al primer equipo", "Alt yapıdan gönderildi": "Despedido de la cantera", "Bu oyuncu alt yapıdan gönderilsin mi?": "¿Despedir a este jugador de la cantera?", "Alt yapıya katıldın": "Te uniste a la cantera", "alt yapısına yerleştin!": "te ha fichado para su cantera!", "Kendini burada geliştirebilir veya başka takımlar arayabilirsin.": "Puedes crecer aquí o buscar otros equipos.", "A takımda": "Primer equipo"});
+window.I18N_PATTERNS.es.unshift(
+  [/^(.+?) alt yapıya katıldı\. Merhaba de!$/, "$1 se unió a la cantera. ¡Salúdale!"],
+  [/^(.+?) A takıma çıktı\.$/, "$1 subió al primer equipo."],
+  [/^(.+?) alt yapıdan gönderildi\.$/, "$1 fue despedido de la cantera."],
+  [/^(.+?) alt yapıdan ayrıldı, yerini yeni gelen oyuncuya bıraktı\.$/, "$1 dejó la cantera y cedió su plaza a un recién llegado."],
+  [/^(.+?) alt yapıdan ayrıldı\.$/, "$1 dejó la cantera."]
+);
+
+/* 990b — otomatik gelen kutusu mesajları · alt yapıdan ayrılma onayı */
+Object.assign(window.I18N.es, {"Kendini burada geliştirebilir veya başka takımlar arayabilirsin. Kaptan ve yardımcıları seni A takıma çıkarabilir; maaşın A takımda başlar.": "Puedes crecer aquí o buscar otros equipos. El capitán y los vicecapitanes pueden subirte al primer equipo; tu sueldo empieza en el primer equipo.", "• Maaşın A takımda başlar.": "• Tu sueldo empieza en el primer equipo.", "Ceza yok; hemen yeni bir takıma katılabilirsin.": "Sin sanción; puedes unirte a un nuevo equipo enseguida."});
+window.I18N_PATTERNS.es.unshift(
+  [/^Alt Yapıya Katıldın — (.+)$/, "Te Uniste a la Cantera — $1"],
+  [/^Hoş geldin (.+?)! Scout ekibimiz seni keşfetti ve (.+) alt yapısına yerleştirdi\.$/, "¡Bienvenido $1! Nuestros ojeadores te descubrieron y te colocaron en la cantera de $2."],
+  [/^A Takıma Çıktın — (.+)$/, "Subiste al Primer Equipo — $1"],
+  [/^Tebrikler! (.+?) seni (.+) A takımına çıkardı\.$/, "¡Enhorabuena! $1 te subió al primer equipo de $2."],
+  [/^Alt Yapıdan Ayrıldın — (.+)$/, "Dejaste la Cantera — $1"],
+  [/^(.+) yönetimi seni alt yapıdan gönderdi\.$/, "La directiva de $1 te despidió de la cantera."],
+  [/^2 gündür oyuna girmediğin için (.+) alt yapısındaki yerini yeni gelen bir oyuncuya bıraktın\.$/, "Como no jugaste durante 2 días, cediste tu plaza en la cantera de $1 a un recién llegado."],
+  [/^(.+?) alt yapısından ayrılmak istediğine emin misin\?\s+Ceza yok; hemen yeni bir takıma katılabilirsin\.$/, "¿Seguro que quieres dejar la cantera de $1?\n\nSin sanción; puedes unirte a un nuevo equipo enseguida."]
+);

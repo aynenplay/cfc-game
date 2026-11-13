@@ -8956,3 +8956,26 @@ Object.assign(window.I18N.ru, {"Antrenman Performansı": "Итоги Трени�
 
 /* 988 — Kaptanlar sekmesi ilk 50 */
 Object.assign(window.I18N.ru, {"En İyi 50 Kaptan — kaptanken kazanılanlar": "Топ-50 капитанов — заработано на посту капитана"});
+
+/* 990 — Takım › Alt Yapı */
+Object.assign(window.I18N.ru, {"Alt Yapı": "Академия", "yeni": "новых", "Yeni katılım yok": "Новых игроков нет", "Alt yapıda oyuncu yok": "В академии нет игроков", "Alt yapıya katılış": "В академии с", "Son giriş": "Последний вход", "Son 14 gün antrenman": "Тренировки (14 дней)", "A Takıma Çıkar": "Перевести в основу", "Alt Yapıdan Gönder": "Отчислить из академии", "Oyuna yeni katılan oyuncular gerçek kaptanlı takımlarda önce alt yapıya katılır.": "В командах с настоящим капитаном новые игроки начинают в академии.", "Alt yapı oyuncusu takımın tüm haklarından yararlanır: tesisler, takım sohbeti, kamp ve haftalık yarışlar.": "Игроки академии пользуются всеми правами команды: базой, чатом команды, сборами и недельными гонками.", "Kaptan ve yardımcılar oyuncuyu A takıma çıkarabilir ya da alt yapıdan gönderebilir.": "Капитан и заместители могут перевести игрока в основной состав или отчислить из академии.", "Alt yapı oyuncusu maaş almaz; A takıma çıkınca maaşı başlar. İstediği zaman cezasız ayrılabilir.": "Игроки академии не получают зарплату; она начинается после перевода в основу. Уйти можно в любой момент без штрафа.", "Katıldıktan sonra 2 gün hiç girmeyen alt yapı oyuncusu, yeni gelen oyuncuya yerini bırakır.": "Игрок академии, не заходивший 2 дня после вступления, уступает место новичку.", "Yabancı oyuncu kontenjanı dolu": "Лимит легионеров исчерпан", "Bu mevkide yer yok": "На этой позиции нет мест", "A takıma çıkarıldı": "Переведён в основу", "Alt yapıdan gönderildi": "Отчислен из академии", "Bu oyuncu alt yapıdan gönderilsin mi?": "Отчислить этого игрока из академии?", "Alt yapıya katıldın": "Ты в академии", "alt yapısına yerleştin!": "взял тебя в свою академию!", "Kendini burada geliştirebilir veya başka takımlar arayabilirsin.": "Здесь можно расти или искать другие команды.", "A takımda": "В основе"});
+window.I18N_PATTERNS.ru.unshift(
+  [/^(.+?) alt yapıya katıldı\. Merhaba de!$/, "$1 вступил в академию. Поприветствуй!"],
+  [/^(.+?) A takıma çıktı\.$/, "$1 переведён в основной состав."],
+  [/^(.+?) alt yapıdan gönderildi\.$/, "$1 отчислен из академии."],
+  [/^(.+?) alt yapıdan ayrıldı, yerini yeni gelen oyuncuya bıraktı\.$/, "$1 покинул академию и уступил место новичку."],
+  [/^(.+?) alt yapıdan ayrıldı\.$/, "$1 покинул академию."]
+);
+
+/* 990b — otomatik gelen kutusu mesajları · alt yapıdan ayrılma onayı */
+Object.assign(window.I18N.ru, {"Kendini burada geliştirebilir veya başka takımlar arayabilirsin. Kaptan ve yardımcıları seni A takıma çıkarabilir; maaşın A takımda başlar.": "Здесь можно расти или искать другие команды. Капитан и заместители могут перевести тебя в основной состав; зарплата начинается в основе.", "• Maaşın A takımda başlar.": "• Зарплата начинается в основном составе.", "Ceza yok; hemen yeni bir takıma katılabilirsin.": "Без штрафа; можно сразу вступить в новую команду."});
+window.I18N_PATTERNS.ru.unshift(
+  [/^Alt Yapıya Katıldın — (.+)$/, "Ты в академии — $1"],
+  [/^Hoş geldin (.+?)! Scout ekibimiz seni keşfetti ve (.+) alt yapısına yerleştirdi\.$/, "Добро пожаловать, $1! Наши скауты заметили тебя и зачислили в академию $2."],
+  [/^A Takıma Çıktın — (.+)$/, "Переведён в основу — $1"],
+  [/^Tebrikler! (.+?) seni (.+) A takımına çıkardı\.$/, "Поздравляем! $1 перевёл тебя в основной состав $2."],
+  [/^Alt Yapıdan Ayrıldın — (.+)$/, "Ты покинул академию — $1"],
+  [/^(.+) yönetimi seni alt yapıdan gönderdi\.$/, "Руководство $1 отчислило тебя из академии."],
+  [/^2 gündür oyuna girmediğin için (.+) alt yapısındaki yerini yeni gelen bir oyuncuya bıraktın\.$/, "Ты не заходил 2 дня, поэтому твоё место в академии $1 занял новичок."],
+  [/^(.+?) alt yapısından ayrılmak istediğine emin misin\?\s+Ceza yok; hemen yeni bir takıma katılabilirsin\.$/, "Точно хочешь покинуть академию $1?\n\nБез штрафа; можно сразу вступить в новую команду."]
+);

@@ -8915,3 +8915,26 @@ Object.assign(window.I18N.pt, {"Antrenman Performansı": "Desempenho de Treino",
 
 /* 988 — Kaptanlar sekmesi ilk 50 */
 Object.assign(window.I18N.pt, {"En İyi 50 Kaptan — kaptanken kazanılanlar": "Top 50 capitães — conquistado como capitão"});
+
+/* 990 — Takım › Alt Yapı */
+Object.assign(window.I18N.pt, {"Alt Yapı": "Base", "yeni": "novos", "Yeni katılım yok": "Nenhuma nova chegada", "Alt yapıda oyuncu yok": "Nenhum jogador na base", "Alt yapıya katılış": "Na base desde", "Son giriş": "Último acesso", "Son 14 gün antrenman": "Treinos (últimos 14 dias)", "A Takıma Çıkar": "Subir ao Time Principal", "Alt Yapıdan Gönder": "Dispensar da Base", "Oyuna yeni katılan oyuncular gerçek kaptanlı takımlarda önce alt yapıya katılır.": "Em times com capitão real, os novos jogadores começam na base.", "Alt yapı oyuncusu takımın tüm haklarından yararlanır: tesisler, takım sohbeti, kamp ve haftalık yarışlar.": "Os jogadores da base têm todos os direitos do time: instalações, chat do time, concentração e corridas semanais.", "Kaptan ve yardımcılar oyuncuyu A takıma çıkarabilir ya da alt yapıdan gönderebilir.": "O capitão e os vices podem subir um jogador ao time principal ou dispensá-lo da base.", "Alt yapı oyuncusu maaş almaz; A takıma çıkınca maaşı başlar. İstediği zaman cezasız ayrılabilir.": "Jogadores da base não recebem salário; ele começa ao subir. Podem sair quando quiserem, sem punição.", "Katıldıktan sonra 2 gün hiç girmeyen alt yapı oyuncusu, yeni gelen oyuncuya yerini bırakır.": "O jogador da base que não entrar por 2 dias após chegar cede a vaga a um recém-chegado.", "Yabancı oyuncu kontenjanı dolu": "Cota de estrangeiros cheia", "Bu mevkide yer yok": "Sem vaga nesta posição", "A takıma çıkarıldı": "Subiu ao time principal", "Alt yapıdan gönderildi": "Dispensado da base", "Bu oyuncu alt yapıdan gönderilsin mi?": "Dispensar este jogador da base?", "Alt yapıya katıldın": "Você entrou na base", "alt yapısına yerleştin!": "te levou para a sua base!", "Kendini burada geliştirebilir veya başka takımlar arayabilirsin.": "Você pode evoluir aqui ou procurar outros times.", "A takımda": "Time principal"});
+window.I18N_PATTERNS.pt.unshift(
+  [/^(.+?) alt yapıya katıldı\. Merhaba de!$/, "$1 entrou na base. Dê um oi!"],
+  [/^(.+?) A takıma çıktı\.$/, "$1 subiu ao time principal."],
+  [/^(.+?) alt yapıdan gönderildi\.$/, "$1 foi dispensado da base."],
+  [/^(.+?) alt yapıdan ayrıldı, yerini yeni gelen oyuncuya bıraktı\.$/, "$1 saiu da base e cedeu a vaga a um recém-chegado."],
+  [/^(.+?) alt yapıdan ayrıldı\.$/, "$1 saiu da base."]
+);
+
+/* 990b — otomatik gelen kutusu mesajları · alt yapıdan ayrılma onayı */
+Object.assign(window.I18N.pt, {"Kendini burada geliştirebilir veya başka takımlar arayabilirsin. Kaptan ve yardımcıları seni A takıma çıkarabilir; maaşın A takımda başlar.": "Você pode evoluir aqui ou procurar outros times. O capitão e os vices podem subir você ao time principal; seu salário começa no time principal.", "• Maaşın A takımda başlar.": "• Seu salário começa no time principal.", "Ceza yok; hemen yeni bir takıma katılabilirsin.": "Sem punição; você pode entrar em um novo time agora mesmo."});
+window.I18N_PATTERNS.pt.unshift(
+  [/^Alt Yapıya Katıldın — (.+)$/, "Você Entrou na Base — $1"],
+  [/^Hoş geldin (.+?)! Scout ekibimiz seni keşfetti ve (.+) alt yapısına yerleştirdi\.$/, "Bem-vindo, $1! Nossos olheiros descobriram você e o colocaram na base de $2."],
+  [/^A Takıma Çıktın — (.+)$/, "Subiu ao Time Principal — $1"],
+  [/^Tebrikler! (.+?) seni (.+) A takımına çıkardı\.$/, "Parabéns! $1 subiu você ao time principal de $2."],
+  [/^Alt Yapıdan Ayrıldın — (.+)$/, "Você Saiu da Base — $1"],
+  [/^(.+) yönetimi seni alt yapıdan gönderdi\.$/, "A diretoria de $1 dispensou você da base."],
+  [/^2 gündür oyuna girmediğin için (.+) alt yapısındaki yerini yeni gelen bir oyuncuya bıraktın\.$/, "Como você não jogou por 2 dias, cedeu sua vaga na base de $1 a um recém-chegado."],
+  [/^(.+?) alt yapısından ayrılmak istediğine emin misin\?\s+Ceza yok; hemen yeni bir takıma katılabilirsin\.$/, "Tem certeza de que quer sair da base de $1?\n\nSem punição; você pode entrar em um novo time agora mesmo."]
+);
