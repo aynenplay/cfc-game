@@ -8989,3 +8989,17 @@ window.I18N_PATTERNS.ru.unshift(
     [/^(\d+) gün içinde girmezsen (.+?) takımın 24 saat boyunca açık artırmaya çıkar; alan olmazsa kaptanlığın düşer\.$/, "Если не зайдёшь в течение $1 дн., твоя команда $2 уйдёт на аукцион на 24 часа; если никто не выиграет, ты потеряешь капитанство."]
   );
 })();
+
+/* 999 — Takım sohbeti bağış satırı · Kariyer › Takım Geçmişi */
+(function () {
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.ru; if (!P) return;
+  var N = function (x) { return Number(String(x).replace(/\./g, '')) || 0; };
+  var S = function (x) { return N(x).toLocaleString('ru-RU'); };
+  var D = function (x) { var n = N(x); return S(x) + ' ' + ((n % 10 === 1 && n % 100 !== 11) ? 'алмаз' : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)) ? 'алмаза' : 'алмазов'); };
+  P.unshift(
+    [/^(.+?) takıma ([\d.]+) € ve ([\d.]+) elmas bağışladı\.$/, function (m) { return m[1] + " пожертвовал(а) команде " + S(m[2]) + " € и " + D(m[3]) + "."; }],
+    [/^(.+?) takıma ([\d.]+) elmas bağışladı\.$/, function (m) { return m[1] + " пожертвовал(а) команде " + D(m[2]) + "."; }],
+    [/^(.+?) takıma ([\d.]+) € bağışladı\.$/, function (m) { return m[1] + " пожертвовал(а) команде " + S(m[2]) + " €."; }]
+  );
+  if (window.I18N && window.I18N.ru) Object.assign(window.I18N.ru, {"Takım Geçmişi": "История команд", "Henüz takım kaydı yok": "Пока нет истории команд"});
+})();

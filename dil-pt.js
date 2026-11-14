@@ -8948,3 +8948,17 @@ window.I18N_PATTERNS.pt.unshift(
     [/^(\d+) gün içinde girmezsen (.+?) takımın 24 saat boyunca açık artırmaya çıkar; alan olmazsa kaptanlığın düşer\.$/, "Se você não entrar em $1 dias, seu time $2 vai a leilão por 24 horas; se ninguém vencer, você perde a capitania."]
   );
 })();
+
+/* 999 — Takım sohbeti bağış satırı · Kariyer › Takım Geçmişi */
+(function () {
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.pt; if (!P) return;
+  var N = function (x) { return Number(String(x).replace(/\./g, '')) || 0; };
+  var S = function (x) { return N(x).toLocaleString('pt-BR'); };
+  var D = function (x) { var n = N(x); return S(x) + ' ' + (n === 1 ? 'diamante' : 'diamantes'); };
+  P.unshift(
+    [/^(.+?) takıma ([\d.]+) € ve ([\d.]+) elmas bağışladı\.$/, function (m) { return m[1] + " doou " + S(m[2]) + " € e " + D(m[3]) + " ao time."; }],
+    [/^(.+?) takıma ([\d.]+) elmas bağışladı\.$/, function (m) { return m[1] + " doou " + D(m[2]) + " ao time."; }],
+    [/^(.+?) takıma ([\d.]+) € bağışladı\.$/, function (m) { return m[1] + " doou " + S(m[2]) + " € ao time."; }]
+  );
+  if (window.I18N && window.I18N.pt) Object.assign(window.I18N.pt, {"Takım Geçmişi": "Histórico de times", "Henüz takım kaydı yok": "Ainda sem histórico de times"});
+})();
