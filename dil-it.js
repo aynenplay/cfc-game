@@ -8998,3 +8998,8 @@ window.I18N_PATTERNS.it.unshift(
 (function () {
   if (window.I18N && window.I18N.it) Object.assign(window.I18N.it, {"Rezervdekiler maça çıkmaz, maaş alır": "Le riserve non giocano, ma sono pagate"});
 })();
+
+/* 1006 — tesis sıralaması */
+(function () {
+  if (window.I18N && window.I18N.it) Object.assign(window.I18N.it, {"tesis": "strutture"});
+})();

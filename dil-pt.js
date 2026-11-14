@@ -8992,3 +8992,8 @@ window.I18N_PATTERNS.pt.unshift(
 (function () {
   if (window.I18N && window.I18N.pt) Object.assign(window.I18N.pt, {"Rezervdekiler maça çıkmaz, maaş alır": "Reserva não joga, mas recebe salário"});
 })();
+
+/* 1006 — tesis sıralaması */
+(function () {
+  if (window.I18N && window.I18N.pt) Object.assign(window.I18N.pt, {"tesis": "estrutura"});
+})();

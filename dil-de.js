@@ -7368,3 +7368,8 @@ window.I18N_PATTERNS.de.unshift(
 (function () {
   if (window.I18N && window.I18N.de) Object.assign(window.I18N.de, {"Rezervdekiler maça çıkmaz, maaş alır": "Reserve spielt nicht, bekommt aber Gehalt"});
 })();
+
+/* 1006 — tesis sıralaması */
+(function () {
+  if (window.I18N && window.I18N.de) Object.assign(window.I18N.de, {"tesis": "Anlagen"});
+})();

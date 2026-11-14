@@ -9060,3 +9060,8 @@ window.I18N_PATTERNS.fr.unshift(
 (function () {
   if (window.I18N && window.I18N.fr) Object.assign(window.I18N.fr, {"Rezervdekiler maça çıkmaz, maaş alır": "La réserve ne joue pas mais est payée"});
 })();
+
+/* 1006 — tesis sıralaması */
+(function () {
+  if (window.I18N && window.I18N.fr) Object.assign(window.I18N.fr, {"tesis": "bâtiments"});
+})();

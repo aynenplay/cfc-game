@@ -9033,3 +9033,8 @@ window.I18N_PATTERNS.ru.unshift(
 (function () {
   if (window.I18N && window.I18N.ru) Object.assign(window.I18N.ru, {"Rezervdekiler maça çıkmaz, maaş alır": "Резерв не играет, но получает зарплату"});
 })();
+
+/* 1006 — tesis sıralaması */
+(function () {
+  if (window.I18N && window.I18N.ru) Object.assign(window.I18N.ru, {"tesis": "здания"});
+})();

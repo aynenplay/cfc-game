@@ -9000,3 +9000,8 @@ window.I18N_PATTERNS.es.unshift(
 (function () {
   if (window.I18N && window.I18N.es) Object.assign(window.I18N.es, {"Rezervdekiler maça çıkmaz, maaş alır": "La reserva no juega, pero cobra sueldo"});
 })();
+
+/* 1006 — tesis sıralaması */
+(function () {
+  if (window.I18N && window.I18N.es) Object.assign(window.I18N.es, {"tesis": "edificios"});
+})();

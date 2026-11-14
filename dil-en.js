@@ -9432,3 +9432,8 @@ window.I18N_PATTERNS.en.unshift(
 (function () {
   if (window.I18N && window.I18N.en) Object.assign(window.I18N.en, {"Rezervdekiler maça çıkmaz, maaş alır": "Reserves don't play but get a wage"});
 })();
+
+/* 1006 — tesis sıralaması */
+(function () {
+  if (window.I18N && window.I18N.en) Object.assign(window.I18N.en, {"tesis": "facilities"});
+})();
