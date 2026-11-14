@@ -8987,3 +8987,8 @@ window.I18N_PATTERNS.pt.unshift(
 (function () {
   if (window.I18N && window.I18N.pt) Object.assign(window.I18N.pt, {"Alt Yapı Kontenjanı": "Cota da base", "Yeni kayıtlar boş koltuklara yerleşir": "Novos jogadores ocupam as vagas livres", "Dolu · 2 gün girmeyenin yeri yeni gelene verilir": "Cheia · 2 dias inativo cede a vaga a um novato", "Rezerv takım: kaptan ve yardımcılar alt yapıdan ya da A takımdan oyuncu alabilir. Rezerv oyuncusu maça çıkmaz ama maaş alır; istediği zaman cezasız ayrılabilir.": "Reserva: o capitão e os vice-capitães podem subir jogadores da base ou descer do time principal. Jogadores da reserva não jogam partidas, mas recebem salário, e podem sair quando quiserem sem punição.", "• Rezervde maaşın başlar; maçlara A takıma çıkınca oynarsın.": "• Na reserva você recebe salário; joga partidas quando subir ao time principal.", "• Rezervde maça çıkmazsın; maaşın devam eder.": "• Na reserva você não joga partidas; seu salário continua."});
 })();
+
+/* 1005 — rezerv bilgi satırı */
+(function () {
+  if (window.I18N && window.I18N.pt) Object.assign(window.I18N.pt, {"Rezervdekiler maça çıkmaz, maaş alır": "Reserva não joga, mas recebe salário"});
+})();

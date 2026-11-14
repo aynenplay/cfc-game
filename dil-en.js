@@ -9427,3 +9427,8 @@ window.I18N_PATTERNS.en.unshift(
 (function () {
   if (window.I18N && window.I18N.en) Object.assign(window.I18N.en, {"Alt Yapı Kontenjanı": "Academy Quota", "Yeni kayıtlar boş koltuklara yerleşir": "New sign-ups fill the empty seats", "Dolu · 2 gün girmeyenin yeri yeni gelene verilir": "Full · 2 days inactive loses the seat", "Rezerv takım: kaptan ve yardımcılar alt yapıdan ya da A takımdan oyuncu alabilir. Rezerv oyuncusu maça çıkmaz ama maaş alır; istediği zaman cezasız ayrılabilir.": "Reserves: the captain and vice-captains can bring players up from the academy or down from the first team. Reserve players don't play matches but do get a wage, and can leave any time without penalty.", "• Rezervde maaşın başlar; maçlara A takıma çıkınca oynarsın.": "• Your wage starts in the reserves; you play matches once you move up to the first team.", "• Rezervde maça çıkmazsın; maaşın devam eder.": "• You don't play matches in the reserves; your wage continues."});
 })();
+
+/* 1005 — rezerv bilgi satırı */
+(function () {
+  if (window.I18N && window.I18N.en) Object.assign(window.I18N.en, {"Rezervdekiler maça çıkmaz, maaş alır": "Reserves don't play but get a wage"});
+})();
