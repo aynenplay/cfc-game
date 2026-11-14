@@ -8990,3 +8990,8 @@ window.I18N_PATTERNS.es.unshift(
     [/^(.+?) rezerv takımından ayrılmak istediğine emin misin\?\s+Ceza yok; hemen yeni bir takıma katılabilirsin\.$/, "¿Seguro que quieres dejar la reserva de $1?\n\nSin sanción; puedes unirte a un nuevo equipo enseguida."]
   );
 })();
+
+/* 1001 — Alt Yapı kontenjanı · rezerv maaş */
+(function () {
+  if (window.I18N && window.I18N.es) Object.assign(window.I18N.es, {"Alt Yapı Kontenjanı": "Cupo de la cantera", "Yeni kayıtlar boş koltuklara yerleşir": "Los nuevos jugadores ocupan las plazas libres", "Dolu · 2 gün girmeyenin yeri yeni gelene verilir": "Llena · 2 días inactivo cede la plaza a un nuevo", "Rezerv takım: kaptan ve yardımcılar alt yapıdan ya da A takımdan oyuncu alabilir. Rezerv oyuncusu maça çıkmaz ama maaş alır; istediği zaman cezasız ayrılabilir.": "Reserva: el capitán y los vicecapitanes pueden subir jugadores de la cantera o bajarlos del primer equipo. Los jugadores de la reserva no juegan partidos pero sí cobran sueldo, y pueden irse cuando quieran sin sanción.", "• Rezervde maaşın başlar; maçlara A takıma çıkınca oynarsın.": "• En la reserva cobras sueldo; jugarás partidos cuando subas al primer equipo.", "• Rezervde maça çıkmazsın; maaşın devam eder.": "• En la reserva no juegas partidos; tu sueldo continúa."});
+})();

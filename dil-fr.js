@@ -9050,3 +9050,8 @@ window.I18N_PATTERNS.fr.unshift(
     [/^(.+?) rezerv takımından ayrılmak istediğine emin misin\?\s+Ceza yok; hemen yeni bir takıma katılabilirsin\.$/, "Veux-tu vraiment quitter la réserve de $1 ?\n\nAucune pénalité ; tu peux rejoindre une nouvelle équipe tout de suite."]
   );
 })();
+
+/* 1001 — Alt Yapı kontenjanı · rezerv maaş */
+(function () {
+  if (window.I18N && window.I18N.fr) Object.assign(window.I18N.fr, {"Alt Yapı Kontenjanı": "Quota de l'académie", "Yeni kayıtlar boş koltuklara yerleşir": "Les nouveaux joueurs occupent les places libres", "Dolu · 2 gün girmeyenin yeri yeni gelene verilir": "Complet · 2 jours inactif = place libérée", "Rezerv takım: kaptan ve yardımcılar alt yapıdan ya da A takımdan oyuncu alabilir. Rezerv oyuncusu maça çıkmaz ama maaş alır; istediği zaman cezasız ayrılabilir.": "Réserve : le capitaine et les vice-capitaines peuvent faire monter des joueurs de l'académie ou descendre de l'équipe première. Les joueurs de la réserve ne jouent pas de matchs mais touchent un salaire, et peuvent partir à tout moment sans pénalité.", "• Rezervde maaşın başlar; maçlara A takıma çıkınca oynarsın.": "• En réserve, tu touches un salaire ; tu joueras des matchs une fois promu en équipe première.", "• Rezervde maça çıkmazsın; maaşın devam eder.": "• En réserve, tu ne joues pas de matchs ; ton salaire continue."});
+})();

@@ -9023,3 +9023,8 @@ window.I18N_PATTERNS.ru.unshift(
     [/^(.+?) rezerv takımından ayrılmak istediğine emin misin\?\s+Ceza yok; hemen yeni bir takıma katılabilirsin\.$/, "Точно хочешь покинуть резерв $1?\n\nБез штрафа; можно сразу вступить в новую команду."]
   );
 })();
+
+/* 1001 — Alt Yapı kontenjanı · rezerv maaş */
+(function () {
+  if (window.I18N && window.I18N.ru) Object.assign(window.I18N.ru, {"Alt Yapı Kontenjanı": "Лимит академии", "Yeni kayıtlar boş koltuklara yerleşir": "Новые игроки занимают свободные места", "Dolu · 2 gün girmeyenin yeri yeni gelene verilir": "Заполнено · 2 дня неактивен — место новичку", "Rezerv takım: kaptan ve yardımcılar alt yapıdan ya da A takımdan oyuncu alabilir. Rezerv oyuncusu maça çıkmaz ama maaş alır; istediği zaman cezasız ayrılabilir.": "Резерв: капитан и вице-капитаны могут переводить игроков из академии или из основы. Игроки резерва не играют матчи, но получают зарплату и могут уйти в любой момент без штрафа.", "• Rezervde maaşın başlar; maçlara A takıma çıkınca oynarsın.": "• В резерве ты получаешь зарплату; матчи будешь играть после перевода в основу.", "• Rezervde maça çıkmazsın; maaşın devam eder.": "• В резерве ты не играешь матчи; зарплата продолжается."});
+})();

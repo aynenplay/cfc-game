@@ -8988,3 +8988,8 @@ window.I18N_PATTERNS.it.unshift(
     [/^(.+?) rezerv takımından ayrılmak istediğine emin misin\?\s+Ceza yok; hemen yeni bir takıma katılabilirsin\.$/, "Vuoi davvero lasciare le riserve di $1?\n\nNessuna penalità; puoi entrare subito in una nuova squadra."]
   );
 })();
+
+/* 1001 — Alt Yapı kontenjanı · rezerv maaş */
+(function () {
+  if (window.I18N && window.I18N.it) Object.assign(window.I18N.it, {"Alt Yapı Kontenjanı": "Quota giovanili", "Yeni kayıtlar boş koltuklara yerleşir": "I nuovi giocatori occupano i posti liberi", "Dolu · 2 gün girmeyenin yeri yeni gelene verilir": "Completo · 2 giorni inattivo perde il posto", "Rezerv takım: kaptan ve yardımcılar alt yapıdan ya da A takımdan oyuncu alabilir. Rezerv oyuncusu maça çıkmaz ama maaş alır; istediği zaman cezasız ayrılabilir.": "Riserve: il capitano e i vice possono far salire giocatori dalle giovanili o scendere dalla prima squadra. I giocatori delle riserve non giocano partite ma ricevono lo stipendio, e possono andarsene quando vogliono senza penalità.", "• Rezervde maaşın başlar; maçlara A takıma çıkınca oynarsın.": "• Nelle riserve ricevi lo stipendio; giocherai le partite quando salirai in prima squadra.", "• Rezervde maça çıkmazsın; maaşın devam eder.": "• Nelle riserve non giochi partite; lo stipendio continua."});
+})();
