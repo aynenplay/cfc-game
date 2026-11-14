@@ -7338,3 +7338,23 @@ window.I18N_PATTERNS.de.unshift(
   );
   if (window.I18N && window.I18N.de) Object.assign(window.I18N.de, {"Takım Geçmişi": "Team-Historie", "Henüz takım kaydı yok": "Noch keine Team-Historie"});
 })();
+
+/* 1000 — Rezerv Takım */
+(function () {
+  if (window.I18N && window.I18N.de) Object.assign(window.I18N.de, {"Rezerv": "Reserve", "Boş koltuk": "Freier Platz", "Kontenjanı Artır": "Kontingent erhöhen", "Rezerv Kontenjanı": "Reserve-Kontingent", "koltuk": "Plätze", "Takım kasası": "Teamkasse", "Rezerve Çıkar": "In die Reserve", "Rezervden Gönder": "Aus der Reserve entlassen", "Rezerve katılış": "In der Reserve seit", "Rezerve Gönder": "In die Reserve schicken", "Rezerv dolu": "Reserve voll", "A takımdan": "Aus der ersten Mannschaft", "Alt yapıdan": "Aus der Akademie", "Rezerve çıkarıldı": "In die Reserve versetzt", "Rezerv takıma gönderildi": "In die Reserve geschickt", "Rezervden gönderildi": "Aus der Reserve entlassen", "Kontenjan artırıldı": "Kontingent erhöht", "Kasada yeterli elmas ya da euro yok": "Nicht genug Diamanten oder Euro in der Kasse", "Bu oyuncu rezerv takıma gönderilsin mi?": "Diesen Spieler in die Reserve schicken?", "Bu oyuncu rezervden gönderilsin mi?": "Diesen Spieler aus der Reserve entlassen?", "Rezerv takım: kaptan ve yardımcılar alt yapıdan ya da A takımdan oyuncu alabilir. Rezerv oyuncusu maça çıkmaz, maaş almaz; istediği zaman cezasız ayrılabilir.": "Reserve: Kapitän und Vizes können Spieler aus der Akademie hoch- oder aus der ersten Mannschaft herunterholen. Reservespieler spielen keine Spiele, bekommen kein Gehalt und können jederzeit ohne Strafe gehen.", "Rezerv kontenjanı 1 ile başlar; takım kasasından 5'e kadar artırılır.": "Das Reserve-Kontingent beginnt bei 1 und kann über die Teamkasse auf 5 erhöht werden.", "• Rezervde maça çıkmazsın; maaşın A takıma dönünce başlar.": "• In der Reserve spielst du keine Spiele; dein Gehalt beginnt wieder, wenn du in die erste Mannschaft zurückkehrst."});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.de; if (!P) return;
+  P.unshift(
+    [/^(.+?) alt yapıdan rezerv takıma çıktı\.$/, "$1 ist aus der Akademie in die Reserve aufgestiegen."],
+    [/^(.+?) rezerv takıma alındı\.$/, "$1 wurde in die Reserve versetzt."],
+    [/^(.+?) rezerv takımdan gönderildi\.$/, "$1 wurde aus der Reserve entlassen."],
+    [/^Rezerv takım kontenjanı (\d+) oldu\.$/, "Das Reserve-Kontingent beträgt jetzt $1."],
+    [/^Rezerv Takıma Çıktın — (.+)$/, "In die Reserve aufgestiegen — $1"],
+    [/^Rezerv Takıma Alındın — (.+)$/, "In die Reserve versetzt — $1"],
+    [/^Rezerv Takımdan Ayrıldın — (.+)$/, "Reserve verlassen — $1"],
+    [/^Tebrikler! (.+?) seni (.+) rezerv takımına çıkardı\.$/, "Glückwunsch! $1 hat dich in die Reserve von $2 geholt."],
+    [/^(.+?) seni (.+) rezerv takımına aldı\.$/, "$1 hat dich in die Reserve von $2 versetzt."],
+    [/^• Hak ettiğin maaş ödendi: ([\d.]+) €$/, "• Dein verdientes Gehalt wurde ausgezahlt: $1 €"],
+    [/^(.+) yönetimi seni rezerv takımdan gönderdi\.$/, "Die Leitung von $1 hat dich aus der Reserve entlassen."],
+    [/^(.+?) rezerv takımından ayrılmak istediğine emin misin\?\s+Ceza yok; hemen yeni bir takıma katılabilirsin\.$/, "Willst du die Reserve von $1 wirklich verlassen?\n\nKeine Strafe; du kannst sofort einem neuen Team beitreten."]
+  );
+})();

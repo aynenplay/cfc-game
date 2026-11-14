@@ -8970,3 +8970,23 @@ window.I18N_PATTERNS.es.unshift(
   );
   if (window.I18N && window.I18N.es) Object.assign(window.I18N.es, {"Takım Geçmişi": "Historial de equipos", "Henüz takım kaydı yok": "Aún no hay historial de equipos"});
 })();
+
+/* 1000 — Rezerv Takım */
+(function () {
+  if (window.I18N && window.I18N.es) Object.assign(window.I18N.es, {"Rezerv": "Reserva", "Boş koltuk": "Plaza libre", "Kontenjanı Artır": "Aumentar cupo", "Rezerv Kontenjanı": "Cupo de reserva", "koltuk": "plazas", "Takım kasası": "Caja del equipo", "Rezerve Çıkar": "Subir a la Reserva", "Rezervden Gönder": "Liberar de la Reserva", "Rezerve katılış": "En la reserva desde", "Rezerve Gönder": "Enviar a la Reserva", "Rezerv dolu": "Reserva llena", "A takımdan": "Del primer equipo", "Alt yapıdan": "De la cantera", "Rezerve çıkarıldı": "Subido a la reserva", "Rezerv takıma gönderildi": "Enviado a la reserva", "Rezervden gönderildi": "Liberado de la reserva", "Kontenjan artırıldı": "Cupo aumentado", "Kasada yeterli elmas ya da euro yok": "No hay suficientes diamantes o euros en la caja", "Bu oyuncu rezerv takıma gönderilsin mi?": "¿Enviar a este jugador a la reserva?", "Bu oyuncu rezervden gönderilsin mi?": "¿Liberar a este jugador de la reserva?", "Rezerv takım: kaptan ve yardımcılar alt yapıdan ya da A takımdan oyuncu alabilir. Rezerv oyuncusu maça çıkmaz, maaş almaz; istediği zaman cezasız ayrılabilir.": "Reserva: el capitán y los vicecapitanes pueden subir jugadores de la cantera o bajarlos del primer equipo. Los jugadores de la reserva no juegan partidos ni cobran sueldo, y pueden irse cuando quieran sin sanción.", "Rezerv kontenjanı 1 ile başlar; takım kasasından 5'e kadar artırılır.": "El cupo de reserva empieza en 1 y puede subir hasta 5 con la caja del equipo.", "• Rezervde maça çıkmazsın; maaşın A takıma dönünce başlar.": "• En la reserva no juegas partidos; tu sueldo vuelve a empezar cuando regreses al primer equipo."});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.es; if (!P) return;
+  P.unshift(
+    [/^(.+?) alt yapıdan rezerv takıma çıktı\.$/, "$1 subió de la cantera a la reserva."],
+    [/^(.+?) rezerv takıma alındı\.$/, "$1 fue enviado a la reserva."],
+    [/^(.+?) rezerv takımdan gönderildi\.$/, "$1 fue liberado de la reserva."],
+    [/^Rezerv takım kontenjanı (\d+) oldu\.$/, "El cupo de reserva ahora es $1."],
+    [/^Rezerv Takıma Çıktın — (.+)$/, "Subiste a la Reserva — $1"],
+    [/^Rezerv Takıma Alındın — (.+)$/, "Enviado a la Reserva — $1"],
+    [/^Rezerv Takımdan Ayrıldın — (.+)$/, "Dejaste la Reserva — $1"],
+    [/^Tebrikler! (.+?) seni (.+) rezerv takımına çıkardı\.$/, "¡Enhorabuena! $1 te subió a la reserva de $2."],
+    [/^(.+?) seni (.+) rezerv takımına aldı\.$/, "$1 te envió a la reserva de $2."],
+    [/^• Hak ettiğin maaş ödendi: ([\d.]+) €$/, "• Se pagó el sueldo que ganaste: $1 €"],
+    [/^(.+) yönetimi seni rezerv takımdan gönderdi\.$/, "La directiva de $1 te liberó de la reserva."],
+    [/^(.+?) rezerv takımından ayrılmak istediğine emin misin\?\s+Ceza yok; hemen yeni bir takıma katılabilirsin\.$/, "¿Seguro que quieres dejar la reserva de $1?\n\nSin sanción; puedes unirte a un nuevo equipo enseguida."]
+  );
+})();

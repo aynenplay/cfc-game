@@ -9402,3 +9402,23 @@ window.I18N_PATTERNS.en.unshift(
   );
   if (window.I18N && window.I18N.en) Object.assign(window.I18N.en, {"Takım Geçmişi": "Team History", "Henüz takım kaydı yok": "No team history yet"});
 })();
+
+/* 1000 — Rezerv Takım */
+(function () {
+  if (window.I18N && window.I18N.en) Object.assign(window.I18N.en, {"Rezerv": "Reserves", "Boş koltuk": "Empty seat", "Kontenjanı Artır": "Increase Quota", "Rezerv Kontenjanı": "Reserve Quota", "koltuk": "seats", "Takım kasası": "Team treasury", "Rezerve Çıkar": "Move to Reserves", "Rezervden Gönder": "Release from Reserves", "Rezerve katılış": "Joined reserves", "Rezerve Gönder": "Send to Reserves", "Rezerv dolu": "Reserves full", "A takımdan": "From first team", "Alt yapıdan": "From academy", "Rezerve çıkarıldı": "Moved to reserves", "Rezerv takıma gönderildi": "Sent to reserves", "Rezervden gönderildi": "Released from reserves", "Kontenjan artırıldı": "Quota increased", "Kasada yeterli elmas ya da euro yok": "Not enough diamonds or euros in the treasury", "Bu oyuncu rezerv takıma gönderilsin mi?": "Send this player to the reserves?", "Bu oyuncu rezervden gönderilsin mi?": "Release this player from the reserves?", "Rezerv takım: kaptan ve yardımcılar alt yapıdan ya da A takımdan oyuncu alabilir. Rezerv oyuncusu maça çıkmaz, maaş almaz; istediği zaman cezasız ayrılabilir.": "Reserves: the captain and vice-captains can bring players up from the academy or down from the first team. Reserve players don't play matches or get a wage, and can leave any time without penalty.", "Rezerv kontenjanı 1 ile başlar; takım kasasından 5'e kadar artırılır.": "The reserve quota starts at 1 and can be raised to 5 with the team treasury.", "• Rezervde maça çıkmazsın; maaşın A takıma dönünce başlar.": "• You don't play matches in the reserves; your wage starts again when you return to the first team."});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.en; if (!P) return;
+  P.unshift(
+    [/^(.+?) alt yapıdan rezerv takıma çıktı\.$/, "$1 moved up from the academy to the reserves."],
+    [/^(.+?) rezerv takıma alındı\.$/, "$1 was moved to the reserves."],
+    [/^(.+?) rezerv takımdan gönderildi\.$/, "$1 was released from the reserves."],
+    [/^Rezerv takım kontenjanı (\d+) oldu\.$/, "Reserve quota is now $1."],
+    [/^Rezerv Takıma Çıktın — (.+)$/, "Moved Up to the Reserves — $1"],
+    [/^Rezerv Takıma Alındın — (.+)$/, "Moved to the Reserves — $1"],
+    [/^Rezerv Takımdan Ayrıldın — (.+)$/, "You Left the Reserves — $1"],
+    [/^Tebrikler! (.+?) seni (.+) rezerv takımına çıkardı\.$/, "Congratulations! $1 moved you up to the $2 reserves."],
+    [/^(.+?) seni (.+) rezerv takımına aldı\.$/, "$1 moved you to the $2 reserves."],
+    [/^• Hak ettiğin maaş ödendi: ([\d.]+) €$/, "• Your earned wage was paid: $1 €"],
+    [/^(.+) yönetimi seni rezerv takımdan gönderdi\.$/, "The $1 management released you from the reserves."],
+    [/^(.+?) rezerv takımından ayrılmak istediğine emin misin\?\s+Ceza yok; hemen yeni bir takıma katılabilirsin\.$/, "Are you sure you want to leave the $1 reserves?\n\nNo penalty; you can join a new team right away."]
+  );
+})();

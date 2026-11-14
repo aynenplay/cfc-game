@@ -9003,3 +9003,23 @@ window.I18N_PATTERNS.ru.unshift(
   );
   if (window.I18N && window.I18N.ru) Object.assign(window.I18N.ru, {"Takım Geçmişi": "История команд", "Henüz takım kaydı yok": "Пока нет истории команд"});
 })();
+
+/* 1000 — Rezerv Takım */
+(function () {
+  if (window.I18N && window.I18N.ru) Object.assign(window.I18N.ru, {"Rezerv": "Резерв", "Boş koltuk": "Свободное место", "Kontenjanı Artır": "Увеличить лимит", "Rezerv Kontenjanı": "Лимит резерва", "koltuk": "мест", "Takım kasası": "Казна команды", "Rezerve Çıkar": "Перевести в резерв", "Rezervden Gönder": "Отчислить из резерва", "Rezerve katılış": "В резерве с", "Rezerve Gönder": "Отправить в резерв", "Rezerv dolu": "Резерв заполнен", "A takımdan": "Из основы", "Alt yapıdan": "Из академии", "Rezerve çıkarıldı": "Переведён в резерв", "Rezerv takıma gönderildi": "Отправлен в резерв", "Rezervden gönderildi": "Отчислен из резерва", "Kontenjan artırıldı": "Лимит увеличен", "Kasada yeterli elmas ya da euro yok": "В казне не хватает алмазов или евро", "Bu oyuncu rezerv takıma gönderilsin mi?": "Отправить этого игрока в резерв?", "Bu oyuncu rezervden gönderilsin mi?": "Отчислить этого игрока из резерва?", "Rezerv takım: kaptan ve yardımcılar alt yapıdan ya da A takımdan oyuncu alabilir. Rezerv oyuncusu maça çıkmaz, maaş almaz; istediği zaman cezasız ayrılabilir.": "Резерв: капитан и вице-капитаны могут переводить игроков из академии или из основы. Игроки резерва не играют матчи и не получают зарплату; уйти можно в любой момент без штрафа.", "Rezerv kontenjanı 1 ile başlar; takım kasasından 5'e kadar artırılır.": "Лимит резерва начинается с 1 и увеличивается до 5 из казны команды.", "• Rezervde maça çıkmazsın; maaşın A takıma dönünce başlar.": "• В резерве ты не играешь матчи; зарплата возобновится, когда вернёшься в основу."});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.ru; if (!P) return;
+  P.unshift(
+    [/^(.+?) alt yapıdan rezerv takıma çıktı\.$/, "$1 переведён из академии в резерв."],
+    [/^(.+?) rezerv takıma alındı\.$/, "$1 отправлен в резерв."],
+    [/^(.+?) rezerv takımdan gönderildi\.$/, "$1 отчислен из резерва."],
+    [/^Rezerv takım kontenjanı (\d+) oldu\.$/, "Лимит резерва теперь $1."],
+    [/^Rezerv Takıma Çıktın — (.+)$/, "Переведён в резерв — $1"],
+    [/^Rezerv Takıma Alındın — (.+)$/, "Отправлен в резерв — $1"],
+    [/^Rezerv Takımdan Ayrıldın — (.+)$/, "Ты покинул резерв — $1"],
+    [/^Tebrikler! (.+?) seni (.+) rezerv takımına çıkardı\.$/, "Поздравляем! $1 перевёл тебя в резерв $2."],
+    [/^(.+?) seni (.+) rezerv takımına aldı\.$/, "$1 отправил тебя в резерв $2."],
+    [/^• Hak ettiğin maaş ödendi: ([\d.]+) €$/, "• Заработанная зарплата выплачена: $1 €"],
+    [/^(.+) yönetimi seni rezerv takımdan gönderdi\.$/, "Руководство $1 отчислило тебя из резерва."],
+    [/^(.+?) rezerv takımından ayrılmak istediğine emin misin\?\s+Ceza yok; hemen yeni bir takıma katılabilirsin\.$/, "Точно хочешь покинуть резерв $1?\n\nБез штрафа; можно сразу вступить в новую команду."]
+  );
+})();
