@@ -7408,3 +7408,9 @@ window.I18N_PATTERNS.de.unshift(
   var S = window.I18N && window.I18N.de;
   if (S) Object.assign(S, {"Engelli": "Gesperrt"});
 })();
+
+/* 1024 — Sıralama Özeti › Ligler alt yazısı */
+(function () {
+  var S = window.I18N && window.I18N.de;
+  if (S) Object.assign(S, {"Ülke puanı": "Länderpunkte"});
+})();

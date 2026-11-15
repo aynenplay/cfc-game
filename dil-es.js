@@ -9040,3 +9040,9 @@ window.I18N_PATTERNS.es.unshift(
   var S = window.I18N && window.I18N.es;
   if (S) Object.assign(S, {"Engelli": "Bloqueado"});
 })();
+
+/* 1024 — Sıralama Özeti › Ligler alt yazısı */
+(function () {
+  var S = window.I18N && window.I18N.es;
+  if (S) Object.assign(S, {"Ülke puanı": "Puntos de país"});
+})();

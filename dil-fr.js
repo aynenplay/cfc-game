@@ -9100,3 +9100,9 @@ window.I18N_PATTERNS.fr.unshift(
   var S = window.I18N && window.I18N.fr;
   if (S) Object.assign(S, {"Engelli": "Bloqué"});
 })();
+
+/* 1024 — Sıralama Özeti › Ligler alt yazısı */
+(function () {
+  var S = window.I18N && window.I18N.fr;
+  if (S) Object.assign(S, {"Ülke puanı": "Points pays"});
+})();

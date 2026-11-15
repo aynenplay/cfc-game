@@ -9472,3 +9472,9 @@ window.I18N_PATTERNS.en.unshift(
   var S = window.I18N && window.I18N.en;
   if (S) Object.assign(S, {"Engelli": "Banned"});
 })();
+
+/* 1024 — Sıralama Özeti › Ligler alt yazısı */
+(function () {
+  var S = window.I18N && window.I18N.en;
+  if (S) Object.assign(S, {"Ülke puanı": "Country points"});
+})();
