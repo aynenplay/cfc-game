@@ -9038,3 +9038,14 @@ window.I18N_PATTERNS.ru.unshift(
 (function () {
   if (window.I18N && window.I18N.ru) Object.assign(window.I18N.ru, {"tesis": "здания"});
 })();
+
+/* 1011 — National Cup */
+(function () {
+  var S = window.I18N && window.I18N.ru, P = window.I18N_PATTERNS && window.I18N_PATTERNS.ru;
+  if (S) Object.assign(S, {"Ülkenin kupası": "Кубок страны", "National Cup 6. sezonda başlıyor · Kura": "National Cup стартует в 6-м сезоне · Жеребьёвка", "Kura sezonun ilk günü çekilir": "Жеребьёвка проходит в первый день сезона", "1. Tur": "1-й раунд", "2. Tur": "2-й раунд", "Bay": "Без игры", "Tur atladı": "Прошла дальше", "Ulusal kupa": "Национальный кубок", "• Kupa takım vitrinine eklendi.": "• Трофей добавлен в витрину команды."});
+  if (P) P.unshift(
+    [/^(.+?) National Cup Şampiyonu!$/, function (m) { return m[1] + ' — чемпион National Cup!'; }],
+    [/^(.+?) (\d+)\. sezon National Cup şampiyonu oldu\.$/, function (m) { return m[1] + ' выиграл National Cup ' + m[2] + '-го сезона.'; }],
+    [/^National Cup · (.+)$/, function (m) { return 'National Cup · ' + ((S && S[m[1]]) || m[1]); }]
+  );
+})();

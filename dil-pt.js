@@ -8997,3 +8997,14 @@ window.I18N_PATTERNS.pt.unshift(
 (function () {
   if (window.I18N && window.I18N.pt) Object.assign(window.I18N.pt, {"tesis": "estrutura"});
 })();
+
+/* 1011 — National Cup */
+(function () {
+  var S = window.I18N && window.I18N.pt, P = window.I18N_PATTERNS && window.I18N_PATTERNS.pt;
+  if (S) Object.assign(S, {"Ülkenin kupası": "A taça do país", "National Cup 6. sezonda başlıyor · Kura": "A National Cup começa na temporada 6 · Sorteio", "Kura sezonun ilk günü çekilir": "O sorteio acontece no primeiro dia da temporada", "1. Tur": "1ª fase", "2. Tur": "2ª fase", "Bay": "Isento", "Tur atladı": "Avançou", "Ulusal kupa": "Taça nacional", "• Kupa takım vitrinine eklendi.": "• O troféu foi adicionado à vitrine do time."});
+  if (P) P.unshift(
+    [/^(.+?) National Cup Şampiyonu!$/, function (m) { return m[1] + ' campeão da National Cup!'; }],
+    [/^(.+?) (\d+)\. sezon National Cup şampiyonu oldu\.$/, function (m) { return m[1] + ' venceu a National Cup da temporada ' + m[2] + '.'; }],
+    [/^National Cup · (.+)$/, function (m) { return 'National Cup · ' + ((S && S[m[1]]) || m[1]); }]
+  );
+})();

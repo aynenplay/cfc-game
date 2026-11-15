@@ -9065,3 +9065,14 @@ window.I18N_PATTERNS.fr.unshift(
 (function () {
   if (window.I18N && window.I18N.fr) Object.assign(window.I18N.fr, {"tesis": "bâtiments"});
 })();
+
+/* 1011 — National Cup */
+(function () {
+  var S = window.I18N && window.I18N.fr, P = window.I18N_PATTERNS && window.I18N_PATTERNS.fr;
+  if (S) Object.assign(S, {"Ülkenin kupası": "La coupe du pays", "National Cup 6. sezonda başlıyor · Kura": "La National Cup commence à la saison 6 · Tirage", "Kura sezonun ilk günü çekilir": "Le tirage a lieu le premier jour de la saison", "1. Tur": "1er tour", "2. Tur": "2e tour", "Bay": "Exempt", "Tur atladı": "Qualifié", "Ulusal kupa": "Coupe nationale", "• Kupa takım vitrinine eklendi.": "• Le trophée a été ajouté à la vitrine de l'équipe."});
+  if (P) P.unshift(
+    [/^(.+?) National Cup Şampiyonu!$/, function (m) { return m[1] + ' champion de la National Cup !'; }],
+    [/^(.+?) (\d+)\. sezon National Cup şampiyonu oldu\.$/, function (m) { return m[1] + ' a remporté la National Cup de la saison ' + m[2] + '.'; }],
+    [/^National Cup · (.+)$/, function (m) { return 'National Cup · ' + ((S && S[m[1]]) || m[1]); }]
+  );
+})();
