@@ -7402,3 +7402,9 @@ window.I18N_PATTERNS.de.unshift(
   var S = window.I18N && window.I18N.de;
   if (S) Object.assign(S, {"CSC Media'da 3 saatte bir paylaşım yapabilirsin.": "Du kannst auf CSC Media alle 3 Stunden einen Beitrag veröffentlichen.", "CSC Media'da paylaşım ve yorum yapman engellendi.": "Du wurdest für Beiträge und Kommentare auf CSC Media gesperrt.", "Bu oyuncu teklifinizi zaten reddetti. 24 saat boyunca tekrar teklif gönderilemez.": "Dieser Spieler hat dein Angebot bereits abgelehnt. 24 Stunden lang kann kein neues Angebot gesendet werden.", "Takımınızın bu oyuncuya bekleyen bir teklifi var. Oyuncu yanıt verene kadar yeni teklif gönderilemez.": "Dein Team hat diesem Spieler bereits ein offenes Angebot gemacht. Bis der Spieler antwortet, kann kein neues Angebot gesendet werden."});
 })();
+
+/* 1020 — CSC Media engel etiketi */
+(function () {
+  var S = window.I18N && window.I18N.de;
+  if (S) Object.assign(S, {"Engelli": "Gesperrt"});
+})();
