@@ -26372,8 +26372,8 @@ body.pd-acik{overflow:hidden}
   </div>
 </div>
 
-<script src="js/oyun.2454c987.js"></script>
-<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.2454c987.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
+<script src="js/oyun.0ba7a427.js"></script>
+<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.0ba7a427.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
 
 <nav id="bottomnav">
   <button class="nav-btn active" onclick="showPage('home',this)"><div class="nav-icon">🏠</div><div class="nav-label">Menü</div></button>
@@ -45745,7 +45745,7 @@ html.hafif .trk-ag .trnag-tab.active{background-color:var(--acc)!important}
 const _NC = {
   ILK: 6,
   SIRA: ['r128', 'r64', 'r32', 'r16', 'qf', 'sf', 'final'],
-  GUN: { r128: 15, r64: 16, r32: 17, r16: 18, qf: 22, sf: 24, final: 30 },
+  GUN: { r128: 5, r64: 9, r32: 13, r16: 17, qf: 21, sf: 25, final: 29 },   // 1013 — her 4 günde bir
   ACC: '#ff4d63',
   // Banner: kupa adı oyuncunun dilinde
   AD: { tr: 'Ulusal Kupası', en: 'National Cup', de: 'Nationaler Pokal', es: 'Copa Nacional', pt: 'Taça Nacional',
@@ -46078,8 +46078,9 @@ function _ncupAgacHtml(season, cc, st) {
   if (eksik.length) _trkPenIste(eksik);
   // Bay sayısı ağacın dörtte biriyse (96 / 48 takım) 1. turda yalnız oynanan maçlar: her biri 2. turdaki eşleşmesinin tam yanında
   let ilkSade = false;
-  if (bay > 0 && T2.length > 1 && fx[fazlar[0]]) {
-    const gercek = T2[0].kartlar.filter(c => c && !c.bay);
+  if (bay > 0 && T2.length > 1) {
+    const gercek = fx[fazlar[0]] ? T2[0].kartlar.filter(c => c && !c.bay)
+      : Array.from({ length: Math.max(0, (Number(fx.n) || _ncupTakimSay(cc)) - B / 2) }, () => ({ bos: true }));   // 1013 — kura öncesi
     if (gercek.length === T2[1].kartlar.length) { T2[0].kartlar = gercek; ilkSade = true; }
   }
   const hedef = (_trkSecim.ncup && _trkSecim.ncup.cc === cc && _trkSecim.ncup.tur != null) ? _trkSecim.ncup.tur : null;
@@ -46148,23 +46149,18 @@ function trn2RenderNcup() {
   const sekmeler = ['bracket', 'schedule', 'goals', 'assists', 'rating'];
   let sub = sekmeler.indexOf(_trn2ActiveSubTab.ncup) >= 0 ? _trn2ActiveSubTab.ncup : 'bracket';
   let ic;
-  if (!_ncupAktif(season)) {
-    // 6. sezondan önce: bilgi
-    const tarih = _ncupKuraTarih();
-    ic = `<div class="trk-bos" style="margin:18px 0"><span>National Cup 6. sezonda başlıyor · Kura</span> <span data-noi18n>${_agcEsc(tarih)}</span></div>`;
-    sub = null;
-  } else {
-    if (cc !== ben) _ncupMacCek(season, cc);
-    const st = _ncupDurum(season, cc);
-    const B = _ncupB(cc, st && st.fixture);
-    if (sub === 'bracket') {
-      ic = st === undefined ? _ncupUlkeSecici(cc) + `<div class="trk-bos">Yükleniyor…</div>`
-        : !st ? _ncupUlkeSecici(cc) + `<div class="trk-bos">Kura sezonun ilk günü çekilir</div>`
-        : _ncupAgacHtml(season, cc, st);
-    }
-    else if (sub === 'schedule') ic = _ncupUlkeSecici(cc) + _ncupTakvimHtml(season, B);
-    else ic = _ncupUlkeSecici(cc) + _ncupIstatHtml(cc, season, sub);
+  // 1013 — kura çekilene kadar (6. sezondan önce de) ülkenin ağacı boş kartlarla; ülke seçici açık
+  const aktif = _ncupAktif(season), sz = aktif ? season : _NC.ILK;
+  if (aktif && cc !== ben) _ncupMacCek(season, cc);
+  const st = aktif ? _ncupDurum(season, cc) : null;
+  const B = _ncupB(cc, st && st.fixture);
+  if (sub === 'bracket') {
+    ic = st === undefined ? _ncupUlkeSecici(cc) + `<div class="trk-bos">Yükleniyor…</div>`
+      : _ncupAgacHtml(sz, cc, st || { phase: null, fixture: { B, n: _ncupTakimSay(cc) } });
   }
+  else if (sub === 'schedule') ic = _ncupUlkeSecici(cc) + _ncupTakvimHtml(sz, B);
+  else ic = _ncupUlkeSecici(cc) + (aktif ? _ncupIstatHtml(cc, season, sub)
+    : `<div class="trk-bos">Turnuvada henüz ${sub === 'goals' ? 'gol atılmadı' : sub === 'assists' ? 'asist yapılmadı' : 'maç oynanmadı'}.</div>`);
   const tik = s => `trn2SubTab('ncup','${s}',this)`;
   const bar = `<div class="trk-sb">` + sekmeler.map(s => `<button class="trk-sb-b${s === sub ? ' on' : ''}" onclick="${tik(s)}">${_TRK_IKON[s]}<span>${_TRK_SEKME_AD[s]}</span></button>`).join('') + `</div>`;
   const trk = `<div class="trk" style="--acc:${_NC.ACC};--ana:#c8102e">${bar}<div class="trk-ic">${ic}</div></div>`;
