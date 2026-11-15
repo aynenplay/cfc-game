@@ -9046,3 +9046,9 @@ window.I18N_PATTERNS.es.unshift(
   var S = window.I18N && window.I18N.es;
   if (S) Object.assign(S, {"Ülke puanı": "Puntos de país"});
 })();
+
+/* 1025 — Süper Lig lejantı › Ulusal Kupa galibi */
+(function () {
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.es; if (P) P.unshift([/^Kupa galibi ilk (\d+) dışındaysa: (\d+)\. CON Play-off'a iner, (\d+)\. hakkını kaybeder\.$/, function (m) { return 'Si el campeón de copa no está entre los ' + m[1] + ' primeros: el ' + m[2] + '.º baja al Play-off de CON y el ' + m[3] + '.º pierde su plaza.'; }]);
+  if (window.I18N && window.I18N.es) Object.assign(window.I18N.es, {"Ulusal Kupa Galibi · CON Doğrudan": "Campeón de la National Cup · CON directo"});
+})();
