@@ -9020,3 +9020,9 @@ window.I18N_PATTERNS.pt.unshift(
   var S = window.I18N && window.I18N.pt;
   if (S) Object.assign(S, {"Her çubuk bir takımdır: koyu renk gruba doğrudan, açık renk play-off'tan katılır. Mavi Championship, turuncu Elite, yeşil Convergence.": "Cada barra é um time: a cor escura entra direto na fase de grupos e a clara pelo play-off. Azul Championship, laranja Elite, verde Convergence."});
 })();
+
+/* 1018 — CSC Media sınırı · teklif uyarıları */
+(function () {
+  var S = window.I18N && window.I18N.pt;
+  if (S) Object.assign(S, {"CSC Media'da 3 saatte bir paylaşım yapabilirsin.": "Você pode publicar no CSC Media uma vez a cada 3 horas.", "CSC Media'da paylaşım ve yorum yapman engellendi.": "Você foi bloqueado de publicar e comentar no CSC Media.", "Bu oyuncu teklifinizi zaten reddetti. 24 saat boyunca tekrar teklif gönderilemez.": "Este jogador já recusou a sua oferta. Nenhuma nova oferta pode ser enviada por 24 horas.", "Takımınızın bu oyuncuya bekleyen bir teklifi var. Oyuncu yanıt verene kadar yeni teklif gönderilemez.": "O seu time já tem uma oferta pendente para este jogador. Nenhuma nova oferta pode ser enviada até o jogador responder."});
+})();

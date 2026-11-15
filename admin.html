@@ -1171,6 +1171,8 @@
   .u-click:hover{ border-color:var(--goldln); filter:brightness(1.12); }
   .u-act.ban{ border-color:rgba(226,59,90,.45); color:var(--red); }
   .u-act.unban{ border-color:rgba(46,195,107,.4); color:var(--accent); }
+  .u-act.mban{ border-color:rgba(255,159,67,.45); color:#ff9f43; }   /* 1018 */
+  .u-acts .u-act:last-child:nth-child(odd){ grid-column:1/-1; }
   /* Ban modal */
   .u-f.u-fe{ cursor:pointer; border-color:rgba(66,165,245,.32); }
   .u-f.u-fe:hover{ border-color:var(--blue); background:rgba(66,165,245,.07); }
@@ -1990,7 +1992,7 @@ tbody tr:hover td{ background:rgba(255,255,255,.03); }
 <div id="isModal"><div class="box carbon" id="isKutu"></div></div>
 <div id="banModal">
   <div class="box carbon">
-    <h3>Kullanıcıyı Engelle — <span id="banName"></span></h3>
+    <h3><span id="banBas">Kullanıcıyı Engelle</span> — <span id="banName"></span></h3>
     <div class="ban-not" id="banNot"></div>
     <div class="ban-l">Sebep</div>
     <select id="banReason">
@@ -2126,6 +2128,7 @@ function ccFlag(cc){ cc=String(cc||'').toUpperCase(); if(!cc) return '🏳️'; 
 const SKILL_DEFS = [{"g": "GK", "cat": "🧤 Kaleci", "color": "#9575cd", "skills": [{"id": "refleks", "name": "Refleks"}, {"id": "top_tutma", "name": "Top Tutma"}, {"id": "hava_hak", "name": "Hava Hakimiyeti"}, {"id": "kal_poz", "name": "Kaleci Pozisyonu"}, {"id": "bire_bir", "name": "Bire Bir Kurtarış"}, {"id": "penalti_kur", "name": "Penaltı Kurtarma"}, {"id": "uzak_kur", "name": "Uzaktan Şut Kurtarma"}, {"id": "yakin_kur", "name": "Yakın Mesafe Kurtarma"}, {"id": "degaj", "name": "Degaj"}, {"id": "ayak_kur", "name": "Ayakla Oyun Kurma"}, {"id": "konsant", "name": "Konsantrasyon"}, {"id": "soguk", "name": "Soğukkanlılık"}, {"id": "ziplay", "name": "Zıplama Erişimi"}, {"id": "kal_guc", "name": "Kaleci Gücü"}, {"id": "denge", "name": "Denge Kontrolü"}]}, {"g": "DEF", "cat": "🛡️ Defans", "color": "#5c8dd4", "skills": [{"id": "markaj", "name": "Markaj"}, {"id": "mudahale", "name": "Müdahale"}, {"id": "blok", "name": "Blok"}, {"id": "sav_poz", "name": "Savunma Pozisyonu"}, {"id": "sav_kafa", "name": "Savunma Kafa Vuruşu"}, {"id": "fiz_muc", "name": "Fiziksel Mücadele"}, {"id": "ayakta_kal", "name": "Ayakta Kalma"}, {"id": "geri_kosu", "name": "Geri Koşu Hızı"}, {"id": "geriden_pas", "name": "Geriden Pas"}, {"id": "alan_kapat", "name": "Alan Kapatma"}]}, {"g": "MID", "cat": "⚙️ Orta Saha", "color": "#66bb6a", "skills": [{"id": "kisa_pas", "name": "Kısa Pas"}, {"id": "uzun_pas", "name": "Uzun Pas"}, {"id": "top_kontrol", "name": "Top Kontrol"}, {"id": "teknik", "name": "Teknik Beceri"}, {"id": "oyun_gorusu", "name": "Oyun Görüşü"}, {"id": "tempo", "name": "Tempo Yönetimi"}, {"id": "dayanikli", "name": "Dayanıklılık"}, {"id": "yon_deg", "name": "Yön Değiştirme"}, {"id": "karar", "name": "Karar Verme"}, {"id": "top_calma", "name": "Top Çalma"}]}, {"g": "FWD", "cat": "⚽ Hücum", "color": "#ef5350", "skills": [{"id": "bitiricilik", "name": "Bitiricilik"}, {"id": "sut_guc", "name": "Şut Gücü"}, {"id": "uzak_vurus", "name": "Uzaktan Vuruş"}, {"id": "gol_poz", "name": "Gol Pozisyonu Alma"}, {"id": "huc_kafa", "name": "Hücum Kafa Vuruşu"}, {"id": "ilk_dok", "name": "İlk Dokunuş"}, {"id": "pat_hiz", "name": "Patlayıcı Hız"}, {"id": "calim", "name": "Çalım Yeteneği"}, {"id": "baski_alt", "name": "Baskı Altında Bitirme"}, {"id": "topsuz_kosu", "name": "Topsuz Koşu"}]}];
 const ROLE_TR={ captain:'Kaptan', vice:'Yardımcı Kaptan', vicecaptain:'Yardımcı Kaptan', member:'Üye', user:'Oyuncu', manager:'Menajer', owner:'Sahip / Kurucu', founder:'Kurucu', starter:'İlk 11', sub:'Yedek' };
 function uCountry(p){ const cc=String(p.nationality||p.country_code||'').toUpperCase(); if(!cc) return {flag:'',name:'—',cc:''}; return {flag:ccFlag(cc), name:CC_NAME[cc]||cc, cc}; }
+function uMediaBan(p){ const bu=p&&p.media_ban_until; if(!bu) return null; const t=new Date(bu); if(isNaN(t)||t<=new Date()) return null; return {until:t, perm:t.getFullYear()>=9999, reason:p.media_ban_reason||''}; }   // 1018
 function uBanInfo(p){ const bu=p.ban_until||p.banned_until; if(!bu) return null; const t=new Date(bu); if(isNaN(t)||t<=new Date()) return null; return {until:t, perm:t.getFullYear()>=9999, reason:p.ban_reason||p.banned_reason||''}; }
 
 // API
@@ -4329,7 +4332,7 @@ function uCardsHTML(){
     const avS=_pl.avatar_id?avSrc(_pl.avatar_id):'';
     const gizliVar=('gizli' in _pl), gizli=!!_pl.gizli;
     const joined=p.created_at?('Katılım: '+new Date(p.created_at).toLocaleDateString('tr')):'';
-    const ban=uBanInfo(p);
+    const ban=uBanInfo(p), mban=uMediaBan(p);   // 1018
     const pb=uPlayerBits(UDATA.plMap[id], UDATA.pMap[id]);
     const w=UDATA.wMap[id]||{};
     const ovrTag=(pb&&pb.ovr!=='–')?`<div class="u-ovr"><div class="n">${uEsc(pb.ovr)}</div><div class="p">${uEsc(pb.pos||'')}</div></div>`:'';
@@ -4380,6 +4383,7 @@ function uCardsHTML(){
           <div class="u-f"><div class="l">User ID</div><div class="v">${uEsc(String(id||'—'))}</div></div>
           <div class="u-f u-fe" data-e="eposta" data-i="${i}"><div class="l">E-posta</div><div class="v">${uEsc(uEposta(p.email)||'—')}</div></div>
           ${ban?`<div class="u-f" style="border-color:rgba(226,59,90,.4)"><div class="l" style="color:var(--red)">Engel Bitiş</div><div class="v">${ban.perm?'Süresiz':ban.until.toLocaleDateString('tr')}</div></div>`:''}
+          ${mban?`<div class="u-f" style="border-color:rgba(255,159,67,.45)${ban?'':';grid-column:1/-1'}"><div class="l" style="color:#ff9f43">CSC Media Engeli</div><div class="v">${mban.perm?'Süresiz':mban.until.toLocaleDateString('tr')+' tarihine kadar'}</div></div>`:''}
         </div>
         ${playerSec}
         <div class="u-secl gold"><span class="dot"></span>Cüzdan & Enerji <span class="u-hint">· değere dokun, düzenle</span></div>
@@ -4392,6 +4396,7 @@ function uCardsHTML(){
           <button class="u-act edit" data-act="profile" data-i="${i}">Profili Düzenle</button>
           <button class="u-act player" data-act="player" data-i="${i}">Oyuncuyu Düzenle</button>
           ${ban?`<button class="u-act unban" data-act="unban" data-i="${i}">Engeli Kaldır</button>`:`<button class="u-act ban" data-act="ban" data-i="${i}">Kullanıcıyı Engelle</button>`}
+          ${mban?`<button class="u-act unban" data-act="munban" data-i="${i}">Media Engelini Kaldır</button>`:`<button class="u-act mban" data-act="mban" data-i="${i}">CSC Media Engeli</button>`}
           <button class="u-act del" data-act="del" data-i="${i}">Kullanıcıyı Sil</button>
           ${gizliVar?`<button class="u-act gizle" data-act="gizle" data-i="${i}">${gizli?'Oyunda Göster':'Oyunda Gizle'}</button>`:''}
         </div>
@@ -4908,6 +4913,8 @@ function uAction(act,i){
   if(act==='wallet'){ const w=UDATA.wMap[id]; if(!w){ alert('Bu kullanıcının cüzdan kaydı yok.'); return; } openEditor('edit', w, 'user_wallet', loadUsers); return; }
   if(act==='ban'){ openBanModal(p); return; }
   if(act==='unban'){ uUnban(p); return; }
+  if(act==='mban'){ openBanModal(p, { media:true }); return; }   // 1018
+  if(act==='munban'){ uMediaUnban(p); return; }
   if(act==='del'){ edAc('sil', i); return; }
   if(act==='gizle'){ uGizle(p); return; }
 }
@@ -7942,12 +7949,13 @@ async function mgSifirla(id){
 }
 
 // ===== Engelleme (ban) =====
-let BAN_TARGET=null, BAN_DUR=null, BAN_SONRA=null;
+let BAN_TARGET=null, BAN_DUR=null, BAN_SONRA=null, BAN_MOD='hesap';   // 1018 — 'media': CSC Media engeli
 // Oyundaki şikayet sebebi → engel sebebi
 const BAN_SEBEP={ 'Küfür veya hakaret':'Hakaret / küfür / kötü dil', 'Taciz veya zorbalık':'Takım & sohbet tacizi',
   'Spam veya reklam':'Spam / reklam', 'Uygunsuz içerik':'Uygunsuz isim / avatar / içerik' };
 function openBanModal(p, ek){
-  BAN_TARGET=p; BAN_DUR=null; BAN_SONRA=(ek&&ek.sonra)||null;
+  BAN_TARGET=p; BAN_DUR=null; BAN_SONRA=(ek&&ek.sonra)||null; BAN_MOD=(ek&&ek.media)?'media':'hesap';
+  $('banBas').textContent = BAN_MOD==='media' ? 'CSC Media Engeli' : 'Kullanıcıyı Engelle';
   $('banName').textContent = p.name||p.username||'';
   $('banErr').textContent='';
   $('banReason').selectedIndex=0;
@@ -7955,8 +7963,8 @@ function openBanModal(p, ek){
   const es=ek&&ek.sebep, kar=es&&BAN_SEBEP[es];
   if(kar) $('banReason').value=kar;
   else if(es==='Diğer'){ $('banReason').value='__other__'; $('banReasonOther').style.display='block'; }
-  const bi=uBanInfo(p);
-  $('banNot').innerHTML=[ ek&&ek.not?('Şikayet: <b>'+uEsc(ek.not)+'</b>'):'',
+  const bi=BAN_MOD==='media'?uMediaBan(p):uBanInfo(p);
+  $('banNot').innerHTML=[ BAN_MOD==='media'?'Engelliyken CSC Media\'da paylaşım ve yorum yapamaz; oyunun geri kalanı açık.':'', ek&&ek.not?('Şikayet: <b>'+uEsc(ek.not)+'</b>'):'',
     bi?('<span class="k">Şu an engelli</span> · '+(bi.perm?'süresiz':(bi.until.toLocaleDateString('tr')+' tarihine kadar'))):'' ].filter(Boolean).join('<br>');
   $('banDurs').querySelectorAll('button').forEach(b=>b.classList.remove('on'));
   $('banModal').style.display='flex';
@@ -7970,11 +7978,17 @@ async function applyBan(){
   if(BAN_DUR==='perm') until='9999-12-31T23:59:59+00:00';
   else { const d=new Date(); d.setDate(d.getDate()+Number(BAN_DUR)); until=d.toISOString(); }
   try{
-    await api('update',{ table:'profiles', pk:pkObj(BAN_TARGET,'profiles'), values:{ ban_until:until, ban_reason:reason } });
-    Object.assign(BAN_TARGET,{ ban_until:until, ban_reason:reason });
+    const _v = BAN_MOD==='media' ? { media_ban_until:until, media_ban_reason:reason } : { ban_until:until, ban_reason:reason };   // 1018
+    await api('update',{ table:'profiles', pk:pkObj(BAN_TARGET,'profiles'), values:_v });
+    Object.assign(BAN_TARGET,_v);
     $('banModal').style.display='none';
     if(BAN_SONRA){ const sonra=BAN_SONRA; BAN_SONRA=null; await sonra(); } else loadUsers();
   }catch(e){ $('banErr').textContent=e.message; }
+}
+async function uMediaUnban(p){   // 1018
+  if(!confirm('"'+(p.name||p.username||'')+'" için CSC Media engelini kaldırmak istediğine emin misin?')) return;
+  try{ await api('update',{ table:'profiles', pk:pkObj(p,'profiles'), values:{ media_ban_until:null, media_ban_reason:null } }); Object.assign(p,{ media_ban_until:null, media_ban_reason:null }); loadUsers(); }
+  catch(e){ alert('Olmadı: '+e.message); }
 }
 async function uUnban(p){
   if(!confirm('"'+(p.name||p.username||'')+'" için engeli kaldırmak istediğine emin misin?')) return;
