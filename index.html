@@ -26372,8 +26372,8 @@ body.pd-acik{overflow:hidden}
   </div>
 </div>
 
-<script src="js/oyun.0ba7a427.js"></script>
-<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.0ba7a427.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
+<script src="js/oyun.618e8c21.js"></script>
+<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.618e8c21.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
 
 <nav id="bottomnav">
   <button class="nav-btn active" onclick="showPage('home',this)"><div class="nav-icon">🏠</div><div class="nav-label">Menü</div></button>
@@ -32653,7 +32653,7 @@ html.ms-kilit body{position:fixed !important;left:0;right:0;width:100%}
     let kadro = [];
     try { kadro = (typeof ntEnsureRoster === 'function') ? (ntEnsureRoster() || []) : []; } catch (e) {}
     kadro.forEach(p => {
-      const g = (typeof _ntGrp === 'function') ? _ntGrp(p) : 'MID';
+      const g = (typeof _ntKotaGrp === 'function') ? _ntKotaGrp(p) : 'MID';   // 1014 — asıl mevki
       if (!say[g]) return;
       say[g][0]++; if (p && p.ntMusait === false) say[g][1]++;
     });
@@ -45982,11 +45982,54 @@ function _ncupUlkeSecici(cc) {
   const liste = (typeof _cftAllEntries === 'function' ? _cftAllEntries() : []).map(([k, c]) => ({ k: String(k).toUpperCase(), c, a: ad(c) }))
     .sort((x, y) => (x.k === ben ? -1 : y.k === ben ? 1 : x.a.localeCompare(y.a, yer)));
   const sec = liste.find(x => x.k === cc) || { k: cc, c: _cftGetCountry(cc) || {}, a: ad(_cftGetCountry(cc)) };
-  const opt = liste.map(x => `<option value="${x.k}"${x.k === cc ? ' selected' : ''}>${(x.c && x.c.flag) || ''} ${_agcEsc(x.a)}</option>`).join('');
-  return `<label class="nk-ulke" data-noi18n><i class="bay">${(sec.c && sec.c.flag) || ''}</i><b>${_agcEsc(sec.a)}</b>`
-    + `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>`
-    + `<select onchange="ncupUlkeSec(this.value)" aria-label="Ülke">${opt}</select></label>`;
+  window._ncupUlkeListe = liste;   // 1014 — pencere bu listeyi gösterir
+  return `<button type="button" class="nk-ulke" data-noi18n onclick="ncupUlkeAc()"><i class="bay">${(sec.c && sec.c.flag) || ''}</i><b>${_agcEsc(sec.a)}</b>`
+    + `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>`;
 }
+// 1014 — ülke penceresi (Sonuçlar sayfasındaki seçim penceresiyle aynı görünüm)
+const _NK_SVG = {
+  dunya: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 3.8 5.6 3.8 9s-1.2 6.4-3.8 9c-2.6-2.6-3.8-5.6-3.8-9S9.4 5.6 12 3z"/></svg>',
+  x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  ara: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>',
+  tik: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'
+};
+function ncupUlkeAc() {
+  let ov = document.getElementById('nkUlkeOv');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'nkUlkeOv';
+    ov.addEventListener('click', e => { if (e.target === ov) ncupUlkeKapat(); });
+    ov.innerHTML = `<div class="nk-us"><div class="nk-us-tut"></div>`
+      + `<div class="nk-us-bas"><div class="nk-us-bl">${_NK_SVG.dunya}<span>Ülke Seç</span></div>`
+      + `<button type="button" class="nk-us-x" onclick="ncupUlkeKapat()" aria-label="Kapat">${_NK_SVG.x}</button></div>`
+      + `<label class="nk-us-ara">${_NK_SVG.ara}<input type="text" placeholder="Ülke ara" autocomplete="off" oninput="_ncupUlkeCiz(this.value)"></label>`
+      + `<div class="nk-us-lst" data-noi18n></div></div>`;
+    document.body.appendChild(ov);
+  }
+  const g = ov.querySelector('input'); if (g) g.value = '';
+  _ncupUlkeCiz('');
+  ov.classList.add('acik');
+  const lst = ov.querySelector('.nk-us-lst'), on = lst && lst.querySelector('.on');
+  if (lst) lst.scrollTop = on ? Math.max(0, on.offsetTop - lst.clientHeight / 2 + on.offsetHeight / 2) : 0;
+}
+function _ncupUlkeCiz(q) {
+  const lst = document.querySelector('#nkUlkeOv .nk-us-lst');
+  if (!lst) return;
+  const { yer } = _ncupDilYer();
+  const sec = window._ncupSecili || _ncupBenCC();
+  q = String(q || '').trim().toLocaleLowerCase(yer);
+  const l = (window._ncupUlkeListe || []).filter(x => !q || x.a.toLocaleLowerCase(yer).includes(q) || x.k.toLowerCase().includes(q));
+  lst.innerHTML = l.length ? l.map(x => `<button type="button" class="nk-us-i${x.k === sec ? ' on' : ''}" onclick="ncupUlkeKapat();ncupUlkeSec('${x.k}')">`
+      + `<i>${(x.c && x.c.flag) || ''}</i><span>${_agcEsc(x.a)}</span>${x.k === sec ? '<b>' + _NK_SVG.tik + '</b>' : ''}</button>`).join('')
+    : `<div class="nk-us-bos">${_agcEsc(typeof T === 'function' ? T('Sonuç yok') : 'Sonuç yok')}</div>`;
+}
+function ncupUlkeKapat() {
+  const ov = document.getElementById('nkUlkeOv');
+  if (!ov) return;
+  ov.classList.remove('acik');
+  const g = ov.querySelector('input'); if (g && document.activeElement === g) g.blur();
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') ncupUlkeKapat(); });
 function _ncupBannerHtml(cc) {
   const { d, yer } = _ncupDilYer();
   const c = (typeof _cftGetCountry === 'function' && _cftGetCountry(cc)) || {};
@@ -46208,6 +46251,36 @@ function _ncupSiradakiTur(ms) {
 /* 1012 — 6. sezondan önce: boş National Cup kartı · takvimde S6 günleri */
 #page-home #homeEuroStrip .lg-scene-card[data-kupa="ncup"] .nk-yakinda{padding:26px 10px;font-size:11px;line-height:1.5;color:#c9ccd6}
 .cal-event.ev-ncup.s6{opacity:.72}
+</style>
+<style id="nk1014-css">
+/* 1014 — National ülke seçici: oyunun alttan açılan penceresi (Sonuçlar sayfasındaki seçim penceresiyle aynı) */
+button.nk-ulke{width:calc(100% - 24px);box-sizing:border-box;text-align:left;-webkit-tap-highlight-color:transparent}
+.trk-ic>button.nk-ulke{width:100%}
+#nkUlkeOv{position:fixed;inset:0;z-index:9000;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);opacity:0;visibility:hidden;transition:opacity .22s,visibility 0s .22s}
+#nkUlkeOv.acik{opacity:1;visibility:visible;transition:opacity .22s,visibility 0s 0s}
+#nkUlkeOv *{box-sizing:border-box;font-family:Twemoji Country Flags,'Outfit',sans-serif}
+#nkUlkeOv .nk-us{width:100%;max-width:440px;max-height:78vh;display:flex;flex-direction:column;background:linear-gradient(180deg,#161c29,#0f141d);border:1px solid rgba(255,255,255,.075);border-bottom:0;border-radius:20px 20px 0 0;box-shadow:0 -18px 50px -20px rgba(0,0,0,.8);padding:8px 0 calc(10px + env(safe-area-inset-bottom));transform:translateY(100%);transition:transform .28s cubic-bezier(.16,.84,.36,1)}
+#nkUlkeOv.acik .nk-us{transform:translateY(0)}
+#nkUlkeOv .nk-us-tut{width:38px;height:4px;margin:2px auto 8px;border-radius:2px;background:rgba(255,255,255,.18)}
+#nkUlkeOv .nk-us-bas{display:flex;align-items:center;justify-content:space-between;padding:4px 16px 12px}
+#nkUlkeOv .nk-us-bl{display:flex;align-items:center;gap:9px;color:#f1f3f7;font:700 16px/1 'Outfit',sans-serif;letter-spacing:.2px}
+#nkUlkeOv .nk-us-bl svg{width:19px;height:19px;color:#00e676}
+#nkUlkeOv .nk-us-x{width:34px;height:34px;padding:0;border-radius:50%;border:1px solid rgba(255,255,255,.075);background:#171d29;color:#9aa0ae;display:flex;align-items:center;justify-content:center}
+#nkUlkeOv .nk-us-x svg{width:15px;height:15px}
+#nkUlkeOv .nk-us-ara{display:flex;align-items:center;gap:8px;height:42px;margin:0 16px 10px;padding:0 12px;border:1px solid rgba(255,255,255,.075);border-radius:12px;background:#171d29;flex:none}
+#nkUlkeOv .nk-us-ara svg{width:18px;height:18px;color:#9aa0ae;flex:none}
+#nkUlkeOv .nk-us-ara input{flex:1;min-width:0;height:40px;padding:0;border:0;background:none;color:#f1f3f7;font:500 16px/normal 'Outfit',sans-serif;outline:none;box-shadow:none}
+#nkUlkeOv .nk-us-ara input::placeholder{color:#626879}
+#nkUlkeOv .nk-us-lst{min-height:0;margin:0 16px;border:1px solid rgba(255,255,255,.075);border-radius:14px;background:rgba(0,0,0,.14);overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+#nkUlkeOv .nk-us-i{display:flex;align-items:center;gap:12px;width:100%;height:48px;margin:0;padding:0 14px;border:0;border-radius:0;background:none;color:#f1f3f7;font:500 14.5px/1 'Outfit',sans-serif;text-align:left;-webkit-tap-highlight-color:transparent}
+#nkUlkeOv .nk-us-i + .nk-us-i{border-top:1px solid rgba(255,255,255,.05)}
+#nkUlkeOv .nk-us-i i{width:24px;font-style:normal;font-size:19px;line-height:1;display:flex;align-items:center;justify-content:center;flex:none}
+#nkUlkeOv .nk-us-i span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.35}
+#nkUlkeOv .nk-us-i.on{background:rgba(0,230,118,.08);color:#00e676;font-weight:700}
+#nkUlkeOv .nk-us-i b{width:18px;height:18px;color:#00e676;flex:none;display:flex}
+#nkUlkeOv .nk-us-i b svg{width:18px;height:18px}
+#nkUlkeOv .nk-us-bos{padding:26px 12px;text-align:center;color:#9aa0ae;font:500 13.5px/1.4 'Outfit',sans-serif}
+html.hafif #nkUlkeOv{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;background:rgba(0,0,0,.85)}
 </style>
 </body>
 </html>
