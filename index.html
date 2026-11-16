@@ -26403,8 +26403,8 @@ body.pd-acik{overflow:hidden}
   </div>
 </div>
 
-<script src="js/oyun.4315d353.js"></script>
-<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.4315d353.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
+<script src="js/oyun.25d7f33b.js"></script>
+<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.25d7f33b.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
 
 <nav id="bottomnav">
   <button class="nav-btn active" onclick="showPage('home',this)"><div class="nav-icon">🏠</div><div class="nav-label">Menü</div></button>
@@ -28417,6 +28417,15 @@ const G9 = { kuyruk: [], oynuyor: false, run: 0, dk: -1, durum: '', key: null, a
 const G9_SAHA = { x0: 4, x1: 96, y0: 3.95, y1: 96.05 };   // çizgili saha (SVG) içinde kale ve yan çizgiler (%)
 const G9_SERIT = { GK: 32, CB: 32, LB: 12, RB: 52, LWB: 12, RWB: 52, DM: 32, CM: 30, LM: 12, RM: 52, AM: 32, LF: 16, RF: 48, ST: 32, CF: 32 };
 const g9$ = id => document.getElementById(id);
+const G9_TR = typeof CSS !== 'undefined' && !!CSS.supports && CSS.supports('translate', '1px');   // 1034 — oyuncu/top translate ile kayar (eski tarayıcıda left/top)
+function _g9Kare(tn) {   // 1034 — saha çizimi 30 kare/sn: aynı karedeki tüm çağrılar aynı kararı alır
+  if (tn !== G9.kTn) { G9.kTn = tn; G9.kOk = !(tn - (G9.kSon || 0) < 28); if (G9.kOk) { G9.kAra = G9.kSon && tn - G9.kSon < 100 ? tn - G9.kSon : 16.7; G9.kSon = tn; } }
+  return G9.kOk;
+}
+function _g9Uyan() {   // 1034 — saha yeniden görünür oldu: boşta ise top dolaşmaya devam eder
+  if (G9.oynuyor || G9.kuyruk.length || !(G9.dk > 0) || _g9Gizli()) return;
+  G9.kuyruk.push({ dk: G9.dk, f: _g9Dolas }); _g9Oynat();
+}
 function _g9w(ms) { const id = G9.run; return new Promise((ok, red) => setTimeout(() => id === G9.run ? ok() : red('g9iptal'), ms)); }
 const _g9F = (t, p) => t === 'home' ? [p[0], p[1]] : [100 - p[0], 64 - p[1]];
 const _g9Ters = t => t === 'home' ? 'away' : 'home';
@@ -28494,6 +28503,11 @@ function _g9Kur() {
   G9.cx = G9.el.cv.getContext('2d'); G9.fxx = G9.el.fx.getContext('2d');
   _g9Boyut();
   if (!G9.rz) { G9.rz = true; window.addEventListener('resize', () => { try { _g9Boyut(); } catch (e) {} }); }
+  if (!G9.ro && window.ResizeObserver) { G9.ro = new ResizeObserver(() => { try { _g9Boyut(); } catch (e) {} }); G9.ro.observe(k); }   // 1034
+  if (!G9.io && window.IntersectionObserver) {   // 1034 — saha ekrandan çıkınca animasyon durur
+    G9.io = new IntersectionObserver(es => { const v = es[es.length - 1].isIntersecting, once = G9.disarda; G9.disarda = !v; if (v && once) _g9Uyan(); });
+    G9.io.observe(k);
+  }
   return true;
 }
 function _g9Boyut() {
@@ -28501,11 +28515,13 @@ function _g9Boyut() {
   G9.W = r.width; G9.H = r.height; G9.dpr = document.documentElement.classList.contains('hafif') ? 1 : Math.min(2, window.devicePixelRatio || 1);   // 951
   [G9.el.cv, G9.el.fx].forEach(c => { c.width = Math.round(G9.W * G9.dpr); c.height = Math.round(G9.H * G9.dpr); });
   G9.cx.setTransform(G9.dpr, 0, 0, G9.dpr, 0, 0); G9.fxx.setTransform(G9.dpr, 0, 0, G9.dpr, 0, 0);
+  if (G9_TR) { G9.el.oyk.querySelectorAll('.g9-oy').forEach(el => { if (el._g9p) { el.style.transitionDuration = '0ms'; _g9Yer(el, el._g9p); } }); _g9TopCiz(); }   // 1034 — piksel konumlar yeni boyuta
 }
 function _g9TopCiz() {
   const T = G9.top, [l, t] = _g9Yuzde([T.x, T.y]);
   const a = G9.el.top, g = G9.el.golge; if (!a) return;
-  a.style.left = l + '%'; a.style.top = t + '%'; g.style.left = l + '%'; g.style.top = t + '%';
+  if (G9_TR) { const xy = (l / 100 * G9.W).toFixed(1) + 'px ' + (t / 100 * G9.H).toFixed(1) + 'px'; a.style.translate = xy; g.style.translate = xy; }   // 1034
+  else { a.style.left = l + '%'; a.style.top = t + '%'; g.style.left = l + '%'; g.style.top = t + '%'; }
   a.style.transform = `translate(-50%,-50%) translateY(${(-T.z * 14).toFixed(1)}px) scale(${(1 + T.z * .5).toFixed(3)}) rotate(${((T.rot || 0) % 360).toFixed(1)}deg)`;
   g.style.opacity = Math.max(.1, .55 - T.z * .25).toFixed(2); g.style.transform = `translate(-50%,-50%) scale(${(1 - T.z * .25).toFixed(3)})`;
 }
@@ -28518,7 +28534,9 @@ function _g9TopGit(p, ms, o) {
   return new Promise((ok, red) => {
     function ad(tn) {
       if (id !== G9.run) return red('g9iptal');
-      const k = Math.min(1, (tn - t0) / ms), t = e(k), u = 1 - t;
+      const k = Math.min(1, (tn - t0) / ms);
+      if (k < 1 && !_g9Kare(tn)) return requestAnimationFrame(ad);   // 1034 — 30 kare/sn
+      const t = e(k), u = 1 - t;
       const ox = T.x, oy = T.y;
       T.x = u * u * x0 + 2 * u * t * kx + t * t * x1; T.y = u * u * y0 + 2 * u * t * ky + t * t * y1; T.z = (o.z || 0) * Math.sin(Math.PI * t) + z1 * t;
       T.rot = (T.rot || 0) + Math.hypot((T.x - ox) * G9.W / 100, (T.y - oy) * G9.H / 64) * 11 * (x1 >= x0 ? 1 : -1);   // top yuvarlanır
@@ -28534,6 +28552,7 @@ function _g9Halka(p, renk, r) { G9.halka.push({ p, renk, r: r || 26, t0: perform
 function _g9Calis() { if (!G9.dongu) G9.dongu = requestAnimationFrame(_g9Ciz); }
 function _g9Ciz(tn) {
   G9.dongu = 0; let devam = false; const cx = G9.cx, W = G9.W, H = G9.H; if (!cx) return;
+  if (!_g9Kare(tn)) { G9.dongu = requestAnimationFrame(_g9Ciz); return; }   // 1034 — 30 kare/sn
   cx.clearRect(0, 0, W, H);
   for (let i = G9.ciz.length - 1; i >= 0; i--) {
     const c = G9.ciz[i], ge = tn - c.t0, k = Math.min(1, ge / c.dur), sol = ge > c.dur ? Math.max(0, 1 - (ge - c.dur) / c.omur) : 1;
@@ -28543,10 +28562,10 @@ function _g9Ciz(tn) {
     const mx = (ax + bx) / 2, my = (ay + by) / 2, dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy) || 1, kk = c.kav * W / 100;
     const qx = mx - dy / L * kk, qy = my + dx / L * kk;
     cx.save(); cx.globalAlpha = sol; cx.lineCap = 'round'; cx.setLineDash([6, 5]); cx.lineDashOffset = -ge / 22;
-    cx.strokeStyle = c.renk; cx.lineWidth = 2.2; cx.shadowColor = 'rgba(255,213,79,.55)'; cx.shadowBlur = 6;
+    cx.strokeStyle = c.renk; cx.lineWidth = 2.2;
     cx.beginPath(); cx.moveTo(ax, ay);
     for (let j = 1; j <= 24 * k; j++) { const t = j / 24, u = 1 - t; cx.lineTo(u * u * ax + 2 * u * t * qx + t * t * bx, u * u * ay + 2 * u * t * qy + t * t * by); }
-    cx.stroke(); cx.restore();
+    cx.lineWidth = 6; cx.strokeStyle = 'rgba(255,213,79,.2)'; cx.stroke(); cx.lineWidth = 2.2; cx.strokeStyle = c.renk; cx.stroke(); cx.restore();   // 1034 — shadowBlur yerine alt çizgi
   }
   while (G9.iz.length && tn - G9.iz[0].t > 360) G9.iz.shift();
   if (G9.iz.length > 1) {
@@ -28560,8 +28579,9 @@ function _g9Ciz(tn) {
   for (let i = G9.cizgi.length - 1; i >= 0; i--) {   // ofsayt çizgisi: saha boyunca kırmızı kesik çizgi
     const c = G9.cizgi[i], ge = tn - c.t0; if (ge > c.dur) { G9.cizgi.splice(i, 1); continue; }
     devam = true; const al = Math.min(1, ge / 180, (c.dur - ge) / 300), [x, y0] = _g9Px(c.x, 0), [, y1] = _g9Px(c.x, 64);
-    cx.save(); cx.globalAlpha = al; cx.strokeStyle = '#ff5252'; cx.lineWidth = 2.2; cx.setLineDash([8, 5]); cx.lineDashOffset = -ge / 30; cx.shadowColor = 'rgba(255,82,82,.7)'; cx.shadowBlur = 8;
-    cx.beginPath(); cx.moveTo(x, y0 + (y1 - y0) * Math.min(1, ge / 260) * 0); cx.lineTo(x, y0 + (y1 - y0) * Math.min(1, ge / 260)); cx.stroke(); cx.restore();
+    cx.save(); cx.globalAlpha = al; cx.strokeStyle = '#ff5252'; cx.lineWidth = 2.2; cx.setLineDash([8, 5]); cx.lineDashOffset = -ge / 30;
+    cx.beginPath(); cx.moveTo(x, y0 + (y1 - y0) * Math.min(1, ge / 260) * 0); cx.lineTo(x, y0 + (y1 - y0) * Math.min(1, ge / 260));
+    cx.lineWidth = 6.5; cx.strokeStyle = 'rgba(255,82,82,.25)'; cx.stroke(); cx.lineWidth = 2.2; cx.strokeStyle = '#ff5252'; cx.stroke(); cx.restore();   // 1034
   }
   for (let i = G9.halka.length - 1; i >= 0; i--) {
     const h = G9.halka[i], k = (tn - h.t0) / h.dur; if (k >= 1) { G9.halka.splice(i, 1); continue; }
@@ -28569,11 +28589,12 @@ function _g9Ciz(tn) {
     cx.strokeStyle = h.renk; cx.globalAlpha = 1 - k; cx.lineWidth = 3 * (1 - k) + .5;
     cx.beginPath(); cx.arc(x, y, 5 + h.r * _g9E.o(k), 0, 7); cx.stroke(); cx.globalAlpha = 1;
   }
-  const fx = G9.fxx; fx.clearRect(0, 0, W, H);
+  const fx = G9.fxx; if (G9.fxDolu) { fx.clearRect(0, 0, W, H); G9.fxDolu = false; }   // 1034 — boşken her karede silinmez
+  const kn = Math.max(1, Math.min(4, Math.round((G9.kAra || 16.7) / 16.7)));   // 1034 — konfeti 30 karede de aynı hızda düşer
   for (let i = G9.konf.length - 1; i >= 0; i--) {
-    const p = G9.konf[i]; p.vy = Math.min(4.2, p.vy + .05); p.vx *= .99; p.x += p.vx; p.y += p.vy; p.r += p.vr; p.omur--;
+    const p = G9.konf[i]; for (let j = 0; j < kn; j++) { p.vy = Math.min(4.2, p.vy + .05); p.vx *= .99; p.x += p.vx; p.y += p.vy; p.r += p.vr; p.omur--; }
     if (p.omur <= 0 || p.y > H + 20) { G9.konf.splice(i, 1); continue; }
-    devam = true; fx.save(); fx.translate(p.x, p.y); fx.rotate(p.r); fx.globalAlpha = Math.min(1, p.omur / 30); fx.fillStyle = p.c; fx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); fx.restore();
+    devam = true; G9.fxDolu = true; fx.save(); fx.translate(p.x, p.y); fx.rotate(p.r); fx.globalAlpha = Math.min(1, p.omur / 30); fx.fillStyle = p.c; fx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); fx.restore();
   }
   if (devam) G9.dongu = requestAnimationFrame(_g9Ciz);
 }
@@ -28621,7 +28642,9 @@ function _g9Tok(o, p, ms) {
 }
 function _g9Yer(el, p) {
   p = [Math.max(4, Math.min(96, p[0])), Math.max(2, Math.min(62, p[1]))];
-  const [l, t] = _g9Yuzde(p); el.style.left = l + '%'; el.style.top = t + '%';
+  el._g9p = p; const [l, t] = _g9Yuzde(p);
+  if (G9_TR) el.style.translate = (l / 100 * G9.W).toFixed(1) + 'px ' + (t / 100 * G9.H).toFixed(1) + 'px';   // 1034
+  else { el.style.left = l + '%'; el.style.top = t + '%'; }
   el.classList.toggle('alt', t / 100 * G9.H < 38); el.classList.toggle('sol', p[0] > 76);
 }
 function _g9Aktif(o, on) { const el = o && G9.el.oyk.querySelector(`[data-g9="${CSS.escape(o.id)}"]`); if (el) el.classList.toggle('aktif', on !== false); }
@@ -28637,7 +28660,7 @@ function _g9Cip(o, baslik, rz, ms) {
     + (rz && typeof GL_OY_IMG !== 'undefined' && GL_OY_IMG[rz] ? `<img class="rz" src="${GL_OY_IMG[rz]}" alt="">` : '')
     + `<span class="st"><b>${_gmE(_gmT(baslik))}</b><span data-noi18n>${o.sen ? '<em>' + _gmE(_gmT('SEN')) + '</em> · ' : ''}${_gmE(o.ad)}</span></span>`;
   G9.el.k.appendChild(s);
-  const x = parseFloat(el.style.left) / 100 * G9.W, y = parseFloat(el.style.top) / 100 * G9.H, sw = s.offsetWidth, sh = s.offsetHeight;
+  const yz = _g9Yuzde(el._g9p || [50, 32]), x = yz[0] / 100 * G9.W, y = yz[1] / 100 * G9.H, sw = s.offsetWidth, sh = s.offsetHeight;   // 1034
   const cy = el.classList.contains('alt') ? y + 17 : y - 17;
   let ly = cy - 16 - sh - 6; s.style.setProperty('--to', 'center bottom');
   if (ly < 32) { ly = Math.max(cy, y) + 22; s.style.setProperty('--to', 'center top'); }
@@ -29054,7 +29077,7 @@ async function _g9Santra(t) {
   const h = _g9F(t, [39, 26]); await _g9Pasla(h, { kim: _g9An(t, 2), ms: 620, kav: 2 }); _g9Sekil(900, Math.random); await _g9w(220);
 }
 const G9_BASLA = { 1: 'home', 46: 'away', 91: 'home', 106: 'away' };   // ilk yarı, ikinci yarı, uzatmalar
-const _g9Gizli = () => { const m = g9$('match-screen'); return document.hidden || !G9.el.k || !G9.el.k.isConnected || !m || !m.classList.contains('open'); };   // 949 — kapanan maç ekranı aşağı kayar, görünmez olur ama yerinde durur
+const _g9Gizli = () => { const m = g9$('match-screen'); return document.hidden || !G9.el.k || !G9.el.k.isConnected || !m || !m.classList.contains('open') || !!G9.disarda; };   // 1034 — saha ekran dışındaysa da   // 949 — kapanan maç ekranı aşağı kayar, görünmez olur ama yerinde durur
 async function _g9Dakika(liste, dk) {
   const st = G9_BASLA[dk] || G9.santra; G9.santra = null;
   if (st) await _g9Santra(st);
@@ -29104,6 +29127,19 @@ async function _g9Oynat() {
     }
   } finally { if (id === G9.run) G9.oynuyor = false; }
 }
+// 1034 — maç ekranı tam açılınca (kayma bitince) arkadaki ana sayfa ve üst çubuk gizlenir, animasyonları durur; kapanırken hemen geri gelir
+(function _msArka() {
+  const m = document.getElementById('match-screen');
+  if (!m) { document.addEventListener('DOMContentLoaded', _msArka, { once: true }); return; }
+  let z = 0;
+  const bak = () => {
+    clearTimeout(z);
+    if (m.classList.contains('open')) z = setTimeout(() => { if (m.classList.contains('open')) document.body.classList.add('ms-tam'); }, 400);
+    else document.body.classList.remove('ms-tam');
+  };
+  new MutationObserver(bak).observe(m, { attributes: true, attributeFilter: ['class'] });
+  bak();
+})();
 function _g9Durdur() { G9.run++; G9.oynuyor = false; G9.kuyruk.length = 0; G9.simdi = null; if (G9.el.k) _g9Temizle(); _g9Birak((typeof MS !== 'undefined' && MS && MS._displayMin) || 0); }
 
 // Eski arayüz adları korunur: maç ekranı açılışı ve saat döngüsü bunları çağırır
@@ -40736,7 +40772,7 @@ html.hafif #page-home.kayiyor *,html.hafif #page-home.kayiyor *::before,html.haf
 @keyframes g9Bn{50%{opacity:.45}}
 #match-screen.gm .gm946 .g9-ok{position:absolute;top:50%;z-index:2;display:flex;gap:4px;transform:translateY(-50%);opacity:0;transition:opacity .4s,left .7s ease;pointer-events:none}
 #match-screen.gm .gm946 .g9-ok.on{opacity:1}
-#match-screen.gm .gm946 .g9-ok i{width:14px;height:14px;border-top:4px solid var(--oc,#fff);border-right:4px solid var(--oc,#fff);transform:rotate(45deg);opacity:.15;animation:g9Ok 1s linear infinite;filter:drop-shadow(0 0 3px var(--oc))}
+#match-screen.gm .gm946 .g9-ok i{width:14px;height:14px;border-top:4px solid var(--oc,#fff);border-right:4px solid var(--oc,#fff);transform:rotate(45deg);opacity:.15;filter:drop-shadow(0 0 3px var(--oc))}
 #match-screen.gm .gm946 .g9-ok.sol i{transform:rotate(-135deg)}
 #match-screen.gm .gm946 .g9-ok i:nth-child(2){animation-delay:.15s}#match-screen.gm .gm946 .g9-ok i:nth-child(3){animation-delay:.3s}
 @keyframes g9Ok{0%,100%{opacity:.12}40%{opacity:.95}}
@@ -40755,6 +40791,14 @@ html.hafif #page-home.kayiyor *,html.hafif #page-home.kayiyor *::before,html.haf
 @keyframes g9Etk{0%{transform:translateX(-50%) translateY(-6px) scale(.92);opacity:0}}
 /* oyuncu: çerçevesiz avatar + ayak izi */
 #match-screen.gm .gm946 .g9-oy{position:absolute;z-index:4;width:0;height:0;transition-property:left,top;transition-timing-function:cubic-bezier(.45,.05,.3,1)}
+/* 1034 — canlı maç ısınması: oyuncu ve top translate ile kayar · atak okları yalnız görünürken · maç ekranı açıkken arka sayfa durur */
+@supports (translate:1px){
+#match-screen.gm .gm946 .g9-oy{left:0;top:0;transition-property:translate}
+#match-screen.gm .gm946 .g9-top,#match-screen.gm .gm946 .g9-golge{left:0;top:0;will-change:transform}
+}
+#match-screen.gm .gm946 .g9-ok.on i{animation:g9Ok 1s linear infinite}
+body.ms-tam #page-home,body.ms-tam #topbar{visibility:hidden !important}
+body.ms-tam #page-home *,body.ms-tam #page-home *::before,body.ms-tam #page-home *::after,body.ms-tam #topbar *,body.ms-tam #topbar *::before,body.ms-tam #topbar *::after{animation-play-state:paused !important}
 #match-screen.gm .gm946 .g9-oy .ay{position:absolute;left:-12px;top:-4px;width:24px;height:8px;border-radius:50%;background:radial-gradient(ellipse at center,var(--tc) 0,color-mix(in srgb,var(--tc) 55%,transparent) 45%,transparent 72%)}
 #match-screen.gm .gm946 .g9-oy .av{position:absolute;left:-17px;top:-38px;width:34px;height:34px;object-fit:contain;filter:drop-shadow(0 3px 4px rgba(0,0,0,.6));animation:g9Gel .38s cubic-bezier(.2,1.5,.4,1)}
 #match-screen.gm .gm946 .g9-oy .fo,#match-screen.gm .gm946 .g9-cip .fo{position:absolute;left:-12px;top:-29px;width:24px;height:24px;display:grid;place-items:center;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));animation:g9Gel .38s cubic-bezier(.2,1.5,.4,1)}
