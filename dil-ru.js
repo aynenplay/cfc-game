@@ -9121,3 +9121,10 @@ window.I18N_PATTERNS.ru.unshift(
   var S = window.I18N && window.I18N.ru;
   if (S) Object.assign(S, {"Her görev euro kazandırır, ödüller gün gün artar.": "Каждое задание приносит евро, награды растут день ото дня.", "Günün görevleri bitince gün ödülünü topla.": "Выполнил задания дня — забери награду дня.", "10 günü bitirince büyük ödülü al: 25 elmas + Sürpriz Çanta.": "Пройди все 10 дней и забери главный приз: 25 алмазов + Сумка-сюрприз.", "O gün kamp ya da maç yoksa o görev aranmaz.": "Если в этот день нет сборов или матча, это задание не требуется.", "Takımsız kalırsan hat durur, takıma katılınca ertesi gün devam eder.": "Без команды маршрут на паузе; вступи в команду — и он продолжится на следующий день.", "Takımdan kendin ayrılırsan hat bozulur; transfer döneminde bozulmaz.": "Если сам уйдёшь из команды, маршрут прервётся, кроме трансферного окна."});
 })();
+
+
+/* 1045 — Duran Top */
+(function () {
+  var S = window.I18N && window.I18N.ru;
+  if (S) Object.assign(S, {"Duran Top": "Стандарты", "Frikik": "Штрафной", "Sağ Korner": "Угловой справа", "Sol Korner": "Угловой слева", "1. Atıcı": "1-й бьющий", "2. Atıcı": "2-й бьющий", "Otomatik oyuncu değişikliği": "Автоматические замены", "Yorgunluk ve sakatlık riski artar · dinlenme uzar": "Растут усталость и риск травм · отдых дольше"});
+})();

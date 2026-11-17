@@ -9148,3 +9148,10 @@ window.I18N_PATTERNS.fr.unshift(
   var S = window.I18N && window.I18N.fr;
   if (S) Object.assign(S, {"Her görev euro kazandırır, ödüller gün gün artar.": "Chaque tâche rapporte des euros, et les récompenses augmentent jour après jour.", "Günün görevleri bitince gün ödülünü topla.": "Une fois les tâches du jour terminées, récupère le bonus du jour.", "10 günü bitirince büyük ödülü al: 25 elmas + Sürpriz Çanta.": "Termine les 10 jours pour obtenir le grand prix : 25 diamants + Sac surprise.", "O gün kamp ya da maç yoksa o görev aranmaz.": "S'il n'y a ni stage ni match ce jour-là, la tâche n'est pas exigée.", "Takımsız kalırsan hat durur, takıma katılınca ertesi gün devam eder.": "Sans équipe, le parcours est en pause ; rejoins une équipe et il reprend le lendemain.", "Takımdan kendin ayrılırsan hat bozulur; transfer döneminde bozulmaz.": "Si tu quittes ton équipe toi-même, le parcours est rompu, sauf pendant le mercato."});
 })();
+
+
+/* 1045 — Duran Top */
+(function () {
+  var S = window.I18N && window.I18N.fr;
+  if (S) Object.assign(S, {"Duran Top": "Tireurs", "Frikik": "Coup franc", "Sağ Korner": "Corner droit", "Sol Korner": "Corner gauche", "1. Atıcı": "1er tireur", "2. Atıcı": "2e tireur", "Otomatik oyuncu değişikliği": "Remplacements automatiques", "Yorgunluk ve sakatlık riski artar · dinlenme uzar": "Fatigue et risque de blessure en hausse · repos plus long"});
+})();
