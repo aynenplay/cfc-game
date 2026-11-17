@@ -26412,8 +26412,8 @@ body.pd-acik{overflow:hidden}
   </div>
 </div>
 
-<script src="js/oyun.bf2fda87.js"></script>
-<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.bf2fda87.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
+<script src="js/oyun.7743c01a.js"></script>
+<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.7743c01a.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
 
 <nav id="bottomnav">
   <button class="nav-btn active" onclick="showPage('home',this)"><div class="nav-icon">🏠</div><div class="nav-label">Menü</div></button>
@@ -29107,6 +29107,9 @@ function _g9Plan(dk, butce) {
   bu = bu.filter(e => !(e.type === 'keyPass' && bu.some(x => x.type === 'goal' && x.assist === e.player)));
   bu.forEach(e => { if (e.type === 'foul') { const k = bu.find(x => x.type === 'foulDrawn' && x.team !== e.team && !x._esli); if (k) { k._esli = true; e._kurban = k.player; } } });
   bu = bu.filter(e => !e._esli);
+  // 1047 — sunucu küçük olayları yazmıyor; atağın öncesindeki an olaya iliştirilmiş geliyor
+  bu.slice().forEach(e => { const o = e.once; if (!o || !o.t || !G9_V[o.t] || bu.some(x => x._oncesi === e)) return; const A = e.type === 'save' ? _g9Ters(e.team) : e.team;
+    bu.splice(bu.indexOf(e), 0, { type: o.t, team: A, min: e.min, ek: e.ek, player: o.p, _oncesi: e }); });
   // frikik: aynı oyuncunun doğrudan şutu frikiğin sonucu (kurtarış / dışarı) · frikik golünde o takımın frikiği gol sahnesinde
   bu.forEach(e => {
     if (e.type !== 'freekick' || e._sonuc) return;
@@ -29230,6 +29233,11 @@ function _gmAtakGoster(st) {
   _g9Durdur(); G9.dk = -1; G9.durum = st && st.l || '';
   _g9Baski(); _g9Dizil('home'); _g9Etk(null, (st && st.l) || 'Maç başlamadı');
 }
+function _g9DkKuyruk(dk) {   // 1046 · 1047 — plan dakika başlarken: geride kalındıysa bütçe küçülür
+  const is = { dk, t: performance.now() };
+  is.f = async () => { try { const gec = performance.now() - is.t; await _g9Dakika(_g9Plan(dk, G9_DK_MS - gec - ((G9_BASLA[dk] || G9.santra) ? 2300 : 0)), dk); } finally { _g9Birak(dk); } };
+  G9.kuyruk.push(is); _g9Oynat();   // süren dakika pas bitiminde yerini yeni dakikaya bırakır
+}
 function _gmAtakAdim() {
   try {
     if (typeof MS === 'undefined' || !MS) return;
@@ -29243,10 +29251,11 @@ function _gmAtakAdim() {
     const dk = MS._displayMin || 0; if (!dk) return;   // 993 — uzatma dakikası ayrı sahne (90.02 …)
     if (G9.W === 0) _g9Boyut();
     if (dk !== G9.dk) {
+      const onceki = G9.dk;
       G9.dk = dk; _g9AvYukle();
-      const is = { dk, t: performance.now() };   // 1046 — plan dakika başlarken: geride kalındıysa bütçe küçülür
-      is.f = async () => { try { const gec = performance.now() - is.t; await _g9Dakika(_g9Plan(dk, G9_DK_MS - gec - ((G9_BASLA[dk] || G9.santra) ? 2300 : 0)), dk); } finally { _g9Birak(dk); } };
-      G9.kuyruk.push(is); _g9Oynat();   // süren dakika pas bitiminde yerini yeni dakikaya bırakır
+      // 1047 — saat dakika atladıysa (sekme arka plandaydı, ağ gecikti) arada kalan gollü dakikalar da sahnelenir
+      if (onceki > 0 && dk > onceki) for (let d = Math.floor(onceki) + 1; d < Math.floor(dk) && d <= Math.floor(onceki) + 3; d++) if (_g9GolDk(d)) _g9DkKuyruk(d);
+      _g9DkKuyruk(dk);
     }
   } catch (e) {}
 }
