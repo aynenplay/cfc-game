@@ -9513,3 +9513,10 @@ window.I18N_PATTERNS.en.unshift(
     [/^%(\d+),(\d+)$/, '$1.$2%']
   );
 })();
+
+
+/* 1037 — Görev Hattı bilgi */
+(function () {
+  var S = window.I18N && window.I18N.en;
+  if (S) Object.assign(S, {"Her görev euro kazandırır, ödüller gün gün artar.": "Every task pays euros, and rewards grow day by day.", "Günün görevleri bitince gün ödülünü topla.": "When the day's tasks are done, collect the day reward.", "10 günü bitirince büyük ödülü al: 25 elmas + Sürpriz Çanta.": "Finish all 10 days to claim the grand prize: 25 diamonds + Surprise Bag.", "O gün kamp ya da maç yoksa o görev aranmaz.": "If there is no camp or match that day, that task isn't required.", "Takımsız kalırsan hat durur, takıma katılınca ertesi gün devam eder.": "Without a team the line pauses; join a team and it continues the next day.", "Takımdan kendin ayrılırsan hat bozulur; transfer döneminde bozulmaz.": "Leaving your team yourself breaks the line, except during the transfer window."});
+})();
