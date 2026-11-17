@@ -26412,8 +26412,8 @@ body.pd-acik{overflow:hidden}
   </div>
 </div>
 
-<script src="js/oyun.7743c01a.js"></script>
-<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.7743c01a.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
+<script src="js/oyun.97e1a5a0.js"></script>
+<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.97e1a5a0.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
 
 <nav id="bottomnav">
   <button class="nav-btn active" onclick="showPage('home',this)"><div class="nav-icon">🏠</div><div class="nav-label">Menü</div></button>
@@ -29105,6 +29105,7 @@ function _g9Plan(dk, butce) {
   bu = bu.filter(e => !(e.type === 'penaltyMissed' && bu.some(x => x.type === 'save' && x.shooter === e.player)));
   bu.forEach(e => { if (e.type === 'save' && bu.some(x => x.type === 'penaltyMissed' && x.player === e.shooter)) e._pen = true; });
   bu = bu.filter(e => !(e.type === 'keyPass' && bu.some(x => x.type === 'goal' && x.assist === e.player)));
+  bu = bu.filter(e => !(e.type === 'shotOff' && bu.some(x => x.type === 'bigChanceMissed' && x.team === e.team && x.player === e.player)));   // 1048 — aynı şut tek sahne
   bu.forEach(e => { if (e.type === 'foul') { const k = bu.find(x => x.type === 'foulDrawn' && x.team !== e.team && !x._esli); if (k) { k._esli = true; e._kurban = k.player; } } });
   bu = bu.filter(e => !e._esli);
   // 1047 — sunucu küçük olayları yazmıyor; atağın öncesindeki an olaya iliştirilmiş geliyor
@@ -29125,7 +29126,10 @@ function _g9Plan(dk, butce) {
   while (ak.length) { let k = ak.findIndex(e => _g9Once(e) === sah); if (k < 0) k = 0; const e = ak.splice(k, 1)[0]; zincir.push(e); sah = _g9Sonra(e) || sah; }
   const faul = bu.filter(e => e.type === 'foul' || e.type === 'foulDrawn').concat(bu.filter(e => e.type === 'yellow' || e.type === 'red'), bu.filter(e => e.type === 'freekick'));
   const hucum = bu.filter(e => !G9_AKIS.has(e.type) && !['foul', 'foulDrawn', 'yellow', 'red', 'freekick', 'corner'].includes(e.type));
-  const sira = zincir.concat(faul, hucum, bu.filter(e => e.type === 'corner'));
+  // 1048 — sunucu dakikayı sıralı yazıyorsa (o) o sıra oynanır; iliştirilmiş öncesi an kendi olayının hemen önünde
+  const _ok = e => e._oncesi ? e._oncesi.o - 0.5 : e.o;
+  const sira = (bu.length && bu.every(e => typeof _ok(e) === 'number' && !isNaN(_ok(e)))) ? bu.slice().sort((a, b) => _ok(a) - _ok(b))
+    : zincir.concat(faul, hucum, bu.filter(e => e.type === 'corner'));
   const toplam = L => L.reduce((t, x) => t + _g9Sure(x), 0);
   const zor = sira.filter(_g9Zorunlu);
   const gol = sira.find(e => e.type === 'goal');
@@ -29143,7 +29147,7 @@ function _g9Plan(dk, butce) {
   if (ana) sec.push(ana);
   if (ana) {   // ara an: ana andan önce olan ve topu ana anın takımına getiren (frikikte: faul)
     const T = _g9Kimin(ana), ia = sira.indexOf(ana);
-    const ara = sira.slice(0, ia).filter(e => !_g9Zorunlu(e) && (ana.type === 'freekick' ? (e.type === 'foul' && e.team !== ana.team)
+    const ara = sira.slice(0, ia).filter(e => !_g9Zorunlu(e) && (ana.type === 'freekick' ? ((e.type === 'foul' && e.team !== ana.team) || (e.type === 'foulDrawn' && e.team === ana.team))
       : (G9_ONEM[e.type] >= 26 && e.type !== 'corner' && e.type !== 'freekick' && _g9Kimin(e) === T))).slice(-1)[0];
     if (ara && toplam(sec) + _g9Sure(ara) <= butce) sec.push(ara);
   }
@@ -29184,7 +29188,7 @@ async function _g9Dolas() {
   const r = Math.random;
   const dur = () => { const c = (g9$('statusBadge') || {}).className || ''; return /sb-(pre|ht|ft)/.test(c) || (MS && MS.finished) || _g9Gizli(); };
   while (!G9.kuyruk.length && !dur()) {
-    await _g9w(170 + r() * 230); if (G9.kuyruk.length || dur()) break;
+    await _g9w(420 + r() * 480); if (G9.kuyruk.length || dur()) break;   // 1048 — sakin dolaşım
     if (G9.santra) continue;   // 1046 — santra bekleniyor: top ortada durur
     const A = G9.sahip || 'home', [x0, y0] = _g9TopT(A);
     if ((x0 > 72 && r() < .3) || r() < .05) { await _g9El(_g9Ters(A)); continue; }
@@ -29263,7 +29267,7 @@ function _gmAtakAdim() {
 // ── 948 · GOL ANI: gol, sahada top ağlara girdiği AN skorbordda, "GOL!" bandında, golcü satırında, olay listesinde ve gol sesinde görünür ──
 //   Sahne gecikirse / atlanırsa / saha görünmüyorsa / sekme arka plandaysa gol beklemez ya da en geç G9_TUT_MS sonra serbest kalır (skor asla takılı kalmaz).
 //   Ekran maça ortadan açıldıysa o ana kadarki goller beklemez.
-const G9_TUT_MS = 12000;
+const G9_TUT_MS = 20000;   // 1048
 G9.tut = { key: null, ilk: 1e9, bas: new Map(), ac: new Set() };
 const _g9Dk = e => _evK(e);   // 993
 function _g9GolKey(e) { return _g9Dk(e) + '|' + (e.team || '') + '|' + (e.player || ''); }
