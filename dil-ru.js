@@ -9128,3 +9128,10 @@ window.I18N_PATTERNS.ru.unshift(
   var S = window.I18N && window.I18N.ru;
   if (S) Object.assign(S, {"Duran Top": "Стандарты", "Frikik": "Штрафной", "Sağ Korner": "Угловой справа", "Sol Korner": "Угловой слева", "1. Atıcı": "1-й бьющий", "2. Atıcı": "2-й бьющий", "Otomatik oyuncu değişikliği": "Автоматические замены", "Yorgunluk ve sakatlık riski artar · dinlenme uzar": "Растут усталость и риск травм · отдых дольше"});
 })();
+
+
+/* 1050 — Görev Hattı pasif / milli */
+(function () {
+  var S = window.I18N && window.I18N.ru;
+  if (S) Object.assign(S, {"Bugün maç yok": "Сегодня матча нет", "Kulüp ya da milli maç · 1 dk": "Матч клуба или сборной · 1 мин"});
+})();

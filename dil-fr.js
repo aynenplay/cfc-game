@@ -9155,3 +9155,10 @@ window.I18N_PATTERNS.fr.unshift(
   var S = window.I18N && window.I18N.fr;
   if (S) Object.assign(S, {"Duran Top": "Tireurs", "Frikik": "Coup franc", "Sağ Korner": "Corner droit", "Sol Korner": "Corner gauche", "1. Atıcı": "1er tireur", "2. Atıcı": "2e tireur", "Otomatik oyuncu değişikliği": "Remplacements automatiques", "Yorgunluk ve sakatlık riski artar · dinlenme uzar": "Fatigue et risque de blessure en hausse · repos plus long"});
 })();
+
+
+/* 1050 — Görev Hattı pasif / milli */
+(function () {
+  var S = window.I18N && window.I18N.fr;
+  if (S) Object.assign(S, {"Bugün maç yok": "Pas de match aujourd'hui", "Kulüp ya da milli maç · 1 dk": "Match de club ou de sélection · 1 min"});
+})();
