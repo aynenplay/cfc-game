@@ -9211,3 +9211,7 @@ window.I18N_PATTERNS.fr.unshift(
     [/^• İmza ödemesi: (.+)$/, "• Prime de signature : $1"],
     [/^(.+?) ile sözleşmeni yeniledin; imza ödemen cüzdanına geçti\.$/, "Tu as prolongé ton contrat avec $1 ; ta prime de signature est arrivée dans ton portefeuille."]);
 })();
+
+
+/* 1066 — kısa Çalış */
+(function () { var S = window.I18N && window.I18N.fr; if (S) S['Çalış'] = "Entraîner"; })();

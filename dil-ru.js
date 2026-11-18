@@ -9184,3 +9184,7 @@ window.I18N_PATTERNS.ru.unshift(
     [/^• İmza ödemesi: (.+)$/, "• Подъёмные: $1"],
     [/^(.+?) ile sözleşmeni yeniledin; imza ödemen cüzdanına geçti\.$/, "Ты продлил контракт с $1; подъёмные зачислены в твой кошелёк."]);
 })();
+
+
+/* 1066 — kısa Çalış */
+(function () { var S = window.I18N && window.I18N.ru; if (S) S['Çalış'] = "Обучить"; })();

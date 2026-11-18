@@ -7519,3 +7519,7 @@ window.I18N_PATTERNS.de.unshift(
     [/^• İmza ödemesi: (.+)$/, "• Unterschriftsprämie: $1"],
     [/^(.+?) ile sözleşmeni yeniledin; imza ödemen cüzdanına geçti\.$/, "Du hast deinen Vertrag bei $1 verlängert; deine Unterschriftsprämie ist in deiner Geldbörse."]);
 })();
+
+
+/* 1066 — kısa Çalış */
+(function () { var S = window.I18N && window.I18N.de; if (S) S['Çalış'] = "Training"; })();

@@ -9149,3 +9149,7 @@ window.I18N_PATTERNS.it.unshift(
     [/^• İmza ödemesi: (.+)$/, "• Premio firma: $1"],
     [/^(.+?) ile sözleşmeni yeniledin; imza ödemen cüzdanına geçti\.$/, "Hai rinnovato il contratto con $1; il tuo premio firma è nel tuo portafoglio."]);
 })();
+
+
+/* 1066 — kısa Çalış */
+(function () { var S = window.I18N && window.I18N.it; if (S) S['Çalış'] = "Allena"; })();
