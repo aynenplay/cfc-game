@@ -7508,3 +7508,14 @@ window.I18N_PATTERNS.de.unshift(
     [/^• Oyuncuya imza ödemesi: (.+)$/, "• Unterschriftsprämie für den Spieler: $1"],
     [/^• Kasana geçen: (.+)$/, "• In deine Kasse: $1"]);
 })();
+
+
+/* 1064 — yenileme imza ödemesi */
+(function () {
+  var S = window.I18N && window.I18N.de;
+  if (S) Object.assign(S, {"Takım kasasında imza ödemesi için yeterli euro yok.": "Die Teamkasse hat nicht genug Euro für die Unterschriftsprämie."});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.de;
+  if (P) P.unshift(
+    [/^• İmza ödemesi: (.+)$/, "• Unterschriftsprämie: $1"],
+    [/^(.+?) ile sözleşmeni yeniledin; imza ödemen cüzdanına geçti\.$/, "Du hast deinen Vertrag bei $1 verlängert; deine Unterschriftsprämie ist in deiner Geldbörse."]);
+})();

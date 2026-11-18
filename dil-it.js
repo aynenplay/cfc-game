@@ -9138,3 +9138,14 @@ window.I18N_PATTERNS.it.unshift(
     [/^• Oyuncuya imza ödemesi: (.+)$/, "• Premio firma al giocatore: $1"],
     [/^• Kasana geçen: (.+)$/, "• Nella tua cassa: $1"]);
 })();
+
+
+/* 1064 — yenileme imza ödemesi */
+(function () {
+  var S = window.I18N && window.I18N.it;
+  if (S) Object.assign(S, {"Takım kasasında imza ödemesi için yeterli euro yok.": "La cassa della squadra non ha abbastanza euro per il premio firma."});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.it;
+  if (P) P.unshift(
+    [/^• İmza ödemesi: (.+)$/, "• Premio firma: $1"],
+    [/^(.+?) ile sözleşmeni yeniledin; imza ödemen cüzdanına geçti\.$/, "Hai rinnovato il contratto con $1; il tuo premio firma è nel tuo portafoglio."]);
+})();

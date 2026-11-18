@@ -9173,3 +9173,14 @@ window.I18N_PATTERNS.ru.unshift(
     [/^• Oyuncuya imza ödemesi: (.+)$/, "• Подъёмные игроку: $1"],
     [/^• Kasana geçen: (.+)$/, "• В казну: $1"]);
 })();
+
+
+/* 1064 — yenileme imza ödemesi */
+(function () {
+  var S = window.I18N && window.I18N.ru;
+  if (S) Object.assign(S, {"Takım kasasında imza ödemesi için yeterli euro yok.": "В казне команды не хватает евро на подъёмные."});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.ru;
+  if (P) P.unshift(
+    [/^• İmza ödemesi: (.+)$/, "• Подъёмные: $1"],
+    [/^(.+?) ile sözleşmeni yeniledin; imza ödemen cüzdanına geçti\.$/, "Ты продлил контракт с $1; подъёмные зачислены в твой кошелёк."]);
+})();

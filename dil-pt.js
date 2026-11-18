@@ -9132,3 +9132,14 @@ window.I18N_PATTERNS.pt.unshift(
     [/^• Oyuncuya imza ödemesi: (.+)$/, "• Pagamento de assinatura ao jogador: $1"],
     [/^• Kasana geçen: (.+)$/, "• Para o teu cofre: $1"]);
 })();
+
+
+/* 1064 — yenileme imza ödemesi */
+(function () {
+  var S = window.I18N && window.I18N.pt;
+  if (S) Object.assign(S, {"Takım kasasında imza ödemesi için yeterli euro yok.": "O cofre da equipa não tem euros suficientes para o pagamento de assinatura."});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.pt;
+  if (P) P.unshift(
+    [/^• İmza ödemesi: (.+)$/, "• Pagamento de assinatura: $1"],
+    [/^(.+?) ile sözleşmeni yeniledin; imza ödemen cüzdanına geçti\.$/, "Renovaste o contrato com $1; o teu pagamento de assinatura já está na tua carteira."]);
+})();

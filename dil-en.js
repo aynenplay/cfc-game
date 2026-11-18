@@ -9572,3 +9572,14 @@ window.I18N_PATTERNS.en.unshift(
     [/^• Oyuncuya imza ödemesi: (.+)$/, "• Signing payment to the player: $1"],
     [/^• Kasana geçen: (.+)$/, "• Added to your treasury: $1"]);
 })();
+
+
+/* 1064 — yenileme imza ödemesi */
+(function () {
+  var S = window.I18N && window.I18N.en;
+  if (S) Object.assign(S, {"Takım kasasında imza ödemesi için yeterli euro yok.": "The team treasury does not have enough euros for the signing payment."});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.en;
+  if (P) P.unshift(
+    [/^• İmza ödemesi: (.+)$/, "• Signing payment: $1"],
+    [/^(.+?) ile sözleşmeni yeniledin; imza ödemen cüzdanına geçti\.$/, "You renewed your contract with $1; your signing payment has been added to your wallet."]);
+})();

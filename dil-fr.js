@@ -9200,3 +9200,14 @@ window.I18N_PATTERNS.fr.unshift(
     [/^• Oyuncuya imza ödemesi: (.+)$/, "• Prime de signature au joueur : $1"],
     [/^• Kasana geçen: (.+)$/, "• Dans ta caisse : $1"]);
 })();
+
+
+/* 1064 — yenileme imza ödemesi */
+(function () {
+  var S = window.I18N && window.I18N.fr;
+  if (S) Object.assign(S, {"Takım kasasında imza ödemesi için yeterli euro yok.": "La caisse de l’équipe n’a pas assez d’euros pour la prime de signature."});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.fr;
+  if (P) P.unshift(
+    [/^• İmza ödemesi: (.+)$/, "• Prime de signature : $1"],
+    [/^(.+?) ile sözleşmeni yeniledin; imza ödemen cüzdanına geçti\.$/, "Tu as prolongé ton contrat avec $1 ; ta prime de signature est arrivée dans ton portefeuille."]);
+})();
