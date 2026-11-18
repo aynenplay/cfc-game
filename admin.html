@@ -2403,7 +2403,9 @@ const _fbTime = (ts) => { try{ return new Date(ts).toLocaleString('tr',{ day:'2-
 
 // Şikayet edilen hesap: "Şikayet edilen: Ad (kimlik)" — kimlik hesap kimliği ya da CSC Media adı (user:<ad>)
 function fbSikayetHedef(m){
-  m=String(m||''); if(m.indexOf('[İçerik şikayeti]')!==0) return null;
+  m=String(m||'');
+  if(m.indexOf('[Engelleme]')===0){ const e=m.match(/^Engellenen: .*\(([^()]+)\)\s*$/m); return e?e[1].trim():null; }   // 1059
+  if(m.indexOf('[İçerik şikayeti]')!==0) return null;
   const k=m.match(/^Şikayet edilen: .*\(([^()]+)\)\s*$/m); return k?k[1].trim():null;
 }
 function fbProfil(hedef){
@@ -2426,7 +2428,7 @@ async function fbIslem(id){
   if(!hp && gonderi){ sgSikayetAc(kayit, f.id); return; }   // 734 — hesap bulunamazsa gönderi yine açılır
   if(!hp){ alert('Şikayet edilen hesap bulunamadı; silinmiş olabilir.'); return; }
   const al=k=>((String(f.message).match(new RegExp('^'+k+':\\s?(.*)$','m'))||[])[1]||'').trim();
-  IS={ f, hp, kayit:gonderi?kayit:'', sebep:al('Sebep'), tur:al('Tür'), konu:'uyari' };
+  IS={ f, hp, kayit:gonderi?kayit:'', sebep:al('Sebep') || (String(f.message).indexOf('[Engelleme]')===0 ? 'Engelledi' : ''), tur:al('Tür'), konu:'uyari' };   // 1059
   isCiz();
   $('isModal').style.display='flex';
 }
@@ -2482,9 +2484,11 @@ function isMesajCiz(){
 }
 // Oyundan gelen içerik şikayeti: "[İçerik şikayeti]\nSebep: …\nTür: …" — satırlar alanlara ayrılır
 function fbSikayet(m){
-  m=String(m||''); if(m.indexOf('[İçerik şikayeti]')!==0) return null;
+  m=String(m||''); const eng=m.indexOf('[Engelleme]')===0;   // 1059
+  if(!eng && m.indexOf('[İçerik şikayeti]')!==0) return null;
   const al={}; let son=null;
-  m.split('\n').slice(1).forEach(sat=>{ const k=sat.match(/^(Sebep|Tür|Şikayet edilen|Kayıt|İçerik):\s?(.*)$/); if(k){ son=k[1]; al[son]=k[2]; } else if(son) al[son]+='\n'+sat; });
+  m.split('\n').slice(1).forEach(sat=>{ const k=sat.match(/^(Sebep|Tür|Şikayet edilen|Engellenen|Kayıt|İçerik):\s?(.*)$/); if(k){ son=k[1]; al[son]=k[2]; } else if(son) al[son]+='\n'+sat; });
+  if(eng){ al.Sebep=al.Sebep||'Engelledi'; al['Şikayet edilen']=al['Şikayet edilen']||al.Engellenen||''; }
   const hp=fbProfil(fbSikayetHedef(m));
   const kim=(hp&&hp.name)||String(al['Şikayet edilen']||'').replace(/\s*\([^)]*\)\s*$/,'');
   const kimH=hp?`<button data-fbu="${_fbEsc(kim)}">${_fbEsc(kim)}</button>${uBanInfo(hp)?'<span class="u-banbadge">ENGELLİ</span>':''}`:_fbEsc(kim);
@@ -2621,9 +2625,10 @@ let _fbMqBagli = false;   // _uMq Kullanıcılar bölümünde tanımlı; ilk kul
 function _fbMqBagla(){ if (_fbMqBagli) return; _fbMqBagli = true; _uMq.addEventListener('change', ()=>{ if (CUR === 'feedback' && $('fbArea')) renderFeedback(); }); }
 function fbOzet(f){
   const m = String(f.message||'');
-  if (m.indexOf('[İçerik şikayeti]') === 0){
+  if (m.indexOf('[İçerik şikayeti]') === 0 || m.indexOf('[Engelleme]') === 0){   // 1059 — engelleme de sade
     const al = k => ((m.match(new RegExp('^'+k+':\\s?(.*)$','m'))||[])[1]||'').trim();
-    return [al('Sebep'), al('Tür')].filter(Boolean).join(' · ') + (al('İçerik') ? ' — ' + al('İçerik') : '');
+    const kim = m.indexOf('[Engelleme]') === 0 ? al('Engellenen').replace(/\s*\([^)]*\)\s*$/, '') : '';
+    return [m.indexOf('[Engelleme]') === 0 ? 'Engelledi' : al('Sebep'), al('Tür'), kim].filter(Boolean).join(' · ') + (al('İçerik') ? ' — ' + al('İçerik') : '');
   }
   if (!f.user_id && m.startsWith('[Giriş ekranı]\n')) return m.split('\n').slice(3).join(' ').trim();
   return m;
