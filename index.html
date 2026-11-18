@@ -26436,8 +26436,8 @@ body.pd-acik{overflow:hidden}
   </div>
 </div>
 
-<script src="js/oyun.74b02a30.js"></script>
-<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.74b02a30.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
+<script src="js/oyun.bcca4c92.js"></script>
+<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.bcca4c92.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
 
 <nav id="bottomnav">
   <button class="nav-btn active" onclick="showPage('home',this)"><div class="nav-icon">🏠</div><div class="nav-label">Menü</div></button>
@@ -47671,7 +47671,6 @@ function futUst() {
 window.s54Fs = function (k) {
   fsAl();
   if (TBo().fs === k) return;
-  if (k === 'ser') { TBo()._yeni = TBo().yeni; TBo().yeni = false; } else if (TBo().fs === 'ser') TBo().yeni = TBo()._yeni != null ? TBo()._yeni : true;
   TBo().fs = k;
   const el = document.getElementById('tfList'); if (el) el.dataset.tb = '';
   tbCiz();
@@ -47704,13 +47703,26 @@ function ilanCiz() {
   kut.innerHTML = L.length ? L.map(ilanSatir).join('') : `<div class="tf-empty ary-bos">${tur === 'kir' ? 'Kiralık listesinde oyuncu yok' : 'Satış listesinde oyuncu yok'}</div>`;
   if (Date.now() - SZ.ilT > 30000) ilanOku(true).then(ilanCiz);
 }
+// Serbest: oyundaki gerçek takımsız oyuncular (tb_serbest · mevki / yetenek / uyruk süzgeci sunucuda)
+function serOku(k) {
+  if (SZ.serP && SZ.serP.k === k) return SZ.serP.p;
+  const tb = TBo();
+  const p = Promise.resolve(window.sb ? window.sb.rpc('tb_serbest', { p_grup: tb.grp || null, p_min: tb.min || null, p_uyruk: tb.uyruk || null }) : { data: null })
+    .then(r => { SZ.serP = null; const d = r && r.data; if (d && d.ok) SZ.ser = { k, liste: Array.isArray(d.liste) ? d.liste : [], t: Date.now() };
+                 else if (!SZ.ser || SZ.ser.k !== k) SZ.ser = { k, liste: [], t: Date.now() }; }, () => { SZ.serP = null; });
+  SZ.serP = { k, p };
+  return p;
+}
 function serCiz() {
   const kut = document.getElementById('tbListe'); if (!kut) return;
-  const d = TBo().D[T().tbAnahtar ? T().tbAnahtar() : '']; if (!d) return;
-  const q = String(TBo().ara || '').trim().toLocaleLowerCase('tr');
-  const L = (d.liste || []).filter(x => !x.takim && (!q || String(x.ad || '').toLocaleLowerCase('tr').includes(q)));
-  TBo().gor = L;
+  const tb = TBo(), k = [tb.grp || '', tb.min || '', tb.uyruk || ''].join('|');
+  const d = SZ.ser && SZ.ser.k === k ? SZ.ser : null;
+  if (!d) { kut.innerHTML = '<div class="tf-empty ary-bos">…</div>'; serOku(k).then(() => { if (futAcik() && fsAl() === 'ser') serCiz(); }); return; }
+  const q = String(tb.ara || '').trim().toLocaleLowerCase('tr');
+  const L = d.liste.filter(x => !q || String(x.ad || '').toLocaleLowerCase('tr').includes(q));
+  tb.gor = L;
   kut.innerHTML = L.length ? L.map((x, i) => T().tbOyuncuKart(x, i)).join('') : '<div class="tf-empty ary-bos">Oyuncu bulunamadı</div>';
+  if (Date.now() - d.t > 30000) { d.t = Date.now(); serOku(k).then(() => { if (futAcik() && fsAl() === 'ser') serCiz(); }); }
 }
 // kmp968 içinden çağrılır: tbCiz sonunda alt sekmeler · tbListeCiz başında satış / kiralık / serbest listesi
 window.s54FutUst = function () {
