@@ -9135,3 +9135,10 @@ window.I18N_PATTERNS.ru.unshift(
   var S = window.I18N && window.I18N.ru;
   if (S) Object.assign(S, {"Bugün maç yok": "Сегодня матча нет", "Kulüp ya da milli maç · 1 dk": "Матч клуба или сборной · 1 мин"});
 })();
+
+
+/* 1051 — Kullanım Koşulları onayı / Şikayet Et */
+(function () {
+  var S = window.I18N && window.I18N.ru;
+  if (S) Object.assign(S, {"Kullanım Koşulları (EULA)": "Условия использования (EULA)", "SIFIR TOLERANS": "НУЛЕВАЯ ТЕРПИМОСТЬ", "Uygunsuz içeriğe ve taciz eden kullanıcılara hiçbir şekilde izin verilmez. Şikayet edilen içerik 24 saat içinde incelenir; kurala aykırı içerik kaldırılır ve paylaşan kullanıcının hesabı kapatılır.": "Недопустимый контент и оскорбительное поведение пользователей не допускаются ни в каком виде. Жалобы рассматриваются в течение 24 часов; нарушающий правила контент удаляется, а аккаунт его автора закрывается.", "Kabul Ediyorum": "Принимаю", "Devam etmek için Kullanım Koşulları'nı kabul etmelisin.": "Чтобы продолжить, нужно принять Условия использования.", "Şikayet Et": "Пожаловаться", "Engelleme yönetime de bildirilir.": "О блокировке также сообщается администрации."});
+})();

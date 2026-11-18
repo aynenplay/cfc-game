@@ -9534,3 +9534,10 @@ window.I18N_PATTERNS.en.unshift(
   var S = window.I18N && window.I18N.en;
   if (S) Object.assign(S, {"Bugün maç yok": "No match today", "Kulüp ya da milli maç · 1 dk": "Club or national match · 1 min"});
 })();
+
+
+/* 1051 — Kullanım Koşulları onayı / Şikayet Et */
+(function () {
+  var S = window.I18N && window.I18N.en;
+  if (S) Object.assign(S, {"Kullanım Koşulları (EULA)": "Terms of Use (EULA)", "SIFIR TOLERANS": "ZERO TOLERANCE", "Uygunsuz içeriğe ve taciz eden kullanıcılara hiçbir şekilde izin verilmez. Şikayet edilen içerik 24 saat içinde incelenir; kurala aykırı içerik kaldırılır ve paylaşan kullanıcının hesabı kapatılır.": "There is no tolerance for objectionable content or abusive users. Reported content is reviewed within 24 hours; content that breaks the rules is removed and the account of the user who posted it is closed.", "Kabul Ediyorum": "I Agree", "Devam etmek için Kullanım Koşulları'nı kabul etmelisin.": "To continue, you must accept the Terms of Use.", "Şikayet Et": "Report", "Engelleme yönetime de bildirilir.": "Blocking is also reported to the developer."});
+})();
