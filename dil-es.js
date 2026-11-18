@@ -9125,3 +9125,18 @@ window.I18N_PATTERNS.es.unshift(
   var P = window.I18N_PATTERNS && window.I18N_PATTERNS.es;
   if (P) P.push([/^(\d+)\. sezon ara transfer$/, "mercado de invierno de la temporada $1"], [/^(\d+)\. gün açılır$/, "abre el día $1"]);
 })();
+
+
+/* 1062 — imza ödemesi */
+(function () {
+  var S = window.I18N && window.I18N.es;
+  if (S) Object.assign(S, {"Kasana geçer": "Va a tu caja", "Oyuncuya imza ödemesi": "Pago de firma al jugador", "Max 2.000 elmas": "Máx. 2.000 diamantes", "Satılırsan bonservisten imza ödemesi alırsın; euro ve elmas cüzdanına geçer.": "Si te venden, recibes un pago de firma del traspaso; los euros y diamantes van a tu cartera.", "En fazla 2.000 elmas yazabilirsin.": "Puedes poner como máximo 2.000 diamantes.", "Kabul edersen oyuncu hemen satılır.": "Si aceptas, el jugador se vende al instante.", "İmza ödemesi": "Pago de firma"});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.es;
+  if (P) P.unshift(
+    [/^İmza Ödemesi — (.+)$/, "Pago de firma — $1"],
+    [/^(.+?) → (.+?) transferinden imza ödemen cüzdanına geçti\.$/, "Tu pago de firma del traspaso $1 → $2 ya está en tu cartera."],
+    [/^• Euro: (.+)$/, "• Euros: $1"],
+    [/^• Elmas: (.+)$/, "• Diamantes: $1"],
+    [/^• Oyuncuya imza ödemesi: (.+)$/, "• Pago de firma al jugador: $1"],
+    [/^• Kasana geçen: (.+)$/, "• A tu caja: $1"]);
+})();

@@ -9557,3 +9557,18 @@ window.I18N_PATTERNS.en.unshift(
   var P = window.I18N_PATTERNS && window.I18N_PATTERNS.en;
   if (P) P.push([/^(\d+)\. sezon ara transfer$/, "season $1 mid-season window"], [/^(\d+)\. gün açılır$/, "opens on day $1"]);
 })();
+
+
+/* 1062 — imza ödemesi */
+(function () {
+  var S = window.I18N && window.I18N.en;
+  if (S) Object.assign(S, {"Kasana geçer": "Goes to your treasury", "Oyuncuya imza ödemesi": "Signing payment to the player", "Max 2.000 elmas": "Max 2,000 diamonds", "Satılırsan bonservisten imza ödemesi alırsın; euro ve elmas cüzdanına geçer.": "If you are sold, you get a signing payment from the transfer fee; the euros and diamonds go to your wallet.", "En fazla 2.000 elmas yazabilirsin.": "You can enter at most 2,000 diamonds.", "Kabul edersen oyuncu hemen satılır.": "If you accept, the player is sold immediately.", "İmza ödemesi": "Signing payment"});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.en;
+  if (P) P.unshift(
+    [/^İmza Ödemesi — (.+)$/, "Signing Payment — $1"],
+    [/^(.+?) → (.+?) transferinden imza ödemen cüzdanına geçti\.$/, "Your signing payment from the $1 → $2 transfer has been added to your wallet."],
+    [/^• Euro: (.+)$/, "• Euros: $1"],
+    [/^• Elmas: (.+)$/, "• Diamonds: $1"],
+    [/^• Oyuncuya imza ödemesi: (.+)$/, "• Signing payment to the player: $1"],
+    [/^• Kasana geçen: (.+)$/, "• Added to your treasury: $1"]);
+})();

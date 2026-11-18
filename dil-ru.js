@@ -9158,3 +9158,18 @@ window.I18N_PATTERNS.ru.unshift(
   var P = window.I18N_PATTERNS && window.I18N_PATTERNS.ru;
   if (P) P.push([/^(\d+)\. sezon ara transfer$/, "зимнее окно сезона $1"], [/^(\d+)\. gün açılır$/, "откроется в день $1"]);
 })();
+
+
+/* 1062 — imza ödemesi */
+(function () {
+  var S = window.I18N && window.I18N.ru;
+  if (S) Object.assign(S, {"Kasana geçer": "Поступит в казну", "Oyuncuya imza ödemesi": "Подъёмные игроку", "Max 2.000 elmas": "Макс. 2 000 алмазов", "Satılırsan bonservisten imza ödemesi alırsın; euro ve elmas cüzdanına geçer.": "Если тебя продадут, ты получишь подъёмные из суммы трансфера; евро и алмазы поступят в кошелёк.", "En fazla 2.000 elmas yazabilirsin.": "Можно указать не более 2 000 алмазов.", "Kabul edersen oyuncu hemen satılır.": "Если примешь, игрок будет продан сразу.", "İmza ödemesi": "Подъёмные"});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.ru;
+  if (P) P.unshift(
+    [/^İmza Ödemesi — (.+)$/, "Подъёмные — $1"],
+    [/^(.+?) → (.+?) transferinden imza ödemen cüzdanına geçti\.$/, "Подъёмные за трансфер $1 → $2 зачислены в твой кошелёк."],
+    [/^• Euro: (.+)$/, "• Евро: $1"],
+    [/^• Elmas: (.+)$/, "• Алмазы: $1"],
+    [/^• Oyuncuya imza ödemesi: (.+)$/, "• Подъёмные игроку: $1"],
+    [/^• Kasana geçen: (.+)$/, "• В казну: $1"]);
+})();
