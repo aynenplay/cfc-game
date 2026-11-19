@@ -9188,3 +9188,17 @@ window.I18N_PATTERNS.ru.unshift(
 
 /* 1066 — kısa Çalış */
 (function () { var S = window.I18N && window.I18N.ru; if (S) S['Çalış'] = "Обучить"; })();
+
+
+/* 1069 — sözleşme yenileme talebi */
+(function () {
+  var S = window.I18N && window.I18N.ru;
+  if (S) Object.assign(S, {"Yanıt Bekleniyor": "Ждём ответа", "Yanıt bekleniyor": "Ждём ответа"});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.ru;
+  if (P) P.unshift(
+    [/^(.+?) Sözleşme Yenilemeyi Reddetti$/, "$1 отклонил продление контракта"],
+    [/^(.+?), (.+?) ile sözleşme yenileme talebini kabul etmedi\.$/, "$1 не принял запрос $2 на продление контракта."],
+    [/^• Mevcut sözleşme bitişi: (\d+)\. sezon sonu · (.+)$/, "• Текущий контракт истекает: конец сезона $1 · $2"],
+    [/^• Mevcut sözleşme bitişi: (\d+)\. sezon ara transfer · (.+)$/, "• Текущий контракт истекает: зимнее окно сезона $1 · $2"],
+    [/^• Talebi gönderen: (.+)$/, "• Запрос отправил: $1"]);
+})();

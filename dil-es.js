@@ -9151,3 +9151,17 @@ window.I18N_PATTERNS.es.unshift(
     [/^• İmza ödemesi: (.+)$/, "• Pago de firma: $1"],
     [/^(.+?) ile sözleşmeni yeniledin; imza ödemen cüzdanına geçti\.$/, "Renovaste tu contrato con $1; tu pago de firma ya está en tu cartera."]);
 })();
+
+
+/* 1069 — sözleşme yenileme talebi */
+(function () {
+  var S = window.I18N && window.I18N.es;
+  if (S) Object.assign(S, {"Yanıt Bekleniyor": "Esperando respuesta", "Yanıt bekleniyor": "Esperando respuesta"});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.es;
+  if (P) P.unshift(
+    [/^(.+?) Sözleşme Yenilemeyi Reddetti$/, "$1 rechazó la renovación del contrato"],
+    [/^(.+?), (.+?) ile sözleşme yenileme talebini kabul etmedi\.$/, "$1 no aceptó la solicitud de renovación de contrato de $2."],
+    [/^• Mevcut sözleşme bitişi: (\d+)\. sezon sonu · (.+)$/, "• Fin del contrato actual: fin de la temporada $1 · $2"],
+    [/^• Mevcut sözleşme bitişi: (\d+)\. sezon ara transfer · (.+)$/, "• Fin del contrato actual: mercado de invierno de la temporada $1 · $2"],
+    [/^• Talebi gönderen: (.+)$/, "• Solicitado por: $1"]);
+})();

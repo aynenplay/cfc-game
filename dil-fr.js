@@ -9215,3 +9215,17 @@ window.I18N_PATTERNS.fr.unshift(
 
 /* 1066 — kısa Çalış */
 (function () { var S = window.I18N && window.I18N.fr; if (S) S['Çalış'] = "Entraîner"; })();
+
+
+/* 1069 — sözleşme yenileme talebi */
+(function () {
+  var S = window.I18N && window.I18N.fr;
+  if (S) Object.assign(S, {"Yanıt Bekleniyor": "En attente de réponse", "Yanıt bekleniyor": "En attente de réponse"});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.fr;
+  if (P) P.unshift(
+    [/^(.+?) Sözleşme Yenilemeyi Reddetti$/, "$1 a refusé la prolongation de contrat"],
+    [/^(.+?), (.+?) ile sözleşme yenileme talebini kabul etmedi\.$/, "$1 n’a pas accepté la demande de prolongation de contrat de $2."],
+    [/^• Mevcut sözleşme bitişi: (\d+)\. sezon sonu · (.+)$/, "• Fin du contrat actuel : fin de la saison $1 · $2"],
+    [/^• Mevcut sözleşme bitişi: (\d+)\. sezon ara transfer · (.+)$/, "• Fin du contrat actuel : mercato d’hiver de la saison $1 · $2"],
+    [/^• Talebi gönderen: (.+)$/, "• Demandé par : $1"]);
+})();

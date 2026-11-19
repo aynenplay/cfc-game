@@ -9583,3 +9583,17 @@ window.I18N_PATTERNS.en.unshift(
     [/^• İmza ödemesi: (.+)$/, "• Signing payment: $1"],
     [/^(.+?) ile sözleşmeni yeniledin; imza ödemen cüzdanına geçti\.$/, "You renewed your contract with $1; your signing payment has been added to your wallet."]);
 })();
+
+
+/* 1069 — sözleşme yenileme talebi */
+(function () {
+  var S = window.I18N && window.I18N.en;
+  if (S) Object.assign(S, {"Yanıt Bekleniyor": "Awaiting Reply", "Yanıt bekleniyor": "Awaiting reply"});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.en;
+  if (P) P.unshift(
+    [/^(.+?) Sözleşme Yenilemeyi Reddetti$/, "$1 Turned Down the Contract Renewal"],
+    [/^(.+?), (.+?) ile sözleşme yenileme talebini kabul etmedi\.$/, "$1 did not accept the contract renewal request from $2."],
+    [/^• Mevcut sözleşme bitişi: (\d+)\. sezon sonu · (.+)$/, "• Current contract ends: end of season $1 · $2"],
+    [/^• Mevcut sözleşme bitişi: (\d+)\. sezon ara transfer · (.+)$/, "• Current contract ends: season $1 mid-season window · $2"],
+    [/^• Talebi gönderen: (.+)$/, "• Requested by: $1"]);
+})();

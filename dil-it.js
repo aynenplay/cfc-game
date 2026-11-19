@@ -9153,3 +9153,17 @@ window.I18N_PATTERNS.it.unshift(
 
 /* 1066 — kısa Çalış */
 (function () { var S = window.I18N && window.I18N.it; if (S) S['Çalış'] = "Allena"; })();
+
+
+/* 1069 — sözleşme yenileme talebi */
+(function () {
+  var S = window.I18N && window.I18N.it;
+  if (S) Object.assign(S, {"Yanıt Bekleniyor": "In attesa di risposta", "Yanıt bekleniyor": "In attesa di risposta"});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.it;
+  if (P) P.unshift(
+    [/^(.+?) Sözleşme Yenilemeyi Reddetti$/, "$1 ha rifiutato il rinnovo del contratto"],
+    [/^(.+?), (.+?) ile sözleşme yenileme talebini kabul etmedi\.$/, "$1 non ha accettato la richiesta di rinnovo del contratto di $2."],
+    [/^• Mevcut sözleşme bitişi: (\d+)\. sezon sonu · (.+)$/, "• Scadenza contratto attuale: fine stagione $1 · $2"],
+    [/^• Mevcut sözleşme bitişi: (\d+)\. sezon ara transfer · (.+)$/, "• Scadenza contratto attuale: mercato di riparazione della stagione $1 · $2"],
+    [/^• Talebi gönderen: (.+)$/, "• Richiesto da: $1"]);
+})();
