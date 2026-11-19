@@ -7537,3 +7537,19 @@ window.I18N_PATTERNS.de.unshift(
     [/^• Mevcut sözleşme bitişi: (\d+)\. sezon ara transfer · (.+)$/, "• Aktueller Vertrag endet: Saison $1, Winterfenster · $2"],
     [/^• Talebi gönderen: (.+)$/, "• Angefragt von: $1"]);
 })();
+
+
+/* 1070 — alt yapı / rezerv teklif reddi */
+(function () {
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.de;
+  if (P) P.unshift(
+    [/^(.+?) A Takım Teklifini Reddetti$/, "$1 hat das Angebot für die erste Mannschaft abgelehnt"],
+    [/^(.+?) Rezerv Teklifini Reddetti$/, "$1 hat das Reserve-Angebot abgelehnt"],
+    [/^(.+?), (.+?) A takımı sözleşme teklifini kabul etmedi\.$/, "$1 hat das Vertragsangebot der ersten Mannschaft von $2 nicht angenommen."],
+    [/^(.+?), (.+?) rezerv takımı teklifini kabul etmedi\.$/, "$1 hat das Angebot der Reservemannschaft von $2 nicht angenommen."],
+    [/^(.+?), (.+?) sözleşme teklifini kabul etmedi\.$/, "$1 hat das Vertragsangebot von $2 nicht angenommen."],
+    [/^• Alt yapıda kalmaya devam ediyor$/, "• Bleibt in der Jugendakademie"],
+    [/^• Rezervde kalmaya devam ediyor$/, "• Bleibt in der Reserve"],
+    [/^• Sözleşmesiz devam ediyor$/, "• Spielt weiter ohne Vertrag"],
+    [/^• Teklifi gönderen: (.+)$/, "• Angebot gesendet von: $1"]);
+})();

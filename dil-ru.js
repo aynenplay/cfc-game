@@ -9202,3 +9202,19 @@ window.I18N_PATTERNS.ru.unshift(
     [/^• Mevcut sözleşme bitişi: (\d+)\. sezon ara transfer · (.+)$/, "• Текущий контракт истекает: зимнее окно сезона $1 · $2"],
     [/^• Talebi gönderen: (.+)$/, "• Запрос отправил: $1"]);
 })();
+
+
+/* 1070 — alt yapı / rezerv teklif reddi */
+(function () {
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.ru;
+  if (P) P.unshift(
+    [/^(.+?) A Takım Teklifini Reddetti$/, "$1 отклонил предложение основной команды"],
+    [/^(.+?) Rezerv Teklifini Reddetti$/, "$1 отклонил предложение резервной команды"],
+    [/^(.+?), (.+?) A takımı sözleşme teklifini kabul etmedi\.$/, "$1 не принял предложение контракта основной команды $2."],
+    [/^(.+?), (.+?) rezerv takımı teklifini kabul etmedi\.$/, "$1 не принял предложение резервной команды $2."],
+    [/^(.+?), (.+?) sözleşme teklifini kabul etmedi\.$/, "$1 не принял предложение контракта $2."],
+    [/^• Alt yapıda kalmaya devam ediyor$/, "• Остаётся в академии"],
+    [/^• Rezervde kalmaya devam ediyor$/, "• Остаётся в резерве"],
+    [/^• Sözleşmesiz devam ediyor$/, "• Продолжает без контракта"],
+    [/^• Teklifi gönderen: (.+)$/, "• Предложение отправил: $1"]);
+})();
