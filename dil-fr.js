@@ -9245,3 +9245,20 @@ window.I18N_PATTERNS.fr.unshift(
     [/^• Sözleşmesiz devam ediyor$/, "• Continue sans contrat"],
     [/^• Teklifi gönderen: (.+)$/, "• Offre envoyée par : $1"]);
 })();
+
+
+/* 1076 — National Cup haberleri */
+(function () {
+  var S = window.I18N && window.I18N.fr;
+  if (S) Object.assign(S, {"Son 32 eşleşmeleri belli oldu": "Les seizièmes de finale sont connus", "2. tur eşleşmeleri belli oldu": "Les affiches du 2e tour sont connues", "Ulusal kupalarda şampiyonlar belli oldu": "Les vainqueurs de la National Cup sont connus"});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.fr;
+  if (P) P.unshift(
+    [/^(.+) 2\. turda$/, "$1 au 2e tour"],
+    [/^(.+) son 32'de$/, "$1 en seizièmes de finale"],
+    [/^Sürpriz! (.+), (.+) engelini geçti$/, "Surprise ! $1 élimine $2"],
+    [/^(.+), National Cup'a veda etti$/, "$1 éliminé de la National Cup"],
+    [/^National Cup finali bu akşam$/, "La finale de la National Cup, c’est ce soir"],
+    [/^National Cup finali bugün$/, "La finale de la National Cup, c’est aujourd’hui"],
+    [/^National Cup finali yarın$/, "La finale de la National Cup, c’est demain"],
+    [/^National Cup finalinde heyecan sürüyor$/, "La finale de la National Cup bat son plein"]);
+})();

@@ -9218,3 +9218,20 @@ window.I18N_PATTERNS.ru.unshift(
     [/^• Sözleşmesiz devam ediyor$/, "• Продолжает без контракта"],
     [/^• Teklifi gönderen: (.+)$/, "• Предложение отправил: $1"]);
 })();
+
+
+/* 1076 — National Cup haberleri */
+(function () {
+  var S = window.I18N && window.I18N.ru;
+  if (S) Object.assign(S, {"Son 32 eşleşmeleri belli oldu": "Определились пары 1/16 финала", "2. tur eşleşmeleri belli oldu": "Определились пары 2-го раунда", "Ulusal kupalarda şampiyonlar belli oldu": "Определились победители National Cup"});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.ru;
+  if (P) P.unshift(
+    [/^(.+) 2\. turda$/, "$1 во 2-м раунде"],
+    [/^(.+) son 32'de$/, "$1 в 1/16 финала"],
+    [/^Sürpriz! (.+), (.+) engelini geçti$/, "Сенсация! $1 выбивает $2"],
+    [/^(.+), National Cup'a veda etti$/, "$1 выбывает: National Cup"],
+    [/^National Cup finali bu akşam$/, "Финал National Cup — сегодня вечером"],
+    [/^National Cup finali bugün$/, "Финал National Cup — сегодня"],
+    [/^National Cup finali yarın$/, "Финал National Cup — завтра"],
+    [/^National Cup finalinde heyecan sürüyor$/, "Финал National Cup в разгаре"]);
+})();
