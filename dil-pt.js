@@ -9248,3 +9248,18 @@ window.I18N_PATTERNS.pt.unshift(
     [/^(.+) sözleşmesiz olduğu için transfer döneminin başlamasıyla takımdan ayrıldı\.$/, "$1 saiu da equipe com a abertura da janela de transferências por não ter contrato."],
     [/^✅ (.+) takıma katıldı \(#(\d+)\)\.$/, "✅ $1 entrou na equipe (#$2)."]);
 })();
+
+/* 1108 — transfer süreleri · sabit tazminat · biten sözleşme */
+(function () {
+  var S = window.I18N && window.I18N.pt;
+  if (S) Object.assign(S, {"Tazminat, takıma girerken ödenen bonservisin kalan sözleşmene düşen payının yarısıdır; tutar sonradan değişmez.": "A indenização é metade da parte da taxa de transferência paga quando você chegou que corresponde ao resto do seu contrato; o valor não muda depois.", "Bonservis ödenmeden geldiysen imza anındaki sistem bonservisi esas alınır.": "Se você chegou sem taxa de transferência, vale a taxa do sistema no momento da assinatura.", "Transferde sözleşme 2 ile 3½ sezon arasıdır; bonservis 3 sezonda piyasa değeri kadardır, her yarım sezon fark için altıda biri eklenir ya da düşülür.": "Em transferências o contrato vai de 2 a 3½ temporadas; a taxa equivale ao valor de mercado em 3 temporadas e cada meia temporada de diferença soma ou tira um sexto."});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.pt;
+  if (P) P.unshift(
+    [/^Sözleşmen Bitti — (.+)$/, "Seu contrato terminou — $1"],
+    [/^Sözleşmen sona erdi\. Transfer dönemi sonuna kadar takımda sözleşmesiz kalırsın; bu sürede cezasız ayrılabilir ya da sözleşmeni yenileyebilirsin\. Yenilenmezse dönem sonunda serbest kalırsın\.$/, "Seu contrato terminou. Você fica na equipe sem contrato até o fim da janela de transferências; nesse período pode sair sem penalidade ou renovar o contrato. Se não for renovado, você fica livre ao fim da janela."],
+    [/^• Sözleşmeni tamamladığın için \+10 sadakat puanı$/, "• +10 pontos de lealdade por cumprir seu contrato"],
+    [/^(.+) Sözleşmesi Bitti$/, "Contrato de $1 terminou"],
+    [/^(.+) ile sözleşme bitti\. Transfer dönemi sonuna kadar yenilemezsen oyuncu serbest kalır\.$/, "O contrato com $1 terminou. Se você não renovar até o fim da janela de transferências, o jogador fica livre."],
+    [/^Sözleşmen yenilenmediği için transfer dönemi sonunda (.+) takımından ayrıldın\.$/, "Seu contrato não foi renovado, então você saiu de $1 ao fim da janela de transferências."],
+    [/^(.+) sözleşmesi yenilenmediği için transfer dönemi sonunda takımdan ayrıldı\.$/, "$1 saiu da equipe ao fim da janela de transferências porque o contrato não foi renovado."]);
+})();

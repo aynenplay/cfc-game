@@ -7628,3 +7628,18 @@ window.I18N_PATTERNS.de.unshift(
     [/^(.+) sözleşmesiz olduğu için transfer döneminin başlamasıyla takımdan ayrıldı\.$/, "$1 hat das Team mit Beginn der Transferperiode verlassen, da er keinen Vertrag hatte."],
     [/^✅ (.+) takıma katıldı \(#(\d+)\)\.$/, "✅ $1 ist dem Team beigetreten (#$2)."]);
 })();
+
+/* 1108 — transfer süreleri · sabit tazminat · biten sözleşme */
+(function () {
+  var S = window.I18N && window.I18N.de;
+  if (S) Object.assign(S, {"Tazminat, takıma girerken ödenen bonservisin kalan sözleşmene düşen payının yarısıdır; tutar sonradan değişmez.": "Die Entschädigung ist die Hälfte des Anteils der beim Wechsel gezahlten Ablöse, der auf deine restliche Vertragszeit entfällt; der Betrag ändert sich später nicht.", "Bonservis ödenmeden geldiysen imza anındaki sistem bonservisi esas alınır.": "Bist du ohne Ablöse gekommen, gilt die Systemablöse zum Zeitpunkt der Unterschrift.", "Transferde sözleşme 2 ile 3½ sezon arasıdır; bonservis 3 sezonda piyasa değeri kadardır, her yarım sezon fark için altıda biri eklenir ya da düşülür.": "Bei Transfers läuft der Vertrag 2 bis 3½ Saisons; die Ablöse entspricht bei 3 Saisons dem Marktwert, jede halbe Saison Unterschied fügt ein Sechstel hinzu oder zieht es ab."});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.de;
+  if (P) P.unshift(
+    [/^Sözleşmen Bitti — (.+)$/, "Dein Vertrag ist ausgelaufen — $1"],
+    [/^Sözleşmen sona erdi\. Transfer dönemi sonuna kadar takımda sözleşmesiz kalırsın; bu sürede cezasız ayrılabilir ya da sözleşmeni yenileyebilirsin\. Yenilenmezse dönem sonunda serbest kalırsın\.$/, "Dein Vertrag ist ausgelaufen. Bis zum Ende der Transferperiode bleibst du ohne Vertrag im Team; in dieser Zeit kannst du ohne Strafe gehen oder deinen Vertrag verlängern. Wird er nicht verlängert, bist du am Ende der Periode vereinslos."],
+    [/^• Sözleşmeni tamamladığın için \+10 sadakat puanı$/, "• +10 Treuepunkte für die Erfüllung deines Vertrags"],
+    [/^(.+) Sözleşmesi Bitti$/, "Vertrag von $1 ausgelaufen"],
+    [/^(.+) ile sözleşme bitti\. Transfer dönemi sonuna kadar yenilemezsen oyuncu serbest kalır\.$/, "Der Vertrag mit $1 ist ausgelaufen. Verlängerst du ihn nicht bis zum Ende der Transferperiode, wird der Spieler vereinslos."],
+    [/^Sözleşmen yenilenmediği için transfer dönemi sonunda (.+) takımından ayrıldın\.$/, "Dein Vertrag wurde nicht verlängert, daher hast du $1 am Ende der Transferperiode verlassen."],
+    [/^(.+) sözleşmesi yenilenmediği için transfer dönemi sonunda takımdan ayrıldı\.$/, "$1 hat das Team am Ende der Transferperiode verlassen, da der Vertrag nicht verlängert wurde."]);
+})();

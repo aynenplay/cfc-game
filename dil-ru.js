@@ -9293,3 +9293,18 @@ window.I18N_PATTERNS.ru.unshift(
     [/^(.+) sözleşmesiz olduğu için transfer döneminin başlamasıyla takımdan ayrıldı\.$/, "$1 покинул команду с открытием трансферного окна, так как у него не было контракта."],
     [/^✅ (.+) takıma katıldı \(#(\d+)\)\.$/, "✅ $1 вступил в команду (#$2)."]);
 })();
+
+/* 1108 — transfer süreleri · sabit tazminat · biten sözleşme */
+(function () {
+  var S = window.I18N && window.I18N.ru;
+  if (S) Object.assign(S, {"Tazminat, takıma girerken ödenen bonservisin kalan sözleşmene düşen payının yarısıdır; tutar sonradan değişmez.": "Компенсация — это половина доли трансферной суммы, уплаченной при твоём переходе, приходящейся на оставшуюся часть контракта; сумма потом не меняется.", "Bonservis ödenmeden geldiysen imza anındaki sistem bonservisi esas alınır.": "Если ты пришёл без трансферной суммы, берётся системная трансферная сумма на момент подписания.", "Transferde sözleşme 2 ile 3½ sezon arasıdır; bonservis 3 sezonda piyasa değeri kadardır, her yarım sezon fark için altıda biri eklenir ya da düşülür.": "При трансфере контракт заключается на 2–3½ сезона; трансферная сумма за 3 сезона равна рыночной стоимости, каждый полусезон разницы добавляет или убирает одну шестую."});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.ru;
+  if (P) P.unshift(
+    [/^Sözleşmen Bitti — (.+)$/, "Твой контракт закончился — $1"],
+    [/^Sözleşmen sona erdi\. Transfer dönemi sonuna kadar takımda sözleşmesiz kalırsın; bu sürede cezasız ayrılabilir ya da sözleşmeni yenileyebilirsin\. Yenilenmezse dönem sonunda serbest kalırsın\.$/, "Твой контракт закончился. До закрытия трансферного окна ты остаёшься в команде без контракта; в это время можешь уйти без штрафа или продлить контракт. Если его не продлят, после закрытия окна ты станешь свободным агентом."],
+    [/^• Sözleşmeni tamamladığın için \+10 sadakat puanı$/, "• +10 очков лояльности за выполнение контракта"],
+    [/^(.+) Sözleşmesi Bitti$/, "Контракт $1 закончился"],
+    [/^(.+) ile sözleşme bitti\. Transfer dönemi sonuna kadar yenilemezsen oyuncu serbest kalır\.$/, "Контракт с $1 закончился. Если не продлишь его до закрытия трансферного окна, игрок станет свободным агентом."],
+    [/^Sözleşmen yenilenmediği için transfer dönemi sonunda (.+) takımından ayrıldın\.$/, "Твой контракт не продлили, поэтому после закрытия трансферного окна ты покинул $1."],
+    [/^(.+) sözleşmesi yenilenmediği için transfer dönemi sonunda takımdan ayrıldı\.$/, "$1 покинул команду после закрытия трансферного окна, так как контракт не продлили."]);
+})();

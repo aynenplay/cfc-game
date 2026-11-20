@@ -9256,3 +9256,18 @@ window.I18N_PATTERNS.es.unshift(
     [/^(.+) sözleşmesiz olduğu için transfer döneminin başlamasıyla takımdan ayrıldı\.$/, "$1 dejó el equipo al abrirse el mercado de fichajes por no tener contrato."],
     [/^✅ (.+) takıma katıldı \(#(\d+)\)\.$/, "✅ $1 se unió al equipo (#$2)."]);
 })();
+
+/* 1108 — transfer süreleri · sabit tazminat · biten sözleşme */
+(function () {
+  var S = window.I18N && window.I18N.es;
+  if (S) Object.assign(S, {"Tazminat, takıma girerken ödenen bonservisin kalan sözleşmene düşen payının yarısıdır; tutar sonradan değişmez.": "La indemnización es la mitad de la parte del traspaso pagado al llegar que corresponde al resto de tu contrato; el importe no cambia después.", "Bonservis ödenmeden geldiysen imza anındaki sistem bonservisi esas alınır.": "Si llegaste sin traspaso, se toma el traspaso del sistema en el momento de la firma.", "Transferde sözleşme 2 ile 3½ sezon arasıdır; bonservis 3 sezonda piyasa değeri kadardır, her yarım sezon fark için altıda biri eklenir ya da düşülür.": "En los traspasos el contrato es de 2 a 3½ temporadas; el traspaso equivale al valor de mercado en 3 temporadas y cada media temporada de diferencia suma o resta una sexta parte."});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.es;
+  if (P) P.unshift(
+    [/^Sözleşmen Bitti — (.+)$/, "Tu contrato ha terminado — $1"],
+    [/^Sözleşmen sona erdi\. Transfer dönemi sonuna kadar takımda sözleşmesiz kalırsın; bu sürede cezasız ayrılabilir ya da sözleşmeni yenileyebilirsin\. Yenilenmezse dönem sonunda serbest kalırsın\.$/, "Tu contrato ha terminado. Sigues en el equipo sin contrato hasta que cierre el mercado de fichajes; mientras tanto puedes irte sin penalización o renovar tu contrato. Si no se renueva, quedarás libre al cierre del mercado."],
+    [/^• Sözleşmeni tamamladığın için \+10 sadakat puanı$/, "• +10 puntos de lealtad por cumplir tu contrato"],
+    [/^(.+) Sözleşmesi Bitti$/, "Contrato de $1 terminado"],
+    [/^(.+) ile sözleşme bitti\. Transfer dönemi sonuna kadar yenilemezsen oyuncu serbest kalır\.$/, "El contrato con $1 ha terminado. Si no lo renuevas antes del cierre del mercado de fichajes, el jugador quedará libre."],
+    [/^Sözleşmen yenilenmediği için transfer dönemi sonunda (.+) takımından ayrıldın\.$/, "Tu contrato no se renovó, así que dejaste $1 al cierre del mercado de fichajes."],
+    [/^(.+) sözleşmesi yenilenmediği için transfer dönemi sonunda takımdan ayrıldı\.$/, "$1 dejó el equipo al cierre del mercado de fichajes porque su contrato no se renovó."]);
+})();

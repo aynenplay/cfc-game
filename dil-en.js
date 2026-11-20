@@ -9688,3 +9688,18 @@ window.I18N_PATTERNS.en.unshift(
     [/^(.+) sözleşmesiz olduğu için transfer döneminin başlamasıyla takımdan ayrıldı\.$/, "$1 left the team as the transfer window opened, having no contract."],
     [/^✅ (.+) takıma katıldı \(#(\d+)\)\.$/, "✅ $1 joined the team (#$2)."]);
 })();
+
+/* 1108 — transfer süreleri · sabit tazminat · biten sözleşme */
+(function () {
+  var S = window.I18N && window.I18N.en;
+  if (S) Object.assign(S, {"Tazminat, takıma girerken ödenen bonservisin kalan sözleşmene düşen payının yarısıdır; tutar sonradan değişmez.": "The compensation is half of your share of the transfer fee paid when you joined, for the rest of your contract; the amount does not change later.", "Bonservis ödenmeden geldiysen imza anındaki sistem bonservisi esas alınır.": "If you joined without a transfer fee, the system transfer fee at signing is used.", "Transferde sözleşme 2 ile 3½ sezon arasıdır; bonservis 3 sezonda piyasa değeri kadardır, her yarım sezon fark için altıda biri eklenir ya da düşülür.": "Transfer contracts run from 2 to 3½ seasons; the transfer fee equals the market value for 3 seasons, and each half season of difference adds or removes one sixth."});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.en;
+  if (P) P.unshift(
+    [/^Sözleşmen Bitti — (.+)$/, "Your Contract Has Ended — $1"],
+    [/^Sözleşmen sona erdi\. Transfer dönemi sonuna kadar takımda sözleşmesiz kalırsın; bu sürede cezasız ayrılabilir ya da sözleşmeni yenileyebilirsin\. Yenilenmezse dönem sonunda serbest kalırsın\.$/, "Your contract has ended. You stay in the team without a contract until the transfer window closes; meanwhile you can leave without penalty or renew your contract. If it isn't renewed, you become a free agent when the window closes."],
+    [/^• Sözleşmeni tamamladığın için \+10 sadakat puanı$/, "• +10 loyalty points for completing your contract"],
+    [/^(.+) Sözleşmesi Bitti$/, "$1's Contract Has Ended"],
+    [/^(.+) ile sözleşme bitti\. Transfer dönemi sonuna kadar yenilemezsen oyuncu serbest kalır\.$/, "The contract with $1 has ended. If you don't renew it before the transfer window closes, the player becomes a free agent."],
+    [/^Sözleşmen yenilenmediği için transfer dönemi sonunda (.+) takımından ayrıldın\.$/, "Your contract wasn't renewed, so you left $1 at the end of the transfer window."],
+    [/^(.+) sözleşmesi yenilenmediği için transfer dönemi sonunda takımdan ayrıldı\.$/, "$1 left the team at the end of the transfer window because the contract wasn't renewed."]);
+})();
