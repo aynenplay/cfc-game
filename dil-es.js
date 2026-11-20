@@ -9219,3 +9219,11 @@ window.I18N_PATTERNS.es.unshift(
   var S = window.I18N && window.I18N.es;
   if (S) Object.assign(S, {"İlanı Düzenle": "Editar anuncio", "Güncelle": "Actualizar", "İlan güncellendi": "Anuncio actualizado", "Oyuncu listede değil": "El jugador no está en la lista"});
 })();
+
+/* 1098 — verimlilik etiketi */
+(function () {
+  var S = window.I18N && window.I18N.es;
+  if (S) Object.assign(S, {"Verimlilik": "Eficiencia", "VERİM": "EFIC", "enerji": "energía", "Günlük enerjinin antrenmana harcanan payı. Her gece yenilenir.": "Parte de la energía diaria gastada en entrenar. Se actualiza cada noche."});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.es;
+  if (P) P.unshift([/^Son (\d+) gün$/, "Últimos $1 días"]);
+})();

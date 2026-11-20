@@ -9256,3 +9256,11 @@ window.I18N_PATTERNS.ru.unshift(
   var S = window.I18N && window.I18N.ru;
   if (S) Object.assign(S, {"İlanı Düzenle": "Изменить объявление", "Güncelle": "Обновить", "İlan güncellendi": "Объявление обновлено", "Oyuncu listede değil": "Игрок не выставлен"});
 })();
+
+/* 1098 — verimlilik etiketi */
+(function () {
+  var S = window.I18N && window.I18N.ru;
+  if (S) Object.assign(S, {"Verimlilik": "Эффективность", "VERİM": "ЭФФ", "enerji": "энергии", "Günlük enerjinin antrenmana harcanan payı. Her gece yenilenir.": "Доля дневной энергии, потраченной на тренировки. Обновляется каждую ночь."});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.ru;
+  if (P) P.unshift([/^Son (\d+) gün$/, "Последние $1 дн."]);
+})();
