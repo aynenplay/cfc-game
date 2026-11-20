@@ -26732,8 +26732,8 @@ body.pd-acik{overflow:hidden}
   </div>
 </div>
 
-<script src="js/oyun.a02d35c0.js"></script>
-<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.a02d35c0.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
+<script src="js/oyun.495abd9a.js"></script>
+<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.495abd9a.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
 
 <nav id="bottomnav">
   <button class="nav-btn active" onclick="showPage('home',this)"><div class="nav-icon">🏠</div><div class="nav-label">Menü</div></button>
@@ -43751,7 +43751,7 @@ function heroRozet() {
   document.querySelectorAll('.thb-logo .kmp-rz-hero').forEach(e => e.remove());
   const t = (typeof _viewingTeam !== 'undefined' && _viewingTeam) ? _viewingTeam : benTakim();
   if (!t) return;
-  const ad = t.teamName || t.name, cc = t.countryCode || t.cc;
+  const ad = t.teamName || t.name || (t.teamRef && t.teamRef.name), cc = t.countryCode || t.cc;   // 1099 — ziyaretçi takım
   if (!rozetMi(ad, cc)) return;
   document.querySelectorAll('#page-team .team-hero-bar .thb-logo').forEach(el => {
     if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
@@ -43759,6 +43759,7 @@ function heroRozet() {
     el.insertAdjacentHTML('beforeend', `<img class="kmp-rz-hero" src="${ROZET}" alt="">`);
   });
 }
+window._kmpHeroRozet = heroRozet;   // 1099
 
 // ═══ ÇALIŞKAN TAKIM (Etkinlik › Haftalık Yarış 4. sekme) ═══
 async function haftaListe(n) {
@@ -45595,6 +45596,7 @@ function heroRozet() {
     el.insertAdjacentHTML('beforeend', `<img class="at-rz-hero${sol}" src="${ROZET}" alt="">`);
   });
 }
+window._atHeroRozet = heroRozet;   // 1099
 
 async function liste(n) {
   const c = (typeof _evRaceCycleInfo === 'function') ? _evRaceCycleInfo() : null;
@@ -48733,6 +48735,46 @@ html.hafif .dia-sale{animation:none}
 :root body #page-team #team-roster .team-hero-bar .thb-rank-badge,:root body #page-national .team-hero-bar.nt-hero-bar .thb-rank-badge{position:relative}
 :root body #page-team #team-roster .team-hero-bar .thb-rb-pts,:root body #page-national .team-hero-bar.nt-hero-bar .thb-rb-pts{position:absolute;right:16px;bottom:13px;margin:0}
 </style>
+<style id="rz1099-css">
+/* 1099 — hero rozetleri: armanın alt köşesinde küçük (arma resmi kuralı rozete uygulanmaz) */
+#page-team .team-hero-bar .thb-logo > img.kmp-rz-hero,#page-team .team-hero-bar .thb-logo > img.at-rz-hero{position:absolute !important;top:auto !important;left:auto !important;right:-8px !important;bottom:-6px !important;
+  width:auto !important;height:38px !important;max-width:none !important;max-height:none !important;object-fit:contain !important;display:block !important;margin:0 !important;
+  z-index:4;pointer-events:none;border-radius:0 !important;filter:drop-shadow(0 2px 4px rgba(0,0,0,.6)) !important}
+#page-team .team-hero-bar .thb-logo > img.at-rz-hero.sol{right:auto !important;left:-8px !important}
+/* 1099 — listelerde rozet: armanın alt köşesinde, takım adına taşmaz; iki rozette Antrenman Takımı solda, Çalışkan Takım sağda */
+.kmp-rzw > img.kmp-rz,.kmp-rzw > img.at-rz,
+.ev-race-prow-av .kmp-rzw > img.kmp-rz,.kmp-sam .kmp-rzw > img.kmp-rz,.hm-race-row .kmp-rzw > img.kmp-rz,
+.ev-race-prow-av .kmp-rzw > img.at-rz,.kmp-sam .kmp-rzw > img.at-rz,.hm-race-row .kmp-rzw > img.at-rz{top:auto !important;bottom:-16% !important;right:-20% !important;left:auto !important;height:56% !important;width:auto !important}
+.kmp-rzw.iki > img.at-rz,.ev-race-prow-av .kmp-rzw.iki > img.at-rz,.kmp-sam .kmp-rzw.iki > img.at-rz,.hm-race-row .kmp-rzw.iki > img.at-rz{right:auto !important;left:-20% !important}
+</style>
+<script id="rz1099-js">
+/* 1099 — hero logosu yeniden çizilirse (arma geç yüklenir vb.) rozetler yeniden konur */
+(function () {
+  'use strict';
+  let bekle = false;
+  const kontrol = () => {
+    bekle = false;
+    const L = document.querySelectorAll('#page-team .team-hero-bar .thb-logo'); if (!L.length) return;
+    let eksik = false;
+    L.forEach(l => { if (!l.querySelector('.kmp-rz-hero') && !l.querySelector('.at-rz-hero')) eksik = true; });
+    if (!eksik) return;
+    try { if (typeof window._kmpHeroRozet === 'function') window._kmpHeroRozet(); } catch (e) {}
+    try { if (typeof window._atHeroRozet === 'function') window._atHeroRozet(); } catch (e) {}
+  };
+  const ilgili = m => {
+    if (m.type !== 'childList') return false;
+    const t = m.target;
+    if (t && t.nodeType === 1 && (t.classList.contains('thb-logo') || (t.closest && t.closest('.team-hero-bar')))) return true;
+    for (const n of m.addedNodes) if (n.nodeType === 1 && (n.classList.contains('team-hero-bar') || n.classList.contains('thb-logo') || (n.querySelector && n.querySelector('.thb-logo')))) return true;
+    return false;
+  };
+  const kur = () => {
+    const p = document.getElementById('page-team'); if (!p) { setTimeout(kur, 1000); return; }
+    new MutationObserver(ms => { if (bekle || !ms.some(ilgili)) return; bekle = true; requestAnimationFrame(kontrol); }).observe(p, { childList: true, subtree: true });
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', kur); else kur();
+})();
+</script>
 <script id="vr1098-js">
 /* 1098 — VERİMLİLİK: etiket (herkes) · son 7 gün baloncuğu (kaptan / yardımcı) · gece hesaplanır, gün içinde önbellekten */
 (function () {
