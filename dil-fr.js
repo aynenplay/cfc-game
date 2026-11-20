@@ -9291,3 +9291,9 @@ window.I18N_PATTERNS.fr.unshift(
   var P = window.I18N_PATTERNS && window.I18N_PATTERNS.fr;
   if (P) P.unshift([/^Son (\d+) gün$/, "$1 derniers jours"]);
 })();
+
+/* 1105 — sözleşmesi son dönemde biten oyuncu */
+(function () {
+  var S = window.I18N && window.I18N.fr;
+  if (S) Object.assign(S, {"Sözleşmesi bu transfer döneminde bitiyor; listeye konulamaz.": "Son contrat se termine pendant ce mercato ; il ne peut pas être mis en liste."});
+})();

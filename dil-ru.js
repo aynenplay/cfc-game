@@ -9264,3 +9264,9 @@ window.I18N_PATTERNS.ru.unshift(
   var P = window.I18N_PATTERNS && window.I18N_PATTERNS.ru;
   if (P) P.unshift([/^Son (\d+) gün$/, "Последние $1 дн."]);
 })();
+
+/* 1105 — sözleşmesi son dönemde biten oyuncu */
+(function () {
+  var S = window.I18N && window.I18N.ru;
+  if (S) Object.assign(S, {"Sözleşmesi bu transfer döneminde bitiyor; listeye konulamaz.": "Его контракт заканчивается в это трансферное окно; его нельзя выставить в список."});
+})();
