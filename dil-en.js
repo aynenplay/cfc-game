@@ -9630,3 +9630,10 @@ window.I18N_PATTERNS.en.unshift(
     [/^National Cup finali yarın$/, "The National Cup final is tomorrow"],
     [/^National Cup finalinde heyecan sürüyor$/, "The National Cup final is under way"]);
 })();
+
+
+/* 1087 — ana sayfa: yarış sonuçlandı kutusu */
+(function () {
+  var S = window.I18N && window.I18N.en;
+  if (S) Object.assign(S, {"Yeni yarışa": "New race in", "Sonuçlara Bak": "View Results", "Toplanmayan ödüller kaybolur": "Uncollected rewards are lost"});
+})();

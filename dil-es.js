@@ -9198,3 +9198,10 @@ window.I18N_PATTERNS.es.unshift(
     [/^National Cup finali yarın$/, "La final de la National Cup es mañana"],
     [/^National Cup finalinde heyecan sürüyor$/, "Se juega la final de la National Cup"]);
 })();
+
+
+/* 1087 — ana sayfa: yarış sonuçlandı kutusu */
+(function () {
+  var S = window.I18N && window.I18N.es;
+  if (S) Object.assign(S, {"Yeni yarışa": "Nueva carrera en", "Sonuçlara Bak": "Ver resultados", "Toplanmayan ödüller kaybolur": "Los premios no recogidos se pierden"});
+})();
