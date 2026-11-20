@@ -9644,3 +9644,10 @@ window.I18N_PATTERNS.en.unshift(
   var S = window.I18N && window.I18N.en;
   if (S) Object.assign(S, {"KUPA VİTRİNİ": "TROPHY CABINET"});
 })();
+
+
+/* 1093 — kadro çanı: ilan Düzenle · Kaldır */
+(function () {
+  var S = window.I18N && window.I18N.en;
+  if (S) Object.assign(S, {"İlanı Düzenle": "Edit Listing", "Güncelle": "Update", "İlan güncellendi": "Listing updated", "Oyuncu listede değil": "Player is not listed"});
+})();

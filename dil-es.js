@@ -9212,3 +9212,10 @@ window.I18N_PATTERNS.es.unshift(
   var S = window.I18N && window.I18N.es;
   if (S) Object.assign(S, {"KUPA VİTRİNİ": "VITRINA DE TROFEOS"});
 })();
+
+
+/* 1093 — kadro çanı: ilan Düzenle · Kaldır */
+(function () {
+  var S = window.I18N && window.I18N.es;
+  if (S) Object.assign(S, {"İlanı Düzenle": "Editar anuncio", "Güncelle": "Actualizar", "İlan güncellendi": "Anuncio actualizado", "Oyuncu listede değil": "El jugador no está en la lista"});
+})();

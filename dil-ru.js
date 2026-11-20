@@ -9249,3 +9249,10 @@ window.I18N_PATTERNS.ru.unshift(
   var S = window.I18N && window.I18N.ru;
   if (S) Object.assign(S, {"KUPA VİTRİNİ": "ВИТРИНА ТРОФЕЕВ"});
 })();
+
+
+/* 1093 — kadro çanı: ilan Düzenle · Kaldır */
+(function () {
+  var S = window.I18N && window.I18N.ru;
+  if (S) Object.assign(S, {"İlanı Düzenle": "Изменить объявление", "Güncelle": "Обновить", "İlan güncellendi": "Объявление обновлено", "Oyuncu listede değil": "Игрок не выставлен"});
+})();
