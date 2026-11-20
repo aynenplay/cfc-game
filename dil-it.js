@@ -9207,3 +9207,10 @@ window.I18N_PATTERNS.it.unshift(
   var S = window.I18N && window.I18N.it;
   if (S) Object.assign(S, {"Yeni yarışa": "Nuova gara tra", "Sonuçlara Bak": "Vedi risultati", "Toplanmayan ödüller kaybolur": "I premi non raccolti vanno persi"});
 })();
+
+
+/* 1088 — kupa vitrini başlığı */
+(function () {
+  var S = window.I18N && window.I18N.it;
+  if (S) Object.assign(S, {"KUPA VİTRİNİ": "BACHECA DEI TROFEI"});
+})();

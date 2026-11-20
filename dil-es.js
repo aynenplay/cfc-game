@@ -9205,3 +9205,10 @@ window.I18N_PATTERNS.es.unshift(
   var S = window.I18N && window.I18N.es;
   if (S) Object.assign(S, {"Yeni yarışa": "Nueva carrera en", "Sonuçlara Bak": "Ver resultados", "Toplanmayan ödüller kaybolur": "Los premios no recogidos se pierden"});
 })();
+
+
+/* 1088 — kupa vitrini başlığı */
+(function () {
+  var S = window.I18N && window.I18N.es;
+  if (S) Object.assign(S, {"KUPA VİTRİNİ": "VITRINA DE TROFEOS"});
+})();

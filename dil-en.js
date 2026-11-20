@@ -9637,3 +9637,10 @@ window.I18N_PATTERNS.en.unshift(
   var S = window.I18N && window.I18N.en;
   if (S) Object.assign(S, {"Yeni yarışa": "New race in", "Sonuçlara Bak": "View Results", "Toplanmayan ödüller kaybolur": "Uncollected rewards are lost"});
 })();
+
+
+/* 1088 — kupa vitrini başlığı */
+(function () {
+  var S = window.I18N && window.I18N.en;
+  if (S) Object.assign(S, {"KUPA VİTRİNİ": "TROPHY CABINET"});
+})();
