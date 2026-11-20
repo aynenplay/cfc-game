@@ -133,7 +133,7 @@ window._cftDilBelirle = function(){
 //  görmez. Sözlük inmezse oyun Türkçe açılır — asla boş ekran kalmaz.
 // ═══════════════════════════════════════════════════════════════════
 window._i18nSozlukVar = {};
-window._i18nSozlukSurum = '1106';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
+window._i18nSozlukSurum = '1107';   // sözlük güncellenince ARTIR (tarayıcı önbelleği)
 
 window._i18nPerdeAc = function(){
   try {
@@ -26732,8 +26732,8 @@ body.pd-acik{overflow:hidden}
   </div>
 </div>
 
-<script src="js/oyun.c53e89cd.js"></script>
-<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.c53e89cd.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
+<script src="js/oyun.74802986.js"></script>
+<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.74802986.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
 
 <nav id="bottomnav">
   <button class="nav-btn active" onclick="showPage('home',this)"><div class="nav-icon">🏠</div><div class="nav-label">Menü</div></button>
@@ -44339,10 +44339,13 @@ function tbTakimKart(x, i) {   // 981 — sade satır
       <div class="tbr-c"><span class="tbr-s">${sv('kisi')}<b data-noi18n>${x.gercek}/${x.kap}</b></span>${sart}</div></div>
     <div class="tbr-n"><b data-noi18n>${Number(x.guc) || 0}</b><small>Güç</small></div>${btn}</div>`;
 }
+// 1107 — 10 gündür oyuna girmeyen serbest oyuncu: Takıma Kat
+window._pasif1107 = p => !!(p && !p.takim && p.uid && Number(p.akt) > 0 && Date.now() - Number(p.akt) >= 10 * 86400000);
 function tbOyuncuKart(p, i) {   // 981 — sade satır
   const alt = p.alt || ({ GK: 'GK', DEF: 'CB', MID: 'CM', FWD: 'ST' })[p.grp] || 'CM';
   const tk = p.takim ? `<span class="tbr-tk" onclick="tbOyTkAc(event,${i})"><span>${inlineBadge({ tag: 'span', cls: '', name: p.takim, cc: p.tcc })}</span><span data-noi18n>${E(p.takim)}</span></span>` : '<span class="tbr-ser">Serbest</span>';
   const btn = !tbLider() ? '' : tbTeklifVar(p) ? `<button type="button" class="tbr-btn git" onclick="s54BekleyenAc('${E(String(p.id))}')">${sv('tik')}<span>Gönderildi</span></button>`   // 1054 — serbest oyuncuya da teklif
+    : _pasif1107(p) ? `<button type="button" class="tbr-btn" onclick="s54PasifKat('${E(String(p.id))}')">Takıma Kat</button>`   // 1107
     : `<button type="button" class="tbr-btn mavi" onclick="tbTeklif(${i})">Teklif Sun</button>`;
   const hat = TB_GR.map((k, j) => `<span style="--c:${TB_RENK[k]}"><small data-noi18n>${TB_KOD[k]}</small><b data-noi18n>${Number(p.g && p.g[j]) || 10}</b></span>`).join('');
   return `<div class="tbr tik${btn ? '' : ' btnsiz'}" onclick="tbOyAc(event,${i})"><span class="tbr-av">${tbAv(p.av, _gvAttr({ t: p.takim || '', p: p.grp || '' }))}</span>
@@ -44359,7 +44362,8 @@ window.tbOyAc = function (e, i) {
   const p = TB.gor[i]; if (!p || typeof openPlayerModal !== 'function') return;
   const g = p.grp || 'MID';
   openPlayerModal({ id: p.id, name: p.ad, pos: g, posGroup: g, subPos: p.alt, overall: p.ovr, level: p.sv, nation: p.bayrak || tbBay(p.uyruk),
-    nationality: p.uyruk, avatar_id: p.av, userId: p.uid, user_id: p.uid, isBot: false }, { teamName: p.takim || 'Serbest', teamLookupName: p.takim || '', countryCode: p.tcc || '' });
+    nationality: p.uyruk, avatar_id: p.av, userId: p.uid, user_id: p.uid, isBot: false }, { teamName: p.takim || 'Serbest', teamLookupName: p.takim || '', countryCode: p.tcc || '',
+    pasifKat: _pasif1107(p) ? String(p.id) : null });   // 1107
 };
 window.tbOyTkAc = function (e, i) { if (e) e.stopPropagation(); const p = TB.gor[i]; if (p && p.takim) tbTakimGit(p.tcc, p.takim); };
 window.tbTkAc = function (e, i) { if (tbDugmeMi(e)) return; const x = TB.gor[i]; if (x) tbTakimGit(x.cc, x.ad); };
@@ -48515,9 +48519,42 @@ window.s54KdYenile = function (num) {
 window.s54CezasizMi = function () {
   const t = benT(); if (!t) return false;
   const c = t.contract || {};
-  if (Number(t.cezasizBitis) > Date.now() || (c.dusenSozlesme && !aktif(c))) return true;
+  if (Number(t.cezasizBitis) > Date.now() || (c.dusenSozlesme && !aktif(c)) || c.pasif1107) return true;   // 1107
   try { const k = (ROSTER_DATA || []).find(x => x && x.role === 'captain'); if (k && k.isBot) return true; } catch (e) {}
   return false;
+};
+// ── 1107 — 10 gündür oyuna girmeyen serbest oyuncuyu sözleşmesiz Takıma Kat (yalnız maaş; sonraki transfer döneminde ayrılır) ──
+Object.assign(HATA, { serbest_degil: 'Oyuncu artık serbest değil.', pasif_degil: 'Oyuncu yeniden oyuna girdi; ona teklif sun.',
+  oyuncu_engelli: 'Oyuncunun hesabı engelli.', tekrar_dene: 'Şu an yapılamıyor, biraz sonra tekrar dene.' });
+const pkTazele = () => { try { SZ.ser = null; if (fsAl() === 'ser') tbListeCiz(); } catch (e) {} };
+window.s54PasifKat = function (id) {
+  if (!id) return;
+  if (!lider()) { uyar(HATA.yetki_yok, 'err'); return; }
+  sfo(IK.rez, 'Takıma Kat', '<span>…</span>', [], '<button type="button" class="vz" onclick="s54SfoKapat()">Vazgeç</button>');
+  (async () => {
+    const r = await cg('pasif_kat', { oyuncu: id, onizle: 1 });
+    const o = document.getElementById('sz54Sfo'); if (!o || !o.classList.contains('acik')) return;
+    if (!r || r.error) { s54SfoKapat(); uyar(hata(r), 'err'); if (r && (r.error === 'serbest_degil' || r.error === 'pasif_degil')) pkTazele(); return; }
+    window._s54Pk = { id, maas: Number(r.maas) || 0 };
+    const rows = [['Oyuncu', `<span data-noi18n>${E(r.ad)}</span>`]];
+    if (r.gun != null) rows.push(['Son giriş', `<span>${Number(r.gun)} gün önce</span>`]);
+    rows.push(['Sezonluk maaş', `<span data-noi18n>${eurS(r.maas)}</span>`], ['Takımdan ayrılış', wHtml(r.ayrilW)]);
+    sfo(IK.rez, 'Takıma Kat', '<span>Sözleşmesiz katılır, yalnız maaşı ödenir.</span>', rows,
+      `<button type="button" class="vz" onclick="s54SfoKapat()">Vazgeç</button><button type="button" class="gn" onclick="s54PasifKatOnay(this)">Takıma Kat</button>`, false,
+      '<span>Oyuncu dönerse cezasız ve tazminatsız ayrılabilir ya da sözleşme imzalayabilir.</span>');
+  })();
+};
+window.s54PasifKatOnay = async function (b) {
+  const p = window._s54Pk; if (!p) return;
+  if (b) b.disabled = true;
+  const r = await cg('pasif_kat', { oyuncu: p.id, maas: p.maas });
+  if (r && r.error === 'maas_degisti') { window.s54PasifKat(p.id); return; }
+  if (!r || r.error) { if (b) b.disabled = false; uyar(hata(r), 'err'); if (r && (r.error === 'serbest_degil' || r.error === 'pasif_degil')) pkTazele(); return; }
+  s54SfoKapat(); window._s54Pk = null;
+  try { const pm = document.getElementById('playerModal'); if (pm && pm.classList.contains('open') && typeof closePlayerModal === 'function') closePlayerModal(); } catch (e) {}
+  uyar(`✅ ${r.oyuncu} takıma katıldı (#${r.num}).`, 'ok');
+  try { if (typeof rosterBuildTeam === 'function' && benT()) rosterBuildTeam(benT().countryCode); } catch (e) {}
+  pkTazele();
 };
 // ── 1106 — Takımdan ayrıl: sözleşmeli oyuncu tazminatı öder, her an ayrılır (kiralıktaysa tazminat esas kulübün kasasına) ──
 const _tzYs = n => { n = Math.max(1, Number(n) || 1); const t = Math.floor(n / 2); return (t > 0 ? String(t) : '') + (n % 2 === 1 ? '½' : ''); };

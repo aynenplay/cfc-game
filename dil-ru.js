@@ -9278,3 +9278,18 @@ window.I18N_PATTERNS.ru.unshift(
   var P = window.I18N_PATTERNS && window.I18N_PATTERNS.ru;
   if (P) P.unshift([/^(.+) tazminat ödeyerek takımdan ayrıldı\.$/, "$1 покинул команду, заплатив компенсацию."]);
 })();
+
+/* 1107 — pasif oyuncu Takıma Kat */
+(function () {
+  var S = window.I18N && window.I18N.ru;
+  if (S) Object.assign(S, {"Takıma Kat": "Взять в команду", "Sözleşmesiz katılır, yalnız maaşı ödenir.": "Вступает без контракта; платится только зарплата.", "Takımdan ayrılış": "Уходит из команды", "Oyuncu dönerse cezasız ve tazminatsız ayrılabilir ya da sözleşme imzalayabilir.": "Если игрок вернётся, он может уйти без штрафа и компенсации или подписать контракт.", "Oyuncu artık serbest değil.": "Игрок больше не свободен.", "Oyuncu yeniden oyuna girdi; ona teklif sun.": "Игрок снова в игре; сделай ему предложение.", "Oyuncunun hesabı engelli.": "Аккаунт игрока заблокирован.", "Şu an yapılamıyor, biraz sonra tekrar dene.": "Сейчас нельзя, попробуй чуть позже.", "İstersen cezasız ve tazminatsız ayrılabilir ya da sözleşme imzalayıp takımda kalabilirsin.": "Если хочешь, можешь уйти без штрафа и компенсации или подписать контракт и остаться в команде."});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.ru;
+  if (P) P.unshift(
+    [/^(.+?) seni (.+) takımına sözleşmesiz olarak kattı\.$/, "$1 взял тебя в $2 без контракта."],
+    [/^• Takımdan ayrılış: (\d+)\. sezon (sonu|ara transfer)(.*)$/, function (m) { return "• Уходит из команды: " + (m[2] === 'sonu' ? "конец сезона $1" : "зимнее окно сезона $1").replace('$1', m[1]) + m[3]; }],
+    [/^İstersen cezasız ve tazminatsız ayrılabilir ya da sözleşme imzalayıp takımda kalabilirsin\.$/, "Если хочешь, можешь уйти без штрафа и компенсации или подписать контракт и остаться в команде."],
+    [/^Takımdan Ayrıldın — (.+)$/, "Ты покинул команду — $1"],
+    [/^Sözleşmesiz katıldığın (.+) takımından transfer döneminin başlamasıyla ayrıldın\.$/, "Ты покинул $1, куда вступил без контракта, с открытием трансферного окна."],
+    [/^(.+) sözleşmesiz olduğu için transfer döneminin başlamasıyla takımdan ayrıldı\.$/, "$1 покинул команду с открытием трансферного окна, так как у него не было контракта."],
+    [/^✅ (.+) takıma katıldı \(#(\d+)\)\.$/, "✅ $1 вступил в команду (#$2)."]);
+})();

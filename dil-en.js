@@ -9673,3 +9673,18 @@ window.I18N_PATTERNS.en.unshift(
   var P = window.I18N_PATTERNS && window.I18N_PATTERNS.en;
   if (P) P.unshift([/^(.+) tazminat ödeyerek takımdan ayrıldı\.$/, "$1 left the team by paying compensation."]);
 })();
+
+/* 1107 — pasif oyuncu Takıma Kat */
+(function () {
+  var S = window.I18N && window.I18N.en;
+  if (S) Object.assign(S, {"Takıma Kat": "Add to team", "Sözleşmesiz katılır, yalnız maaşı ödenir.": "Joins without a contract; only the wage is paid.", "Takımdan ayrılış": "Leaves the team", "Oyuncu dönerse cezasız ve tazminatsız ayrılabilir ya da sözleşme imzalayabilir.": "If the player returns, they can leave without penalty or compensation, or sign a contract.", "Oyuncu artık serbest değil.": "The player is no longer a free agent.", "Oyuncu yeniden oyuna girdi; ona teklif sun.": "The player is back in the game; make them an offer.", "Oyuncunun hesabı engelli.": "The player's account is banned.", "Şu an yapılamıyor, biraz sonra tekrar dene.": "This can't be done right now, try again a bit later.", "İstersen cezasız ve tazminatsız ayrılabilir ya da sözleşme imzalayıp takımda kalabilirsin.": "If you like, you can leave without penalty or compensation, or sign a contract and stay with the team."});
+  var P = window.I18N_PATTERNS && window.I18N_PATTERNS.en;
+  if (P) P.unshift(
+    [/^(.+?) seni (.+) takımına sözleşmesiz olarak kattı\.$/, "$1 added you to $2 without a contract."],
+    [/^• Takımdan ayrılış: (\d+)\. sezon (sonu|ara transfer)(.*)$/, function (m) { return "• Leaves the team: " + (m[2] === 'sonu' ? "end of season $1" : "season $1 mid-season window").replace('$1', m[1]) + m[3]; }],
+    [/^İstersen cezasız ve tazminatsız ayrılabilir ya da sözleşme imzalayıp takımda kalabilirsin\.$/, "If you like, you can leave without penalty or compensation, or sign a contract and stay with the team."],
+    [/^Takımdan Ayrıldın — (.+)$/, "You Left the Team — $1"],
+    [/^Sözleşmesiz katıldığın (.+) takımından transfer döneminin başlamasıyla ayrıldın\.$/, "You left $1, which you had joined without a contract, as the transfer window opened."],
+    [/^(.+) sözleşmesiz olduğu için transfer döneminin başlamasıyla takımdan ayrıldı\.$/, "$1 left the team as the transfer window opened, having no contract."],
+    [/^✅ (.+) takıma katıldı \(#(\d+)\)\.$/, "✅ $1 joined the team (#$2)."]);
+})();
