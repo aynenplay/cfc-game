@@ -9263,3 +9263,7 @@ window.I18N_PATTERNS.pt.unshift(
     [/^Sözleşmen yenilenmediği için transfer dönemi sonunda (.+) takımından ayrıldın\.$/, "Seu contrato não foi renovado, então você saiu de $1 ao fim da janela de transferências."],
     [/^(.+) sözleşmesi yenilenmediği için transfer dönemi sonunda takımdan ayrıldı\.$/, "$1 saiu da equipe ao fim da janela de transferências porque o contrato não foi renovado."]);
 })();
+
+
+/* 1113 — satılan takım 48 saat */
+(function () { var S = window.I18N && window.I18N.pt; if (S) S["Satın alınan takım 48 saat satışa çıkarılamaz."] = "Uma equipe recém-comprada não pode ser colocada à venda por 48 horas."; })();

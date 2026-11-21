@@ -9308,3 +9308,7 @@ window.I18N_PATTERNS.ru.unshift(
     [/^Sözleşmen yenilenmediği için transfer dönemi sonunda (.+) takımından ayrıldın\.$/, "Твой контракт не продлили, поэтому после закрытия трансферного окна ты покинул $1."],
     [/^(.+) sözleşmesi yenilenmediği için transfer dönemi sonunda takımdan ayrıldı\.$/, "$1 покинул команду после закрытия трансферного окна, так как контракт не продлили."]);
 })();
+
+
+/* 1113 — satılan takım 48 saat */
+(function () { var S = window.I18N && window.I18N.ru; if (S) S["Satın alınan takım 48 saat satışa çıkarılamaz."] = "Купленную команду нельзя выставить на продажу в течение 48 часов."; })();
