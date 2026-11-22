@@ -9440,3 +9440,14 @@ window.I18N_PATTERNS.fr.unshift(
   S["Bu hesap bu cihaza 7 gün boyunca tekrar eklenemez."] = "Ce compte ne peut pas être rajouté à cet appareil pendant 7 jours.";
   S["Oturumun sona erdi. Tekrar giriş yap."] = "Ta session a expiré. Reconnecte-toi.";
 })();
+
+
+/* 1122 — Görev Hattı tamamlama ödülü */
+(function () { var S = window.I18N && window.I18N.fr; if (!S) return;
+  S["TAMAMLAMA ÖDÜLÜ"] = "PRIX FINAL";
+  S["10. GÜN · TAMAMLAMA ÖDÜLÜ"] = "JOUR 10 · PRIX FINAL";
+  S["ÖDÜLÜ AL"] = "RÉCUPÉRER";
+  S["Tamamlama ödülü için 10 günü tamamla."] = "Termine les 10 jours pour le prix final.";
+  S["10 günü bitirince tamamlama ödülünü al: 10 elmas + Sürpriz Çanta."] = "Termine les 10 jours pour obtenir le prix final : 10 diamants + Sac surprise.";
+  S["10 günü bitirince tamamlama ödülünü al: 25 elmas + Sürpriz Çanta."] = "Termine les 10 jours pour obtenir le prix final : 25 diamants + Sac surprise.";
+})();

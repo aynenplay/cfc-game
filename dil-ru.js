@@ -9413,3 +9413,14 @@ window.I18N_PATTERNS.ru.unshift(
   S["Bu hesap bu cihaza 7 gün boyunca tekrar eklenemez."] = "Этот аккаунт нельзя снова добавить на это устройство в течение 7 дней.";
   S["Oturumun sona erdi. Tekrar giriş yap."] = "Сессия истекла. Войди снова.";
 })();
+
+
+/* 1122 — Görev Hattı tamamlama ödülü */
+(function () { var S = window.I18N && window.I18N.ru; if (!S) return;
+  S["TAMAMLAMA ÖDÜLÜ"] = "ФИНАЛЬНЫЙ ПРИЗ";
+  S["10. GÜN · TAMAMLAMA ÖDÜLÜ"] = "ДЕНЬ 10 · ФИНАЛЬНЫЙ ПРИЗ";
+  S["ÖDÜLÜ AL"] = "ЗАБРАТЬ НАГРАДУ";
+  S["Tamamlama ödülü için 10 günü tamamla."] = "Пройди все 10 дней ради финального приза.";
+  S["10 günü bitirince tamamlama ödülünü al: 10 elmas + Sürpriz Çanta."] = "Пройди все 10 дней и забери финальный приз: 10 алмазов + Сумка-сюрприз.";
+  S["10 günü bitirince tamamlama ödülünü al: 25 elmas + Sürpriz Çanta."] = "Пройди все 10 дней и забери финальный приз: 25 алмазов + Сумка-сюрприз.";
+})();
