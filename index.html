@@ -953,6 +953,36 @@ html[data-msf-yok] .reg-misafir{display:none!important}
 })();
 </script>
 <script>
+/* 1119 — hesap geçişi: geçiş ekranı sayfa yenilenince de kalır; açılış ekranı ve arkadaki sayfalar görünmez, oyun hazır olunca kalkar */
+(function () {
+  var v = null; try { v = JSON.parse(sessionStorage.getItem('hs_kapak') || 'null'); sessionStorage.removeItem('hs_kapak'); } catch (e) {}
+  if (!v) return;
+  var st = document.createElement('style');
+  st.textContent = '#splash,html[data-i18n-bekliyor] body>#splash{visibility:hidden!important}'
+    + '#hsKapak{position:fixed;inset:0;z-index:100070;background:#080b12;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;transition:opacity .25s}'
+    + '#hsKapak .hl{position:relative;width:96px;height:96px}'
+    + '#hsKapak .hs-av{width:96px;height:96px;border-radius:50%;overflow:hidden;background:#1c2432;display:flex;align-items:center;justify-content:center}'
+    + '#hsKapak .hs-av img{width:100%;height:100%;object-fit:cover;object-position:50% 20%}'
+    + '#hsKapak .hl::after{content:"";position:absolute;inset:-7px;border-radius:50%;border:3px solid rgba(182,239,58,.18);border-top-color:#b6ef3a;animation:hsKD .9s linear infinite}'
+    + '@keyframes hsKD{to{transform:rotate(360deg)}}'
+    + '#hsKapak b{font:800 18px/1 Outfit,sans-serif;color:#fff;max-width:80vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
+    + '#hsKapak span{font:600 13px/1 Outfit,sans-serif;color:#8b95a7;margin-top:-8px}';
+  document.head.appendChild(st);
+  var o = document.createElement('div'); o.id = 'hsKapak'; o.setAttribute('data-noi18n', ''); o.innerHTML = v.h || '<div class="hl"></div>';
+  document.body.appendChild(o);
+  var sp = document.getElementById('splash'), bitti = false;
+  var acildi = function () { return !sp || /\b(cikis|hide)\b/.test(sp.className); };
+  function kaldir() {
+    if (bitti) return; bitti = true;
+    if (!acildi()) st.remove();   // oyun hâlâ yükleniyorsa açılış ekranı geri gelir
+    o.style.opacity = '0'; setTimeout(function () { try { o.remove(); } catch (e) {} }, 260);
+  }
+  window._hsKapakKaldir = kaldir;
+  try { new MutationObserver(function () { if (acildi()) kaldir(); }).observe(sp, { attributes: true, attributeFilter: ['class'] }); } catch (e) {}
+  setTimeout(kaldir, 15000);
+})();
+</script>
+<script>
 // 816 — açılışta kullanılan yazı tipleri erkenden istenir: ilk büyük yerleşim gerçek yazı tipiyle yapılır, sonradan bütün sayfa yeniden yerleşmez.
 //   Yalnız açılışta zaten inen ağırlıklar. Örnek metinde Türkçe harf var: latin ve latin-ext parçaları birlikte iner.
 window._fontErken = function(){
@@ -26732,8 +26762,8 @@ body.pd-acik{overflow:hidden}
   </div>
 </div>
 
-<script src="js/oyun.e4eb226e.js"></script>
-<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.e4eb226e.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
+<script src="js/oyun.1a04b10f.js"></script>
+<script>/* 817 — ana kod ayrı dosyada; inmediyse bir kez daha istenir */ try { if (typeof APP_BUILD === 'undefined') document.write('<script src="js/oyun.1a04b10f.js?t=' + Date.now() + '"><\/script>'); } catch (e) {}</script>
 
 <nav id="bottomnav">
   <button class="nav-btn active" onclick="showPage('home',this)"><div class="nav-icon">🏠</div><div class="nav-label">Menü</div></button>
@@ -50320,6 +50350,8 @@ body.hs-ekle-mod #auth-screen .reg-misafir{display:none!important}
 #hbDrawer .hb-drawer-list > .hb-kart{flex-grow:calc(var(--n,1) * 1000)}
 #hbDrawer .hb-drawer-list > .hb-grp:not(.hs-grp){flex:.34 1 auto;display:flex;align-items:flex-end}
 #hbDrawer .hb-drawer-list > .hs-ara{flex:.34 1 auto;min-height:clamp(4px,.8vh,10px)}
+/* 1119 — menü avatarı: ince çerçeve */
+#hbDrawer .hs-benk .hs-av{border-width:1px}
 </style>
 <script>
 /* CSC-1117 — Hesap geçişi: bir cihazda en çok 3 hesap.
@@ -50507,7 +50539,10 @@ function sakla() {   // açık hesabın oturumu kasaya
   K[u.id] = Object.assign(K[u.id] || {}, { s, ad: u.name || '', kad: u.username || '', av: u.avatarId || '', poz: u.position || '', t: Date.now() });
   kasaYaz(K); return true;
 }
-const yenile = () => setTimeout(() => { try { location.reload(); } catch (e) {} }, 200);
+const KAPAK = 'hs_kapak', CIKTI = 'csc_hs_cikis';
+const kapakYaz = () => { const g = document.querySelector('.hs-gec'); ssYaz(KAPAK, { h: g ? g.innerHTML : '<div class="hl"></div>' }); };   // 1119 — geçiş ekranı yenilemeden sonra da kalır
+const bekleGoster = () => { if (document.querySelector('.hs-gec')) return; const o = document.createElement('div'); o.className = 'hs-gec'; o.innerHTML = '<div class="hl"></div>'; document.body.appendChild(o); };
+const yenile = () => { kapakYaz(); setTimeout(() => { try { location.reload(); } catch (e) {} }, 200); };
 async function gec(h) {
   if (document.querySelector('.hs-gec')) return;
   const u = ben(), K0 = kasa(), v = K0[h.uid];
@@ -50526,7 +50561,7 @@ async function gec(h) {
 async function ekle(mod) {
   const u = ben(); if (!u || !u.id || document.querySelector('.hs-gec')) return;
   kapat();
-  const o = document.createElement('div'); o.className = 'hs-gec'; o.innerHTML = '<div class="hl"></div>'; document.body.appendChild(o);
+  bekleGoster();
   await hazirla(); sakla();
   ssYaz(EK, { mod: mod === 'yeni' ? 'yeni' : 'mevcut', geri: u.id }); ssYaz(GC, null);
   try { const k = anahtar(); if (k) localStorage.removeItem(k); } catch (e) {}   // sunucudan çıkış yok: oturum kasada
@@ -50554,7 +50589,9 @@ window.hsAuthAcildi = function () {
     const K = kasa(); if (K[gc.uid]) { delete K[gc.uid]; kasaYaz(K); }
     ek = { mod: 'mevcut', kad: gc.kad || '', geri: gc.geri || null, hata: 'sure' }; ssYaz(GC, null); ssYaz(EK, ek);
   }
-  if (!ek) {   // hesap ekleme yarıda kaldı (uygulama kapandı): son açık hesap geri açılır
+  if (!ek) {   // hesap ekleme yarıda kaldı (uygulama kapandı): son açık hesap geri açılır · Çıkış Yap'tan sonra açılmaz (1119)
+    let cikti = false; try { cikti = !!localStorage.getItem(CIKTI); } catch (e) {}
+    if (cikti) return;
     const K = kasa(), k = anahtar();
     const id = Object.keys(K).filter(x => oturumlu(K, x)).sort((a, b) => (K[b].t || 0) - (K[a].t || 0))[0];
     if (id && k) {
@@ -50581,15 +50618,18 @@ async function engel(user, hata) {   // açılışta: bu hesap bu cihazda açıl
   const ek = ssOku(EK) || {}, gc = ssOku(GC) || {};
   let geri = ek.geri || gc.geri || null; if (geri === user.id || !oturumlu(K, geri)) geri = Object.keys(K).find(id => oturumlu(K, id)) || null;
   ssYaz(GC, null); ssYaz(EK, { mod: 'mevcut', geri, hata });
+  bekleGoster();
   try { await window.sb.auth.signOut({ scope: 'local' }); } catch (e) {}
   try { const k = anahtar(); if (k) localStorage.removeItem(k); } catch (e) {}
-  try { location.reload(); } catch (e) {}
+  kapakYaz(); try { location.reload(); } catch (e) {}
 }
 window.hsAcilis = async function (user) {   // açılış: hesap bu cihaza bağlanır (yükleme ile paralel)
   const c = cihaz(); if (!c || !user || user.is_anonymous) return true;
   const r = await rpc('cihaz_giris', { p_cihaz: c });
   if (r && r.ok === false && (r.error === 'dolu' || r.error === 'bekleme')) { await engel(user, r.error); return false; }
   ssYaz(EK, null); ssYaz(GC, null);
+  try { localStorage.removeItem(CIKTI); } catch (e) {}
+  document.body.classList.remove('hs-ekle-mod'); const ust = document.querySelector('.hs-ust'); if (ust) ust.remove();
   return true;
 };
 window.hsGirisOnay = async function (user) {   // giriş: sayfa yenilenmeden önce
@@ -50600,6 +50640,7 @@ window.hsGirisOnay = async function (user) {   // giriş: sayfa yenilenmeden ön
     try { authShowMsg('error', hataMetni(r.error)); } catch (e) {}
     return false;
   }
+  if (document.body.classList.contains('hs-ekle-mod')) { bekleGoster(); kapakYaz(); }   // 1119 — eklenen hesap açılırken arka ekranlar görünmez
   return true;
 };
 window.hsKayitOn = async function () {   // kayıt: hesap açılmadan önce
@@ -50613,27 +50654,24 @@ window.hsKayitBitti = function () {   // yeni hesap açıldı (sayfa yenilenmez)
   document.body.classList.remove('hs-ekle-mod'); const u = document.querySelector('.hs-ust'); if (u) u.remove();
   const c = cihaz(); if (c) rpc('cihaz_giris', { p_cihaz: c });
 };
-window.hsCikis = function () {   // Çıkış Yap: bu cihazda başka hesap varsa ona geçilir (yer boşalmaz)
+window.hsCikis = function () {   // 1119 — Çıkış Yap: diğer hesaba geçmez, giriş ekranına çıkar (yer boşalmaz)
   const u = ben(); if (!u || !u.id || u.misafir) return false;
   const K = kasa(); delete K[u.id]; kasaYaz(K);
-  const sira = (L || []).map(h => h.uid).concat(Object.keys(K));
-  const hedef = sira.find(id => id !== u.id && oturumlu(K, id));
-  if (!hedef) return false;
-  const v = K[hedef];
-  try { hideLogoutConfirm(); } catch (e) {}
-  try { window._cikisYapiliyor = true; _cftMusicStop(); } catch (e) {}
-  gecisGoster(v);
-  (async () => {
-    try { await window.sb.from('players').update({ last_seen: new Date(Date.now() - 6 * 60000).toISOString() }).eq('user_id', u.id); } catch (e) {}
-    try { await Promise.race([window.sb.auth.signOut(), new Promise(r => setTimeout(r, 5000))]); } catch (e) {}
-    try { window.sb.auth.stopAutoRefresh(); } catch (e) {}
-    const k = anahtar();
-    try { if (k) localStorage.setItem(k, JSON.stringify(v.s)); } catch (e) {}
-    ssYaz(GC, { uid: hedef, kad: v.kad || '', geri: null }); ssYaz(EK, null);
-    yenile();
-  })();
-  return true;
+  try { localStorage.setItem(CIKTI, '1'); } catch (e) {}   // sonraki açılışta başka hesap kendiliğinden açılmaz
+  ssYaz(EK, null); ssYaz(GC, null);
+  return false;
 };
+// 1119 — Hesap ekle ekranı sayfa açılırken hazırlanır: önce kayıt ekranı görünmez
+(function erken() {
+  const ek = ssOku(EK); if (!ek) return;
+  const k = anahtar(); let var_ = false; try { var_ = !!(k && localStorage.getItem(k)); } catch (e) {}
+  if (var_) return;   // giriş yapıldı, oyun açılıyor
+  document.body.classList.add('hs-ekle-mod');
+  try { if (ek.mod === 'yeni') authSwitchTab('register'); else authSwitchTab('login'); } catch (e) {}
+  const K = kasa(), geri = oturumlu(K, ek.geri) ? ek.geri : (Object.keys(K).find(id => oturumlu(K, id)) || null);
+  if (geri) ustCiz(geri);
+  if (ek.kad) { const i = document.getElementById('loginEmail'); if (i) i.value = ek.kad; }
+})();
 })();
 </script>
 </body>
