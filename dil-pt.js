@@ -9350,3 +9350,20 @@ window.I18N_PATTERNS.pt.unshift(
   S["Şu anda altyapıdasın. Henüz maaş almıyorsun ama kulübünün tesislerinden faydalanabilirsin. Düzenli antrenman yap ve kaptanının dikkatini çek!"] = "Agora você está na base. Ainda não recebe salário, mas pode usar as instalações do clube. Treine com frequência e chame a atenção do seu capitão!";
   S["Şöhret olmak için sadece sahada değil, saha dışında da kendini göster! Burada paylaşım yapabilir, diğer futbolcularla etkileşime geçebilir ve futbol dünyasında adından söz ettirebilirsin."] = "A fama também se conquista fora de campo! Aqui você pode postar, interagir com outros jogadores e fazer o mundo do futebol falar de você.";
 })();
+
+
+/* 1117 — Hesap geçişi */
+(function () { var S = window.I18N && window.I18N.pt; if (!S) return;
+  S["Hesap ekle"] = "Adicionar conta";
+  S["Yeni hesap"] = "Nova conta";
+  S["Mevcut hesap"] = "Conta existente";
+  S["Yeni hesap için bir hesabı çıkar"] = "Remova uma conta para adicionar uma nova";
+  S["1 bildirim"] = "1 notificação";
+  S["{n} bildirim"] = "{n} notificações";
+  S["Çıkar"] = "Remover";
+  S["{ad} çıkarılsın mı?"] = "Remover {ad}?";
+  S["Hesap silinmez. Bu cihaza 7 gün boyunca tekrar eklenemez."] = "A conta não será excluída. Ela não poderá ser adicionada novamente a este dispositivo por 7 dias.";
+  S["Bu cihazda daha fazla oturum açılamaz."] = "Não é possível entrar com mais contas neste dispositivo.";
+  S["Bu hesap bu cihaza 7 gün boyunca tekrar eklenemez."] = "Esta conta não pode ser adicionada novamente a este dispositivo por 7 dias.";
+  S["Oturumun sona erdi. Tekrar giriş yap."] = "Sua sessão expirou. Entre novamente.";
+})();

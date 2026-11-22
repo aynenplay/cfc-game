@@ -9790,3 +9790,20 @@ window.I18N_PATTERNS.en.unshift(
   S["Şu anda altyapıdasın. Henüz maaş almıyorsun ama kulübünün tesislerinden faydalanabilirsin. Düzenli antrenman yap ve kaptanının dikkatini çek!"] = "You're in the academy right now. You don't get a salary yet, but you can use your club's facilities. Train regularly and catch your captain's eye!";
   S["Şöhret olmak için sadece sahada değil, saha dışında da kendini göster! Burada paylaşım yapabilir, diğer futbolcularla etkileşime geçebilir ve futbol dünyasında adından söz ettirebilirsin."] = "To be famous, you have to shine off the pitch too! Here you can post, interact with other players and get the football world talking about you.";
 })();
+
+
+/* 1117 — Hesap geçişi */
+(function () { var S = window.I18N && window.I18N.en; if (!S) return;
+  S["Hesap ekle"] = "Add account";
+  S["Yeni hesap"] = "New account";
+  S["Mevcut hesap"] = "Existing account";
+  S["Yeni hesap için bir hesabı çıkar"] = "Remove an account to add a new one";
+  S["1 bildirim"] = "1 notification";
+  S["{n} bildirim"] = "{n} notifications";
+  S["Çıkar"] = "Remove";
+  S["{ad} çıkarılsın mı?"] = "Remove {ad}?";
+  S["Hesap silinmez. Bu cihaza 7 gün boyunca tekrar eklenemez."] = "The account won't be deleted. It can't be added to this device again for 7 days.";
+  S["Bu cihazda daha fazla oturum açılamaz."] = "You can't sign in to any more accounts on this device.";
+  S["Bu hesap bu cihaza 7 gün boyunca tekrar eklenemez."] = "This account can't be added to this device again for 7 days.";
+  S["Oturumun sona erdi. Tekrar giriş yap."] = "Your session has expired. Please sign in again.";
+})();

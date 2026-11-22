@@ -9395,3 +9395,20 @@ window.I18N_PATTERNS.ru.unshift(
   S["Şu anda altyapıdasın. Henüz maaş almıyorsun ama kulübünün tesislerinden faydalanabilirsin. Düzenli antrenman yap ve kaptanının dikkatini çek!"] = "Сейчас ты в академии. Зарплату ты пока не получаешь, но можешь пользоваться базой клуба. Тренируйся регулярно и привлеки внимание капитана!";
   S["Şöhret olmak için sadece sahada değil, saha dışında da kendini göster! Burada paylaşım yapabilir, diğer futbolcularla etkileşime geçebilir ve futbol dünyasında adından söz ettirebilirsin."] = "Слава приходит не только на поле! Здесь можно публиковать посты, общаться с другими игроками и заставить футбольный мир говорить о тебе.";
 })();
+
+
+/* 1117 — Hesap geçişi */
+(function () { var S = window.I18N && window.I18N.ru; if (!S) return;
+  S["Hesap ekle"] = "Добавить аккаунт";
+  S["Yeni hesap"] = "Новый аккаунт";
+  S["Mevcut hesap"] = "Существующий аккаунт";
+  S["Yeni hesap için bir hesabı çıkar"] = "Удали аккаунт, чтобы добавить новый";
+  S["1 bildirim"] = "1 уведомление";
+  S["{n} bildirim"] = "Уведомлений: {n}";
+  S["Çıkar"] = "Убрать";
+  S["{ad} çıkarılsın mı?"] = "Убрать {ad}?";
+  S["Hesap silinmez. Bu cihaza 7 gün boyunca tekrar eklenemez."] = "Аккаунт не будет удалён. Его нельзя будет снова добавить на это устройство в течение 7 дней.";
+  S["Bu cihazda daha fazla oturum açılamaz."] = "На этом устройстве больше нельзя войти в другие аккаунты.";
+  S["Bu hesap bu cihaza 7 gün boyunca tekrar eklenemez."] = "Этот аккаунт нельзя снова добавить на это устройство в течение 7 дней.";
+  S["Oturumun sona erdi. Tekrar giriş yap."] = "Сессия истекла. Войди снова.";
+})();
