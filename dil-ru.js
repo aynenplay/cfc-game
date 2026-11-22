@@ -9399,6 +9399,7 @@ window.I18N_PATTERNS.ru.unshift(
 
 /* 1117 — Hesap geçişi */
 (function () { var S = window.I18N && window.I18N.ru; if (!S) return;
+  S["Hesaplar"] = "Аккаунты";
   S["Hesap ekle"] = "Добавить аккаунт";
   S["Yeni hesap"] = "Новый аккаунт";
   S["Mevcut hesap"] = "Существующий аккаунт";

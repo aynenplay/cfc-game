@@ -9364,6 +9364,7 @@ window.I18N_PATTERNS.it.unshift(
 
 /* 1117 — Hesap geçişi */
 (function () { var S = window.I18N && window.I18N.it; if (!S) return;
+  S["Hesaplar"] = "Account";
   S["Hesap ekle"] = "Aggiungi account";
   S["Yeni hesap"] = "Nuovo account";
   S["Mevcut hesap"] = "Account esistente";
