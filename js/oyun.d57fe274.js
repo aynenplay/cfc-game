@@ -4,7 +4,7 @@
 // Her deploy'da bu sayı artırılır. Tarayıcı eski sürümü cache'lemişse
 // yeni sayıyı görür, cache'i temizler ve sayfayı yeniden yükler.
 // ═══════════════════════════════════════════════════════════════════════
-const APP_BUILD = '2027-04-28-ayniad-1129';
+const APP_BUILD = '2027-04-28-iospaket-1131';
 
 // ═══ 936b · 950 — uygulama izi: oyun ekranda açıkken biterse (çökme, siyah ekran, donma) bir sonraki açılışta kayıt düşer ═══
 //   Cihazda son 10 olay (sayfa, maç, düello…) ve 10 sn'de bir yaşam sinyali (sayfa, JS belleği) tutulur. Arka plana geçince "gizlendi" yazılır;
@@ -54947,19 +54947,8 @@ const RARITY_CFG = {
 // Bu paketler: ne bolluk yaratır ne fakirlik bırakır.
 // 764 — 6 elmas paketi (2×3). Base oran: 50 elmas / €1 · bonus 0% → 0% → 5% → 10% → 15% → 20%
 //   €1 kartı mağazada ürün (dia_1) tanımlı değilse uygulamada gösterilmez.
-//   765 — iPhone'da Apple 1.0 incelemesi bitene kadar incelemeye gönderilen eski 9 paket gösterilir.
-const _DP_IOS = !!(window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform() === 'ios');
-const DIAMOND_PACKS = _DP_IOS ? [
-  {amount:150,   bonus:0,     price:'€3',    priceEur:3,    tag:'Başlangıç'},
-  {amount:250,   bonus:12,    price:'€5',    priceEur:5,    tag:''},
-  {amount:500,   bonus:50,    price:'€10',   priceEur:10,   tag:'Popüler'},
-  {amount:1250,  bonus:187,   price:'€25',   priceEur:25,   tag:''},
-  {amount:2500,  bonus:500,   price:'€50',   priceEur:50,   tag:'En İyi Değer'},
-  {amount:3750,  bonus:937,   price:'€75',   priceEur:75,   tag:''},
-  {amount:6250,  bonus:1875,  price:'€125',  priceEur:125,  tag:'VIP'},
-  {amount:8750,  bonus:3062,  price:'€175',  priceEur:175,  tag:'Efsane'},
-  {amount:11250, bonus:4500,  price:'€225',  priceEur:225,  tag:'En Avantajlı'},
-] : [
+//   1131 — iPhone da aynı 6 paketi kullanır (eski 9 paketten 75/125/175/225 App Store'da satıştan kaldırıldı)
+const DIAMOND_PACKS = [
   {amount:50,    bonus:0,     price:'€1',    priceEur:1,    tag:''},
   {amount:150,   bonus:0,     price:'€3',    priceEur:3,    tag:''},
   {amount:250,   bonus:12,    price:'€5',    priceEur:5,    tag:''},
