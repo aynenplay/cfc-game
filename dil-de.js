@@ -7759,3 +7759,28 @@ window.I18N_PATTERNS.de.unshift(
   S["10 günü bitirince tamamlama ödülünü al: 10 elmas + Sürpriz Çanta."] = "Schließe alle 10 Tage ab und hol dir den Abschlusspreis: 10 Diamanten + Überraschungstasche.";
   S["10 günü bitirince tamamlama ödülünü al: 25 elmas + Sürpriz Çanta."] = "Schließe alle 10 Tage ab und hol dir den Abschlusspreis: 25 Diamanten + Überraschungstasche.";
 })();
+
+
+/* 1134 — Kullandığı ayak · Gelişim › İkinci Ayak */
+(function () { var S = window.I18N && window.I18N.de; if (!S) return;
+  S["İkinci Ayak"] = "Zweiter Fuß";
+  S["Ayakların"] = "Deine Füße";
+  S["Sağ Ayak"] = "Rechter Fuß";
+  S["Sol Ayak"] = "Linker Fuß";
+  S["İki Ayak"] = "Beidfüßig";
+  S["Sağ"] = "Rechts";
+  S["Sol"] = "Links";
+  S["İki"] = "Beide";
+  S["Ana ayak"] = "Hauptfuß";
+  S["İkinci ayak"] = "Zweiter Fuß";
+  S["Çalışılıyor"] = "Im Training";
+  S["İkinci ayak · çalışılabilir"] = "Zweiter Fuß · trainierbar";
+  S["İkinci ayak edinildi."] = "Zweiter Fuß freigeschaltet.";
+  S["Artık iki ayağını da kullanırsın."] = "Jetzt nutzt du beide Füße.";
+  S["İkinci ayak 300 bar. Bar dolunca iki ayağını da kullanırsın."] = "Der zweite Fuß braucht 300 Balken. Ist der Balken voll, nutzt du beide Füße.";
+  S["İki ayaklı olursun."] = "Du wirst beidfüßig.";
+  S["Diğer oyuncular profilinde ve kartında iki ayaklı olduğunu görür."] = "Andere Spieler sehen in deinem Profil und auf deiner Karte, dass du beidfüßig bist.";
+  S["Piyasa değerini ve maaşını artırır."] = "Erhöht deinen Marktwert und dein Gehalt.";
+  S["Antrenman, mevki ve yetenek çalışmasıyla aynı anda çalışabilirsin, enerji harcamaz."] = "Läuft parallel zu Training, Positionstraining und Spezialfähigkeit und kostet keine Energie.";
+  S["Ana ayağın değişmez."] = "Dein Hauptfuß bleibt gleich.";
+})();

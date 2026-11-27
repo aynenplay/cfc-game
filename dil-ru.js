@@ -9424,3 +9424,28 @@ window.I18N_PATTERNS.ru.unshift(
   S["10 günü bitirince tamamlama ödülünü al: 10 elmas + Sürpriz Çanta."] = "Пройди все 10 дней и забери финальный приз: 10 алмазов + Сумка-сюрприз.";
   S["10 günü bitirince tamamlama ödülünü al: 25 elmas + Sürpriz Çanta."] = "Пройди все 10 дней и забери финальный приз: 25 алмазов + Сумка-сюрприз.";
 })();
+
+
+/* 1134 — Kullandığı ayak · Gelişim › İkinci Ayak */
+(function () { var S = window.I18N && window.I18N.ru; if (!S) return;
+  S["İkinci Ayak"] = "Вторая нога";
+  S["Ayakların"] = "Твои ноги";
+  S["Sağ Ayak"] = "Правая нога";
+  S["Sol Ayak"] = "Левая нога";
+  S["İki Ayak"] = "Обе ноги";
+  S["Sağ"] = "Правая";
+  S["Sol"] = "Левая";
+  S["İki"] = "Обе";
+  S["Ana ayak"] = "Основная нога";
+  S["İkinci ayak"] = "Вторая нога";
+  S["Çalışılıyor"] = "Тренируется";
+  S["İkinci ayak · çalışılabilir"] = "Вторая нога · доступна";
+  S["İkinci ayak edinildi."] = "Вторая нога освоена.";
+  S["Artık iki ayağını da kullanırsın."] = "Теперь ты играешь обеими ногами.";
+  S["İkinci ayak 300 bar. Bar dolunca iki ayağını da kullanırsın."] = "Вторая нога — 300 делений. Когда шкала заполнится, ты играешь обеими ногами.";
+  S["İki ayaklı olursun."] = "Ты начинаешь играть обеими ногами.";
+  S["Diğer oyuncular profilinde ve kartında iki ayaklı olduğunu görür."] = "Другие игроки видят в твоём профиле и карточке, что ты играешь обеими ногами.";
+  S["Piyasa değerini ve maaşını artırır."] = "Повышает твою рыночную стоимость и зарплату.";
+  S["Antrenman, mevki ve yetenek çalışmasıyla aynı anda çalışabilirsin, enerji harcamaz."] = "Можно совмещать с тренировкой, позицией и особым навыком, энергия не тратится.";
+  S["Ana ayağın değişmez."] = "Твоя основная нога не меняется.";
+})();

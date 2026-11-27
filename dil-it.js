@@ -9389,3 +9389,28 @@ window.I18N_PATTERNS.it.unshift(
   S["10 günü bitirince tamamlama ödülünü al: 10 elmas + Sürpriz Çanta."] = "Completa tutti i 10 giorni per il premio finale: 10 diamanti + Borsa sorpresa.";
   S["10 günü bitirince tamamlama ödülünü al: 25 elmas + Sürpriz Çanta."] = "Completa tutti i 10 giorni per il premio finale: 25 diamanti + Borsa sorpresa.";
 })();
+
+
+/* 1134 — Kullandığı ayak · Gelişim › İkinci Ayak */
+(function () { var S = window.I18N && window.I18N.it; if (!S) return;
+  S["İkinci Ayak"] = "Secondo piede";
+  S["Ayakların"] = "I tuoi piedi";
+  S["Sağ Ayak"] = "Piede destro";
+  S["Sol Ayak"] = "Piede sinistro";
+  S["İki Ayak"] = "Ambidestro";
+  S["Sağ"] = "Destro";
+  S["Sol"] = "Mancino";
+  S["İki"] = "Entrambi";
+  S["Ana ayak"] = "Piede principale";
+  S["İkinci ayak"] = "Secondo piede";
+  S["Çalışılıyor"] = "In allenamento";
+  S["İkinci ayak · çalışılabilir"] = "Secondo piede · disponibile";
+  S["İkinci ayak edinildi."] = "Secondo piede sbloccato.";
+  S["Artık iki ayağını da kullanırsın."] = "Ora usi entrambi i piedi.";
+  S["İkinci ayak 300 bar. Bar dolunca iki ayağını da kullanırsın."] = "Il secondo piede richiede 300 barre. Quando la barra è piena, usi entrambi i piedi.";
+  S["İki ayaklı olursun."] = "Diventi ambidestro.";
+  S["Diğer oyuncular profilinde ve kartında iki ayaklı olduğunu görür."] = "Gli altri giocatori vedono nel tuo profilo e nella tua carta che sei ambidestro.";
+  S["Piyasa değerini ve maaşını artırır."] = "Aumenta il tuo valore di mercato e il tuo stipendio.";
+  S["Antrenman, mevki ve yetenek çalışmasıyla aynı anda çalışabilirsin, enerji harcamaz."] = "Puoi farlo insieme all’allenamento, al ruolo e all’abilità speciale; non consuma energia.";
+  S["Ana ayağın değişmez."] = "Il tuo piede principale non cambia.";
+})();

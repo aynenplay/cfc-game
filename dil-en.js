@@ -9819,3 +9819,28 @@ window.I18N_PATTERNS.en.unshift(
   S["10 günü bitirince tamamlama ödülünü al: 10 elmas + Sürpriz Çanta."] = "Finish all 10 days to claim the completion reward: 10 diamonds + Surprise Bag.";
   S["10 günü bitirince tamamlama ödülünü al: 25 elmas + Sürpriz Çanta."] = "Finish all 10 days to claim the completion reward: 25 diamonds + Surprise Bag.";
 })();
+
+
+/* 1134 — Kullandığı ayak · Gelişim › İkinci Ayak */
+(function () { var S = window.I18N && window.I18N.en; if (!S) return;
+  S["İkinci Ayak"] = "Second Foot";
+  S["Ayakların"] = "Your feet";
+  S["Sağ Ayak"] = "Right Foot";
+  S["Sol Ayak"] = "Left Foot";
+  S["İki Ayak"] = "Two-footed";
+  S["Sağ"] = "Right";
+  S["Sol"] = "Left";
+  S["İki"] = "Both";
+  S["Ana ayak"] = "Main foot";
+  S["İkinci ayak"] = "Second foot";
+  S["Çalışılıyor"] = "In training";
+  S["İkinci ayak · çalışılabilir"] = "Second foot · available";
+  S["İkinci ayak edinildi."] = "Second foot unlocked.";
+  S["Artık iki ayağını da kullanırsın."] = "You now use both feet.";
+  S["İkinci ayak 300 bar. Bar dolunca iki ayağını da kullanırsın."] = "The second foot takes 300 bars. When the bar is full, you use both feet.";
+  S["İki ayaklı olursun."] = "You become two-footed.";
+  S["Diğer oyuncular profilinde ve kartında iki ayaklı olduğunu görür."] = "Other players see on your profile and card that you're two-footed.";
+  S["Piyasa değerini ve maaşını artırır."] = "Raises your market value and salary.";
+  S["Antrenman, mevki ve yetenek çalışmasıyla aynı anda çalışabilirsin, enerji harcamaz."] = "You can train it alongside Training, Position Training and Special Ability; it uses no energy.";
+  S["Ana ayağın değişmez."] = "Your main foot doesn't change.";
+})();
